@@ -465,6 +465,19 @@ html,
   box-shadow: none;
   color: var(--th-nav-text);
 }
+/* Yellow on dark, ink on light: the marketplace's primary action. */
+.ag-btn--contrast {
+  background: var(--grad-btn-dark);
+  border-color: var(--carbon-border);
+  box-shadow: var(--shadow-btn-dark);
+  color: var(--text-on-dark);
+}
+[data-theme="dark"] .ag-btn--contrast {
+  background: var(--grad-btn-primary);
+  border-color: var(--yellow-border);
+  box-shadow: var(--shadow-btn-primary);
+  color: var(--ink-900);
+}
 .ag-btn--block {
   width: 100%;
 }
@@ -1140,4 +1153,17 @@ html,
   .ag-v2-grid2 > div { height: 480px !important; }
   .ag-v2-conn { grid-template-columns: 1fr !important; }
   .ag-v2-conn > div { border-left: none !important; }
+}
+
+/* Visually hidden, still read by screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

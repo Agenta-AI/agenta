@@ -7,6 +7,7 @@ from oss.src.core.agent_templates.dtos import (
     InternalTemplateSource,
     TemplateLoadCommand,
 )
+from oss.src.core.agent_templates.models import AgentTemplateEntry
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 
 
@@ -84,3 +85,18 @@ class TemplateLoadRequest(_StrictRequestModel):
                 "request_key": request_key,
             }
         )
+
+
+class TemplatesQueryRequest(_StrictRequestModel):
+    search: str | None = Field(default=None, max_length=200)
+    category: str | None = Field(default=None, max_length=64)
+    author_id: str | None = Field(default=None, max_length=64)
+
+
+class TemplatesResponse(BaseModel):
+    count: int
+    templates: list[AgentTemplateEntry]
+
+
+class TemplateResponse(BaseModel):
+    template: AgentTemplateEntry

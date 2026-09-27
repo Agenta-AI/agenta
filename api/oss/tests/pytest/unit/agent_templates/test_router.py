@@ -1,4 +1,5 @@
 from copy import deepcopy
+from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -8,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 
 from oss.src.apis.fastapi.agent_templates import router as router_module
 from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
+from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.agent_templates.dtos import TemplateLoadResult
 from oss.src.core.agent_templates.exceptions import (
@@ -19,6 +21,13 @@ from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
 
 
+CATALOG = AgentTemplateCatalog(
+    catalog_path=Path(__file__).resolve().parents[4]
+    / "src"
+    / "resources"
+    / "agent_templates"
+    / "catalog.json"
+)
 PROJECT_ID = uuid4()
 USER_ID = uuid4()
 
@@ -55,7 +64,7 @@ def _result(*, replayed=False):
     )
 
 
-def _app(loader):
+def _app(loader, catalog=CATALOG):
     app = FastAPI()
 
     @app.middleware("http")
@@ -65,7 +74,7 @@ def _app(loader):
         return await call_next(request)
 
     app.include_router(
-        AgentTemplatesRouter(loader=loader).router,
+        AgentTemplatesRouter(loader=loader, catalog=catalog).router,
         prefix="/api/agent-templates",
     )
     return app
@@ -312,4 +321,118 @@ async def test_internal_path_error_is_not_exposed(monkeypatch):
     assert "token-value" not in response.text
     assert (
         response.json()["message"] == "The template contains an invalid workspace path."
+    )
+
+
+async def _request(app, method, path, **kwargs):
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.request(
+            method, f"/api/agent-templates{path}?project_id={PROJECT_ID}", **kwargs
+        )
+
+
+@pytest.mark.asyncio
+async def test_query_returns_every_listed_template_in_catalog_order(monkeypatch):
+    access = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+
+    response = await _request(_app(AsyncMock()), "POST", "/query", json={})
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["count"] == len(body["templates"]) == 28
+    assert [item["key"] for item in body["templates"]] == [
+        entry.key for entry in CATALOG.entries()
+    ]
+    first = body["templates"][0]
+    assert first["author"]["id"] == "agenta"
+    assert first["source"] == {"kind": "internal", "key": "pr-reviewer"}
+    assert first["tools_summary"] == "3 GitHub tools"
+    assert access.await_args.kwargs["permission"] == Permission.VIEW_WORKFLOWS
+
+
+@pytest.mark.asyncio
+async def test_query_accepts_an_empty_body_and_filters(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    app = _app(AsyncMock())
+
+    empty = await _request(app, "POST", "/query")
+    filtered = await _request(
+        app, "POST", "/query", json={"category": "Support", "search": "zendesk"}
+    )
+
+    assert empty.status_code == 200
+    assert empty.json()["count"] == 28
+    assert [item["key"] for item in filtered.json()["templates"]] == [
+        "support-reply-drafter"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_query_rejects_unknown_filters(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _request(_app(AsyncMock()), "POST", "/query", json={"page": 2})
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_catalog_reads_require_view_permission(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=False)
+    )
+    app = _app(AsyncMock())
+
+    assert (await _request(app, "POST", "/query", json={})).status_code == 403
+    assert (await _request(app, "GET", "/pr-reviewer")).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_fetch_returns_detail_and_selected_version(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    app = _app(AsyncMock())
+
+    latest = await _request(app, "GET", "/pr-reviewer")
+    pinned = await _request(app, "GET", "/pr-reviewer", params={"version": "1.0.0"})
+
+    assert latest.status_code == 200, latest.text
+    assert latest.json()["template"]["version"] == "1.0.0"
+    assert latest.json()["template"]["connections"][0]["alternatives"] == ["gitlab"]
+    assert pinned.json() == latest.json()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "params"),
+    [
+        ("/missing-template", None),
+        ("/pr-reviewer", {"version": "9.9.9"}),
+        ("/outbound-prospecting", None),
+    ],
+)
+async def test_fetch_unknown_key_or_version_is_404(monkeypatch, path, params):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _request(_app(AsyncMock()), "GET", path, params=params)
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "template_source_not_found"
+
+
+def test_openapi_registers_query_before_detail():
+    paths = list(_app(AsyncMock()).openapi()["paths"])
+
+    assert paths.index("/api/agent-templates/query") < paths.index(
+        "/api/agent-templates/{key}"
     )

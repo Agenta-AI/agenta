@@ -1,14 +1,12 @@
 import {useEffect, useState} from "react"
 
-import {
-    AGENT_TEMPLATES,
-    templateBuilderMessage,
-    type AgentStarterTemplate,
-} from "@agenta/entities/workflow"
+import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 import {ArrowLeft, ArrowRight} from "@phosphor-icons/react"
 import {Typography} from "antd"
 
+import TemplateCatalogStatus from "@/oss/components/TemplateStrip/components/TemplateCatalogStatus"
+import {useAgentTemplateCatalog} from "@/oss/components/TemplateStrip/hooks/useAgentTemplateCatalog"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {useOnboardingContext} from "./OnboardingContext"
@@ -25,6 +23,7 @@ import {useOnboardingContext} from "./OnboardingContext"
 const OnboardingConfigPanel = () => {
     const {commit, committing, browseAll, setBrowseAll} = useOnboardingContext()
     const posthog = usePostHogAg()
+    const {templates, status} = useAgentTemplateCatalog()
     // Fade IN on mount, and OUT while committing (so the templates are gone before MainLayout swaps in
     // the real config panel) — softens both ends of the left-panel handoff instead of hard cuts.
     const [mounted, setMounted] = useState(false)
@@ -54,30 +53,34 @@ const OnboardingConfigPanel = () => {
                 Optional · Start from a template
             </Typography.Text>
 
-            <div className="flex flex-col gap-0.5">
-                {/* This list doesn't scroll, so cap it well short of the full 28-template registry. */}
-                {AGENT_TEMPLATES.slice(0, 6).map((template) => (
-                    <button
-                        key={template.key}
-                        type="button"
-                        disabled={committing}
-                        onClick={() => selectTemplate(template)}
-                        className="box-border flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-0 bg-transparent px-2 py-2 text-left transition-colors hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--ag-colorFillSecondary)] text-xs font-semibold text-[var(--ag-colorTextSecondary)]">
-                            {template.initials}
-                        </span>
-                        <span className="flex min-w-0 flex-col">
-                            <span className="truncate text-xs font-medium text-[var(--ag-colorTextSecondary)]">
-                                {template.name}
+            {status !== "success" ? (
+                <TemplateCatalogStatus rows={4} className="px-1" />
+            ) : (
+                <div className="flex flex-col gap-0.5">
+                    {/* This list doesn't scroll, so cap it well short of the full catalog. */}
+                    {templates.slice(0, 6).map((template) => (
+                        <button
+                            key={template.key}
+                            type="button"
+                            disabled={committing}
+                            onClick={() => selectTemplate(template)}
+                            className="box-border flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-0 bg-transparent px-2 py-2 text-left transition-colors hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--ag-colorFillSecondary)] text-xs font-semibold text-[var(--ag-colorTextSecondary)]">
+                                {template.initials}
                             </span>
-                            <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
-                                {template.description}
+                            <span className="flex min-w-0 flex-col">
+                                <span className="truncate text-xs font-medium text-[var(--ag-colorTextSecondary)]">
+                                    {template.name}
+                                </span>
+                                <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
+                                    {template.description}
+                                </span>
                             </span>
-                        </span>
-                    </button>
-                ))}
-            </div>
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* Toggles the full in-place gallery in the right panel (no navigation away). */}
             <button

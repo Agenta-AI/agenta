@@ -253,6 +253,7 @@ from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
+from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
 from oss.src.core.agent_templates.compiler import TemplateCompiler
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
 from oss.src.core.agent_templates.parser import TemplatePackageParser
@@ -1484,16 +1485,17 @@ session_starts_service = SessionStartsService(
     workflows_service=workflows_service,
     lock_engine=_lock_engine,
 )
+agent_template_catalog_path = (
+    Path(__file__).resolve().parents[1]
+    / "oss"
+    / "src"
+    / "resources"
+    / "agent_templates"
+    / "catalog.json"
+)
 agent_template_loader = AgentTemplateLoader(
     source_resolver=InternalTemplateSourceResolver(
-        catalog_path=(
-            Path(__file__).resolve().parents[1]
-            / "oss"
-            / "src"
-            / "resources"
-            / "agent_templates"
-            / "catalog.json"
-        )
+        catalog_path=agent_template_catalog_path
     ),
     package_parser=TemplatePackageParser(),
     binding_resolver=TemplateBindingResolver(
@@ -1507,7 +1509,10 @@ agent_template_loader = AgentTemplateLoader(
     session_starts_service=session_starts_service,
     attachments_service=session_attachments_service,
 )
-agent_templates = AgentTemplatesRouter(loader=agent_template_loader)
+agent_templates = AgentTemplatesRouter(
+    loader=agent_template_loader,
+    catalog=AgentTemplateCatalog(catalog_path=agent_template_catalog_path),
+)
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation
 )

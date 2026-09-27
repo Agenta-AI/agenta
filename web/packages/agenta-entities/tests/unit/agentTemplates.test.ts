@@ -1,16 +1,38 @@
 import {describe, expect, it} from "vitest"
 
 import {
-    AGENT_TEMPLATES,
+    agentTemplateByKey,
+    categoryFromSlug,
     connectionNeedLabel,
     templateConnections,
     templatePrimaryProvider,
     templateProviderSlugs,
     PROVIDERS,
     TEMPLATE_CATEGORY_ORDER,
+    templateCategories,
 } from "../../src/workflow/agentTemplates"
 
-describe("AGENT_TEMPLATES", () => {
+import {FIXTURE_TEMPLATES, FROZEN_GALLERY} from "./agentTemplateFixtures"
+
+const AGENT_TEMPLATES = FIXTURE_TEMPLATES
+
+describe("catalog API parity", () => {
+    it("maps every API entry to the pre-migration card, in order", () => {
+        expect(FIXTURE_TEMPLATES).toEqual(FROZEN_GALLERY)
+    })
+
+    it("keeps deep-link category and key lookups on the fetched list", () => {
+        expect(templateCategories(FIXTURE_TEMPLATES)).toEqual([...TEMPLATE_CATEGORY_ORDER])
+        expect(templateCategories([])).toEqual([])
+        expect(categoryFromSlug("engineering", FIXTURE_TEMPLATES)).toBe("Engineering")
+        expect(categoryFromSlug("engineering", [])).toBe("All")
+        expect(agentTemplateByKey(FIXTURE_TEMPLATES, "pr-reviewer")?.name).toBe("PR reviewer")
+        expect(agentTemplateByKey(FIXTURE_TEMPLATES, "missing")).toBeUndefined()
+        expect(agentTemplateByKey(FIXTURE_TEMPLATES, undefined)).toBeUndefined()
+    })
+})
+
+describe("catalog templates", () => {
     it("has exactly 28 entries", () => {
         expect(AGENT_TEMPLATES).toHaveLength(28)
     })

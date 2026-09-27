@@ -7,11 +7,14 @@ from oss.src.core.agent_templates.dtos import (
     ResolvedTemplateSource,
     TemplateSourcePin,
 )
+from pydantic import ValidationError
+
 from oss.src.core.agent_templates.exceptions import (
     TemplateSourceDigestMismatch,
     TemplateSourceInvalid,
     TemplateSourceNotFound,
 )
+from oss.src.core.agent_templates.models import CatalogDocument
 
 _MAX_FILES = 256
 _MAX_TOTAL_BYTES = 4 * 1024 * 1024
@@ -130,24 +133,45 @@ def package_digest(root: Path) -> str:
     return f"sha256:{digest.hexdigest()}"
 
 
+def read_catalog_document(catalog_path: Path) -> CatalogDocument:
+    try:
+        value = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise _invalid(
+            "template_source_catalog_invalid",
+            "The internal template catalog is invalid.",
+        ) from exc
+    if not isinstance(value, dict):
+        raise _invalid(
+            "template_source_catalog_invalid",
+            "The internal template catalog must be an object.",
+        )
+    if value.get("schema_version") != 1 or not isinstance(value.get("templates"), dict):
+        raise _invalid(
+            "template_catalog_format_unsupported",
+            "The template catalog format is not supported. Wrap the entries as "
+            '{"schema_version": 1, "templates": {...}}.',
+            supported_schema_versions=[1],
+        )
+    try:
+        return CatalogDocument.model_validate(value)
+    except ValidationError as exc:
+        raise _invalid(
+            "template_source_catalog_invalid",
+            "The internal template catalog does not match schema version 1.",
+            errors=[
+                {
+                    "field": ".".join(str(part) for part in error["loc"]),
+                    "message": error["msg"],
+                }
+                for error in exc.errors()
+            ],
+        ) from exc
+
+
 class InternalTemplateSourceResolver:
     def __init__(self, *, catalog_path: Path) -> None:
         self._catalog_path = catalog_path
-
-    def _read_catalog(self) -> dict:
-        try:
-            value = json.loads(self._catalog_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise _invalid(
-                "template_source_catalog_invalid",
-                "The internal template catalog is invalid.",
-            ) from exc
-        if not isinstance(value, dict):
-            raise _invalid(
-                "template_source_catalog_invalid",
-                "The internal template catalog must be an object.",
-            )
-        return value
 
     async def resolve(
         self,
@@ -155,22 +179,14 @@ class InternalTemplateSourceResolver:
         source: InternalTemplateSource,
         pin: TemplateSourcePin | None = None,
     ) -> ResolvedTemplateSource:
-        catalog = self._read_catalog()
-        record = catalog.get(source.key)
-        if not isinstance(record, dict):
+        catalog = read_catalog_document(self._catalog_path)
+        record = catalog.templates.get(source.key)
+        if record is None:
             raise TemplateSourceNotFound(source.key)
 
-        version = pin.version if pin else record.get("latest")
-        versions = record.get("versions")
-        if not isinstance(version, str) or not isinstance(versions, dict):
-            raise _invalid(
-                "template_source_catalog_invalid",
-                "The internal template catalog entry is invalid.",
-                key=source.key,
-            )
-
-        relative = versions.get(version)
-        if not isinstance(relative, str):
+        version = pin.version if pin else record.latest
+        relative = record.versions.get(version)
+        if relative is None:
             raise TemplateSourceNotFound(f"{source.key}@{version}")
 
         root = confined_child(self._catalog_path.parent, relative)

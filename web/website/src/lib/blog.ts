@@ -41,11 +41,11 @@ export function byDateDesc(a: Post, b: Post): number {
 }
 
 // Social platform → the generic brand icon shipped under /public/icons
-// (mapping from site.json footer socials). Unknown platforms fall back to x.
+// (the icons the site footer uses). Unknown platforms fall back to x.
 const SOCIAL_ICON: Record<string, string> = {
   x: "/icons/social-1.svg",
   twitter: "/icons/social-1.svg",
-  linkedin: "/icons/social-2.svg",
+  linkedin: "/icons/social-linkedin.svg",
   github: "/icons/social-3.svg",
   slack: "/icons/social-4.svg",
   youtube: "/icons/social-5.svg",
