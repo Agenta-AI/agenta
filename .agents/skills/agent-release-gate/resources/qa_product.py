@@ -379,12 +379,18 @@ CELLS = {
 # `echo "QA-BASH-$((6*7+1))"` — and the model simply computed 43 and reported it WITHOUT running
 # bash, so a DENIED tool call still produced a "passing" reply. The wire said denied; the prose
 # lied. Lesson, and the rule for this whole driver: assert on FRAMES, and only ever use a token
-# the model cannot compute. The container hostname is random per container.
+# the model cannot compute. The sandbox hostname is random per sandbox.
 BASH_PROMPT = (
     'Use the bash tool to run exactly: echo "QA-BASH-$(hostname)-$(uname -m)" '
     "and reply with only its stdout."
 )
-BASH_TOKEN_RE = re.compile(r"QA-BASH-[0-9a-f]{6,}-\w+")
+# The hostname shape depends on where the sandbox runs: a Docker container id is hex, but a
+# Kubernetes pod name carries letters beyond hex and dashes ("agenta-runner-7bccbff75-g9lmw").
+# An older hex-only pattern failed the journey on every Kubernetes stage even though the tool
+# had run and its output reached the reply. Accept any hostname, and keep the minimum length,
+# which is what stops a model from passing with a short value it invented instead of running
+# the tool.
+BASH_TOKEN_RE = re.compile(r"QA-BASH-[A-Za-z0-9][A-Za-z0-9.-]{5,}-\w+")
 
 # For the APPROVAL journeys the command must MUTATE. Claude Code classifies bash commands and
 # auto-approves read-only ones (a bare `echo`) no matter what the permission policy says, so
