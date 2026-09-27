@@ -3,7 +3,7 @@
   "id": "agenta",
   "name": "Agenta team",
   "bio": "Starter agents built and maintained by the Agenta team.",
-  "avatar_url": null,
+  "avatar_url": "https://agenta.ai/android-chrome-512x512.png",
   "links": [
     {
       "kind": "website",
@@ -14,6 +14,16 @@
       "kind": "github",
       "url": "https://github.com/Agenta-AI/agenta",
       "label": "GitHub"
+    },
+    {
+      "kind": "linkedin",
+      "url": "https://www.linkedin.com/company/agenta-ai",
+      "label": "LinkedIn"
+    },
+    {
+      "kind": "x",
+      "url": "https://x.com/agenta_ai",
+      "label": "X"
     }
   ]
 }
