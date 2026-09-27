@@ -1,7 +1,8 @@
 import json
 import stat
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Iterator
 
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -45,6 +46,19 @@ def _package_error(
     return TemplatePackageInvalid(code, message, details=details or None)
 
 
+@contextmanager
+def _located(*, path: str | None = None, field: str | None = None) -> Iterator[None]:
+    """Name the package file and manifest field an error came from, if it has none yet."""
+    try:
+        yield
+    except TemplatePackageInvalid as exc:
+        if path is not None:
+            exc.details.setdefault("path", path)
+        if field is not None:
+            exc.details.setdefault("field", field)
+        raise
+
+
 def _read_json(path: Path, *, code: str) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -60,12 +74,11 @@ def _validate_schema(value: dict, schema_path: Path, *, code: str) -> None:
     errors = sorted(Draft202012Validator(schema).iter_errors(value), key=str)
     if errors:
         first = errors[0]
-        location = "/".join(str(part) for part in first.absolute_path)
+        location = ".".join(str(part) for part in first.absolute_path)
         raise _package_error(
             code,
-            "The template package does not match its schema.",
-            path=location,
-            validation_message=first.message,
+            f"The template package does not match its schema: {first.message}",
+            **({"field": location} if location else {}),
         )
 
 
@@ -101,7 +114,13 @@ def _resolve_file(root: Path, value: str) -> Path:
         resolved.relative_to(root.resolve(strict=True))
     except TemplatePackageInvalid:
         raise
-    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+    except FileNotFoundError as exc:
+        raise _package_error(
+            "file_not_found",
+            f"The declared file {value} does not exist.",
+            missing=value,
+        ) from exc
+    except (RuntimeError, ValueError) as exc:
         raise _package_error(
             "unsafe_package_path", "A declared package file is missing or unsafe."
         ) from exc
@@ -144,7 +163,7 @@ def _workspace_path(value: str) -> str:
         raise _package_error(
             "reserved_workspace_path",
             "The template cannot write an automatic startup or configuration path.",
-            path=value,
+            workspace_path=value,
         )
     return path.as_posix()
 
@@ -163,7 +182,7 @@ def _validate_package_tree(root: Path) -> None:
             raise _package_error(
                 "executable_package_file",
                 "Template package files cannot be executable.",
-                source=path.relative_to(root).as_posix(),
+                path=path.relative_to(root).as_posix(),
             )
 
 
@@ -213,83 +232,109 @@ class TemplatePackageParser:
     def parse(self, resolved: ResolvedTemplateSource) -> ParsedTemplatePackage:
         root = resolved.root
         _validate_package_tree(root)
-        plugin = _read_json(root / "plugin.json", code="plugin_manifest_invalid")
-        _validate_schema(
-            plugin,
-            self._schemas_path / "plugin.schema.json",
-            code="plugin_schema_invalid",
-        )
-
-        if plugin.get("version") != resolved.version:
-            raise _package_error(
-                "package_version_mismatch",
-                "The package version does not match the catalog version.",
+        with _located(path="plugin.json"):
+            plugin = _read_json(root / "plugin.json", code="plugin_manifest_invalid")
+            _validate_schema(
+                plugin,
+                self._schemas_path / "plugin.schema.json",
+                code="plugin_schema_invalid",
             )
 
-        extensions = plugin.get("extensions")
-        extension_value = (
-            extensions.get("ai.agenta") if isinstance(extensions, dict) else None
-        )
-        try:
-            pointer = _ExtensionPointer.model_validate(extension_value)
-        except ValidationError as exc:
-            raise _package_error(
-                "extension_manifest_missing",
-                "plugin.json must declare the ai.agenta manifest.",
-            ) from exc
+            if plugin.get("version") != resolved.version:
+                raise _package_error(
+                    "package_version_mismatch",
+                    "The package version does not match the catalog version.",
+                    field="version",
+                )
 
-        extension_path = _resolve_file(root, pointer.manifest)
-        extension = _read_json(extension_path, code="extension_manifest_invalid")
-        _reject_unsupported_shape(extension)
-        _validate_schema(
-            extension,
-            self._schemas_path / "ai.agenta-agents.schema.json",
-            code="extension_schema_invalid",
-        )
-        try:
-            declaration = AgentaExtensionManifest.model_validate(extension)
-        except ValidationError as exc:
-            raise _package_error(
-                "extension_schema_invalid", "The Agenta extension is invalid."
-            ) from exc
+            extensions = plugin.get("extensions")
+            extension_value = (
+                extensions.get("ai.agenta") if isinstance(extensions, dict) else None
+            )
+            try:
+                pointer = _ExtensionPointer.model_validate(extension_value)
+            except ValidationError as exc:
+                raise _package_error(
+                    "extension_manifest_missing",
+                    "plugin.json must declare the ai.agenta manifest.",
+                    field="extensions.ai.agenta.manifest",
+                ) from exc
 
-        if len(declaration.agents) != 1:
-            raise _package_error(
-                "single_agent_required", "This loader requires exactly one agent."
-            )
-        agent_key, agent = next(iter(declaration.agents.items()))
-        if declaration.entry != agent_key:
-            raise _package_error(
-                "agent_entry_invalid", "The package entry must name its sole agent."
-            )
+            with _located(field="extensions.ai.agenta.manifest"):
+                extension_path = _resolve_file(root, pointer.manifest)
+        manifest = extension_path.relative_to(root.resolve(strict=True)).as_posix()
 
-        connection_keys = [requirement.key for requirement in agent.connections]
-        if len(connection_keys) != len(set(connection_keys)):
-            raise _package_error(
-                "duplicate_connection_key",
-                "Connection requirement keys must be unique.",
+        with _located(path=manifest):
+            extension = _read_json(extension_path, code="extension_manifest_invalid")
+            _reject_unsupported_shape(extension)
+            _validate_schema(
+                extension,
+                self._schemas_path / "ai.agenta-agents.schema.json",
+                code="extension_schema_invalid",
             )
-        automation_keys = [recipe.key for recipe in agent.automations]
-        if len(automation_keys) != len(set(automation_keys)):
-            raise _package_error(
-                "duplicate_automation_key", "Automation recipe keys must be unique."
-            )
+            try:
+                declaration = AgentaExtensionManifest.model_validate(extension)
+            except ValidationError as exc:
+                raise _package_error(
+                    "extension_schema_invalid", "The Agenta extension is invalid."
+                ) from exc
+
+            if len(declaration.agents) != 1:
+                raise _package_error(
+                    "single_agent_required",
+                    "This loader requires exactly one agent.",
+                    field="agents",
+                )
+            agent_key, agent = next(iter(declaration.agents.items()))
+            field = f"agents.{agent_key}"
+            if declaration.entry != agent_key:
+                raise _package_error(
+                    "agent_entry_invalid",
+                    "The package entry must name its sole agent.",
+                    field="entry",
+                )
+
+            connection_keys = [requirement.key for requirement in agent.connections]
+            if len(connection_keys) != len(set(connection_keys)):
+                raise _package_error(
+                    "duplicate_connection_key",
+                    "Connection requirement keys must be unique.",
+                    field=f"{field}.connections",
+                )
+            automation_keys = [recipe.key for recipe in agent.automations]
+            if len(automation_keys) != len(set(automation_keys)):
+                raise _package_error(
+                    "duplicate_automation_key",
+                    "Automation recipe keys must be unique.",
+                    field=f"{field}.automations",
+                )
 
         mcp_servers = self._parse_mcp(root)
-        for requirement in agent.connections:
-            for option in requirement.options:
-                if (
-                    isinstance(option, MCPConnectionOption)
-                    and option.server not in mcp_servers
-                ):
-                    raise _package_error(
-                        "missing_mcp_server",
-                        "A connection option names an undeclared MCP server.",
-                        server=option.server,
-                    )
+        with _located(path=manifest, field=f"{field}.connections"):
+            for requirement in agent.connections:
+                for option in requirement.options:
+                    if (
+                        isinstance(option, MCPConnectionOption)
+                        and option.server not in mcp_servers
+                    ):
+                        raise _package_error(
+                            "missing_mcp_server",
+                            "A connection option names an undeclared MCP server.",
+                            server=option.server,
+                        )
 
-        skills = [self._parse_skill(root, name) for name in sorted(agent.skills)]
-        workspace = self._parse_workspace(root, agent.workspace.entries)
+        skills = []
+        for name in sorted(agent.skills):
+            with _located(path=f"skills/{name}", field=f"{field}.skills"):
+                skills.append(self._parse_skill(root, name))
+        with _located(path=manifest, field=f"{field}.workspace.entries"):
+            workspace = self._parse_workspace(root, agent.workspace.entries)
+        with _located(path=manifest, field=f"{field}.instructions"):
+            instructions = _read_text(root, agent.instructions)
+        setup = None
+        if agent.setup:
+            with _located(path=manifest, field=f"{field}.setup"):
+                setup = _read_text(root, agent.setup)
 
         return ParsedTemplatePackage(
             source=resolved.source,
@@ -299,8 +344,8 @@ class TemplatePackageParser:
                 key=agent_key,
                 name=agent.name,
                 description=agent.description,
-                instructions=_read_text(root, agent.instructions),
-                setup=_read_text(root, agent.setup) if agent.setup else None,
+                instructions=instructions,
+                setup=setup,
                 connections=agent.connections,
                 automations=agent.automations,
             ),
@@ -313,6 +358,10 @@ class TemplatePackageParser:
         path = root / "mcp.json"
         if not path.exists():
             return {}
+        with _located(path="mcp.json"):
+            return self._read_mcp(path)
+
+    def _read_mcp(self, path: Path) -> dict[str, ParsedMCPServer]:
         if path.is_symlink():
             raise _package_error(
                 "unsafe_package_path", "Package paths cannot use symbolic links."
@@ -380,7 +429,7 @@ class TemplatePackageParser:
                 raise _package_error(
                     "duplicate_workspace_path",
                     "Workspace destinations must be unique.",
-                    path=destination,
+                    workspace_path=destination,
                 )
             destinations.add(destination)
             if entry.type == "directory":

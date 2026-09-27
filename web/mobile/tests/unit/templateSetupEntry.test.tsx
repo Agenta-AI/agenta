@@ -16,11 +16,17 @@ vi.mock("@agenta/chat/state", async () => {
     return {markSessionFresh: vi.fn(), revealConfigPaneAtom: atom(null, () => undefined)}
 })
 vi.mock("@agenta/home-ui", () => ({useCreateAgent: () => createAgent}))
-vi.mock("@agenta/entities/workflow", () => ({
-    agentTemplateByKey: () => template,
-    appendSetupPreamble: (text: string) => text,
-    invalidateWorkflowsListCache: vi.fn(),
-}))
+vi.mock("@agenta/entities/workflow", async () => {
+    const {atom} = await import("jotai")
+    return {
+        // The loaded catalogue; lookups resolve against the list the hook read from it.
+        agentTemplatesAtom: atom([template]),
+        agentTemplateByKey: (templates: {key: string}[], key: string) =>
+            templates.find((item) => item.key === key),
+        appendSetupPreamble: (text: string) => text,
+        invalidateWorkflowsListCache: vi.fn(),
+    }
+})
 
 import {templateSetupDraftAtom} from "@/features/agents/templateSetupDraft"
 import {useNewAgentAction} from "@/features/agents/useNewAgentAction"
@@ -79,6 +85,20 @@ describe("template setup before the first run", () => {
             expect.objectContaining({template, entityId: "local-draft", setup}),
         )
         expect(push).toHaveBeenCalledWith(`${base}/sessions/session?agent=agent`)
+    })
+    it("never creates a blank agent for a template key the catalogue cannot resolve", async () => {
+        let handedOff = true
+        await act(async () => {
+            handedOff = await actions.createFromPrompt({
+                text: "Review",
+                templateKey: "not-in-catalogue",
+                entityId: "local-draft",
+                setup: {connectedSlugs: [], accounts: []},
+            })
+        })
+        expect(handedOff).toBe(false)
+        expect(createAgent).not.toHaveBeenCalled()
+        expect(actions.error).toBeTruthy()
     })
     it("keeps ordinary free-text creation on its original path", async () => {
         await act(async () => {

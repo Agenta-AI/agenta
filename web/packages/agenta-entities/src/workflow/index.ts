@@ -341,6 +341,13 @@ export {
     abandonAgentTemplateLoad,
     templateConnectionChoices,
     type LoadAgentTemplateFromEphemeralParams,
+    agentTemplatesQueryAtom,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+    agentTemplateLookupAtomFamily,
+    type AgentTemplatesStatus,
+    type AgentTemplateLookup,
     buildCreatePayloadFromEphemeral,
     type EphemeralCreatePayload,
     archiveWorkflowRevisionAtom,
@@ -444,6 +451,11 @@ export {
     type EvaluatorCatalogPresetsResponse,
     /** @deprecated Use EvaluatorCatalogTemplate */
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
+    validateAgentTemplate,
+    type AgentTemplateSource,
+    type AgentTemplateSourcePin,
+    type AgentTemplateValidationIssue,
+    type AgentTemplateValidationResult,
 } from "./api"
 
 // ============================================================================
@@ -486,11 +498,13 @@ export {workflowSnapshotAdapter} from "./snapshotAdapter"
 // ============================================================================
 
 export {
-    AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
     PROVIDERS,
+    SAVE_AS_TEMPLATE_MESSAGE,
+    SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
     TEMPLATE_CATEGORY_ORDER,
     agentTemplateByKey,
+    agentStarterTemplateFromEntry,
     agentTemplateSeed,
     categoryFromSlug,
     categorySlug,
@@ -501,6 +515,7 @@ export {
     templatePrimaryProvider,
     templateProviderSlugs,
     templateToolCount,
+    UNAVAILABLE_TEMPLATE_MESSAGE,
 } from "./agentTemplates"
 export type {
     AgentStarterTemplate,
@@ -526,6 +541,7 @@ export {
     isAccountSatisfied,
     outstandingRequired,
     setupStatus,
+    setupStepNeeded,
 } from "./agentSetup"
 export type {AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
 

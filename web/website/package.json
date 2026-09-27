@@ -7,10 +7,10 @@
   "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
   "scripts": {
     "fetch-fonts": "node scripts/fetch-fonts.mjs",
-    "predev": "node scripts/fetch-fonts.mjs && node scripts/copy-openapi.mjs",
+    "predev": "node scripts/check-template-data.mjs && node scripts/fetch-fonts.mjs && node scripts/copy-openapi.mjs",
     "dev": "astro dev",
     "start": "astro dev",
-    "prebuild": "node scripts/fetch-fonts.mjs && node scripts/copy-openapi.mjs",
+    "prebuild": "node scripts/check-template-data.mjs && node scripts/fetch-fonts.mjs && node scripts/copy-openapi.mjs",
     "lint:ui": "node scripts/check-ui-primitives.mjs",
     "build": "node scripts/check-ui-primitives.mjs && astro build",
     "postbuild": "node scripts/verify-build.mjs",

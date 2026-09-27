@@ -1,0 +1,93 @@
+---
+// A template's example run drawn as a message card (white in both themes).
+interface Props {
+  name: string;
+  example: {
+    prompt: string;
+    steps: string[];
+    reply: string;
+    status?: string | null;
+  };
+}
+const { name, example } = Astro.props;
+---
+
+<div class="ag-tpl-output" role="group" aria-label={`Example run of ${name}`}>
+  <div class="ag-tpl-output__head">
+    <span class="ag-tpl-output__mark" aria-hidden="true">a</span>
+    <span class="ag-tpl-output__from">{name}</span>
+    <span class="ag-tpl-output__tag">Example</span>
+    {example.status && <span class="ag-tpl-output__status">{example.status}</span>}
+  </div>
+  <p class="ag-tpl-output__title">{example.prompt}</p>
+  <ol class="ag-tpl-output__lines">
+    {example.steps.map((step) => <li>{step}</li>)}
+  </ol>
+  <p class="ag-tpl-output__reply">{example.reply}</p>
+</div>
+
+<style is:global>
+  /* The example reads as a message card, white in both themes. */
+  .ag-tpl-output {
+    background: var(--paper-0);
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow-ring);
+    color: var(--ink-900);
+  }
+  [data-theme="dark"] .ag-tpl-output {
+    box-shadow: var(--th-menu-shadow);
+  }
+  .ag-tpl-output p {
+    margin: 0;
+  }
+  .ag-tpl-output__head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ag-tpl-output__mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: var(--yellow-400);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 400 17px/1 var(--font-display);
+    color: var(--ink-900);
+  }
+  .ag-tpl-output__from {
+    font: 600 13.5px/18px var(--font-sans);
+  }
+  .ag-tpl-output__tag {
+    font: 600 9px/12px var(--font-sans);
+    color: var(--ink-600);
+    background: var(--paper-150);
+    border-radius: 3px;
+    padding: 1px 4px;
+    text-transform: uppercase;
+  }
+  .ag-tpl-output__status {
+    font: 400 11px/16px var(--font-sans);
+    color: var(--ink-500);
+  }
+  .ag-tpl-output__title {
+    margin-top: 12px !important;
+    font: 600 13.5px/19px var(--font-sans);
+  }
+  .ag-tpl-output__lines {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 5px;
+    font: 400 13px/21px var(--font-sans);
+    color: var(--ink-600);
+  }
+  .ag-tpl-output__reply {
+    margin-top: 10px !important;
+    font: 400 13px/21px var(--font-sans);
+    color: var(--ink-900);
+  }
+</style>
