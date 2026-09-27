@@ -217,11 +217,15 @@ def record_usage(usage: Optional[Dict[str, Any]]) -> None:
     Agenta's per-batch cumulative roll-up cannot bridge the totals onto the workflow span.
     Setting ``gen_ai.usage.*`` here records them directly on that span (the root of its
     batch), so the trace shows the run's tokens and cost. Best-effort.
+
+    ``ag.flags.aggregate_usage`` tells the roll-up that these totals cover the harness spans
+    below, so it does not add them to the children's usage.
     """
     if not usage:
         return
     try:
         span = otel_trace.get_current_span()
+        span.set_attribute("ag.flags.aggregate_usage", True)
         input_tokens = usage.get("input")
         output_tokens = usage.get("output")
         total_tokens = usage.get("total")
