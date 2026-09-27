@@ -137,6 +137,19 @@ describe("author profiles", () => {
     ]);
   });
 
+  it("does not repeat a blog role as the bio", () => {
+    const [jane] = mergeAuthorProfiles(
+      [
+        {
+          id: "jane",
+          data: { name: "Jane Doe", role: "Engineer", avatar: "/a.webp" },
+        },
+      ],
+      [{ ...templateAuthor("jane", "Jane D."), bio: "Engineer" }],
+    );
+    expect(jane!.bio).toBeUndefined();
+  });
+
   it("gives a template-only author a profile with initials", () => {
     const profiles = mergeAuthorProfiles(
       [blogAuthor],

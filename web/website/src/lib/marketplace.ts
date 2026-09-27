@@ -202,7 +202,8 @@ export const mergeAuthorProfiles = (
         : undefined;
     const existing = profiles.get(author.id);
     if (existing) {
-      existing.bio ??= author.bio;
+      // A registry bio that repeats the blog role would print the same line twice.
+      if (author.bio !== existing.role) existing.bio ??= author.bio;
       existing.avatar ??= avatar;
       const known = new Set(existing.links.map((link) => link.url));
       existing.links.push(...links.filter((link) => !known.has(link.url)));
