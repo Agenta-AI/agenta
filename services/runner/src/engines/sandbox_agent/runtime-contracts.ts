@@ -512,6 +512,11 @@ export interface SessionEnvironment {
    */
   approvalGateCount: number;
   /**
+   * The last session-wide running cost total the harness reported (Claude Code's
+   * `total_cost_usd`), so the next turn on this live session can report only its own share.
+   */
+  harnessCostReading?: number;
+  /**
    * How many NON-parkable pauses happened this turn (a client-tool ACP gate or a browser-fulfilled
    * relay/MCP client tool), reset at turn start. Non-zero means the turn mixes an unanswerable
    * client-tool pause into the set, so the whole turn stays on the cold path (only cold can

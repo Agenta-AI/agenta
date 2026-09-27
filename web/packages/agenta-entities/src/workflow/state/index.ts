@@ -99,6 +99,7 @@ export {
     workflowIsEphemeralAtomFamily,
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitUiStateAtomFamily,
+    agentaToolsAccessAtom,
     workflowBuildKitScopeAtomFamily,
     migrateBuildKitStateAtom,
     workflowBuildKitEnabledAtomFamily,

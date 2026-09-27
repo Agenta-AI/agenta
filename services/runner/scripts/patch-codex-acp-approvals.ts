@@ -17,6 +17,7 @@ import { join } from "node:path";
 
 import {
   applyCodexAcpApprovalPatch,
+  applyCodexAcpUsagePatch,
   CODEX_ACP_BUNDLE_PATH,
 } from "../src/engines/sandbox_agent/codex-acp-patch.ts";
 
@@ -32,7 +33,9 @@ function adapterBundlePaths(): string[] {
   ].filter((dir): dir is string => Boolean(dir));
   const seen = new Set<string>();
   for (const dataHome of dataHomes) {
-    seen.add(join(dataHome, "sandbox-agent", ...CODEX_ACP_BUNDLE_PATH.split("/")));
+    seen.add(
+      join(dataHome, "sandbox-agent", ...CODEX_ACP_BUNDLE_PATH.split("/")),
+    );
   }
   return [...seen].filter((path) => existsSync(path));
 }
@@ -56,12 +59,31 @@ for (const bundle of bundles) {
     );
     process.exit(1);
   }
+  let source = readFileSync(bundle, "utf8");
   if (outcome.kind === "already-patched") {
     console.log(`patch-codex-acp-approvals: already on-request in ${bundle}`);
-    continue;
+  } else {
+    source = outcome.source;
+    console.log(
+      `patch-codex-acp-approvals: agent-full-access now sends on-request approvals in ${bundle}`,
+    );
   }
-  writeFileSync(bundle, outcome.source);
-  console.log(
-    `patch-codex-acp-approvals: agent-full-access now sends on-request approvals in ${bundle}`,
-  );
+  const usage = applyCodexAcpUsagePatch(source);
+  if (usage.kind === "anchor-missing") {
+    console.error(
+      `patch-codex-acp-approvals: the per-turn usage anchor is missing in ${bundle}: ` +
+        `${JSON.stringify(usage.find)}. codex-acp changed how it reports token usage: re-verify ` +
+        "and update the `usage` block of src/engines/sandbox_agent/codex-acp-patch.json.",
+    );
+    process.exit(1);
+  }
+  if (usage.kind === "already-patched") {
+    console.log(
+      `patch-codex-acp-approvals: usage already per-turn in ${bundle}`,
+    );
+  } else {
+    source = usage.source;
+    console.log(`patch-codex-acp-approvals: usage now per-turn in ${bundle}`);
+  }
+  writeFileSync(bundle, source);
 }

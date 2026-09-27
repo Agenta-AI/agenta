@@ -18,6 +18,7 @@ export {
     AGENT_BUILD_KIT_WORKFLOW_SLUG,
     fetchAgentBuildKitOverlay,
     type AgentBuildKitOverlay,
+    fetchAgentaToolsAccess,
     // Fetch (single revision by ID)
     fetchWorkflowRevisionById,
     // Inspect (resolve full schema including inputs)

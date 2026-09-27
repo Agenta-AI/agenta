@@ -104,5 +104,7 @@ export const useAgentEntity = (
         agentId: revisionQuery.data?.workflowId ?? boundId,
         entityId: revisionQuery.data?.revisionId ?? null,
         resolving: awaitingHeader || (Boolean(boundId) && revisionQuery.isPending),
+        /** Ask the server for the latest revision now; the cached answer may be 30 s old. */
+        refetchLatest: revisionQuery.refetch,
     }
 }

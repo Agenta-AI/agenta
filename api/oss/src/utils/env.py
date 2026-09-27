@@ -374,6 +374,15 @@ class OTLPConfig(BaseModel):
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
 
+    # Traces with more spans than this keep their per-request totals.
+    totals_max_spans: int = Field(
+        default_factory=lambda: int(
+            os.getenv("AGENTA_OTLP_TOTALS_MAX_SPANS") or 10_000
+        ),
+        ge=1,
+        validate_default=True,
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -1389,6 +1398,11 @@ class LLMConfig(BaseModel):
     togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
     minimax: str = os.getenv("MINIMAX_API_KEY", "")
     xai: str = os.getenv("XAI_API_KEY", "")
+
+    # Price spans from the map bundled with the pinned litellm, never a fetch at import.
+    litellm_local_model_cost_map: bool = _parse_bool_env(
+        "LITELLM_LOCAL_MODEL_COST_MAP", default=True
+    )
 
     model_config = ConfigDict(extra="ignore")
 

@@ -164,11 +164,26 @@ const AnalyticsDashboard = ({
                             </div>
                         }
                         rightSubHeading={
-                            <div className={statTextClass}>
-                                <span className="label">Avg:</span>
-                                <span className="value">
-                                    {data?.total_cost ? formatCurrency(data.avg_cost) : "-"}
-                                </span>
+                            <div className="flex items-center gap-4">
+                                <div className={statTextClass}>
+                                    <span className="label">Avg:</span>
+                                    <span className="value">
+                                        {data?.total_cost ? formatCurrency(data.avg_cost) : "-"}
+                                    </span>
+                                </div>
+                                {/* Traces with no cost on their root add 0 to the total. Show
+                                    how many, so a low total is not read as a cheap period. */}
+                                {(data?.without_cost_count ?? 0) > 0 && (
+                                    <div
+                                        className={statTextClass}
+                                        title="These traces have no cost on their root span. Either they made no priced model call, or their cost could not be added up."
+                                    >
+                                        <span className="label">Without cost:</span>
+                                        <span className="value">
+                                            {formatNumber(data?.without_cost_count ?? 0)}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         }
                     >

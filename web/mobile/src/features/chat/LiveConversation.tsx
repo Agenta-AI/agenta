@@ -36,7 +36,10 @@ import {
     markLocalSessionAcceptedAtom,
     registerLocalSessionAtom,
 } from "@agenta/entities/session"
-import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
+import {
+    invalidateAgentCommittedRevisionCache,
+    workflowBuildKitOverlayReadyAtomFamily,
+} from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
@@ -47,7 +50,7 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -58,6 +61,7 @@ import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {waitForBuildKit} from "./buildKitWait"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
@@ -157,9 +161,11 @@ export const LiveConversation = ({
     const registerLocalSession = useSetAtom(registerLocalSessionAtom)
     const markLocalSessionAccepted = useSetAtom(markLocalSessionAcceptedAtom)
     const dropUnacceptedLocalSession = useSetAtom(dropUnacceptedLocalSessionAtom)
+    const followCommitRef = useRef<(revisionId: string) => void>(() => undefined)
     const conversation = useAgentConversation({
         entityId,
         sessionId,
+        onCommittedRevision: ({revisionId}) => followCommitRef.current(revisionId),
         sharedReaderAdvertised: sharedReader,
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
@@ -181,19 +187,23 @@ export const LiveConversation = ({
         [conversation.messages],
     )
 
-    // The agent committing itself: the stream carries a one-way `data-committed-revision` part.
-    // Follow it — pin the workspace and retarget the next send — and drop the latest-revision
-    // caches, or the config pane and the version chip keep showing the revision it replaced.
-    // The desktop does the same in its own host hook; the shared engine leaves it to the skin.
+    // The agent committing itself: follow it — pin the workspace and retarget the next send — and
+    // drop the latest-revision caches, or the pane and the chip keep the revision it replaced. A
+    // durable send learns it from the records reader; a `useChat` stream carries a
+    // `data-committed-revision` part. One seen-set, so a commit both report acts once.
     const committedSeenRef = useRef<Set<string>>(new Set())
+    followCommitRef.current = (revisionId: string) => {
+        if (committedSeenRef.current.has(revisionId)) return
+        committedSeenRef.current.add(revisionId)
+        // Nobody is watching a hidden tab: its version pill offers the commit on return.
+        if (document.visibilityState !== "visible") return
+        invalidateAgentCommittedRevisionCache()
+        if (revisionId !== entityId) adoptSecretRevision(revisionId)
+    }
     useEffect(() => {
-        for (const revisionId of committedRevisionIds(conversation.messages)) {
-            if (committedSeenRef.current.has(revisionId)) continue
-            committedSeenRef.current.add(revisionId)
-            invalidateAgentCommittedRevisionCache()
-            if (revisionId !== entityId) adoptSecretRevision(revisionId)
-        }
-    }, [adoptSecretRevision, conversation.messages, entityId])
+        for (const revisionId of committedRevisionIds(conversation.messages))
+            followCommitRef.current(revisionId)
+    }, [conversation.messages])
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
@@ -266,8 +276,15 @@ export const LiveConversation = ({
         stop,
         voidPendingResume,
     } = conversation
+    // Subscribed here so the build-kit overlay loads while the user types the first message.
+    const buildKitReadyAtom = workflowBuildKitOverlayReadyAtomFamily(entityId)
+    useAtomValue(buildKitReadyAtom)
+    const store = useStore()
+    const firstTurn = conversation.messages.length === 0
     // A fresh session becomes real on the server only once this first message is admitted, which
     // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).
+    // Every first send (composer, Home task, retry) comes through here, so it is also where the
+    // first turn waits for the build kit.
     const send = useCallback(
         async (input: Parameters<typeof sendToConversation>[0]) => {
             if (isSessionFresh(sessionId)) {
@@ -277,6 +294,11 @@ export const LiveConversation = ({
                     agentId: agentId ?? null,
                     name: input.text,
                 })
+            }
+            if (firstTurn && !(await waitForBuildKit(store, buildKitReadyAtom))) {
+                console.warn(
+                    "[mobile chat] build-kit overlay not ready after 10s; sending without it",
+                )
             }
             try {
                 await sendToConversation(input)
@@ -288,11 +310,14 @@ export const LiveConversation = ({
         },
         [
             agentId,
+            buildKitReadyAtom,
             dropUnacceptedLocalSession,
+            firstTurn,
             projectId,
             registerLocalSession,
             sendToConversation,
             sessionId,
+            store,
         ],
     )
     // A template create asks for its accounts here, on arrival, instead of on a create surface of

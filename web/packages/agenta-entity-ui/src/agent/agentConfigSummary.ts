@@ -78,7 +78,11 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
         // Whitespace-split rather than a token count: this is "how long is the brief", not billing.
         instructionWords: instructions ? instructions.split(/\s+/).filter(Boolean).length : null,
         instructions,
-        tools: count(agent.tools),
+        // The `agenta_tools` entry is a setting, not a tool the author added.
+        tools: Array.isArray(agent.tools)
+            ? agent.tools.filter((entry) => !isRecord(entry) || entry.type !== "agenta_tools")
+                  .length
+            : 0,
         integrationKeys: Array.isArray(agent.tools)
             ? [
                   ...new Set(
