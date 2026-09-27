@@ -7,6 +7,8 @@ import {useAtomValue} from "jotai"
 import {AgentPublishButton} from "../agents/AgentPublishButton"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {SaveAsTemplateButton} from "./SaveAsTemplateButton"
+
 /**
  * The session workspace's top bar — the desktop playground's header on this surface: which agent
  * you are working on, which revision, and whether it is saved.
@@ -23,6 +25,7 @@ export const SessionTopBar = ({
     sessionId,
     onUpdate,
     agentId,
+    sessionId,
     workspaceId,
     projectId,
 }: {
@@ -32,6 +35,8 @@ export const SessionTopBar = ({
     /** Pin this session to a newer version the user asked for. */
     onUpdate: (revisionId: string) => void
     agentId?: string | null
+    /** The session on screen; Save as template sends its request here. */
+    sessionId: string
     workspaceId: string
     projectId: string
 }) => {
@@ -62,6 +67,11 @@ export const SessionTopBar = ({
             actions={
                 <>
                     <ShortcutsHelpButton />
+                    {/* Needs a live conversation to send in: without a revision the session is
+                        the read-only replay (or not created yet). */}
+                    {agentId && entityId ? (
+                        <SaveAsTemplateButton agentId={agentId} sessionId={sessionId} />
+                    ) : null}
                     {agentId ? (
                         <AgentPublishButton
                             agentId={agentId}

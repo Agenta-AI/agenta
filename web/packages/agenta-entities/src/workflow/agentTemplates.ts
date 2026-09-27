@@ -242,6 +242,22 @@ export const agentTemplateSeed = (
     seedMessage: templateBuilderMessage(template),
 })
 
+/**
+ * The one chat message Save as template sends; the create-template skill handles it. Shared so
+ * the desktop playground and mobile send the same request; only its delivery is per-app.
+ */
+export const SAVE_AS_TEMPLATE_MESSAGE =
+    "Save this agent as a template I can share. Use the create-template skill."
+
+/**
+ * The template menu's marketplace request: the same create-template flow, then the skill's
+ * marketplace steps, which open the pull request. GitHub access goes through `request_secret`.
+ */
+export const SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE =
+    "Save this agent as a general-audience template and submit it to the Agenta marketplace " +
+    "for me. Use the create-template skill, then follow its marketplace submission steps and " +
+    "open the pull request yourself. If you need GitHub access, ask me with request_secret."
+
 /** Look a template up by key — surfaces receive a key from a menu, a URL or a card. */
 export const agentTemplateByKey = (
     templates: readonly AgentStarterTemplate[],

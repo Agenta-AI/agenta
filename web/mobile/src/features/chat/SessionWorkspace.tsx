@@ -329,6 +329,7 @@ export const SessionWorkspace = ({
                         sessionId={sessionId}
                         onUpdate={pinRevision}
                         agentId={agentId}
+                        sessionId={sessionId}
                         workspaceId={workspaceId}
                         projectId={projectId}
                     />

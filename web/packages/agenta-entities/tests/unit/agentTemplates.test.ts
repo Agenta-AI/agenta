@@ -8,6 +8,8 @@ import {
     templatePrimaryProvider,
     templateProviderSlugs,
     PROVIDERS,
+    SAVE_AS_TEMPLATE_MESSAGE,
+    SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
     TEMPLATE_CATEGORY_ORDER,
     templateCategories,
 } from "../../src/workflow/agentTemplates"
@@ -143,5 +145,22 @@ describe("connectionNeedLabel", () => {
                 expect(label === undefined || label.length > 0, template.key).toBe(true)
             }
         }
+    })
+})
+
+describe("template menu requests", () => {
+    it("both name the create-template skill", () => {
+        expect(SAVE_AS_TEMPLATE_MESSAGE).toContain("create-template skill")
+        expect(SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE).toContain("create-template skill")
+    })
+
+    it("asks for a submitted PR through the skill's steps, with no URL to hunt", () => {
+        expect(SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE).toBe(
+            "Save this agent as a general-audience template and submit it to the Agenta " +
+                "marketplace for me. Use the create-template skill, then follow its marketplace " +
+                "submission steps and open the pull request yourself. If you need GitHub access, " +
+                "ask me with request_secret.",
+        )
+        expect(SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE).not.toMatch(/https?:\/\//)
     })
 })
