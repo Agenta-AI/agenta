@@ -13,6 +13,7 @@ from ee.src.core.measurements.components import (
 )
 from ee.src.core.measurements.rate_card import (
     RATE_CARD_VERSION,
+    action_rates_for,
     request_rates_for,
     sandbox_rates_for,
     token_rates_for,
@@ -78,6 +79,16 @@ def calculate_charge(*, command: MeasurementCommandV1) -> Optional[Tuple[int, st
             + values.get(MEMORY_GIB_SECONDS, 0) * rates.memory_gib_musd_per_hour
         )
         divisor = _SECONDS_PER_HOUR
+    elif command.gateway_kind == GatewayKind.TOOL:
+        rates = action_rates_for(action=locator.get("action"))
+        # A rate for a unit the measurement does not carry would price it at nothing.
+        if rates is None or rates.unit not in values:
+            raise UnpricedMeasurementError(resource_key=command.resource_key)
+        units = values[rates.unit]
+        if rates.max_units_per_call is not None:
+            units = min(units, rates.max_units_per_call)
+        total = units * rates.musd_per_unit
+        divisor = 1
     else:
         raise UnpricedMeasurementError(resource_key=command.resource_key)
 

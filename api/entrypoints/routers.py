@@ -1318,6 +1318,34 @@ if ee and is_ee() and env.wallets.enabled:
         publisher=RedisMeasurementPublisher(redis_client=_streams_engine.get_redis())
     )
 
+# Managed tool actions spend Agenta's own provider accounts, so they exist only where the
+# wallet does. The only providers today are the mocks.
+managed_mcp_adapter = None
+if ee and is_ee() and env.wallets.enabled and env.mock_gateways.enabled:
+    from oss.src.core.gateways.mcps.providers.managed.adapter import ManagedMCPAdapter
+    from oss.src.core.managed_tools.limits import RedisManagedActionRateLimiter
+    from oss.src.core.managed_tools.mock.actions import MOCK_ACTIONS
+    from oss.src.core.managed_tools.mock.providers import build_mock_providers
+    from oss.src.core.managed_tools.registry import ManagedActionRegistry
+    from oss.src.core.managed_tools.service import ManagedToolsService
+    from ee.src.core.measurements.tools import WalletManagedActionBilling
+    from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
+
+    managed_mcp_adapter = ManagedMCPAdapter(
+        managed_tools=ManagedToolsService(
+            registry=ManagedActionRegistry(
+                actions=MOCK_ACTIONS, providers=build_mock_providers()
+            ),
+            billing=WalletManagedActionBilling(
+                wallet=ee.wallets_service,
+                publisher=RedisMeasurementPublisher(
+                    redis_client=_streams_engine.get_redis()
+                ),
+            ),
+            rate_limiter=RedisManagedActionRateLimiter(),
+        )
+    )
+
 gateway_policy_service = GatewayPolicyService(
     resolver=secrets_resolver,
     spend_admission=gateway_spend_admission,
@@ -1387,6 +1415,7 @@ mcp_gateway_service = MCPGatewayService(
     # The stored grant is renewed on the data-plane path, and the connect service is what
     # holds the vault and the OAuth client that can spend a refresh token (OR55).
     oauth_refresher=mcp_oauth_connect_service,
+    managed_tools=managed_mcp_adapter,
 )
 
 gateway_credentials_router = GatewayCredentialsRouter()

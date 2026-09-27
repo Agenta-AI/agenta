@@ -79,6 +79,8 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 20 | Decided | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
 | 21 | Decided | Whether expired credit value leaves the general balance, and what admission reads. |
 | 22 | Decided (option 2; option 3 deferred) | What identifies one plan change, so two in a billing period are not treated as one. |
+| 23 | Decided | How sandbox time is billed. |
+| 24 | Decided (mock slice) | How managed tool actions are admitted and billed. |
 
 Items 2, 4, 7, 14, 15, 16, 17, 18, 19, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
@@ -2238,3 +2240,40 @@ Designed in [v2/sandbox-seconds.md](../v2/sandbox-seconds.md). In short:
 - **Never measured:** `local`, self-hosted, and OSS (the routes are absent, and the runner
   reads the 404 as "not metered").
 
+
+## 24. How managed tool actions are admitted and billed
+
+**Status:** Decided (2026-09-27) for the mock slice; a real provider reopens the prices and
+reconciliation
+
+### Context
+
+Paid integration actions (enrichment, company search) run on provider accounts Agenta holds and
+must be charged to the wallet. Unlike a model call, an action's maximum price is known before
+dispatch.
+
+### Decision
+
+Designed in [v2/managed-tools.md](../v2/managed-tools.md). In short:
+
+- **The shared pipeline, a new kind.** One `MeasurementCommandV1` per dispatched execution,
+  `gateway_kind: tool`, priced by the measurement worker from `ACTION_RATES` in the rate card
+  (part of its version hash) and settled by the debit worker. No new ledger, stream, worker or
+  table. Reusing the `mcp` kind was rejected: that branch prices per MCP server, and an action's
+  price does not depend on the transport it arrived on.
+- **Price shapes.** A price per billable unit, with a cap per call: per successful call
+  (`action_calls`) or per result (`action_results`, cap required). Units are counted by the
+  executor from the validated output, never reported by a provider.
+- **Admission against the worst-case price.** `WalletsService.covers(organization_id,
+  amount_musd)` answers `spendable - amount >= floor` on the same spendable read as `check`,
+  with the worst case from the rate card. A threshold, not a hold (items 2 and 17 still apply
+  to concurrent calls). `WalletCheckPort` does not change: its contract keeps an amount out
+  until a reserving check exists, and `covers` is a separate read on the service.
+- **Not charged:** upstream failures, unreadable output, unknown outcomes (timeouts,
+  cancellation). All are recorded with their execution id (`outcome` in the measurement
+  references) for reconciliation. Settling an unknown later is a separate adjustment, not a
+  replay: a stored measurement is immutable.
+- **Idempotency:** charge once per execution (the execution id is the measurement id). A
+  repeated request is a new purchase; see spec-divergences row 24.
+- **Price drift** between admission (API) and pricing (worker) is accepted, as for models, with
+  the same deploy order (worker first).

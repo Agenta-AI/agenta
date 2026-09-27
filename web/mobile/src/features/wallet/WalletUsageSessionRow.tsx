@@ -8,12 +8,13 @@ import {
     formatDateTime,
     formatMusd,
     formatSandbox,
+    formatUnits,
     formatUsdExact,
 } from "./walletFormat"
 
 const CELL = "px-2 py-1.5 text-left align-top"
 
-/** One session's totals; expands to every charge in it with its raw token or sandbox counts. */
+/** One session's totals; expands to every charge in it with its raw token, sandbox or tool counts. */
 export const WalletUsageSessionRow = ({session}: {session: WalletUsageSession}) => {
     const [open, setOpen] = useState(false)
 
@@ -58,6 +59,7 @@ export const WalletUsageSessionRow = ({session}: {session: WalletUsageSession}) 
                                         <th className={`${CELL} text-right`}>Cache read</th>
                                         <th className={`${CELL} text-right`}>Cache write</th>
                                         <th className={`${CELL} text-right`}>Sandbox</th>
+                                        <th className={`${CELL} text-right`}>Tool units</th>
                                         <th className={`${CELL} text-right`}>Amount</th>
                                         <th className={CELL}>Price version</th>
                                     </tr>
@@ -94,6 +96,11 @@ export const WalletUsageSessionRow = ({session}: {session: WalletUsageSession}) 
                                                     charge.vcpu,
                                                     charge.memory_gib,
                                                 )}
+                                            </td>
+                                            <td
+                                                className={`${CELL} text-right whitespace-nowrap tabular-nums`}
+                                            >
+                                                {formatUnits(charge.quantity, charge.unit)}
                                             </td>
                                             <td
                                                 className={`${CELL} text-right whitespace-nowrap tabular-nums`}

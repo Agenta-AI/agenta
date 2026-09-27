@@ -45,6 +45,7 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 | 21 | Debit kinds the stream accepts | Both | Suggestion |
 | 22 | Stale MAXLEN text in Wave 1 | Design | Suggestion |
 | 23 | Sandbox seconds before any included allowance | Design | Applied (item 23) |
+| 24 | Managed actions: a repeated request is a new purchase | Code, later | Applied (item 24) |
 
 ## Applied: code changed, decision recorded
 
@@ -314,6 +315,24 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
   include-sandbox-usage stays the follow-up, and it adds the included portion in front of
   this charge rather than replacing it.
 - **Status.** Applied on `wallets/sandbox-seconds`. Decision in open-designs item 23.
+
+### 24. Managed actions: a repeated request is a new purchase
+
+- **Design says.** [add-managed-tool-actions](openspec/changes/add-managed-tool-actions/specs/managed-tool-actions/spec.md),
+  "Duplicate execution request": when the same execution identity is retried, the service
+  returns or reconciles the original outcome rather than creating a second paid action.
+- **Code does now.** Each `tools/call` is a new execution with a server-minted id
+  (`tool_<uuid7>`). The id makes the charge happen once per execution, through the existing
+  measurement and debit idempotency. A caller that sends the same call twice buys twice. No
+  layer retries a paid call on its own, so only an explicit repeat reaches the upstream twice.
+  Design: [managed-tools.md](managed-tools.md) decision 14.
+- **Which side moves, and why.** The code, later. MCP `tools/call` carries no idempotency key
+  (a JSON-RPC id is per session, not per purchase), and no caller retries on its own. Returning
+  the original outcome needs a caller-supplied key and a stored outcome, which is a table.
+- **Acceptance condition.** Required before any consumer that retries a paid call on its own,
+  for example a REST entry point with an `Idempotency-Key` header.
+- **Status.** Applied on `wallets/managed-tools` for the mock slice. Decision in open-designs
+  item 24.
 
 ## Spec validation
 

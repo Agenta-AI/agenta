@@ -38,6 +38,9 @@ export interface WalletUsageCharge {
     sandbox_seconds: number | null
     vcpu: number | null
     memory_gib: number | null
+    action: string | null
+    unit: string | null
+    quantity: number | null
 }
 
 export interface WalletUsageDay {

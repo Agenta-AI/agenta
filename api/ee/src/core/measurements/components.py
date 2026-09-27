@@ -15,3 +15,8 @@ OUTPUT_TOKENS = "output_tokens"
 SANDBOX_SECONDS = "sandbox_seconds"
 VCPU_SECONDS = "vcpu_seconds"
 MEMORY_GIB_SECONDS = "memory_gib_seconds"
+
+# A managed tool action: the billable units the executor counted from its output. One key per
+# unit, because a call and a result are priced apart.
+ACTION_CALLS = "action_calls"
+ACTION_RESULTS = "action_results"

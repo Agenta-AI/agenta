@@ -73,6 +73,10 @@ class WalletUsageCharge(BaseModel):
     sandbox_seconds: Optional[int] = None
     vcpu: Optional[int] = None
     memory_gib: Optional[int] = None
+    # A managed tool action: which one, and how many of its billable unit it counted.
+    action: Optional[str] = None
+    unit: Optional[str] = None
+    quantity: Optional[int] = None
 
 
 class WalletUsageDay(BaseModel):

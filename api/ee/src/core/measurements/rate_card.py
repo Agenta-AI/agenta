@@ -1,4 +1,5 @@
-"""Our price list for platform-funded (`builtin`) usage: gateway calls and sandbox time.
+"""Our price list for platform-funded (`builtin`) usage: gateway calls, sandbox time and
+managed tool actions.
 
 Integer micro-dollars throughout, per million tokens, per request, or per resource-hour. A price change is a
 change to this file, reviewed and approved by product; nothing else sets a price.
@@ -13,7 +14,9 @@ from hashlib import sha256
 from typing import Dict, Optional, Tuple
 
 from orjson import OPT_SORT_KEYS, dumps
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
+
+from ee.src.core.measurements.components import ACTION_CALLS, ACTION_RESULTS
 
 
 class TokenRates(BaseModel):
@@ -37,6 +40,23 @@ class SandboxRates(BaseModel):
 
     vcpu_musd_per_hour: int
     memory_gib_musd_per_hour: int
+
+
+class ActionRates(BaseModel):
+    """Our price for one managed tool action: a price per billable unit, and for a count
+    that varies per call, the most units one call is charged. The cap is required for a
+    per-result price, because admission refuses a call its organization cannot pay at
+    worst."""
+
+    unit: str  # the component key priced
+    musd_per_unit: int = Field(gt=0)
+    max_units_per_call: Optional[int] = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _per_result_is_capped(self) -> "ActionRates":
+        if self.unit == ACTION_RESULTS and self.max_units_per_call is None:
+            raise ValueError("a per-result rate needs max_units_per_call")
+        return self
 
 
 _MOCK_RATES = TokenRates(
@@ -74,6 +94,18 @@ SANDBOX_RATES: Dict[str, SandboxRates] = {
 }
 
 
+# Keyed by managed action key. SYNTHETIC, like the token rates: both actions are mocks
+# behind `env.mock_gateways.enabled`.
+ACTION_RATES: Dict[str, ActionRates] = {
+    # $0.02 per successful enrichment.
+    "mock.enrich_person": ActionRates(unit=ACTION_CALLS, musd_per_unit=20_000),
+    # $0.002 per company returned, at most ten charged per search.
+    "mock.search_companies": ActionRates(
+        unit=ACTION_RESULTS, musd_per_unit=2_000, max_units_per_call=10
+    ),
+}
+
+
 def _version() -> str:
     """Derived from the table itself, so a rate cannot change without the version that
     every debit carries changing with it."""
@@ -87,6 +119,9 @@ def _version() -> str:
         },
         "sandboxes": {
             provider: rates.model_dump() for provider, rates in SANDBOX_RATES.items()
+        },
+        "actions": {
+            action: rates.model_dump() for action, rates in ACTION_RATES.items()
         },
     }
     return "rc-" + sha256(dumps(table, option=OPT_SORT_KEYS)).hexdigest()[:12]
@@ -108,3 +143,8 @@ def request_rates_for(*, server: str) -> Optional[RequestRates]:
 def sandbox_rates_for(*, provider: str) -> Optional[SandboxRates]:
     """The per-hour resource rates for one sandbox provider, or None when unpriced."""
     return SANDBOX_RATES.get(provider)
+
+
+def action_rates_for(*, action: str) -> Optional[ActionRates]:
+    """The rates for one managed action, or None when the card does not price it."""
+    return ACTION_RATES.get(action)
