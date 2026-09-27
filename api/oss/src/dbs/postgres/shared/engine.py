@@ -63,7 +63,7 @@ class TransactionsEngine:
             await session.rollback()
             raise e
         finally:
-            await session.close()
+            await self._session.remove()
 
 
 class AnalyticsEngine:
@@ -103,7 +103,7 @@ class AnalyticsEngine:
             await session.rollback()
             raise e
         finally:
-            await session.close()
+            await self._session.remove()
 
 
 _transactions_engine: Optional[TransactionsEngine] = None
