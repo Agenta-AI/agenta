@@ -20,7 +20,7 @@ const inputVariants = cva(
         "w-full min-w-0 border text-base text-foreground transition-colors outline-none md:text-sm",
         "placeholder:text-muted-foreground",
         "file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
-        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:disabled:bg-input/80",
+        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_50%,transparent)] disabled:opacity-50 dark:disabled:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_80%,transparent)]",
         "aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-[3px] aria-[invalid=true]:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
         "dark:aria-[invalid=true]:border-[color:color-mix(in_srgb,var(--ag-colorError)_50%,transparent)] dark:aria-[invalid=true]:ring-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)]",
     ],
@@ -28,7 +28,7 @@ const inputVariants = cva(
         variants: {
             variant: {
                 default:
-                    "border-input bg-transparent focus-within:border-ring focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)] dark:bg-input/30",
+                    "border-input bg-transparent focus-within:border-ring focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)] dark:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_30%,transparent)]",
                 filled: "border-transparent bg-muted focus-within:border-ring focus-within:bg-background focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)]",
                 ghost: "border-transparent bg-transparent",
             },
