@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, {act} from "react"
+
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -159,7 +160,7 @@ describe("PublishMenu", () => {
             {key: "api", live: false},
         ])
         expect(container.querySelector('[data-testid="publish-button"]')?.textContent).toBe(
-            "1Publish",
+            "Publish",
         )
         const rows = [...container.querySelectorAll('[role="menuitem"]')].map(
             (row) => row.textContent,
@@ -167,60 +168,24 @@ describe("PublishMenu", () => {
         expect(rows).toEqual(["SlackLive", "TelegramSet up", "APISet up"])
     })
 
-    it("shows the live summary only when something is live", async () => {
+    it("shows no live count in the header, only on the button's label", async () => {
         await render([
-            {key: "slack", live: false},
-            {key: "telegram", live: false},
-            {key: "api", live: false},
+            {key: "slack", live: true},
+            {key: "telegram", live: true},
+            {key: "api", live: true},
         ])
         expect(container.querySelector('[data-testid="publish-live-summary"]')).toBeNull()
-
-        await render([
-            {key: "slack", live: true},
-            {key: "telegram", live: true},
-            {key: "api", live: false},
-        ])
-        expect(container.querySelector('[data-testid="publish-live-summary"]')?.textContent).toBe(
-            "Live in 2 places",
-        )
+        expect(container.querySelector('[data-testid="publish-live-count"]')).toBeNull()
+        const button = container.querySelector('[data-testid="publish-button"]')
+        expect(button?.textContent).toBe("Publish")
+        expect(button?.getAttribute("aria-label")).toBe("Publish, live in 3 places")
     })
 
-    it("counts the API toward the live summary, e.g. Live in 3 places", async () => {
-        await render([
-            {key: "slack", live: true},
-            {key: "telegram", live: true},
-            {key: "api", live: true},
-        ])
-        expect(container.querySelector('[data-testid="publish-live-summary"]')?.textContent).toBe(
-            "Live in 3 places",
-        )
-    })
-
-    it("keeps the sentence off a phone header and puts a compact count on the button", async () => {
-        await render([
-            {key: "slack", live: true},
-            {key: "telegram", live: true},
-            {key: "api", live: true},
-        ])
-        const summary = container.querySelector('[data-testid="publish-live-summary"]')
-        // Hidden below `sm`, shown from it: the phone header has no room for the sentence.
-        expect(summary?.className).toMatch(/(^|\s)hidden(\s|$)/)
-        expect(summary?.className).toContain("sm:inline-flex")
-
-        const count = container.querySelector('[data-testid="publish-live-count"]')
-        expect(count?.textContent).toBe("3")
-        expect(count?.className).toContain("sm:hidden")
-        expect(
-            container.querySelector('[data-testid="publish-button"]')?.getAttribute("aria-label"),
-        ).toBe("Publish, live in 3 places")
-    })
-
-    it("shows no count on the button when nothing is live", async () => {
+    it("has no extra label on the button when nothing is live", async () => {
         await render([
             {key: "slack", live: false},
             {key: "api", live: false},
         ])
-        expect(container.querySelector('[data-testid="publish-live-count"]')).toBeNull()
         const button = container.querySelector('[data-testid="publish-button"]')
         expect(button?.textContent).toBe("Publish")
         expect(button?.hasAttribute("aria-label")).toBe(false)
