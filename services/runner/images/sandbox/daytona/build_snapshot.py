@@ -84,6 +84,83 @@ CODEX_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/codex/node_modules/@agentclientp
 CLAUDE_ACP_VERSION = "0.81.0"
 CLAUDE_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/claude/node_modules/@agentclientprotocol/claude-agent-acp/package.json"
 
+# The pi-ai provider-cost patch (harness cost issue H1) is single-sourced with the runner image,
+# the same way the codex approval patch is. See services/runner/src/tools/pi-provider-cost-patch.ts.
+PI_COST_PATCH_SPEC = json.loads(
+    (
+        Path(__file__).resolve().parents[3]
+        / "src"
+        / "tools"
+        / "pi-provider-cost-patch.json"
+    ).read_text()
+)
+
+
+def pi_provider_cost_patch_script() -> str:
+    """The Node script that patches the global Pi install to keep OpenRouter's billed cost.
+
+    OpenRouter returns the real charge in `usage.cost`; pi-ai's `parseChunkUsage` drops it and
+    prices the tokens from Pi's own table. The pi CLI runs its own bundled copy of pi-ai, so the
+    script patches that chunk inside the global `pi-coding-agent` (`cli` in the JSON spec), with
+    the SAME steps as `applyPiProviderCostPatch(source, PI_CLI_ANCHOR)` in the runner. Keep the two
+    in step.
+
+    It fails loudly (exit 1) when the chunk is missing or the anchor does not match inside
+    `parseChunkUsage`, re-reads the file after writing, and is idempotent.
+    """
+    return f"""
+import {{ execSync }} from "node:child_process";
+import {{ existsSync, readFileSync, writeFileSync }} from "node:fs";
+import {{ join }} from "node:path";
+const spec = {json.dumps(PI_COST_PATCH_SPEC)};
+const fail = (message) => {{
+  console.error("pi-ai provider-cost patch: " + message);
+  process.exit(1);
+}};
+const root = process.env.PI_GLOBAL_ROOT || execSync("npm root -g").toString().trim();
+const harness = join(root, "@earendil-works", "pi-coding-agent");
+if (!existsSync(harness)) fail("no global @earendil-works/pi-coding-agent under " + root);
+const cli = spec.cli;
+const file = join(harness, cli.bundlePath);
+if (!existsSync(file)) fail("no " + cli.bundlePath + " in " + harness);
+const source = readFileSync(file, "utf8");
+if (source.includes(spec.marker)) {{
+  console.log("pi-ai provider-cost patch: already keeping the billed cost in " + file);
+}} else {{
+  const start = source.indexOf(cli.functionStart);
+  const nextFunction = start < 0 ? -1 : source.indexOf("function ", start + cli.functionStart.length);
+  const end = nextFunction < 0 ? source.length : nextFunction;
+  const at = start < 0 ? -1 : source.indexOf(cli.anchor, start);
+  if (start < 0 || source.indexOf(cli.functionStart, start + 1) >= 0 || at < 0 || at + cli.anchor.length > end) {{
+    fail(
+      "the parseChunkUsage anchor is missing in " + file + ". pi-ai changed how it parses " +
+      "OpenAI-completions usage: re-read parseChunkUsage and update " +
+      "services/runner/src/tools/pi-provider-cost-patch.json."
+    );
+  }}
+  writeFileSync(
+    file,
+    source.slice(0, start) + spec.injected + source.slice(start, at) + cli.replacement +
+      source.slice(at + cli.anchor.length)
+  );
+  console.log("pi-ai provider-cost patch: OpenRouter usage.cost now wins in " + file);
+}}
+// Re-read and assert, so the snapshot can never ship the stock cost on a silent write failure.
+if (!readFileSync(file, "utf8").includes(spec.marker)) fail("the patch did not take in " + file);
+console.log("pi-ai-provider-cost=patched");
+"""
+
+
+def pi_provider_cost_patch_command() -> str:
+    """A self-contained RUN for `pi_provider_cost_patch_script`, base64-embedded like the codex
+    patch because the Daytona build has no context from this repo and base64 is quoting-safe."""
+    blob = base64.b64encode(pi_provider_cost_patch_script().encode()).decode()
+    return (
+        f"RUN echo {blob} | base64 -d > /tmp/patch-pi-provider-cost.mjs "
+        "&& node /tmp/patch-pi-provider-cost.mjs && rm /tmp/patch-pi-provider-cost.mjs"
+    )
+
+
 # The approval-patch anchor is single-sourced with the runner image so the two can never drift.
 PATCH_SPEC = json.loads(
     (
@@ -420,6 +497,9 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
             "USER root",
             f"RUN npm install -g --ignore-scripts {PI_PACKAGE} && npm cache clean --force",
             "RUN pi --version",
+            # Keep OpenRouter's billed usage.cost in Pi's usage, as the runner image does.
+            # Patches AND verifies in one step, like the codex approval patch below.
+            pi_provider_cost_patch_command(),
             "RUN test -x /home/sandbox/.local/share/sandbox-agent/bin/claude "
             "&& echo claude-baked-in-base-image",
             "RUN test -x /home/sandbox/.local/share/sandbox-agent/bin/codex "

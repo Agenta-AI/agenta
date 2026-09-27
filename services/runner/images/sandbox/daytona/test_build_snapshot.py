@@ -8,6 +8,8 @@ Run: uv run test_build_snapshot.py
 """
 
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -207,6 +209,115 @@ def test_adapter_pins_never_reinstall_the_native_clis():
         assert f"install-agent {agent} --agent-process-version {version}" in command
         # The npm cache is cleared in the same RUN, or it stays in the layer.
         assert command.endswith("rm -rf /home/sandbox/.npm/_cacache")
+
+
+# --- pi-ai provider-cost patch (harness cost issue H1) -------------------------------------
+
+SPEC = build_snapshot.PI_COST_PATCH_SPEC
+CLI = SPEC["cli"]
+# The shape of the pi CLI's minified chunk: the CLI runs this bundled copy of pi-ai.
+STOCK_COMPLETIONS = (
+    "function convertTools(tools){return tools}"
+    + CLI["functionStart"]
+    + "let usage={cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}};"
+    + CLI["anchor"]
+    + "function mapStopReason(reason){return reason}"
+)
+needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+
+
+def fake_global_pi(tmp_path: Path, source: str) -> Path:
+    """A global npm root holding pi-coding-agent and its bundled chunk."""
+    bundle = tmp_path / "@earendil-works" / "pi-coding-agent" / CLI["bundlePath"]
+    bundle.parent.mkdir(parents=True)
+    bundle.write_text(source)
+    return bundle
+
+
+def run_pi_cost_patch(tmp_path: Path) -> subprocess.CompletedProcess:
+    script = tmp_path / "patch.mjs"
+    script.write_text(build_snapshot.pi_provider_cost_patch_script())
+    return subprocess.run(
+        ["node", str(script)],
+        env={**os.environ, "PI_GLOBAL_ROOT": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_pi_cost_patch_runs_right_after_pi_is_installed(monkeypatch):
+    captured = {}
+
+    class FakeImage:
+        @staticmethod
+        def base(_image):
+            return FakeImage()
+
+        def dockerfile_commands(self, commands):
+            captured["commands"] = commands
+            return self
+
+    monkeypatch.setattr(build_snapshot, "Image", FakeImage)
+    monkeypatch.setattr(build_snapshot, "CreateSnapshotParams", lambda **kw: kw)
+    monkeypatch.setattr(build_snapshot, "Resources", lambda **kw: kw)
+    build_snapshot.build_snapshot(
+        SimpleNamespace(snapshot=SimpleNamespace(create=lambda *_a, **_k: None)), "x"
+    )
+    commands = captured["commands"]
+    patch = build_snapshot.pi_provider_cost_patch_command()
+    assert patch in commands
+    assert commands.index(patch) > commands.index(
+        f"RUN npm install -g --ignore-scripts {build_snapshot.PI_PACKAGE} "
+        "&& npm cache clean --force"
+    )
+    assert len(patch) < 60_000
+
+
+@needs_node
+def test_pi_cost_patch_rewrites_parse_chunk_usage_like_the_runner(tmp_path):
+    bundle = fake_global_pi(tmp_path, STOCK_COMPLETIONS)
+    result = run_pi_cost_patch(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert "pi-ai-provider-cost=patched" in result.stdout
+    # The same text `applyPiProviderCostPatch` produces in the runner image.
+    start = STOCK_COMPLETIONS.index(CLI["functionStart"])
+    expected = (
+        STOCK_COMPLETIONS[:start]
+        + SPEC["injected"]
+        + STOCK_COMPLETIONS[start:].replace(CLI["anchor"], CLI["replacement"])
+    )
+    assert bundle.read_text() == expected
+
+
+@needs_node
+def test_pi_cost_patch_is_idempotent(tmp_path):
+    bundle = fake_global_pi(tmp_path, STOCK_COMPLETIONS)
+    assert run_pi_cost_patch(tmp_path).returncode == 0
+    once = bundle.read_text()
+    result = run_pi_cost_patch(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert "already keeping the billed cost" in result.stdout
+    assert bundle.read_text() == once
+
+
+@needs_node
+def test_pi_cost_patch_fails_the_build_when_the_anchor_is_missing(tmp_path):
+    bundle = fake_global_pi(
+        tmp_path, STOCK_COMPLETIONS.replace(CLI["anchor"], "return usage}")
+    )
+    before = bundle.read_text()
+    result = run_pi_cost_patch(tmp_path)
+    assert result.returncode == 1
+    assert "anchor is missing" in result.stderr
+    assert bundle.read_text() == before
+
+
+@needs_node
+def test_pi_cost_patch_fails_the_build_when_pi_is_not_installed(tmp_path):
+    result = run_pi_cost_patch(tmp_path)
+    assert result.returncode == 1
+    assert "no global @earendil-works/pi-coding-agent" in result.stderr
 
 
 if __name__ == "__main__":

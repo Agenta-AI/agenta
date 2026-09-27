@@ -19,6 +19,11 @@ import {
   uploadPiModelsConfigToSandbox,
 } from "../../src/engines/sandbox_agent/daytona.ts";
 import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
+import {
+  PI_CLI_ANCHOR,
+  PI_CLI_PROVIDER_COST_BUNDLE_PATH,
+  PROVIDER_COST_MARKER,
+} from "../../src/tools/pi-provider-cost-patch.ts";
 
 const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
   providerId: "my-ollama",
@@ -74,24 +79,51 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
    * A sandbox whose pinned path answers `before` until a link or install changes it: a link makes
    * it answer `linked` (the PATH pi's version), an install makes it answer the pinned version.
    */
+  const piCliBundle = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-coding-agent/${PI_CLI_PROVIDER_COST_BUNDLE_PATH}`;
+  const globalScope = "/usr/local/lib/node_modules/@earendil-works";
+  const globalPiCliBundle = `${globalScope}/pi-coding-agent/${PI_CLI_PROVIDER_COST_BUNDLE_PATH}`;
+  const stockBundle = `${PI_CLI_ANCHOR.functionStart}let usage={};${PI_CLI_ANCHOR.anchor}function mapStopReason(reason){`;
+
   function fakeSandbox(options: {
     before?: string;
     linked?: string;
     installLeaves?: string;
   }) {
     const calls: any[] = [];
+    // What npm leaves behind, here and in a global install: the pi CLI's stock bundled chunk.
+    const files = new Map<string, string>([
+      [piCliBundle, stockBundle],
+      [globalPiCliBundle, stockBundle],
+    ]);
     let current = options.before;
+    let harnessDir = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-coding-agent`;
     const sandbox = {
+      files,
       mkdirFs: async () => {},
+      readFsFile: async ({ path }: { path: string }) => {
+        const body = files.get(path);
+        if (body === undefined) throw new Error(`ENOENT: ${path}`);
+        return new TextEncoder().encode(body);
+      },
+      writeFsFile: async ({ path }: { path: string }, body: string) => {
+        files.set(path, body);
+      },
       runProcess: async (input: any) => {
         calls.push(input);
         if (isProbe(input)) return version(current);
+        if (input.command === "sh" && input.args[1].includes("readlink")) {
+          return { exitCode: 0, stdout: `${harnessDir}\n` };
+        }
         if (input.command === "sh") {
           if (!options.linked) return { exitCode: 1 }; // no pi on PATH
           current = options.linked;
+          harnessDir = `${globalScope}/pi-coding-agent`;
           return { exitCode: 0 };
         }
-        if (input.command === "npm") current = options.installLeaves;
+        if (input.command === "npm") {
+          current = options.installLeaves;
+          harnessDir = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-coding-agent`;
+        }
         return { exitCode: 0 };
       },
     };
@@ -103,9 +135,12 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
 
     await ensurePiInSandbox(sandbox);
 
-    assert.equal(calls.length, 1);
     assert.deepEqual(calls[0].args, ["--version"]);
     assert.equal(calls[0].command, DAYTONA_PI_COMMAND);
+    assert.equal(
+      calls.some((c) => c.command === "npm" || c.command === "rm"),
+      false,
+    );
   });
 
   it("links a PATH-baked pi to the pinned path instead of reinstalling (recipe snapshot)", async () => {
@@ -140,6 +175,33 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
       `@earendil-works/pi-coding-agent@${PINNED_PI_VERSION}`,
     ]);
     assert.equal(install.cwd, DAYTONA_PI_INSTALL_DIR);
+  });
+
+  it("patches the installed pi CLI's bundled pi-ai to keep the provider's billed cost", async () => {
+    const { sandbox } = fakeSandbox({ installLeaves: PINNED_PI_VERSION });
+
+    await ensurePiInSandbox(sandbox);
+
+    assert.ok(sandbox.files.get(piCliBundle)!.includes(PROVIDER_COST_MARKER));
+  });
+
+  it("patches a reused Pi of the pinned version (custom image, earlier install)", async () => {
+    const { sandbox } = fakeSandbox({ before: PINNED_PI_VERSION });
+
+    await ensurePiInSandbox(sandbox);
+
+    assert.ok(sandbox.files.get(piCliBundle)!.includes(PROVIDER_COST_MARKER));
+  });
+
+  it("patches the global Pi the pinned path links to", async () => {
+    const { sandbox } = fakeSandbox({ linked: PINNED_PI_VERSION });
+
+    await ensurePiInSandbox(sandbox);
+
+    assert.ok(
+      sandbox.files.get(globalPiCliBundle)!.includes(PROVIDER_COST_MARKER),
+    );
+    assert.equal(sandbox.files.get(piCliBundle), stockBundle);
   });
 
   it.each([
