@@ -1769,6 +1769,7 @@ export async function runTurn(
       promptTokenDetail(turnPromptResult, { perModel: isClaude }),
     );
     run.setUsage(usage);
+    turn.usageSettled = true;
     if (!plan.isPi && stopReason !== "paused") {
       traceFinish = await harnessTrace.finish();
     }

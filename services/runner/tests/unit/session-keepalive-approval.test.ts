@@ -4721,3 +4721,53 @@ describe("runTurn: usage across an approval pause", () => {
     },
   );
 });
+
+describe("runTurn: a Claude cost reading that lands after the turn's usage", () => {
+  it.each([
+    ["while the finished turn still owns the session", false],
+    ["between turns", true],
+  ])(
+    "does not change that turn's usage and moves the next turn's baseline (%s)",
+    async (_when, clearedFirst) => {
+      const { calls, deps, captured } = pausableHarness();
+      // The real tracer, so a stream reading reaches the turn's usage.
+      deps.createOtel = createSandboxAgentOtel;
+      const acquired = await acquireEnvironment(engineReq, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+      const costReading = (amount: number) =>
+        updateEvent({
+          sessionUpdate: "usage_update",
+          used: 900,
+          cost: { amount, currency: "USD" },
+        });
+
+      // Turn 1: the prompt response resolves before its SSE usage_update.
+      const first = runTurn(env, engineReq);
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "end_turn",
+        usage: { inputTokens: 10, outputTokens: 5 },
+      });
+      const firstResult = await first;
+      if (clearedFirst) env.clearTurn();
+      captured.onEvent!(costReading(0.1));
+      assert.equal(firstResult.usage?.cost, undefined);
+      assert.equal(env.currentTurn?.run.usage()?.cost, undefined);
+      env.clearTurn();
+
+      // Turn 2: its reading arrives in time; it reports only its own share.
+      const second = runTurn(env, engineReq);
+      await flush();
+      captured.onEvent!(costReading(0.15));
+      calls.resolvePrompt!({
+        stopReason: "end_turn",
+        usage: { inputTokens: 20, outputTokens: 6 },
+      });
+      const secondResult = await second;
+      assert.equal(secondResult.usage?.cost, 0.05);
+      await env.destroy();
+    },
+  );
+});
