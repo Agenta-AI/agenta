@@ -303,6 +303,7 @@ class LLMGatewayService:
         model: str,
         provider_key: Optional[str],
         connection_slug: Optional[str],
+        connection_namespace: Optional[GatewayEndpointNamespace] = None,
     ) -> LLMGatewayConnectionResolution:
         """Resolve an agent connection to public gateway route metadata.
 
@@ -311,7 +312,10 @@ class LLMGatewayService:
         with nothing to act on. `LLMGatewayConnectionResolution.provider_key` stays a required
         field, so the invariant no construction path can dodge is still enforced underneath.
         """
-        if connection_slug:
+        if connection_slug and connection_namespace:
+            namespace = connection_namespace
+            name = connection_slug
+        elif connection_slug:
             namespace = await self._namespace_of_slug(scope=scope, slug=connection_slug)
             name = connection_slug
         elif provider_key:

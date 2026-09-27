@@ -37,7 +37,11 @@ _CATEGORIES = {"llm": "Model calls", "mcp": "Tools", "sbx": "Sandbox"}
 
 
 def category_of(resource_key: str) -> str:
-    return _CATEGORIES.get(resource_key.split(":", 1)[0], "Other")
+    return _category_of_plane(resource_key.split(":", 1)[0])
+
+
+def _category_of_plane(plane: str) -> str:
+    return _CATEGORIES.get(plane, "Other")
 
 
 def _charge(
@@ -68,11 +72,12 @@ def _charge(
 def _session_key(
     debit: WalletUsageDebit, measurement: Optional[MeasurementUsage]
 ) -> Tuple[Optional[str], Optional[UUID], Optional[str]]:
-    """A named session groups on its id alone; unnamed charges group per user and day."""
+    """A named session groups on its id within its project, since the id is a label its
+    runtime supplied; unnamed charges group per user and day."""
     session = (measurement.references.get("session") or {}) if measurement else {}
     session_id = session.get("id") if isinstance(session, dict) else None
     if session_id:
-        return str(session_id), None, None
+        return str(session_id), measurement.project_id, None
     user_id = measurement.user_id if measurement else None
     return None, user_id, debit.created_at.date().isoformat()
 
@@ -135,6 +140,15 @@ class WalletUsageService:
         truncated = len(debits) > MAX_DEBITS
         debits = debits[:MAX_DEBITS]
 
+        # From SQL over the whole window: the detail list above is capped, the chart is not.
+        days: Dict[Tuple, List[int]] = defaultdict(lambda: [0, 0])
+        for total in await self.usage_dao.list_usage_days(
+            organization_id=organization_id, start=start, end=end
+        ):
+            day = days[(total.day, _category_of_plane(total.plane))]
+            day[0] += total.amount_musd
+            day[1] += total.charge_count
+
         measurements = await self.measurements_dao.fetch_measurements(
             measurement_ids=[
                 debit.idempotency_key[len(MEASUREMENT_KEY_PREFIX) :]
@@ -143,16 +157,12 @@ class WalletUsageService:
             ]
         )
 
-        days: Dict[Tuple, List[int]] = defaultdict(lambda: [0, 0])
         groups: Dict[Tuple, List[Tuple[WalletUsageDebit, Optional[MeasurementUsage]]]]
         groups = defaultdict(list)
         for debit in debits:
             measurement = measurements.get(
                 debit.idempotency_key[len(MEASUREMENT_KEY_PREFIX) :]
             )
-            day = days[(debit.created_at.date(), category_of(debit.resource_key))]
-            day[0] += debit.amount_musd
-            day[1] += 1
             groups[_session_key(debit, measurement)].append((debit, measurement))
 
         user_ids = {

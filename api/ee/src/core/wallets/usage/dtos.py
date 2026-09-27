@@ -44,6 +44,15 @@ class WalletUsageDebit(BaseModel):
     created_at: datetime
 
 
+class WalletUsagePlaneDay(BaseModel):
+    """One UTC day's postings on one resource plane (`llm`, `mcp`, `sbx`, ...)."""
+
+    day: date
+    plane: str
+    amount_musd: int
+    charge_count: int
+
+
 class MeasurementUsage(BaseModel):
     measurement_id: str
     project_id: UUID
@@ -99,7 +108,7 @@ class WalletUsageSession(BaseModel):
 class WalletUsage(BaseModel):
     start: datetime
     end: datetime
-    # True when the window held more postings than the read returns.
+    # True when `sessions` holds only the newest postings; `days` always covers all of them.
     truncated: bool = False
     days: List[WalletUsageDay] = Field(default_factory=list)
     sessions: List[WalletUsageSession] = Field(default_factory=list)

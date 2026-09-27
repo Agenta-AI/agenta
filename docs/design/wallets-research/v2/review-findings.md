@@ -23,6 +23,7 @@ behaviour, [spec-divergences.md](spec-divergences.md) has the row.
 | BL | Codex rounds on the balance fixes | `wallets/fix-balance`, 2 rounds |
 | PC | Codex rounds on the plan-change fixes | `wallets/fix-plan-change`, 2 rounds |
 | LY | Codex rounds on the layering fixes, and a final round over the whole wallet diff | `wallets/fix-layering`, then `origin/main...6f4e567f9d -- api` |
+| WS | Codex whole-stack review (foundation items only; the rest belong to the branches above) | `wallets/takeover` through `wallets/sandbox-seconds`, 2026-09-27 |
 | AC | Manual acceptance runs, IM-1-02 sections 0 to 8 | Disposable EE stack: Run 1 at `144c0dec91`, Runs 2 and 3 at `0693b307c1` |
 
 The Codex reviews used `gpt-6-astra` at medium reasoning effort, in a read-only sandbox.
@@ -92,6 +93,18 @@ The Codex reviews used `gpt-6-astra` at medium reasoning effort, in a read-only 
 | LY-1 | P3 | The admin-route pin test provisioned the row through `check()` before settling, so it did not prove settle-side provisioning. | **Fixed** in `6f4e567f9d`: separate organizations, and the test asserts no row before the debit. Test: `integration/wallets/test_wallets_debit_worker_integration.py::test_first_debit_for_an_organization_with_no_wallet_row_settles`. |
 | LY-2 | P2 | Final round: the measurement worker trusts a producer-supplied `organization_id` without checking that it owns the project. | **Deferred** to [connect-model-gateway-wallet](openspec/changes/connect-model-gateway-wallet/), task 1.2 (trusted credential-origin stamp). No producer exists on this branch. The Wave 2 producer must set the organization from the authenticated scope, or the worker must validate it. |
 | LY-3 | P2 | Final round: advisory-lock waiters each hold a pool connection and could starve the lock holder. | **Accepted.** It needs roughly 400 concurrent plan changes for one organization. The smallest fix, `pg_try_advisory_xact_lock` with a retryable busy error, changes the plan-change design. Revisit if plan changes are ever automated in bulk. |
+
+## Whole-stack review
+
+Foundation-level items only. Findings 1, 5, 6 and 7 are about the branches above this one and are
+handled there.
+
+| ID | Sev | Finding | Disposition |
+| --- | --- | --- | --- |
+| WS-2 | P1 | A plan-change clawback is computed from the settled credit balance and cannot see usage still queued in the streams, so the result depends on processing order: $50 allowance, $40 used, halfway cancel ends at $0 if usage settles first and -$15 if the cancel lands first. | **Deferred** to open-designs item 23. Recommended: accept and document the bound now, then reconcile late usage by occurrence time once item 24 adds it. Reason: the fix needs occurrence time on the debit, and the debit envelope is frozen for the coverage-contract design. **Blocks enabling for paying customers.** |
+| WS-3 | P1 | Settlement picks funding credits by settlement time, so usage that happened before a credit expired but settles after it consumes other credit or creates a deficit; dead-letter replay makes it worse. The debit envelope carries no occurrence time. | **Deferred** to open-designs item 24. Recommended: add occurrence time to the debit envelope and judge eligibility by it, owned by the coverage-contract design. Reason: a contract change, and the envelope and settlement port are frozen while that design runs. **Blocks enabling for paying customers.** |
+| WS-4 | P1 | A failed wallet adjustment after a committed plan change is lost. | **Deferred**, same as PC-4 (open-designs item 22, option 3). The whole-stack review rates it P1. It stays the top launch blocker. |
+| WS-8 | P2 | The measurement worker keeps a second payer-resolution path (project to organization lookup) that no producer uses. | **Fixed** in `de376c525a`: every production producer stamps the authenticated organization (gateway sink on `wallets/wave-2`, sandbox report on `wallets/sandbox-seconds`). The lookup, its port and adapter are deleted, and a measurement without an organization is dead-lettered unpersisted. Test: `unit/measurements/test_measurements_worker.py::test_measurement_without_organization_is_dead_lettered_unpersisted`. Recorded in open-designs item 20. LY-2's condition holds: both producers set the organization from the authenticated scope. |
 
 ## Acceptance run
 

@@ -15,9 +15,8 @@ from pydantic import BaseModel
 class ChargeDecision(BaseModel):
     """What the worker decided a measurement costs, stored with the measurement in the
     same transaction so that every redelivery publishes this decision and never a
-    recomputed one: not after a rate change, and not when the organization lookup is
-    down. `created_at` is the debit's own timestamp, stored so a replayed debit envelope
-    is identical to the first."""
+    recomputed one, not even after a rate change. `created_at` is the debit's own
+    timestamp, stored so a replayed debit envelope is identical to the first."""
 
     amount_musd: int
     pricing_version: str

@@ -76,7 +76,7 @@ class MockLLMGatewayService:
         self.resolve_raises = None
 
     async def resolve_agent_connection(
-        self, *, scope, model, provider_key, connection_slug
+        self, *, scope, model, provider_key, connection_slug, connection_namespace
     ):
         self.calls.append("resolve_agent_connection")
         if self.resolve_raises is not None:

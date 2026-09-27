@@ -1,5 +1,6 @@
 export type {
     AgentConnectionMode,
+    AgentConnectionNamespace,
     AgentModelCandidate,
     AgentModelSelection,
     BuildAgentModelCandidatesArgs,
@@ -16,6 +17,7 @@ export {
     firstAgentModelForConnection,
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
+    connectionNamespaceFrom,
     selectableAgentHarnesses,
     HIDDEN_AGENT_HARNESSES,
     subscriptionConnectionCandidates,
