@@ -11,9 +11,9 @@ export const MARKETPLACE_PATH = "/marketplace";
 export const templatePath = (key: string): string =>
   `${MARKETPLACE_PATH}/${key}`;
 
-// Template authors share the /authors/<id> pages with blog authors. One id is
-// one person or organization on the whole site.
-export const authorPath = (id: string): string => `/authors/${id}`;
+// Template authors have their own /creators/<id> pages; /authors/<slug> is the
+// blog's.
+export const authorPath = (id: string): string => `/creators/${id}`;
 
 /** Categories in first-seen catalog order, so the gallery order decides. */
 export const categoriesOf = (templates: WebsiteTemplate[]): string[] => [
@@ -131,22 +131,10 @@ export interface AuthorLink {
 export interface AuthorProfile {
   id: string;
   name: string;
-  role?: string;
   bio?: string;
   avatar?: string;
   initials: string;
   links: AuthorLink[];
-}
-
-export interface BlogAuthorInput {
-  id: string;
-  data: {
-    name: string;
-    role: string;
-    avatar: string;
-    bio?: string;
-    socials?: { platform: string; url: string }[];
-  };
 }
 
 const SOCIAL_PLATFORMS = new Set(["github", "linkedin", "x", "twitter"]);
@@ -159,68 +147,32 @@ export const initialsOf = (name: string): string =>
     .map((part) => part[0]!.toUpperCase())
     .join("");
 
-/**
- * One profile per id across blog authors and the template author registry.
- * The blog entry keeps its name, role and avatar; the registry fills what it
- * lacks. Links are merged without duplicates.
- */
-export const mergeAuthorProfiles = (
-  blogAuthors: readonly BlogAuthorInput[],
+/** One creator profile per template author, keeping only web links and avatars. */
+export const authorProfiles = (
   templateAuthors: readonly WebsiteAuthor[],
-): AuthorProfile[] => {
-  const profiles = new Map<string, AuthorProfile>();
-
-  for (const author of blogAuthors) {
-    const { name, role, avatar, bio, socials } = author.data;
-    profiles.set(author.id, {
-      id: author.id,
-      name,
-      role,
-      bio,
-      avatar,
-      initials: initialsOf(name),
-      links: (socials ?? []).map((social) => ({
-        label: social.platform,
-        url: social.url,
-        platform: social.platform,
-      })),
-    });
-  }
-
-  for (const author of templateAuthors) {
-    const links: AuthorLink[] = author.links
-      .filter((link) => isHttpUrl(link.url))
-      .map((link) => ({
-        label: link.label ?? link.kind,
-        url: link.url,
-        platform: SOCIAL_PLATFORMS.has(link.kind) ? link.kind : undefined,
-      }));
-    const rawAvatar = (author as { avatar_url?: string | null }).avatar_url;
-    const avatar =
-      isHttpUrl(rawAvatar) || /^\/(?!\/)/.test(rawAvatar ?? "")
-        ? (rawAvatar ?? undefined)
-        : undefined;
-    const existing = profiles.get(author.id);
-    if (existing) {
-      // A registry bio that repeats the blog role would print the same line twice.
-      if (author.bio !== existing.role) existing.bio ??= author.bio;
-      existing.avatar ??= avatar;
-      const known = new Set(existing.links.map((link) => link.url));
-      existing.links.push(...links.filter((link) => !known.has(link.url)));
-    } else {
-      profiles.set(author.id, {
+): AuthorProfile[] =>
+  templateAuthors
+    .map((author) => {
+      const rawAvatar = (author as { avatar_url?: string | null }).avatar_url;
+      return {
         id: author.id,
         name: author.name,
         bio: author.bio,
-        avatar,
+        avatar:
+          isHttpUrl(rawAvatar) || /^\/(?!\/)/.test(rawAvatar ?? "")
+            ? (rawAvatar ?? undefined)
+            : undefined,
         initials: initialsOf(author.name),
-        links,
-      });
-    }
-  }
-
-  return [...profiles.values()].sort((a, b) => a.name.localeCompare(b.name));
-};
+        links: author.links
+          .filter((link) => isHttpUrl(link.url))
+          .map((link) => ({
+            label: link.label ?? link.kind,
+            url: link.url,
+            platform: SOCIAL_PLATFORMS.has(link.kind) ? link.kind : undefined,
+          })),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 
 // --- Apps, steps and setup (template page and index cards) -----------------
 

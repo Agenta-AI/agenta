@@ -44,10 +44,12 @@
       "/authors/*",
       "/marketplace",
       "/marketplace/*",
+      "/creators/*",
       "!/blog/*/*",
       "!/authors/*.*",
       "!/marketplace/*/*",
-      "!/marketplace/*.*"
+      "!/marketplace/*.*",
+      "!/creators/*.*"
     ]
   }
 }

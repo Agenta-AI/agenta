@@ -8,7 +8,7 @@ import {
   ctaHeadlineOf,
   howItWorksOf,
   joinNames,
-  mergeAuthorProfiles,
+  authorProfiles,
   relatedTemplatesOf,
   renderableMedia,
   requirementsOf,
@@ -27,7 +27,7 @@ import {
 describe("marketplace routes", () => {
   it("gives every template a detail page and every author a profile page", () => {
     expect(templatePath("pr-reviewer")).toBe("/marketplace/pr-reviewer");
-    expect(authorPath("agenta")).toBe("/authors/agenta");
+    expect(authorPath("mahmoud-mabrouk")).toBe("/creators/mahmoud-mabrouk");
   });
 
   it("lists categories once, in catalog order", () => {
@@ -98,15 +98,6 @@ describe("template media", () => {
 });
 
 describe("author profiles", () => {
-  const blogAuthor = {
-    id: "jane",
-    data: {
-      name: "Jane Doe",
-      role: "Engineer",
-      avatar: "/authors/jane.webp",
-      socials: [{ platform: "github", url: "https://github.com/jane" }],
-    },
-  };
   const templateAuthor = (id: string, name: string) => ({
     schema_version: 1,
     id,
@@ -119,45 +110,15 @@ describe("author profiles", () => {
     template_keys: [],
   });
 
-  it("merges a blog author and a template author with the same id", () => {
-    const [jane] = mergeAuthorProfiles(
-      [blogAuthor],
-      [templateAuthor("jane", "Jane D.")],
-    );
-    expect(jane).toMatchObject({
-      id: "jane",
-      name: "Jane Doe",
-      role: "Engineer",
-      avatar: "/authors/jane.webp",
-      bio: "Jane D. builds agents.",
-    });
-    expect(jane!.links.map((link) => link.url)).toEqual([
-      "https://github.com/jane",
-      "https://jane.dev",
+  it("gives a template author a profile with initials", () => {
+    const profiles = authorProfiles([
+      templateAuthor("jane", "Jane Doe"),
+      templateAuthor("acme", "Acme Labs"),
     ]);
-  });
-
-  it("does not repeat a blog role as the bio", () => {
-    const [jane] = mergeAuthorProfiles(
-      [
-        {
-          id: "jane",
-          data: { name: "Jane Doe", role: "Engineer", avatar: "/a.webp" },
-        },
-      ],
-      [{ ...templateAuthor("jane", "Jane D."), bio: "Engineer" }],
-    );
-    expect(jane!.bio).toBeUndefined();
-  });
-
-  it("gives a template-only author a profile with initials", () => {
-    const profiles = mergeAuthorProfiles(
-      [blogAuthor],
-      [templateAuthor("acme", "Acme Labs")],
-    );
     expect(profiles.map((profile) => profile.id)).toEqual(["acme", "jane"]);
     expect(profiles[0]).toMatchObject({
       name: "Acme Labs",
+      bio: "Acme Labs builds agents.",
       initials: "AL",
       avatar: undefined,
     });
@@ -166,25 +127,22 @@ describe("author profiles", () => {
   });
 
   it("drops author links and avatars that are not web URLs", () => {
-    const [acme] = mergeAuthorProfiles(
-      [],
-      [
-        {
-          ...templateAuthor("acme", "Acme Labs"),
-          avatar_url: "//evil.example/a.png",
-          links: [
-            { kind: "website", url: "javascript:alert(1)", label: "x" },
-            { kind: "website", url: "https://acme.dev", label: "acme.dev" },
-          ],
-        },
-      ],
-    );
+    const [acme] = authorProfiles([
+      {
+        ...templateAuthor("acme", "Acme Labs"),
+        avatar_url: "//evil.example/a.png",
+        links: [
+          { kind: "website", url: "javascript:alert(1)", label: "x" },
+          { kind: "website", url: "https://acme.dev", label: "acme.dev" },
+        ],
+      },
+    ]);
     expect(acme!.avatar).toBeUndefined();
     expect(acme!.links.map((link) => link.url)).toEqual(["https://acme.dev"]);
   });
 
   it("covers every template author in the generated data", () => {
-    const ids = mergeAuthorProfiles([], authors).map((profile) => profile.id);
+    const ids = authorProfiles(authors).map((profile) => profile.id);
     for (const template of templates) {
       expect(ids).toContain(template.author.id);
       expect(templatesByAuthor(template.author.id)).toContain(template);

@@ -77,7 +77,7 @@ Not done in this change: website index/detail/author pages and their visual desi
 
 Recorded on 2026-09-26 on branch `claude/project-thread-dmcgk1`, stacked on the marketplace data branch. Local sandbox results.
 
-**Routes chosen.** The user named the feature "Agent Marketplace". Pages: `/marketplace` (index, grouped by catalog category), `/marketplace/<key>` (template detail) and the existing `/authors/<id>` pages, now shared by blog authors and template authors (one id is one author; an author with templates gets a templates section, a blog author keeps the posts section). Every route has a markdown twin and is in both `run_worker_first` allowlists.
+**Routes chosen.** The user named the feature "Agent Marketplace". Pages: `/marketplace` (index, grouped by catalog category), `/marketplace/<key>` (template detail) and `/creators/<id>` (template author pages). Blog authors keep their own `/authors/<slug>` pages, unchanged. Every route has a markdown twin and is in both `run_worker_first` allowlists.
 
 | Task | Command (from) | Result |
 | --- | --- | --- |

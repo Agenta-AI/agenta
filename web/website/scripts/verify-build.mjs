@@ -56,7 +56,7 @@ for (const author of authors) {
 
 // Agent Marketplace: every catalog template has a page and a twin, the page
 // carries its own "Use it for free" link, and every template author has a
-// profile page (shared with blog authors under /authors/<id>).
+// creator page under /creators/<id>.
 const templateData = JSON.parse(
   readFileSync(resolve(root, "src/data/templates.json"), "utf8"),
 );
@@ -83,12 +83,12 @@ const templateAuthorIds = new Set([
 ]);
 for (const id of templateAuthorIds) {
   check(
-    existsSync(resolve(dist, `authors/${id}/index.html`)),
-    `missing template author page: dist/authors/${id}/`,
+    existsSync(resolve(dist, `creators/${id}/index.html`)),
+    `missing template creator page: dist/creators/${id}/`,
   );
   check(
-    existsSync(resolve(dist, `authors/${id}.md`)),
-    `missing markdown twin: dist/authors/${id}.md`,
+    existsSync(resolve(dist, `creators/${id}.md`)),
+    `missing markdown twin: dist/creators/${id}.md`,
   );
 }
 
