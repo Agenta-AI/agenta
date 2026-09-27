@@ -224,3 +224,36 @@ def test_recompute_removes_a_stale_cumulative_that_is_now_zero():
     cleared = _span(WORKFLOW_ID, None, SpanType.WORKFLOW, 0)
     cleared.attributes["ag"]["metrics"] = {"errors": {"incremental": 0}}
     assert recompute_cumulative_metrics([cleared]) == {}
+
+
+def test_recompute_carries_cache_counts_to_the_root():
+    store: Dict[str, OTelFlatSpan] = {}
+    _ingest(store, [_span(WORKFLOW_ID, None, SpanType.WORKFLOW, 0)])
+    _ingest(
+        store,
+        [
+            _span(AGENT_ID, WORKFLOW_ID, SpanType.AGENT, 1),
+            _span(
+                CHAT_A_ID,
+                AGENT_ID,
+                SpanType.CHAT,
+                2,
+                tokens={
+                    "prompt": 956,
+                    "completion": 39,
+                    "cache_read": 0,
+                    "cache_creation": 82116,
+                    "total": 83111,
+                },
+            ),
+        ],
+    )
+
+    _recompute(store)
+
+    assert _cumulative(store[WORKFLOW_ID], "tokens") == {
+        "prompt": 956,
+        "completion": 39,
+        "cache_creation": 82116,
+        "total": 83111,
+    }
