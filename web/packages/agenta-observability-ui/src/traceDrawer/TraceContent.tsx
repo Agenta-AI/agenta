@@ -215,7 +215,7 @@ const TraceContent = ({
                             className={
                                 stacked
                                     ? "w-full border-0 border-t border-solid border-colorSplit"
-                                    : "w-[280px] min-w-[280px] shrink-0"
+                                    : "w-[280px] min-w-[280px] shrink-0 border-0 border-l border-solid border-colorSplit"
                             }
                         >
                             <TraceSidePanel

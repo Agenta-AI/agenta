@@ -113,7 +113,7 @@ const TreeNodeComponent = <TNode,>({
                 >
                     {hasChildren && (
                         <span
-                            className={"mr-2 cursor-pointer"}
+                            className="mr-2 inline-flex shrink-0 cursor-pointer"
                             onClick={(e) => {
                                 e.stopPropagation()
                                 toggle()

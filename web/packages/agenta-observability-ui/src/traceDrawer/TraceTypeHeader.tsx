@@ -205,9 +205,11 @@ const TraceTypeHeader = ({
     const displayTrace = activeTrace || traces?.[0]
 
     return (
-        <div className="h-10 px-4 flex items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
+        // min-h-10 matches the tree's search row beside it; on a phone-width panel the actions
+        // wrap under the span name instead of squeezing it to nothing.
+        <div className="box-border min-h-10 px-4 py-1 flex shrink-0 flex-wrap items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
             <SimpleTooltip side="top" title={activeTrace?.span_name || (error ? "Error" : "")}>
-                <span className={clsx("truncate text-nowrap flex-1 text-sm font-medium")}>
+                <span className={clsx("truncate text-nowrap flex-1 min-w-32 text-sm font-medium")}>
                     {activeTrace?.span_name || (error ? "Error" : "")}
                 </span>
             </SimpleTooltip>

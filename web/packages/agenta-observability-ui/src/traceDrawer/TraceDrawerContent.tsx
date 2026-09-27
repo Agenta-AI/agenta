@@ -142,7 +142,7 @@ const TraceDrawerContent = ({
                             className={
                                 stacked
                                     ? "h-[35%] w-full shrink-0 border-0 border-b border-solid border-colorSplit"
-                                    : "w-[320px] min-w-[320px] shrink-0"
+                                    : "w-[320px] min-w-[320px] shrink-0 border-0 border-r border-solid border-colorSplit"
                             }
                         >
                             <TraceTree

@@ -483,7 +483,7 @@ const TraceHeader = ({
                         />
                     )}
                     {!isLinkedView && (
-                        <div>
+                        <div className="flex shrink-0">
                             <EnhancedButton
                                 onClick={handlePrevTrace}
                                 type="text"
@@ -499,7 +499,7 @@ const TraceHeader = ({
                         </div>
                     )}
 
-                    <span className="text-sm font-medium">Trace</span>
+                    <span className="shrink-0 text-sm font-medium">Trace</span>
                     <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
                         {/* min-w-0 + truncate: a 32-char id ends in an ellipsis on a narrow
                             panel rather than widening the row. */}
