@@ -20,7 +20,7 @@ export const GlobalDrawers = () => {
     const router = useRouter()
     bindTraceDrawerSeams(router)
     registerTraceDrawerSlots()
-    // The split (tree beside content) needs 720px; below the app's 640px breakpoint it stacks.
-    const wide = useMediaQuery("(min-width: 640px)")
+    // The split puts a 320px tree beside a content pane of at least 400px, so it stacks below 720px.
+    const wide = useMediaQuery("(min-width: 720px)")
     return <TraceDrawer layout={wide ? "split" : "stacked"} />
 }

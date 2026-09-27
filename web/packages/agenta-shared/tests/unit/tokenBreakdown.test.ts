@@ -11,6 +11,11 @@ describe("splitTokenUsage", () => {
         expect(splitTokenUsage({prompt: 10, completion: 5, cacheRead: 0, total: 15})).toBeNull()
     })
 
+    it("returns null when the prompt or completion count is missing", () => {
+        expect(splitTokenUsage({completion: 100, cacheRead: 200, total: 1000})).toBeNull()
+        expect(splitTokenUsage({prompt: 700, cacheRead: 200, total: 1000})).toBeNull()
+    })
+
     it("keeps a runner prompt count that excludes the cache", () => {
         const breakdown = splitTokenUsage({
             prompt: 956,

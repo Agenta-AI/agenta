@@ -214,7 +214,7 @@ const TraceTypeHeader = ({
                 </span>
             </SimpleTooltip>
 
-            <div className="flex gap-2">
+            <div className="flex min-w-0 flex-wrap gap-2">
                 <TooltipWithCopyAction
                     copyText={activeTrace?.span_id || ""}
                     title="Copy span id"

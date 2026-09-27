@@ -22,7 +22,7 @@ const count = (value: number | null | undefined) =>
 
 /**
  * Split token counts into input, cache read, cache write and output, or null when nothing was
- * read from or written to a cache.
+ * read from or written to a cache, or when the prompt or completion count is missing.
  *
  * OpenTelemetry GenAI counts cached tokens inside the prompt count; the Agenta runner does not,
  * and marks its spans `input_tokens_includes_cache = false`. An inclusive prompt count has the
@@ -40,6 +40,7 @@ export const splitTokenUsage = ({
     const read = count(cacheRead)
     const write = count(cacheWrite)
     if (!read && !write) return null
+    if (typeof prompt !== "number" || typeof completion !== "number") return null
 
     const cache = read + write
     const promptCount = count(prompt)
