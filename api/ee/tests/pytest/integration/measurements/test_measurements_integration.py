@@ -24,7 +24,6 @@ from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
 from ee.src.dbs.postgres.measurements.dbes import MeasurementDBE, MeasurementValueDBE
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
-from ee.tests.pytest.utils.measurements.fakes import InMemoryOrganizationResolver
 from ee.tests.pytest.utils.wallets.builders import build_measurement_command
 
 # Same xdist group as the wallet integration modules: this worker publishes to the same
@@ -139,7 +138,6 @@ async def test_full_consume_persist_publish(redis_client, analytics_engine):
 
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
-        organization_resolver=InMemoryOrganizationResolver(),
         debit_publisher=RedisDebitPublisher(redis_client=redis_client),
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
@@ -192,7 +190,6 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
     )
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
-        organization_resolver=InMemoryOrganizationResolver(),
         debit_publisher=failing_publisher,
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
@@ -269,7 +266,6 @@ async def test_conflicting_replay_keeps_the_stored_measurement_and_is_dead_lette
     last_debit_id = last_debit_id[0][0]
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
-        organization_resolver=InMemoryOrganizationResolver(),
         debit_publisher=RedisDebitPublisher(redis_client=redis_client),
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,

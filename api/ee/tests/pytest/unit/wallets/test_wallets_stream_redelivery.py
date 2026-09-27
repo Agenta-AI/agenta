@@ -33,7 +33,6 @@ from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryDebitPublisher,
     InMemoryMeasurementsDAO,
-    InMemoryOrganizationResolver,
 )
 from ee.tests.pytest.utils.wallets.builders import (
     build_debit_command,
@@ -88,7 +87,6 @@ class _AlwaysFailingPort(FakeWalletSettlementPort):
 def _measurement_worker(*, redis_client, dao, publisher):
     return MeasurementWorker(
         measurements_dao=dao,
-        organization_resolver=InMemoryOrganizationResolver(),
         debit_publisher=publisher,
         redis_client=redis_client,
         consumer_name="test-consumer",

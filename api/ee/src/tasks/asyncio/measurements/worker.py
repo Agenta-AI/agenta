@@ -15,14 +15,11 @@ from redis.asyncio import Redis
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.measurements.interfaces import (
-    MeasurementsDAOInterface,
-    OrganizationResolverInterface,
-)
+from ee.src.core.measurements.interfaces import MeasurementsDAOInterface
 from ee.src.core.measurements.pricing import calculate_fake_charge
 from ee.src.core.wallets.contracts import STREAM_MEASUREMENTS, DebitCommandV1, DebitKind
 from ee.src.core.wallets.errors import (
-    OrganizationNotResolvedError,
+    MeasurementWithoutOrganizationError,
     WalletTerminalError,
 )
 from ee.src.core.wallets.streaming import (
@@ -42,7 +39,9 @@ class MeasurementWorker(StreamConsumer):
     Per message:
     1. Deserialize/validate — malformed or unsupported-version envelopes are
        terminal: dead-lettered, since retry cannot help.
-    2. Resolve the optional `organization_id` from project scope.
+    2. Require the producer-stamped `organization_id`, the payer the producer
+       authenticated. A measurement without one is terminal: dead-lettered
+       before anything is persisted or charged.
     3. Idempotently insert the measurement and its component values (one
        tracing transaction). A measurement id replayed with different content is
        terminal: the stored measurement stands and the new payload is not priced.
@@ -60,7 +59,6 @@ class MeasurementWorker(StreamConsumer):
     def __init__(
         self,
         measurements_dao: MeasurementsDAOInterface,
-        organization_resolver: OrganizationResolverInterface,
         debit_publisher: DebitPublisher,
         redis_client: Redis,
         stream_name: str = STREAM_MEASUREMENTS,
@@ -97,7 +95,6 @@ class MeasurementWorker(StreamConsumer):
             dead_letter=True,
         )
         self.measurements_dao = measurements_dao
-        self.organization_resolver = organization_resolver
         self.debit_publisher = debit_publisher
 
     def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
@@ -115,10 +112,9 @@ class MeasurementWorker(StreamConsumer):
         debit publish, both succeeded). Raises `WalletTerminalError` when it never
         will be.
         """
-        organization_id = command.organization_id
-        if organization_id is None:
-            organization_id = await self.organization_resolver.resolve_organization_id(
-                project_id=command.project_id
+        if command.organization_id is None:
+            raise MeasurementWithoutOrganizationError(
+                measurement_id=command.measurement_id
             )
 
         await self.measurements_dao.insert_measurement(command=command)
@@ -129,15 +125,9 @@ class MeasurementWorker(StreamConsumer):
 
         amount_musd, pricing_version = charge
 
-        if organization_id is None:
-            # The measurement is persisted; the charge it owes is kept as a dead letter.
-            raise OrganizationNotResolvedError(
-                f"project {command.project_id} resolves to no organization"
-            )
-
         debit = DebitCommandV1(
             idempotency_key=f"measurement:{command.measurement_id}",
-            organization_id=organization_id,
+            organization_id=command.organization_id,
             debit_kind=DebitKind.GATEWAY_USAGE,
             amount_musd=amount_musd,
             pricing_version=pricing_version,

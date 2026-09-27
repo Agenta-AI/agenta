@@ -10,10 +10,7 @@ from uuid import UUID
 import uuid_utils.compat as uuid
 
 from ee.src.core.measurements.dtos import PersistedMeasurement
-from ee.src.core.measurements.interfaces import (
-    MeasurementsDAOInterface,
-    OrganizationResolverInterface,
-)
+from ee.src.core.measurements.interfaces import MeasurementsDAOInterface
 from ee.src.core.wallets.contracts import DebitCommandV1, MeasurementCommandV1
 from ee.src.core.wallets.errors import MeasurementConflictError
 from ee.src.dbs.postgres.measurements.mappings import measurement_fingerprint
@@ -59,18 +56,6 @@ class InMemoryMeasurementsDAO(MeasurementsDAOInterface):
         return PersistedMeasurement(
             id=row_id, measurement_id=command.measurement_id, created=True
         )
-
-
-class InMemoryOrganizationResolver(OrganizationResolverInterface):
-    def __init__(self, mapping: Optional[Dict[UUID, UUID]] = None) -> None:
-        self.mapping = mapping or {}
-
-    async def resolve_organization_id(
-        self,
-        *,
-        project_id: UUID,
-    ) -> Optional[UUID]:
-        return self.mapping.get(project_id)
 
 
 class InMemoryDebitPublisher:

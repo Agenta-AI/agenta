@@ -50,6 +50,10 @@ class MeasurementConflictError(WalletTerminalError):
         )
 
 
-class OrganizationNotResolvedError(WalletTerminalError):
-    """Terminal: a chargeable measurement's project resolves to no organization, so there
-    is no wallet to debit."""
+class MeasurementWithoutOrganizationError(WalletTerminalError):
+    """Terminal: a measurement arrived without the organization its producer
+    authenticated. The payer is never inferred later, so there is no one to charge."""
+
+    def __init__(self, *, measurement_id: str):
+        self.measurement_id = measurement_id
+        super().__init__(f"Measurement {measurement_id!r} carries no organization")
