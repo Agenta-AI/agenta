@@ -403,33 +403,40 @@ def reply_carries_token(reply: str, token: str) -> bool:
     """
     return (
         re.search(
-            rf"(?<![A-Za-z0-9_-]){re.escape(token)}(?![A-Za-z0-9_-])",
+            # A dot is rejected only when another hostname label follows it, so `token.extra`
+            # fails while a reply that ends the sentence with `token.` still passes. The
+            # pattern is built from re.escape(token), so it carries no user-supplied syntax.
+            rf"(?<![A-Za-z0-9_-]){re.escape(token)}(?![A-Za-z0-9_-]|\.(?=[A-Za-z0-9]))",
             reply,
         )
         is not None
     )
 
 
-def bash_token_from_output(t: "Turn") -> str | None:
-    """The QA-BASH token as the SHELL printed it, read off a tool-output frame.
+def bash_token_from_output(t: "Turn", tool_call_id: str) -> str | None:
+    """The QA-BASH token as the SHELL printed it, read off THIS call's output frame.
 
     A token found only in the reply proves nothing on its own: the model writes the reply, so it
     can write a plausible token without running anything. That is the failure this journey was
     built around. Reading the token off the tool's own output and then requiring the REPLY to
     carry that exact string ties the two together, so a fabricated value cannot pass however
     well shaped it is.
+
+    Scoped to one ``toolCallId`` on purpose. A turn often carries several calls, and scanning
+    all of them would accept a token another tool happened to print while the bash call
+    produced none.
     """
-    for payload in t.tool_payloads.values():
-        if not isinstance(payload, dict):
-            continue
-        output = payload.get("output")
-        if output is None:
-            continue
-        text = output if isinstance(output, str) else json.dumps(output, default=str)
-        found = BASH_TOKEN_RE.search(text)
-        if found:
-            return found.group(0)
-    return None
+    if t.tool_outcomes.get(tool_call_id) != "available":
+        return None
+    payload = t.tool_payloads.get(tool_call_id)
+    if not isinstance(payload, dict):
+        return None
+    output = payload.get("output")
+    if output is None:
+        return None
+    text = output if isinstance(output, str) else json.dumps(output, default=str)
+    found = BASH_TOKEN_RE.search(text)
+    return found.group(0) if found else None
 
 # For the APPROVAL journeys the command must MUTATE. Claude Code classifies bash commands and
 # auto-approves read-only ones (a bare `echo`) no matter what the permission policy says, so
@@ -783,7 +790,10 @@ def j3_tool(cell: dict) -> dict:
             permission_default="allow",
         ),
     )
-    shell_token = bash_token_from_output(t)
+    bash_call, _ = _bash_call_outcome(t)
+    shell_token = (
+        bash_token_from_output(t, bash_call["toolCallId"]) if bash_call else None
+    )
     ok = (
         tool_ran(t)
         and shell_token is not None
@@ -2148,8 +2158,10 @@ def _allow_rule_flow(cell: dict, rule: str) -> dict:
             harness_permissions={"allow": [rule]},
         ),
     )
-    _, outcome = _bash_call_outcome(t)
-    shell_token = bash_token_from_output(t)
+    bash_call, outcome = _bash_call_outcome(t)
+    shell_token = (
+        bash_token_from_output(t, bash_call["toolCallId"]) if bash_call else None
+    )
     ok = (
         t.approval is None
         and outcome == "available"
