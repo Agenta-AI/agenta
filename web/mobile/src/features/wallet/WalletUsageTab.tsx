@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useState} from "react"
 
 import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
@@ -41,14 +41,13 @@ const Section = ({title, children}: {title: string; children: React.ReactNode}) 
 export const WalletUsageTab = ({projectId}: {projectId: string}) => {
     const [rangeDays, setRangeDays] = useState(7)
     const summary = useWalletSummary(projectId)
-    // The window ends at the server's "now" on every poll; only its start is pinned here.
-    const start = useMemo(
-        () => new Date(Date.now() - rangeDays * 86_400_000).toISOString(),
-        [rangeDays],
-    )
+    // The window ends at the server's "now", so its start is recomputed on every poll too.
     const usage = useQuery({
         queryKey: ["wallet", "usage", projectId, rangeDays],
-        queryFn: () => fetchWalletUsage(projectId, {start}),
+        queryFn: () =>
+            fetchWalletUsage(projectId, {
+                start: new Date(Date.now() - rangeDays * 86_400_000).toISOString(),
+            }),
         enabled: Boolean(projectId),
         refetchInterval: 10_000,
     })

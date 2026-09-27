@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from ee.src.core.wallets.errors import InvalidUsageWindowError
 from ee.src.core.wallets.types import WalletBalanceDTO, WalletSpendableBalanceDTO
 from ee.src.core.wallets.usage import service as usage_service
 from ee.src.core.wallets.usage.dtos import (
@@ -337,3 +338,9 @@ async def test_a_managed_action_shows_under_tools_with_its_action_and_count():
     )
     assert charge.input_tokens is None and charge.sandbox_seconds is None
     assert [day.category for day in usage.days] == ["Tools"]
+
+
+@pytest.mark.parametrize("start", [NOW, NOW + timedelta(hours=1)])
+async def test_a_window_whose_start_is_not_before_its_end_is_refused(start):
+    with pytest.raises(InvalidUsageWindowError):
+        await _service().usage(organization_id=ORG, start=start, end=NOW)
