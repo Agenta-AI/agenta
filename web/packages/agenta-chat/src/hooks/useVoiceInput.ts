@@ -121,6 +121,17 @@ export function useVoiceInput(): VoiceInput {
         relaunchTimerRef.current = window.setTimeout(() => launchRef.current(), RELAUNCH_DELAY_MS)
     }, [clearRelaunch])
 
+    const finishSession = useCallback(() => {
+        setActive(false)
+        if (!hasWordsRef.current) {
+            setError(
+                (previous) =>
+                    previous ??
+                    "No speech was recognized. Try again or use your keyboard's microphone.",
+            )
+        }
+    }, [])
+
     const launch = useCallback(() => {
         const Ctor = ctorRef.current
         // A session the browser has not finished closing owns the mic. Its `onend` calls back here.
@@ -164,14 +175,7 @@ export function useVoiceInput(): VoiceInput {
         rec.onend = () => {
             if (recRef.current === rec) recRef.current = null
             if (!wantRef.current) {
-                setActive(false)
-                if (!hasWordsRef.current) {
-                    setError(
-                        (previous) =>
-                            previous ??
-                            "No speech was recognized. Try again or use your keyboard's microphone.",
-                    )
-                }
+                finishSession()
                 return
             }
             // Chrome ends on silence even with `continuous`, and a queued start waits here too.
@@ -186,7 +190,7 @@ export function useVoiceInput(): VoiceInput {
             recRef.current = null
             relaunch()
         }
-    }, [clearRelaunch, relaunch])
+    }, [clearRelaunch, relaunch, finishSession])
     launchRef.current = launch
 
     const reset = useCallback(() => {
@@ -218,8 +222,8 @@ export function useVoiceInput(): VoiceInput {
         // Unlatch now; `active` holds until `onend` so the trailing final result still lands.
         setRecording(false)
         if (recRef.current) recRef.current.stop()
-        else setActive(false)
-    }, [clearRelaunch])
+        else finishSession()
+    }, [clearRelaunch, finishSession])
 
     useEffect(
         () => () => {

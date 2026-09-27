@@ -60,13 +60,11 @@ describe("mobile tap dictation", () => {
         vi.stubGlobal("SpeechRecognition", Recognition)
         vi.stubGlobal(
             "matchMedia",
-            vi
-                .fn()
-                .mockReturnValue({
-                    matches: true,
-                    addEventListener: vi.fn(),
-                    removeEventListener: vi.fn(),
-                }),
+            vi.fn().mockReturnValue({
+                matches: true,
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+            }),
         )
         const getUserMedia = vi.fn()
         vi.stubGlobal("navigator", {language: "en-US", mediaDevices: {getUserMedia}})

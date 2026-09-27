@@ -252,6 +252,21 @@ describe("useVoiceInput", () => {
         expect(live()).toHaveLength(0)
     })
 
+    it.each(["", "already spoken"])("finishes during a pending relaunch (words: %s)", (words) => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        if (words) act(() => void live()[0].say(words, true))
+        act(() => FakeRecognition.instances[0].endOnSilence())
+        act(() => result.current.stop())
+        expect(result.current.active).toBe(false)
+        expect(result.current.recording).toBe(false)
+        if (words) expect(result.current.error).toBeNull()
+        else expect(result.current.error).toContain("No speech was recognized")
+        act(() => vi.advanceTimersByTime(1000))
+        expect(FakeRecognition.instances).toHaveLength(1)
+        expect(result.current.finalText).toBe(words)
+    })
+
     it("explains an empty dictation after the browser finishes stopping", () => {
         const {result} = renderHook(() => useVoiceInput())
         act(() => result.current.start())
