@@ -4,7 +4,7 @@
     "tier": "wire",
     "trials_per_cell_scenario": 3,
     "threshold": 0.95,
-    "base": "http://144.76.237.122:8580",
+    "base": "http://<dev-host>:8580",
     "project_id": "019fd878-4f4a-7320-be9d-2b69f7b47ea4",
     "api_key_fingerprint": "86d6d7622f56",
     "stamps": {

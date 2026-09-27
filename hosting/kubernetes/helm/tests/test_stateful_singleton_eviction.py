@@ -20,14 +20,22 @@ import yaml
 CHART_DIR = Path(__file__).resolve().parents[1]
 
 BASE_ARGS = [
-    "--set", "agenta.webUrl=https://agenta.example.com",
-    "--set", "agenta.apiUrl=https://agenta.example.com/api",
-    "--set", "agenta.servicesUrl=https://agenta.example.com/services",
-    "--set", "agenta.authKey=test-auth-key",
-    "--set", "agenta.cryptKey=test-crypt-key",
-    "--set", "agenta.servicesInternalKey=test-services-internal-key",
-    "--set", "agenta.runnerToken=test-runner-token",
-    "--set", "postgres.password=test-postgres-password",
+    "--set",
+    "agenta.webUrl=https://agenta.example.com",
+    "--set",
+    "agenta.apiUrl=https://agenta.example.com/api",
+    "--set",
+    "agenta.servicesUrl=https://agenta.example.com/services",
+    "--set",
+    "agenta.authKey=test-auth-key",
+    "--set",
+    "agenta.cryptKey=test-crypt-key",
+    "--set",
+    "agenta.servicesInternalKey=test-services-internal-key",
+    "--set",
+    "agenta.runnerToken=test-runner-token",
+    "--set",
+    "postgres.password=test-postgres-password",
 ]
 
 ANNOTATION = "cluster-autoscaler.kubernetes.io/safe-to-evict"
@@ -36,7 +44,14 @@ COMPONENTS = ("redis-volatile", "redis-durable", "supertokens")
 
 def render(extra_args: list[str] | None = None) -> list[dict]:
     result = subprocess.run(
-        ["helm", "template", "eviction-test", str(CHART_DIR), *BASE_ARGS, *(extra_args or [])],
+        [
+            "helm",
+            "template",
+            "eviction-test",
+            str(CHART_DIR),
+            *BASE_ARGS,
+            *(extra_args or []),
+        ],
         capture_output=True,
         text=True,
         check=True,
@@ -64,9 +79,12 @@ def test_singletons_are_not_safe_to_evict_by_default() -> None:
 def test_each_component_can_opt_out() -> None:
     docs = render(
         [
-            "--set", "redisVolatile.safeToEvict=true",
-            "--set", "redisDurable.safeToEvict=true",
-            "--set", "supertokens.safeToEvict=true",
+            "--set",
+            "redisVolatile.safeToEvict=true",
+            "--set",
+            "redisDurable.safeToEvict=true",
+            "--set",
+            "supertokens.safeToEvict=true",
         ]
     )
     for component in COMPONENTS:
@@ -99,7 +117,9 @@ def test_other_workloads_are_untouched() -> None:
         labels = doc.get("metadata", {}).get("labels", {})
         if labels.get("app.kubernetes.io/component") != "api":
             continue
-        assert ANNOTATION not in doc["spec"]["template"]["metadata"].get("annotations", {})
+        assert ANNOTATION not in doc["spec"]["template"]["metadata"].get(
+            "annotations", {}
+        )
         return
     raise AssertionError("no api Deployment rendered")
 

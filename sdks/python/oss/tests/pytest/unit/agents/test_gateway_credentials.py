@@ -132,7 +132,7 @@ def test_the_loopback_exemption_covers_the_provider_secret_too():
 # secure-by-default pin, because asserting the env resolution IS the point here.
 # --------------------------------------------------------------------------------------- #
 
-_ROUTABLE_HTTP = "http://144.76.237.122:8680/api/gateways/llms/builtin/mock/v1"
+_ROUTABLE_HTTP = "http://203.0.113.10:8680/api/gateways/llms/builtin/mock/v1"
 
 
 @pytest.mark.allow_insecure_env
@@ -212,7 +212,7 @@ def _build_gateway(**overrides):
         "deployment": "direct",
         "namespace": "builtin",
         "name": "mock",
-        "gateway_base_url": "http://144.76.237.122:8680/api",
+        "gateway_base_url": "http://203.0.113.10:8680/api",
         "gateway_credentials_value": "ApiKey mock-gateway-credentials",
     }
     fields.update(overrides)
@@ -239,7 +239,7 @@ def test_the_refusal_is_typed_and_names_the_flag(monkeypatch):
     assert INSECURE_HTTP_ENV_VAR in detail["next_step"]
     assert detail["details"]["flag"] == INSECURE_HTTP_ENV_VAR
     # The address the refusal is about, so an operator can tell which URL to fix. Non-secret.
-    assert detail["details"]["base_url"].startswith("http://144.76.237.122:8680/api")
+    assert detail["details"]["base_url"].startswith("http://203.0.113.10:8680/api")
     # The credential value must never travel in an error body.
     assert "mock-gateway-credentials" not in str(detail)
 
@@ -251,7 +251,7 @@ def test_the_flag_lets_the_same_construction_succeed(monkeypatch):
     connection = _build_gateway()
 
     assert connection.endpoint.base_url == (
-        "http://144.76.237.122:8680/api/gateways/llms/builtin/mock/v1"
+        "http://203.0.113.10:8680/api/gateways/llms/builtin/mock/v1"
     )
     assert connection.plaintext_headers() == {
         "X-AG-Credentials": "ApiKey mock-gateway-credentials"

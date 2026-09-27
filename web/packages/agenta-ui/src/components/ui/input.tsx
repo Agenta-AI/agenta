@@ -7,21 +7,29 @@ import {cn} from "./utils"
 /**
  * Input / Textarea — the shadcn input. Text is 16px below `md` so iOS Safari does not zoom the
  * page on focus. The ring uses `focus-within` so the affix wrapper in ./input-composed rings too.
+ *
+ * Every class here must compile under both apps: /w is Tailwind 3 with preflight off, /m is
+ * Tailwind 4 with preflight on. So the control resets are explicit, and the ring width, ring
+ * colors and the invalid variant use arbitrary values that both versions generate.
  */
 const inputVariants = cva(
     [
+        // CONTROL_RESET — see button.tsx. Without preflight (/w), `border` sets only the width,
+        // an <input> keeps the UA font and a <textarea> keeps monospace.
+        "box-border border-solid font-[inherit]",
         "w-full min-w-0 border text-base text-foreground transition-colors outline-none md:text-sm",
         "placeholder:text-muted-foreground",
         "file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
-        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:disabled:bg-input/80",
-        "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_50%,transparent)] disabled:opacity-50 dark:disabled:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_80%,transparent)]",
+        "aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-[3px] aria-[invalid=true]:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
+        "dark:aria-[invalid=true]:border-[color:color-mix(in_srgb,var(--ag-colorError)_50%,transparent)] dark:aria-[invalid=true]:ring-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)]",
     ],
     {
         variants: {
             variant: {
                 default:
-                    "border-input bg-transparent focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30",
-                filled: "border-transparent bg-muted focus-within:border-ring focus-within:bg-background focus-within:ring-3 focus-within:ring-ring/50",
+                    "border-input bg-transparent focus-within:border-ring focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)] dark:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_30%,transparent)]",
+                filled: "border-transparent bg-muted focus-within:border-ring focus-within:bg-background focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)]",
                 ghost: "border-transparent bg-transparent",
             },
             size: {
@@ -56,7 +64,11 @@ function Textarea({className, variant, size, rows = 3, ...props}: TextareaProps)
         <textarea
             data-slot="textarea"
             rows={rows}
-            className={cn(inputVariants({variant, size}), "h-auto min-h-16 py-2", className)}
+            className={cn(
+                inputVariants({variant, size}),
+                "h-auto min-h-16 resize-y py-2",
+                className,
+            )}
             {...props}
         />
     )

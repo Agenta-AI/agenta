@@ -445,6 +445,7 @@ def bash_token_from_output(t: "Turn", tool_call_id: str) -> str | None:
     found = BASH_TOKEN_FULL_RE.search(text)
     return found.group(0) if found else None
 
+
 # For the APPROVAL journeys the command must MUTATE. Claude Code classifies bash commands and
 # auto-approves read-only ones (a bare `echo`) no matter what the permission policy says, so
 # approving a read-only echo tests nothing on Claude — and a user approving an action is, by
