@@ -248,6 +248,18 @@ export const agentTemplateSeed = (
 export const SAVE_AS_TEMPLATE_MESSAGE =
     "Save this agent as a template I can share. Use the create-template skill."
 
+/**
+ * The template menu's marketplace request: the same create-template flow, then a guided
+ * submission through the repo's contribution guide (no submit-template skill exists yet).
+ */
+export const SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE =
+    "Save this agent as a template and help me share it in the Agenta marketplace. " +
+    "First use the create-template skill to create and validate the template zip. " +
+    "Then guide me through submitting it, step by step, by following the template " +
+    "contribution guide: " +
+    "https://github.com/Agenta-AI/agenta/blob/main/api/oss/src/resources/agent_templates/CONTRIBUTING.md. " +
+    "Never ask me for GitHub credentials or tokens in this chat."
+
 /** Look a template up by key — surfaces receive a key from a menu, a URL or a card. */
 export const agentTemplateByKey = (key: string | undefined): AgentStarterTemplate | undefined =>
     key ? AGENT_TEMPLATES.find((template) => template.key === key) : undefined
