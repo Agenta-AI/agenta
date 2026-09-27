@@ -1653,8 +1653,11 @@ export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: str
  */
 export const workflowBuildKitOverlayReadyAtomFamily = atomFamily((revisionId: string) =>
     atom<boolean>((get) => {
-        const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
+        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
+        const revisionData = revisionQuery.data ?? null
         const baseEntity = get(workflowBaseEntityAtomFamily(revisionId))
+        // Agent-ness is unknown until the revision loads; without a local entity, keep waiting.
+        if (!baseEntity && revisionQuery.isLoading) return false
         const explicitIsAgent = revisionData?.flags?.is_agent ?? baseEntity?.flags?.is_agent
         const targetUri = revisionData?.data?.uri ?? baseEntity?.data?.uri
         const isAgent = explicitIsAgent ?? isAgentBuiltinUri(targetUri)
