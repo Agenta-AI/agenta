@@ -23,6 +23,12 @@
  * `MODEL_KEY_WAIT_LIMIT_MS` the task is released and the failure is stated instead. Same shape as
  * the desktop's bounded waits (`buildRequestWithinDeadline`, and the build-kit wait in
  * `useFirstRunSeed`): wait for the thing you need, but never without end.
+ *
+ * Last, the build kit: a new agent's first turn must carry the platform build kit (tools, skills,
+ * sandbox permissions), and the overlay that holds it can still be loading when everything else is
+ * ready. A turn sent without it runs kit-less, and the next turn's full config evicts the warm
+ * sandbox. Desktop waits for it the same way (`useFirstRunSeed`), bounded by
+ * `BUILD_KIT_WAIT_LIMIT_MS`; after that the task is sent without the kit.
  */
 export type PendingTaskDecision =
     /** Keep the task parked; a later render decides again. */
@@ -34,6 +40,9 @@ export type PendingTaskDecision =
 
 /** How long the parked task waits for the project vault before it gives up. */
 export const MODEL_KEY_WAIT_LIMIT_MS = 10_000
+
+/** How long the parked task waits for the build-kit overlay before it is sent without it. */
+export const BUILD_KIT_WAIT_LIMIT_MS = 10_000
 
 /** Shown when the vault never answered — the desktop's "not sent, try again" wording family. */
 export const PENDING_TASK_NOT_SENT_MESSAGE =
@@ -63,6 +72,11 @@ export interface PendingTaskGate {
      * and bounded by the hook while it is still deciding.
      */
     setupBlocking: boolean
+    /**
+     * The build-kit overlay has settled (`workflowBuildKitOverlayReadyAtomFamily`), or the
+     * `BUILD_KIT_WAIT_LIMIT_MS` wait for it has run out.
+     */
+    buildKitSettled: boolean
 }
 
 export const pendingTaskDecision = ({
@@ -73,6 +87,7 @@ export const pendingTaskDecision = ({
     modelKeyWaitedMs,
     modelBlocked,
     setupBlocking,
+    buildKitSettled,
 }: PendingTaskGate): PendingTaskDecision => {
     if (sentFor === sessionId) return "hold"
     if (hydrating) return "hold"
@@ -86,5 +101,6 @@ export const pendingTaskDecision = ({
     // Unbounded on purpose: the strip is up and the composer is disabled, so this hold is visible
     // and the user holds the release (saving a key).
     if (modelBlocked) return "hold"
+    if (!buildKitSettled) return "hold"
     return "send"
 }

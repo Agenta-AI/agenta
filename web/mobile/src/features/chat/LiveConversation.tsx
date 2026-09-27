@@ -36,7 +36,10 @@ import {
     markLocalSessionAcceptedAtom,
     registerLocalSessionAtom,
 } from "@agenta/entities/session"
-import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
+import {
+    invalidateAgentCommittedRevisionCache,
+    workflowBuildKitOverlayReadyAtomFamily,
+} from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
@@ -49,9 +52,6 @@ import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {ContentRail} from "@/components/ContentRail"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {useProjectPermission} from "../context/useProjectPermission"
 import {failPendingTaskAtom, pendingTasksAtom, sendPendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
@@ -61,7 +61,11 @@ import {ApprovalDock} from "./ApprovalDock"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
-import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
+import {
+    BUILD_KIT_WAIT_LIMIT_MS,
+    MODEL_KEY_WAIT_LIMIT_MS,
+    pendingTaskDecision,
+} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {cancelledStopAction} from "./stopHereState"
@@ -74,6 +78,9 @@ import {useSessionSetupStep} from "./useSessionSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
+
+import {ContentRail} from "@/components/ContentRail"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /**
  * The LIVE conversation screen — the same engine the desktop chat runs on
@@ -305,6 +312,19 @@ export const LiveConversation = ({
     // its own. Holds the first message while it does; declines silently when there is nothing to
     // ask, which is every other way into this screen.
     const setup = useSessionSetupStep(sessionId)
+    // The first turn carries the build kit, so the parked task waits for its overlay, bounded
+    // like desktop's first-run seed (`pendingTaskPolicy`).
+    const buildKitReady = useAtomValue(workflowBuildKitOverlayReadyAtomFamily(entityId))
+    const [buildKitWaitElapsed, setBuildKitWaitElapsed] = useState(false)
+    const taskParked = Boolean(pendingTask) && !pendingTask?.delivery
+    useEffect(() => {
+        if (!taskParked || buildKitReady || buildKitWaitElapsed) return
+        const timer = setTimeout(() => {
+            console.warn("[mobile chat] build-kit overlay not ready after 10s; sending without it")
+            setBuildKitWaitElapsed(true)
+        }, BUILD_KIT_WAIT_LIMIT_MS)
+        return () => clearTimeout(timer)
+    }, [taskParked, buildKitReady, buildKitWaitElapsed])
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery) return
         const decision = pendingTaskDecision({
@@ -315,6 +335,7 @@ export const LiveConversation = ({
             modelKeyWaitedMs,
             modelBlocked,
             setupBlocking: setup.blocking,
+            buildKitSettled: buildKitReady || buildKitWaitElapsed,
         })
         if (decision === "hold") return
         if (decision === "abandon") {
@@ -332,6 +353,8 @@ export const LiveConversation = ({
         modelKeyWaitedMs,
         modelBlocked,
         setup.blocking,
+        buildKitReady,
+        buildKitWaitElapsed,
         send,
         sessionId,
         sendPendingTask,
