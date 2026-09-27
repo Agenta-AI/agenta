@@ -15,7 +15,7 @@ Status: draft OpenSpec package, written 2026-09-22, moved into the repository 20
 | OpenSpec change | Status | Backlog card |
 | --- | --- | --- |
 | [Document wallet foundation](openspec/changes/document-wallet-foundation/proposal.md) | Describes implemented code on unmerged #6050; no production acceptance claimed | 2 |
-| [Connect model gateway and wallet](openspec/changes/connect-model-gateway-wallet/proposal.md) | JP's planned second phase; not implemented | 4, 9 |
+| [Connect model gateway and wallet](openspec/changes/connect-model-gateway-wallet/proposal.md) | Implemented on `wallets/wave-2` (#7162) for the mock `builtin` provider; tasks checked with evidence; a real funded provider remains separate | 4, 9 |
 | [Harden production billing](openspec/changes/harden-wallet-production-billing/proposal.md) | Original open questions plus explicitly identified safety refinements | 1, 3, 4, 8 |
 | [Independent credit funding](openspec/changes/add-independent-credit-funding/proposal.md) | Confirmed lifetime purchase requirement; implementation pending | 1, 5 |
 | [Include sandbox usage](openspec/changes/include-sandbox-usage/proposal.md) | Agreed approach; implementation pending; quantities and overage policy unselected | 10 (new) |
