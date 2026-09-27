@@ -243,6 +243,60 @@ def test_unknown_metadata_field_is_rejected(tmp_path: Path):
     assert error.value.code == "template_source_catalog_invalid"
 
 
+@pytest.mark.parametrize(
+    "url",
+    ["javascript:alert(1)", "http://example.com/a.png", "media/../catalog.json"],
+)
+def test_unsafe_media_url_is_rejected(tmp_path: Path, url: str):
+    catalog_path = _copy_catalog(tmp_path)
+    _rewrite(
+        catalog_path,
+        lambda value: value["templates"]["pr-reviewer"]["metadata"].update(
+            media=[{"kind": "image", "url": url, "alt": "Screenshot"}]
+        ),
+    )
+
+    with pytest.raises(TemplateSourceInvalid) as error:
+        AgentTemplateCatalog(catalog_path=catalog_path).validate()
+
+    assert error.value.code == "template_source_catalog_invalid"
+
+
+def test_committed_and_https_media_urls_are_accepted(tmp_path: Path):
+    catalog_path = _copy_catalog(tmp_path)
+    media = [
+        {"kind": "image", "url": "media/pr-reviewer.png", "alt": "Screenshot"},
+        {
+            "kind": "video",
+            "url": "https://videos.example.com/demo.mp4",
+            "alt": "Demo",
+            "poster_url": "media/demo-poster.png",
+        },
+    ]
+    _rewrite(
+        catalog_path,
+        lambda value: value["templates"]["pr-reviewer"]["metadata"].update(media=media),
+    )
+
+    AgentTemplateCatalog(catalog_path=catalog_path).validate()
+
+
+def test_author_link_must_use_https(tmp_path: Path):
+    catalog_path = _copy_catalog(tmp_path)
+    author = catalog_path.parent / "authors" / "agenta.json"
+    _rewrite(
+        author,
+        lambda value: value["links"].append(
+            {"kind": "website", "url": "javascript:alert(1)"}
+        ),
+    )
+
+    with pytest.raises(TemplateSourceInvalid) as error:
+        AgentTemplateCatalog(catalog_path=catalog_path).validate()
+
+    assert error.value.code == "template_author_invalid"
+
+
 def test_unwrapped_catalog_is_rejected(tmp_path: Path):
     catalog_path = _copy_catalog(tmp_path)
     _rewrite(catalog_path, lambda value: value.pop("schema_version"))
