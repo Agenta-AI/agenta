@@ -208,3 +208,24 @@ async def test_the_handshake_and_notifications_are_free():
     answer = await _relay(service, "initialize", {"protocolVersion": "2025-03-26"})
     assert answer["result"]["protocolVersion"] == "2025-03-26"
     assert billing.admitted == [] and billing.recorded == []
+
+
+async def test_only_a_missing_id_is_a_notification():
+    adapter, billing = _adapter()
+    context = object()
+
+    notification = await adapter.relay(
+        context=context,
+        body=json.dumps({"jsonrpc": "2.0", "method": "tools/call"}).encode(),
+    )
+    assert (notification.status_code, notification.body) == (202, b"")
+
+    for bad_id in (None, True, 1.5, {"a": 1}):
+        refused = await adapter.relay(
+            context=context,
+            body=_rpc("tools/call", {"name": "mock.enrich_person"}, request_id=bad_id),
+        )
+        answer = json.loads(refused.body)
+        assert answer["id"] is None
+        assert answer["error"]["code"] == -32600
+    assert billing.admitted == [] and billing.recorded == []

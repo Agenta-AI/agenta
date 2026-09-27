@@ -46,9 +46,14 @@ class ManagedMCPAdapter:
             payload.get("params") if isinstance(payload.get("params"), dict) else {}
         )
 
-        # A request with no id is a notification, and answering one breaks the protocol.
-        if request_id is None:
+        # Only a message with no `id` member is a notification, and answering one breaks
+        # the protocol. MCP ids are strings or integers, so an explicit null is refused.
+        if "id" not in payload:
             return MCPRelayResult(status_code=202, headers={}, body=b"")
+        if isinstance(request_id, bool) or not isinstance(request_id, (str, int)):
+            return _error(
+                None, _INVALID_REQUEST, "The id must be a string or an integer."
+            )
 
         if method == "initialize":
             requested = params.get("protocolVersion")
