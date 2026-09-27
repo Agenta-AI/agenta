@@ -1,5 +1,4 @@
 import {channelDebugEnabledAtom} from "@agenta/shared/state"
-import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import ConnectionsSection from "./components/ConnectionsSection"
@@ -13,12 +12,6 @@ export default function Channels() {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-1">
-                <Typography.Text type="secondary" className="text-xs">
-                    The chat platforms this project is connected to. Connect an agent to Slack,
-                    Telegram or WhatsApp from the agent's own page.
-                </Typography.Text>
-            </div>
             <ConnectionsSection />
             {/*
              * Behind the "Channel debug" preference: spaces are not functional yet, and threads,
