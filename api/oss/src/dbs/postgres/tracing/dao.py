@@ -51,6 +51,8 @@ from oss.src.dbs.postgres.tracing.utils import (
     build_extract_cte,
     build_type_flags,
     build_statistics_stmt,
+    get_sampling_percent,
+    fill_empty_buckets,
     #
     compute_range,
     parse_pcts,
@@ -197,7 +199,7 @@ class TracingDAO(TracingDAOInterface):
 
                 # WINDOWING
                 if rate is not None:
-                    percent = max(0, min(int(rate * 100.0), 100))
+                    percent = get_sampling_percent(rate)
 
                     if percent == 0:
                         return []
@@ -332,10 +334,11 @@ class TracingDAO(TracingDAOInterface):
             windowing=query.windowing,
         )
 
-        if query.windowing.rate is not None:
-            percent = max(0, min(int(query.windowing.rate * 100.0), 100))
-            if percent == 0:
-                return []
+        percent = get_sampling_percent(query.windowing.rate)
+        if percent == 0:
+            return []
+
+        focus = query.formatting.focus if query.formatting else None
 
         # log.info(f"[TRACING] [analytics] processing {len(specs)} specs")
         # for idx, spec in enumerate(specs):
@@ -384,6 +387,7 @@ class TracingDAO(TracingDAOInterface):
             rate=query.windowing.rate,
             #
             filtering=query.filtering,
+            focus=focus,
         )
 
         if base_cte is None:
@@ -510,6 +514,9 @@ class TracingDAO(TracingDAOInterface):
                 per_timestamp[_timestamp][_path] | r["value"]
             )
 
+        if query.windowing.interval is not None:
+            per_timestamp = fill_empty_buckets(per_timestamp, timestamps)
+
         buckets: List[MetricsBucket] = []
 
         for timestamp, metrics in per_timestamp.items():
@@ -557,7 +564,7 @@ class TracingDAO(TracingDAOInterface):
                 _tokens = None
                 _timestamp = func.date_bin(
                     text(f"'{stride}'"),
-                    SpanDBE.created_at,
+                    SpanDBE.start_time,
                     oldest,
                 ).label("timestamp")
                 # ------------------
@@ -617,13 +624,13 @@ class TracingDAO(TracingDAOInterface):
 
                 # WINDOWING
                 total_stmt = total_stmt.filter(
-                    SpanDBE.created_at >= oldest,
-                    SpanDBE.created_at < newest,
+                    SpanDBE.start_time >= oldest,
+                    SpanDBE.start_time < newest,
                 )
 
                 errors_stmt = errors_stmt.filter(
-                    SpanDBE.created_at >= oldest,
-                    SpanDBE.created_at < newest,
+                    SpanDBE.start_time >= oldest,
+                    SpanDBE.start_time < newest,
                 )
                 # ---------
 
@@ -661,19 +668,23 @@ class TracingDAO(TracingDAOInterface):
                             ColumnElement[bool],
                             combine(
                                 operator=operator,
-                                clauses=filter(
-                                    conditions
-                                    + [
-                                        Condition(
-                                            field="events",
-                                            operator=ListOperator.IN,
-                                            value=[{"name": "exception"}],
-                                        )
-                                    ]
-                                ),
+                                clauses=filter(conditions),
                             ),
                         )
                     )
+
+                # Outside the caller's operator, so an "or" filter cannot bypass it.
+                errors_stmt = errors_stmt.filter(
+                    *filter(
+                        [
+                            Condition(
+                                field="events",
+                                operator=ListOperator.IN,
+                                value=[{"name": "exception"}],
+                            )
+                        ]
+                    )
+                )
                 # ---------
 
                 # GROUPING
