@@ -13,6 +13,7 @@ from ee.src.core.measurements.components import (
     OUTPUT_TOKENS,
     REQUEST_COUNT,
 )
+from ee.src.core.wallets.errors import InvalidUsageWindowError
 from ee.src.core.wallets.types import WalletsDAOInterface
 from ee.src.core.wallets.usage.dtos import (
     MeasurementUsage,
@@ -126,6 +127,8 @@ class WalletUsageService:
     ) -> WalletUsage:
         end = end or datetime.now(timezone.utc)
         start = start or end - DEFAULT_WINDOW
+        if start >= end:
+            raise InvalidUsageWindowError("start must be before end")
 
         debits = await self.usage_dao.list_usage_debits(
             organization_id=organization_id,

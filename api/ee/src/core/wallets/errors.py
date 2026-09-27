@@ -68,3 +68,7 @@ class MeasurementWithoutOrganizationError(WalletTerminalError):
     def __init__(self, *, measurement_id: str):
         self.measurement_id = measurement_id
         super().__init__(f"Measurement {measurement_id!r} carries no organization")
+
+
+class InvalidUsageWindowError(WalletError):
+    """The usage window's start is not before its end."""
