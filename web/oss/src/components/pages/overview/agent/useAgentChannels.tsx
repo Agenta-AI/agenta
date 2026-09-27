@@ -118,6 +118,8 @@ export const renderChannelsDrawer = ({
         }
         onClose={onClose}
         size={wide ? 720 : 460}
+        // The panels' footer band bleeds by 16px, the body padding the shared Sheet uses on /m.
+        styles={{body: {padding: 16}}}
         destroyOnClose
     >
         {children}

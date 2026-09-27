@@ -66,4 +66,11 @@ describe("renderChannelsDrawer", () => {
 
         expect(document.querySelector('[data-testid="panel-icon"]')).not.toBeNull()
     })
+
+    it("pads its body 16px, the bleed the panels' footer band assumes", () => {
+        mount(undefined)
+
+        const body = document.querySelector<HTMLElement>(".ant-drawer-body")
+        expect(body?.style.padding).toBe("16px")
+    })
 })
