@@ -75,7 +75,7 @@ describe("startSandboxMeter", () => {
     startSandboxMeter({
       provider: "daytona",
       sandboxId: "sb-1",
-      resources: { vcpu: 2, memoryGib: 4 },
+      resources: () => ({ vcpu: 2, memoryGib: 4 }),
       credential: () => "Secret run-1",
       sessionId: "session-1",
       agentId: AGENT,
@@ -195,7 +195,7 @@ describe("startSandboxMeter", () => {
 
   it("meters the default size when the provider never answers", async () => {
     const { calls, fetch } = platform();
-    const m = meter({ fetch, resources: new Promise(() => {}) });
+    const m = meter({ fetch, resources: () => new Promise(() => {}) });
 
     await advance(60_000);
     await advance(10_000);
@@ -224,7 +224,7 @@ describe("startSandboxMeter", () => {
 
   it("meters the default size when the provider does not report one", async () => {
     const { calls, fetch } = platform();
-    const m = meter({ fetch, resources: Promise.reject(new Error("get failed")) });
+    const m = meter({ fetch, resources: () => Promise.reject(new Error("get failed")) });
 
     await advance(60_000);
     await m.stop();

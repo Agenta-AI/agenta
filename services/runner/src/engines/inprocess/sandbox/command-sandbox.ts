@@ -645,11 +645,12 @@ export class CommandSandbox {
 
   private markRunning(): void {
     this.runningSince ??= Date.now();
-    if (this.meter || !this.usage || !this.current) return;
+    const current = this.current;
+    if (this.meter || !this.usage || !current) return;
     this.meter = (this.settings.startMeter ?? startSandboxMeter)({
       provider: "daytona",
-      sandboxId: this.current.id,
-      resources: this.current.resources,
+      sandboxId: current.id,
+      resources: () => current.resources,
       credential: () => this.usageCredential(),
       ...(this.usage.sessionId ? { sessionId: this.usage.sessionId } : {}),
       ...(this.usage.agentId ? { agentId: this.usage.agentId } : {}),

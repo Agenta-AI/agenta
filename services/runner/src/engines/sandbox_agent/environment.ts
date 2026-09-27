@@ -949,7 +949,7 @@ async function acquireEnvironmentOnce(
       const meter = (deps.startSandboxMeter ?? startSandboxMeter)({
         provider: "daytona",
         sandboxId: daytonaSandboxId,
-        resources: readDaytonaSandboxResources(loadRunnerConfig().daytona, daytonaSandboxId),
+        resources: () => readDaytonaSandboxResources(loadRunnerConfig().daytona, daytonaSandboxId),
         credential: meterLease.credential,
         ...(sessionForMount ? { sessionId: sessionForMount } : {}),
         ...(request.runContext?.workflow?.artifact?.id

@@ -90,8 +90,11 @@ export interface SandboxUsageContext {
 export interface SandboxMeterOptions {
   provider: "daytona";
   sandboxId: string;
-  /** What the sandbox has, read from the provider. Unknown (undefined or a rejection) meters the default. */
-  resources: SandboxResources | Promise<SandboxResources> | undefined;
+  /**
+   * Reads what the sandbox has from the provider. Called once by a started meter, which owns the
+   * failure: unknown (undefined, a throw or a rejection) meters the default.
+   */
+  resources: () => SandboxResources | Promise<SandboxResources> | undefined;
   /** The current platform credential; its owner keeps it fresh for as long as the sandbox can run. */
   credential: () => string;
   sessionId?: string;
@@ -128,7 +131,7 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
   const unknownSize = new Promise<undefined>((resolve) => {
     setTimeout(() => resolve(undefined), RESOURCES_TIMEOUT_MS).unref?.();
   });
-  const resources = Promise.race([Promise.resolve(options.resources), unknownSize])
+  const resources = Promise.race([Promise.resolve().then(options.resources), unknownSize])
     .then((size) => {
       if (!size) throw new Error("the provider reported no size");
       return wholeResources(size);
