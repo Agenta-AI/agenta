@@ -17,6 +17,8 @@ from oss.src.utils.context import (
     set_auth_context,
 )
 
+from oss.src.apis.fastapi.shared import runner_auth
+
 from ee.src.apis.fastapi.wallets.router import WalletsRouter
 from ee.src.core.measurements.sandboxes import (
     SandboxUsageInterval,
@@ -165,9 +167,9 @@ def test_a_tenant_credential_without_the_runner_token_is_refused(
     monkeypatch, path, headers
 ):
     from fastapi.testclient import TestClient
-    from oss.src.utils.env import env
 
-    monkeypatch.setattr(env.runner, "token", "runner-secret")
+    # Through the module that reads it: another suite may have reloaded the env module.
+    monkeypatch.setattr(runner_auth.env.runner, "token", "runner-secret")
     publisher = InMemoryMeasurementPublisher()
     scope = AuthScope(
         organization_id=uuid4(),
@@ -186,9 +188,9 @@ def test_a_tenant_credential_without_the_runner_token_is_refused(
 
 def test_the_runner_reports_for_the_credential_tenant_not_the_body(monkeypatch):
     from fastapi.testclient import TestClient
-    from oss.src.utils.env import env
 
-    monkeypatch.setattr(env.runner, "token", "runner-secret")
+    # Through the module that reads it: another suite may have reloaded the env module.
+    monkeypatch.setattr(runner_auth.env.runner, "token", "runner-secret")
     publisher = InMemoryMeasurementPublisher()
     scope = AuthScope(
         organization_id=uuid4(),
