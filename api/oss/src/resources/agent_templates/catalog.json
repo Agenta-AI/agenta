@@ -7,7 +7,7 @@
         "1.0.0": "packages/pr-reviewer/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Reviews PRs, comments inline, flags risky changes.",
         "category": "Engineering",
         "tags": [
@@ -57,7 +57,7 @@
         "1.0.0": "packages/changelog-writer/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Turns merged PRs into clean release notes.",
         "category": "Engineering",
         "tags": [
@@ -106,7 +106,7 @@
         "1.0.0": "packages/issue-triage/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Labels new issues by area and priority, assigns an owner.",
         "category": "Engineering",
         "tags": [
@@ -151,7 +151,7 @@
         "1.0.0": "packages/ci-failure-triage/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Summarizes failed CI runs and pings the author.",
         "category": "Engineering",
         "tags": [
@@ -196,7 +196,7 @@
         "1.0.0": "packages/code-qa/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Answers questions about the repo when mentioned.",
         "category": "Engineering",
         "tags": [
@@ -241,7 +241,7 @@
         "1.0.0": "packages/dependency-digest/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Weekly summary of open dependency-update PRs.",
         "category": "Engineering",
         "tags": [
@@ -277,7 +277,7 @@
         "1.0.0": "packages/support-triage/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Reads #support, tags urgency, routes to owners.",
         "category": "Support",
         "tags": [
@@ -313,7 +313,7 @@
         "1.0.0": "packages/support-reply-drafter/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Drafts replies to new tickets using your docs.",
         "category": "Support",
         "tags": [
@@ -359,7 +359,7 @@
         "1.0.0": "packages/bug-report-router/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Turns complaints into Linear tickets with repro steps.",
         "category": "Support",
         "tags": [
@@ -405,7 +405,7 @@
         "1.0.0": "packages/feedback-clusterer/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Daily clusters new feedback into themes.",
         "category": "Support",
         "tags": [
@@ -451,7 +451,7 @@
         "1.0.0": "packages/lead-qualifier/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Enriches and qualifies new inbound leads.",
         "category": "Sales",
         "tags": [
@@ -487,7 +487,7 @@
         "1.0.0": "packages/crm-updater/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Updates CRM records from recent email threads.",
         "category": "Sales",
         "tags": [
@@ -523,7 +523,7 @@
         "1.0.0": "packages/outreach-drafter/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Drafts personalized outreach for a contact list.",
         "category": "Sales",
         "tags": [
@@ -559,7 +559,7 @@
         "1.0.0": "packages/meeting-followup/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Drafts a follow-up email and logs notes to the CRM.",
         "category": "Sales",
         "tags": [
@@ -595,7 +595,7 @@
         "1.0.0": "packages/pipeline-digest/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Daily digest of pipeline changes and stale deals.",
         "category": "Sales",
         "tags": [
@@ -641,7 +641,7 @@
         "1.0.0": "packages/incident-responder/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Watches alerts, gathers context, pages on-call.",
         "category": "Engineering",
         "tags": [
@@ -687,7 +687,7 @@
         "1.0.0": "packages/error-triage/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Triages new Sentry errors by severity, files real ones.",
         "category": "Engineering",
         "tags": [
@@ -733,7 +733,7 @@
         "1.0.0": "packages/uptime-reporter/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Daily uptime and error-rate summary to Slack.",
         "category": "Engineering",
         "tags": [
@@ -779,7 +779,7 @@
         "1.0.0": "packages/oncall-briefer/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Briefs on-call with open incidents each morning.",
         "category": "Engineering",
         "tags": [
@@ -825,7 +825,7 @@
         "1.0.0": "packages/docs-qa/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Answers questions from your docs workspace.",
         "category": "Knowledge",
         "tags": [
@@ -861,7 +861,7 @@
         "1.0.0": "packages/knowledge-chatbot/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Customer-facing chatbot answering from your knowledge base.",
         "category": "Knowledge",
         "tags": [
@@ -907,7 +907,7 @@
         "1.0.0": "packages/onboarding-buddy/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Answers new-hire questions from your internal wiki.",
         "category": "Knowledge",
         "tags": [
@@ -953,7 +953,7 @@
         "1.0.0": "packages/content-repurposer/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Turns a published doc into draft social posts.",
         "category": "Knowledge",
         "tags": [
@@ -989,7 +989,7 @@
         "1.0.0": "packages/newsletter-drafter/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Weekly newsletter drafted from shipping activity.",
         "category": "Knowledge",
         "tags": [
@@ -1035,7 +1035,7 @@
         "1.0.0": "packages/standup-summarizer/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Posts a daily digest of channel activity.",
         "category": "Ops",
         "tags": [
@@ -1071,7 +1071,7 @@
         "1.0.0": "packages/repo-slack-digest/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Twice-daily digest of issues, commits, and PRs.",
         "category": "Ops",
         "tags": [
@@ -1117,7 +1117,7 @@
         "1.0.0": "packages/cross-tool-sync/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Mirrors new Linear issues into a Notion tracker.",
         "category": "Ops",
         "tags": [
@@ -1163,7 +1163,7 @@
         "1.0.0": "packages/weekly-report/1.0.0"
       },
       "metadata": {
-        "author_id": "agenta",
+        "author_id": "mahmoud-mabrouk",
         "summary": "Weekly report of shipping and product metrics.",
         "category": "Ops",
         "tags": [

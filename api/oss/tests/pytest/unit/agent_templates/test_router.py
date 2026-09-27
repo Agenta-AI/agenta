@@ -347,7 +347,7 @@ async def test_query_returns_every_listed_template_in_catalog_order(monkeypatch)
         entry.key for entry in CATALOG.entries()
     ]
     first = body["templates"][0]
-    assert first["author"]["id"] == "agenta"
+    assert first["author"]["id"] == "mahmoud-mabrouk"
     assert first["source"] == {"kind": "internal", "key": "pr-reviewer"}
     assert first["tools_summary"] == "3 GitHub tools"
     assert access.await_args.kwargs["permission"] == Permission.VIEW_WORKFLOWS
