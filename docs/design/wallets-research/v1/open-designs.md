@@ -2364,6 +2364,15 @@ Designed in [v2/sandbox-seconds.md](../v2/sandbox-seconds.md). In short:
   explicit refusal ends it with `wallet_balance_exhausted` before any sandbox exists. Any other
   answer admits it, so a metering outage never stops agents. A running turn is never stopped
   for its balance, so a turn near the floor can settle below it (items 2 and 17).
-- **Never measured:** `local`, self-hosted, and OSS (the routes are absent, and the runner
-  reads the 404 as "not metered").
+- **Never measured:** `local`, self-hosted, and OSS. The runner reads the API's own switch,
+  `AGENTA_WALLETS_ENABLED`, and with it off makes no admission call and starts no meter or
+  credential lease (whole-stack review finding 6, 2026-09-27). Options: the API telling the
+  runner per turn (rejected: a new run-request field through the SDK for a deployment-level
+  switch), or reading the 404 after the first call (the original design; rejected: every turn
+  still paid an admission call, up to five seconds with the API down, and a lease per sandbox).
+- **Runner-authenticated reports** (whole-stack review finding 1, P0, 2026-09-27). Both routes
+  require the shared runner token beside the run's credential; the credential alone let any
+  tenant member debit the organization wallet with invented intervals. Binding a report to a
+  session turn that recorded the sandbox was rejected: sessionless runs and the in-process
+  command sandbox write no such row, so real usage would be refused.
 

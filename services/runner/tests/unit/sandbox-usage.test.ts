@@ -3,9 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   admitSandboxTurn,
   DEFAULT_SANDBOX_RESOURCES,
+  meteringCredentialForRequest,
+  sandboxMeteringEnabled,
+  sandboxUsageContext,
+  startLeasedSandboxMeter,
   startSandboxMeter,
   type SandboxMeterOptions,
 } from "../../src/metering/sandbox-usage.ts";
+import type { AgentRunRequest } from "../../src/protocol.ts";
 
 vi.unmock("../../src/metering/sandbox-usage.ts");
 
@@ -259,3 +264,113 @@ describe("startSandboxMeter", () => {
 function iso(seconds: number): string {
   return new Date(seconds * 1000).toISOString();
 }
+
+/** A run carrying a platform credential, as the API dispatches one. */
+const RUN = {
+  telemetry: { exporters: { otlp: { headers: { authorization: "Access run-token" } } } },
+  runContext: { workflow: { artifact: { id: AGENT } } },
+} as unknown as AgentRunRequest;
+
+describe("the wallet switch", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("reads AGENTA_WALLETS_ENABLED the way the API does, off by default", () => {
+    expect(sandboxMeteringEnabled({})).toBe(false);
+    expect(sandboxMeteringEnabled({ AGENTA_WALLETS_ENABLED: "false" })).toBe(false);
+    expect(sandboxMeteringEnabled({ AGENTA_WALLETS_ENABLED: " True " })).toBe(true);
+    expect(sandboxMeteringEnabled({ AGENTA_WALLETS_ENABLED: "1" })).toBe(true);
+  });
+
+  it("off, a run with a platform credential makes no admission call and holds no meter or lease", async () => {
+    vi.stubEnv("AGENTA_WALLETS_ENABLED", "false");
+    const fetch = vi.fn();
+
+    // The same calls server.ts and environment.ts make.
+    const admission = await admitSandboxTurn(meteringCredentialForRequest(RUN), {
+      fetch: fetch as unknown as typeof globalThis.fetch,
+      baseUrl: BASE,
+      log: () => {},
+    });
+    const usage = sandboxUsageContext(RUN, "conv-1");
+
+    expect(admission).toBe("admitted");
+    expect(fetch).not.toHaveBeenCalled();
+    // No usage context: environment.ts starts no leased meter, and a command sandbox is never
+    // handed one, so it starts no lease or meter either.
+    expect(usage).toBeUndefined();
+  });
+
+  it("on, the run's credential names the payer of its sandbox", () => {
+    vi.stubEnv("AGENTA_WALLETS_ENABLED", "true");
+
+    expect(sandboxUsageContext(RUN, "conv-1")).toEqual({
+      authorization: "Access run-token",
+      sessionId: "conv-1",
+      agentId: AGENT,
+    });
+  });
+});
+
+describe("the runner proves it is the runner", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("sends the runner token beside the run's credential on both calls", async () => {
+    vi.stubEnv("AGENTA_RUNNER_TOKEN", "runner-secret");
+    const seen: Array<Record<string, string>> = [];
+    const fetch = (async (_url: string, init?: RequestInit) => {
+      seen.push(init?.headers as Record<string, string>);
+      return new Response(JSON.stringify({ allowed: true }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    let t = START_MS;
+
+    await admitSandboxTurn("Access run-token", { fetch, baseUrl: BASE, log: () => {} });
+    const meter = startSandboxMeter({
+      provider: "daytona",
+      sandboxId: "sb-1",
+      resources: () => DEFAULT_SANDBOX_RESOURCES,
+      credential: () => "Access run-token",
+      now: () => t,
+      fetch,
+      baseUrl: BASE,
+      log: () => {},
+    });
+    t += 5_000;
+    await meter.stop();
+
+    expect(seen).toHaveLength(2);
+    for (const headers of seen) {
+      expect(headers.authorization).toBe("Access run-token");
+      expect(headers["x-agenta-runner-token"]).toBe("runner-secret");
+    }
+  });
+});
+
+describe("startLeasedSandboxMeter", () => {
+  it("gives back its credential lease as soon as the platform says it does not meter", async () => {
+    const events: string[] = [];
+    let t = START_MS;
+    const meter = startLeasedSandboxMeter({
+      authorization: "Access run-token",
+      startLease: (authorization) => {
+        events.push(`lease ${authorization}`);
+        return { credential: () => authorization, release: () => events.push("release") };
+      },
+      provider: "daytona",
+      sandboxId: "sb-1",
+      resources: () => DEFAULT_SANDBOX_RESOURCES,
+      intervalMs: 1_000,
+      now: () => t,
+      fetch: platform([404]).fetch,
+      baseUrl: BASE,
+      log: () => {},
+    });
+    t += 2_000;
+
+    await vi.waitFor(() => expect(events).toEqual(["lease Access run-token", "release"]), { timeout: 3_000 });
+    await meter.stop();
+  });
+});

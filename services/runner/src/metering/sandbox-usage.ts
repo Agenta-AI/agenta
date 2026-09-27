@@ -2,7 +2,12 @@
  * Sandbox seconds on the platform's own provider account, measured from outside the sandbox and
  * reported to the platform's wallet.
  *
- * Two calls, both authenticated with the run's own platform credential:
+ * Nothing here runs unless the deployment meters sandboxes: `AGENTA_WALLETS_ENABLED`, the same
+ * switch the API's wallet reads. Off, no turn asks for admission and no meter or credential lease
+ * starts, so an OSS or wallet-off deployment pays nothing for this.
+ *
+ * Two calls, each authenticated twice: the runner token proves the runner is reporting, and the
+ * run's own platform credential names the payer.
  * - `admitSandboxTurn` asks, before a turn that may run a sandbox starts, whether the caller's
  *   wallet can still spend. Only a clear "no" refuses; anything else admits, because a metering
  *   outage must not stop agents.
@@ -11,11 +16,14 @@
  *   whole seconds and names its sandbox and start second, so a retried report is the same
  *   measurement on the platform and is charged once.
  *
- * The platform answers 404 when it does not meter sandboxes (OSS, or the wallet off): the turn is
- * admitted and the meter goes quiet.
+ * A platform that answers 404 (the runner's switch is on and the API's is off) admits the turn,
+ * and the meter goes quiet and gives back its credential lease.
  */
 import { apiBase } from "../apiBase.ts";
 import type { RunErrorCode } from "../engines/sandbox_agent/errors.ts";
+import { platformCredentialForRequest } from "../engines/sandbox_agent/runtime-policy.ts";
+import type { AgentRunRequest } from "../protocol.ts";
+import { startPlatformCredentialLease, type PlatformCredentialLease } from "../sessions/auth.ts";
 
 export const SANDBOX_USAGE_INTERVAL_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -51,6 +59,38 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type SandboxAdmission = "admitted" | "refused";
 
+const TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enable", "enabled"]);
+
+/** Whether this deployment meters sandboxes. Read per call, as the API reads its own switch. */
+export function sandboxMeteringEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return TRUTHY.has((env.AGENTA_WALLETS_ENABLED ?? "").trim().toLowerCase());
+}
+
+/** The credential a run's sandbox is metered with; empty when nothing is metered. */
+export function meteringCredentialForRequest(request: AgentRunRequest): string {
+  return sandboxMeteringEnabled() ? platformCredentialForRequest(request) : "";
+}
+
+/** Who a run's command sandbox reports for, or undefined when nothing is metered. */
+export function sandboxUsageContext(
+  request: AgentRunRequest,
+  sessionId: string | undefined,
+): SandboxUsageContext | undefined {
+  const authorization = meteringCredentialForRequest(request);
+  if (!authorization) return undefined;
+  const agentId = request.runContext?.workflow?.artifact?.id;
+  return {
+    authorization,
+    ...(sessionId ? { sessionId } : {}),
+    ...(agentId ? { agentId } : {}),
+  };
+}
+
+function platformHeaders(authorization: string): Record<string, string> {
+  const runnerToken = process.env.AGENTA_RUNNER_TOKEN?.trim();
+  return { authorization, ...(runnerToken ? { "x-agenta-runner-token": runnerToken } : {}) };
+}
+
 /** Whether the caller's wallet admits a turn that may run a platform sandbox. */
 export async function admitSandboxTurn(
   authorization: string,
@@ -63,7 +103,7 @@ export async function admitSandboxTurn(
       `${deps.baseUrl ?? apiBase()}/wallets/sandboxes/admit`,
       {
         method: "POST",
-        headers: { authorization },
+        headers: platformHeaders(authorization),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       },
     );
@@ -99,6 +139,8 @@ export interface SandboxMeterOptions {
   credential: () => string;
   sessionId?: string;
   agentId?: string;
+  /** Called once if the platform turns out not to meter sandboxes, so the credential is let go. */
+  onUnmetered?: () => void;
   /** When the sandbox started running; defaults to now. */
   startedAtMs?: number;
   intervalMs?: number;
@@ -178,7 +220,7 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
     try {
       res = await doFetch(`${baseUrl}/wallets/sandboxes/usage`, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: options.credential() },
+        headers: { "content-type": "application/json", ...platformHeaders(options.credential()) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         body: JSON.stringify({
           provider: options.provider,
@@ -213,6 +255,7 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
         unmetered = true;
         pending = [];
         clearInterval(timer);
+        options.onUnmetered?.();
         return true;
       }
       pending.shift();
@@ -257,6 +300,32 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
         }),
       ]);
       clearTimeout(giveUp);
+    },
+  };
+}
+
+/**
+ * A meter that keeps its own credential fresh: a warm or parked-live sandbox outlives the run's
+ * credential, so the lease lasts until the meter stops or the platform says it does not meter.
+ */
+export function startLeasedSandboxMeter(
+  options: Omit<SandboxMeterOptions, "credential" | "onUnmetered"> & {
+    authorization: string;
+    startMeter?: typeof startSandboxMeter;
+    startLease?: (authorization: string) => PlatformCredentialLease;
+  },
+): SandboxMeter {
+  const { authorization, startMeter, startLease, ...meterOptions } = options;
+  const lease = (startLease ?? ((value: string) => startPlatformCredentialLease(apiBase(), value)))(authorization);
+  const meter = (startMeter ?? startSandboxMeter)({
+    ...meterOptions,
+    credential: lease.credential,
+    onUnmetered: lease.release,
+  });
+  return {
+    async stop(): Promise<void> {
+      await meter.stop();
+      lease.release();
     },
   };
 }

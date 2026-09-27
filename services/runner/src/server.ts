@@ -148,6 +148,7 @@ import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } 
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
 import {
   admitSandboxTurn,
+  meteringCredentialForRequest,
   WALLET_BALANCE_EXHAUSTED_CODE,
   WALLET_BALANCE_EXHAUSTED_MESSAGE,
 } from "./metering/sandbox-usage.ts";
@@ -446,7 +447,7 @@ const runAgent: RunAgent = async (request, emit, signal, options) => {
   // caller's wallet can spend. A turn already running is never stopped for its balance.
   if (
     traits.commandsInRemoteSandbox &&
-    (await admitSandboxTurn(platformCredentialForRequest(request))) === "refused"
+    (await admitSandboxTurn(meteringCredentialForRequest(request))) === "refused"
   ) {
     emit?.({
       type: "error",
