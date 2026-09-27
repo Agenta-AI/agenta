@@ -105,17 +105,19 @@ CLAUDE_MODEL_ALIASES: List[str] = [
     "claude-fable-5-1",
 ]
 
-# The curated Codex model set the harness advertises under the ``openai`` family. The
-# ``gpt-5.1-codex`` family is API-listed but backend-deprecated, so it is excluded. Keep this in
-# sync with ``data/codex_models.curated.json`` and the ``sync-model-catalog`` skill. See decision
-# D-006.
+# The curated Codex model set the harness advertises under the ``openai`` family: the models the
+# pinned Codex CLI (0.156.1, via codex-acp 1.13.1) lists for both an API key and a ChatGPT login.
+# The ChatGPT backend hides GPT-6 models from older Codex clients, so a new model can need a Codex
+# bump, not just an entry here. Keep this in sync with ``data/codex_models.curated.json`` and the
+# ``sync-model-catalog`` skill. See decision D-006.
 CODEX_MODELS: List[str] = [
     "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
     "gpt-5.5",
-    "gpt-5.2",
 ]
 
 # Both modes every harness supports today. (No ``default`` mode: the project default is just

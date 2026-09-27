@@ -8,9 +8,11 @@ import {
   resolvePromptText,
   type AgentRunRequest,
   type AgentRunResult,
+  type AgentUsage,
   type EmitEvent,
   type ToolCallbackContext,
 } from "../../protocol.ts";
+import { harnessKindOf } from "../../harness-kind.ts";
 import { sandboxVisibleSecretValues, seedForRun } from "../../redaction.ts";
 import {
   observeSubscription,
@@ -134,7 +136,11 @@ import { mcpHandshakeFailureMessage } from "./mcp-handshake.ts";
 import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
-import { resolveRunUsage } from "./usage.ts";
+import {
+  promptTokenDetail,
+  resolveRunUsage,
+  turnCostFromRunningTotal,
+} from "./usage.ts";
 
 /**
  * Codex is the one harness that says anything at all when an MCP server fails to start: a
@@ -1685,13 +1691,18 @@ export async function runTurn(
       plan.isPi && stopReason !== "paused"
         ? await harnessTrace.finish()
         : undefined;
-    const usage = await resolveRunUsage({
+    const resolvedUsage = await resolveRunUsage({
       sandbox: env.sandbox,
       usageOutPath: plan.workspace.usageOutPath,
       isDaytona: plan.isDaytona,
       promptResult: result,
       streamUsage: run.usage(),
     });
+    const isClaude = harnessKindOf(plan.harness) === "claude";
+    const usage = isClaude
+      ? claudeTurnUsage(resolvedUsage, env)
+      : resolvedUsage;
+    run.setTokenDetail?.(promptTokenDetail(result, { perModel: isClaude }));
     run.setUsage(usage);
     if (!plan.isPi && stopReason !== "paused") {
       traceFinish = await harnessTrace.finish();
@@ -1873,7 +1884,8 @@ export async function runTurn(
       output,
       messages: output ? [{ role: "assistant", content: output }] : [],
       events: emit ? [] : run.events(),
-      usage,
+      // The tracer's usage: the counts its model span carries (see `setUsage`).
+      usage: run.usage(),
       stopReason,
       ...(stopReason === "cancelled" ? { cancelSettled } : {}),
       capabilities: {
@@ -1951,4 +1963,23 @@ export async function runTurn(
     // megabytes of frozen content.
     if (env.parkedApprovals.size === 0) env.commitAuthorization = undefined;
   }
+}
+
+/**
+ * Replace Claude Code's session-wide running cost with this turn's share, and remember the
+ * reading on the live environment for the next turn.
+ */
+function claudeTurnUsage(
+  usage: AgentUsage | undefined,
+  env: { harnessCostReading?: number; loadedFromContinuity: boolean },
+): AgentUsage | undefined {
+  if (!usage || usage.cost == null) return usage;
+  const cost = turnCostFromRunningTotal(
+    usage.cost,
+    env.harnessCostReading,
+    env.loadedFromContinuity,
+  );
+  env.harnessCostReading = usage.cost;
+  const { cost: _runningTotal, ...tokens } = usage;
+  return cost == null ? tokens : { ...tokens, cost };
 }
