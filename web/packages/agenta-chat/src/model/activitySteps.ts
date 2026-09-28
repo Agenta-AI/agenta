@@ -69,6 +69,11 @@ export const hiddenFromFold = (
     (hasFailed(part) && !unexplainedMcpFailure(part, notices)) ||
     HOUSEKEEPING.has(canonicalClientToolName(partToolName(part)).toLowerCase())
 
+/** A question that errored (bad schema, runner refusal, a stop): hidden like a failed call. */
+const hiddenQuestion = (part: ToolUIPart): boolean =>
+    (part.state as string) === "output-error" &&
+    canonicalClientToolName(partToolName(part)) === "request_input"
+
 const fileWritten = (part: ToolUIPart): FileActivity | null => {
     if ((part.state as string) !== "output-available") return null
     const activity = detectFileActivity(partToolName(part), (part as {input?: unknown}).input)
@@ -95,7 +100,9 @@ const isFoldable = (item: RenderItem): boolean =>
 const showsInFold = (item: RenderItem, notices: readonly McpServerNotice[] = []): boolean =>
     item.kind === "tools"
         ? item.parts.some((part) => !hiddenFromFold(part, notices))
-        : isFoldable(item)
+        : item.kind === "clientTool"
+          ? !hiddenQuestion(item.part)
+          : isFoldable(item)
 
 /** Position of the trailing text — the candidate answer — or -1 when something the fold shows follows it. */
 const trailingText = (items: RenderItem[], notices: readonly McpServerNotice[] = []): number => {
@@ -159,6 +166,7 @@ export const splitTurnActivity = (
             return
         }
         if (item.kind === "clientTool") {
+            if (hiddenQuestion(item.part)) return
             steps.push({
                 kind: "client",
                 key: item.part.toolCallId ?? `client-${item.index}`,
