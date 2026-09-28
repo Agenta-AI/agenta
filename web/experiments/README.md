@@ -6,7 +6,7 @@ Create a web experiment with flag key `onboarding-first-agent-v1`. Use `control`
 
 The flag is read only in first-agent onboarding. The existing analytics client identifies the visitor before flag evaluation. A resolved variant remains fixed for that mounted flow. If analytics is unavailable for three seconds, name-first onboarding remains usable without enrolling that visitor in the experiment. Such visitors do not emit the experiment's creation or start events.
 
-For QA, use PostHog's flag override for each variant before entering an empty project. Do not add a public query-string switch to production. Without a configured PostHog client, the fallback is name first.
+To preview a variant, open the empty project's playground with `?onboarding-variant=control` or `?onboarding-variant=task-first`. The preview switch is for design review, QA, and demos: it shows that variant without enrolling the visitor, so it emits no `onboarding_started`, `onboarding_create_clicked`, or `onboarding_agent_created` event and its step events carry no `variant`. To test enrollment itself, use PostHog's flag override for each variant instead. Without a configured PostHog client, the fallback is name first.
 
 The shared flow replaces the post-signup survey and the empty project's playground onboarding. Role and referral choices are sent through `onboarding_step_completed` with the existing `user_role_v2` and `referral_source_v2` person properties. It no longer submits the old multi-question survey or calculates its ICP score.
 
