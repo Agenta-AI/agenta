@@ -64,7 +64,17 @@ export const FadeScrollBox = ({
         })
         observer.observe(box)
         observer.observe(content)
-        return () => observer.disconnect()
+        // The selection can land after the rows render, which changes no size.
+        const mutations = revealSelector ? new MutationObserver(() => reveal()) : null
+        mutations?.observe(content, {
+            subtree: true,
+            childList: true,
+            attributeFilter: ["data-selected"],
+        })
+        return () => {
+            observer.disconnect()
+            mutations?.disconnect()
+        }
     }, [])
 
     return (
