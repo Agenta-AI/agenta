@@ -94,8 +94,21 @@ Each bug is fixed in the fix-first change (`plan.md`), or it becomes a rule in `
    `auth.py:430`.
 9. Raw app files served by a public route must never render as a top-level page on the API
    origin.
-10. The server has no size limit on file bodies (`api/oss/src/apis/fastapi/mounts/router.py:707`).
-    Snapshot creation must set its own limits.
+10. The API has no size limit on file bodies. The file PUT reads the whole body
+    (`api/oss/src/apis/fastapi/mounts/router.py:707`), and upload reads the whole file
+    (`api/oss/src/apis/fastapi/mounts/utils.py:85`). The limits that exist today are in the
+    browser or in an optional proxy:
+    - `READ_CAP` 4 MB and `WRITE_CAP` 1 MB for the app bridge
+      (`web/packages/agenta-entities/src/drive/htmlApp/protocol.ts:17-19`). The read check
+      runs after the full body is downloaded.
+    - `INLINE_ASSET_CAP` 8 MB for each asset the assembler inlines
+      (`web/packages/agenta-entity-ui/src/drive/htmlApp/assemble.ts:49`).
+    - `client_max_body_size 32m` in the nginx configs
+      (`hosting/docker-compose/oss/nginx/nginx.conf:35`). Nginx is an opt-in profile in the
+      default compose stack. The Traefik config has no body limit.
+
+    A direct API caller can therefore go around every limit. Snapshot creation must check its
+    own limits on the server.
 11. The two manifest validators disagree (`apps/service.py:132-190` and
     `web/packages/agenta-entities/src/drive/htmlApp/manifest.ts:67-113`). The share route
     uses the server validator only.
