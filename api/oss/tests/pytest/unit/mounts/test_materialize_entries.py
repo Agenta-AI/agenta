@@ -40,7 +40,7 @@ class _MountsDAO:
         self.mount = None
         self.upsert_calls = 0
 
-    async def upsert_mount(self, *, project_id, user_id, mount_create):
+    async def upsert_mount(self, *, project_id, user_id, mount_create, reactivate=True):
         self.upsert_calls += 1
         if self.mount is None:
             self.mount = Mount(

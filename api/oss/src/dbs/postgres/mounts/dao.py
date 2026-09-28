@@ -69,6 +69,8 @@ class MountsDAO(MountsDAOInterface):
         user_id: UUID,
         #
         mount_create: MountCreate,
+        #
+        reactivate: bool,
     ) -> Mount:
         now = datetime.now(timezone.utc)
         values = map_mount_dto_to_dbe_upsert(
@@ -79,20 +81,22 @@ class MountsDAO(MountsDAOInterface):
         )
 
         stmt = insert(MountDBE).values(**values)
-        # On re-bind (same project + slug), keep the original row/id and re-activate it:
-        # touch the audit fields and clear any archive, so a re-attached session gets a
-        # live mount on the same durable prefix. name/description/flags are left intact.
-        # `purpose` is server-owned and derived from the slug, so re-binding backfills it
-        # on rows minted before the column existed.
+        # On re-bind (same project + slug), keep the original row/id: touch the audit fields,
+        # and clear any archive only when `reactivate` says so. A session drive stays archived
+        # until its session is unarchived. name/description/flags are left intact. `purpose` is
+        # server-owned and derived from the slug, so re-binding backfills it on rows minted
+        # before the column existed.
+        set_ = {
+            "updated_at": now,
+            "updated_by_id": user_id,
+            "purpose": stmt.excluded.purpose,
+        }
+        if reactivate:
+            set_["deleted_at"] = None
+            set_["deleted_by_id"] = None
         stmt = stmt.on_conflict_do_update(
             constraint="uq_mounts_project_id_slug",
-            set_={
-                "updated_at": now,
-                "updated_by_id": user_id,
-                "deleted_at": None,
-                "deleted_by_id": None,
-                "purpose": stmt.excluded.purpose,
-            },
+            set_=set_,
         ).returning(MountDBE)
 
         async with self.engine.session() as session:
@@ -233,6 +237,23 @@ class MountsDAO(MountsDAOInterface):
             await session.refresh(mount_dbe)
 
             return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
+
+    async def fetch_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[Mount]:
+        """Every mount row bound to a session, archived and protected ones included."""
+        async with self.engine.session() as session:
+            stmt = select(MountDBE).where(
+                MountDBE.project_id == project_id,
+                MountDBE.session_id == session_id,
+            )
+            result = await session.execute(stmt)
+            return [
+                map_mount_dbe_to_dto(mount_dbe=dbe) for dbe in result.scalars().all()
+            ]
 
     async def delete_by_session_id(
         self,

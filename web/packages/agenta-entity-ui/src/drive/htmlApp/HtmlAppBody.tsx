@@ -173,8 +173,8 @@ export function HtmlAppBody({
     const dir = dirOf(path)
     const mountId = mount?.id ?? null
 
-    // Run needs a drive: a local composer attachment has nothing to read or write.
-    const runnable = enabled && !previewOnly && !!mountId
+    // Run needs a drive and an app folder: the drive root is not a scope the server can grant.
+    const runnable = enabled && !previewOnly && !!mountId && dir !== ""
 
     const [view, setView] = useState<HtmlAppView>("preview")
     const [assembled, setAssembled] = useState<string | null>(null)

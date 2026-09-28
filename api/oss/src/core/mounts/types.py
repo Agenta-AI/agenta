@@ -127,3 +127,11 @@ class MountStorageUnavailable(MountError):
 class MountProtected(MountError):
     def __init__(self, message: str = "Mount is protected."):
         super().__init__(message)
+
+
+class MountArchived(MountError):
+    def __init__(
+        self,
+        message: str = "Mount is archived and read-only. Unarchive its session to change it.",
+    ):
+        super().__init__(message)

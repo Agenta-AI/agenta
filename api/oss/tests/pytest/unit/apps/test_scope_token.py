@@ -16,6 +16,7 @@ import pytest
 
 from oss.src.core.apps.scope_token import (
     AppScope,
+    ScopeDenied,
     ScopeTokenInvalid,
     enforce,
     mint,
@@ -49,11 +50,11 @@ class TestMint:
         # An empty prefix would be a token that permits everything, which is the thing this
         # module exists to prevent. Better to fail at mint than to issue it.
         for empty in ("", "/", "   "):
-            with pytest.raises(ScopeTokenInvalid):
+            with pytest.raises(ScopeDenied):
                 mint(project_id=PROJECT, mount_id=MOUNT, prefix=empty, level="read")
 
     def test_refuses_an_unknown_level(self):
-        with pytest.raises(ScopeTokenInvalid):
+        with pytest.raises(ScopeDenied):
             mint(project_id=PROJECT, mount_id=MOUNT, prefix=DIR, level="admin")
 
 
@@ -132,7 +133,7 @@ class TestEnforce:
 
     def test_refuses_a_path_outside_the_folder(self):
         # The case that was live: markup climbing out of the app dir.
-        with pytest.raises(ScopeTokenInvalid):
+        with pytest.raises(ScopeDenied):
             enforce(
                 token=_token(),
                 project_id=PROJECT,
@@ -142,7 +143,7 @@ class TestEnforce:
             )
 
     def test_refuses_a_write_under_a_read_token(self):
-        with pytest.raises(ScopeTokenInvalid):
+        with pytest.raises(ScopeDenied):
             enforce(
                 token=_token(level="read"),
                 project_id=PROJECT,
@@ -161,7 +162,7 @@ class TestEnforce:
         )
 
     def test_refuses_a_token_minted_for_another_mount(self):
-        with pytest.raises(ScopeTokenInvalid):
+        with pytest.raises(ScopeDenied):
             enforce(
                 token=_token(),
                 project_id=PROJECT,
@@ -171,7 +172,7 @@ class TestEnforce:
             )
 
     def test_refuses_a_token_minted_for_another_project(self):
-        with pytest.raises(ScopeTokenInvalid):
+        with pytest.raises(ScopeDenied):
             enforce(
                 token=_token(),
                 project_id=uuid4(),
@@ -185,7 +186,7 @@ class TestEnforce:
         enforce(
             token=_token(), project_id=PROJECT, mount_id=MOUNT, path=None, writing=False
         )
-        with pytest.raises(ScopeTokenInvalid):
+        with pytest.raises(ScopeDenied):
             enforce(
                 token=_token(),
                 project_id=PROJECT,
@@ -253,3 +254,25 @@ class TestAppScope:
             expires_at=int(time.time()) + 60,
         )
         assert not scope.allows_path("anything.json")
+
+
+class TestSigningKey:
+    def test_a_token_signed_with_the_raw_crypt_key_is_rejected_as_invalid(self):
+        import base64
+        import hashlib
+        import hmac
+        import json
+
+        from oss.src.utils.env import env
+
+        payload = json.dumps(
+            {"a": "ag-app-v1", "d": "apps/board", "l": "read", "m": "m", "p": "p", "x": 2**40},
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode()
+        old_key = hashlib.sha256((env.agenta.crypt_key or "").encode()).digest()
+        b64 = lambda raw: base64.urlsafe_b64encode(raw).rstrip(b"=").decode()  # noqa: E731
+        token = f"{b64(payload)}.{b64(hmac.new(old_key, payload, hashlib.sha256).digest())}"
+
+        with pytest.raises(ScopeTokenInvalid):
+            parse(token)

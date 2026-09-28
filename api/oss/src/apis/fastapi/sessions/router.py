@@ -2406,6 +2406,7 @@ class SessionsRootRouter:
         return PendingInputResponse(input=item)
 
     @intercept_exceptions()
+    @handle_mount_exceptions()
     async def delete_session(
         self,
         request: Request,

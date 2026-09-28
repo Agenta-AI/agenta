@@ -73,7 +73,7 @@ class _UpsertDAO:
     def __init__(self):
         self._by_slug: Dict[tuple, Mount] = {}
 
-    async def upsert_mount(self, *, project_id, user_id, mount_create: MountCreate):
+    async def upsert_mount(self, *, project_id, user_id, mount_create: MountCreate, reactivate=True):
         key = (project_id, mount_create.slug)
         existing = self._by_slug.get(key)
         if existing is not None:

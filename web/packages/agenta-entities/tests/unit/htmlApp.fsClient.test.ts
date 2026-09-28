@@ -302,3 +302,69 @@ describe("error mapping", () => {
         expect(toFsClientError(original)).toBe(original)
     })
 })
+
+describe("scope token", () => {
+    const rejected = () => fernError(403, {detail: {code: "scope_token_invalid", message: "bad"}})
+
+    it("fails closed with no file call when no token can be minted", async () => {
+        const scoped = createFsClient({
+            mountId: "m1",
+            projectId: "p1",
+            scopeToken: async () => null,
+        })
+        await expectCode(scoped.read("apps/b/x"), "unavailable")
+        expect(fern.getMountFiles).not.toHaveBeenCalled()
+    })
+
+    it("drops a rejected token, mints again and retries once", async () => {
+        const tokens = ["old", "new"]
+        const drop = vi.fn()
+        const scoped = createFsClient({
+            mountId: "m1",
+            projectId: "p1",
+            scopeToken: async () => tokens[0],
+            dropScopeToken: () => {
+                drop()
+                tokens.shift()
+            },
+        })
+        fern.getMountFiles
+            .mockRejectedValueOnce(rejected())
+            .mockResolvedValueOnce({content: "hi", etag: "e"})
+
+        expect(await scoped.read("apps/b/x")).toEqual({result: "hi", etag: "e"})
+        expect(drop).toHaveBeenCalledTimes(1)
+        expect(fern.getMountFiles).toHaveBeenLastCalledWith(
+            {mount_id: "m1", read: "apps/b/x"},
+            {queryParams: {project_id: "p1"}, headers: {"X-Agenta-App-Scope": "new"}},
+        )
+    })
+
+    it("fails when the fresh token is rejected too", async () => {
+        const scoped = createFsClient({
+            mountId: "m1",
+            projectId: "p1",
+            scopeToken: async () => "t",
+            dropScopeToken: () => undefined,
+        })
+        fern.getMountFiles.mockRejectedValueOnce(rejected()).mockRejectedValueOnce(rejected())
+
+        await expectCode(scoped.read("apps/b/x"), "unavailable")
+        expect(fern.getMountFiles).toHaveBeenCalledTimes(2)
+    })
+
+    it("does not retry a request outside the folder", async () => {
+        const drop = vi.fn()
+        const scoped = createFsClient({
+            mountId: "m1",
+            projectId: "p1",
+            scopeToken: async () => "t",
+            dropScopeToken: drop,
+        })
+        fern.getMountFiles.mockRejectedValueOnce(fernError(403, {detail: {code: "scope"}}))
+
+        await expectCode(scoped.read("apps/other/x"), "scope")
+        expect(drop).not.toHaveBeenCalled()
+        expect(fern.getMountFiles).toHaveBeenCalledTimes(1)
+    })
+})

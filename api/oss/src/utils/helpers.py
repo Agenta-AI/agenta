@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 import click
 
+from oss.src.utils.crypting import is_default_crypt_key
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -208,6 +209,16 @@ def validate_platform_runtime_key():
         "write-only secrets. "
         "Set AGENTA_SERVICES_INTERNAL_KEY to the same value on the API and the services "
         "container."
+    )
+
+
+def warn_default_crypt_key():
+    """Say at startup that sharing and secrets run on the public placeholder key."""
+    if not is_default_crypt_key():
+        return
+    log.error(
+        "AGENTA_CRYPT_KEY uses the placeholder. App sharing is disabled, and signed tokens "
+        "and stored secrets are not protected. Set AGENTA_CRYPT_KEY to a random value."
     )
 
 

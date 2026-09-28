@@ -18,7 +18,7 @@ class InMemoryMountsDAO:
         self.upsert_calls = 0
         self.fetch_by_slug_calls = 0
 
-    async def upsert_mount(self, *, project_id, user_id, mount_create):
+    async def upsert_mount(self, *, project_id, user_id, mount_create, reactivate=True):
         self.upsert_calls += 1
         key = (project_id, mount_create.slug)
         if key not in self.mounts:

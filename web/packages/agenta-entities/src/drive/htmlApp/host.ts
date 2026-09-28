@@ -36,7 +36,7 @@ import {
     type VisibilityMsg,
 } from "./protocol"
 import {isScopeFailure, resolveScoped, SCOPE_MESSAGE, toAppRelative} from "./scope"
-import {getScopeToken} from "./scopeToken"
+import {dropScopeToken, getScopeToken} from "./scopeToken"
 
 export interface HtmlAppHostDeps {
     /** Transport override (tests, Storybook). Defaults to the real mounts client. */
@@ -70,6 +70,7 @@ export function createHtmlAppHost(
             mountId,
             projectId,
             scopeToken: () => getScopeToken(mountId, projectId, dir, grant),
+            dropScopeToken: () => dropScopeToken(mountId, dir, grant),
         })
     const etags = createEtagCache()
 

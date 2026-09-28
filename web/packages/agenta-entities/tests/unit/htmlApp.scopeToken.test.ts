@@ -97,7 +97,7 @@ describe("getScopeToken", () => {
         expect(mintAppScopeToken).toHaveBeenCalledTimes(2)
     })
 
-    it("returns null when the server cannot issue one, so the app still runs", async () => {
+    it("returns null when the server cannot issue one (the client then fails closed)", async () => {
         // A deployment without the endpoint. The token narrows; its absence is the old behaviour,
         // not a reason to refuse to open the app.
         mintAppScopeToken.mockRejectedValue(new Error("404"))

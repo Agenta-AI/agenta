@@ -124,6 +124,28 @@ export const KNOWN_SANDBOX_ENV_VARS = [
 ] as const;
 
 /**
+ * Locale, time zone, temp dir, shell, proxy and CA settings: what a harness process needs to run
+ * and reach the network on this host. None is a platform credential.
+ */
+export const NEUTRAL_OS_ENV_VARS = [
+  "TMPDIR",
+  "LANG",
+  "LC_ALL",
+  "TZ",
+  "USER",
+  "SHELL",
+  "TERM",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy",
+  "SSL_CERT_FILE",
+  "NODE_EXTRA_CA_CERTS",
+] as const;
+
+/**
  * Provider family -> the env vars a run against that family may inherit. Least privilege within a
  * run (RUN-SEC-1): a run that declared an OpenAI model has no business seeing the sidecar's
  * Anthropic key. Provider names and the direct `*_API_KEY` entries mirror the canonical Python map
@@ -288,6 +310,11 @@ export function buildDaemonEnv(
   if (process.env.CODEX_HOME) env.CODEX_HOME = process.env.CODEX_HOME;
 
   if (process.env.HOME) env.HOME = process.env.HOME;
+  // Neutral OS settings a harness process needs to run; none is a credential.
+  for (const key of NEUTRAL_OS_ENV_VARS) {
+    const value = process.env[key];
+    if (value) env[key] = value;
+  }
 
   // Force-blank sandbox infra creds on every run (see KNOWN_SANDBOX_ENV_VARS doc): the underlying
   // spawn inherits process.env first, so an absent key here would NOT stop the leak.
@@ -306,5 +333,21 @@ export function buildDaemonEnv(
     }
   }
 
+  return env;
+}
+
+/**
+ * Close the inheritance that `local()` adds: it spawns `{...process.env, ...env}`, so a key the
+ * allowlist left out still reaches the harness. Blanking every other runner key makes the child
+ * environment equal to `env`, so a platform credential such as AGENTA_API_KEY cannot leak.
+ * Local only: Daytona receives `env` as its full `envVars` and inherits nothing.
+ */
+export function closeInheritedEnv(
+  env: Record<string, string>,
+  inherited: NodeJS.ProcessEnv = process.env,
+): Record<string, string> {
+  for (const key of Object.keys(inherited)) {
+    if (!(key in env)) env[key] = "";
+  }
   return env;
 }

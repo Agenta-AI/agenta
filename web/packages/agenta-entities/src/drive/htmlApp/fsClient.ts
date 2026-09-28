@@ -44,10 +44,12 @@ export interface FsClientOptions {
     projectId: string
     /**
      * Supplies the folder-scoped token for this app, so the SERVER can refuse a path outside the
-     * folder rather than trusting this file's path handling. Resolves null when the deployment
-     * cannot issue one, in which case calls go unscoped — the behaviour before the token existed.
+     * folder rather than trusting this file's path handling. Null means no token could be minted,
+     * and the call fails: an app never falls back to unscoped drive access.
      */
     scopeToken?: () => Promise<string | null>
+    /** Forget the cached token after the server rejects it, so the retry mints a new one. */
+    dropScopeToken?: () => void
 }
 
 /** Per-call options for write/remove: the implicit preconditions the host resolved. */
@@ -141,6 +143,9 @@ const writeResponseSchema = z.object({
 // Helpers
 // ---------------------------------------------------------------------------------------------
 
+/** The server's code for a token it cannot use (bad key, expired): a fresh token fixes it. */
+const SCOPE_TOKEN_INVALID = "scope_token_invalid"
+
 const MESSAGES: Record<BridgeErrorCode, string> = {
     scope: "path is outside the app directory",
     read_only: "app has read-only access",
@@ -208,7 +213,13 @@ export function toFsClientError(error: unknown): FsClientError {
             // SERVER-side folder boundary say "outside the app directory": without this every
             // scope refusal arrived as "read-only access", which names the wrong cause and
             // disagrees with the host's own path guard about one condition.
-            const code = detailCode(bodyOf(error)) === "scope" ? "scope" : "read_only"
+            const serverCode = detailCode(bodyOf(error))
+            if (serverCode === SCOPE_TOKEN_INVALID) {
+                return new FsClientError("unavailable", "could not get access to the app folder", {
+                    status,
+                })
+            }
+            const code = serverCode === "scope" ? "scope" : "read_only"
             return new FsClientError(code, MESSAGES[code], {status})
         }
         default: {
@@ -253,13 +264,21 @@ const preconditionHeaders = (opts?: FsWriteOptions): Record<string, string> => {
 // Factory
 // ---------------------------------------------------------------------------------------------
 
-export function createFsClient({mountId, projectId, scopeToken}: FsClientOptions): FsClient {
+export function createFsClient({
+    mountId,
+    projectId,
+    scopeToken,
+    dropScopeToken,
+}: FsClientOptions): FsClient {
     /** Fern `requestOptions` for this call, carrying the scope token when there is one. */
     const scoped = async (): Promise<
         ReturnType<typeof projectScopedRequest> & {headers: Record<string, string>}
     > => {
         const base = projectScopedRequest(projectId)
         const token = scopeToken ? await scopeToken() : null
+        if (scopeToken && token === null) {
+            throw new FsClientError("unavailable", "could not get access to the app folder")
+        }
         // Always a `headers` object, even when empty: callers merge into it, and a union of
         // "sometimes has headers" is a type error waiting at every call site.
         return {...base, headers: scopeHeaders(token)}
@@ -268,7 +287,17 @@ export function createFsClient({mountId, projectId, scopeToken}: FsClientOptions
         try {
             return await fn()
         } catch (error) {
-            throw toFsClientError(error)
+            // A rejected token (new signing key, expiry) heals with one fresh mint; a second
+            // rejection is a real failure.
+            if (!scopeToken || detailCode(bodyOf(error)) !== SCOPE_TOKEN_INVALID) {
+                throw toFsClientError(error)
+            }
+            dropScopeToken?.()
+            try {
+                return await fn()
+            } catch (retryError) {
+                throw toFsClientError(retryError)
+            }
         }
     }
 

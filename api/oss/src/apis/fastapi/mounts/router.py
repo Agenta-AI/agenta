@@ -21,13 +21,16 @@ from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 from oss.src.core.apps.scope_token import (
+    ScopeDenied,
     ScopeTokenInvalid,
     enforce as enforce_app_scope,
     mint as mint_app_scope,
 )
 from oss.src.core.mounts.dtos import MountArchiveSource, MountCreate
 from oss.src.core.mounts.service import MountsService
+from oss.src.core.store.types import StoreDeleteFailed
 from oss.src.core.mounts.types import (
+    MountArchived,
     MountArtifactIdInvalid,
     MountArtifactNotFound,
     MountDataInvalid,
@@ -78,11 +81,23 @@ def handle_mount_exceptions():
             try:
                 return await func(*args, **kwargs)
             except ScopeTokenInvalid as e:
+                # The token is unusable, not the request: the page mints a new one and retries.
+                # 403, not 401: a 401 makes the SuperTokens interceptor refresh the session.
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": "scope_token_invalid", "message": str(e)},
+                ) from e
+            except ScopeDenied as e:
                 # A scope token only ever narrows, so a failure here is the caller asking for
                 # more than the app was granted — forbidden, not malformed.
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail={"code": "scope", "message": str(e)},
+                ) from e
+            except MountArchived as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"code": "archived", "message": e.message},
                 ) from e
             except MountDataInvalid as e:
                 raise HTTPException(
@@ -148,6 +163,11 @@ def handle_mount_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail=e.message,
+                ) from e
+            except StoreDeleteFailed as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Some files could not be deleted. Try again.",
                 ) from e
 
         return wrapper
@@ -590,7 +610,9 @@ class MountsRouter:
             await self._check(request, Permission.EDIT_MOUNTS)
 
         # Confirms the mount is in this project before signing anything about it.
-        await self._resolve_mount_for_scope(request=request, mount_id=mount_id)
+        await self._resolve_mount_for_scope(
+            request=request, mount_id=mount_id, level=scope.level
+        )
 
         token, expires_at = mint_app_scope(
             project_id=UUID(request.state.project_id),
@@ -606,7 +628,7 @@ class MountsRouter:
         )
 
     async def _resolve_mount_for_scope(
-        self, *, request: Request, mount_id: UUID
+        self, *, request: Request, mount_id: UUID, level: str
     ) -> None:
         mount = await self.mounts_service.fetch_mount(
             project_id=UUID(request.state.project_id),
@@ -617,6 +639,8 @@ class MountsRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Mount not found.",
             )
+        if level == "read-write" and mount.deleted_at is not None:
+            raise MountArchived()
 
     # -----------------------------------------------------------------------
     # File ops (durable store contents)

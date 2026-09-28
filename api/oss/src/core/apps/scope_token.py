@@ -16,7 +16,7 @@ project permission check; the token can only take access away. So a stolen token
 its holder did not already have, and a missing token means the request is simply an ordinary
 one — the browser attaching it is how the drive's own UI stays unaffected.
 
-Stateless on purpose: an HMAC over the claims with the deployment's `AGENTA_CRYPT_KEY`, so there
+Stateless on purpose: an HMAC over the claims with a key derived from `AGENTA_CRYPT_KEY`, so there
 is no table to migrate, nothing to clean up, and no lookup on the hot path. Short lived, because
 a folder grant is a browser-session thing and a token that outlives the tab is a token someone
 has to think about.
@@ -33,16 +33,24 @@ from dataclasses import dataclass
 from typing import Optional
 from uuid import UUID
 
-from oss.src.utils.env import env
+from oss.src.utils.crypting import derive_key
 
 # A grant lives as long as the tab; the token is refreshed from the page well inside this.
 TOKEN_TTL_SECONDS = 60 * 30
 
 _ALG = "ag-app-v1"
+_KEY_LABEL = "agenta/app-scope/v1"
 
 
 class ScopeTokenInvalid(Exception):
-    """The token is malformed, unsigned, expired, or does not match the request."""
+    """The token itself cannot be used: malformed, unsigned, expired, or unknown version.
+
+    A fresh token fixes this, so the page mints one and retries.
+    """
+
+
+class ScopeDenied(Exception):
+    """A valid token, used for a request outside its grant. A fresh token does not fix this."""
 
 
 @dataclass(frozen=True)
@@ -79,8 +87,7 @@ def _unb64(text: str) -> bytes:
 
 
 def _sign(payload: bytes) -> str:
-    key = hashlib.sha256((env.agenta.crypt_key or "").encode()).digest()
-    return _b64(hmac.new(key, payload, hashlib.sha256).digest())
+    return _b64(hmac.new(derive_key(_KEY_LABEL), payload, hashlib.sha256).digest())
 
 
 def mint(
@@ -100,11 +107,9 @@ def mint(
     # token nothing matches — or worse, one a later reader treats as "the whole mount".
     clean = (prefix or "").strip().strip("/").strip()
     if not clean:
-        raise ScopeTokenInvalid(
-            "a scope token needs a folder; the mount root is not a scope"
-        )
+        raise ScopeDenied("a scope token needs a folder; the mount root is not a scope")
     if level not in ("read", "read-write"):
-        raise ScopeTokenInvalid(f"unknown level {level!r}")
+        raise ScopeDenied(f"unknown level {level!r}")
 
     expires_at = int(time.time()) + ttl_seconds
     claims = {
@@ -178,11 +183,11 @@ def enforce(
     scope = parse(token)
 
     if scope.project_id != str(project_id) or scope.mount_id != str(mount_id):
-        raise ScopeTokenInvalid("token was issued for a different drive")
+        raise ScopeDenied("token was issued for a different drive")
     if writing and not scope.allows_write():
-        raise ScopeTokenInvalid("this app was granted read access only")
+        raise ScopeDenied("this app was granted read access only")
     if path is None:
         return scope.prefix
     if not scope.allows_path(path):
-        raise ScopeTokenInvalid("path is outside the app folder")
+        raise ScopeDenied("path is outside the app folder")
     return path
