@@ -2,7 +2,17 @@ import {fireEvent, render, screen, cleanup} from "@testing-library/react"
 import {afterEach, beforeAll, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/entities/workflow", () => ({
-    AGENT_TEMPLATES: [
+    templateBuilderMessage: () => "Set up a PR reviewer and review my open pull requests.",
+    templateProviderSlugs: () => [],
+}))
+
+import {firstAgentInput} from "./choices"
+import OnboardingFlowView, {type OnboardingTemplateCatalog} from "./OnboardingFlowView"
+
+const catalog = {
+    status: "success",
+    retry: () => undefined,
+    templates: [
         {
             key: "review",
             name: "PR reviewer",
@@ -16,12 +26,7 @@ vi.mock("@agenta/entities/workflow", () => ({
             },
         },
     ],
-    templateBuilderMessage: () => "Set up a PR reviewer and review my open pull requests.",
-    templateProviderSlugs: () => [],
-}))
-
-import {firstAgentInput} from "./choices"
-import OnboardingFlowView from "./OnboardingFlowView"
+} as unknown as OnboardingTemplateCatalog
 
 beforeAll(() => {
     vi.stubGlobal(
@@ -52,6 +57,7 @@ const setup = (variant: "control" | "task-first" = "control", modelReady = true)
     render(
         <OnboardingFlowView
             variant={variant}
+            catalog={catalog}
             tools={<p>Tools</p>}
             model={<p>Models</p>}
             modelReady={modelReady}
@@ -73,6 +79,7 @@ describe("first agent onboarding", () => {
         const props = {
             draftKey: "onboarding:project-a",
             variant: "control" as const,
+            catalog,
             tools: (ids: string[], onChange: (ids: string[]) => void) => (
                 <button onClick={() => onChange(["connection-1"])}>
                     Select GitHub {ids.length}
@@ -116,6 +123,7 @@ describe("first agent onboarding", () => {
         render(
             <OnboardingFlowView
                 variant="control"
+                catalog={catalog}
                 tools={<p>Tools</p>}
                 model={<p>Models</p>}
                 modelReady={false}
@@ -177,6 +185,7 @@ describe("first agent onboarding", () => {
         render(
             <OnboardingFlowView
                 variant="control"
+                catalog={catalog}
                 tools={null}
                 model={null}
                 modelReady
@@ -190,6 +199,77 @@ describe("first agent onboarding", () => {
         expect(onStep).toHaveBeenCalledOnce()
         fireEvent.click(screen.getByRole("button", {name: "Back"}))
         expect(onStep).toHaveBeenCalledOnce()
+    })
+    it("keeps the flow usable while the catalog loads or fails", () => {
+        const retry = vi.fn()
+        const onCreate = vi.fn()
+        const props = {
+            draftKey: "onboarding:catalog",
+            variant: "control" as const,
+            tools: null,
+            model: null,
+            modelReady: true,
+            committing: false,
+            onCreate,
+            onStep: vi.fn(),
+        }
+        const pending = render(
+            <OnboardingFlowView {...props} catalog={{templates: [], status: "pending", retry}} />,
+        )
+        fireEvent.click(screen.getByRole("button", {name: "Engineering"}))
+        for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole("button", {name: "Next"}))
+        fireEvent.click(screen.getByRole("button", {name: "GitHub"}))
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
+        expect(screen.getByText("Loading suggestions…")).toBeTruthy()
+        pending.unmount()
+        render(<OnboardingFlowView {...props} catalog={{templates: [], status: "error", retry}} />)
+        fireEvent.click(screen.getByRole("button", {name: "Retry"}))
+        expect(retry).toHaveBeenCalledOnce()
+        fireEvent.change(screen.getByLabelText("Name"), {target: {value: "My agent"}})
+        fireEvent.click(screen.getByRole("button", {name: "Get started"}))
+        expect(onCreate).toHaveBeenCalledWith({
+            name: "My agent",
+            seedMessage: "Set up My agent: help me define what this agent should do.",
+        })
+    })
+    it("waits for the catalog before creating from a restored template", () => {
+        window.sessionStorage.setItem(
+            "onboarding:restored",
+            JSON.stringify({
+                step: 5,
+                role: "Engineering",
+                source: "GitHub",
+                name: "PR reviewer",
+                task: "",
+                templateKey: "review",
+            }),
+        )
+        const props = {
+            draftKey: "onboarding:restored",
+            variant: "task-first" as const,
+            tools: null,
+            model: null,
+            modelReady: true,
+            committing: false,
+            onCreate: vi.fn(),
+            onStep: vi.fn(),
+        }
+        const pending = render(
+            <OnboardingFlowView
+                {...props}
+                catalog={{templates: [], status: "pending", retry: vi.fn()}}
+            />,
+        )
+        expect(
+            screen.getByRole("button", {name: "Set up this agent"}).hasAttribute("disabled"),
+        ).toBe(true)
+        pending.unmount()
+        render(<OnboardingFlowView {...props} catalog={catalog} />)
+        fireEvent.click(screen.getByRole("button", {name: "Set up this agent"}))
+        expect(props.onCreate).toHaveBeenCalledWith({
+            name: "PR reviewer",
+            seedMessage: "Set up a PR reviewer and review my open pull requests.",
+        })
     })
     it("rejects blank input and trims custom tasks", () => {
         expect(firstAgentInput("control", " ", "do this", null)).toBeNull()
