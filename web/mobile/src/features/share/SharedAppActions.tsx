@@ -6,7 +6,6 @@ import {useRouter} from "next/router"
 
 import {rememberReturnPath} from "@/lib/context"
 
-import {SharedAppVersionMenu} from "./SharedAppVersionMenu"
 import {ViewerAvatar} from "./ViewerAvatar"
 
 interface Viewer {
@@ -17,11 +16,9 @@ interface Viewer {
 /** Sign in for a signed-out viewer; for a signed-in one, their avatar and what they may do. */
 export const SharedAppActions = ({
     snapshot,
-    token,
     user,
 }: {
     snapshot: SharedAppSnapshot | null
-    token: string
     user: Viewer | null
 }) => {
     const router = useRouter()
@@ -49,9 +46,6 @@ export const SharedAppActions = ({
 
     return (
         <div className="flex shrink-0 items-center gap-1.5">
-            {snapshot && editable ? (
-                <SharedAppVersionMenu snapshot={snapshot} token={token} />
-            ) : null}
             {sessionHref ? (
                 <Button asChild variant="ghost" size="sm">
                     <Link href={sessionHref}>Open in session</Link>

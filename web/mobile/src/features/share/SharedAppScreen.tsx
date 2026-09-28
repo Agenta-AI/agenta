@@ -16,7 +16,7 @@ export const SharedAppScreen = ({token, version}: {token: string; version: numbe
     return (
         <div className="flex h-dvh flex-col bg-background">
             <PageTitle title={snapshot?.name ?? "Shared app"} />
-            <SharedAppHeader snapshot={snapshot ?? null} token={token} />
+            <SharedAppHeader snapshot={snapshot ?? null} />
             <main className="flex min-h-0 flex-1 flex-col">
                 {query.isPending ? (
                     <SharedAppSkeleton />

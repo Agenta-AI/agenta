@@ -6,13 +6,7 @@ import {AgentaLogo} from "@/components/AgentaLogo"
 import {SharedAppActions} from "./SharedAppActions"
 
 /** The strip above a shared app: who made it, and what this viewer can do. */
-export const SharedAppHeader = ({
-    snapshot,
-    token,
-}: {
-    snapshot: SharedAppSnapshot | null
-    token: string
-}) => {
+export const SharedAppHeader = ({snapshot}: {snapshot: SharedAppSnapshot | null}) => {
     const {user} = useProfile()
     const byline = snapshot
         ? snapshot.viewer.is_owner
@@ -35,7 +29,7 @@ export const SharedAppHeader = ({
                 ) : null}
             </div>
             <span className="flex-1" />
-            <SharedAppActions snapshot={snapshot} token={token} user={user ?? null} />
+            <SharedAppActions snapshot={snapshot} user={user ?? null} />
         </header>
     )
 }
