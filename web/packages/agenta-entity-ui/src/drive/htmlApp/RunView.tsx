@@ -422,9 +422,14 @@ export function RunView({
                     </div>
                 </div>
             ) : stopped ? (
-                <div data-slot="run-stopped" className="min-h-0 flex-1 p-3 text-colorTextSecondary">
-                    The app tried to load another page and was stopped. Use Refresh, then Reload
-                    files, to start it again.
+                <div
+                    data-slot="run-stopped"
+                    className="flex min-h-0 flex-1 flex-col items-start gap-2 p-3 text-colorTextSecondary"
+                >
+                    The app tried to load another page and was stopped.
+                    <Button variant="outline" size="sm" onClick={reload} className="h-7 text-xs">
+                        Restart app
+                    </Button>
                 </div>
             ) : (
                 // No allow-same-origin: the app is an opaque origin and reaches the drive only over
