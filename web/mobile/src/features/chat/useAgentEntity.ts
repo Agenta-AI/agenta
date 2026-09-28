@@ -101,8 +101,9 @@ export const useAgentEntity = (
     const awaitingHeader = (header.isPending || (missing && isFetching)) && !fallbackAgentId
 
     // A failed read with nothing cached: the session is unknown, not agent-less.
+    // A cached null is only a tentative "no row" (see `missing`), so a failed re-read of it counts.
     const unreachable =
-        (header.isError && header.data === undefined && !fallbackAgentId) ||
+        (header.isError && !header.data && !fallbackAgentId) ||
         (revisionQuery.isError && revisionQuery.data === undefined)
     const {isError: revisionFailed, refetch: refetchRevision} = revisionQuery
     const headerFailed = header.isError

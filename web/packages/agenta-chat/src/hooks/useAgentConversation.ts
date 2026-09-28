@@ -224,6 +224,8 @@ export interface AgentConversation {
     /** Server hydration for a known session FAILED (network, timeout, 5xx): its history may well
      * exist, so skins say it could not load rather than that it is gone. */
     historyReadFailed: boolean
+    /** Read the history again after `historyReadFailed`. */
+    retryHistory: () => void
     /** The last assistant turn was user-stopped (cleared on the next send/regenerate). */
     stopped: boolean
     /** Messages held while a turn is in flight, in FIFO order. */
@@ -580,6 +582,13 @@ export const useAgentConversation = ({
     const [historyUnavailable, setHistoryUnavailable] = useState(false)
     // Set instead when that hydration read failed — a failed read is not a pruned log.
     const [historyReadFailed, setHistoryReadFailed] = useState(false)
+    // Bumped by `retryHistory` to run the hydration below again.
+    const [hydrateAttempt, setHydrateAttempt] = useState(0)
+    const retryHistory = useCallback(() => {
+        setHistoryReadFailed(false)
+        setIsHydrating(true)
+        setHydrateAttempt((n) => n + 1)
+    }, [])
 
     /**
      * THE adoption guard — one implementation for every path that can hand us a server transcript
@@ -693,8 +702,8 @@ export const useAgentConversation = ({
         return () => {
             cancelled = true
         }
-        // Seed once per mounted session; `sessionId` is stable for this instance.
-    }, [sessionId])
+        // Seed once per mounted session (again on `retryHistory`); `sessionId` is stable here.
+    }, [sessionId, hydrateAttempt])
 
     // Revalidate-on-open: a cached session paints instantly from localStorage; in the background
     // we refetch the durable records ONCE and adopt the server transcript when the RECORD LOG has
@@ -1317,6 +1326,7 @@ export const useAgentConversation = ({
         isEmpty: displayMessages.length === 0,
         historyUnavailable,
         historyReadFailed,
+        retryHistory,
         stopped,
         queued,
         inputBusy: serverBusy,

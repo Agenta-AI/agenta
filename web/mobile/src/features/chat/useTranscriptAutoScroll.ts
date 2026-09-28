@@ -29,7 +29,7 @@ const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home
  * An answer that arrives while following is anchored at its first line, not its last, until the
  * reader's first scroll input (input, not position: browser scroll anchoring also moves scrollTop).
  */
-export const useTranscriptAutoScroll = (content: unknown) => {
+export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) => {
     const ref = useRef<HTMLDivElement | null>(null)
     // Starts true so the first content render pins to the latest message.
     const nearBottomRef = useRef(true)
@@ -110,6 +110,15 @@ export const useTranscriptAutoScroll = (content: unknown) => {
         setShowJump(false)
         el.scrollTo({top: el.scrollHeight, behavior: "smooth"})
     }, [release])
+
+    // A screen kept mounted across a session switch must not carry the last session's position.
+    const sessionRef = useRef(sessionId)
+    useLayoutEffect(() => {
+        if (sessionRef.current === sessionId) return
+        sessionRef.current = sessionId
+        nearBottomRef.current = true
+        anchorRef.current = null
+    }, [sessionId])
 
     useLayoutEffect(() => {
         const el = ref.current

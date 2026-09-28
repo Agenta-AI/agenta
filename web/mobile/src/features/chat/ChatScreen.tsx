@@ -102,10 +102,13 @@ export const ChatScreen = ({
     // frame stays put; the transcript itself is keyed by sessionId and swaps immediately.
     const lastEntityIdRef = useRef<string | null>(null)
     if (entityId) lastEntityIdRef.current = entityId
+    // Held only across a pending switch: a session that failed to load must not borrow the last one.
+    if (unreachable) lastEntityIdRef.current = null
     const heldEntityId = entityId ?? lastEntityIdRef.current
     // Held for the same gap: a blink to null re-scopes the files pane and the tab rail (#6542, #6544).
     const lastAgentIdRef = useRef<string | null>(null)
     if (resolvedAgentId) lastAgentIdRef.current = resolvedAgentId
+    if (unreachable) lastAgentIdRef.current = null
     const heldAgentId = resolvedAgentId ?? lastAgentIdRef.current
     useReferenceToolDisplays(heldEntityId)
     // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
@@ -122,7 +125,7 @@ export const ChatScreen = ({
     // is not. `resolving` is query-PENDING, not fetching: a cached answer renders immediately.
     const chat = showLoading ? (
         <ChatLoading />
-    ) : unreachable && !heldEntityId ? (
+    ) : unreachable ? (
         <ChatUnreachable onRetry={retry} retrying={retrying} />
     ) : heldEntityId ? (
         <LiveConversation
@@ -231,7 +234,7 @@ const ReplayScreen = ({
         [turns],
     )
     // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
-    const autoScroll = useTranscriptAutoScroll(turns)
+    const autoScroll = useTranscriptAutoScroll(turns, sessionId)
 
     let body
     if (state === "loading") {

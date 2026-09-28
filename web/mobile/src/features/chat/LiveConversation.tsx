@@ -752,10 +752,18 @@ export const LiveConversation = ({
                     <div className="m-auto w-full max-w-[420px]">
                         <AgentIntroCard entityId={entityId} />
                         {conversation.historyReadFailed ? (
-                            <p className="text-muted-foreground mt-3 text-center text-xs">
-                                Couldn&apos;t load this session&apos;s earlier messages. Reload to
-                                try again.
-                            </p>
+                            <div className="mt-3 flex flex-col items-center gap-2">
+                                <p className="text-muted-foreground m-0 text-center text-xs">
+                                    Couldn&apos;t load this session&apos;s earlier messages.
+                                </p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={conversation.retryHistory}
+                                >
+                                    Try again
+                                </Button>
+                            </div>
                         ) : conversation.historyUnavailable ? (
                             <p className="text-muted-foreground mt-3 text-center text-xs">
                                 This session&apos;s earlier messages are no longer stored. New
