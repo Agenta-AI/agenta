@@ -1116,7 +1116,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 title: "Integrations",
                 summary: countSummary(integrationCount, "integration"),
                 indicator: sectionIndicator("tools"),
-                // "Create with AI" beside the drawer when a composer is on screen; else a plain "+".
+                // "Create with AI" beside the drawer that adds one by hand.
                 extra:
                     !disabled && openIntegrationDrawer ? (
                         <CreateWithAIAddMenu

@@ -467,7 +467,7 @@ export type {
 } from "./SchemaControls/agentTemplate/AgentTemplateSectionList"
 export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
-// Reads the composer-prefill atoms from @agenta/shared/state: its one atom dependency.
+// Writes the composer-prefill request atom from @agenta/shared/state: its one atom dependency.
 export {CreateWithAIAddMenu} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
 export type {CreateWithAIAddMenuProps} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
 export {SectionTitleBadge} from "./SchemaControls/agentTemplate/SectionTitleBadge"

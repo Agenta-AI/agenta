@@ -1,43 +1,40 @@
 import {useEffect, type RefObject} from "react"
 
-import {composerPrefillRequestAtom, composerPrefillTargetsAtom} from "@agenta/shared/state"
+import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {useAtom, useSetAtom} from "jotai"
+import {useAtom} from "jotai"
 
 import {composeWithStarterPrompt} from "./composerPrefill"
 
 /**
- * Makes this composer the target of the config panel's "Create with AI": it registers itself, so
- * the panel offers the option, and writes each requested starter prompt into the input with the
- * caret after it, ready for the user to finish the sentence.
+ * Writes the config panel's "Create with AI" starter prompt into this composer, with the caret
+ * after it, ready for the user to finish the sentence.
  */
 export const useComposerPrefill = (richInputRef: RefObject<RichChatInputHandle | null>) => {
-    const setTargets = useSetAtom(composerPrefillTargetsAtom)
-    useEffect(() => {
-        setTargets((count) => count + 1)
-        return () => setTargets((count) => Math.max(0, count - 1))
-    }, [setTargets])
-
     const [request, setRequest] = useAtom(composerPrefillRequestAtom)
     useEffect(() => {
         if (!request) return
-        setRequest(null)
-        // The rich input mounts lazily, so on a cold composer the handle can still be empty.
-        // Wait for it briefly rather than drop the request.
-        let attempts = 0
+        // The rich input mounts lazily and signals nothing when it is ready, so wait for its
+        // handle. The request stays set until the text lands: a pick made while the
+        // conversation is still loading is applied once the composer arrives, not dropped.
         let timer = 0
         const apply = () => {
             const input = richInputRef.current
             if (!input) {
-                if (attempts++ < 20) timer = window.setTimeout(apply, 100)
+                timer = window.setTimeout(apply, 100)
                 return
             }
             const next = composeWithStarterPrompt(input.getMarkdown(), request.text)
-            // `setMarkdown` puts the caret at the end but drops a trailing space, so the space
-            // goes in as typed text. `insertText` also focuses the input.
-            void input.setMarkdown(next).then(() => input.insertText(" "))
+            void input.setMarkdown(next).then(() => {
+                // `setMarkdown` drops a trailing space, so it goes in as typed text. This also
+                // focuses the input.
+                input.insertText(" ")
+                setRequest((current) => (current?.id === request.id ? null : current))
+            })
         }
-        apply()
+        // Deferred, so a mount that is torn down at once (React's development double mount)
+        // cancels it instead of writing the prompt twice.
+        timer = window.setTimeout(apply, 0)
         return () => window.clearTimeout(timer)
     }, [request, richInputRef, setRequest])
 }

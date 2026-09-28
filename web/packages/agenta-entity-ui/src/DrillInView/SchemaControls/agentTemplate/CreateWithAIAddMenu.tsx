@@ -1,17 +1,14 @@
 /**
  * CreateWithAIAddMenu
  *
- * A config header's "+" (Integrations, Skills, Automations) when a chat composer is on screen: a
- * two-row menu that offers "Create with AI" beside the section's own manual add. "Create with AI"
- * puts a starter prompt ("I want a skill that …") in the composer, so the agent runs the setup
- * conversation instead of the user filling the form.
- *
- * With no composer mounted (an embedded agent drawer, a gallery), there is nothing to hand the
- * prompt to, so the menu falls back to the plain "+" that runs the manual add directly.
+ * A config header's "+" (Integrations, Skills, Automations): a two-row menu that offers "Create
+ * with AI" beside the section's own manual add. "Create with AI" puts a starter prompt ("I want a
+ * skill that …") in the chat composer, so the agent runs the setup conversation instead of the
+ * user filling the form.
  */
 import {useCallback, useRef, type ReactNode} from "react"
 
-import {composerPrefillRequestAtom, composerPrefillTargetsAtom} from "@agenta/shared/state"
+import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -19,7 +16,7 @@ import {
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
 import {Sparkle} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {SectionAddButton} from "./SectionAddButton"
 
@@ -69,7 +66,6 @@ export function CreateWithAIAddMenu({
     manualHint,
     manualIcon,
 }: CreateWithAIAddMenuProps) {
-    const hasComposer = useAtomValue(composerPrefillTargetsAtom) > 0
     const requestPrefill = useSetAtom(composerPrefillRequestAtom)
     // The menu hands focus back to its trigger as it closes. After "Create with AI" the composer
     // has to keep it, or the caret the prompt just placed is gone before the user types.
@@ -78,8 +74,6 @@ export function CreateWithAIAddMenu({
         choseAIRef.current = true
         requestPrefill({id: Date.now(), text: starterPrompt})
     }, [requestPrefill, starterPrompt])
-
-    if (!hasComposer) return <SectionAddButton label={label} onClick={onManual} />
 
     return (
         <DropdownMenu>

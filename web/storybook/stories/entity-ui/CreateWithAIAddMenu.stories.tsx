@@ -1,16 +1,15 @@
-import {useState, type ReactNode} from "react"
+import {useState} from "react"
 
-import {CreateWithAIAddMenu} from "@agenta/entity-ui/drill-in"
-import {composerPrefillRequestAtom, composerPrefillTargetsAtom} from "@agenta/shared/state"
+import {CreateWithAIAddMenu, type CreateWithAIAddMenuProps} from "@agenta/entity-ui/drill-in"
+import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {GraduationCap, Lightning, PuzzlePiece} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {createStore, Provider, useAtomValue} from "jotai"
 
 // CreateWithAIAddMenu — the "+" on the agent config's Integrations, Skills and Automations
-// headers. With a chat composer on screen it opens a menu: "Create with AI" writes a starter
-// prompt into the composer; the second row is the section's existing manual add. With no
-// composer it is the plain "+". Open the menu in Playground and pick "Create with AI" to see
-// the request the composer would receive.
+// headers. It opens a menu: "Create with AI" writes a starter prompt into the chat composer;
+// the second row is the section's existing manual add. Open the menu in Playground and pick
+// "Create with AI" to see the request the composer would receive.
 
 /** Shows the prompt a composer would receive, standing in for the chat composer. */
 function PrefillReadout() {
@@ -22,13 +21,17 @@ function PrefillReadout() {
     )
 }
 
-function WithComposer({composers, children}: {composers: number; children: ReactNode}) {
-    const [store] = useState(() => {
-        const next = createStore()
-        next.set(composerPrefillTargetsAtom, composers)
-        return next
-    })
-    return <Provider store={store}>{children}</Provider>
+/** A fresh store per story, so one story's pick does not show in the next. */
+function MenuWithReadout(props: CreateWithAIAddMenuProps) {
+    const [store] = useState(createStore)
+    return (
+        <Provider store={store}>
+            <div className="flex w-[360px] flex-col items-end gap-3">
+                <CreateWithAIAddMenu {...props} />
+                <PrefillReadout />
+            </div>
+        </Provider>
+    )
 }
 
 const meta = {
@@ -43,14 +46,7 @@ const meta = {
         manualHint: "Pick a skill from your library or write one.",
         manualIcon: <GraduationCap size={16} />,
     },
-    render: (args) => (
-        <WithComposer composers={1}>
-            <div className="flex w-[360px] flex-col items-end gap-3">
-                <CreateWithAIAddMenu {...args} />
-                <PrefillReadout />
-            </div>
-        </WithComposer>
-    ),
+    render: (args) => <MenuWithReadout {...args} />,
 } satisfies Meta<typeof CreateWithAIAddMenu>
 
 export default meta
@@ -76,13 +72,4 @@ export const Automations: Story = {
         manualHint: "Set a schedule or an event, then what the agent does.",
         manualIcon: <Lightning size={16} />,
     },
-}
-
-/** No composer on screen (an embedded agent drawer): the plain "+" that adds manually. */
-export const WithoutComposer: Story = {
-    render: (args) => (
-        <WithComposer composers={0}>
-            <CreateWithAIAddMenu {...args} />
-        </WithComposer>
-    ),
 }
