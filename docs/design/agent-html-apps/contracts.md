@@ -200,7 +200,8 @@ would block them anyway, and the kit must render identically in Storybook and in
   opaque origin and only ever reaches the drive through the port. No `allow-popups` either — see
   the egress surface below, which is the reason.
 - CSP (`RUN_CSP`), injected as a `<meta http-equiv>` at the top of the document:
-  `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'`.
+  `default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; connect-src https:; form-action 'none'`.
+  A shared app uses `SHARE_CSP` instead (see Sharing).
 - Wrapper frame (`buildRunFrame` in `frame.ts`). The Run iframe holds a small wrapper document,
   and the wrapper holds the app in a nested iframe with the same sandbox flags. The wrapper's CSP
   (`RUN_FRAME_CSP`) is `RUN_CSP` plus `frame-src 'none'`. A frame's navigations are checked against
@@ -237,15 +238,71 @@ The iframe receives neither this token nor the user's authentication credentials
 the token narrows GET, PUT and DELETE on `/mounts/{id}/files` to the app directory and grant.
 It does not authorize upload, download, folder creation or export endpoints.
 
-If token minting fails, Run may continue with ordinary authenticated requests without this
-header. That is intentional compatibility behavior, not an unconditional server-side folder
-boundary. Normal authentication and project permissions still apply. The agent-side tools ask
+Run fails closed. If no token can be minted, the app's file calls fail with `unavailable` and
+no request is sent without the header. An HTML file at the drive root does not offer Run: the
+root is not a folder the server can scope. The server reports two different failures:
+
+| Code | Status | Meaning | Client |
+|---|---|---|---|
+| `scope_token_invalid` | 403 | The token is unusable: bad signature, malformed, unknown version, expired | Drops the cached token, mints once, retries once |
+| `scope` | 403 | A valid token, used outside its folder or above its level | Does not retry |
+
+Both are 403, not 401: a 401 makes the SuperTokens interceptor try a session refresh. Scope
+tokens are signed with a key derived for this purpose (`agenta/app-scope/v1`), not with the raw
+crypt key. Normal authentication and project permissions still apply. The agent-side tools ask
 for the same permissions as the mount routes: `create_app` needs `EDIT_MOUNTS` and
 `list_starters` needs `VIEW_MOUNTS`, on top of `RUN_TOOLS`.
+
+When the page cannot build a Preview or Run document, the frame shows an error document under
+the same policy. The original HTML is never the fallback.
+
+The assembler inlines every reference by its kind, in one path: a script becomes script text, a
+stylesheet becomes a `<style>` whose `url()` and `@import` targets are inlined against the
+stylesheet's own location, and an image or font becomes a `data:` URI. `<style>` blocks and
+`style=""` attributes get the same `url()` inlining.
 
 Preview has no app bridge. It strips app scripts, keeps external links available, and applies
 `PREVIEW_CSP`, including `frame-src 'none'` and `object-src 'none'`. Its policy allows HTTPS
 styles, images and fonts. Do not describe Preview as network-isolated either.
+
+## Sharing
+
+An owner shares an app folder from a session's working drive (`name == "cwd"`) as a read-only
+snapshot. Changing a share needs `EDIT_MOUNTS` and an interactive sign-in session; an API key or
+the agent's tool credential gets 403 `interactive_session_required`.
+
+Owner routes (mounts router, `VIEW_MOUNTS` to read, the rules above to change):
+`GET /mounts/{id}/apps/share?path=`, `POST /mounts/{id}/apps/share/publish`,
+`PATCH /mounts/{id}/apps/share`, `POST /mounts/{id}/apps/share/restore`,
+`DELETE /mounts/{id}/apps/share?path=`. The link token is returned only to a caller who may
+change the share.
+
+Viewer route: `GET /shared/apps/{token}?v=` (public prefix `/shared/apps/`). It checks access
+once and streams one JSON body with the whole version: metadata, `viewer`, `refs`, and every
+file and captured external file as base64. Headers: `X-Content-Type-Options: nosniff`,
+`Content-Security-Policy: sandbox; default-src 'none'`, `Cache-Control: no-store`. Refusals are
+403 with a `code` (`sign_in_required`, `not_a_member`, or the organization policy error), 404
+(`share_not_found`, `share_unavailable` for an archived session, `version_not_found`), or 503
+(`sharing_disabled` on the placeholder crypt key).
+
+Publish follows the reference graph once, on the server, and records every resolved reference
+in the manifest's `refs` (`file:<path>` or `url:<url>` → reference as written → target). The
+viewer resolves nothing itself.
+
+| In | Reference | Resolved against |
+|---|---|---|
+| HTML | `<script src>`, `<link rel="stylesheet" href>`, `<img src>`, `<style>`, `style=""` | the HTML file's folder |
+| CSS, local or captured | `url()`, `@import` | the stylesheet's own location |
+
+External files: `https:` only, through `open_egress`, up to 3 redirects each checked again, a
+depth of 3, at most 30 URLs. One budget covers the snapshot, captured files included: 200 files,
+5 MB per file, 25 MB in total. A failed capture is reported, not fatal. A module script that
+imports other URLs is reported as `module_imports_not_captured`.
+
+A shared app runs under `SHARE_CSP`: `default-src 'none'; script-src 'unsafe-inline';
+style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:;
+connect-src 'none'; form-action 'none'; base-uri 'none'`, plus the wrapper's `frame-src 'none';
+object-src 'none'`. Its file bridge is read-only: writes fail with `read_only`.
 
 ## Grant confirmation
 

@@ -49,3 +49,14 @@ describe("shouldCheckSession", () => {
         expect(shouldCheckSession("/auth/callback")).toBe(false)
     })
 })
+
+describe("a shared app's page", () => {
+    it("is never sent to sign-in: the page asks for it itself when the share needs it", () => {
+        expect(authRedirectTarget("unauthenticated", "/share/tok")).toBeNull()
+        expect(authRedirectTarget("ok", "/share/tok")).toBeNull()
+    })
+
+    it("does not ask for the session at all", () => {
+        expect(shouldCheckSession("/share/tok")).toBe(false)
+    })
+})

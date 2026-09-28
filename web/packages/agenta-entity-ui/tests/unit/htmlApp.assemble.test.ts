@@ -584,3 +584,58 @@ describe("a failed build never renders the raw document", () => {
         expect(errors[0]).toContain("store down")
     })
 })
+
+describe("one inlining path for local and captured files", () => {
+    const text: Record<string, string> = {
+        "site/css/app.css": ".hero{background:url(../img/bg.svg)}",
+        "https://cdn/lib.js": "window.LIB=1",
+        "https://cdn/font.css": "@font-face{src:url(inter.woff2)}",
+    }
+    const data: Record<string, string> = {
+        "site/img/bg.svg": "data:image/svg+xml;base64,QkI=",
+        "https://cdn/inter.woff2": "data:font/woff2;base64,Rk9OVA==",
+    }
+    const plain: AssembleIo = {
+        fetchText: async (k) => text[k] ?? null,
+        fetchDataUri: async (k) => data[k] ?? null,
+    }
+
+    it("inlines a relative url() in a local stylesheet against the stylesheet's own folder", async () => {
+        const html = await assemblePreview('<link rel="stylesheet" href="css/app.css"><p>x</p>', {
+            dir: "site",
+            io: plain,
+        })
+        expect(html).toContain('url("data:image/svg+xml;base64,QkI=")')
+    })
+
+    it("leaves https references alone without a snapshot", async () => {
+        const {html} = await assembleRunDocument('<script src="https://cdn/lib.js"></script>', {
+            dir: "site",
+            io: plain,
+            tokens: {},
+            kitCss: null,
+        })
+        expect(html).toContain('src="https://cdn/lib.js"')
+    })
+
+    it("inlines captured scripts and stylesheets as code, and fonts as data", async () => {
+        const refs: Record<string, Record<string, string>> = {
+            "index.html": {
+                "https://cdn/lib.js": "https://cdn/lib.js",
+                "https://cdn/font.css": "https://cdn/font.css",
+            },
+            "https://cdn/font.css": {"inter.woff2": "https://cdn/inter.woff2"},
+        }
+        const snapshotIo: AssembleIo = {...plain, resolve: (base, ref) => refs[base]?.[ref] ?? null}
+        const {html, errors} = await assembleRunDocument(
+            '<link rel="stylesheet" href="https://cdn/font.css"><script src="https://cdn/lib.js"></script><img src="https://tracker/x.gif">',
+            {dir: "", io: snapshotIo, tokens: {}, kitCss: null, page: "index.html", csp: "SHARE"},
+        )
+        expect(html).toContain("window.LIB=1")
+        expect(html).not.toContain('src="https://cdn/lib.js"')
+        expect(html).toContain('url("data:font/woff2;base64,Rk9OVA==")')
+        expect(html).not.toContain("https://tracker/x.gif")
+        expect(html).toContain('content="SHARE"')
+        expect(errors).toContain("Image not in the shared snapshot: https://tracker/x.gif")
+    })
+})
