@@ -16,6 +16,7 @@ import {queryClient} from "@/lib/queryClient"
 import {AuthGate} from "./AuthGate"
 import {ContextSync} from "./ContextSync"
 import {ExecutionHeaders} from "./ExecutionHeaders"
+import {HtmlAppEnvBridge} from "./HtmlAppEnvBridge"
 
 // Module scope, like the desktop _app: __env.js is beforeInteractive, so
 // window.__env is already populated when this module first evaluates.
@@ -44,7 +45,9 @@ export const AppProviders = ({children}: PropsWithChildren) => (
                 <ExecutionHeaders />
                 {/* useEntityActionDispatch throws without this; the modals stay unmounted
                     until something dispatches, so nothing renders differently today. */}
-                <EntityModalsProvider>{children}</EntityModalsProvider>
+                <EntityModalsProvider>
+                    <HtmlAppEnvBridge>{children}</HtmlAppEnvBridge>
+                </EntityModalsProvider>
             </HydrateAtoms>
         </Provider>
     </QueryClientProvider>

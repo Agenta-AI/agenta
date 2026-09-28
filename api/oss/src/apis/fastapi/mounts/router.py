@@ -554,8 +554,8 @@ class MountsRouter:
         return AppShareResponse(
             count=1,
             share=share_state(result.share, token=result.token),
-            external_failed=[AppShareIssue(**item) for item in result.external_failed],
-            warnings=[AppShareIssue(**item) for item in result.warnings],
+            external_failed=[AppShareIssue(**item.model_dump()) for item in result.external_failed],
+            warnings=[AppShareIssue(**item.model_dump()) for item in result.warnings],
         )
 
     @intercept_exceptions()

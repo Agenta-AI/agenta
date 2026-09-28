@@ -48,17 +48,7 @@ export const withinDir = (dir: string, path: string): boolean =>
 /** Largest asset folded into the document as a data URI. */
 export const INLINE_ASSET_CAP = 8 * 1024 * 1024
 
-/**
- * How the assembler reaches the files. Paths are mount-relative (already resolved against the
- * HTML file's folder). `null` in a context means "no mount" — a local composer attachment — and
- * skips every asset fetch while the sanitize + interceptor pipeline still runs.
- *
- * `resolve` is for a snapshot whose references were resolved elsewhere (a shared app: the server
- * recorded where each reference points). With it, the assembler asks `resolve(base, ref)` for the
- * key of every reference — an app path or a captured URL — and a null answer drops the reference.
- * `fetchText` and `fetchDataUri` then receive those keys. Without it, relative references resolve
- * in the mount and `https:` ones are left for the browser.
- */
+/** How the assembler reaches files; with `resolve`, references are looked up, not resolved. */
 export interface AssembleIo {
     /** Text of a file, or null when it cannot be read. */
     fetchText: (path: string) => Promise<string | null>
@@ -105,30 +95,31 @@ type RefKind = "Stylesheet" | "Image" | "Script" | "Font or image"
 const MAX_CSS_DEPTH = 4
 
 const CSS_URL_RE = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]+))\s*\)/gi
-const CSS_IMPORT_RE = /@import\s+(?:url\(\s*)?(?:"([^"]*)"|'([^']*)')\s*\)?\s*([^;]*);/gi
+const CSS_IMPORT_RE =
+    /@import\s+(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]+))\s*\)|"([^"]*)"|'([^']*)')\s*([^;]*);/gi
 
-/**
- * One reference to one key. Both modes go through here, so a script, a stylesheet and an image
- * are each handled by what they are, wherever they come from.
- *
- * Returns the key to fetch, `null` to drop the reference (with a note), or `undefined` to leave it
- * as written (an `https:` URL the browser loads itself, or a `data:` URI).
- */
+/** Where a reference is written: its file's key (`io.resolve`) and that file's folder (the mount). */
+interface RefBase {
+    key: string
+    dir: string
+}
+
+/** A reference's key: `null` drops it, `undefined` leaves it as written. */
 function referenceKey(
     ref: string,
-    base: string,
+    base: RefBase,
     kind: RefKind,
     io: AssembleIo,
     opts: InlineOptions,
 ): string | null | undefined {
     if (!ref || ref.startsWith("data:") || ref.startsWith("#")) return undefined
     if (io.resolve) {
-        const key = io.resolve(base, ref)
+        const key = io.resolve(base.key, ref)
         if (key === null) opts.errors?.push(`${kind} not in the shared snapshot: ${ref}`)
         return key
     }
     if (isExternalUrl(ref)) return undefined
-    const path = resolveRel(dirOf(base), ref.split(/[?#]/)[0])
+    const path = resolveRel(base.dir, ref.split(/[?#]/)[0])
     if (opts.confine !== undefined && !withinDir(opts.confine, path)) {
         opts.errors?.push(`${kind} outside the app folder was not loaded: ${ref}`)
         return null
@@ -136,32 +127,26 @@ function referenceKey(
     return path
 }
 
-/**
- * Inline what a stylesheet references: `url()` targets become data URIs and `@import` targets are
- * folded in, each resolved against the stylesheet's OWN location (`base`), not the page's.
- */
+/** Inline a stylesheet's `url()` and `@import` targets, resolved against its own location. */
+/** The base of a fetched stylesheet: its own key, and its folder when it is a mount path. */
+const baseOf = (key: string): RefBase => ({key, dir: dirOf(key)})
+
 async function inlineCss(
     css: string,
-    base: string,
+    base: RefBase,
     io: AssembleIo,
     opts: InlineOptions,
     depth = 0,
 ): Promise<string> {
     const imports: Array<{match: string; text: string}> = []
     for (const match of css.matchAll(CSS_IMPORT_RE)) {
-        const ref = match[1] ?? match[2] ?? ""
+        const ref = match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5] ?? ""
+        const media = match[6]?.trim()
         const key = depth < MAX_CSS_DEPTH ? referenceKey(ref, base, "Stylesheet", io, opts) : null
         if (key === undefined) continue
         const text = key === null ? null : await io.fetchText(key)
-        imports.push({
-            match: match[0],
-            text:
-                text == null
-                    ? ""
-                    : await inlineCss(text, key as string, io, opts, depth + 1).then((inner) =>
-                          match[3]?.trim() ? `@media ${match[3].trim()}{${inner}}` : inner,
-                      ),
-        })
+        const inner = key && text != null ? await inlineCss(text, baseOf(key), io, opts, depth + 1) : ""
+        imports.push({match: match[0], text: media && inner ? `@media ${media}{${inner}}` : inner})
     }
     let out = css
     for (const {match, text} of imports) out = out.replace(match, text)
@@ -180,17 +165,14 @@ async function inlineCss(
     return out
 }
 
-/**
- * Inline a document's stylesheets, `<style>` blocks, `style=""` attributes and images. Shared by
- * Preview, Run and a shared app. `dir` is the document's folder; `opts.page` its own key.
- */
+/** Inline a document's stylesheets, `<style>` blocks, `style=""` attributes and images. */
 async function inlineAssets(
     doc: Document,
     dir: string,
     io: AssembleIo,
     opts: InlineOptions = {},
 ): Promise<void> {
-    const page = opts.page ?? joinAppPath(dir, "_")
+    const page: RefBase = {key: opts.page ?? "", dir}
 
     await Promise.all(
         Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]')).map(
@@ -204,7 +186,7 @@ async function inlineAssets(
                 const css = await io.fetchText(key)
                 if (css == null) return
                 const style = doc.createElement("style")
-                style.textContent = await inlineCss(css, key, io, opts)
+                style.textContent = await inlineCss(css, baseOf(key), io, opts)
                 link.replaceWith(style)
             },
         ),
@@ -395,7 +377,7 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
                     // The grant is for this folder: a script that climbs out of it is refused
                     // before it is fetched, never mind executed.
                     const key = io
-                        ? referenceKey(src, ctx.page ?? joinAppPath(dir, "_"), "Script", io, opts)
+                        ? referenceKey(src, {key: ctx.page ?? "", dir}, "Script", io, opts)
                         : undefined
                     if (key === null) {
                         script.remove()

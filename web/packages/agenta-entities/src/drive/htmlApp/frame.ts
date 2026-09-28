@@ -122,10 +122,7 @@ export function buildRunFrameScript(appHtml: string): string {
     return `(${runFrame.toString()})(${scriptLiteral(appHtml)}, ${scriptLiteral(SANDBOX_FLAGS)}, ${BRIDGE_VERSION})`
 }
 
-/**
- * The wrapper document for an assembled app document. Set it as the host iframe's srcdoc. `csp`
- * is the app's policy (default {@link RUN_CSP}); the wrapper adds its navigation guard to it.
- */
+/** The wrapper document for an app; `csp` is the app's policy (default {@link RUN_CSP}). */
 export function buildRunFrame(appHtml: string, {csp}: {csp?: string} = {}): string {
     const frameCsp = csp ? `${csp}; frame-src 'none'; object-src 'none'` : RUN_FRAME_CSP
     return (

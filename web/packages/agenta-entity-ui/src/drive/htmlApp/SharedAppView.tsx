@@ -1,8 +1,4 @@
-/**
- * A shared app: the Run runtime over a snapshot, under `SHARE_CSP`. The app reads its own files
- * through a read-only host, and every reference it makes resolves through the server's `refs`,
- * so nothing it loads comes from the network.
- */
+/** A shared app: the Run runtime over a snapshot, read-only, under `SHARE_CSP`. */
 import {useEffect, useMemo, useState} from "react"
 
 import {

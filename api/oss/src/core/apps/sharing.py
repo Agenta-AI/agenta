@@ -8,8 +8,8 @@ exposes a partial version. Every change to a share entry runs under the drive ro
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
-import json
 import mimetypes
 import posixpath
 import secrets
@@ -26,6 +26,7 @@ from oss.src.core.apps.share_capture import (
     capture,
     fetch_external,
 )
+from oss.src.core.apps.share_dtos import ShareFileEntry, ShareIssue, ShareManifest
 from oss.src.core.mounts.dtos import AppShare, AppShareVersion, Mount
 from oss.src.core.mounts.service import MountsService, validate_file_path
 from oss.src.core.mounts.types import MountPathInvalid
@@ -59,8 +60,8 @@ class AppShareError(Exception):
 class PublishResult:
     share: AppShare
     token: str
-    external_failed: List[Dict[str, str]] = field(default_factory=list)
-    warnings: List[Dict[str, str]] = field(default_factory=list)
+    external_failed: List[ShareIssue] = field(default_factory=list)
+    warnings: List[ShareIssue] = field(default_factory=list)
 
 
 @dataclass
@@ -72,7 +73,7 @@ class SharedAppSnapshot:
     app_path: str
     share: AppShare
     version: int
-    manifest: Dict[str, Any]
+    manifest: ShareManifest
 
 
 def _now() -> datetime:
@@ -144,33 +145,46 @@ class AppSharesService:
 
     async def _read_manifest(
         self, *, project_id: UUID, mount_id: UUID, app_path: str, version: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[ShareManifest]:
         store, bucket = self._require_store()
         key = self._manifest_key(
             project_id=project_id, mount_id=mount_id, app_path=app_path, version=version
         )
         try:
-            return json.loads(await store.get_object(bucket=bucket, key=key))
+            return ShareManifest.model_validate_json(
+                await store.get_object(bucket=bucket, key=key)
+            )
         except Exception:  # noqa: BLE001 - a missing or unreadable manifest is no version
             return None
 
     async def _write_manifest(
-        self,
-        *,
-        project_id: UUID,
-        mount_id: UUID,
-        app_path: str,
-        version: int,
-        manifest: Dict[str, Any],
+        self, *, project_id: UUID, mount_id: UUID, app_path: str, manifest: ShareManifest
     ) -> None:
         store, bucket = self._require_store()
         await store.put_object(
             bucket=bucket,
             key=self._manifest_key(
-                project_id=project_id, mount_id=mount_id, app_path=app_path, version=version
+                project_id=project_id,
+                mount_id=mount_id,
+                app_path=app_path,
+                version=manifest.version,
             ),
-            body=json.dumps(manifest, separators=(",", ":")).encode(),
+            body=manifest.model_dump_json().encode(),
         )
+
+    async def _put_blobs(
+        self, *, project_id: UUID, mount_id: UUID, contents: Dict[str, bytes]
+    ) -> Dict[str, str]:
+        """Key -> sha256 for each content, written with bounded parallelism."""
+        gate = asyncio.Semaphore(8)
+
+        async def put(key: str, content: bytes) -> Tuple[str, str]:
+            async with gate:
+                return key, await self._put_blob(
+                    project_id=project_id, mount_id=mount_id, content=content
+                )
+
+        return dict(await asyncio.gather(*(put(k, c) for k, c in contents.items())))
 
     # ---------------------------------------------------------------------------------------
     # Owner side
@@ -259,8 +273,6 @@ class AppSharesService:
                 f"This app has {len(entries)} files. A share holds at most {MAX_FILES}.",
                 details={"limit": "files", "max": MAX_FILES},
             )
-        total = 0
-        files: Dict[str, LocalFile] = {}
         for entry in entries:
             if (entry.size or 0) > MAX_FILE_BYTES:
                 raise AppShareError(
@@ -268,17 +280,20 @@ class AppSharesService:
                     f"{entry.path[len(prefix):]} is over the 5 MB limit for one file.",
                     details={"limit": "file_size", "max": MAX_FILE_BYTES},
                 )
-            content = await self.mounts_service.read_file_bytes(
-                project_id=project_id, mount_id=mount.id, path=entry.path
+        if sum(entry.size or 0 for entry in entries) > MAX_TOTAL_BYTES:
+            raise AppShareError(
+                "too_large",
+                "This app is over the 25 MB limit for a share.",
+                details={"limit": "total_size", "max": MAX_TOTAL_BYTES},
             )
-            total += len(content)
-            if total > MAX_TOTAL_BYTES:
-                raise AppShareError(
-                    "too_large",
-                    "This app is over the 25 MB limit for a share.",
-                    details={"limit": "total_size", "max": MAX_TOTAL_BYTES},
-                )
-            relative = entry.path[len(prefix) :]
+        contents = await self.mounts_service.read_files_bytes(
+            project_id=project_id,
+            mount_id=mount.id,
+            paths=[entry.path for entry in entries],
+        )
+        files: Dict[str, LocalFile] = {}
+        for path, content in contents.items():
+            relative = path[len(prefix) :]
             files[relative] = LocalFile(
                 path=relative, content=content, content_type=_content_type(relative)
             )
@@ -313,27 +328,33 @@ class AppSharesService:
             fetch=self.fetch,
         )
 
-        file_map: Dict[str, Dict[str, Any]] = {}
-        for relative, item in files.items():
-            sha256 = await self._put_blob(
-                project_id=project_id, mount_id=mount.id, content=item.content
+        file_shas = await self._put_blobs(
+            project_id=project_id,
+            mount_id=mount.id,
+            contents={k: v.content for k, v in files.items()},
+        )
+        external_shas = await self._put_blobs(
+            project_id=project_id,
+            mount_id=mount.id,
+            contents={k: v.content for k, v in captured.external.items()},
+        )
+        file_map = {
+            relative: ShareFileEntry(
+                sha256=file_shas[relative],
+                size=len(item.content),
+                content_type=item.content_type,
             )
-            file_map[relative] = {
-                "sha256": sha256,
-                "size": len(item.content),
-                "content_type": item.content_type,
-            }
-        external_map: Dict[str, Dict[str, Any]] = {}
-        for url, fetched in captured.external.items():
-            sha256 = await self._put_blob(
-                project_id=project_id, mount_id=mount.id, content=fetched.content
+            for relative, item in files.items()
+        }
+        external_map = {
+            url: ShareFileEntry(
+                sha256=external_shas[url],
+                size=len(fetched.content),
+                content_type=fetched.content_type,
+                final_url=fetched.final_url,
             )
-            external_map[url] = {
-                "sha256": sha256,
-                "size": len(fetched.content),
-                "content_type": fetched.content_type,
-                "final_url": fetched.final_url,
-            }
+            for url, fetched in captured.external.items()
+        }
 
         now = _now()
 
@@ -343,19 +364,18 @@ class AppSharesService:
                 project_id=project_id,
                 mount_id=mount.id,
                 app_path=app_path,
-                version=version,
-                manifest={
-                    "version": version,
-                    "name": app_manifest["name"],
-                    "entry": app_manifest["entry"],
-                    "kit": app_manifest.get("kit", True),
-                    "created_at": now.isoformat(),
-                    "created_by_id": str(user_id),
-                    "files": file_map,
-                    "external": external_map,
-                    "refs": captured.refs,
-                    "warnings": captured.warnings,
-                },
+                manifest=ShareManifest(
+                    version=version,
+                    name=app_manifest["name"],
+                    entry=app_manifest["entry"],
+                    kit=app_manifest.get("kit", True),
+                    created_at=now,
+                    created_by_id=user_id,
+                    files=file_map,
+                    external=external_map,
+                    refs=captured.refs,
+                    warnings=captured.warnings,
+                ),
             )
             entry = AppShareVersion(version=version, created_at=now, created_by_id=user_id)
             if current is None:
@@ -423,14 +443,14 @@ class AppSharesService:
                 project_id=project_id,
                 mount_id=mount.id,
                 app_path=app_path,
-                version=next_version,
-                manifest={
-                    **source,
-                    "version": next_version,
-                    "created_at": now.isoformat(),
-                    "created_by_id": str(user_id),
-                    "restored_from": version,
-                },
+                manifest=source.model_copy(
+                    update={
+                        "version": next_version,
+                        "created_at": now,
+                        "created_by_id": user_id,
+                        "restored_from": version,
+                    }
+                ),
             )
             return current.model_copy(
                 update={
@@ -551,16 +571,17 @@ class AppSharesService:
 
     async def iter_blobs(
         self, snapshot: SharedAppSnapshot, section: Literal["files", "external"]
-    ) -> AsyncIterator[Tuple[str, Dict[str, Any], bytes]]:
+    ) -> AsyncIterator[Tuple[str, ShareFileEntry, bytes]]:
         """Each entry of one manifest section with its bytes, read one blob at a time."""
         store, bucket = self._require_store()
-        for key, meta in (snapshot.manifest.get(section) or {}).items():
+        entries = snapshot.manifest.files if section == "files" else snapshot.manifest.external
+        for key, entry in entries.items():
             content = await store.get_object(
                 bucket=bucket,
                 key=self._blob_key(
                     project_id=snapshot.project_id,
                     mount_id=snapshot.mount.id,
-                    sha256=meta["sha256"],
+                    sha256=entry.sha256,
                 ),
             )
-            yield key, meta, content
+            yield key, entry, content

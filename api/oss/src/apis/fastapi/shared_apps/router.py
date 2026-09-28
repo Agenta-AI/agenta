@@ -166,16 +166,16 @@ class SharedAppsRouter:
 
         viewer = await self._viewer(request, snapshot)
         head = SharedAppResponse(
-            name=snapshot.manifest.get("name") or snapshot.app_path,
-            entry=snapshot.manifest.get("entry") or "index.html",
-            kit=snapshot.manifest.get("kit", True),
+            name=snapshot.manifest.name,
+            entry=snapshot.manifest.entry,
+            kit=snapshot.manifest.kit,
             version=snapshot.version,
             latest=snapshot.share.latest,
             versions=[item.version for item in snapshot.share.versions],
             visibility=snapshot.share.visibility,
             author_name=await self._author_name(snapshot),
             viewer=viewer,
-            refs=snapshot.manifest.get("refs") or {},
+            refs=snapshot.manifest.refs,
         ).model_dump(mode="json", exclude={"files", "external"})
 
         return StreamingResponse(
@@ -192,11 +192,11 @@ class SharedAppsRouter:
         for section in ("files", "external"):
             yield f',"{section}":{{'.encode()
             first = True
-            async for key, meta, content in self.app_shares_service.iter_blobs(
+            async for key, entry, content in self.app_shares_service.iter_blobs(
                 snapshot, section
             ):
                 item = {
-                    "content_type": meta.get("content_type") or "application/octet-stream",
+                    "content_type": entry.content_type,
                     "size": len(content),
                     "data": base64.b64encode(content).decode(),
                 }

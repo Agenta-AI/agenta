@@ -8,10 +8,7 @@ import {SharedAppHeader} from "./SharedAppHeader"
 import {SharedAppError} from "./states/SharedAppError"
 import {SharedAppSkeleton} from "./states/SharedAppSkeleton"
 
-/**
- * A shared app: the header outside the app, the app under its strict policy below. The header
- * always names the author, so a page inside the app cannot pass itself off as Agenta.
- */
+/** A shared app under a header that sits outside it and always names the author. */
 export const SharedAppScreen = ({token, version}: {token: string; version: number | null}) => {
     const query = useAtomValue(sharedAppQueryFamily({token, version}))
     const snapshot = query.data

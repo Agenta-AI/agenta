@@ -1,11 +1,4 @@
-/**
- * Agent HTML apps — sharing. The owner's share calls, the viewer's one-request snapshot fetch, and
- * the read-only `FsClient` a shared app runs against.
- *
- * A snapshot is the whole version: every app file and every captured external file, with the
- * server's `refs` telling where each reference in each file points. Nothing here resolves a
- * reference itself.
- */
+/** App sharing: owner calls, the one-request snapshot, and its read-only `FsClient`. */
 
 import {getMountsClient, getSharedAppsClient} from "@agenta/sdk/resources"
 import {z} from "zod"
@@ -224,7 +217,7 @@ export const sharePagePath = (token: string): string => `/share/${encodeURICompo
 export interface SnapshotFile {
     contentType: string
     bytes: Uint8Array
-    /** The bytes as the server sent them, kept so a `data:` URI needs no re-encoding. */
+    /** Base64 as sent, so a `data:` URI needs no re-encoding. */
     base64: string
 }
 
@@ -261,10 +254,7 @@ const decodeFiles = (files: Record<string, z.infer<typeof sharedFileSchema>> | n
         ]),
     )
 
-/**
- * One version of a shared app, in one request. Anonymous viewers have no session, so a refusal
- * comes back as a 403 with a `code` (`sign_in_required`, `not_a_member`), never a 401.
- */
+/** One version of a shared app in one request; refusals are 403 with a `code`, never 401. */
 export async function fetchSharedApp({
     token,
     version,
@@ -321,10 +311,7 @@ export const snapshotText = (file: SnapshotFile): string => new TextDecoder().de
 export const snapshotDataUri = (file: SnapshotFile): string =>
     `data:${file.contentType};base64,${file.base64}`
 
-/**
- * The `window.agenta.fs` a shared app runs against: reads from the snapshot, every write refused.
- * Paths are app-relative (the host is created with `dir: ""`).
- */
+/** A shared app's `window.agenta.fs`: app-relative reads from the snapshot, writes refused. */
 export function createSnapshotFsClient(snapshot: Pick<SharedAppSnapshot, "files">): FsClient {
     const readOnly = () =>
         Promise.reject(new FsClientError("read_only", "this shared app is read-only"))

@@ -53,6 +53,9 @@ class FakeMounts:
     async def read_file_bytes(self, *, project_id, mount_id, path):
         return self.files[path]
 
+    async def read_files_bytes(self, *, project_id, mount_id, paths):
+        return {path: self.files[path] for path in paths}
+
     async def list_files(self, *, project_id, mount_id, path=None):
         return MountFileList(
             files=[
@@ -123,7 +126,7 @@ async def test_publish_snapshots_the_app_and_leaves_nested_apps_out():
 
     snapshot = await service.open_shared_app(token=result.token)
     assert snapshot.version == 1 and result.share.visibility == "link"
-    assert set(snapshot.manifest["files"]) == {"app.json", "index.html", "data.json"}
+    assert set(snapshot.manifest.files) == {"app.json", "index.html", "data.json"}
 
 
 @pytest.mark.asyncio

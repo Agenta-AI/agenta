@@ -1,10 +1,4 @@
-/**
- * Sharing an app from a session drive: the Share button and the owner's dialog.
- *
- * Only a person with edit access, in the browser, can change a share (the server checks the same
- * two things). The dialog shows the link, who can open it, the versions with Restore, and Stop
- * sharing. "Update share" publishes the app's current files as the next version.
- */
+/** The Share button and the owner's share dialog for an app in a session drive. */
 import {useCallback, useState} from "react"
 
 import {

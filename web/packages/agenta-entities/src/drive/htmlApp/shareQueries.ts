@@ -1,6 +1,4 @@
-/**
- * Query atoms for app sharing: the owner's share state for one app, and a viewer's snapshot.
- */
+/** Query atoms for app sharing: an app's share state, and a viewer's snapshot. */
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -27,10 +25,7 @@ export const appShareQueryFamily = atomFamily(
     (a, b) => a.projectId === b.projectId && a.mountId === b.mountId && a.path === b.path,
 )
 
-/**
- * One version of a shared app. Never cached across mounts (`gcTime: 0`): a stopped share must
- * stop on the next open, and the snapshot can be 25 MB.
- */
+/** One version of a shared app; `gcTime: 0` so a stopped share stops on the next open. */
 export const sharedAppQueryFamily = atomFamily(
     ({token, version}: {token: string; version: number | null}) =>
         atomWithQuery<SharedAppSnapshot>(() => ({

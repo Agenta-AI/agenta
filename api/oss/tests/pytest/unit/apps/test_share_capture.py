@@ -126,7 +126,7 @@ async def test_a_refused_address_is_reported_and_dropped_from_refs():
         max_file_bytes=5 * MB,
         fetch=FakeWeb({}, fail=[bad]),
     )
-    assert result.failed == [{"url": bad, "reason": "the address is not reachable from the server"}]
+    assert [(f.url, f.reason) for f in result.failed] == [(bad, "the address is not reachable from the server")]
     assert bad not in result.refs.get("file:index.html", {})
 
 
@@ -142,7 +142,7 @@ async def test_more_than_thirty_urls_are_reported():
         fetch=web,
     )
     assert len(result.external) == 30
-    assert [f["reason"] for f in result.failed] == ["over the 30 URL limit"] * 2
+    assert [f.reason for f in result.failed] == ["over the 30 URL limit"] * 2
 
 
 @pytest.mark.asyncio
@@ -155,7 +155,7 @@ async def test_captured_bytes_share_the_snapshot_budget():
         fetch=FakeWeb({url: ("application/javascript", b"x" * 11)}),
     )
     assert result.external == {}
-    assert result.failed[0]["reason"] == "over the 25 MB snapshot limit"
+    assert result.failed[0].reason == "over the 25 MB snapshot limit"
 
 
 @pytest.mark.asyncio
@@ -171,4 +171,9 @@ async def test_a_module_that_imports_urls_is_a_warning():
         max_file_bytes=5 * MB,
         fetch=FakeWeb({}),
     )
-    assert result.warnings == [{"code": "module_imports_not_captured", "path": "mod.js"}]
+    assert [(w.code, w.path) for w in result.warnings] == [("module_imports_not_captured", "mod.js")]
+
+
+def test_import_url_forms_are_imports():
+    refs = dict(css_references("@import url(theme.css); @import url('x.css'); .a{background:url(b.png)}"))
+    assert refs == {"theme.css": True, "x.css": True, "b.png": False}

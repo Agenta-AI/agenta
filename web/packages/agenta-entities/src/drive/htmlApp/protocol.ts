@@ -215,12 +215,7 @@ export const SANDBOX_FLAGS = "allow-scripts allow-forms"
 export const RUN_CSP =
     "default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; connect-src https:; form-action 'none'"
 
-/**
- * CSP of a SHARED app: no network at all. A viewer is not the person who trusted the agent, so a
- * shared app must not be able to track them or send what they type anywhere. Only inline code
- * and `data:`/`blob:` assets load; publish captured the app's external files and the assembler
- * inlined them. The frame wrapper adds `frame-src` and `object-src`.
- */
+/** CSP of a shared app: inline code and `data:`/`blob:` assets only, no network at all. */
 export const SHARE_CSP =
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'"
 

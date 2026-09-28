@@ -505,6 +505,25 @@ class MountsService:
             mutate=mutate,
         )
 
+    async def read_files_bytes(
+        self, *, project_id: UUID, mount_id: UUID, paths: List[str]
+    ) -> dict[str, bytes]:
+        """Raw bytes of several files of one mount: one mount lookup, bounded parallel reads."""
+        for path in paths:
+            validate_file_path(path)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="read"
+        )
+        bucket = self._bucket()
+        gate = asyncio.Semaphore(_ARCHIVE_READ_CONCURRENCY)
+
+        async def read(path: str) -> Tuple[str, bytes]:
+            key = self._storage_key(project_id=project_id, mount=mount, path=path)
+            async with gate:
+                return path, await self.mounts_store.get_object(bucket=bucket, key=key)
+
+        return dict(await asyncio.gather(*(read(path) for path in paths)))
+
     async def fetch_mount_for_share(
         self, *, project_id: UUID, mount_id: UUID
     ) -> Optional[Mount]:

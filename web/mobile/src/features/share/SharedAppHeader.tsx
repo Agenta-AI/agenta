@@ -5,10 +5,7 @@ import {AgentaLogo} from "@/components/AgentaLogo"
 
 import {SharedAppActions} from "./SharedAppActions"
 
-/**
- * The strip above a shared app: who made it, and what this viewer can do with it. It sits
- * outside the app's frame, so nothing the app draws can cover or imitate it.
- */
+/** The strip above a shared app: who made it, and what this viewer can do. */
 export const SharedAppHeader = ({
     snapshot,
     token,

@@ -17,6 +17,7 @@ to 3 redirects with every hop checked again.
 
 from __future__ import annotations
 
+import asyncio
 import posixpath
 import re
 from dataclasses import dataclass, field
@@ -26,6 +27,7 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
+from oss.src.core.apps.share_dtos import ShareIssue, ShareRefs
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
     egress_client,
@@ -36,9 +38,14 @@ MAX_EXTERNAL_URLS = 30
 MAX_EXTERNAL_DEPTH = 3
 MAX_REDIRECTS = 3
 FETCH_TIMEOUT_SECONDS = 10.0
+# Downloads in flight at once; each level of the graph is fetched as one bounded batch.
+FETCH_CONCURRENCY = 6
 
 _CSS_URL_RE = re.compile(r"""url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]+))\s*\)""", re.I)
-_CSS_IMPORT_RE = re.compile(r"""@import\s+(?:"([^"]*)"|'([^']*)')""", re.I)
+# `@import "x"`, `@import 'x'`, and `@import url(x)` with or without quotes.
+_CSS_IMPORT_RE = re.compile(
+    r"""@import\s+(?:url\(\s*)?(?:"([^"]*)"|'([^']*)'|([^)"'\s;]+))""", re.I
+)
 _MODULE_URL_IMPORT_RE = re.compile(
     r"""(?:\bfrom\s*|\bimport\s*\(?\s*)["'](?:https?:)?//""", re.I
 )
@@ -46,12 +53,16 @@ _MODULE_URL_IMPORT_RE = re.compile(
 
 def css_references(text: str) -> List[Tuple[str, bool]]:
     """Every `url()` and `@import` target in a stylesheet, as written, with "is an import"."""
-    refs: List[Tuple[str, bool]] = []
+    imports = {
+        next(g for g in m.groups() if g is not None).strip()
+        for m in _CSS_IMPORT_RE.finditer(text)
+    }
+    refs: List[Tuple[str, bool]] = [(ref, True) for ref in imports if ref]
     for match in _CSS_URL_RE.finditer(text):
-        refs.append((next(g for g in match.groups() if g is not None), False))
-    for match in _CSS_IMPORT_RE.finditer(text):
-        refs.append((next(g for g in match.groups() if g is not None), True))
-    return [(ref.strip(), is_import) for ref, is_import in refs if ref.strip()]
+        ref = next(g for g in match.groups() if g is not None).strip()
+        if ref and ref not in imports:
+            refs.append((ref, False))
+    return refs
 
 
 @dataclass
@@ -246,10 +257,9 @@ class LocalFile:
 class CaptureResult:
     # external key (the absolute URL as written) -> what was downloaded
     external: Dict[str, Fetched] = field(default_factory=dict)
-    # entry key ("file:<path>" or "url:<key>") -> reference as written -> target
-    refs: Dict[str, Dict[str, Dict[str, str]]] = field(default_factory=dict)
-    failed: List[Dict[str, str]] = field(default_factory=list)
-    warnings: List[Dict[str, str]] = field(default_factory=list)
+    refs: ShareRefs = field(default_factory=dict)
+    failed: List[ShareIssue] = field(default_factory=list)
+    warnings: List[ShareIssue] = field(default_factory=list)
 
 
 def file_key(path: str) -> str:
@@ -315,7 +325,7 @@ async def capture(
         return url
 
     def warn_module(path: str) -> None:
-        result.warnings.append({"code": "module_imports_not_captured", "path": path})
+        result.warnings.append(ShareIssue(code="module_imports_not_captured", path=path))
 
     for path, item in files.items():
         base_dir = posixpath.dirname(path)
@@ -343,36 +353,47 @@ async def capture(
 
     used = 0
     index = 0
-    while index < len(pending):
-        url, depth, stylesheet = pending[index]
-        index += 1
-        if len(result.external) >= MAX_EXTERNAL_URLS:
-            result.failed.append({"url": url, "reason": "over the 30 URL limit"})
-            continue
-        try:
-            fetched = await fetch(url, max_file_bytes)
-        except CaptureFailed as exc:
-            result.failed.append({"url": url, "reason": exc.reason})
-            continue
-        if used + len(fetched.content) > byte_budget:
-            result.failed.append({"url": url, "reason": "over the 25 MB snapshot limit"})
-            continue
-        used += len(fetched.content)
-        result.external[url] = fetched
+    gate = asyncio.Semaphore(FETCH_CONCURRENCY)
 
-        if stylesheet or _is_css(fetched.content_type):
-            if depth < MAX_EXTERNAL_DEPTH:
-                for ref, is_import in css_references(_text(fetched.content)):
-                    resolve(
-                        url_key(url),
-                        ref,
-                        base_dir=None,
-                        base_url=fetched.final_url,
-                        depth=depth + 1,
-                        stylesheet=is_import,
-                    )
-        elif url in module_urls and imports_urls(_text(fetched.content)):
-            warn_module(url)
+    async def fetch_one(url: str) -> Fetched | CaptureFailed:
+        async with gate:
+            try:
+                return await fetch(url, max_file_bytes)
+            except CaptureFailed as exc:
+                return exc
+
+    # One level of the graph per pass: everything queued so far is fetched together, and the
+    # stylesheets it brings in queue the next level.
+    while index < len(pending):
+        level, index = pending[index:], len(pending)
+        room = max(0, MAX_EXTERNAL_URLS - len(result.external))
+        for url, _, _ in level[room:]:
+            result.failed.append(ShareIssue(url=url, reason="over the 30 URL limit"))
+        level = level[:room]
+        outcomes = await asyncio.gather(*(fetch_one(url) for url, _, _ in level))
+        for (url, depth, stylesheet), fetched in zip(level, outcomes):
+            if isinstance(fetched, CaptureFailed):
+                result.failed.append(ShareIssue(url=url, reason=fetched.reason))
+                continue
+            if used + len(fetched.content) > byte_budget:
+                result.failed.append(ShareIssue(url=url, reason="over the 25 MB snapshot limit"))
+                continue
+            used += len(fetched.content)
+            result.external[url] = fetched
+
+            if stylesheet or _is_css(fetched.content_type):
+                if depth < MAX_EXTERNAL_DEPTH:
+                    for ref, is_import in css_references(_text(fetched.content)):
+                        resolve(
+                            url_key(url),
+                            ref,
+                            base_dir=None,
+                            base_url=fetched.final_url,
+                            depth=depth + 1,
+                            stylesheet=is_import,
+                        )
+            elif url in module_urls and imports_urls(_text(fetched.content)):
+                warn_module(url)
 
     # A reference whose target was not captured has no entry, so the viewer drops it.
     missing = queued - set(result.external)

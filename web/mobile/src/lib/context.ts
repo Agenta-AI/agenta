@@ -70,15 +70,15 @@ export function peekTemplateKey(now = Date.now()): string {
 const RETURN_PATH_KEY = "agenta:mobile:return-path"
 
 /**
- * Keep where a signed-out visit was going, so sign-in can return there. The trip through `/auth`
- * (and an OAuth or SSO provider) drops the URL, so it is kept like the template key. Only a path
- * inside this app is kept: never another origin (`//x`, a scheme) and never the sign-in page.
+ * Keep where a signed-out visit was going, so sign-in in this tab returns there. Tab storage, so
+ * a later sign-in in another tab (or by another person) never inherits it. Only a path inside
+ * this app is kept: never another origin (`//x`, a scheme) and never the sign-in page.
  */
 export function rememberReturnPath(path: string, now = Date.now()): void {
     if (!path.startsWith("/") || path.startsWith("//") || /^\/auth(\/|\?|$)/.test(path)) return
     if (path === "/") return
     try {
-        localStorage.setItem(RETURN_PATH_KEY, JSON.stringify({path, capturedAt: now}))
+        sessionStorage.setItem(RETURN_PATH_KEY, JSON.stringify({path, capturedAt: now}))
     } catch {
         // storage unavailable — sign-in lands on the root as before
     }
@@ -87,8 +87,8 @@ export function rememberReturnPath(path: string, now = Date.now()): void {
 /** The kept path, used once: reading it forgets it. "" when none is kept or it expired. */
 export function takeReturnPath(now = Date.now()): string {
     try {
-        const raw = localStorage.getItem(RETURN_PATH_KEY)
-        localStorage.removeItem(RETURN_PATH_KEY)
+        const raw = sessionStorage.getItem(RETURN_PATH_KEY)
+        sessionStorage.removeItem(RETURN_PATH_KEY)
         const parsed = raw ? (JSON.parse(raw) as {path?: unknown; capturedAt?: unknown}) : null
         if (
             parsed &&
