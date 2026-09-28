@@ -30,6 +30,15 @@ export const isFirstRunOnboardingAtom = atom((get) => {
 // Consumers (sidebar, layout, nav guards) read these NAMED selectors — never the raw session
 // atom or an ad-hoc pathname check — so onboarding-driven UI tweaks stay in this one module.
 
+/**
+ * The onboarding agent has committed. The commit reflects the new app in the URL with
+ * `history.replaceState` (no route event, so the app-state pathname stays on the onboarding
+ * route); the layout reads this to bring back the chrome the first-agent flow hides.
+ */
+export const onboardingCommittedAtom = atom(
+    (get) => !!get(onboardingSessionAtom).committedRevisionId,
+)
+
 /** During onboarding, Home IS the current surface → the sidebar shows it selected. */
 export const homeNavHighlightedAtom = atom((get) => get(isOnboardingActiveAtom))
 

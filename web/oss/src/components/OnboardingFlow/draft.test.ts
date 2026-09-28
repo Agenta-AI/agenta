@@ -24,4 +24,20 @@ describe("onboarding draft", () => {
         window.sessionStorage.setItem("draft", JSON.stringify({step: 5}))
         expect(readOnboardingDraft("draft")).toEqual({})
     })
+    it("keeps an unanswered source until step 4 and rejects an unsupported one", () => {
+        const draft = {
+            step: 4,
+            role: "Engineering",
+            source: "",
+            name: "",
+            task: "",
+            templateKey: null,
+        }
+        saveOnboardingDraft("draft", draft)
+        expect(readOnboardingDraft("draft").step).toBe(4)
+        saveOnboardingDraft("draft", {...draft, step: 5})
+        expect(readOnboardingDraft("draft")).toEqual({})
+        saveOnboardingDraft("draft", {...draft, step: 1, source: "Removed source"})
+        expect(readOnboardingDraft("draft")).toEqual({})
+    })
 })
