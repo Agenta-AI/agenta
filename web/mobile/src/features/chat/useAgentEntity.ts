@@ -1,4 +1,4 @@
-import {useEffect, useRef} from "react"
+import {useCallback, useEffect, useRef} from "react"
 
 import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
 import {isValidUUID} from "@agenta/shared/utils"
@@ -100,11 +100,25 @@ export const useAgentEntity = (
     // A route-supplied agent IS the answer; a just-minted session is not in the header yet.
     const awaitingHeader = (header.isPending || (missing && isFetching)) && !fallbackAgentId
 
+    // A failed read with nothing cached: the session is unknown, not agent-less.
+    const unreachable =
+        (header.isError && header.data === undefined && !fallbackAgentId) ||
+        (revisionQuery.isError && revisionQuery.data === undefined)
+    const {isError: revisionFailed, refetch: refetchRevision} = revisionQuery
+    const headerFailed = header.isError
+    const retry = useCallback(() => {
+        if (headerFailed) void refetch()
+        if (revisionFailed) void refetchRevision()
+    }, [headerFailed, refetch, revisionFailed, refetchRevision])
+
     return {
         agentId: revisionQuery.data?.workflowId ?? boundId,
         entityId: revisionQuery.data?.revisionId ?? null,
         resolving: awaitingHeader || (Boolean(boundId) && revisionQuery.isPending),
         /** Ask the server for the latest revision now; the cached answer may be 30 s old. */
         refetchLatest: revisionQuery.refetch,
+        unreachable,
+        retry,
+        retrying: header.isFetching || revisionQuery.isFetching,
     }
 }
