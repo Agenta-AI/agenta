@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
@@ -140,3 +141,57 @@ class AppScopeResponse(BaseModel):
     expires_at: int
     dir: str
     level: str
+
+
+# --- App sharing (owner side) ------------------------------------------------ #
+
+
+class AppSharePublishRequest(BaseModel):
+    """Publish the app folder at `path` as the share's next version."""
+
+    path: str
+    visibility: Optional[Literal["workspace", "link"]] = None
+
+
+class AppShareEditRequest(BaseModel):
+    path: str
+    visibility: Literal["workspace", "link"]
+
+
+class AppShareRestoreRequest(BaseModel):
+    path: str
+    version: int
+
+
+class AppShareVersionItem(BaseModel):
+    version: int
+    created_at: datetime
+    created_by_id: UUID
+    restored_from: Optional[int] = None
+
+
+class AppShareState(BaseModel):
+    enabled: bool
+    visibility: Literal["workspace", "link"]
+    latest: int
+    versions: List[AppShareVersionItem]
+    created_at: datetime
+    updated_at: datetime
+    # The link token, only for a caller who may change the share, and only while it is on.
+    token: Optional[str] = None
+
+
+class AppShareIssue(BaseModel):
+    """A captured URL that failed, or a warning; `url`/`path` names what it is about."""
+
+    code: Optional[str] = None
+    url: Optional[str] = None
+    path: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class AppShareResponse(BaseModel):
+    count: int = 0
+    share: Optional[AppShareState] = None
+    external_failed: List[AppShareIssue] = Field(default_factory=list)
+    warnings: List[AppShareIssue] = Field(default_factory=list)

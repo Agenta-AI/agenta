@@ -14,7 +14,6 @@ import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useS
 import {
     createHtmlAppHost,
     exceedsGrant,
-    fetchMountFileBlob,
     getGrant,
     resolveDriveLink,
     setGrant as storeGrant,
@@ -30,10 +29,12 @@ import {useAtomValue} from "jotai"
 
 import {DriveCodeBlock} from "../driveMarkdown"
 
-import {assemblePreview, blobToDataUri, dirOf, type AssembleIo} from "./assemble"
+import {assemblePreview, dirOf, type AssembleIo} from "./assemble"
 import {GrantSheet} from "./GrantSheet"
 import {KIT_CSS} from "./kit"
+import {useMountAssembleIo} from "./mountIo"
 import {RunView, resolveHostKitTokens} from "./RunView"
+import {ShareAppButton} from "./ShareAppDialog"
 import {useAppManifest} from "./useAppManifest"
 import {useChangedHint} from "./useChangedHint"
 
@@ -85,20 +86,6 @@ export interface HtmlAppEnv {
 }
 
 export const HtmlAppEnvContext = createContext<HtmlAppEnv>({})
-
-/** Mount-backed {@link AssembleIo}; null without a mount (a local composer attachment). */
-export const useMountAssembleIo = (mountId: string | null, projectId: string | null) =>
-    useMemo<AssembleIo | null>(() => {
-        if (!mountId || !projectId) return null
-        return {
-            fetchText: async (path) => {
-                const blob = await fetchMountFileBlob({mountId, projectId, path})
-                return blob ? blob.text() : null
-            },
-            fetchDataUri: async (path) =>
-                blobToDataUri(await fetchMountFileBlob({mountId, projectId, path})),
-        }
-    }, [mountId, projectId])
 
 /** A stable id per host instance, for keying the view that attaches it. */
 const hostKeys = new WeakMap<HtmlAppHost, number>()
@@ -341,13 +328,17 @@ export function HtmlAppBody({
     return (
         <>
             {previewOnly || controlledView ? null : (
-                <div className="flex shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary p-1.5">
+                <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary p-1.5">
                     <Segmented
                         size="sm"
                         value={view}
                         onChange={(next) => pickView(next as HtmlAppView)}
                         options={options}
                     />
+                    <span className="flex-1" />
+                    {runnable ? (
+                        <ShareAppButton mount={mount} dir={dir} canEdit={canEditMounts} />
+                    ) : null}
                 </div>
             )}
 

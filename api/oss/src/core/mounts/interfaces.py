@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Awaitable, Callable, List, Optional
 from uuid import UUID
 
-from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
+from oss.src.core.mounts.dtos import AppShare, Mount, MountCreate, MountEdit, MountQuery
 from oss.src.core.shared.dtos import Windowing
 
 
@@ -87,6 +87,17 @@ class MountsDAOInterface(ABC):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Mount]: ...
+
+    @abstractmethod
+    async def update_app_share(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        #
+        mutate: Callable[[Mount, Optional[AppShare]], Awaitable[Optional[AppShare]]],
+    ) -> Optional[AppShare]: ...
 
     @abstractmethod
     async def fetch_by_session_id(

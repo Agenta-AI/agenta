@@ -1,12 +1,18 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Awaitable, Callable, List, Optional
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert
 
-from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
+from oss.src.core.mounts.dtos import (
+    AppShare,
+    Mount,
+    MountCreate,
+    MountEdit,
+    MountQuery,
+)
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_PURPOSE,
@@ -249,6 +255,50 @@ class MountsDAO(MountsDAOInterface):
             await session.refresh(mount_dbe)
 
             return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
+
+    async def update_app_share(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        #
+        mutate: Callable[[Mount, Optional[AppShare]], Awaitable[Optional[AppShare]]],
+    ) -> Optional[AppShare]:
+        """Change one app's share entry under a row lock, so concurrent changes both land.
+
+        `mutate` gets the drive and the current entry and returns the new one (None removes it).
+        It runs while the lock is held and must make no DAO call: a nested call in this task
+        would share this session and commit early.
+        """
+        async with self.engine.session() as session:
+            stmt = (
+                select(MountDBE)
+                .where(
+                    MountDBE.project_id == project_id,
+                    MountDBE.id == mount_id,
+                )
+                .with_for_update()
+            )
+            mount_dbe = (await session.execute(stmt)).scalar_one_or_none()
+            if not mount_dbe:
+                return None
+
+            mount = map_mount_dbe_to_dto(mount_dbe=mount_dbe)
+            updated = await mutate(mount, mount.data.shares.get(path))
+
+            data = dict(mount_dbe.data or {})
+            shares = dict(data.get("shares") or {})
+            if updated is None:
+                shares.pop(path, None)
+            else:
+                shares[path] = updated.model_dump(mode="json")
+            data["shares"] = shares
+            # A new dict: the `json` column does not track in-place mutation.
+            mount_dbe.data = data
+
+            await session.commit()
+            return updated
 
     async def fetch_by_session_id(
         self,

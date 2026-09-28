@@ -49,15 +49,23 @@ export const withinDir = (dir: string, path: string): boolean =>
 export const INLINE_ASSET_CAP = 8 * 1024 * 1024
 
 /**
- * How the assembler reaches the mount. Paths are mount-relative (already resolved against the
+ * How the assembler reaches the files. Paths are mount-relative (already resolved against the
  * HTML file's folder). `null` in a context means "no mount" — a local composer attachment — and
  * skips every asset fetch while the sanitize + interceptor pipeline still runs.
+ *
+ * `resolve` is for a snapshot whose references were resolved elsewhere (a shared app: the server
+ * recorded where each reference points). With it, the assembler asks `resolve(base, ref)` for the
+ * key of every reference — an app path or a captured URL — and a null answer drops the reference.
+ * `fetchText` and `fetchDataUri` then receive those keys. Without it, relative references resolve
+ * in the mount and `https:` ones are left for the browser.
  */
 export interface AssembleIo {
     /** Text of a file, or null when it cannot be read. */
     fetchText: (path: string) => Promise<string | null>
     /** `data:` URI of a file (≤ {@link INLINE_ASSET_CAP}), or null when it cannot be read. */
     fetchDataUri: (path: string) => Promise<string | null>
+    /** Where `ref`, written in the file `base`, points; null when it points at nothing kept. */
+    resolve?: (base: string, ref: string) => string | null
 }
 
 /** Read a blob as a `data:` URI; null over the cap or on a reader error. */
@@ -87,56 +95,146 @@ interface InlineOptions {
     confine?: string
     /** Sink for references dropped by `confine`, surfaced in the Run tab's error strip. */
     errors?: string[]
+    /** The document's own key, the base `io.resolve` resolves its references against. */
+    page?: string
 }
 
-/** Inline relative stylesheets/images from the mount into `doc`. Shared by Preview and Run. */
+type RefKind = "Stylesheet" | "Image" | "Script" | "Font or image"
+
+/** Nested `@import` chains stop here, so a stylesheet importing itself cannot loop. */
+const MAX_CSS_DEPTH = 4
+
+const CSS_URL_RE = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]+))\s*\)/gi
+const CSS_IMPORT_RE = /@import\s+(?:url\(\s*)?(?:"([^"]*)"|'([^']*)')\s*\)?\s*([^;]*);/gi
+
+/**
+ * One reference to one key. Both modes go through here, so a script, a stylesheet and an image
+ * are each handled by what they are, wherever they come from.
+ *
+ * Returns the key to fetch, `null` to drop the reference (with a note), or `undefined` to leave it
+ * as written (an `https:` URL the browser loads itself, or a `data:` URI).
+ */
+function referenceKey(
+    ref: string,
+    base: string,
+    kind: RefKind,
+    io: AssembleIo,
+    opts: InlineOptions,
+): string | null | undefined {
+    if (!ref || ref.startsWith("data:") || ref.startsWith("#")) return undefined
+    if (io.resolve) {
+        const key = io.resolve(base, ref)
+        if (key === null) opts.errors?.push(`${kind} not in the shared snapshot: ${ref}`)
+        return key
+    }
+    if (isExternalUrl(ref)) return undefined
+    const path = resolveRel(dirOf(base), ref.split(/[?#]/)[0])
+    if (opts.confine !== undefined && !withinDir(opts.confine, path)) {
+        opts.errors?.push(`${kind} outside the app folder was not loaded: ${ref}`)
+        return null
+    }
+    return path
+}
+
+/**
+ * Inline what a stylesheet references: `url()` targets become data URIs and `@import` targets are
+ * folded in, each resolved against the stylesheet's OWN location (`base`), not the page's.
+ */
+async function inlineCss(
+    css: string,
+    base: string,
+    io: AssembleIo,
+    opts: InlineOptions,
+    depth = 0,
+): Promise<string> {
+    const imports: Array<{match: string; text: string}> = []
+    for (const match of css.matchAll(CSS_IMPORT_RE)) {
+        const ref = match[1] ?? match[2] ?? ""
+        const key = depth < MAX_CSS_DEPTH ? referenceKey(ref, base, "Stylesheet", io, opts) : null
+        if (key === undefined) continue
+        const text = key === null ? null : await io.fetchText(key)
+        imports.push({
+            match: match[0],
+            text:
+                text == null
+                    ? ""
+                    : await inlineCss(text, key as string, io, opts, depth + 1).then((inner) =>
+                          match[3]?.trim() ? `@media ${match[3].trim()}{${inner}}` : inner,
+                      ),
+        })
+    }
+    let out = css
+    for (const {match, text} of imports) out = out.replace(match, text)
+
+    const urls = new Map<string, string | null>()
+    for (const match of out.matchAll(CSS_URL_RE)) {
+        const ref = match[1] ?? match[2] ?? match[3] ?? ""
+        if (urls.has(match[0])) continue
+        const key = referenceKey(ref, base, "Font or image", io, opts)
+        if (key === undefined) continue
+        urls.set(match[0], key === null ? null : await io.fetchDataUri(key))
+    }
+    for (const [match, uri] of urls) {
+        out = out.split(match).join(uri ? `url("${uri}")` : "none")
+    }
+    return out
+}
+
+/**
+ * Inline a document's stylesheets, `<style>` blocks, `style=""` attributes and images. Shared by
+ * Preview, Run and a shared app. `dir` is the document's folder; `opts.page` its own key.
+ */
 async function inlineAssets(
     doc: Document,
     dir: string,
     io: AssembleIo,
     opts: InlineOptions = {},
 ): Promise<void> {
-    const {confine, errors} = opts
-
-    /** Mount-relative target, or null when it leaves `confine`. */
-    const target = (ref: string, kind: string): string | null => {
-        const path = resolveRel(dir, ref)
-        if (confine !== undefined && !withinDir(confine, path)) {
-            errors?.push(`${kind} outside the app folder was not loaded: ${ref}`)
-            return null
-        }
-        return path
-    }
+    const page = opts.page ?? joinAppPath(dir, "_")
 
     await Promise.all(
         Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]')).map(
             async (link) => {
-                const href = link.getAttribute("href") ?? ""
-                if (!href || isExternalUrl(href)) return
-                const path = target(href, "Stylesheet")
-                if (path === null) {
+                const key = referenceKey(link.getAttribute("href") ?? "", page, "Stylesheet", io, opts)
+                if (key === undefined) return
+                if (key === null) {
                     link.remove()
                     return
                 }
-                const css = await io.fetchText(path)
+                const css = await io.fetchText(key)
                 if (css == null) return
                 const style = doc.createElement("style")
-                style.textContent = css
+                style.textContent = await inlineCss(css, key, io, opts)
                 link.replaceWith(style)
             },
         ),
     )
 
     await Promise.all(
+        Array.from(doc.querySelectorAll<HTMLStyleElement>("style")).map(async (style) => {
+            const css = style.textContent ?? ""
+            if (css.includes("url(") || css.includes("@import")) {
+                style.textContent = await inlineCss(css, page, io, opts)
+            }
+        }),
+    )
+
+    await Promise.all(
+        Array.from(doc.querySelectorAll<HTMLElement>("[style]")).map(async (el) => {
+            const css = el.getAttribute("style") ?? ""
+            if (css.includes("url(")) el.setAttribute("style", await inlineCss(css, page, io, opts))
+        }),
+    )
+
+    await Promise.all(
         Array.from(doc.querySelectorAll<HTMLImageElement>("img[src]")).map(async (img) => {
-            const src = img.getAttribute("src") ?? ""
-            if (!src || isExternalUrl(src) || src.startsWith("data:")) return
-            const path = target(src, "Image")
-            if (path === null) {
+            const key = referenceKey(img.getAttribute("src") ?? "", page, "Image", io, opts)
+            if (key === undefined) return
+            if (key === null) {
                 img.removeAttribute("src")
                 return
             }
-            const uri = await io.fetchDataUri(path)
+            const uri = await io.fetchDataUri(key)
             if (uri) img.setAttribute("src", uri)
         }),
     )
@@ -239,6 +337,10 @@ export interface RunContext {
     /** Document title when the app has none (the manifest name, else the file name) — axe flags a
      * missing `<title>`, and so does a missing `lang`; both are stamped only when absent. */
     title?: string
+    /** The page's own key (`io.resolve` base); defaults to a file in `dir`. */
+    page?: string
+    /** The policy the document runs under; default {@link RUN_CSP}. A shared app uses `SHARE_CSP`. */
+    csp?: string
 }
 
 export interface RunDocument {
@@ -273,31 +375,33 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
         const doc = new DOMParser().parseFromString(html, "text/html")
         const {dir, io} = ctx
 
-        if (io) await inlineAssets(doc, dir, io, {confine: dir, errors})
+        const opts: InlineOptions = {confine: dir, errors, page: ctx.page}
+        if (io) await inlineAssets(doc, dir, io, opts)
 
         await Promise.all(
             Array.from(doc.querySelectorAll<HTMLScriptElement>("script[src]")).map(
                 async (script) => {
                     const src = script.getAttribute("src") ?? ""
-                    // Remote scripts load as-is: RUN_CSP allows `https:`. Protocol-relative URLs
-                    // resolve against the host page, which is served over https.
-                    if (/^https:\/\//i.test(src) || src.startsWith("//")) return
-                    if (!src || isExternalUrl(src)) {
+                    // Without a snapshot, remote scripts load as-is: RUN_CSP allows `https:`.
+                    // Protocol-relative URLs resolve against the host page, served over https.
+                    if (!io?.resolve && (/^https:\/\//i.test(src) || src.startsWith("//"))) return
+                    if (!src || (!io?.resolve && isExternalUrl(src))) {
                         errors.push(
                             `Script not loaded, only https:// scripts can run: ${src || "(empty src)"}`,
                         )
                         script.remove()
                         return
                     }
-                    const path = resolveRel(dir, src)
                     // The grant is for this folder: a script that climbs out of it is refused
                     // before it is fetched, never mind executed.
-                    if (!withinDir(dir, path)) {
-                        errors.push(`Script outside the app folder was not loaded: ${src}`)
+                    const key = io
+                        ? referenceKey(src, ctx.page ?? joinAppPath(dir, "_"), "Script", io, opts)
+                        : undefined
+                    if (key === null) {
                         script.remove()
                         return
                     }
-                    const text = io ? await io.fetchText(path) : null
+                    const text = io && key ? await io.fetchText(key) : null
                     if (text == null) {
                         errors.push(`Script not found in the app folder: ${src}`)
                         script.remove()
@@ -314,7 +418,7 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
 
         const csp = doc.createElement("meta")
         csp.setAttribute("http-equiv", "Content-Security-Policy")
-        csp.setAttribute("content", RUN_CSP)
+        csp.setAttribute("content", ctx.csp ?? RUN_CSP)
 
         const tokens = doc.createElement("style")
         tokens.id = "agenta-tokens"
@@ -346,6 +450,6 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
     } catch (error) {
         const message = `Could not assemble the app document: ${error instanceof Error ? error.message : String(error)}`
         errors.push(message)
-        return {html: errorDocument(RUN_CSP, message), errors}
+        return {html: errorDocument(ctx.csp ?? RUN_CSP, message), errors}
     }
 }

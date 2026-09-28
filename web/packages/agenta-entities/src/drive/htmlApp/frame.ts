@@ -122,11 +122,15 @@ export function buildRunFrameScript(appHtml: string): string {
     return `(${runFrame.toString()})(${scriptLiteral(appHtml)}, ${scriptLiteral(SANDBOX_FLAGS)}, ${BRIDGE_VERSION})`
 }
 
-/** The wrapper document for an assembled app document. Set it as the host iframe's srcdoc. */
-export function buildRunFrame(appHtml: string): string {
+/**
+ * The wrapper document for an assembled app document. Set it as the host iframe's srcdoc. `csp`
+ * is the app's policy (default {@link RUN_CSP}); the wrapper adds its navigation guard to it.
+ */
+export function buildRunFrame(appHtml: string, {csp}: {csp?: string} = {}): string {
+    const frameCsp = csp ? `${csp}; frame-src 'none'; object-src 'none'` : RUN_FRAME_CSP
     return (
         "<!doctype html><html><head>" +
-        `<meta http-equiv="Content-Security-Policy" content="${RUN_FRAME_CSP}">` +
+        `<meta http-equiv="Content-Security-Policy" content="${frameCsp}">` +
         "<style>html,body{margin:0;height:100%;overflow:hidden}</style>" +
         `</head><body><script>${buildRunFrameScript(appHtml)}</script></body></html>`
     )

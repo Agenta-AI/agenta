@@ -20,6 +20,10 @@ export const isAnalyticsAuthRoute = (path: string) => {
     return route.startsWith("/auth") && !route.startsWith("/auth/callback")
 }
 
+/** Pages analytics never sees: sign-in, and a shared app (its viewer did not agree to tracking). */
+export const isAnalyticsExcludedRoute = (path: string) =>
+    isAnalyticsAuthRoute(path) || path.replace(/^\/m(?=\/|$)/, "").startsWith("/share/")
+
 export function loadPostHog(): Promise<PostHog | null> {
     if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return Promise.resolve(null)
     if (loading) return loading

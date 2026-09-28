@@ -61,6 +61,8 @@ import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
 import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
+import {dirOf} from "./htmlApp/assemble"
+import {ShareAppButton} from "./htmlApp/ShareAppDialog"
 import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDrivePasteUpload} from "./useDrivePasteUpload"
@@ -361,8 +363,10 @@ export function DriveExplorer({
     const htmlKind = editableCode && selectedKind === "html"
     const agentAppsEnabled = useAtomValue(agentAppsEnabledAtom)
     const [htmlView, setHtmlView] = useState<"source" | "preview" | "run">("source")
-    // Run needs the flag and a mount; without them a stale "run" falls back to Preview.
-    const htmlRunnable = htmlKind && agentAppsEnabled && !!selectedMount
+    // Run needs the flag, a mount, and an app folder (the drive root is not a scope); without
+    // them a stale "run" falls back to Preview.
+    const htmlRunnable =
+        htmlKind && agentAppsEnabled && !!selectedMount && dirOf(selectedMountPath) !== ""
     const htmlPreview = htmlKind && htmlView !== "source"
     const htmlBodyView = htmlView === "run" && htmlRunnable ? "run" : "preview"
     const editing = editableMarkdown || editableCode
@@ -617,6 +621,15 @@ export function DriveExplorer({
                               ],
                           }
                         : undefined
+                }
+                trailing={
+                    htmlRunnable ? (
+                        <ShareAppButton
+                            mount={selectedMount}
+                            dir={dirOf(selectedMountPath)}
+                            canEdit={canWrite}
+                        />
+                    ) : undefined
                 }
                 onCopyPath={onCopyCurrentPath}
                 onDownload={onDownloadCurrent}

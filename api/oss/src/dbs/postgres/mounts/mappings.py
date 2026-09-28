@@ -100,7 +100,7 @@ def map_mount_dbe_to_dto(
         name=mount_dbe.name,
         description=mount_dbe.description,
         #
-        data=MountData.model_validate(mount_dbe.data),
+        data=MountData.model_validate(mount_dbe.data or {}),
         #
         flags=MountFlags(**(mount_dbe.flags or {})),
         tags=mount_dbe.tags,

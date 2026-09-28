@@ -101,6 +101,10 @@ export interface RunViewProps {
     onNavigate?: (path: string) => void
     /** Maps a mount-relative path to the presented one for `onNavigate` (default: identity). */
     toDisplayPath?: (path: string) => string
+    /** The policy the app runs under; default `RUN_CSP`. A shared app passes `SHARE_CSP`. */
+    csp?: string
+    /** The status strip (grant, folder, Refresh). A shared app shows its own header instead. */
+    statusBar?: boolean
     className?: string
 }
 
@@ -128,6 +132,8 @@ export function RunView({
     onReload,
     onNavigate,
     toDisplayPath = (p) => p,
+    csp,
+    statusBar = true,
     className,
 }: RunViewProps) {
     const frameRef = useRef<HTMLIFrameElement>(null)
@@ -175,6 +181,8 @@ export function RunView({
                 kitCss,
                 bridgeStub,
                 title,
+                page: currentPath,
+                csp,
             })
             if (!alive) return
             result.errors.forEach(pushError)
@@ -194,11 +202,12 @@ export function RunView({
         kitCss,
         bridgeStub,
         title,
+        csp,
         frameKey,
         pushError,
     ])
 
-    const frameDoc = useMemo(() => (doc == null ? null : buildRunFrame(doc)), [doc])
+    const frameDoc = useMemo(() => (doc == null ? null : buildRunFrame(doc, {csp})), [doc, csp])
 
     const stopApp = useCallback(() => {
         host.detach()
@@ -287,6 +296,7 @@ export function RunView({
 
     return (
         <div className={cn("flex min-h-0 flex-1 flex-col text-xs", className)}>
+            {statusBar ? (
             <div
                 data-slot="run-status"
                 className="flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1 text-colorTextSecondary"
@@ -372,8 +382,9 @@ export function RunView({
                     ) : null}
                 </span>
             </div>
+            ) : null}
 
-            {errorsOpen && errors.length > 0 ? (
+            {statusBar && errorsOpen && errors.length > 0 ? (
                 <div
                     data-slot="run-errors"
                     className="flex max-h-40 shrink-0 flex-col gap-1 overflow-auto border-0 border-b border-solid border-colorBorderSecondary bg-colorErrorBg px-2 py-1.5 text-colorError"

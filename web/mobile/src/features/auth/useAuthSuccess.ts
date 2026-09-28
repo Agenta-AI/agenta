@@ -2,12 +2,13 @@ import {useCallback} from "react"
 
 import {useRouter} from "next/router"
 
+import {takeReturnPath} from "@/lib/context"
 import {queryClient} from "@/lib/queryClient"
 
 /**
  * Where every successful sign-in lands, whatever the route (password, OTP,
- * OIDC): drop the cached unauthenticated verdict so the root context resolver
- * re-fetches, then hand over to it.
+ * OIDC): drop the cached unauthenticated verdict, then go back to the page that
+ * asked for sign-in, or hand over to the root context resolver.
  */
 export function useAuthSuccess() {
     const router = useRouter()
@@ -16,6 +17,6 @@ export function useAuthSuccess() {
             queryClient.invalidateQueries({queryKey: ["profile"]}),
             queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
         ])
-        await router.replace("/")
+        await router.replace(takeReturnPath() || "/")
     }, [router])
 }

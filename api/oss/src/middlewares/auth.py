@@ -96,6 +96,8 @@ _PUBLIC_ENDPOINTS = (
     "/api/tools/connections/callback",
     "/preview/tools/connections/callback",
     "/api/preview/tools/connections/callback",
+    # SHARED APPS — a share link opens without sign-in; the route checks the viewer itself.
+    "/shared/apps/",
     # SESSIONS CONTROL — the runner reports a command's outcome with the shared runner token,
     # not a project credential: it holds none for a command it was handed. The route checks the
     # token itself and resolves the project from the command id, so this exemption widens no

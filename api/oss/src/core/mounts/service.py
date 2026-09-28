@@ -6,6 +6,8 @@ from posixpath import basename
 from re import sub
 from typing import (
     AsyncIterator,
+    Awaitable,
+    Callable,
     TYPE_CHECKING,
     List,
     Literal,
@@ -21,6 +23,7 @@ if TYPE_CHECKING:
     from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.core.mounts.dtos import (
+    AppShare,
     MountArchiveSource,
     Mount,
     MountCreate,
@@ -466,9 +469,53 @@ class MountsService:
         )
         return f"{base}/{path.lstrip('/')}" if path else f"{base}/"
 
+    def share_storage_key(self, *, project_id: UUID, mount_id: UUID, path: str = "") -> str:
+        """Key under a drive's share prefix: [<namespace>/]shares/<project_id>/<mount_id>/<path>.
+
+        Beside the drive prefix, never under it, so drive listings and sandbox credentials
+        cannot reach a snapshot.
+        """
+        ns = (self.namespace or "").strip("/")
+        base = (
+            f"{ns}/shares/{project_id}/{mount_id}"
+            if ns
+            else f"shares/{project_id}/{mount_id}"
+        )
+        return f"{base}/{path.lstrip('/')}" if path else f"{base}/"
+
     def _stored_prefixes(self, *, project_id: UUID, mount: Mount) -> List[str]:
         """Every object prefix a mount owns. Deleting its session removes all of them."""
-        return [self._storage_key(project_id=project_id, mount=mount)]
+        return [
+            self._storage_key(project_id=project_id, mount=mount),
+            self.share_storage_key(project_id=project_id, mount_id=mount.id),
+        ]
+
+    async def update_app_share(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        mutate: Callable[[Mount, Optional[AppShare]], Awaitable[Optional[AppShare]]],
+    ) -> Optional[AppShare]:
+        return await self.mounts_dao.update_app_share(
+            project_id=project_id,
+            mount_id=mount_id,
+            path=path,
+            mutate=mutate,
+        )
+
+    async def fetch_mount_for_share(
+        self, *, project_id: UUID, mount_id: UUID
+    ) -> Optional[Mount]:
+        """The drive behind a share, archived rows included: an archived one pauses the share."""
+        mount = await self.mounts_dao.fetch_mount(project_id=project_id, mount_id=mount_id)
+        if mount is None or is_protected_mount(mount):
+            return None
+        return mount
+
+    def is_session_cwd_mount(self, mount: Mount) -> bool:
+        return _is_session_cwd_mount(mount)
 
     async def create_mount(
         self,

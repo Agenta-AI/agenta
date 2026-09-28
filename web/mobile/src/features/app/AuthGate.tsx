@@ -3,7 +3,7 @@ import {useEffect} from "react"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {fetchProjects, rememberTemplateKey} from "@/lib/context"
+import {fetchProjects, rememberReturnPath, rememberTemplateKey} from "@/lib/context"
 
 import {authRedirectTarget, shouldCheckSession, type SessionVerdict} from "./authRoute"
 
@@ -49,6 +49,8 @@ export const AuthGate = () => {
         if (target === "/auth" && typeof router.query.template === "string") {
             rememberTemplateKey(router.query.template)
         }
+        // A deep link comes back after sign-in instead of landing on the root.
+        if (target === "/auth") rememberReturnPath(router.asPath)
         if (target) void router.replace(target)
         // The target string is the only trigger. The router object changes identity on every
         // navigation, so including it would re-fire the redirect.

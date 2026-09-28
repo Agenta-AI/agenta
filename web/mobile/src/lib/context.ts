@@ -67,6 +67,45 @@ export function peekTemplateKey(now = Date.now()): string {
     }
 }
 
+const RETURN_PATH_KEY = "agenta:mobile:return-path"
+
+/**
+ * Keep where a signed-out visit was going, so sign-in can return there. The trip through `/auth`
+ * (and an OAuth or SSO provider) drops the URL, so it is kept like the template key. Only a path
+ * inside this app is kept: never another origin (`//x`, a scheme) and never the sign-in page.
+ */
+export function rememberReturnPath(path: string, now = Date.now()): void {
+    if (!path.startsWith("/") || path.startsWith("//") || /^\/auth(\/|\?|$)/.test(path)) return
+    if (path === "/") return
+    try {
+        localStorage.setItem(RETURN_PATH_KEY, JSON.stringify({path, capturedAt: now}))
+    } catch {
+        // storage unavailable — sign-in lands on the root as before
+    }
+}
+
+/** The kept path, used once: reading it forgets it. "" when none is kept or it expired. */
+export function takeReturnPath(now = Date.now()): string {
+    try {
+        const raw = localStorage.getItem(RETURN_PATH_KEY)
+        localStorage.removeItem(RETURN_PATH_KEY)
+        const parsed = raw ? (JSON.parse(raw) as {path?: unknown; capturedAt?: unknown}) : null
+        if (
+            parsed &&
+            typeof parsed.path === "string" &&
+            typeof parsed.capturedAt === "number" &&
+            now - parsed.capturedAt <= PENDING_TEMPLATE_TTL_MS &&
+            parsed.path.startsWith("/") &&
+            !parsed.path.startsWith("//")
+        ) {
+            return parsed.path
+        }
+        return ""
+    } catch {
+        return ""
+    }
+}
+
 /** Forget the remembered template key; the template screen calls this once it has arrived. */
 export function forgetTemplateKey(): void {
     try {

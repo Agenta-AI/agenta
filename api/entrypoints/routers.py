@@ -241,6 +241,8 @@ from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.dbs.postgres.sessions.attachments.dao import SessionAttachmentsDAO
 from oss.src.tasks.asyncio.sessions.attachment_sweep import attachment_sweep_loop
 from oss.src.apis.fastapi.mounts.router import MountsRouter
+from oss.src.apis.fastapi.shared_apps.router import SharedAppsRouter
+from oss.src.core.apps.sharing import AppSharesService
 
 # Session streams
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
@@ -1419,8 +1421,19 @@ invocations = InvocationsRouter(
     invocations_service=invocations_service,
 )
 
+app_shares_service = AppSharesService(
+    mounts_service=mounts_service,
+    store=store,
+    bucket=env.store.bucket,
+)
+
 mounts = MountsRouter(
     mounts_service=mounts_service,
+    app_shares_service=app_shares_service,
+)
+
+shared_apps = SharedAppsRouter(
+    app_shares_service=app_shares_service,
 )
 
 # AI SERVICES ------------------------------------------------------------------
@@ -2086,6 +2099,12 @@ app.include_router(
     router=mounts.router,
     prefix="/mounts",
     tags=["Mounts"],
+)
+
+app.include_router(
+    router=shared_apps.router,
+    prefix="/shared/apps",
+    tags=["Shared Apps"],
 )
 
 app.include_router(

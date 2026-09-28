@@ -26,8 +26,10 @@ from oss.src.core.apps.scope_token import (
     enforce as enforce_app_scope,
     mint as mint_app_scope,
 )
-from oss.src.core.mounts.dtos import MountArchiveSource, MountCreate
+from oss.src.core.apps.sharing import AppShareError, AppSharesService
+from oss.src.core.mounts.dtos import AppShare, MountArchiveSource, MountCreate
 from oss.src.core.mounts.service import MountsService
+from oss.src.middlewares.auth import is_interactive_session
 from oss.src.core.store.types import StoreDeleteFailed
 from oss.src.core.mounts.types import (
     MountArchived,
@@ -48,6 +50,13 @@ from oss.src.core.mounts.types import (
 
 from oss.src.apis.fastapi.mounts.models import (
     AgentMountQueryRequest,
+    AppShareEditRequest,
+    AppShareIssue,
+    AppSharePublishRequest,
+    AppShareResponse,
+    AppShareRestoreRequest,
+    AppShareState,
+    AppShareVersionItem,
     AppScopeRequest,
     AppScopeResponse,
     MountArchiveRequest,
@@ -175,6 +184,51 @@ def handle_mount_exceptions():
     return decorator
 
 
+_APP_SHARE_STATUS = {
+    "not_found": status.HTTP_404_NOT_FOUND,
+    "share_not_found": status.HTTP_404_NOT_FOUND,
+    "share_unavailable": status.HTTP_404_NOT_FOUND,
+    "version_not_found": status.HTTP_404_NOT_FOUND,
+    "not_shareable": status.HTTP_422_UNPROCESSABLE_ENTITY,
+    "not_an_app": status.HTTP_422_UNPROCESSABLE_ENTITY,
+    "session_archived": status.HTTP_409_CONFLICT,
+    "too_large": status.HTTP_413_CONTENT_TOO_LARGE,
+    "sharing_disabled": status.HTTP_503_SERVICE_UNAVAILABLE,
+    "storage_unavailable": status.HTTP_503_SERVICE_UNAVAILABLE,
+}
+
+
+def handle_app_share_exceptions():
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except AppShareError as e:
+                raise HTTPException(
+                    status_code=_APP_SHARE_STATUS.get(e.code, status.HTTP_400_BAD_REQUEST),
+                    detail={"code": e.code, "message": e.message, "details": e.details},
+                ) from e
+
+        return wrapper
+
+    return decorator
+
+
+def share_state(share: Optional[AppShare], *, token: Optional[str] = None) -> Optional[AppShareState]:
+    if share is None:
+        return None
+    return AppShareState(
+        enabled=share.enabled,
+        visibility=share.visibility,
+        latest=share.latest,
+        versions=[AppShareVersionItem(**v.model_dump()) for v in share.versions],
+        created_at=share.created_at,
+        updated_at=share.updated_at,
+        token=token if share.enabled else None,
+    )
+
+
 def _if_none_match_any(value: Optional[str]) -> bool:
     """Only `If-None-Match: *` (create-only) is supported; an etag list is rejected."""
     if value is None:
@@ -192,8 +246,10 @@ class MountsRouter:
         self,
         *,
         mounts_service: MountsService,
+        app_shares_service: Optional[AppSharesService] = None,
     ):
         self.mounts_service = mounts_service
+        self.app_shares_service = app_shares_service
 
         # Main mounts surface: /mounts/...
         self.router = APIRouter()
@@ -293,6 +349,48 @@ class MountsRouter:
             status_code=status.HTTP_200_OK,
         )
 
+        # --- App sharing ---
+        self.router.add_api_route(
+            "/{mount_id}/apps/share",
+            self.fetch_app_share,
+            methods=["GET"],
+            operation_id="fetch_app_share",
+            response_model=AppShareResponse,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/{mount_id}/apps/share/publish",
+            self.publish_app_share,
+            methods=["POST"],
+            operation_id="publish_app_share",
+            response_model=AppShareResponse,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/{mount_id}/apps/share",
+            self.edit_app_share,
+            methods=["PATCH"],
+            operation_id="edit_app_share",
+            response_model=AppShareResponse,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/{mount_id}/apps/share/restore",
+            self.restore_app_share,
+            methods=["POST"],
+            operation_id="restore_app_share",
+            response_model=AppShareResponse,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/{mount_id}/apps/share",
+            self.stop_app_share,
+            methods=["DELETE"],
+            operation_id="stop_app_share",
+            response_model=AppShareResponse,
+            status_code=status.HTTP_200_OK,
+        )
+
         # --- File ops (durable store contents) ---
         # Specific sub-paths registered before "/{mount_id}/files" so they win.
         self.router.add_api_route(
@@ -382,6 +480,154 @@ class MountsRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
+
+    # -----------------------------------------------------------------------
+    # App sharing
+    # -----------------------------------------------------------------------
+
+    def _shares(self) -> AppSharesService:
+        if self.app_shares_service is None:
+            raise AppShareError("storage_unavailable", "App sharing is not configured.")
+        return self.app_shares_service
+
+    async def _check_share_editor(self, request: Request) -> None:
+        """A person in the browser with EDIT_MOUNTS. The agent holds EDIT_MOUNTS too, but never
+        an interactive session, so this is what keeps it from publishing."""
+        await self._check(request, Permission.EDIT_MOUNTS)
+        if not await is_interactive_session(request):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "interactive_session_required",
+                    "message": "Only a person signed in to Agenta can share an app.",
+                },
+            )
+
+    async def _may_edit_shares(self, request: Request) -> bool:
+        return await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.EDIT_MOUNTS,
+        ) and await is_interactive_session(request)
+
+    @intercept_exceptions()
+    @handle_app_share_exceptions()
+    @handle_mount_exceptions()
+    async def fetch_app_share(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        path: str = Query(...),
+    ) -> AppShareResponse:
+        await self._check(request, Permission.VIEW_MOUNTS)
+        project_id = UUID(request.state.project_id)
+        shares = self._shares()
+        share = await shares.fetch_share(project_id=project_id, mount_id=mount_id, path=path)
+        token = None
+        if share is not None and share.enabled and await self._may_edit_shares(request):
+            token = shares.link_token(
+                project_id=project_id, mount_id=mount_id, path=path, share=share
+            )
+        return AppShareResponse(
+            count=0 if share is None else 1, share=share_state(share, token=token)
+        )
+
+    @intercept_exceptions()
+    @handle_app_share_exceptions()
+    @handle_mount_exceptions()
+    async def publish_app_share(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        body: AppSharePublishRequest,
+    ) -> AppShareResponse:
+        await self._check_share_editor(request)
+        result = await self._shares().publish(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            mount_id=mount_id,
+            path=body.path,
+            visibility=body.visibility,
+        )
+        return AppShareResponse(
+            count=1,
+            share=share_state(result.share, token=result.token),
+            external_failed=[AppShareIssue(**item) for item in result.external_failed],
+            warnings=[AppShareIssue(**item) for item in result.warnings],
+        )
+
+    @intercept_exceptions()
+    @handle_app_share_exceptions()
+    @handle_mount_exceptions()
+    async def edit_app_share(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        body: AppShareEditRequest,
+    ) -> AppShareResponse:
+        await self._check_share_editor(request)
+        project_id = UUID(request.state.project_id)
+        shares = self._shares()
+        share = await shares.edit(
+            project_id=project_id,
+            mount_id=mount_id,
+            path=body.path,
+            visibility=body.visibility,
+        )
+        token = shares.link_token(
+            project_id=project_id, mount_id=mount_id, path=body.path, share=share
+        )
+        return AppShareResponse(count=1, share=share_state(share, token=token))
+
+    @intercept_exceptions()
+    @handle_app_share_exceptions()
+    @handle_mount_exceptions()
+    async def restore_app_share(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        body: AppShareRestoreRequest,
+    ) -> AppShareResponse:
+        await self._check_share_editor(request)
+        project_id = UUID(request.state.project_id)
+        shares = self._shares()
+        share = await shares.restore(
+            project_id=project_id,
+            user_id=UUID(str(request.state.user_id)),
+            mount_id=mount_id,
+            path=body.path,
+            version=body.version,
+        )
+        token = (
+            shares.link_token(
+                project_id=project_id, mount_id=mount_id, path=body.path, share=share
+            )
+            if share.enabled
+            else None
+        )
+        return AppShareResponse(count=1, share=share_state(share, token=token))
+
+    @intercept_exceptions()
+    @handle_app_share_exceptions()
+    @handle_mount_exceptions()
+    async def stop_app_share(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        path: str = Query(...),
+    ) -> AppShareResponse:
+        await self._check_share_editor(request)
+        share = await self._shares().stop(
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            path=path,
+        )
+        return AppShareResponse(count=0 if share is None else 1, share=share_state(share))
 
     @intercept_exceptions()
     @handle_mount_exceptions()

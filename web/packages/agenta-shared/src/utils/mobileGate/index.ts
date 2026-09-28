@@ -78,6 +78,9 @@ export function isDocumentNavigation(input: Pick<GateInput, "method" | "header">
  */
 const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
 
+/** A shared app's page lives only in /m: a link someone was sent must open where it points. */
+const SHARE_RE = /^\/share\//
+
 const AUTH_RE = /^\/auth(\/|$)/
 
 /**
@@ -366,6 +369,7 @@ export function decideMobileGate(input: GateInput): GateDecision {
         // An OAuth landing completes wherever it lands — bouncing it drops the
         // one-time code and strands the flow.
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
+        if (SHARE_RE.test(input.pathname)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
 
         // The desktop gate ranks Classic mode above the device heuristic (`wantsClassic`), so a

@@ -136,6 +136,8 @@ type DriveToolbarProps =
           note?: string
           /** A view switch (HTML: Source / Preview). */
           mode?: ToolbarMode
+          /** Extra controls before the actions menu (an app's Share button). */
+          trailing?: ReactNode
           onCopyPath?: () => void
           onDownload?: () => void
       }
@@ -354,7 +356,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
         )
     }
 
-    const {path, actions, draft, note, mode, onCopyPath, onDownload} = props
+    const {path, actions, draft, note, mode, trailing, onCopyPath, onDownload} = props
     return (
         <Row>
             <DriveInlineName
@@ -368,6 +370,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
             {mode ? <IconPill {...mode} /> : null}
+            {trailing}
             <FileActionsMenu actions={actions} onCopyPath={onCopyPath} onDownload={onDownload} />
         </Row>
     )

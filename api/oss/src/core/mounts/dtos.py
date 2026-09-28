@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -12,10 +12,34 @@ from oss.src.core.shared.dtos import (
 )
 
 
+class AppShareVersion(BaseModel):
+    version: int
+    created_at: datetime
+    created_by_id: UUID
+    restored_from: Optional[int] = None
+
+
+class AppShare(BaseModel):
+    """One app's share settings, keyed by the app path in `MountData.shares`."""
+
+    enabled: bool
+    visibility: Literal["workspace", "link"]
+    # Revocation material: a new nonce makes every earlier link fail.
+    nonce: str
+    latest: int
+    versions: List[AppShareVersion] = Field(default_factory=list)
+    created_by_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
 class MountData(BaseModel):
     # Storage location is derived server-side (bucket from env, key = project_id/mount_id),
-    # never caller-supplied. Kept as an (empty) model for forward-compatible mount metadata.
-    pass
+    # never caller-supplied. Server-owned metadata only.
+    #
+    # Excluded from every drive response: the nonce is what a share link is built from, and
+    # only the share routes may hand it out.
+    shares: Dict[str, AppShare] = Field(default_factory=dict, exclude=True)
 
 
 class MountFlags(BaseModel):
