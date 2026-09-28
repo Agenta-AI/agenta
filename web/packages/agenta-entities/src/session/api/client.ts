@@ -105,11 +105,11 @@ export function isAbortError(error: unknown): boolean {
     return false
 }
 
-/** True when the request never reached the server: offline, API down or restarting, DNS,
- * CORS. `fetch` rejects with a bare `TypeError` ("Failed to fetch", "Load failed",
- * "NetworkError when attempting to fetch resource.") and Fern repackages it as an
- * `AgentaApiError` with no `statusCode` and the `TypeError` on `cause`. */
+/** True when the request never reached the server (offline, API down, CORS): Fern wraps
+ * fetch's `TypeError` as a status-less `AgentaApiError` with it on `cause`. A bare
+ * `TypeError` thrown by the callback itself is a bug, not a network failure. */
 export function isNetworkError(error: unknown): boolean {
+    if (typeof error !== "object" || error === null || error instanceof TypeError) return false
     let current: unknown = error
     for (let depth = 0; current != null && depth < 5; depth++) {
         if (current instanceof TypeError) return true
