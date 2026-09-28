@@ -46,6 +46,7 @@ import {useProviderRecovery} from "./providerRecovery"
 import {RunErrorCallout} from "./RunErrorCallout"
 import {runRetryAction} from "./runRetry"
 import {mobileTurnRowClass} from "./turnRowClass"
+import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
 /** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
 const downloadAttachment = (url: string, name: string) => {
@@ -170,6 +171,18 @@ const TurnRowInner = ({
             }),
         [turn.items, runOpen, trailingClosed],
     )
+    // An answer present at mount is history (reload, session open); a later one arrived live.
+    // By message id alone: adoption can shift the answer's index without it being a new answer.
+    const answerKey = activity.answer ? turn.message.id : null
+    const mountAnswerKeyRef = useRef(answerKey)
+    const rowMarkers = turn.isLast
+        ? {
+              [LAST_TURN_ATTR]: turn.isUser ? "user" : "assistant",
+              ...(answerKey !== null && answerKey !== mountAnswerKeyRef.current
+                  ? {[ARRIVED_ANSWER_ATTR]: answerKey}
+                  : {}),
+          }
+        : undefined
     // Browser-fulfilled tools keep their place on the timeline, widget and all.
     const renderClientTool = useCallback(
         (part: ToolUIPart) =>
@@ -326,7 +339,10 @@ const TurnRowInner = ({
     if (turn.hidden) return null
 
     return (
-        <div className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
+        <div
+            className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}
+            {...rowMarkers}
+        >
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
