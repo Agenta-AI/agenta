@@ -111,7 +111,10 @@ call sends it in `X-Agenta-App-Scope`. The mount route first applies the person'
 permission and then narrows that permission to the token's mount, prefix, and level. A token can
 never widen access. Ordinary drive calls without a token keep their existing behavior. Run must
 fail closed when it cannot mint or refresh a scope token. It must not retry the bridge call as an
-ordinary unscoped drive request.
+ordinary unscoped drive request. When the server rejects the token itself (`scope_token_invalid`,
+for example after a signing key change), Run drops it, mints a new one, and retries once. A
+request outside the grant (`scope`) is never retried. An HTML file at the drive root does not
+offer Run.
 
 The server must apply the prefix to reads, writes, deletes, stats, and listings. A scoped listing
 with no explicit path must list the token prefix, not the mount root. The current implementation
