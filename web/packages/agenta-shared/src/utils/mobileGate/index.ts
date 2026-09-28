@@ -128,7 +128,14 @@ const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(?:\/(.*))?$/
  */
 const APPS_RESERVED = new Set(["archived", "agent-templates"])
 
-const trimSlashes = (value: string) => value.replace(/^\/+|\/+$/g, "")
+/** Strips leading and trailing `/`. A loop, not a regex: `/\/+$/` backtracks on long `/` runs. */
+const trimSlashes = (value: string) => {
+    let start = 0
+    let end = value.length
+    while (start < end && value[start] === "/") start++
+    while (end > start && value[end - 1] === "/") end--
+    return value.slice(start, end)
+}
 
 /** `?template=<key>` when the URL carries a website template link, else "". */
 const templateQueryFrom = (search: string): string => {
