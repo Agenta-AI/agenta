@@ -42,7 +42,7 @@ Archive means "kept as history". It does not mean "gone". An archived drive keep
 | `write` | `write_file`, `create_folder`, `delete_path`, upload, `write_attachment_original`, `delete_attachment_original`, `edit_mount`, `sign_mount_credentials` (the credentials are read-write), scope mint at level `read-write` | Refused with `MountArchived` |
 | `lifecycle` | `archive_mount`, `unarchive_mount` | Allowed |
 
-`_resolve_mount` gets a required keyword `access: Literal["read", "write", "lifecycle"]` with no default. Each caller must state its access level, so a new caller cannot skip the check by accident. `upsert_mount` stops clearing `deleted_at` (`api/oss/src/dbs/postgres/mounts/dao.py:91-93`), and `get_or_create_session_mount` raises `MountArchived` for an archived drive, so only unarchive restores a drive.
+`_resolve_mount` gets a required keyword `access: Literal["read", "write", "lifecycle"]` with no default. Each caller must state its access level, so a new caller cannot skip the check by accident. `upsert_mount` gets a required `reactivate` keyword: session drives pass `False` and stay archived; agent drives pass `True` and keep today's re-bind behavior. `upsert_mount` therefore stops clearing `deleted_at` for session drives (`api/oss/src/dbs/postgres/mounts/dao.py:91-93`), and `get_or_create_session_mount` raises `MountArchived` for an archived drive, so only unarchive restores a drive.
 
 Whether a share is paused is a share rule, not a drive-read rule. The share route checks `deleted_at` itself (see "Viewer route").
 
@@ -131,10 +131,10 @@ The server has two different failures, and today it reports them as one. The sco
 
 | Error | When | Response |
 |---|---|---|
-| `ScopeTokenInvalid` | bad signature, malformed, unknown version, expired | 401 `{"code": "scope_token_invalid"}` |
+| `ScopeTokenInvalid` | bad signature, malformed, unknown version, expired | 403 `{"code": "scope_token_invalid"}` |
 | `ScopeDenied` | a valid token, but the request is outside the folder, above the level, or for another drive | 403 `{"code": "scope"}` |
 
-On `scope_token_invalid`, the client evicts the cached token, mints once, and retries the call once. A second failure fails closed. On `scope`, the client does not retry. This makes the key change, an API restart with a new key, and clock skew heal on the next call. It also lets Run fail closed on mint failure without breaking open apps.
+Both failures are 403, not 401: a 401 makes the SuperTokens interceptor try a session refresh. On `scope_token_invalid`, the client evicts the cached token, mints once, and retries the call once. A second failure fails closed. On `scope`, the client does not retry. This makes the key change, an API restart with a new key, and clock skew heal on the next call. It also lets Run fail closed on mint failure without breaking open apps.
 
 ### Owner routes on the mounts router
 
@@ -156,7 +156,7 @@ On `scope_token_invalid`, the client evicts the cached token, mints once, and re
 |---|---|---|
 | `GET /shared/apps/{token}?v=` | `fetch_shared_app` | Name, shown and latest version, `entry`, author name, `viewer {role, can_open_session, session_id?, workspace_id?, project_id?}`, `refs`, and the content of every entry in `files` and `external` (base64) |
 
-Access is decided once per version view, not once per file. Access check, in order: default key (503 `sharing_disabled`); signature and `a` (404 `share_not_found`); drive exists (404); drive not archived (404 `share_unavailable`); share enabled and nonce matches (404); for `workspace`, `resolve_session_user_id` (401 `sign_in_required`), `AuthService.check_organization_access` (403 with the policy error), uncached `workspace_member_exists` (403 `not_a_member`); version exists (404 `version_not_found`).
+Access is decided once per version view, not once per file. Access check, in order: default key (503 `sharing_disabled`); signature and `a` (404 `share_not_found`); drive exists (404); drive not archived (404 `share_unavailable`); share enabled and nonce matches (404); for `workspace`, `resolve_session_user_id` (403 `sign_in_required`, not 401, so the SuperTokens interceptor does not try a refresh for a viewer with no session), `AuthService.check_organization_access` (403 with the policy error), uncached `workspace_member_exists` (403 `not_a_member`); version exists (404 `version_not_found`).
 
 The route calls the organization policy check itself because the middleware skips public routes (`auth.py:1352`). It streams the JSON body. It reads the manifest, writes the metadata, then reads each blob from the store and writes it, one blob at a time, so a 25 MB snapshot is never held in memory whole. The response is `application/json` with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Cache-Control: no-store`. No snapshot file has its own URL, so no snapshot file can render on the Agenta origin.
 
@@ -198,16 +198,16 @@ Alternative: a `next` query parameter (rejected: OAuth and SSO callbacks drop it
 
 ### Agent processes inherit nothing they were not given
 
-`buildDaemonEnv` stays the allowlist. The root problem is that `local()` merges its result over `process.env`. The fix closes that merge: after `buildDaemonEnv` builds its keys, it sets every other key present in `process.env` to `""`. The child environment then equals the allowlist. `KNOWN_SANDBOX_ENV_VARS` becomes a part of this rule, and the provider-key rules (`clearProviderEnv`, RUN-SEC-1) start to hold as their comments say.
+`buildDaemonEnv` stays the allowlist. The root problem is that `local()` merges its result over `process.env`. The fix closes that merge at the spawn boundary: `closeInheritedEnv` sets every other key present in `process.env` to `""`, and the local provider applies it to the frozen env just before `local()`. Daytona is untouched, because it receives the env as its full `envVars` and inherits nothing. The child environment then equals the allowlist. `KNOWN_SANDBOX_ENV_VARS` becomes a part of this rule, and the provider-key rules (`clearProviderEnv`, RUN-SEC-1) start to hold as their comments say.
 
-The allowlist gets the neutral OS variables that a harness needs to run: `TMPDIR`, `LANG`, `LC_ALL`, `TZ`, `USER`, `SHELL`, and `TERM`, next to the existing `PATH`, `HOME`, and config directories.
+The allowlist gets the neutral OS variables that a harness needs to run: `TMPDIR`, `LANG`, `LC_ALL`, `TZ`, `USER`, `SHELL`, `TERM`, the proxy variables, `SSL_CERT_FILE`, and `NODE_EXTRA_CA_CERTS`, next to the existing `PATH`, `HOME`, and config directories.
 
 Alternative: add `AGENTA_API_KEY` and `AGENTA_RUNNER_TOKEN` to the blanked list (rejected: the next platform variable leaks the same way).
 
 ### Prerequisite fixes ship first as their own PR
 
 - Archived drives are read-only (see "An archived drive is read-only").
-- `delete_session_mounts` removes prefixes before rows (`service.py:955-975`). `delete_keys` returns failed keys, and `delete_prefix` raises on any (`storage.py:697-725`).
+- `delete_session_mounts` removes prefixes before rows (`service.py:955-975`). `delete_keys` raises `StoreDeleteFailed` with the failed keys, so `delete_prefix` and single-file deletes both surface a partial delete (`storage.py:697-725`); the mounts router maps it to 503.
 - The scope token errors split into `scope_token_invalid` and `scope`, the client re-mints once on the first, and the client fails closed (`scopeToken.ts:60-64`). A root-level HTML file does not offer Run.
 - The assemblers return an error document under the policy instead of raw HTML (`assemble.ts:219-220, 336-340`).
 - Key derivation per purpose, and a startup error log when `crypt_key` is the default.
@@ -221,7 +221,7 @@ Alternative: add `AGENTA_API_KEY` and `AGENTA_RUNNER_TOKEN` to the blanked list 
 - [Chrome `<link rel="prerender">` may ignore CSP (recorded in `docs/design/agent-html-apps/contracts.md:218-221`, not tested here)] → One request per load can leave. Test during implementation and record the result.
 - [Bundled SeaweedFS keeps deleted objects as old versions for `version_retention_days` (`storage.py:184-229`)] → A stopped or deleted share's bytes stay in storage for that time. They are not reachable through any route.
 - [The viewer response is up to about 34 MB of base64] → It is streamed and gzip-compressed (`GZipMiddleware`), and it replaces up to 230 requests. A `?v=` change loads the whole version again.
-- [No rate limit on public routes on OSS] → One view is one request with one access check. EE has `throttling_middleware`. A limit for OSS is out of scope.
+- [No rate limit on the public share route] → One view is one request with one access check. Only a person with the link can call the route, and the owner can stop the share at once. A rate limit is out of scope.
 - [Blanking inherited variables can remove one that a harness needs] → The integration check runs each local harness once. A missing variable is added to the allowlist by name.
 - [The `json` column cannot be indexed] → No query needs to search share settings. A `jsonb` migration is possible later.
 
@@ -233,4 +233,4 @@ Alternative: add `AGENTA_API_KEY` and `AGENTA_RUNNER_TOKEN` to the blanked list 
 
 ## Open Questions
 
-- Does the SuperTokens fetch interceptor try a refresh on a 401 from `/shared/apps/` for a viewer with no cookies? If it does, the share page calls the route without the interceptor.
+None. The SuperTokens question is closed by design: the viewer route never answers 401.
