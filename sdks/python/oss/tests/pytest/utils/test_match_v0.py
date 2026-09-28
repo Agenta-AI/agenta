@@ -1852,3 +1852,88 @@ class TestParityJsonMultiFieldMatch:
         assert legacy["aggregate_score"] == pytest.approx(0.5)
         assert m["score"] == pytest.approx(0.5)
         assert legacy["aggregate_score"] == pytest.approx(m["score"])
+
+
+# ---------------------------------------------------------------------------
+# A configured threshold of 0 must be rejected, not silently replaced by 0.5
+# ---------------------------------------------------------------------------
+
+# These two validate `0.0 < threshold <= 1.0` immediately after resolving the
+# parameter. `parameters.get("threshold") or 0.5` rewrote a configured 0.0 to
+# 0.5 first, so 0.0 was the one out-of-range value that never raised - the range
+# check below it was unreachable for exactly the input it was written for.
+_ZERO_THRESHOLD_CASES = [
+    ("levenshtein", _levenshtein, {"ca": "kitten"}, "sitting"),
+    ("similarity_match", _similarity_match, {"ca": "kitten"}, "sitting"),
+]
+
+
+@pytest.mark.parametrize(
+    "handler,inputs,outputs",
+    [(h, i, o) for _, h, i, o in _ZERO_THRESHOLD_CASES],
+    ids=[n for n, _, _, _ in _ZERO_THRESHOLD_CASES],
+)
+class TestZeroThreshold:
+    def test_zero_is_rejected(self, handler, inputs, outputs):
+        with pytest.raises(Exception) as excinfo:
+            handler(
+                parameters={"threshold": 0.0, "correct_answer_key": "ca"},
+                inputs=inputs,
+                outputs=outputs,
+            )
+        assert "float[0.0, 1.0]" in str(excinfo.value)
+
+    @pytest.mark.parametrize("bad", [-1.0, 2.0])
+    def test_out_of_range_still_rejected(self, handler, inputs, outputs, bad):
+        # The control: these were already rejected and must stay rejected.
+        with pytest.raises(Exception) as excinfo:
+            handler(
+                parameters={"threshold": bad, "correct_answer_key": "ca"},
+                inputs=inputs,
+                outputs=outputs,
+            )
+        assert "float[0.0, 1.0]" in str(excinfo.value)
+
+    def test_absent_still_means_half(self, handler, inputs, outputs):
+        # The other half of the contract: absent still means 0.5.
+        implicit = handler(
+            parameters={"correct_answer_key": "ca"}, inputs=inputs, outputs=outputs
+        )
+        explicit = handler(
+            parameters={"threshold": 0.5, "correct_answer_key": "ca"},
+            inputs=inputs,
+            outputs=outputs,
+        )
+        assert implicit == explicit
+
+    def test_explicit_none_still_means_half(self, handler, inputs, outputs):
+        explicit = handler(
+            parameters={"threshold": 0.5, "correct_answer_key": "ca"},
+            inputs=inputs,
+            outputs=outputs,
+        )
+        as_none = handler(
+            parameters={"threshold": None, "correct_answer_key": "ca"},
+            inputs=inputs,
+            outputs=outputs,
+        )
+        assert as_none == explicit
+
+
+def test_similarity_threshold_alias_still_honoured():
+    # auto_similarity_match_v0 also accepts similarity_threshold as an alias,
+    # and that alias must reach the range check too.
+    strict = _similarity_match(
+        parameters={"similarity_threshold": 1.0, "correct_answer_key": "ca"},
+        inputs={"ca": "hello world"},
+        outputs="hello world",
+    )
+    assert strict["success"] is True
+
+    with pytest.raises(Exception) as excinfo:
+        _similarity_match(
+            parameters={"similarity_threshold": 0.0, "correct_answer_key": "ca"},
+            inputs={"ca": "hello world"},
+            outputs="hello world",
+        )
+    assert "float[0.0, 1.0]" in str(excinfo.value)

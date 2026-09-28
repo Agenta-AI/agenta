@@ -288,6 +288,21 @@ def echo_v0(aloha: Any):
     return {"got": aloha}
 
 
+def _resolve_threshold(parameters, default=0.5, *aliases):
+    """Return the configured threshold, treating only a missing value as unset.
+
+    ``parameters.get("threshold") or default`` would rewrite a configured 0 to
+    ``default`` before the caller's ``0.0 < threshold <= 1.0`` check could see
+    it, making 0 the one out-of-range value that never raised. 0 is a real
+    threshold for an operator to try, so fall back on "not configured" only.
+    """
+    for key in ("threshold", *aliases):
+        value = parameters.get(key)
+        if value is not None:
+            return value
+    return default
+
+
 @instrument()
 def auto_exact_match_v0(
     parameters: Optional[Data] = None,
@@ -624,7 +639,7 @@ async def auto_webhook_test_v0(
 
     outputs_str = outputs if isinstance(outputs, str) else dumps(outputs)
 
-    threshold = parameters.get("threshold") or 0.5
+    threshold = _resolve_threshold(parameters)
 
     if not isinstance(threshold, float):
         raise InvalidConfigurationParameterV0Error(
@@ -742,7 +757,7 @@ async def auto_custom_code_run_v0(
 
     _outputs_value: Union[dict, str] = outputs
 
-    threshold = parameters.get("threshold") or 0.5
+    threshold = _resolve_threshold(parameters)
 
     if not isinstance(threshold, float):
         raise InvalidConfigurationParameterV0Error(
@@ -948,7 +963,7 @@ async def auto_ai_critique_v0(
     if not provider_settings:
         raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
 
-    threshold = parameters.get("threshold") or 0.5
+    threshold = _resolve_threshold(parameters)
 
     if not isinstance(threshold, float):
         raise InvalidConfigurationParameterV0Error(
@@ -1427,7 +1442,7 @@ def auto_json_diff_v0(
         except json.JSONDecodeError as e:
             raise InvalidOutputsV0Error(expected="dict", got=outputs) from e
 
-    threshold = parameters.get("threshold") or 0.5
+    threshold = _resolve_threshold(parameters)
 
     if not isinstance(threshold, float):
         raise InvalidConfigurationParameterV0Error(
@@ -1512,7 +1527,7 @@ def auto_levenshtein_distance_v0(
 
     outputs_str = outputs if isinstance(outputs, str) else dumps(outputs)
 
-    threshold = parameters.get("threshold") or 0.5
+    threshold = _resolve_threshold(parameters)
 
     if not isinstance(threshold, float):
         raise InvalidConfigurationParameterV0Error(
@@ -1613,9 +1628,7 @@ def auto_similarity_match_v0(
 
     outputs_str = outputs if isinstance(outputs, str) else dumps(outputs)
 
-    threshold = (
-        parameters.get("threshold") or parameters.get("similarity_threshold") or 0.5
-    )
+    threshold = _resolve_threshold(parameters, 0.5, "similarity_threshold")
 
     if not isinstance(threshold, float):
         raise InvalidConfigurationParameterV0Error(
@@ -1719,7 +1732,7 @@ async def auto_semantic_similarity_v0(
                 provider_data = secret_data.get("provider", {})
                 openai_api_key = provider_data.get("key") or openai_api_key
 
-    threshold = parameters.get("threshold") or 0.5
+    threshold = _resolve_threshold(parameters)
 
     if not isinstance(threshold, float):
         raise InvalidConfigurationParameterV0Error(
