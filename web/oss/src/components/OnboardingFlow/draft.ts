@@ -25,8 +25,9 @@ export function readOnboardingDraft(key?: string): Partial<OnboardingDraft> {
             draft.step < 1 ||
             draft.step > 5 ||
             !roles.includes(draft.role) ||
-            (draft.step > 2 && !sources.includes(draft.source)) ||
             typeof draft.source !== "string" ||
+            // The source is picked on step 4, so it may be empty until then and never stale.
+            (draft.source === "" ? draft.step > 4 : !sources.includes(draft.source)) ||
             typeof draft.name !== "string" ||
             typeof draft.task !== "string" ||
             !(draft.templateKey === null || typeof draft.templateKey === "string")
