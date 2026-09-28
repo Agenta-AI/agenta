@@ -32,6 +32,7 @@ interface Props {
     integrationLogo?: string
     integrationDescription?: string
     authSchemes: string[]
+    useDefaultName?: boolean
     onClose: () => void
     onSuccess?: () => void
 }
@@ -56,6 +57,7 @@ export default function ConnectDrawer({
     integrationLogo,
     integrationDescription,
     authSchemes,
+    useDefaultName = false,
     onClose,
     onSuccess,
 }: Props) {
@@ -232,48 +234,57 @@ export default function ConnectDrawer({
                     </div>
                 </div>
 
-                <Divider className="!m-0" />
+                {/* Nothing to author (generated name, one auth mode) leaves no form — and no
+                    stray divider pair around an empty block. */}
+                {(!useDefaultName || availableModes.length > 1) && (
+                    <>
+                        <Divider className="!m-0" />
 
-                {/* Form (explicitly controlled — no antd Form) */}
-                <div className="flex flex-col gap-4">
-                    <Field
-                        label="Name"
-                        required
-                        tooltip="Display name for this connection"
-                        error={nameError}
-                    >
-                        <Input
-                            placeholder={`e.g. My ${integrationName} Account`}
-                            value={name}
-                            aria-invalid={nameError ? true : undefined}
-                            onChange={(e) => {
-                                nameTouchedRef.current = true
-                                setName(e.target.value)
-                                if (nameError && e.target.value.trim()) setNameError(null)
-                            }}
-                        />
-                    </Field>
+                        {/* Form (explicitly controlled — no antd Form) */}
+                        <div className="flex flex-col gap-4">
+                            {!useDefaultName && (
+                                <Field
+                                    label="Name"
+                                    required
+                                    tooltip="Display name for this connection"
+                                    error={nameError}
+                                >
+                                    <Input
+                                        placeholder={`e.g. My ${integrationName} Account`}
+                                        value={name}
+                                        aria-invalid={nameError ? true : undefined}
+                                        onChange={(e) => {
+                                            nameTouchedRef.current = true
+                                            setName(e.target.value)
+                                            if (nameError && e.target.value.trim())
+                                                setNameError(null)
+                                        }}
+                                    />
+                                </Field>
+                            )}
 
-                    {availableModes.length > 1 && (
-                        <Field label="Auth Method">
-                            <Select
-                                value={selectedMode}
-                                onValueChange={(v) => setSelectedMode(v as AuthMode)}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {availableModes.map((m) => (
-                                        <SelectItem key={m} value={m}>
-                                            {m === "oauth" ? "OAuth" : "API Key"}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </Field>
-                    )}
-                </div>
+                            {availableModes.length > 1 && (
+                                <Field label="Auth Method">
+                                    <Select
+                                        value={selectedMode}
+                                        onValueChange={(v) => setSelectedMode(v as AuthMode)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableModes.map((m) => (
+                                                <SelectItem key={m} value={m}>
+                                                    {m === "oauth" ? "OAuth" : "API Key"}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </Field>
+                            )}
+                        </div>
+                    </>
+                )}
 
                 <Divider className="!m-0" />
 
