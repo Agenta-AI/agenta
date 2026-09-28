@@ -84,9 +84,17 @@ export function resolveRunLimits(
   };
 }
 
+/**
+ * Which limit ended the run. `ttfb` is the one the caller can act on: the TTFB timer is cancelled
+ * by the first progress event of any kind, so a `ttfb` trip PROVES the turn emitted nothing at all
+ * — no token, no tool call, no side effect — which is what makes re-prompting it safe. Every other
+ * kind fires mid-turn, where work has already landed and a replay could repeat it.
+ */
+export type RunLimitKind = "total" | "idle" | "ttfb" | "tool-call";
+
 export interface RunLimitsHandle {
   /** Fires (once) the moment any limit trips; the caller wires this to its own `abort()`. */
-  onTrip(handler: (reason: string) => void): void;
+  onTrip(handler: (reason: string, kind: RunLimitKind) => void): void;
   /** Call on every tool call announcement; the per-tool-call timer keys off this id. */
   noteToolCallStart(id: string): void;
   /** Call once the tool call's result lands; clears its per-call timer. */
@@ -117,7 +125,7 @@ export function createRunLimits(
 ): RunLimitsHandle {
   let tripped = false;
   let paused = false;
-  let tripHandler: ((reason: string) => void) | undefined;
+  let tripHandler: ((reason: string, kind: RunLimitKind) => void) | undefined;
   let sawFirstProgress = false;
 
   let totalTimer: NodeJS.Timeout | undefined;
@@ -136,29 +144,31 @@ export function createRunLimits(
     toolCallTimers.clear();
   };
 
-  const trip = (reason: string): void => {
+  const trip = (reason: string, kind: RunLimitKind): void => {
     if (tripped || paused) return;
     tripped = true;
     clearAll();
     log(`[run-limits] ${reason}`);
-    tripHandler?.(reason);
+    tripHandler?.(reason, kind);
   };
 
   const armIdle = (): void => {
     if (tripped || paused) return;
     if (idleTimer) clock.clearTimeout(idleTimer);
     idleTimer = clock.setTimeout(
-      () => trip(`idle timeout after ${limits.idleMs}ms with no progress`),
+      () =>
+        trip(`idle timeout after ${limits.idleMs}ms with no progress`, "idle"),
       limits.idleMs,
     );
   };
 
   totalTimer = clock.setTimeout(
-    () => trip(`total run deadline of ${limits.totalMs}ms exceeded`),
+    () => trip(`total run deadline of ${limits.totalMs}ms exceeded`, "total"),
     limits.totalMs,
   );
   ttfbTimer = clock.setTimeout(
-    () => trip(`no first response within ${limits.ttfbMs}ms of run start`),
+    () =>
+      trip(`no first response within ${limits.ttfbMs}ms of run start`, "ttfb"),
     limits.ttfbMs,
   );
 
@@ -185,7 +195,7 @@ export function createRunLimits(
         id,
         clock.setTimeout(() => {
           toolCallTimers.delete(id);
-          trip(`tool call ${id} exceeded ${limits.toolCallMs}ms`);
+          trip(`tool call ${id} exceeded ${limits.toolCallMs}ms`, "tool-call");
         }, limits.toolCallMs),
       );
     },
