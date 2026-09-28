@@ -1672,7 +1672,8 @@ class MountsService:
             if source.source_path:
                 validate_file_path(source.source_path)
             mount = await self._resolve_mount(
-                project_id=project_id, mount_id=source.mount_id
+                project_id=project_id,
+                mount_id=source.mount_id,
                 access="read",
             )
             mount_base = self._storage_key(project_id=project_id, mount=mount)
