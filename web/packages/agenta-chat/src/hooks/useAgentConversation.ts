@@ -221,6 +221,9 @@ export interface AgentConversation {
     /** A known session hydrated EMPTY from the server — its durable history was pruned or never
      * persisted; show a notice rather than the new-chat hero. */
     historyUnavailable: boolean
+    /** Server hydration for a known session FAILED (network, timeout, 5xx): its history may well
+     * exist, so skins say it could not load rather than that it is gone. */
+    historyReadFailed: boolean
     /** The last assistant turn was user-stopped (cleared on the next send/regenerate). */
     stopped: boolean
     /** Messages held while a turn is in flight, in FIFO order. */
@@ -575,6 +578,8 @@ export const useAgentConversation = ({
     // Set when server hydration for a KNOWN (non-fresh, uncached) session returns no records —
     // its durable history was pruned by retention or never persisted.
     const [historyUnavailable, setHistoryUnavailable] = useState(false)
+    // Set instead when that hydration read failed — a failed read is not a pruned log.
+    const [historyReadFailed, setHistoryReadFailed] = useState(false)
 
     /**
      * THE adoption guard — one implementation for every path that can hand us a server transcript
@@ -618,6 +623,7 @@ export const useAgentConversation = ({
             // Adopting a non-empty server transcript settles the question the notice asks, so it
             // clears here for every path (the revalidate copy did this, the hydration one didn't).
             setHistoryUnavailable(false)
+            setHistoryReadFailed(false)
             // Written synchronously, ahead of any React commit: `messagesRef` lags a commit behind,
             // so two deliveries landing back-to-back (the disk-restored result and the background
             // refetch) can both see the pre-adoption transcript. It is this watermark, not the
@@ -652,21 +658,31 @@ export const useAgentConversation = ({
         // microtasks racing) and `messagesRef` only catches up on the next commit — so record here,
         // not from what's on screen, that real history was already adopted.
         let adopted = false
+        let readFailed = false
         // Post-restore revalidation: the first result may be the disk-restored log (paints
         // instantly); when the guaranteed background refetch lands, adopt it under the same
         // guard as every other path.
-        loadSessionMessages(sessionId, (fresh) => {
-            if (cancelled) return
-            if (adoptServerTranscript(fresh, generation)) adopted = true
-        })
+        loadSessionMessages(
+            sessionId,
+            (fresh) => {
+                if (cancelled) return
+                if (adoptServerTranscript(fresh, generation)) adopted = true
+            },
+            () => {
+                readFailed = true
+            },
+        )
             .then((transcript) => {
                 if (cancelled) return
                 if (!transcript || transcript.messages.length === 0) {
-                    // Known session, but the server has no records for it → history was pruned or
-                    // never persisted. Flag it so the skin shows the "unavailable" notice — unless
-                    // a refetch already landed real history, which this stale first result must
+                    // A refetch already landed real history, which this stale first result must
                     // not blank out.
-                    if (!adopted) setHistoryUnavailable(true)
+                    if (adopted) return
+                    // The read failed: the history may exist, so do not claim it is gone.
+                    if (readFailed) setHistoryReadFailed(true)
+                    // Known session, but the server has no records for it → history was pruned
+                    // or never persisted. Flag it so the skin shows the "unavailable" notice.
+                    else setHistoryUnavailable(true)
                     return
                 }
                 adoptServerTranscript(transcript, generation)
@@ -1300,6 +1316,7 @@ export const useAgentConversation = ({
         isHydrating,
         isEmpty: displayMessages.length === 0,
         historyUnavailable,
+        historyReadFailed,
         stopped,
         queued,
         inputBusy: serverBusy,

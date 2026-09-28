@@ -751,7 +751,12 @@ export const LiveConversation = ({
                     // which is a different and much more alarming thing to say.
                     <div className="m-auto w-full max-w-[420px]">
                         <AgentIntroCard entityId={entityId} />
-                        {conversation.historyUnavailable ? (
+                        {conversation.historyReadFailed ? (
+                            <p className="text-muted-foreground mt-3 text-center text-xs">
+                                Couldn&apos;t load this session&apos;s earlier messages. Reload to
+                                try again.
+                            </p>
+                        ) : conversation.historyUnavailable ? (
                             <p className="text-muted-foreground mt-3 text-center text-xs">
                                 This session&apos;s earlier messages are no longer stored. New
                                 messages still work.
