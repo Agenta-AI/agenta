@@ -17,15 +17,8 @@ import {ArrowClockwise, Hourglass, Spinner} from "@phosphor-icons/react"
 
 import {useConnectFocus} from "./connectFocus"
 import {IntegrationTile} from "./IntegrationTile"
+import {DEFERRED_SENTINEL, isDeferredByRunner} from "./deferred"
 import {GENERIC_CONNECT_ERROR, useConnectFlow, type ConnectOutput} from "./useConnectFlow"
-
-/**
- * The runner parks only ONE interaction per turn; a second `request_connection` in the same step is
- * force-settled with this sentinel and RE-REQUESTED next turn (services/runner otel.ts
- * `TOOL_NOT_EXECUTED_PAUSED`). It is a deferral, not a failure — render it quietly with no Retry, so
- * the user waits for the agent's re-ask instead of starting a flow that races it.
- */
-const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 
 /** Non-error terminal reasons (see `ConnectOutput.reason`): render generic wording for
  * these; any other `reason` is a real failure message and must be shown verbatim — a
@@ -56,10 +49,7 @@ const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps)
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
     // connection failure); see DEFERRED_SENTINEL.
     const partErrorText = (meta.part as {errorText?: unknown}).errorText
-    const deferredByRunner =
-        meta.state === "output-error" &&
-        typeof partErrorText === "string" &&
-        partErrorText.startsWith(DEFERRED_SENTINEL)
+    const deferredByRunner = isDeferredByRunner(meta.part as {state?: unknown; errorText?: unknown})
 
     // ── Connecting: a post-settle manual retry's popup is open ───────────────────────────────────
     if (phase === "connecting") {

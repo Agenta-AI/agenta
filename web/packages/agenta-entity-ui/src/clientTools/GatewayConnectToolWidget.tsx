@@ -23,9 +23,12 @@ import {ProviderDrawer} from "../secretProvider"
 
 import {useGatewayConnectFlow, type GatewayTarget} from "./useGatewayConnectFlow"
 
+/** Without an icon (the host's `bare` mode) the row takes the host's row type — see ConnectToolWidget. */
 const ChipRow = ({icon, children}: {icon: React.ReactNode; children: React.ReactNode}) => (
-    <div className="flex min-w-0 items-center gap-2 py-1">
-        <span className="shrink-0">{icon}</span>
+    <div
+        className={`flex min-w-0 items-center gap-2 ${icon ? "py-1" : "py-0.5 [&_.text-xs]:text-sm"}`}
+    >
+        {icon ? <span className="shrink-0">{icon}</span> : null}
         {children}
     </div>
 )
@@ -34,6 +37,7 @@ const GatewayConnectToolWidget = ({
     target,
     meta,
     settle,
+    bare = false,
 }: ClientToolHandlerProps & {target: GatewayTarget}) => {
     const {
         label,
@@ -55,7 +59,13 @@ const GatewayConnectToolWidget = ({
     if (phase === "connecting") {
         return (
             <>
-                <ChipRow icon={<Spinner size={13} className="animate-spin text-colorPrimary" />}>
+                <ChipRow
+                    icon={
+                        bare ? null : (
+                            <Spinner size={13} className="animate-spin text-colorPrimary" />
+                        )
+                    }
+                >
                     <span className="truncate text-xs text-colorTextSecondary">
                         Connecting {label}…
                     </span>
@@ -98,7 +108,9 @@ const GatewayConnectToolWidget = ({
     if (meta.settled || outcome) {
         if (isInteractionEndedOutput(meta.output)) {
             return (
-                <ChipRow icon={<Plugs size={13} className="text-colorTextTertiary" />}>
+                <ChipRow
+                    icon={bare ? null : <Plugs size={13} className="text-colorTextTertiary" />}
+                >
                     <span className="truncate text-xs text-colorTextTertiary">
                         Connection request ended
                     </span>
@@ -109,14 +121,22 @@ const GatewayConnectToolWidget = ({
         if (outcome?.connected === true || output.connected === true) {
             return (
                 <ChipRow
-                    icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
+                    icon={
+                        bare ? null : (
+                            <CheckCircle size={13} weight="fill" className="text-colorSuccess" />
+                        )
+                    }
                 >
                     <span className="truncate text-xs text-colorText">{label} connected</span>
                 </ChipRow>
             )
         }
         return (
-            <ChipRow icon={<Warning size={13} weight="fill" className="text-colorWarning" />}>
+            <ChipRow
+                icon={
+                    bare ? null : <Warning size={13} weight="fill" className="text-colorWarning" />
+                }
+            >
                 <span className="truncate text-xs text-colorTextSecondary">
                     Connection not completed
                 </span>
@@ -125,7 +145,7 @@ const GatewayConnectToolWidget = ({
     }
 
     return (
-        <ChipRow icon={<Plugs size={13} className="text-colorPrimary" />}>
+        <ChipRow icon={bare ? null : <Plugs size={13} className="text-colorPrimary" />}>
             <span className="truncate text-xs text-colorText">
                 Connect {label} ({planeLabel})
             </span>
