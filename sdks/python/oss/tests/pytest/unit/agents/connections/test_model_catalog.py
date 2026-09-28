@@ -454,3 +454,74 @@ def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_catalog_addition():
     # Claude names the tier: the pinned Claude Code build resolves `sonnet` to Sonnet 5.5.
     sonnet = next(e for e in claude_model_catalog().models if e.id == "sonnet")
     assert sonnet.name == "Claude Sonnet 5.5"
+
+
+def test_custom_provider_bridge_id_resolves_underlying_modalities():
+    # Issue #7199: a custom-provider/bridge spelling (`<connection>/custom/<model>`) joined no
+    # catalog entry, so a multimodal model addressed through the bridge always reported
+    # `model_modality_unknown` and its images degraded to workspace copies.
+    assert model_input_modalities(
+        "pi_core", "Agenta/custom/gemini/gemini-3.7-flash"
+    ) == [
+        "text",
+        "image",
+    ]
+    # `provider` names the bridge connection, not the model's own family.
+    assert model_input_modalities(
+        "pi_core", "custom/gemini/gemini-3.7-flash", provider="agenta"
+    ) == ["text", "image"]
+
+
+def test_connection_provider_mismatch_lets_a_self_describing_id_join():
+    # The resolver strips the bridge namespace but passes the connection's provider, so
+    # `gemini/gemini-3.7-flash` arrives with `provider="agenta"`. The id's own head must win.
+    assert model_input_modalities(
+        "pi_core", "gemini/gemini-3.7-flash", provider="agenta"
+    ) == ["text", "image"]
+
+
+def test_vertex_spelling_joins_through_the_family_alias():
+    # The starter-credits bridge serves Gemini through Vertex, spelled `vertex_ai`, while the
+    # catalog spells the family `gemini`.
+    assert model_input_modalities("pi_core", "vertex_ai/gemini-3.7-flash") == [
+        "text",
+        "image",
+    ]
+    assert model_input_modalities(
+        "pi_core", "gemini-3.7-flash", provider="vertex_ai"
+    ) == ["text", "image"]
+
+
+def test_unknown_underlying_bridge_model_stays_unknown():
+    # Fail-safe unchanged: a bridge to a model the catalog does not know still returns None
+    # (workspace-only downstream), never a guess.
+    assert (
+        model_input_modalities("pi_core", "Agenta/custom/vertex_ai/not-a-model") is None
+    )
+    assert model_input_modalities("pi_core", "vertex_ai/not-a-model") is None
+
+
+def test_family_alias_does_not_reach_into_an_unknown_qualified_head():
+    # An arbitrary qualified head stays unknown: the deployment alias may only resolve the
+    # spelling itself (as the id's own head, or as the provider of an unqualified id), never
+    # resolve an unknown qualified id through its tail's model.
+    assert (
+        model_input_modalities(
+            "pi_core", "unknown-provider-7224/gemini-3.7-flash", provider="vertex_ai"
+        )
+        is None
+    )
+    assert (
+        model_input_modalities(
+            "pi_core", "vertex_ai/unknown-provider-7224/gemini-3.7-flash"
+        )
+        is None
+    )
+
+
+def test_multisegment_ids_keep_their_strict_join():
+    # 3-segment catalog ids (`openrouter/google/...`) join through the provider prefix today
+    # and must keep doing so before any fallback fires.
+    assert model_input_modalities(
+        "pi_core", "google/gemini-3.7-flash", provider="openrouter"
+    ) == ["text", "image"]
