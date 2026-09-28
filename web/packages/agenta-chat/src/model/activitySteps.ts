@@ -128,7 +128,7 @@ export const endsOnClosedText = (items: RenderItem[]): boolean => {
 }
 
 export interface SplitTurnActivityOptions {
-    /** Keep a just-closed text in the fold: the call that makes it an aside lands a beat later. */
+    /** Keep a closed trailing text in the fold: while the run is open a call can still follow it. */
     holdClosedText?: boolean
 }
 
