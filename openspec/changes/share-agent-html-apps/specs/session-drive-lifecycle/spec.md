@@ -2,20 +2,28 @@
 
 ## Purpose
 
-Define what an archived or deleted session drive still allows, so that archiving and deleting a session reliably stop access to its files and remove them from storage.
+Define what an archived or deleted session drive still allows, so that an archived session keeps its history as read-only, and deleting a session reliably removes its files from storage.
 
 ## ADDED Requirements
 
-### Requirement: Archived drives refuse file access
-When a drive is archived, file reads, writes, deletes, uploads, downloads, exports, app scope requests, and storage credential requests for that drive SHALL be refused. Archiving and unarchiving the drive SHALL still work.
+### Requirement: Archived drives are read-only
+When a drive is archived, file reads, listings, stat calls, downloads, exports, chat attachment reads, and app scope requests at level `read` SHALL still work. File writes, folder creation, deletes, uploads, attachment writes and deletes, drive edits, storage credential requests, and app scope requests at level `read-write` SHALL be refused as archived. Archiving and unarchiving the drive SHALL still work. Every drive operation SHALL state whether it reads, writes, or changes the drive lifecycle, so that no operation can skip this rule.
 
-#### Scenario: Read after archive
-- **WHEN** a project member reads a file in the drive of an archived session
+#### Scenario: History of an archived session
+- **WHEN** a project member opens an archived session that has image attachments and files in its drive
+- **THEN** the attachments SHALL render, and the drive files SHALL list and open.
+
+#### Scenario: Write after archive
+- **WHEN** a project member writes a file in the drive of an archived session
+- **THEN** the request SHALL be refused as archived, and the drive SHALL NOT change.
+
+#### Scenario: Storage credentials after archive
+- **WHEN** a runner asks for storage credentials for the drive of an archived session
 - **THEN** the request SHALL be refused as archived.
 
 #### Scenario: Unarchive
 - **WHEN** the session is unarchived
-- **THEN** file access to its drive SHALL work again.
+- **THEN** writes to its drive SHALL work again.
 
 ### Requirement: Only unarchive restores an archived drive
 Binding a session drive, signing storage credentials for a session, or creating an app in a session SHALL NOT unarchive an archived drive. Such a request SHALL be refused as archived.

@@ -7,7 +7,7 @@ Define who can open an app share link, what the share page shows each kind of vi
 ## ADDED Requirements
 
 ### Requirement: Link access rules
-A share link SHALL open for anyone when the share visibility is `link`. When the visibility is `workspace`, the link SHALL open only for a signed-in user who is a member of the app's workspace and who passes the organization's sign-in policy. A signed-out viewer of a `workspace` share SHALL be asked to sign in and SHALL return to the link after sign-in.
+A share link SHALL open for anyone when the share visibility is `link`. When the visibility is `workspace`, the link SHALL open only for a signed-in user who is a member of the app's workspace and who passes the organization's sign-in policy. A signed-out viewer of a `workspace` share SHALL be asked to sign in and SHALL return to the link after sign-in, with any sign-in method, including an OAuth or SSO provider. Access SHALL be decided once for each version a viewer loads, and a version SHALL load in one request.
 
 #### Scenario: Anyone with the link
 - **WHEN** a person who is not signed in opens a `link` share
@@ -16,6 +16,10 @@ A share link SHALL open for anyone when the share visibility is `link`. When the
 #### Scenario: Signed-out viewer of a workspace share
 - **WHEN** a person who is not signed in opens a `workspace` share
 - **THEN** the page SHALL ask them to sign in, and after sign-in SHALL return to the same link.
+
+#### Scenario: Sign-in through a provider
+- **WHEN** a signed-out viewer of a `workspace` share signs in with Google or with SSO
+- **THEN** the viewer SHALL land on the same share link after the provider returns.
 
 #### Scenario: Member of another workspace
 - **WHEN** a signed-in user who is not a member of the app's workspace opens a `workspace` share
@@ -56,7 +60,7 @@ The share page SHALL be at `/m/share/<token>` and SHALL accept `?v=N` to show ve
 - **THEN** the page SHALL show version 1.
 
 ### Requirement: Shared apps run with no network and no Agenta access
-A shared app SHALL run in a sandboxed frame that cannot read Agenta cookies or storage, open popups, show dialogs, navigate the top page, or submit forms. It SHALL load only inline code and files from its snapshot. Any request to another address, including a URL that was captured at publish time, SHALL be blocked. Writes through the app file bridge SHALL fail with `read_only`.
+A shared app SHALL run in a sandboxed frame that cannot read Agenta cookies or storage, open popups, show dialogs, navigate the top page, or submit forms. It SHALL load only inline code and files from its snapshot. Captured scripts and stylesheets SHALL be inlined as code, and captured images and fonts as data, so that the policy allows no source other than the document itself. Any request to another address, including a URL that was captured at publish time, SHALL be blocked. Writes through the app file bridge SHALL fail with `read_only`.
 
 #### Scenario: App sends typed data
 - **WHEN** a shared app tries to send what a viewer typed to an outside address with fetch, an image request, a form, or a popup
@@ -67,8 +71,8 @@ A shared app SHALL run in a sandboxed frame that cannot read Agenta cookies or s
 - **THEN** the write SHALL fail with `read_only`, and the owner's drive SHALL NOT change.
 
 ### Requirement: Snapshot files never run on the Agenta origin
-A snapshot file served by a share route SHALL NOT render as a page when its URL is opened directly. Responses SHALL NOT be cached, so that stopping a share takes effect on the next request.
+No snapshot file SHALL have its own URL on the Agenta origin. The share route SHALL return a version's files as data inside one JSON response that the browser does not render as a page. Responses SHALL NOT be cached, so that stopping a share takes effect on the next request.
 
-#### Scenario: Direct URL to an HTML file
-- **WHEN** a person opens the URL of a snapshot HTML file in a browser tab
-- **THEN** the browser SHALL download it or show it inert, and no script in it SHALL run.
+#### Scenario: Direct URL to the share route
+- **WHEN** a person opens the share route URL of a version that holds an HTML file in a browser tab
+- **THEN** the browser SHALL show inert JSON, and no script in the snapshot SHALL run.

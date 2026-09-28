@@ -37,7 +37,7 @@ Creating, updating, restoring, changing, or stopping a share SHALL require the `
 - **THEN** the request SHALL be refused.
 
 ### Requirement: A share serves a frozen snapshot
-Publishing SHALL copy every file in the app folder, including data files and subfolders, into a snapshot. A subfolder that has its own `app.json` SHALL be left out. Later changes to the drive SHALL NOT change what the link shows. A snapshot SHALL be refused when it has more than 200 files, a file over 5 MB, or more than 25 MB in total.
+Publishing SHALL copy every file in the app folder, including data files and subfolders, into a snapshot. A subfolder that has its own `app.json` SHALL be left out. Later changes to the drive SHALL NOT change what the link shows. One budget SHALL cover the snapshot, captured external files included: at most 200 files, 5 MB for each file, and 25 MB in total. A publish whose own app files exceed the budget SHALL be refused.
 
 #### Scenario: Agent edits the app after sharing
 - **WHEN** the agent changes `apps/board/index.html` after the owner shared it
@@ -48,15 +48,31 @@ Publishing SHALL copy every file in the app folder, including data files and sub
 - **THEN** publishing SHALL be refused with an error that names the limit, and the live version SHALL NOT change.
 
 ### Requirement: External files are captured at publish time
-Publishing SHALL download each `https:` script, stylesheet, image, and font that the app's HTML or CSS references, at most 30 URLs and 5 MB each, and SHALL store them in the snapshot. A URL that resolves to a private or internal address SHALL NOT be fetched. Redirects SHALL NOT be followed. A URL that cannot be downloaded SHALL be reported to the owner and SHALL NOT stop the publish.
+Publishing SHALL follow each `https:` script, stylesheet, image, and font that the app's HTML or CSS references, and each `url()` and `@import` inside a captured stylesheet, resolved against that stylesheet's own URL, to a depth of 3. It SHALL store what it downloads in the snapshot, at most 30 URLs in total, inside the snapshot budget. A URL that resolves to a private or internal address SHALL NOT be fetched. A redirect SHALL be followed up to 3 hops, and each hop SHALL be checked as a new URL. A URL that cannot be downloaded, or that does not fit the budget, SHALL be reported to the owner and SHALL NOT stop the publish. A module script that imports other URLs SHALL be reported to the owner as a warning, because its imports are not captured.
 
 #### Scenario: App uses a CDN library
 - **WHEN** an app loads a chart library from a public CDN over `https:`
 - **THEN** the library SHALL be stored in the snapshot, and the shared app SHALL work with no network.
 
+#### Scenario: App uses a web font service
+- **WHEN** an app links a Google Fonts stylesheet
+- **THEN** the stylesheet and the font files it references SHALL be stored in the snapshot, and the shared app SHALL show the fonts with no network.
+
+#### Scenario: Stylesheet with relative assets
+- **WHEN** a captured CDN stylesheet references `url(fonts/icons.woff2)`
+- **THEN** the font SHALL be fetched from the address relative to the stylesheet's URL and stored in the snapshot.
+
+#### Scenario: Redirect to an internal address
+- **WHEN** a referenced URL redirects to `https://10.0.0.5/lib.js`
+- **THEN** the redirect target SHALL NOT be fetched, and the URL SHALL be listed as failed.
+
 #### Scenario: Internal address
 - **WHEN** an app references `https://10.0.0.5/lib.js`
 - **THEN** the URL SHALL NOT be fetched and SHALL be listed as failed.
+
+#### Scenario: Module script with imports
+- **WHEN** an app has a module script that imports `https://esm.sh/lib`
+- **THEN** publishing SHALL succeed, and the owner SHALL see a warning that names the script.
 
 ### Requirement: Versions change only on publish
 The first publish SHALL create version 1. Each later "Update share" SHALL create the next version, and the link SHALL show the latest version. Restoring version K SHALL create a new version with the content of version K. The owner SHALL be able to list all versions.
