@@ -1,12 +1,16 @@
 import {useCallback, useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
-import {AgentPublish, agentHostFromApiUrl, type ChannelsPanelRenderProps} from "@agenta/settings-ui"
+import {
+    AgentPublish,
+    ChannelsPanelSheet,
+    agentHostFromApiUrl,
+    type ChannelsPanelRenderProps,
+} from "@agenta/settings-ui"
 import {useAtomValue} from "jotai"
 
 import {getApiUrl} from "@/lib/env"
 
-import {ChannelsPanelSheet} from "./ChannelsPanelSheet"
 import {useAgentChannels} from "./useAgentChannels"
 
 /**

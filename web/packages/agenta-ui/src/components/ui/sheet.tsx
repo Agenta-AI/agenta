@@ -137,7 +137,13 @@ function SheetHeader({
             data-slot="sheet-header"
             // A column for title and description, then the close button.
             // No rule under it: the title's spacing separates it from the body.
-            className={cn("box-border flex items-center gap-2 p-4", className)}
+            // One line: the close button centres on it. More than one (a description, a meta
+            // row): it stays level with the title rather than floating between the lines.
+            className={cn(
+                "box-border flex items-center gap-2 p-4",
+                "[&:has(>[data-slot=sheet-header-content]>:nth-child(2))]:items-start",
+                className,
+            )}
             {...props}
         >
             <div data-slot="sheet-header-content" className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -148,9 +154,9 @@ function SheetHeader({
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        // The header centres it on the title block, so a title with a description
-                        // or a wrapped line still has it in the middle. -my-0.5 keeps the 28px
-                        // button from growing a one-line (24px) header. The invisible
+                        // Centred on a one-line header, level with the title's 24px line on a
+                        // taller one. -my-0.5 keeps the 28px button from growing a one-line
+                        // (24px) header, and centres it on that line when top-aligned. The invisible
                         // expansion takes the 28px square to the 44px touch minimum; its 8px
                         // reach to the left stops at the header's own 8px gap, so it covers no
                         // part of the title.

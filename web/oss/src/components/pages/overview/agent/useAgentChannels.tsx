@@ -2,13 +2,12 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {getChannelsClient} from "@agenta/sdk/resources"
 import {
+    ChannelsPanelSheet,
     EMPTY_CONNECTIONS,
     buildAgentChannelsActions,
     type ChannelConnections,
     type ChannelsPanelRenderProps,
 } from "@agenta/settings-ui"
-import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Drawer} from "antd"
 import {getDefaultStore, useAtomValue} from "jotai"
 
 import {appsAtom} from "@/oss/state/app"
@@ -79,43 +78,10 @@ export const useAgentChannels = (appId: string) => {
     return {connections, loading, loadError, actions}
 }
 
-/** The desktop container for the Publish and Channels panels: a 460px antd Drawer, with Back on a sub-view. */
-export const renderChannelsDrawer = ({
-    open,
-    title,
-    subtitle,
-    onClose,
-    children,
-    wide,
-    onBack,
-}: ChannelsPanelRenderProps) => (
-    <Drawer
-        open={open}
-        title={
-            <div className="flex items-center gap-2">
-                {onBack ? (
-                    <Button
-                        type="text"
-                        size="small"
-                        aria-label="Back"
-                        icon={<ArrowLeft size={16} />}
-                        onClick={onBack}
-                    />
-                ) : null}
-                <div className="flex min-w-0 flex-col">
-                    <span>{title}</span>
-                    {subtitle ? (
-                        <span className="text-xs font-normal text-colorTextSecondary">
-                            {subtitle}
-                        </span>
-                    ) : null}
-                </div>
-            </div>
-        }
-        onClose={onClose}
-        size={wide ? 720 : 460}
-        destroyOnClose
-    >
-        {children}
-    </Drawer>
+/**
+ * The /w container for the Publish and Channels panels: the same floating sheet /m uses, at the
+ * 460px this drawer has always had (720 for the API view's code).
+ */
+export const renderChannelsDrawer = (props: ChannelsPanelRenderProps) => (
+    <ChannelsPanelSheet {...props} width={460} />
 )

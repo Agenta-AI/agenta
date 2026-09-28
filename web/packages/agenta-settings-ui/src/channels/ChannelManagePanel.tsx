@@ -483,7 +483,7 @@ export const ChannelManagePanel = ({
         const choice = canOwn ? conflictChoice : "move"
         return (
             <div
-                className="flex min-h-full flex-1 flex-col gap-5.5"
+                className="flex min-h-full flex-1 flex-col gap-[22px]"
                 data-testid="channels-connect-here"
             >
                 <div className="flex gap-3 rounded-lg bg-colorWarningBg p-3.5">
@@ -576,7 +576,7 @@ export const ChannelManagePanel = ({
     }
 
     return (
-        <div className="flex min-h-full flex-1 flex-col gap-6.5">
+        <div className="flex min-h-full flex-1 flex-col gap-[26px]">
             {/* --- what is connected --- */}
             <div className="flex items-center gap-3 border-0 border-b border-solid border-border pb-5">
                 <span className="relative box-border flex size-10 flex-none items-center justify-center rounded-lg border border-solid border-border">

@@ -37,7 +37,7 @@ export const ChannelConnectionCard = ({
             // Replaces Button's svg sizing (merged by cn), so each svg keeps its own size.
             className={`${ROW_BUTTON} flex-col items-stretch gap-0 overflow-hidden rounded-lg p-0 hover:shadow-md [&_svg:not([class*='size-'])]:size-auto`}
         >
-            <span className="relative flex h-[100px] items-center justify-center border-0 pt-5 border-b border-solid border-border bg-muted bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:14px_14px]">
+            <span className="relative flex h-[100px] items-center justify-center border-0 pt-5 border-b border-solid border-border bg-muted bg-[radial-gradient(var(--ag-colorBorder)_1px,transparent_1px)] bg-[size:14px_14px]">
                 <span className="absolute right-2.5 top-2.5 flex h-5 items-center gap-1.5 rounded-full border border-solid border-border bg-background px-2 text-[11px] font-medium text-muted-foreground">
                     <span className={`size-1.5 rounded-full ${status.dot}`} />
                     {status.label}

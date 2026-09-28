@@ -25,7 +25,7 @@ export const ChannelsHubDiagram = ({
     const ys = targets.map((_, i) => ROW / 2 + i * (ROW + GAP))
     return (
         <div
-            className="flex items-center justify-center rounded-lg border border-solid border-border bg-muted bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:14px_14px] px-5 py-3.5"
+            className="flex items-center justify-center rounded-lg border border-solid border-border bg-muted bg-[radial-gradient(var(--ag-colorBorder)_1px,transparent_1px)] bg-[size:14px_14px] px-5 py-3.5"
             data-testid="channels-hub-diagram"
         >
             <div className="relative flex w-[76px] flex-none justify-center">
@@ -34,11 +34,14 @@ export const ChannelsHubDiagram = ({
                     This agent
                 </span>
             </div>
+            {/* The lines give way first on a narrow panel (a phone), so the labels keep their
+                column inside the box: the drawing narrows horizontally only, never in height,
+                so each line still ends on its row. */}
             <svg
-                width={W}
                 height={H}
                 viewBox={`0 0 ${W} ${H}`}
-                className="block flex-none overflow-visible text-foreground"
+                preserveAspectRatio="none"
+                className="block min-w-0 max-w-[200px] flex-1 overflow-visible text-foreground"
                 aria-hidden="true"
             >
                 <defs>
@@ -77,6 +80,7 @@ export const ChannelsHubDiagram = ({
                         stroke="currentColor"
                         strokeOpacity={target.live ? 0.45 : 0.3}
                         strokeWidth={1.5}
+                        vectorEffect="non-scaling-stroke"
                         strokeLinecap="round"
                         markerStart={`url(#channels-hub-arrow${target.live ? "" : "-idle"})`}
                         markerEnd={`url(#channels-hub-arrow${target.live ? "" : "-idle"})`}

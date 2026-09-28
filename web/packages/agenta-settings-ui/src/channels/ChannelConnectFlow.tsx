@@ -202,7 +202,7 @@ const MethodCards = <T extends string>({
                     key={option.value}
                     className={`flex items-center gap-3 rounded-lg border border-solid bg-background px-3 py-2.5 transition-[border-color,box-shadow] ${
                         option.disabled ? "cursor-default opacity-70" : "cursor-pointer"
-                    } ${selected ? "border-foreground shadow-md" : "border-border shadow-xs"}`}
+                    } ${selected ? "border-foreground shadow-md" : "border-border shadow-[0_1px_2px_0_rgb(0_0_0/0.05)]"}`}
                 >
                     <span className="flex size-[30px] flex-none items-center justify-center rounded-lg bg-muted text-foreground">
                         {option.icon}
@@ -726,7 +726,7 @@ export const ChannelConnectFlow = ({
         }
         return (
             <ViewTransition viewKey={screen} direction={screenDirection.current}>
-                <div className="flex min-h-full flex-1 flex-col gap-5.5">
+                <div className="flex min-h-full flex-1 flex-col gap-[22px]">
                     {steps ? <StepsBar steps={steps} current={current} /> : null}
                     {errorAlert}
 
@@ -979,7 +979,7 @@ export const ChannelConnectFlow = ({
 
     return (
         <ViewTransition viewKey={screen} direction={screenDirection.current}>
-            <div className="flex min-h-full flex-1 flex-col gap-5.5">
+            <div className="flex min-h-full flex-1 flex-col gap-[22px]">
                 {errorAlert}
 
                 {isWhatsApp ? null : (
@@ -1100,7 +1100,7 @@ export const ChannelConnectFlow = ({
                 {/* TELEGRAM · hosted */}
                 {isTelegram && mode === "hosted" ? (
                     <div className="overflow-hidden rounded-2xl border border-solid border-border">
-                        <div className="relative flex flex-col items-center gap-[18px] bg-muted bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:14px_14px] px-5 pb-[22px] pt-7">
+                        <div className="relative flex flex-col items-center gap-[18px] bg-muted bg-[radial-gradient(var(--ag-colorBorder)_1px,transparent_1px)] bg-[size:14px_14px] px-5 pb-[22px] pt-7">
                             {tgStep === "preparing" ? (
                                 <div className="flex h-[200px] items-center justify-center gap-2 text-[13px] text-muted-foreground">
                                     <Spinner size="small" /> Preparing your link…
@@ -1280,7 +1280,7 @@ export const ChannelConnectFlow = ({
 
                 {/* WHATSAPP · your own number */}
                 {isWhatsApp && !whatsAppConnection ? (
-                    <div className="flex flex-col gap-5.5">
+                    <div className="flex flex-col gap-[22px]">
                         <Alert
                             type="info"
                             showIcon

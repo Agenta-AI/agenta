@@ -96,12 +96,6 @@ const TraceDrawerContent = ({
     return (
         <div className="h-full w-full flex flex-col" data-tour="trace-drawer">
             <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
-                <EnhancedButton
-                    onClick={onClose}
-                    type="text"
-                    icon={<X size={14} />}
-                    data-tour="trace-drawer-close"
-                />
                 {/* The panel is already as wide as the screen when stacked; widening does nothing. */}
                 {stacked ? null : (
                     <EnhancedButton
@@ -129,6 +123,14 @@ const TraceDrawerContent = ({
                         setSelected={setSelected}
                     />
                 </div>
+                {/* Close sits last, at the right edge, where the shared SheetHeader puts it. */}
+                <EnhancedButton
+                    onClick={onClose}
+                    type="text"
+                    icon={<X size={14} />}
+                    aria-label="Close"
+                    data-tour="trace-drawer-close"
+                />
             </div>
             {/* antd `Spin` wrapped the body and dimmed it; the tree/content render their own
                 skeletons, so a loading pass just shows a block above them. */}

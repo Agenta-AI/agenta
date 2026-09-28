@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
@@ -12,7 +12,7 @@ import {
     projectTemplateUrl,
     readDesktopLastUsed,
     readLastContext,
-    takeTemplateKey,
+    peekTemplateKey,
     type LastContext,
 } from "@/lib/context"
 
@@ -70,12 +70,21 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
         [router.isReady, stored, groups, result, workspaceId],
     )
 
+    // The template key this mount resolves to, read once. The effect below can run more than
+    // once (the remembered project, then the fetched tree, or React's development double run),
+    // and every run must forward to the same place: a later run that read no key sent the user
+    // to the project home, and whichever navigation landed last won.
+    const templateKeyRef = useRef<string | null>(null)
+
     useEffect(() => {
         if (!target?.projectId) return
         // On the URL, or remembered by AuthGate before a sign-in dropped the query.
-        const templateKey =
-            (typeof router.query.template === "string" ? router.query.template.trim() : "") ||
-            takeTemplateKey()
+        if (templateKeyRef.current === null) {
+            templateKeyRef.current =
+                (typeof router.query.template === "string" ? router.query.template.trim() : "") ||
+                peekTemplateKey()
+        }
+        const templateKey = templateKeyRef.current
         const next = templateKey ? projectTemplateUrl(target, templateKey) : projectHomeUrl(target)
         // A gate that forwards to itself would loop; nothing here ever resolves to its own
         // path, but the guard keeps that true if a route is added under a project home.

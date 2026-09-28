@@ -43,11 +43,15 @@ export function rememberTemplateKey(key: string, now = Date.now()): void {
     }
 }
 
-/** The remembered template key, once: reading it forgets it. An expired key reads as "". */
-export function takeTemplateKey(now = Date.now()): string {
+/**
+ * The remembered template key, or "" when none is kept or it has expired. Reading does not
+ * forget it: the `/m` root can resolve more than once while it settles (a remembered project,
+ * then the fetched tree; React's development double run), and every run must still see the
+ * key. The template screen forgets it once it has the key on its URL.
+ */
+export function peekTemplateKey(now = Date.now()): string {
     try {
         const raw = localStorage.getItem(PENDING_TEMPLATE_KEY)
-        localStorage.removeItem(PENDING_TEMPLATE_KEY)
         const parsed = raw ? (JSON.parse(raw) as {key?: unknown; capturedAt?: unknown}) : null
         if (
             parsed &&
@@ -60,6 +64,15 @@ export function takeTemplateKey(now = Date.now()): string {
         return ""
     } catch {
         return ""
+    }
+}
+
+/** Forget the remembered template key; the template screen calls this once it has arrived. */
+export function forgetTemplateKey(): void {
+    try {
+        localStorage.removeItem(PENDING_TEMPLATE_KEY)
+    } catch {
+        // storage unavailable — nothing was kept
     }
 }
 
