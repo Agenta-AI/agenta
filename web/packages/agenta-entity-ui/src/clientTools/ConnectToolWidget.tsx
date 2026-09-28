@@ -16,8 +16,8 @@ import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, Hourglass, Spinner} from "@phosphor-icons/react"
 
 import {useConnectFocus} from "./connectFocus"
-import {IntegrationTile} from "./IntegrationTile"
 import {DEFERRED_SENTINEL, isDeferredByRunner} from "./deferred"
+import {IntegrationTile} from "./IntegrationTile"
 import {GENERIC_CONNECT_ERROR, useConnectFlow, type ConnectOutput} from "./useConnectFlow"
 
 /** Non-error terminal reasons (see `ConnectOutput.reason`): render generic wording for
