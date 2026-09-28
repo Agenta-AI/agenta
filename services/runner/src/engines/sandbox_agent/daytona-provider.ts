@@ -1,10 +1,25 @@
 import { Daytona, DaytonaNotFoundError, type Sandbox } from "@daytonaio/sdk";
 import { daytona, type DaytonaProviderOptions } from "sandbox-agent/daytona";
 
-import type { RunnerDaytonaConfig } from "../../config/runner-config.ts";
+import {
+  DEFAULT_DAYTONA_SNAPSHOT,
+  type RunnerDaytonaConfig,
+} from "../../config/runner-config.ts";
 
 type DaytonaClient = Pick<Daytona, "get">;
+type DaytonaCreateObjectWithSnapshot = {
+  snapshot?: string;
+};
 
+function getConfiguredSnapshot(
+  create: DaytonaProviderOptions["create"],
+): string | undefined {
+  if (typeof create === "function" || !create) {
+    return undefined;
+  }
+
+  return (create as DaytonaCreateObjectWithSnapshot).snapshot;
+}
 /**
  * Build a Daytona SDK client explicitly from the typed runner config, instead of relying on the
  * SDK reading ambient `DAYTONA_*` values (interface.md section 2). This client drives the
@@ -213,6 +228,29 @@ export function daytonaWithLifecycle(
 
   return {
     ...baseProvider,
+    async create(): Promise<string> {
+      try {
+        return await baseProvider.create();
+      } catch (error) {
+        if (!isNotFound(error)) throw error;
+
+        const snapshot = getConfiguredSnapshot(options.create);
+
+        if (typeof snapshot !== "string" || snapshot.length === 0) {
+          throw error;
+        }
+
+        const buildCommand =
+          snapshot === DEFAULT_DAYTONA_SNAPSHOT
+            ? "DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py"
+            : `DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --name ${snapshot}`;
+
+        throw new Error(
+          `Daytona snapshot '${snapshot}' was not found. Build it with: ${buildCommand}`,
+          { cause: error },
+        );
+      }
+    },
     async refreshActivity(sandboxId: string): Promise<void> {
       const id = sandboxId.startsWith("daytona/")
         ? sandboxId.slice("daytona/".length)
