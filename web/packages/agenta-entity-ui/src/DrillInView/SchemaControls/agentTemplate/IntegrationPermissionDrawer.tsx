@@ -45,7 +45,7 @@ import {
     readIntegrationPreset,
     rollupGroupPermission,
     rollupLabel,
-    savedToolPermission,
+    shownToolPermission,
     withStaleTools,
     type CatalogToolInfo,
     type IntegrationPreset,
@@ -180,10 +180,8 @@ export interface PermissionDrawerSource {
     /**
      * The default-permission menu, when the Composio five do not describe this source.
      *
-     * A source that brings its own owns its help lines too, so the note qualifying "Ask for write
-     * and delete" against the agent's policy is not drawn for it: that note exists because the
-     * Composio preset saves `inherit` and its words are true only while the agent is on its
-     * default, which is not how an MCP server saves it any more (decision 45).
+     * A source that brings its own owns its help lines too, so it names the preset the note about
+     * the agent's policy is drawn under through `agentPolicyPreset`.
      */
     presets?: PermissionPresetSource
     /**
@@ -378,14 +376,7 @@ function ToolGroup({
     const open = expanded[storageKey] ?? true
     const setOpen = () =>
         setExpanded((prev) => ({...prev, [storageKey]: !(prev[storageKey] ?? true)}))
-    const rollup = useMemo(
-        () =>
-            rollupGroupPermission(
-                tools.map((tool) => tool.key),
-                permissions,
-            ),
-        [tools, permissions],
-    )
+    const rollup = useMemo(() => rollupGroupPermission(tools, permissions), [tools, permissions])
     const matching = useMemo(
         () => (search ? tools.filter((tool) => toolMatchesSearch(tool, search)) : tools),
         [tools, search],
@@ -445,7 +436,7 @@ function ToolGroup({
                                 key={tool.key}
                                 tool={tool}
                                 permission={
-                                    shownValue?.value ?? savedToolPermission(permissions, tool.key)
+                                    shownValue?.value ?? shownToolPermission(permissions, tool)
                                 }
                                 onChange={onChangeToolPermission}
                                 disabled={disabled}
@@ -554,13 +545,10 @@ export function PermissionDrawerBody({
         [presetList, overrideCount],
     )
 
-    // The Composio preset saves `inherit`, which means "reads run, writes ask" only while the
-    // agent-wide mode is its default, so the note names that mode when it is not. A source with
-    // its own presets points the same sentence at a different one: MCP's "Ask for write and
-    // delete" writes what it says and needs no qualifying (decision 45), while its "Follow agent
-    // policy" leans on the ladder entirely and is the preset whose whole meaning IS the policy
-    // this sentence names.
-    const notePreset = presets ? presets.agentPolicyPreset : "ask_writes"
+    // "Follow agent policy" leans on the agent-wide mode entirely, so the note names that mode
+    // when it is not the default. "Ask for write and delete" writes what it says in both sources
+    // and needs no qualifying (decision 45).
+    const notePreset = presets ? presets.agentPolicyPreset : "follow_agent"
     const agentPolicyNote =
         notePreset &&
         preset === notePreset &&

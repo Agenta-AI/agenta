@@ -111,7 +111,7 @@ export function AgentaToolsSection({
                 }}
                 onChangePermissions={() => undefined}
                 onChangeToolPermission={(op, permission) => {
-                    if (permission === "inherit") return
+                    if (permission === "inherit" || permission === "allow_reads") return
                     const next = {...tools}
                     delete next[op]
                     if (permission !== "deny") next[op] = permission

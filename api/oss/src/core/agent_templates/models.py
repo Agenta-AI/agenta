@@ -35,8 +35,8 @@ TemplateConnectionOption = Annotated[
 
 
 class TemplatePermissions(StrictModel):
-    default: Literal["inherit", "allow", "ask", "deny"] | None = None
-    tools: dict[str, Literal["inherit", "allow", "ask", "deny"]] = Field(
+    default: Literal["inherit", "allow", "ask", "deny", "allow_reads"] | None = None
+    tools: dict[str, Literal["inherit", "allow", "ask", "deny", "allow_reads"]] = Field(
         default_factory=dict
     )
 

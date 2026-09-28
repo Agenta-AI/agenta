@@ -86,12 +86,12 @@
       "type": "object",
       "properties": {
         "default": {
-          "enum": ["inherit", "allow", "ask", "deny"]
+          "enum": ["inherit", "allow", "ask", "deny", "allow_reads"]
         },
         "tools": {
           "type": "object",
           "additionalProperties": {
-            "enum": ["inherit", "allow", "ask", "deny"]
+            "enum": ["inherit", "allow", "ask", "deny", "allow_reads"]
           }
         }
       },
