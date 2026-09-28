@@ -29,9 +29,8 @@ Each item points to its bug in `research.md`.
    - An HTML file at the mount root cannot use Run. Preview still works.
 4. **Assemblers never return raw HTML** (bug 4). On error they return a small error document
    that carries the CSP.
-5. **CORS** (bug 5). Replace the hard-coded `https://.*\.vercel\.app` regex and the localhost
-   entries in `api/entrypoints/routers.py` with an env setting in `api/oss/src/utils/env.py`
-   that is empty by default.
+5. **CORS** (bug 5). No change in this plan. The current CORS settings stay (see
+   `status.md`).
 6. **Local runner environment** (bug 6).
    - Confirm whether the `sandbox-agent` daemon passes its environment to agent processes.
    - If it does, build the daemon environment from an allowlist in
