@@ -1,5 +1,11 @@
 # Repository specifications
 
+## Sharing agent HTML apps
+
+[Proposal](changes/share-agent-html-apps/proposal.md), [sharing](changes/share-agent-html-apps/specs/agent-app-sharing/spec.md), [viewer](changes/share-agent-html-apps/specs/shared-app-viewer/spec.md), [session drive lifecycle](changes/share-agent-html-apps/specs/session-drive-lifecycle/spec.md), [run isolation](changes/share-agent-html-apps/specs/agent-app-run-isolation/spec.md), [design](changes/share-agent-html-apps/design.md), and [tasks](changes/share-agent-html-apps/tasks.md).
+
+Proposed, NOT IMPLEMENTED. An owner shares an agent-made HTML app from a session drive with workspace members or with anyone who has the link. Viewers see a frozen, read-only snapshot on `/m/share/<token>`, with no network. Task groups 1 to 3 are prerequisite fixes that ship first as their own PR.
+
 ## Railway preview cost controls
 
 [Proposal](changes/railway-preview-cost-controls/proposal.md), [behavior specifications](changes/railway-preview-cost-controls/specs/railway-preview-lifecycle/spec.md), [PR comment command](changes/railway-preview-cost-controls/specs/railway-preview-comments/spec.md), [design](changes/railway-preview-cost-controls/design.md), and [tasks](changes/railway-preview-cost-controls/tasks.md).
