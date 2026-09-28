@@ -34,7 +34,7 @@ import {GrantSheet} from "./GrantSheet"
 import {KIT_CSS} from "./kit"
 import {useMountAssembleIo} from "./mountIo"
 import {RunView, resolveHostKitTokens} from "./RunView"
-import {ShareAppButton} from "./ShareAppDialog"
+import {ShareAppButton} from "./ShareAppPopover"
 import {useAppManifest} from "./useAppManifest"
 import {useChangedHint} from "./useChangedHint"
 

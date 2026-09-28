@@ -1,7 +1,5 @@
-import {useState} from "react"
-
 import {type SharedAppSnapshot} from "@agenta/entities/drive"
-import {ShareAppDialog} from "@agenta/entity-ui/drive"
+import {ShareAppButton} from "@agenta/entity-ui/drive"
 import {Button} from "@agenta/ui/ui"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -27,7 +25,6 @@ export const SharedAppActions = ({
     user: Viewer | null
 }) => {
     const router = useRouter()
-    const [sharing, setSharing] = useState(false)
 
     if (!user) {
         return (
@@ -61,25 +58,18 @@ export const SharedAppActions = ({
                 </Button>
             ) : null}
             {snapshot && editable && viewer.project_id ? (
-                <>
-                    <Button variant="outline" size="sm" onClick={() => setSharing(true)}>
-                        Share
-                    </Button>
-                    {sharing ? (
-                        <ShareAppDialog
-                            open={sharing}
-                            onOpenChange={setSharing}
-                            projectId={viewer.project_id}
-                            mount={{
-                                id: viewer.mount_id as string,
-                                session_id: viewer.session_id ?? "shared",
-                                name: "cwd",
-                            }}
-                            dir={viewer.app_path as string}
-                            appName={snapshot.name}
-                        />
-                    ) : null}
-                </>
+                <ShareAppButton
+                    mount={{
+                        id: viewer.mount_id as string,
+                        session_id: viewer.session_id ?? "shared",
+                        name: "cwd",
+                    }}
+                    dir={viewer.app_path as string}
+                    canEdit
+                    appName={snapshot.name}
+                    projectId={viewer.project_id}
+                    className="h-8"
+                />
             ) : null}
             <ViewerAvatar user={user} />
         </div>
