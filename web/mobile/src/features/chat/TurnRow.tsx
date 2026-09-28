@@ -158,11 +158,11 @@ const TurnRowInner = ({
     // and the model may take many seconds to start that call. A timed hold promoted such asides to
     // the answer and pulled them back into the fold when the call landed.
     const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
-    // Hold while the run is open anywhere. A turn this client streamed is over the moment its
-    // stream closes, so it never waits on the liveness poll that still says "running".
     const streamedHereRef = useRef(false)
     if (turn.isStreamingTurn) streamedHereRef.current = true
-    const runOpen = turn.isStreamingTurn || (live && !streamedHereRef.current)
+    // `live`, as the fold's header reads it: a send can flip the local stream on and off and then
+    // run on the shared reader, so a closed local stream is not a finished run.
+    const runOpen = live
     const activity = useMemo(
         () =>
             splitTurnActivity(turn.items, {
