@@ -1,6 +1,11 @@
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
-import {templateProviderSlugs} from "@agenta/entities/workflow"
+import {
+    templateProviderSlugs,
+    type AgentStarterTemplate,
+    type AgentTemplatesStatus,
+} from "@agenta/entities/workflow"
+import {Spinner} from "@agenta/ui/ui"
 import {
     Robot,
     ArrowLeft,
@@ -49,9 +54,17 @@ const Radio = ({active}: {active: boolean}) => (
     />
 )
 
+/** The template catalog as `useAgentTemplateCatalog` returns it; `templates` is empty until "success". */
+export interface OnboardingTemplateCatalog {
+    templates: AgentStarterTemplate[]
+    status: AgentTemplatesStatus
+    retry: () => void
+}
+
 export interface OnboardingFlowViewProps {
     draftKey?: string
     variant: OnboardingVariant
+    catalog: OnboardingTemplateCatalog
     tools: ReactNode | ((ids: string[], onChange: (ids: string[]) => void) => ReactNode)
     identity?: ReactNode
     model: ReactNode
@@ -67,6 +80,7 @@ export interface OnboardingFlowViewProps {
 export default function OnboardingFlowView({
     draftKey,
     variant,
+    catalog,
     tools,
     model,
     identity,
@@ -88,10 +102,26 @@ export default function OnboardingFlowView({
     useEffect(() => {
         saveOnboardingDraft(draftKey, {step, role, source, name, task, templateKey, connectionIds})
     }, [draftKey, step, role, source, name, task, templateKey, connectionIds])
-    const templates = suggestionsForRole(role)
+    const templates = suggestionsForRole(catalog.templates, role)
     const custom = templateKey === "__custom__"
     const selected = templates.find((item) => item.key === templateKey)
-    const input = firstAgentInput(variant, name, task, templateKey)
+    // A restored draft can name a template before the catalog answers: wait for it rather than
+    // creating the agent without its first message.
+    const templatePending = !!templateKey && !custom && !selected && catalog.status === "pending"
+    const input = templatePending ? null : firstAgentInput(variant, name, task, selected)
+    const catalogState =
+        catalog.status === "pending" ? (
+            <p role="status" className="flex items-center gap-2 text-sm text-colorTextSecondary">
+                <Spinner size="small" /> Loading suggestions…
+            </p>
+        ) : catalog.status === "error" ? (
+            <p role="alert" className="flex items-center gap-2 text-sm text-colorTextSecondary">
+                Suggestions couldn't load.
+                <Button size="small" onClick={catalog.retry}>
+                    Retry
+                </Button>
+            </p>
+        ) : null
     const nextEnabled = step === 1 ? !!role : step === 3 ? modelReady : step === 4 ? !!source : true
     const title = [
         "",
@@ -243,9 +273,12 @@ export default function OnboardingFlowView({
                             </label>
                             <div className="mt-6">{createButton}</div>
                         </div>
-                        <p className="mb-3 text-sm text-colorTextSecondary">
-                            Suggestions for {role}
-                        </p>
+                        {catalogState}
+                        {templates.length > 0 && (
+                            <p className="mb-3 text-sm text-colorTextSecondary">
+                                Suggestions for {role}
+                            </p>
+                        )}
                         <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             {templates.map((template, index) => {
                                 const TemplateIcon = templateIcons[index % templateIcons.length]
@@ -301,6 +334,7 @@ export default function OnboardingFlowView({
                                 Pick a task and see what you'll get. We'll build the agent for it.
                             </p>
                             <div className="flex flex-col gap-2">
+                                {catalogState}
                                 {templates.map((template, index) => (
                                     <button
                                         type="button"

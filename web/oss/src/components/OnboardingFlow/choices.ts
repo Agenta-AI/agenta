@@ -1,4 +1,4 @@
-import {AGENT_TEMPLATES, templateBuilderMessage} from "@agenta/entities/workflow"
+import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
 
 export const ONBOARDING_EXPERIMENT = "onboarding-first-agent-v1"
 export type OnboardingVariant = "control" | "task-first"
@@ -31,18 +31,17 @@ const categories: Record<string, string> = {
     "Founder / Executive": "Ops",
     "Data & analytics": "Ops",
 }
-export function suggestionsForRole(role: string) {
-    return AGENT_TEMPLATES.filter(
-        (template) => template.category === (categories[role] ?? role),
-    ).slice(0, 5)
+export function suggestionsForRole(templates: readonly AgentStarterTemplate[], role: string) {
+    return templates
+        .filter((template) => template.category === (categories[role] ?? role))
+        .slice(0, 5)
 }
 export function firstAgentInput(
     variant: OnboardingVariant,
     name: string,
     task: string,
-    templateKey: string | null,
+    template: AgentStarterTemplate | null | undefined,
 ) {
-    const template = AGENT_TEMPLATES.find((item) => item.key === templateKey)
     const seedMessage =
         task.trim() ||
         (template

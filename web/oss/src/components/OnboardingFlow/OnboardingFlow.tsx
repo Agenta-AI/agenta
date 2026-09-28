@@ -30,6 +30,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useOnboardingProviderSetup} from "@/oss/components/AgentChatSlice/hooks/useOnboardingProviderSetup"
 import {useOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
+import {useAgentTemplateCatalog} from "@/oss/components/TemplateStrip/hooks/useAgentTemplateCatalog"
 import {projectIdAtom} from "@/oss/state/project"
 
 import AgentIdentity from "./AgentIdentity"
@@ -61,6 +62,7 @@ export default function OnboardingFlow() {
     const {connections: toolConnections, isLoading: toolConnectionsLoading} =
         useToolConnectionsQuery()
     const context = useOnboardingContext()
+    const catalog = useAgentTemplateCatalog()
     const projectId = useAtomValue(projectIdAtom)
     const draftKey = projectId ? onboardingDraftKey(projectId) : undefined
     const candidates = useAtomValue(agentModelCandidatesAtomFamily(true))
@@ -169,6 +171,7 @@ export default function OnboardingFlow() {
                 draftKey={draftKey}
                 identity={<AgentIdentity entityId={context.ephemeralId} />}
                 variant={variant}
+                catalog={catalog}
                 committing={context.committing}
                 modelReady={modelReady}
                 modelNextLabel={
@@ -357,7 +360,7 @@ export default function OnboardingFlow() {
                 onCancel={() => setChatgptOpen(false)}
                 footer={null}
                 title="Connect ChatGPT"
-                destroyOnClose
+                destroyOnHidden
             >
                 <p className="mb-4 text-colorTextSecondary">
                     Sign in with your ChatGPT subscription. Your agent runs on it through the Codex
