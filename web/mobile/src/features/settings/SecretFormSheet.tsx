@@ -15,14 +15,13 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Input,
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-
-import {Input} from "@/components/ui/input"
 
 import {Field} from "./Field"
 

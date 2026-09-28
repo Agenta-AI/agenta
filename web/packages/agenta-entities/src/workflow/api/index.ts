@@ -27,9 +27,6 @@ export {
     // Simple application fetch (carries the playground build-kit overlay)
     fetchSimpleApplication,
     type SimpleApplicationFetchResponse,
-    // Interface schemas fetch (builtin workflow fallback)
-    fetchInterfaceSchemas,
-    type InterfaceSchemasResponse,
     // OpenAPI schema fetch (app workflow fallback)
     fetchWorkflowAppOpenApiSchema,
     type AppOpenApiSchemas,
@@ -71,8 +68,19 @@ export {
 
 export {
     loadAgentTemplate,
+    queryAgentTemplates,
+    validateAgentTemplate,
+    type AgentTemplateEntry,
     type AgentTemplateLoadRequest,
     type AgentTemplateLoadResult,
+    type AgentTemplateSource,
+    type AgentTemplateSourcePin,
+    type AgentTemplatesQuery,
+    type AgentTemplateValidationIssue,
+    type AgentTemplateValidationResult,
+    type InternalAgentTemplateSource,
+    type SessionFileAgentTemplateSource,
+    type UploadAgentTemplateSource,
 } from "./agentTemplates"
 
 // Runner subscription status (agent service, direct call)
@@ -103,7 +111,5 @@ export {
     type EvaluatorCatalogPreset,
     type EvaluatorCatalogPresetsResponse,
     /** @deprecated Use EvaluatorCatalogTemplate */
-    type EvaluatorTemplate,
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
-    type EvaluatorTemplatesResponse,
 } from "./templates"

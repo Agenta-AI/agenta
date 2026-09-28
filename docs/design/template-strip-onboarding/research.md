@@ -312,7 +312,7 @@ property), composer submits unchanged.
 
 ## 4. Verification environment
 
-- Dev stack: `144.76.237.122:8280` (EE dev). Flag flip: add
+- Dev stack: `<dev-host>:8280` (EE dev). Flag flip: add
   `NEXT_PUBLIC_AGENT_TEMPLATE_STRIP=true` to
   `hosting/docker-compose/ee/.env.ee.dev.local`, then run
   `hosting/docker-compose/recreate-web.sh` (NEXT_PUBLIC vars are baked at container

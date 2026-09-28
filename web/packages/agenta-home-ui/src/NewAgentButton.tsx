@@ -28,6 +28,13 @@ export interface NewAgentButtonProps {
      */
     templates?: NewAgentTemplate[]
     onPickTemplate?: (templateKey: string) => void
+    /**
+     * The catalogue's read state. The templates are fetched, so while `"pending"` the menu says so
+     * and on `"error"` it offers `onRetryTemplates` — never a menu that reads as "no templates".
+     * Omit when the list is static (treated as loaded).
+     */
+    templatesStatus?: "pending" | "error" | "success"
+    onRetryTemplates?: () => void
     /** The full gallery. Omit and the footer link goes with it. */
     browseHref?: string
     /** Total template count for the footer link; defaults to what was passed. */
@@ -53,6 +60,8 @@ export const NewAgentButton = ({
     onCreateBlank,
     templates = [],
     onPickTemplate,
+    templatesStatus = "success",
+    onRetryTemplates,
     browseHref,
     totalTemplates,
     label = "New agent",
@@ -60,6 +69,10 @@ export const NewAgentButton = ({
     className,
 }: NewAgentButtonProps) => {
     const suggested = onPickTemplate ? templates.slice(0, SUGGESTED) : []
+    const templatesLoaded = templatesStatus === "success"
+    // Only a surface that offers template picks reports the catalogue's read state.
+    const catalogueNote = onPickTemplate && !templatesLoaded
+    const templateCount = totalTemplates ?? templates.length
 
     return (
         <DropdownMenu>
@@ -93,7 +106,36 @@ export const NewAgentButton = ({
                     </span>
                 </DropdownMenuItem>
 
-                {suggested.length > 0 ? (
+                {catalogueNote ? (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Templates</DropdownMenuLabel>
+                        {templatesStatus === "pending" ? (
+                            <DropdownMenuItem disabled>
+                                <span className="text-xs text-colorTextTertiary">
+                                    Loading templates…
+                                </span>
+                            </DropdownMenuItem>
+                        ) : (
+                            <DropdownMenuItem
+                                onSelect={(event) => {
+                                    // Keep the menu open: the retry's answer lands right here.
+                                    event.preventDefault()
+                                    onRetryTemplates?.()
+                                }}
+                            >
+                                <span className="flex min-w-0 flex-col py-0.5">
+                                    <span className="truncate text-sm text-colorText">
+                                        Could not load templates
+                                    </span>
+                                    <span className="truncate text-xs text-colorPrimary">
+                                        Retry
+                                    </span>
+                                </span>
+                            </DropdownMenuItem>
+                        )}
+                    </>
+                ) : suggested.length > 0 ? (
                     <>
                         <DropdownMenuSeparator />
                         <DropdownMenuLabel>Templates</DropdownMenuLabel>
@@ -130,7 +172,9 @@ export const NewAgentButton = ({
                                 href={browseHref}
                                 className="inline-flex items-center gap-1 !text-colorPrimary"
                             >
-                                Browse all {totalTemplates ?? templates.length} templates
+                                {templatesLoaded
+                                    ? `Browse all ${templateCount} templates`
+                                    : "Browse all templates"}
                                 <ArrowRightIcon size={12} />
                             </Link>
                         </DropdownMenuItem>

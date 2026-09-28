@@ -1,177 +1,1215 @@
 {
-  "pr-reviewer": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/pr-reviewer/1.0.0"
-    }
-  },
-  "changelog-writer": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/changelog-writer/1.0.0"
-    }
-  },
-  "issue-triage": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/issue-triage/1.0.0"
-    }
-  },
-  "ci-failure-triage": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/ci-failure-triage/1.0.0"
-    }
-  },
-  "code-qa": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/code-qa/1.0.0"
-    }
-  },
-  "dependency-digest": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/dependency-digest/1.0.0"
-    }
-  },
-  "support-triage": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/support-triage/1.0.0"
-    }
-  },
-  "support-reply-drafter": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/support-reply-drafter/1.0.0"
-    }
-  },
-  "bug-report-router": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/bug-report-router/1.0.0"
-    }
-  },
-  "feedback-clusterer": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/feedback-clusterer/1.0.0"
-    }
-  },
-  "lead-qualifier": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/lead-qualifier/1.0.0"
-    }
-  },
-  "crm-updater": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/crm-updater/1.0.0"
-    }
-  },
-  "outreach-drafter": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/outreach-drafter/1.0.0"
-    }
-  },
-  "meeting-followup": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/meeting-followup/1.0.0"
-    }
-  },
-  "pipeline-digest": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/pipeline-digest/1.0.0"
-    }
-  },
-  "incident-responder": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/incident-responder/1.0.0"
-    }
-  },
-  "error-triage": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/error-triage/1.0.0"
-    }
-  },
-  "uptime-reporter": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/uptime-reporter/1.0.0"
-    }
-  },
-  "oncall-briefer": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/oncall-briefer/1.0.0"
-    }
-  },
-  "docs-qa": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/docs-qa/1.0.0"
-    }
-  },
-  "knowledge-chatbot": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/knowledge-chatbot/1.0.0"
-    }
-  },
-  "onboarding-buddy": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/onboarding-buddy/1.0.0"
-    }
-  },
-  "content-repurposer": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/content-repurposer/1.0.0"
-    }
-  },
-  "newsletter-drafter": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/newsletter-drafter/1.0.0"
-    }
-  },
-  "standup-summarizer": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/standup-summarizer/1.0.0"
-    }
-  },
-  "repo-slack-digest": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/repo-slack-digest/1.0.0"
-    }
-  },
-  "cross-tool-sync": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/cross-tool-sync/1.0.0"
-    }
-  },
-  "weekly-report": {
-    "latest": "1.0.0",
-    "versions": {
-      "1.0.0": "packages/weekly-report/1.0.0"
-    }
-  },
-  "outbound-prospecting": {
-    "latest": "1.0.1",
-    "versions": {
-      "1.0.0": "packages/outbound-prospecting/1.0.0",
-      "1.0.1": "packages/outbound-prospecting/1.0.1"
+  "schema_version": 1,
+  "templates": {
+    "pr-reviewer": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/pr-reviewer/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Reviews PRs, comments inline, flags risky changes.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "PR",
+          "color": "#5E5E08",
+          "instructions_summary": "Review each opened PR. Comment inline on risky changes, flag missing tests, summarize the diff.",
+          "trigger": "Pull request opened",
+          "trigger_description": "Runs when a pull request is opened.",
+          "seed_message": "Build a PR reviewer that comments inline on risky changes and flags missing tests.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-diff-and-post-review-comments": [
+              {
+                "name": "Get pull request",
+                "description": "Read a PR's diff, changed files, and metadata."
+              },
+              {
+                "name": "Create review comment",
+                "description": "Comment inline on specific lines of the diff."
+              },
+              {
+                "name": "Create issue comment",
+                "description": "Post the plain-English summary on the PR."
+              }
+            ]
+          },
+          "example": {
+            "prompt": "Pull request opened: “Cache revision lookups”",
+            "steps": [
+              "Read the pull request and its diff",
+              "Flagged one risky change in the cache invalidation path",
+              "Left inline comments on the three files it touched"
+            ],
+            "reply": "Reviewed — the change looks sound apart from the invalidation path, where a stale entry can survive a revision bump. I've commented inline and summarised on the PR.",
+            "status": "Awaiting your review"
+          }
+        },
+        "media": []
+      }
+    },
+    "changelog-writer": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/changelog-writer/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Turns merged PRs into clean release notes.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "CL",
+          "color": "#113955",
+          "instructions_summary": "Turn merged pull requests into clean, human-readable release notes and publish them.",
+          "trigger": "On release",
+          "trigger_description": "Runs when a release is published.",
+          "seed_message": "Build a changelog writer that turns merged pull requests into release notes and publishes them.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-merged-pull-requests": [
+              {
+                "name": "List pull requests",
+                "description": "Fetch the PRs merged since the last release."
+              },
+              {
+                "name": "Create release",
+                "description": "Publish the release notes as a GitHub release."
+              }
+            ]
+          },
+          "example": {
+            "prompt": "Draft this week's changelog",
+            "steps": [
+              "Fetched merged PRs since the last run",
+              "Grouped them by area using .github/labels.yml",
+              "Drafted release notes in your changelog format"
+            ],
+            "reply": "Draft is ready — written in your usual format. I've posted it to #releases and will publish once you approve.",
+            "artifacts": [
+              "changelog-draft.md"
+            ],
+            "status": "Awaiting approval"
+          }
+        },
+        "media": []
+      }
+    },
+    "issue-triage": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/issue-triage/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Labels new issues by area and priority, assigns an owner.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "IT",
+          "color": "#5E0908",
+          "instructions_summary": "Label each new issue by area and priority and assign it to an owner.",
+          "trigger": "Issue opened",
+          "trigger_description": "Runs when a new issue is opened.",
+          "seed_message": "Build an issue triager that labels new issues by area and priority and assigns an owner.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-and-label-new-issues": [
+              {
+                "name": "Get issue",
+                "description": "Read a new issue's title and body."
+              },
+              {
+                "name": "Update issue",
+                "description": "Apply labels and assign an owner."
+              }
+            ]
+          },
+          "example": {
+            "prompt": "Issue opened: “Playground hangs on large testsets”",
+            "steps": [
+              "Read the issue and matched it against the area labels",
+              "Set area:playground and priority:high",
+              "Assigned the owner listed for that area"
+            ],
+            "reply": "Labelled area:playground · priority:high and assigned it. It matches two open issues about the same load path — linked them on the thread."
+          }
+        },
+        "media": []
+      }
+    },
+    "ci-failure-triage": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/ci-failure-triage/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Summarizes failed CI runs and pings the author.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "CI",
+          "color": "#D97757",
+          "instructions_summary": "When a workflow run fails, read the logs, summarize the likely cause, and comment on the commit or PR.",
+          "trigger": "Workflow run failed",
+          "trigger_description": "Runs when a CI workflow run fails.",
+          "seed_message": "Build an agent that reads the logs when CI fails, summarizes the likely cause, and pings the author.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-runs-and-post-comments": [
+              {
+                "name": "Get workflow run logs",
+                "description": "Read the failing run's logs."
+              },
+              {
+                "name": "Create commit comment",
+                "description": "Post the likely cause and ping the author."
+              }
+            ]
+          },
+          "example": {
+            "prompt": "Workflow run failed on main",
+            "steps": [
+              "Pulled the failing workflow run's logs",
+              "Traced the failure to a migration that ran out of order",
+              "Commented on the commit with the cause and the failing step"
+            ],
+            "reply": "The run failed in the migration step, not the tests — one migration expects a column the previous one hasn't added yet. I've pinged the commit author with the log excerpt."
+          }
+        },
+        "media": []
+      }
+    },
+    "code-qa": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/code-qa/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Answers questions about the repo when mentioned.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "QA",
+          "color": "#616161",
+          "instructions_summary": "When mentioned, search the repo and answer the question with a cited reference to the relevant code.",
+          "trigger": "Mention",
+          "trigger_description": "Runs when the agent is @-mentioned.",
+          "seed_message": "Build a code Q&A agent that answers questions about our repo when mentioned.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-code": [
+              {
+                "name": "Search code",
+                "description": "Find files relevant to the question."
+              },
+              {
+                "name": "Get file content",
+                "description": "Read the matching file to answer accurately."
+              }
+            ]
+          },
+          "example": {
+            "prompt": "@agent where do we validate API keys?",
+            "steps": [
+              "Searched the repo for the validation path",
+              "Read the two files that own it"
+            ],
+            "reply": "Validation happens in `api/oss/src/utils/auth.py` — the middleware resolves the key, then the router's dependency checks scope per request. Both are cited below.",
+            "status": "Answered in thread"
+          }
+        },
+        "media": []
+      }
+    },
+    "dependency-digest": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/dependency-digest/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Weekly summary of open dependency-update PRs.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "DD",
+          "color": "#5E5E08",
+          "instructions_summary": "Weekly, list open dependency-update PRs and summarize what changed in each.",
+          "trigger": "Weekly",
+          "trigger_description": "Runs every week on a schedule.",
+          "seed_message": "Build an agent that weekly summarizes open dependency-update PRs and what changed.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "list-and-read-dependency-prs": [
+              {
+                "name": "List pull requests",
+                "description": "Fetch open dependency-update PRs."
+              },
+              {
+                "name": "Get pull request",
+                "description": "Read what changed in each."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "support-triage": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/support-triage/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Reads #support, tags urgency, routes to owners.",
+        "category": "Support",
+        "tags": [
+          "support"
+        ],
+        "display": {
+          "initials": "S",
+          "color": "#113955",
+          "instructions_summary": "Watch #support. Triage each new thread by urgency and route it to the right owner; ask before closing anything.",
+          "trigger": "New message in #support",
+          "trigger_description": "Runs whenever a new message is posted in #support.",
+          "seed_message": "Build a support triager that reads new #support threads, tags urgency, and routes to owners.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-and-post-in-the-support-channel": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read recent messages in a channel to understand the thread."
+              },
+              {
+                "name": "Send message",
+                "description": "Reply in-thread and route it to the right owner."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "support-reply-drafter": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/support-reply-drafter/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Drafts replies to new tickets using your docs.",
+        "category": "Support",
+        "tags": [
+          "support"
+        ],
+        "display": {
+          "initials": "SR",
+          "color": "#5E0908",
+          "instructions_summary": "On a new ticket, draft a reply using answers from the docs workspace; leave it for review before sending.",
+          "trigger": "New ticket",
+          "trigger_description": "Runs when a new support ticket comes in.",
+          "seed_message": "Build an agent that drafts replies to new support tickets using answers from our docs.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-tickets": [
+              {
+                "name": "Get ticket",
+                "description": "Read the new ticket's subject, body, and history."
+              },
+              {
+                "name": "Add comment",
+                "description": "Post the drafted reply as an internal comment for review."
+              }
+            ]
+          },
+          "example": {
+            "prompt": "New ticket: “Can I export a run as CSV?”",
+            "steps": [
+              "Read the ticket and the customer's plan",
+              "Found the matching answer in your docs",
+              "Drafted a reply and left it unsent for review"
+            ],
+            "reply": "Drafted a reply pointing to the export flow, in your usual tone. It's on the ticket as an internal note — publish it when you're happy.",
+            "status": "Awaiting approval"
+          }
+        },
+        "media": []
+      }
+    },
+    "bug-report-router": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/bug-report-router/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Turns complaints into Linear tickets with repro steps.",
+        "category": "Support",
+        "tags": [
+          "support"
+        ],
+        "display": {
+          "initials": "BR",
+          "color": "#D97757",
+          "instructions_summary": "When a bug is reported, extract repro steps from the thread and file a Linear ticket.",
+          "trigger": "New message or mention",
+          "trigger_description": "Runs on a new support message or mention.",
+          "seed_message": "Build an agent that turns support complaints into Linear bug tickets with repro steps.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-report": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read the complaint thread."
+              },
+              {
+                "name": "Send message",
+                "description": "Confirm the filed ticket back in-thread."
+              }
+            ],
+            "file-the-bug": [
+              {
+                "name": "Search issues",
+                "description": "Check for an existing ticket on the same bug."
+              },
+              {
+                "name": "Create issue",
+                "description": "File the bug ticket with the extracted repro steps."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "feedback-clusterer": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/feedback-clusterer/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Daily clusters new feedback into themes.",
+        "category": "Support",
+        "tags": [
+          "support"
+        ],
+        "display": {
+          "initials": "FC",
+          "color": "#616161",
+          "instructions_summary": "Daily, gather new feedback, cluster it into themes, and log the summary.",
+          "trigger": "Daily",
+          "trigger_description": "Runs once a day on a schedule.",
+          "seed_message": "Build an agent that daily clusters new customer feedback into themes and logs them to Notion.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-feedback": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read new feedback messages."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the theme summary."
+              }
+            ],
+            "log-the-clusters": [
+              {
+                "name": "Create page",
+                "description": "Log the day's clustered themes as a page."
+              },
+              {
+                "name": "Update database",
+                "description": "Append the themes as rows to a tracker database."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "lead-qualifier": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/lead-qualifier/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Enriches and qualifies new inbound leads.",
+        "category": "Sales",
+        "tags": [
+          "sales"
+        ],
+        "display": {
+          "initials": "LQ",
+          "color": "#5E5E08",
+          "instructions_summary": "On a new lead, enrich its details, qualify it, and create or update the HubSpot record.",
+          "trigger": "New lead or email",
+          "trigger_description": "Runs when a new lead or inbound email arrives.",
+          "seed_message": "Build an agent that enriches each new inbound lead, qualifies it, and adds it to HubSpot.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "write-the-qualified-lead": [
+              {
+                "name": "Search contacts",
+                "description": "Check whether the lead already exists."
+              },
+              {
+                "name": "Create contact",
+                "description": "Add the qualified lead to HubSpot."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "crm-updater": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/crm-updater/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Updates CRM records from recent email threads.",
+        "category": "Sales",
+        "tags": [
+          "sales"
+        ],
+        "display": {
+          "initials": "CU",
+          "color": "#113955",
+          "instructions_summary": "Daily, review recent email threads and update the matching CRM contact records.",
+          "trigger": "Daily",
+          "trigger_description": "Runs once a day on a schedule.",
+          "seed_message": "Build an agent that updates CRM contact records from my recent email threads each day.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-threads": [
+              {
+                "name": "Fetch emails",
+                "description": "List recent threads to check for CRM-relevant updates."
+              },
+              {
+                "name": "Read thread",
+                "description": "Read a thread's content to extract contact updates."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "outreach-drafter": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/outreach-drafter/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Drafts personalized outreach for a contact list.",
+        "category": "Sales",
+        "tags": [
+          "sales"
+        ],
+        "display": {
+          "initials": "OD",
+          "color": "#5E0908",
+          "instructions_summary": "Given a CRM contact list, draft a personalized outreach email for each contact.",
+          "trigger": "Manual",
+          "trigger_description": "Runs when you ask it to draft outreach for a list.",
+          "seed_message": "Build an agent that drafts personalized outreach emails for a list of CRM contacts.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-contact-list": [
+              {
+                "name": "List contacts",
+                "description": "Fetch the target contact list."
+              },
+              {
+                "name": "Get contact",
+                "description": "Read a contact's details to personalize the draft."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "meeting-followup": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/meeting-followup/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Drafts a follow-up email and logs notes to the CRM.",
+        "category": "Sales",
+        "tags": [
+          "sales"
+        ],
+        "display": {
+          "initials": "MF",
+          "color": "#D97757",
+          "instructions_summary": "After a meeting, draft a follow-up email and log the notes on the matching CRM contact.",
+          "trigger": "Meeting ends",
+          "trigger_description": "Runs after a calendar meeting ends, or on schedule.",
+          "seed_message": "Build an agent that drafts a follow-up email after each meeting and logs notes to the CRM.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "draft-the-follow-up": [
+              {
+                "name": "Read thread",
+                "description": "Read the recap or notes email for the meeting."
+              },
+              {
+                "name": "Create draft",
+                "description": "Draft the follow-up email to attendees."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "pipeline-digest": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/pipeline-digest/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Daily digest of pipeline changes and stale deals.",
+        "category": "Sales",
+        "tags": [
+          "sales"
+        ],
+        "display": {
+          "initials": "PD",
+          "color": "#616161",
+          "instructions_summary": "Daily, summarize pipeline changes and stale deals and post the digest.",
+          "trigger": "Daily",
+          "trigger_description": "Runs once a day on a schedule.",
+          "seed_message": "Build an agent that posts a daily digest of pipeline changes and stale deals to Slack.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-deals": [
+              {
+                "name": "List deals",
+                "description": "Fetch deals changed since yesterday."
+              },
+              {
+                "name": "Get deal",
+                "description": "Check how long a deal has been stale."
+              }
+            ],
+            "post-the-digest": [
+              {
+                "name": "List channels",
+                "description": "Resolve the target channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the pipeline digest to the channel."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "incident-responder": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/incident-responder/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Watches alerts, gathers context, pages on-call.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "!",
+          "color": "#5E5E08",
+          "instructions_summary": "On an alert, gather context and logs, summarize the likely cause, and page the on-call engineer.",
+          "trigger": "On alert",
+          "trigger_description": "Runs when a new alert fires.",
+          "seed_message": "Build an incident responder that gathers context on new alerts and pages on-call.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-errors": [
+              {
+                "name": "List issues",
+                "description": "Fetch recent alerts and their status."
+              },
+              {
+                "name": "Get issue",
+                "description": "Read an issue's stack trace and recent events."
+              }
+            ],
+            "notify-or-page": [
+              {
+                "name": "List channels",
+                "description": "Resolve the alerts channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the incident summary to the channel."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "error-triage": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/error-triage/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Triages new Sentry errors by severity, files real ones.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "ET",
+          "color": "#113955",
+          "instructions_summary": "On a new error, assess severity; file a ticket only for errors that are real and actionable.",
+          "trigger": "New error",
+          "trigger_description": "Runs when a new Sentry error is captured.",
+          "seed_message": "Build an agent that triages new Sentry errors by severity and files a ticket for real ones.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-errors": [
+              {
+                "name": "Get issue",
+                "description": "Read the new error's stack trace and events."
+              },
+              {
+                "name": "List issues",
+                "description": "Check whether it's a duplicate of a known error."
+              }
+            ],
+            "file-the-issue": [
+              {
+                "name": "Search issues",
+                "description": "Rule out a duplicate before filing."
+              },
+              {
+                "name": "Create issue",
+                "description": "File a ticket for a real, actionable error."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "uptime-reporter": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/uptime-reporter/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Daily uptime and error-rate summary to Slack.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "UR",
+          "color": "#5E0908",
+          "instructions_summary": "Daily, summarize uptime and error rates and post the digest.",
+          "trigger": "Daily",
+          "trigger_description": "Runs once a day on a schedule.",
+          "seed_message": "Build an agent that posts a daily uptime and error-rate summary to Slack.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-errors": [
+              {
+                "name": "List issues",
+                "description": "Count errors captured in the last day."
+              },
+              {
+                "name": "Get issue",
+                "description": "Check status of ongoing errors."
+              }
+            ],
+            "post-the-report": [
+              {
+                "name": "List channels",
+                "description": "Resolve the channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the daily uptime and error-rate summary."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "oncall-briefer": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/oncall-briefer/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Briefs on-call with open incidents each morning.",
+        "category": "Engineering",
+        "tags": [
+          "engineering"
+        ],
+        "display": {
+          "initials": "OC",
+          "color": "#D97757",
+          "instructions_summary": "On schedule, list open incidents and their status and post the on-call brief.",
+          "trigger": "Daily at 09:00",
+          "trigger_description": "Runs every day at 09:00.",
+          "seed_message": "Build an agent that briefs on-call at 09:00 with all open incidents and their status.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-errors": [
+              {
+                "name": "List issues",
+                "description": "Fetch currently open incidents."
+              },
+              {
+                "name": "Get issue",
+                "description": "Read each incident's status."
+              }
+            ],
+            "post-the-brief": [
+              {
+                "name": "List channels",
+                "description": "Resolve the channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the on-call briefing to the channel."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "docs-qa": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/docs-qa/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Answers questions from your docs workspace.",
+        "category": "Knowledge",
+        "tags": [
+          "knowledge"
+        ],
+        "display": {
+          "initials": "Q",
+          "color": "#616161",
+          "instructions_summary": "Answer questions by searching the docs workspace; return a concise, cited answer.",
+          "trigger": "On mention",
+          "trigger_description": "Runs when the agent is @-mentioned.",
+          "seed_message": "Build a docs Q&A agent that answers questions from our workspace with cited answers.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-documentation": [
+              {
+                "name": "Search",
+                "description": "Find pages relevant to the question."
+              },
+              {
+                "name": "Get page content",
+                "description": "Read a page's blocks to draft a cited answer."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "knowledge-chatbot": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/knowledge-chatbot/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Customer-facing chatbot answering from your knowledge base.",
+        "category": "Knowledge",
+        "tags": [
+          "knowledge"
+        ],
+        "display": {
+          "initials": "KC",
+          "color": "#5E5E08",
+          "instructions_summary": "Answer customer questions by searching the knowledge base; return a concise, cited answer.",
+          "trigger": "Mention or new message",
+          "trigger_description": "Runs on mention or a new customer message.",
+          "seed_message": "Build a customer-facing chatbot that answers questions from our knowledge base.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-knowledge-base": [
+              {
+                "name": "Search",
+                "description": "Find pages relevant to the question."
+              },
+              {
+                "name": "Get page content",
+                "description": "Read the page to draft a cited answer."
+              }
+            ],
+            "reply-to-the-asker": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read the incoming question thread."
+              },
+              {
+                "name": "Send message",
+                "description": "Reply in-thread with the cited answer."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "onboarding-buddy": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/onboarding-buddy/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Answers new-hire questions from your internal wiki.",
+        "category": "Knowledge",
+        "tags": [
+          "knowledge"
+        ],
+        "display": {
+          "initials": "OB",
+          "color": "#113955",
+          "instructions_summary": "When mentioned, search the internal wiki and answer the new hire's question.",
+          "trigger": "Mention",
+          "trigger_description": "Runs when the agent is @-mentioned.",
+          "seed_message": "Build an onboarding buddy that answers new-hire questions from our internal wiki.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-onboarding-material": [
+              {
+                "name": "Search",
+                "description": "Find wiki pages relevant to the question."
+              },
+              {
+                "name": "Get page content",
+                "description": "Read the page to answer accurately."
+              }
+            ],
+            "reply-to-the-new-starter": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read the new hire's mention thread."
+              },
+              {
+                "name": "Send message",
+                "description": "Reply in-thread with the cited answer."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "content-repurposer": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/content-repurposer/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Turns a published doc into draft social posts.",
+        "category": "Knowledge",
+        "tags": [
+          "knowledge"
+        ],
+        "display": {
+          "initials": "CR",
+          "color": "#5E0908",
+          "instructions_summary": "Given a published doc, draft a LinkedIn post and an X post from its content.",
+          "trigger": "Manual",
+          "trigger_description": "Runs when you point it at a doc to repurpose.",
+          "seed_message": "Build an agent that turns a published doc into draft LinkedIn and X posts for review.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-source-and-hold-drafts": [
+              {
+                "name": "Get page content",
+                "description": "Read the published doc."
+              },
+              {
+                "name": "Create page",
+                "description": "Save the drafts for review."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "newsletter-drafter": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/newsletter-drafter/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Weekly newsletter drafted from shipping activity.",
+        "category": "Knowledge",
+        "tags": [
+          "knowledge"
+        ],
+        "display": {
+          "initials": "ND",
+          "color": "#D97757",
+          "instructions_summary": "Weekly, gather recent shipping activity and draft the newsletter.",
+          "trigger": "Weekly",
+          "trigger_description": "Runs every week on a schedule.",
+          "seed_message": "Build an agent that drafts a weekly newsletter from our recent shipping activity.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "hold-the-draft": [
+              {
+                "name": "Search",
+                "description": "Find last week's shipping notes."
+              },
+              {
+                "name": "Create page",
+                "description": "Draft the newsletter page."
+              }
+            ],
+            "read-what-shipped": [
+              {
+                "name": "List pull requests",
+                "description": "Fetch PRs merged since the last newsletter."
+              },
+              {
+                "name": "Get pull request",
+                "description": "Read merge details to summarize what shipped."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "standup-summarizer": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/standup-summarizer/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Posts a daily digest of channel activity.",
+        "category": "Ops",
+        "tags": [
+          "ops"
+        ],
+        "display": {
+          "initials": "SU",
+          "color": "#616161",
+          "instructions_summary": "Each morning, summarize yesterday's channel activity into a short standup digest and post it.",
+          "trigger": "Daily at 09:00",
+          "trigger_description": "Runs every day at 09:00.",
+          "seed_message": "Build an agent that posts a daily standup digest of yesterday's channel activity.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-and-post-to-the-channel": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read yesterday's messages across the tracked channels."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the standup digest."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "repo-slack-digest": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/repo-slack-digest/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Twice-daily digest of issues, commits, and PRs.",
+        "category": "Ops",
+        "tags": [
+          "ops"
+        ],
+        "display": {
+          "initials": "RD",
+          "color": "#5E5E08",
+          "instructions_summary": "Twice daily, summarize new issues, commits, and PRs and post the digest.",
+          "trigger": "2x daily",
+          "trigger_description": "Runs twice a day on a schedule.",
+          "seed_message": "Build an agent that twice a day posts a digest of new issues, commits, and PRs to Slack.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-repository-activity": [
+              {
+                "name": "List issues",
+                "description": "Fetch issues opened since the last digest."
+              },
+              {
+                "name": "List pull requests",
+                "description": "Fetch PRs opened or merged since the last digest."
+              }
+            ],
+            "post-the-digest": [
+              {
+                "name": "List channels",
+                "description": "Resolve the channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the grouped repo digest to the channel."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "cross-tool-sync": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/cross-tool-sync/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Mirrors new Linear issues into a Notion tracker.",
+        "category": "Ops",
+        "tags": [
+          "ops"
+        ],
+        "display": {
+          "initials": "CS",
+          "color": "#113955",
+          "instructions_summary": "On schedule, find new Linear issues and mirror them into the Notion tracker.",
+          "trigger": "Hourly",
+          "trigger_description": "Runs every hour on a schedule.",
+          "seed_message": "Build an agent that mirrors new Linear issues into a Notion tracker every hour.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-from-the-source-tool": [
+              {
+                "name": "List issues",
+                "description": "Fetch issues created since the last sync."
+              },
+              {
+                "name": "Get issue",
+                "description": "Read an issue's details to mirror."
+              }
+            ],
+            "write-to-the-destination-tool": [
+              {
+                "name": "Query database",
+                "description": "Find an existing mirror by the source issue id."
+              },
+              {
+                "name": "Create page",
+                "description": "Upsert a tracker row for each new source issue."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "weekly-report": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/weekly-report/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "summary": "Weekly report of shipping and product metrics.",
+        "category": "Ops",
+        "tags": [
+          "ops"
+        ],
+        "display": {
+          "initials": "WR",
+          "color": "#5E0908",
+          "instructions_summary": "Weekly, gather shipping activity and product metrics and compile the report.",
+          "trigger": "Weekly",
+          "trigger_description": "Runs every week on a schedule.",
+          "seed_message": "Build an agent that compiles a weekly report of shipping and product metrics to Notion.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {
+            "read-the-shipped-work": [
+              {
+                "name": "List pull requests",
+                "description": "Fetch what shipped this week."
+              },
+              {
+                "name": "Get pull request",
+                "description": "Read merge details for the report."
+              }
+            ],
+            "publish-the-report": [
+              {
+                "name": "Create page",
+                "description": "Publish the weekly report as a page."
+              },
+              {
+                "name": "Update page",
+                "description": "Update an existing report page in place."
+              }
+            ]
+          }
+        },
+        "media": []
+      }
+    },
+    "outbound-prospecting": {
+      "latest": "1.0.1",
+      "versions": {
+        "1.0.0": "packages/outbound-prospecting/1.0.0",
+        "1.0.1": "packages/outbound-prospecting/1.0.1"
+      },
+      "listed": false
     }
   }
 }

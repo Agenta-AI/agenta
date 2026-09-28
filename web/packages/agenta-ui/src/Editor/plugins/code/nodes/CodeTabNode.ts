@@ -62,13 +62,6 @@ export class CodeTabNode extends TabNode {
      * @returns HTMLElement representing the code block
      */
     createDOM(config: EditorConfig): HTMLElement {
-        // const code = document.createElement("code")
-        // code.classList.add("editor-code", `language-${this.__language}`, 'dark-theme')
-        // code.classList.add("editor-code", `language-${this.__language}`)
-        // code.setAttribute("data-language", this.__language)
-        // code.setAttribute("tabindex", "0")
-        // code.setAttribute("data-lexical-editor", "true")
-
         const dom = super.createDOM(config)
         dom.classList.add("editor-code-tab")
         return dom

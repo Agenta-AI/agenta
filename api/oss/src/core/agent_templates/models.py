@@ -7,6 +7,7 @@ from agenta.sdk.agents import SkillTemplate
 
 from oss.src.core.agent_templates.dtos import (
     InternalTemplateSource,
+    TemplateSource,
     ResolvedTemplateSource,
 )
 from oss.src.core.workflows.dtos import WorkflowRevisionData
@@ -148,7 +149,7 @@ class ParsedTemplateAgent(StrictModel):
 
 
 class ParsedTemplatePackage(StrictModel):
-    source: InternalTemplateSource
+    source: TemplateSource
     version: str
     digest: str
     agent: ParsedTemplateAgent
@@ -188,3 +189,125 @@ class PreparedTemplateLoad(StrictModel):
     workspace: ParsedWorkspace
     first_message: str
     replayed: bool
+
+
+# Clients render these as links and image sources, so no other scheme gets through.
+HTTPS_URL = r"^https://\S+$"
+# Media may also be committed beside the catalog under media/. No segment starts
+# with a dot, so the path cannot climb out of that folder.
+MEDIA_URL = r"^(https://\S+|media(/[A-Za-z0-9_-][A-Za-z0-9._-]*)+)$"
+
+
+class CatalogAuthorLink(StrictModel):
+    kind: str = Field(min_length=1, max_length=64)
+    url: str = Field(min_length=1, max_length=2048, pattern=HTTPS_URL)
+    label: str | None = Field(default=None, max_length=128)
+
+
+class CatalogAuthor(StrictModel):
+    schema_version: Literal[1]
+    id: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    name: str = Field(min_length=1, max_length=128)
+    bio: str = Field(min_length=1, max_length=2000)
+    avatar_url: str | None = Field(default=None, max_length=2048, pattern=MEDIA_URL)
+    links: list[CatalogAuthorLink] = Field(default_factory=list)
+
+
+class CatalogMedia(StrictModel):
+    kind: Literal["image", "video"]
+    url: str = Field(min_length=1, max_length=2048, pattern=MEDIA_URL)
+    alt: str = Field(min_length=1, max_length=500)
+    caption: str | None = Field(default=None, max_length=500)
+    poster_url: str | None = Field(default=None, max_length=2048, pattern=MEDIA_URL)
+
+
+class CatalogTemplateTool(StrictModel):
+    name: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+
+
+class CatalogTemplateExample(StrictModel):
+    prompt: str = Field(min_length=1)
+    steps: list[str] = Field(min_length=1)
+    reply: str = Field(min_length=1)
+    artifacts: list[str] | None = None
+    status: str | None = None
+
+
+class CatalogTemplateDisplay(StrictModel):
+    initials: str = Field(min_length=1, max_length=4)
+    color: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
+    instructions_summary: str = Field(min_length=1)
+    trigger: str = Field(min_length=1)
+    trigger_description: str = Field(min_length=1)
+    seed_message: str = Field(min_length=1)
+    builder_message: str | None = None
+    model: str = Field(min_length=1)
+    # Keyed by package connection key; the package owns the connection itself.
+    connection_tools: dict[str, list[CatalogTemplateTool]] = Field(default_factory=dict)
+    example: CatalogTemplateExample | None = None
+
+
+class CatalogTemplateMetadata(StrictModel):
+    author_id: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    display_name: str | None = Field(default=None, min_length=1)
+    summary: str = Field(min_length=1)
+    description: str | None = Field(default=None, min_length=1)
+    category: str = Field(min_length=1)
+    tags: list[str] = Field(default_factory=list)
+    display: CatalogTemplateDisplay
+    media: list[CatalogMedia] = Field(default_factory=list)
+
+
+class CatalogTemplateRecord(StrictModel):
+    latest: str = Field(min_length=1, max_length=128)
+    versions: dict[str, str] = Field(min_length=1)
+    # Unlisted records stay loadable by key but never appear in the gallery or website.
+    listed: bool = True
+    metadata: CatalogTemplateMetadata | None = None
+
+
+class CatalogDocument(StrictModel):
+    schema_version: Literal[1]
+    templates: dict[str, CatalogTemplateRecord]
+
+
+class AgentTemplateConnectionOption(StrictModel):
+    slug: str
+    scope: str | None = None
+    tools: list[CatalogTemplateTool] | None = None
+
+
+class AgentTemplateConnection(StrictModel):
+    key: str
+    role: str
+    required: bool
+    primary: AgentTemplateConnectionOption
+    alternatives: list[str] = Field(default_factory=list)
+
+
+class AgentTemplateEntry(StrictModel):
+    key: str
+    source: InternalTemplateSource
+    version: str
+    latest: str
+    versions: list[str]
+    digest: str
+    name: str
+    summary: str
+    description: str
+    category: str
+    tags: list[str]
+    author: CatalogAuthor
+    initials: str
+    color: str
+    instructions_summary: str
+    trigger: str
+    trigger_description: str
+    seed_message: str
+    builder_message: str
+    model: str
+    tools_summary: str
+    connections: list[AgentTemplateConnection]
+    example: CatalogTemplateExample | None = None
+    media: list[CatalogMedia] = Field(default_factory=list)

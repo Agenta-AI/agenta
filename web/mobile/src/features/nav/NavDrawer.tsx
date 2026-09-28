@@ -3,12 +3,10 @@ import {useEffect, useState} from "react"
 import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {SidebarShell} from "@agenta/navigation-ui"
-import {Button} from "@agenta/ui/ui"
+import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@agenta/ui/ui"
 import {ListIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
-
-import {Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@/components/ui/sheet"
 
 import {useMobileNavScope} from "./mobileNavScope"
 
@@ -59,10 +57,10 @@ export const NavDrawer = ({
                     <ListIcon />
                 </Button>
             </SheetTrigger>
-            <SheetContent side="left" showCloseButton={false} className="w-[236px] gap-0 p-0">
+            <SheetContent side="left" className="w-[236px] gap-0 p-0">
                 {/* The sheet's own X is off: the rail's header already has the button, and
                     `onDismiss` turns it into this sheet's close. */}
-                <SheetHeader className="sr-only">
+                <SheetHeader className="sr-only" showCloseButton={false}>
                     <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
                 <SidebarShell

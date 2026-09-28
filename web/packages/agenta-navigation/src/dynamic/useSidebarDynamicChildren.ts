@@ -27,8 +27,7 @@ interface RowInputs {
  * this the whole list remounts on each poll, which fights a user mid-scroll.
  *
  * `resolveChildren` is therefore memoized, not pure — same rows in, same row OBJECTS out. It is
- * keyed per entity so two entities sharing a parent key cannot serve each other's rows, and
- * `resetSidebarRowCache` exists so tests can assert on a cold cache.
+ * keyed per entity so two entities sharing a parent key cannot serve each other's rows.
  */
 interface EntityRowCache {
     rows: Map<string, {ref: SidebarEntityRef; inputs: RowInputs; row: SidebarConfig}>
@@ -46,12 +45,7 @@ const sameRef = (a: SidebarEntityRef, b: SidebarEntityRef): boolean => {
 }
 
 /** Per ENTITY, not per parent key: two entities can share a key, and their rows differ. */
-let rowCaches = new WeakMap<SidebarEntity, EntityRowCache>()
-
-/** Drops every memoized row. For tests that assert on freshly built rows. */
-export const resetSidebarRowCache = (): void => {
-    rowCaches = new WeakMap<SidebarEntity, EntityRowCache>()
-}
+const rowCaches = new WeakMap<SidebarEntity, EntityRowCache>()
 
 /** Bounded so a long run of filter changes cannot grow one entity's cache without limit. */
 const ROW_CACHE_MAX = 2_000

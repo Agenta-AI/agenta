@@ -9,7 +9,7 @@
  * Use the `useEntitySelector` hook to open the modal programmatically:
  *
  * ```typescript
- * import { useEntitySelector } from '@agenta/playground'
+ * import { useEntitySelector } from '@agenta/playground-ui'
  *
  * const { open } = useEntitySelector()
  *

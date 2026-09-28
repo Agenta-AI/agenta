@@ -198,7 +198,6 @@ export {
     triggerSubscriptionsQueryAtom,
     useTriggerCatalogEvents,
     useTriggerCatalogIntegrations,
-    useTriggerConnectionActions,
     useTriggerConnectionsQuery,
     useTriggerConnectionSubscriptions,
     useTriggerDelivery,

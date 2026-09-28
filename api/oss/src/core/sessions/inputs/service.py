@@ -350,6 +350,19 @@ class SessionInputsService:
             execution_id=execution_id,
         )
 
+    async def fetch_by_idempotency_key(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        idempotency_key: str,
+    ) -> Optional[PendingInput]:
+        return await self._dao.fetch_by_idempotency_key(
+            project_id=project_id,
+            session_id=session_id,
+            idempotency_key=idempotency_key,
+        )
+
     async def claim_for_execution(
         self,
         *,

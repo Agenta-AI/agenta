@@ -93,6 +93,7 @@ export function useVoiceInput(): VoiceInput {
 
     const recRef = useRef<SpeechRecognitionLike | null>(null)
     const finalRef = useRef("")
+    const hasWordsRef = useRef(false)
     /** The person's intent, read by every callback below. The recogniser's events lag it. */
     const wantRef = useRef(false)
     const relaunchTimerRef = useRef<number | undefined>(undefined)
@@ -119,6 +120,17 @@ export function useVoiceInput(): VoiceInput {
         attemptsRef.current += 1
         relaunchTimerRef.current = window.setTimeout(() => launchRef.current(), RELAUNCH_DELAY_MS)
     }, [clearRelaunch])
+
+    const finishSession = useCallback(() => {
+        setActive(false)
+        if (!hasWordsRef.current) {
+            setError(
+                (previous) =>
+                    previous ??
+                    "No speech was recognized. Try again or use your keyboard's microphone.",
+            )
+        }
+    }, [])
 
     const launch = useCallback(() => {
         const Ctor = ctorRef.current
@@ -147,6 +159,7 @@ export function useVoiceInput(): VoiceInput {
                     interim += result[0].transcript
                 }
             }
+            if (finalRef.current.trim() || interim.trim()) hasWordsRef.current = true
             setTranscript({finalText: finalRef.current, interimText: interim.trim()})
         }
 
@@ -162,7 +175,7 @@ export function useVoiceInput(): VoiceInput {
         rec.onend = () => {
             if (recRef.current === rec) recRef.current = null
             if (!wantRef.current) {
-                setActive(false)
+                finishSession()
                 return
             }
             // Chrome ends on silence even with `continuous`, and a queued start waits here too.
@@ -177,11 +190,12 @@ export function useVoiceInput(): VoiceInput {
             recRef.current = null
             relaunch()
         }
-    }, [clearRelaunch, relaunch])
+    }, [clearRelaunch, relaunch, finishSession])
     launchRef.current = launch
 
     const reset = useCallback(() => {
         finalRef.current = ""
+        hasWordsRef.current = false
         setTranscript({finalText: "", interimText: ""})
         setError(null)
     }, [])
@@ -192,6 +206,7 @@ export function useVoiceInput(): VoiceInput {
         attemptsRef.current = 0
         setError(null)
         finalRef.current = ""
+        hasWordsRef.current = false
         setTranscript({finalText: "", interimText: ""})
         // Intent, not the recogniser's `onstart` — the control must latch on the press.
         setRecording(true)
@@ -207,8 +222,8 @@ export function useVoiceInput(): VoiceInput {
         // Unlatch now; `active` holds until `onend` so the trailing final result still lands.
         setRecording(false)
         if (recRef.current) recRef.current.stop()
-        else setActive(false)
-    }, [clearRelaunch])
+        else finishSession()
+    }, [clearRelaunch, finishSession])
 
     useEffect(
         () => () => {

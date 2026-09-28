@@ -10,6 +10,7 @@ from oss.src.core.agent_templates.exceptions import (
     TemplateSourceDigestMismatch,
     TemplateSourceInvalid,
     TemplateSourceNotFound,
+    TemplateSourceUnavailable,
     TemplateWorkflowCreationFailed,
 )
 from oss.src.core.mounts.types import MountPathInvalid, MountStorageUnavailable
@@ -24,6 +25,7 @@ def _response(
     message: str,
     retryable: bool = False,
     details: dict | None = None,
+    next_step: str | None = None,
 ) -> JSONResponse:
     content = {
         "code": code,
@@ -31,7 +33,9 @@ def _response(
         "retryable": retryable,
         "details": details or {},
     }
-    if retryable:
+    if next_step:
+        content["next_step"] = next_step
+    elif retryable:
         content["next_step"] = (
             "Retry with the same Idempotency-Key; do not submit a new request."
         )
@@ -48,6 +52,26 @@ def template_load_error_response(exc: Exception) -> JSONResponse | None:
             code="template_source_not_found",
             message=exc.message,
             details=exc.details,
+        )
+    if isinstance(exc, TemplateSourceUnavailable):
+        if exc.retryable:
+            return _response(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="template_source_fetch_failed",
+                message=exc.message,
+                retryable=True,
+                details={"reason": exc.code, **exc.details},
+                next_step="Wait a few minutes, then send the same request again.",
+            )
+        return _response(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="template_source_unavailable",
+            message=exc.message,
+            details={"reason": exc.code, **exc.details},
+            next_step=(
+                "Check the public repository URL, the full commit SHA and the "
+                "package directory, then send a corrected request."
+            ),
         )
     if isinstance(exc, TemplateCreateConflict):
         return _response(

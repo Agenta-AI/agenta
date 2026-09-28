@@ -26,21 +26,13 @@ import {addUserMessageAtom} from "../chat"
 import {sharedMessageIdsAtomFamily} from "../chat/messageSelectors"
 
 import {
-    executionModeAtomFamily,
-    sessionsAtomFamily,
     activeSessionsAtomFamily,
-    stepsAtomFamily,
-    resultsForStepAtomFamily,
     resultAtomFamily,
-    isStepRunningAtomFamily,
     isAnyExecutingAtomFamily,
-    stepAtomFamily,
-    sessionAtomFamily,
     resultsByKeyAtomFamily,
 } from "./atoms"
 import {displayedEntityIdsAtom} from "./displayedEntities"
 import {createExecutionItemHandle, type ExecutionItemLifecycleSnapshot} from "./executionItems"
-import type {RunStatus} from "./types"
 import {splitInputsVisibility} from "./visibility"
 
 interface WorkflowDataForInputKeys {
@@ -623,26 +615,6 @@ export const testcaseDataAtomFamily = atomFamily((testcaseId: string) =>
 // ============================================================================
 
 /**
- * Get session count for a loadable
- *
- * @param loadableId - The loadable instance ID
- * @returns Atom for the session count
- */
-export const sessionCountAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => get(sessionsAtomFamily(loadableId)).length),
-)
-
-/**
- * Get active session count for a loadable
- *
- * @param loadableId - The loadable instance ID
- * @returns Atom for the active session count
- */
-export const activeSessionCountAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => get(activeSessionsAtomFamily(loadableId)).length),
-)
-
-/**
  * Check if in compare mode (multiple active sessions)
  *
  * @param loadableId - The loadable instance ID
@@ -652,128 +624,9 @@ export const isCompareModeAtomFamily = atomFamily((loadableId: string) =>
     atom((get) => get(activeSessionsAtomFamily(loadableId)).length > 1),
 )
 
-/**
- * Get session labels for display
- *
- * @param loadableId - The loadable instance ID
- * @returns Atom for session labels mapped by ID
- */
-export const sessionLabelsAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => {
-        const sessions = get(sessionsAtomFamily(loadableId))
-        const labels: Record<string, string> = {}
-        for (const session of sessions) {
-            labels[session.id] = session.label || session.runnableId
-        }
-        return labels
-    }),
-)
-
-// ============================================================================
-// STEP SELECTORS
-// ============================================================================
-
-/**
- * Get step count for a loadable
- *
- * @param loadableId - The loadable instance ID
- * @returns Atom for the step count
- */
-export const stepCountAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => get(stepsAtomFamily(loadableId)).length),
-)
-
-/**
- * Get the latest step
- *
- * @param loadableId - The loadable instance ID
- * @returns Atom for the latest step or null
- */
-export const latestStepAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => {
-        const steps = get(stepsAtomFamily(loadableId))
-        return steps.length > 0 ? steps[steps.length - 1] : null
-    }),
-)
-
 // ============================================================================
 // RESULT SELECTORS
 // ============================================================================
-
-/**
- * Get aggregated status for a step across all sessions
- *
- * Returns the "worst" status: error > running > pending > idle > success
- *
- * @param params - Object with loadableId and stepId
- * @returns Atom for the aggregated step status
- */
-export const stepAggregateStatusAtomFamily = atomFamily(
-    ({loadableId, stepId}: {loadableId: string; stepId: string}) =>
-        atom((get): RunStatus => {
-            const results = get(resultsForStepAtomFamily({loadableId, stepId}))
-            const statuses = Object.values(results).map((r) => r.status)
-
-            if (statuses.length === 0) return "idle"
-            if (statuses.includes("error")) return "error"
-            if (statuses.includes("running")) return "running"
-            if (statuses.includes("pending")) return "pending"
-            if (statuses.every((s) => s === "success")) return "success"
-            if (statuses.every((s) => s === "cancelled")) return "cancelled"
-            return "idle"
-        }),
-)
-
-/**
- * Get result summary for a step
- *
- * @param params - Object with loadableId and stepId
- * @returns Atom for step result summary
- */
-export const stepResultSummaryAtomFamily = atomFamily(
-    ({loadableId, stepId}: {loadableId: string; stepId: string}) =>
-        atom((get) => {
-            const results = get(resultsForStepAtomFamily({loadableId, stepId}))
-            const values = Object.values(results)
-
-            return {
-                total: values.length,
-                success: values.filter((r) => r.status === "success").length,
-                error: values.filter((r) => r.status === "error").length,
-                running: values.filter((r) => r.status === "running" || r.status === "pending")
-                    .length,
-                idle: values.filter((r) => r.status === "idle").length,
-                cancelled: values.filter((r) => r.status === "cancelled").length,
-            }
-        }),
-)
-
-/**
- * Get all results for all steps and sessions
- *
- * Returns a flattened map of all results.
- *
- * @param loadableId - The loadable instance ID
- * @returns Atom for all results
- */
-export const allResultsAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => get(resultsByKeyAtomFamily(loadableId))),
-)
-
-/**
- * Get completed results count
- *
- * @param loadableId - The loadable instance ID
- * @returns Atom for count of completed (success/error/cancelled) results
- */
-export const completedResultsCountAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => {
-        const results = get(resultsByKeyAtomFamily(loadableId))
-        return Object.values(results).filter(
-            (r) => r.status === "success" || r.status === "error" || r.status === "cancelled",
-        ).length
-    }),
-)
 
 /**
  * Get execution progress for UI display
@@ -840,14 +693,6 @@ function getExecutionItemLifecycleSnapshot(
 }
 
 /**
- * Lifecycle snapshot for a single row + revision execution item.
- */
-export const executionItemLifecycleAtomFamily = ((param: RowEntityKey) => {
-    const {rowId, entityId} = parseRowEntityKey(param)
-    return atom((get) => getExecutionItemLifecycleSnapshot(get, {rowId, entityId}))
-}) as (param: RowEntityKey) => ReturnType<typeof atom<ExecutionItemLifecycleSnapshot | null>>
-
-/**
  * Get the output/response for a row + entity.
  * Derives from execution state using loadableId from primary node.
  *
@@ -865,21 +710,6 @@ export const responseByRowEntityAtomFamily = ((param: RowEntityKey) => {
         return result?.output ?? null
     })
 }) as (param: RowEntityKey) => ReturnType<typeof atom<unknown>>
-
-/**
- * Get loading state for a row + entity.
- * Returns true if the execution is running or pending.
- *
- * @param param - "rowId:entityId" string or {rowId, entityId} object
- * @returns Atom for loading boolean
- */
-export const loadingByRowEntityAtomFamily = ((param: RowEntityKey) => {
-    const {rowId, entityId} = parseRowEntityKey(param)
-    return atom((get) => {
-        const lifecycle = get(executionItemLifecycleAtomFamily({rowId, entityId}))
-        return Boolean(lifecycle?.isRunning)
-    })
-}) as (param: RowEntityKey) => ReturnType<typeof atom<boolean>>
 
 /**
  * Get the complete RunResult for a row + entity.
@@ -1296,21 +1126,3 @@ export const isAnyRunningForRowAtomFamily = atomFamily((rowId: string) =>
         })
     }),
 )
-
-// ============================================================================
-// RE-EXPORTS (for convenience)
-// ============================================================================
-
-// Re-export base selectors for direct access
-export {
-    executionModeAtomFamily,
-    sessionsAtomFamily,
-    activeSessionsAtomFamily,
-    stepsAtomFamily,
-    resultsForStepAtomFamily,
-    resultAtomFamily,
-    isStepRunningAtomFamily,
-    isAnyExecutingAtomFamily,
-    stepAtomFamily,
-    sessionAtomFamily,
-}

@@ -252,6 +252,53 @@ describe("useVoiceInput", () => {
         expect(live()).toHaveLength(0)
     })
 
+    it.each(["", "already spoken"])("finishes during a pending relaunch (words: %s)", (words) => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        if (words) act(() => void live()[0].say(words, true))
+        act(() => FakeRecognition.instances[0].endOnSilence())
+        act(() => result.current.stop())
+        expect(result.current.active).toBe(false)
+        expect(result.current.recording).toBe(false)
+        if (words) expect(result.current.error).toBeNull()
+        else expect(result.current.error).toContain("No speech was recognized")
+        act(() => vi.advanceTimersByTime(1000))
+        expect(FakeRecognition.instances).toHaveLength(1)
+        expect(result.current.finalText).toBe(words)
+    })
+
+    it("explains an empty dictation after the browser finishes stopping", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => result.current.stop())
+        expect(result.current.error).toBeNull()
+        act(() => vi.advanceTimersByTime(TEARDOWN_MS))
+        expect(result.current.error).toContain("No speech was recognized")
+    })
+
+    it("accepts words that arrive only after stop without reporting empty dictation", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => result.current.stop())
+        act(() =>
+            FakeRecognition.instances[0].onresult?.({
+                resultIndex: 0,
+                results: {length: 1, 0: {isFinal: true, 0: {transcript: "mobile message"}}},
+            }),
+        )
+        act(() => vi.advanceTimersByTime(TEARDOWN_MS))
+        expect(result.current.finalText).toBe("mobile message")
+        expect(result.current.error).toBeNull()
+    })
+
+    it("preserves the permission error when the empty session ends", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => FakeRecognition.instances[0].onerror?.({error: "not-allowed"}))
+        act(() => FakeRecognition.instances[0].endOnSilence())
+        expect(result.current.error).toBe("Microphone access denied")
+    })
+
     it("reports unsupported where the API is absent, and start is inert", () => {
         delete recognitionWindow().SpeechRecognition
         delete recognitionWindow().webkitSpeechRecognition

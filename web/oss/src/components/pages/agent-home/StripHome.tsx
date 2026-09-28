@@ -1,9 +1,14 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {isConnectionActive, useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {
-    AGENT_TEMPLATES,
+    agentTemplateByKey,
+    detectAccounts,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
     templateBuilderMessage,
+    UNAVAILABLE_TEMPLATE_MESSAGE,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import type {AgentSetupSelection} from "@agenta/entities/workflow"
@@ -15,7 +20,7 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
-import {Typography} from "antd"
+import {App, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -44,6 +49,7 @@ import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
 import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
 import {useCreateAgentFromTemplate} from "./hooks/useCreateAgentFromTemplate"
+import {templateSeedYields} from "./templateSeed"
 
 // The expanded analytics view is desktop-only (tremor charts) and lazy — the shared usage
 // card takes it as a slot, so mobile simply has no Expand control.
@@ -77,6 +83,9 @@ const StripHome: React.FC = () => {
 
     // Warm the app-templates cache so the ephemeral-create factory resolves the agent template.
     useAtomValue(appTemplatesQueryAtom)
+    const templates = useAtomValue(agentTemplatesAtom)
+    const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
+    const {message} = App.useApp()
 
     const agents = useAtomValue(agentsWorkflowsAtom)
     const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
@@ -145,6 +154,23 @@ const StripHome: React.FC = () => {
 
     // The pre-create connect step (#6043). `open` replaces create.
     const setup = useAgentSetupStep()
+    const {connections} = useToolConnectionsQuery()
+    const connectedSlugs = useMemo(
+        () =>
+            connections
+                .filter(isConnectionActive)
+                .map((connection) => connection.integration_key)
+                .filter(Boolean) as string[],
+        [connections],
+    )
+    // What a skipped setup step would have passed, so the package binds the connected accounts.
+    const connectedSetup = useCallback(
+        (template: AgentStarterTemplate): AgentSetupSelection => ({
+            accounts: detectAccounts({description: templateBuilderMessage(template), template}),
+            connectedSlugs,
+        }),
+        [connectedSlugs],
+    )
     /**
      * The card's create gate and live selection, reported up (`onReadyChange`): the Create
      * button lives in the composer's trailing cluster (mobile parity — the step docks INSIDE
@@ -207,30 +233,63 @@ const StripHome: React.FC = () => {
                 seedComposer(templateBuilderMessage(template))
                 return
             }
-            void createFromTemplate(template)
+            void createFromTemplate(template, connectedSetup(template))
         },
-        [firstRun, router, baseAppURL, createFromTemplate, setup.open, seedComposer],
+        [
+            firstRun,
+            router,
+            baseAppURL,
+            createFromTemplate,
+            setup.open,
+            seedComposer,
+            connectedSetup,
+        ],
     )
 
     // Seed once PER TEMPLATE KEY: a boolean guard blocked every template after the first,
     // because this surface stays mounted across ?template= navigations.
     // The template this surface was opened for, if any — the hero speaks about it by name.
-    const pickedTemplate = templateParam
-        ? AGENT_TEMPLATES.find((entry) => entry.key === templateParam)
-        : undefined
+    // Undefined until the catalog loads; the seeding effect below re-runs when it does.
+    const pickedTemplate = agentTemplateByKey(templates, templateParam)
     // The template this surface is setting up, if any — an in-place strip pick carries it on the
     // draft, an arrival on the URL.
     const heroTemplate = setup.draft?.template ?? pickedTemplate
     const seededTemplate = useRef<string | null>(null)
+    // The key that arrived before the catalog had it, so its seed is a late response.
+    const awaitedTemplate = useRef<string | null>(null)
     useEffect(() => {
         if (!templateParam) {
             seededTemplate.current = null
+            awaitedTemplate.current = null
             return
         }
         if (seededTemplate.current === templateParam) return
-        const template = AGENT_TEMPLATES.find((entry) => entry.key === templateParam)
-        if (!template) return
+        // Not seeded (and not latched) until the catalog has the template, so a key that arrives
+        // before the catalog loads still seeds once it does.
+        const template = agentTemplateByKey(templates, templateParam)
+        if (!template) {
+            // Only a loaded catalog can say a key is absent, e.g. a website newer than this app.
+            if (templatesStatus === "success") {
+                seededTemplate.current = templateParam
+                message.warning(UNAVAILABLE_TEMPLATE_MESSAGE)
+            } else {
+                awaitedTemplate.current = templateParam
+            }
+            return
+        }
         seededTemplate.current = templateParam
+        // A late catalog must not replace a draft or text the user started while it loaded.
+        const late = awaitedTemplate.current === templateParam
+        awaitedTemplate.current = null
+        if (
+            templateSeedYields({
+                late,
+                hasDraft: Boolean(setup.draft),
+                composerText: composerRef.current?.getMarkdown() ?? "",
+            })
+        ) {
+            return
+        }
         provenance.pick(template)
         // A template arriving on the URL was picked on another page, so it goes straight to the
         // step — docked inside the composer, with the template's prompt seeded into the editor.
@@ -243,8 +302,22 @@ const StripHome: React.FC = () => {
         ) {
             setStepReady(false)
             seedComposer(templateBuilderMessage(template))
+        } else {
+            // Nothing to connect for this pick: drop an earlier template's step, or Create would
+            // still build that one.
+            setup.close()
         }
-    }, [templateParam, provenance.pick, setup.open, seedComposer])
+    }, [
+        templateParam,
+        templates,
+        templatesStatus,
+        message,
+        provenance.pick,
+        setup.open,
+        setup.close,
+        setup.draft,
+        seedComposer,
+    ])
 
     // Create, with the step's answers. The editor holds the prompt (the template's, or the
     // typed one, still editable under the docked card), so what is IN it is what gets sent.
@@ -292,7 +365,17 @@ const StripHome: React.FC = () => {
             }
             if (!message) return
             setLoading(true)
-            const ok = await onCreate(provenance.resolveTemplateName(), markdown)
+            // A `?template=` pick with nothing to connect still loads its package, binding the
+            // accounts the workspace already has, unless the user edited its prompt away.
+            const templateName = provenance.resolveTemplateName()
+            const template =
+                pickedTemplate && templateName === pickedTemplate.name ? pickedTemplate : undefined
+            const ok = await onCreate(
+                templateName,
+                markdown,
+                template ? connectedSetup(template) : undefined,
+                template,
+            )
             if (!ok) setLoading(false)
         },
         [
@@ -305,6 +388,8 @@ const StripHome: React.FC = () => {
             seedComposer,
             handleCreateFromSetup,
             composerRef,
+            pickedTemplate,
+            connectedSetup,
         ],
     )
 

@@ -9,11 +9,8 @@
 import {describe, expect, it} from "vitest"
 
 import {appendSetupPreamble, canCreateAgent, setupStatus} from "../../src/workflow/agentSetup"
-import {
-    AGENT_TEMPLATES,
-    templateConnections,
-    type AgentStarterTemplate,
-} from "../../src/workflow/agentTemplates"
+import {templateConnections, type AgentStarterTemplate} from "../../src/workflow/agentTemplates"
+import {FIXTURE_TEMPLATES as AGENT_TEMPLATES} from "./agentTemplateFixtures"
 import {detectAccounts} from "../../src/workflow/detectAccounts"
 
 /** Everything the step does between the user's input and `createAgent`. */
