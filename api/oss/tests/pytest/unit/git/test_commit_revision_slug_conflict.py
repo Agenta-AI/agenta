@@ -155,3 +155,58 @@ class TestDuplicateSlug:
             )
 
         assert exc_info.value.conflict == {"slug": "taken-slug"}
+
+
+async def test_duplicate_slug_conflict_reaches_the_tools_boundary_as_409(monkeypatch):
+    # The API seam must not swallow the conflict: handle_commit_revision's except
+    # list converts only the failures it names into AgentError envelopes, and
+    # EntityCreationConflict is deliberately not one of them — it has to travel up
+    # to call_tool's @intercept_exceptions, which answers 409. Adding it to that
+    # list later would silently downgrade the answer to a failed verdict.
+    from types import SimpleNamespace
+
+    from oss.src.apis.fastapi.tools.router import ToolsRouter
+    from oss.src.core.tools.dtos import ToolCall, ToolCallData, ToolCallFunction
+    from oss.src.utils.exceptions import ConflictException
+
+    async def _allow(**_kwargs):
+        return True
+
+    monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
+
+    variant_id = uuid4()
+
+    class _ConflictingWorkflowsService:
+        async def commit_workflow_revision_checked(self, **_kwargs):
+            raise EntityCreationConflict(conflict={"slug": "taken-slug"})
+
+    router = ToolsRouter(
+        tools_service=SimpleNamespace(),
+        workflows_service=_ConflictingWorkflowsService(),
+        tracing_service=SimpleNamespace(),
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        headers={},
+    )
+    body = ToolCall(
+        data=ToolCallData(
+            id="outer_call",
+            function=ToolCallFunction(
+                name="tools.agenta.commit_revision",
+                arguments={
+                    "workflow_revision": {
+                        "workflow_variant_id": str(variant_id),
+                        "delta": {
+                            "set": {"parameters": {"agent": {"instructions": "hi"}}}
+                        },
+                    }
+                },
+            ),
+        )
+    )
+
+    with pytest.raises(ConflictException) as exc_info:
+        await router.call_tool(request, body=body)
+
+    assert exc_info.value.code == 409
