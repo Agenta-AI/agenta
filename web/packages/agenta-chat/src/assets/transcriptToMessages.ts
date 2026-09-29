@@ -16,7 +16,9 @@ import type {
 } from "@agenta/entities/session"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
+import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
+import {getDefaultStore} from "jotai"
 
 /**
  * Replay adapter — durable session-record `AgentEvent`s → v6 `UIMessage[]`.
@@ -38,6 +40,11 @@ type Part = Record<string, unknown>
 /** Content URL for one durable attachment. Mirrors the OSS original's `attachmentMedia.ts`. */
 export function attachmentContentUrl(sessionId: string, attachmentId: string): string {
     const params = new URLSearchParams({session_id: sessionId})
+    // Scope the read to the session's project, exactly as the upload does. Without it the API
+    // falls back to the caller's default project and a session in any other project 404s, so
+    // the rendered <img> never loads. Read from the shared store the app populates from the URL.
+    const projectId = getDefaultStore().get(projectIdAtom)
+    if (projectId) params.set("project_id", projectId)
     return `${getAgentaApiUrl()}/sessions/attachments/${encodeURIComponent(attachmentId)}/content?${params.toString()}`
 }
 

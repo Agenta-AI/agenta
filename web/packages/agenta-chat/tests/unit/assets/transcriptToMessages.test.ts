@@ -6,11 +6,14 @@ import type {
 import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {interactionStatesFromWatchEvent} from "@agenta/entities/session"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
 import {
     APPROVED_EXECUTION_RESULT_UNKNOWN,
+    attachmentContentUrl,
     reconcileInteractionRowStates,
     transcriptToMessages,
 } from "../../../src/assets/transcriptToMessages"
@@ -1520,4 +1523,23 @@ it.each([undefined, null, "Visible", ""])("preserves display override %j on repl
     expect(messages[0].parts).toEqual([{type: "text", text: "Visible plus setup fact cobalt"}])
     expect((messages[0].metadata as Record<string, unknown>).display_content).toBe(display)
     expect((messages[0].metadata as Record<string, unknown>).turnId).toBe("execution-display")
+})
+
+describe("attachmentContentUrl", () => {
+    const store = getDefaultStore()
+
+    it("scopes the content URL to the active project", () => {
+        store.set(projectIdAtom, "project-xyz")
+        const url = new URL(attachmentContentUrl("session-1", "att-1"))
+        expect(url.pathname).toMatch(/\/sessions\/attachments\/att-1\/content$/)
+        expect(url.searchParams.get("session_id")).toBe("session-1")
+        expect(url.searchParams.get("project_id")).toBe("project-xyz")
+    })
+
+    it("omits project_id when no project is active", () => {
+        store.set(projectIdAtom, null)
+        const url = new URL(attachmentContentUrl("session-1", "att-1"))
+        expect(url.searchParams.get("session_id")).toBe("session-1")
+        expect(url.searchParams.has("project_id")).toBe(false)
+    })
 })
