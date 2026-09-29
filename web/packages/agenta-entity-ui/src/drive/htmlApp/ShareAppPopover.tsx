@@ -279,7 +279,7 @@ const SharePanel = ({
                             disabled={loading || busy !== null}
                             onClick={() => void publish()}
                         >
-                            {live ? "Update share" : share ? "Share again" : "Share"}
+                            {live ? "Update share" : "Share"}
                         </LoadingButton>
                     </div>
                 )}
