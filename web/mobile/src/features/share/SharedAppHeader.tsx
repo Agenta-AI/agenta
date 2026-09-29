@@ -17,7 +17,7 @@ export const SharedAppHeader = ({snapshot}: {snapshot: SharedAppSnapshot | null}
         : null
 
     return (
-        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-3">
+        <header className="flex h-10 shrink-0 items-center gap-3 border-b border-border px-3">
             <AgentaLogo className="h-4 w-auto shrink-0 text-foreground" />
             <span className="h-4 w-px shrink-0 bg-border" aria-hidden />
             <div className="flex min-w-0 items-baseline gap-2">
