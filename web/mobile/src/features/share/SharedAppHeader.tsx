@@ -20,12 +20,12 @@ export const SharedAppHeader = ({snapshot}: {snapshot: SharedAppSnapshot | null}
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-3">
             <AgentaLogo className="h-5 w-auto shrink-0 text-foreground" />
             <span className="h-5 w-px shrink-0 bg-border" aria-hidden />
-            <div className="flex min-w-0 flex-col leading-tight">
+            <div className="flex min-w-0 items-baseline gap-2">
                 <span className="truncate text-sm font-medium text-foreground">
                     {snapshot?.name ?? "Shared app"}
                 </span>
                 {byline ? (
-                    <span className="truncate text-xs text-muted-foreground">{byline}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{byline}</span>
                 ) : null}
             </div>
             <span className="flex-1" />
