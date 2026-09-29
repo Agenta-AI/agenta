@@ -12,7 +12,7 @@ Groups 1 to 3 are the prerequisite PR. Groups 4 to 8 are the sharing PR.
 ## 2. Signing keys and scope errors
 
 - [x] 2.1 Add a per-purpose key helper (`HMAC-SHA256(sha256(crypt_key), label)`) and `is_default_crypt_key()` in `api/oss/src/utils/`, and log an error at startup when the key is the default; verify with unit tests for distinct labels and the default check.
-- [x] 2.2 Split `ScopeTokenInvalid` (token unusable) from a new `ScopeDenied` (request outside the grant) in `api/oss/src/core/apps/scope_token.py`: `parse` raises the first, `enforce` raises the second. Map them in the mounts router to 401 `scope_token_invalid` and 403 `scope`. Verify with unit and API tests for a bad signature, an expired token, a path outside the folder, and a write on a `read` grant.
+- [x] 2.2 Split `ScopeTokenInvalid` (token unusable) from a new `ScopeDenied` (request outside the grant) in `api/oss/src/core/apps/scope_token.py`: `parse` raises the first, `enforce` raises the second. Map them in the mounts router to 403 `scope_token_invalid` and 403 `scope` (never 401, which makes the SuperTokens interceptor refresh the session). Verify with unit and API tests for a bad signature, an expired token, a path outside the folder, and a write on a `read` grant.
 - [x] 2.3 Sign scope tokens with the `agenta/app-scope/v1` key; verify that the scope token tests pass and that a token signed with the old key gets `scope_token_invalid`.
 
 ## 3. Run isolation
@@ -58,7 +58,7 @@ Groups 1 to 3 are the prerequisite PR. Groups 4 to 8 are the sharing PR.
 - [ ] 8.1 Add `web/mobile/src/pages/share/[token].tsx` and `web/mobile/src/features/share/` with the header variants from the viewer spec; verify with unit tests for the anonymous, member, project member, and editor headers.
 - [x] 8.2 Exempt `/share/` from `AuthGate` and `authRedirectTarget`, from `decideMobileGate`, and from PostHog; verify with unit tests for each and a test that classic mode does not redirect.
 - [x] 8.3 Add `rememberReturnPath` and `takeReturnPath` to `web/mobile/src/lib/context.ts`, built like the template key store. Call `rememberReturnPath` from `AuthGate` on a redirect to `/auth` and from the share page before sign-in, and make `useAuthSuccess` go to the kept path. Verify with unit tests that an internal path is kept and used once, that `//evil`, an absolute URL, and an `/auth` path are refused, that an expired path falls back to `/`, and that the template key flow is unchanged.
-- [x] 8.4 Check whether the SuperTokens interceptor refreshes on a 401 from `/shared/apps/` for a viewer with no cookies, and bypass it on the share page if it does; record the result in `design.md`.
+- [x] 8.4 Refuse on `/shared/apps/` with 403 and a `code`, never 401, so the SuperTokens interceptor does not try a refresh for a viewer with no cookies; record the decision in `design.md`.
 - [x] 8.5 Update `docs/design/agent-html-apps/contracts.md` with the share route, `SHARE_CSP`, and the reference rules; verify the route, policy, and rules text match the code.
 
 ## 9. Integration check

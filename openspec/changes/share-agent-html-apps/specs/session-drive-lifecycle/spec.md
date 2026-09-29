@@ -7,7 +7,7 @@ Define what an archived or deleted session drive still allows, so that an archiv
 ## ADDED Requirements
 
 ### Requirement: Archived drives are read-only
-When a drive is archived, file reads, listings, stat calls, downloads, exports, chat attachment reads, and app scope requests at level `read` SHALL still work. File writes, folder creation, deletes, uploads, attachment writes and deletes, drive edits, storage credential requests, and app scope requests at level `read-write` SHALL be refused as archived. Archiving and unarchiving the drive SHALL still work. Every drive operation SHALL state whether it reads, writes, or changes the drive lifecycle, so that no operation can skip this rule.
+When a drive is archived, file reads, listings, stat calls, downloads, exports, chat attachment reads, and app scope requests at level `read` SHALL still work. File writes, folder creation, deletes, uploads, attachment writes, drive edits, storage credential requests, and app scope requests at level `read-write` SHALL be refused as archived. The attachment sweep's removal of unreferenced attachment originals is lifecycle cleanup and SHALL still work. Archiving and unarchiving the drive SHALL still work. Every drive operation SHALL state whether it reads, writes, or changes the drive lifecycle, so that no operation can skip this rule.
 
 #### Scenario: History of an archived session
 - **WHEN** a project member opens an archived session that has image attachments and files in its drive

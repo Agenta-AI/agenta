@@ -24,7 +24,7 @@ A public link also exposes gaps that exist today: archived session drives still 
   - A document that fails to assemble is never rendered raw.
   - Token signing keys are separate per purpose. A rejected scope token is re-minted once.
   - The local runner's child environment holds only the variables it lists.
-- **BREAKING** (internal): archived drives refuse the mounts write routes. A scope token that the server cannot use now gets 401 `scope_token_invalid` instead of 403 `scope`. Scope tokens issued before the key change are rejected once, and the client mints new ones.
+- **BREAKING** (internal): archived drives refuse the mounts write routes. A scope token that the server cannot use now gets 403 `scope_token_invalid` instead of 403 `scope` (403, not 401, so the SuperTokens interceptor does not try a session refresh). Scope tokens issued before the key change are rejected once, and the client mints new ones.
 
 ## Capabilities
 
