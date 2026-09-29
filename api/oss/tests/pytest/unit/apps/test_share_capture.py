@@ -228,3 +228,16 @@ def test_import_url_forms_are_imports():
         )
     )
     assert refs == {"theme.css": True, "x.css": True, "b.png": False}
+
+
+@pytest.mark.asyncio
+async def test_capture_egress_ignores_the_operator_exemptions(monkeypatch):
+    from oss.src.core.gateways import egress
+    from oss.src.utils.env import env
+
+    monkeypatch.setattr(egress, "exempt_hosts", lambda: {"127.0.0.1"})
+    monkeypatch.setattr(env.gateway_egress, "insecure_allowed", True)
+    # The relays keep the escape hatch; the capture never takes it.
+    assert (await egress.open_egress("https://127.0.0.1/x")).pinned_address is None
+    with pytest.raises(egress.EgressRefusedError):
+        await egress.open_egress("https://127.0.0.1/x", operator_exemptions=False)

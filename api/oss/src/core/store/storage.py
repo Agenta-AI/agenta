@@ -1,8 +1,10 @@
+import asyncio
+from collections import deque
 from datetime import datetime, timezone
 from hashlib import sha256
 from io import BytesIO
 from json import dumps
-from typing import List, Optional, Tuple
+from typing import AsyncIterator, Iterable, List, Optional, Tuple, TypeVar
 from urllib.parse import urlencode, urlparse, urlsplit
 from xml.etree import ElementTree
 
@@ -724,3 +726,39 @@ class ObjectStore:
         objects = await self.list_objects_v2(bucket=bucket, prefix=prefix)
         keys = [obj.key for obj in objects]
         return await self.delete_keys(bucket=bucket, keys=keys)
+
+
+_Item = TypeVar("_Item")
+
+
+async def read_in_order(
+    store: "ObjectStore",
+    *,
+    bucket: str,
+    items: Iterable[Tuple[_Item, str]],
+    window: int,
+) -> AsyncIterator[Tuple[_Item, bytes]]:
+    """Each `(item, key)` object's bytes, in order, with up to `window` reads in flight."""
+    inflight: deque = deque()
+    pending = iter(items)
+
+    def schedule() -> None:
+        while len(inflight) < max(1, window):
+            nxt = next(pending, None)
+            if nxt is None:
+                return
+            item, key = nxt
+            task = asyncio.create_task(store.get_object(bucket=bucket, key=key))
+            inflight.append((item, task))
+
+    try:
+        schedule()
+        while inflight:
+            item, task = inflight.popleft()
+            body = await task
+            yield item, body
+            schedule()
+    finally:
+        # An early close (a client that went away): cancel what is still in flight.
+        for _, task in inflight:
+            task.cancel()

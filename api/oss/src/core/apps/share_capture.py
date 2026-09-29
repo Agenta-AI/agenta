@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 import posixpath
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Awaitable, Callable, Dict, List, Optional, Tuple
@@ -29,10 +31,17 @@ MAX_REDIRECTS = 3
 FETCH_TIMEOUT_SECONDS = 10.0
 # The whole download, redirects included: the httpx timeout only bounds each read.
 FETCH_DEADLINE_SECONDS = 30.0
+# The whole capture, so a publish answers well inside a proxy's timeout.
+CAPTURE_DEADLINE_SECONDS = 45.0
 _OVER_FILE_LIMIT = "the file is over the size limit"
 _OVER_BUDGET = "over the 25 MB snapshot limit"
+_OUT_OF_TIME = "the publish ran out of time"
 # Downloads in flight at once; each level of the graph is fetched as one bounded batch.
 FETCH_CONCURRENCY = 6
+# Name resolution for captures only, so slow DNS in a publish never holds the relays' threads.
+_RESOLVER = ThreadPoolExecutor(
+    max_workers=FETCH_CONCURRENCY, thread_name_prefix="share-resolver"
+)
 
 _CSS_URL_RE = re.compile(r"""url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]+))\s*\)""", re.I)
 # `@import "x"`, `@import 'x'`, and `@import url(x)` with or without quotes.
@@ -190,7 +199,9 @@ async def fetch_external(url: str, max_bytes: int) -> Fetched:
             if urlparse(current).scheme.lower() != "https":
                 raise CaptureFailed("only https URLs are captured")
             try:
-                target = await open_egress(current)
+                target = await open_egress(
+                    current, operator_exemptions=False, resolver=_RESOLVER
+                )
             except EgressRefusedError as exc:
                 raise CaptureFailed(
                     "the address is not reachable from the server"
@@ -379,6 +390,7 @@ async def capture(
     used = 0
     index = 0
     gate = asyncio.Semaphore(FETCH_CONCURRENCY)
+    deadline = time.monotonic() + CAPTURE_DEADLINE_SECONDS
 
     async def fetch_one(url: str) -> Fetched | CaptureFailed:
         """One download, capped by what is left of the budget when it starts."""
@@ -387,12 +399,19 @@ async def capture(
             limit = min(max_file_bytes, byte_budget - used)
             if limit <= 0:
                 return CaptureFailed(_OVER_BUDGET)
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return CaptureFailed(_OUT_OF_TIME)
             try:
                 fetched = await asyncio.wait_for(
-                    fetch(url, limit), FETCH_DEADLINE_SECONDS
+                    fetch(url, limit), min(FETCH_DEADLINE_SECONDS, left)
                 )
             except asyncio.TimeoutError:
-                return CaptureFailed("the download took too long")
+                return CaptureFailed(
+                    "the download took too long"
+                    if left > FETCH_DEADLINE_SECONDS
+                    else _OUT_OF_TIME
+                )
             except CaptureFailed as exc:
                 over_budget = exc.reason == _OVER_FILE_LIMIT and limit < max_file_bytes
                 return CaptureFailed(_OVER_BUDGET) if over_budget else exc

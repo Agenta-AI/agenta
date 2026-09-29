@@ -1,7 +1,6 @@
 import asyncio
 from bisect import bisect_left, bisect_right
 from contextlib import asynccontextmanager
-from collections import deque
 from posixpath import basename
 from re import sub
 from typing import (
@@ -40,7 +39,7 @@ from oss.src.core.mounts.dtos import (
 )
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.dtos import StoreObject
-from oss.src.core.store.storage import ObjectStore
+from oss.src.core.store.storage import ObjectStore, read_in_order
 from oss.src.core.store.types import StorePreconditionFailed
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_NAME,
@@ -1278,6 +1277,7 @@ class MountsService:
         base_prefix: str,
         mount_base: str,
         cap: Optional[int] = None,
+        inherited_specs: Optional[List[Tuple[str, "pathspec.PathSpec"]]] = None,
     ) -> Tuple[List[StoreObject], List[Tuple[str, "pathspec.PathSpec"]], bool]:
         """Enumerate a mount's FILES by descending the tree LEVEL BY LEVEL, skipping every directory
         the curated view discards — `.git`, gitignored, runner-internal (`agents/`) and hidden
@@ -1294,13 +1294,16 @@ class MountsService:
         the caller will actually count, so a drive only reports "N+" when it genuinely holds that
         many VISIBLE files.
 
+        `inherited_specs` are the `.gitignore` rules of the folders above `base_prefix`, which the
+        walk itself never lists.
+
         Returns (kept StoreObjects, specs, truncated). `truncated` is True when the `cap` stopped the
         walk early (the real count is higher). The caller still applies FILE-level gitignore for
         ignored FILES inside kept directories (this only prunes whole directories).
         """
         bucket = self._bucket()
         semaphore = asyncio.Semaphore(_LIST_CONCURRENCY)
-        specs: List[Tuple[str, "pathspec.PathSpec"]] = []
+        specs: List[Tuple[str, "pathspec.PathSpec"]] = list(inherited_specs or [])
         kept: List[StoreObject] = []
 
         async def _shallow(prefix: str):
@@ -1562,8 +1565,25 @@ class MountsService:
             if git_aware:
                 # Descend pruning ignored/plumbing DIRECTORIES at the store level (never enumerate a
                 # `node_modules` dump) rather than scanning the whole object set.
+                # git applies every ancestor's `.gitignore`, and the walk starts at `path`.
+                above = list_prefix[len(mount_base) :].rstrip("/").split("/")[:-1]
+                inherited = (
+                    await self._read_gitignore_specs(
+                        [
+                            (d, f"{mount_base}{d + '/' if d else ''}.gitignore")
+                            for d in [""]
+                            + ["/".join(above[: i + 1]) for i in range(len(above))]
+                        ],
+                        [],
+                    )
+                    if path
+                    else []
+                )
                 store_files, specs, truncated = await self._list_pruned_files(
-                    base_prefix=list_prefix, mount_base=mount_base, cap=cap
+                    base_prefix=list_prefix,
+                    mount_base=mount_base,
+                    cap=cap,
+                    inherited_specs=inherited,
                 )
             elif cap is not None:
                 # RAW count-only: page until MORE than `cap` real files are known to exist (the UI
@@ -1810,31 +1830,15 @@ class MountsService:
         """Yield ``(zip_path, size, mtime, raw_bytes)`` with bounded ordered prefetch."""
         bucket = self._bucket()
 
-        # Ordered bounded-concurrency prefetch: keep ~`concurrency` reads in flight, yield in order.
-        inflight: deque = deque()
-        cursor = 0
-
-        def schedule() -> None:
-            nonlocal cursor
-            while len(inflight) < max(1, concurrency) and cursor < len(work):
-                zip_path, key, size, mtime = work[cursor]
-                task = asyncio.create_task(
-                    self.mounts_store.get_object(bucket=bucket, key=key)
-                )
-                inflight.append((zip_path, size, mtime, task))
-                cursor += 1
-
-        try:
-            schedule()
-            while inflight:
-                zip_path, size, mtime, task = inflight.popleft()
-                body = await task
-                yield zip_path, size, mtime, body
-                schedule()
-        finally:
-            # Client disconnect / early close: cancel reads still in flight so they don't orphan.
-            for _zip_path, _size, _mtime, task in inflight:
-                task.cancel()
+        async for (zip_path, size, mtime), body in read_in_order(
+            self.mounts_store,
+            bucket=bucket,
+            items=(
+                ((zip_path, size, mtime), key) for zip_path, key, size, mtime in work
+            ),
+            window=concurrency,
+        ):
+            yield zip_path, size, mtime, body
 
     async def read_file(
         self,

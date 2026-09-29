@@ -30,10 +30,20 @@ from oss.src.utils.throttling import check_throttle
 
 log = get_module_logger(__name__)
 
-# Opens of one link: a burst, then a steady rate. A view is one heavy request, so a leaked link
-# cannot be turned into unbounded egress and store reads.
-_VIEWS_BURST = 20
-_VIEWS_PER_MINUTE = 30
+# A view is one heavy request. Each viewer of a link gets a burst and a steady rate, and the link
+# a much higher cap across all viewers, so a leaked link is bounded without one viewer (or a
+# refused non-member) using up everyone's budget.
+_VIEWER_BURST, _VIEWER_PER_MINUTE = 20, 30
+_LINK_BURST, _LINK_PER_MINUTE = 300, 600
+
+
+def _client_ip(request: Request) -> str:
+    for header in ("cf-connecting-ip", "x-forwarded-for", "x-real-ip"):
+        value = request.headers.get(header)
+        if value:
+            return value.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
 
 _VIEWER_STATUS = {
     "sharing_disabled": status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -166,11 +176,18 @@ class SharedAppsRouter:
         request: Request,
         token: str,
     ):
+        link = hashlib.sha256(token.encode()).hexdigest()[:32]
         throttle = await check_throttle(
-            {"ep": "shared_app", "t": hashlib.sha256(token.encode()).hexdigest()[:32]},
-            max_capacity=_VIEWS_BURST,
-            refill_rate=_VIEWS_PER_MINUTE,
+            {"ep": "shared_app", "t": link, "ip": _client_ip(request)},
+            max_capacity=_VIEWER_BURST,
+            refill_rate=_VIEWER_PER_MINUTE,
         )
+        if throttle.allow:
+            throttle = await check_throttle(
+                {"ep": "shared_app", "t": link},
+                max_capacity=_LINK_BURST,
+                refill_rate=_LINK_PER_MINUTE,
+            )
         if not throttle.allow:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,

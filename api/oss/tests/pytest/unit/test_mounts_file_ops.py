@@ -693,6 +693,24 @@ class TestMountFileOpsRoundtrip:
         }
         assert listing.total == 2
 
+    async def test_git_aware_flat_listing_of_a_folder_applies_the_root_gitignore(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in [
+            ".gitignore",
+            "apps/todo/index.html",
+            "apps/todo/node_modules/x/i.js",
+        ]:
+            body = b"node_modules\n" if path == ".gitignore" else b"x"
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=body
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, path="apps/todo", order="path", git_aware=True
+        )
+        assert [f.path for f in listing.files] == ["apps/todo/index.html"]
+
     async def test_git_aware_flat_listing_excludes_hidden_paths(self):
         # Dot-prefixed files and directories are plumbing, not user content: the curated flat view
         # leaves them out of both the listing and its `total` (#6027).

@@ -13,7 +13,6 @@ import hashlib
 import mimetypes
 import posixpath
 import secrets
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Tuple
@@ -35,7 +34,7 @@ from oss.src.core.apps.share_dtos import ShareFileEntry, ShareIssue, ShareManife
 from oss.src.core.mounts.dtos import AppShare, Mount
 from oss.src.core.mounts.service import MountsService, validate_file_path
 from oss.src.core.mounts.types import MountFileNotFound, MountPathInvalid
-from oss.src.core.store.storage import ObjectStore
+from oss.src.core.store.storage import ObjectStore, read_in_order
 from oss.src.utils.crypting import is_default_crypt_key
 from oss.src.utils.logging import get_module_logger
 
@@ -303,20 +302,18 @@ class AppSharesService:
         except AppsError as exc:
             raise AppShareError("not_an_app", exc.message) from exc
 
-        # The curated view: no `.git`, no `.gitignore`d paths (`node_modules`), no runner files.
+        # The curated flat view: it walks past `.git`, `.gitignore`d folders (`node_modules`) and
+        # runner files without listing them, and drops dotfiles, so an `.env` never reaches a link.
         listing = await self.mounts_service.list_files(
-            project_id=project_id, mount_id=mount.id, path=app_path, git_aware=True
+            project_id=project_id,
+            mount_id=mount.id,
+            path=app_path,
+            order="path",
+            git_aware=True,
         )
         prefix = f"{app_path}/"
-        # Nor dotfiles: an `.env` the agent wrote must not reach a public link.
         entries = [
-            f
-            for f in listing.files
-            if not f.is_folder
-            and f.path.startswith(prefix)
-            and not any(
-                part.startswith(".") for part in f.path[len(prefix) :].split("/")
-            )
+            f for f in listing.files if not f.is_folder and f.path.startswith(prefix)
         ]
         # A subfolder with its own app.json is a different app.
         nested = {
@@ -586,19 +583,18 @@ class AppSharesService:
     ) -> AsyncIterator[Tuple[str, ShareFileEntry, bytes]]:
         """Each entry of one manifest section with its bytes, in order, a few reads ahead."""
         store, bucket = self._require_store()
-        entries = iter(
-            (
-                snapshot.manifest.files
-                if section == "files"
-                else snapshot.manifest.external
-            ).items()
+        entries = (
+            snapshot.manifest.files
+            if section == "files"
+            else snapshot.manifest.external
         )
-
-        def read(entry: ShareFileEntry) -> asyncio.Future:
-            return asyncio.ensure_future(
-                store.get_object(
-                    bucket=bucket,
-                    key=self._snapshot_key(
+        async for (key, entry), content in read_in_order(
+            store,
+            bucket=bucket,
+            items=(
+                (
+                    (key, entry),
+                    self._snapshot_key(
                         project_id=snapshot.project_id,
                         mount_id=snapshot.mount.id,
                         app_path=snapshot.app_path,
@@ -606,19 +602,8 @@ class AppSharesService:
                         path=f"blobs/{entry.sha256}",
                     ),
                 )
-            )
-
-        ahead: deque = deque()
-        try:
-            for key, entry in entries:
-                ahead.append((key, entry, read(entry)))
-                if len(ahead) < STORE_CONCURRENCY:
-                    continue
-                key, entry, pending = ahead.popleft()
-                yield key, entry, await pending
-            while ahead:
-                key, entry, pending = ahead.popleft()
-                yield key, entry, await pending
-        finally:
-            for _, _, pending in ahead:
-                pending.cancel()
+                for key, entry in entries.items()
+            ),
+            window=STORE_CONCURRENCY,
+        ):
+            yield key, entry, content

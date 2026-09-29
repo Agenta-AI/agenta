@@ -216,6 +216,7 @@ async def resolve_offloaded(
     resolve: Callable[[], Any],
     *,
     timeout: Optional[float] = None,
+    executor: Optional[ThreadPoolExecutor] = None,
 ) -> Any:
     """Run one blocking resolution off the event loop, with a bound on each wait.
 
@@ -238,7 +239,7 @@ async def resolve_offloaded(
         loop.call_soon_threadsafe(lambda: began.done() or began.set_result(monotonic()))
         return resolve()
 
-    running = loop.run_in_executor(_resolver_executor(), _run)
+    running = loop.run_in_executor(executor or _resolver_executor(), _run)
 
     try:
         async with asyncio.timeout(queue_bound):
@@ -265,6 +266,8 @@ async def open_egress(
     caller_headers: Optional[Mapping[str, str]] = None,
     beneath_caller: Optional[Mapping[str, str]] = None,
     above_caller: Optional[Mapping[str, str]] = None,
+    operator_exemptions: bool = True,
+    resolver: Optional[ThreadPoolExecutor] = None,
 ) -> EgressTarget:
     """Check, pin and dress one outbound call. Raises :class:`EgressRefusedError`.
 
@@ -274,6 +277,10 @@ async def open_egress(
     the planes disagree about where the caller sits (the MCP relay lets a caller override an
     endpoint header, the LLM relay does not), so the order is the call site's to state, while
     what is admitted at all is not.
+
+    `operator_exemptions=False` ignores the host allowlist and the insecure flag: a caller that
+    stores what it fetches behind a public link must never reach an internal host. `resolver`
+    gives such a caller its own threads, so it cannot starve the relays of theirs.
     """
     headers = outbound_headers(
         beneath_caller,
@@ -282,7 +289,7 @@ async def open_egress(
     )
 
     hostname = (urlparse(url).hostname or "").lower()
-    if hostname and hostname in exempt_hosts():
+    if operator_exemptions and hostname and hostname in exempt_hosts():
         return EgressTarget(url=url, headers=headers, original_url=url)
 
     try:
@@ -293,9 +300,11 @@ async def open_egress(
             partial(
                 resolve_validated_ip,
                 url,
-                allow_insecure=env.gateway_egress.insecure_allowed,
+                allow_insecure=operator_exemptions
+                and env.gateway_egress.insecure_allowed,
                 label="Upstream URL",
-            )
+            ),
+            executor=resolver,
         )
     except TimeoutError as exc:
         # Refused rather than awaited. This runs on the relay path every gateway call

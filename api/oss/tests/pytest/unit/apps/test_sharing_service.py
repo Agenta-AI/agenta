@@ -65,13 +65,17 @@ class FakeMounts:
     async def read_files_bytes(self, *, project_id, mount_id, paths):
         return {path: self.files[path] for path in paths}
 
-    async def list_files(self, *, project_id, mount_id, path=None, git_aware=False):
-        self.listed_git_aware = git_aware
+    async def list_files(
+        self, *, project_id, mount_id, path=None, order=None, git_aware=False
+    ):
+        self.listed_git_aware = git_aware and order == "path"
+        # The curated flat view drops dotfiles; the service relies on it.
         return MountFileList(
             files=[
                 MountFile(path=p, size=len(b), is_folder=False)
                 for p, b in self.files.items()
-                if path is None or p.startswith(f"{path}/")
+                if (path is None or p.startswith(f"{path}/"))
+                and not any(part.startswith(".") for part in p.split("/"))
             ]
         )
 
