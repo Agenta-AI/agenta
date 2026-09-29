@@ -14,7 +14,9 @@ string below uses the placeholder.
 1. **Templates appear only where the user is about to create an agent.** Never on Sessions,
    Automations, Skills, an agent's overview, or inside a session.
 2. **One screen never shows templates twice.** If a surface already lists templates, no
-   second template element appears on that screen.
+   second template element appears on that screen. A plain link to the gallery (such as
+   the Agents page header button) is navigation, not a template element, so it does not
+   count.
 3. **A pick never creates silently.** Every pick lands on the New agent page with the
    template loaded, the prompt editable, and the connect step (if any) visible. The user
    presses Create.
@@ -75,6 +77,7 @@ Edge states on landing (already handled today):
 | Agents page, empty state | Template grid | — | — |
 | Agents page, short-list section | — | Shown (no search or filter active) | Hidden |
 | Agents page, search with no match | — (there are no agents to search) | Matching templates | Matching templates |
+| Agents page, header "Templates" button | Shown | Shown | Shown |
 | Command palette, Templates group | Shown | Shown | Shown |
 | New agent page, strip | Expanded, or collapsed if the user collapsed it | same | same |
 
@@ -157,8 +160,37 @@ not in that list.
 
 ## Surface 2: Agents page
 
-The Agents list (`features/agents/AgentListScreen.tsx`) has three template states. All
-three sit inside the list area, under the toolbar. None adds a new bar or rail.
+The Agents page (`features/agents/AgentListScreen.tsx`) has one entry that is always
+there, and three template states that depend on the list. The states sit inside the list
+area, under the toolbar. None adds a new bar or rail.
+
+### Always: "Templates" button in the page header
+
+The Agents page always has a way to reach the gallery, whatever the agent count, search,
+or filters.
+
+- **Placement:** in the page header row, directly left of "New agent", on the same row as
+  the "Agents" title. The row already exists, so the button adds no height.
+- **Look:** a secondary (outline or ghost) button, so "New agent" stays the primary action.
+  Grid icon (`SquaresFour`, the icon the palette already uses for templates) and the label
+  "Templates".
+- **Phone:** icon only, same height as "New agent" (`h-control-sm`). It keeps an
+  `aria-label` and a tooltip ("Browse templates"), because the title and "New agent" already
+  fill the row.
+- **Click:** opens `/templates`.
+- **Always rendered.** It does not depend on the catalogue state: the gallery page handles
+  its own loading and error. It has no count, so it never shows a loading or "0" state.
+- **Not dismissible.** It is navigation, like the rail items.
+
+This is the fixed route to the gallery. The states below are the offers that appear only
+when they help.
+
+```
+ ☰  Agents                                   [▦ Templates]  [+ New agent ▾]
+ [ Search agents by name…      ]  [Filter]                        [≡ ▦]
+ ───────────────────────────────────────────────────────────────────────
+ rows…
+```
 
 ### State A: 0 agents
 
@@ -203,8 +235,16 @@ Extends `states/AgentsNoMatch.tsx` when a search term is present.
 ### Journey: P2 opens Agents for the first time
 
 1. P2 clicks Agents in the rail. The list shows "No agents yet" and 6 template cards.
-2. P2 clicks "Browse all N templates →". The gallery opens.
+2. P2 clicks "Browse all N templates →" (or the header "Templates" button). The gallery
+   opens.
 3. P2 opens a template's detail page, reads it, and clicks "Use this template".
+4. The shared ending runs.
+
+### Journey: P4 wants a new agent from the gallery
+
+1. P4 has 12 agents. The Agents page shows no template section.
+2. P4 clicks "Templates" in the header. The gallery opens.
+3. P4 filters by category, opens a template, and clicks "Use this template".
 4. The shared ending runs.
 
 ### Journey: P3 searches for an agent they do not have
@@ -315,13 +355,16 @@ Also send:
 
 - `templates_banner_dismissed` when the ✕ is clicked.
 - `templates_strip_collapsed` / `templates_strip_expanded` on the New agent page.
-- `browse_templates` (exists) with the `surface` that sent the user to the gallery.
+- `browse_templates` (exists) with the `surface` that sent the user to the gallery. The
+  Agents page header button sends `surface: "agents_header"`.
 
 ## Acceptance criteria
 
 - No template element appears on Sessions, Automations, Skills, an agent overview, or a
   session screen.
 - No screen shows two template elements at once.
+- The Agents page header shows the "Templates" button in every state: 0, 1–2, and 3+
+  agents, with or without search and filters, and while the catalogue loads or fails.
 - Every pick lands on `/agents/new?template=<key>` or binds the Home composer; none creates
   an agent without the user pressing Create or Send.
 - Closing the Home banner does not change the Agents page or the New agent page.

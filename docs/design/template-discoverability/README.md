@@ -43,7 +43,7 @@ belong there. Never put templates beside an active conversation.
 Each place below has one role:
 
 - Home **shows** templates.
-- The Agents page **offers** them when the list is short.
+- The Agents page always **links** to them, and **offers** them when the list is short.
 - Search **finds** them.
 - The New agent page is where the user **picks** one.
 
@@ -61,9 +61,14 @@ A compact image banner above the Home composer (`HomeFocus.tsx`) presents the te
   (compare catalogue keys to a stored set).
 - Home is not a session surface, so this costs sessions nothing.
 
-### 2. Agents page: when the list is short
+### 2. Agents page: always a way in, more when the list is short
 
-The Agents list (`features/agents/AgentListScreen.tsx`) offers templates in three states:
+A "Templates" button sits in the page header, left of "New agent", in every state. It
+opens `/templates`. On a phone it is icon only. It uses the existing header row, so it
+costs no height.
+
+The Agents list (`features/agents/AgentListScreen.tsx`) also offers templates in three
+states:
 
 - **0 agents.** Template cards replace the text in `states/AgentsEmpty.tsx` ("No agents
   yet").
@@ -124,7 +129,7 @@ Each step is small and independent.
 
 The app already sends `captureIntent` events with `source: "template"`,
 `"browse_templates"`, and a `surface`. Add the new surface names (`home_banner`,
-`agents_empty`, `agents_short_list`, `agents_no_match`, `palette`) and compare:
+`agents_header`, `agents_empty`, `agents_short_list`, `agents_no_match`, `palette`) and compare:
 
 - Share of agents created from a template, before and after, for users older than 7 days.
 - Gallery visits per active user per week.
