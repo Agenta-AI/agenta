@@ -1235,7 +1235,18 @@
           "trigger_description": "Run manually whenever you want a fresh, research-backed job shortlist.",
           "seed_message": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
           "model": "gpt-5",
-          "connection_tools": {},
+          "connection_tools": {
+            "telegram": [
+              {
+                "name": "Find direct-chat updates",
+                "description": "Check Telegram updates to identify the user's confirmed direct chat."
+              },
+              {
+                "name": "Send scheduled report",
+                "description": "Deliver a job-search summary and report link to the user's confirmed chat."
+              }
+            ]
+          },
           "example": {
             "prompt": "Find current data engineer roles in Amsterdam that match my profile.",
             "steps": [

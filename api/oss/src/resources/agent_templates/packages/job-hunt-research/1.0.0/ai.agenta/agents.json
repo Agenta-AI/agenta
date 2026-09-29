@@ -8,7 +8,21 @@
       "instructions": "./ai.agenta/agents/job-hunt-research/AGENTS.md",
       "setup": "./ai.agenta/agents/job-hunt-research/SETUP.md",
       "skills": ["tavily-job-search"],
-      "connections": [],
+      "connections": [
+        {
+          "key": "telegram",
+          "required": false,
+          "purpose": "Deliver scheduled job-search summaries and report links only to the user's confirmed direct chat.",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "telegram"
+            }
+          ],
+          "setup_notes": "Connect your own Telegram account and confirm the intended private chat before enabling scheduled delivery. Never use this connection for employer outreach."
+        }
+      ],
       "automations": [
         {
           "key": "daily-job-search",
@@ -22,11 +36,11 @@
             "messages": [
               {
                 "role": "user",
-                "content": "Run my job search using the saved profile. Find new job postings that match me, verify they are open and genuinely relevant, research the strongest matches and companies, then tell me what is new and interesting. Save the dated report."
+                "content": "Run my job search using the saved profile. Find new job postings that match me, verify they are open and genuinely relevant, research the strongest matches and companies, save the dated report, then send the concise summary and report link to my confirmed Telegram chat."
               }
             ]
           },
-          "setup_notes": "This recipe is inactive until you enable it. Confirm the time in your timezone and make sure your profile is complete before turning it on."
+          "setup_notes": "This recipe is inactive until you enable it. Confirm the schedule and timezone, complete your profile, and confirm your Telegram destination if you want scheduled delivery."
         }
       ],
       "workspace": {

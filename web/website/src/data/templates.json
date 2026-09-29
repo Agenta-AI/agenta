@@ -2860,7 +2860,7 @@
       "versions": [
         "1.0.0"
       ],
-      "digest": "sha256:bccfd90fc55b560e23c3b899e4a99ea094cafdaa9e4e4c3b451b00fda1c2f8fe",
+      "digest": "sha256:f09cc9143c1207f31a9510106b266fa5aad11a1ea46e312d5ed50b1161a7ac29",
       "name": "Job Hunt Research Assistant",
       "summary": "Find relevant openings and research the companies behind the strongest matches.",
       "description": "Builds a verified job shortlist from your profile, researches employers, and saves evidence-backed fit notes and next steps.",
@@ -2907,8 +2907,29 @@
       "seed_message": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
       "builder_message": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
       "model": "gpt-5",
-      "tools_summary": "",
-      "connections": [],
+      "tools_summary": "2 Telegram tools",
+      "connections": [
+        {
+          "key": "telegram",
+          "role": "Deliver scheduled job-search summaries and report links only to the user's confirmed direct chat.",
+          "required": false,
+          "primary": {
+            "slug": "telegram",
+            "scope": "Connect your own Telegram account and confirm the intended private chat before enabling scheduled delivery. Never use this connection for employer outreach.",
+            "tools": [
+              {
+                "name": "Find direct-chat updates",
+                "description": "Check Telegram updates to identify the user's confirmed direct chat."
+              },
+              {
+                "name": "Send scheduled report",
+                "description": "Deliver a job-search summary and report link to the user's confirmed chat."
+              }
+            ]
+          },
+          "alternatives": []
+        }
+      ],
       "example": {
         "prompt": "Find current data engineer roles in Amsterdam that match my profile.",
         "steps": [

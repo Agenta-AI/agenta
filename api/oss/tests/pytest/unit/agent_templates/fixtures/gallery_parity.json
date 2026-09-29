@@ -1735,6 +1735,40 @@
       "kind": "internal",
       "key": "job-hunt-research"
     },
+    "name": "Job Hunt Research Assistant",
+    "category": "Knowledge",
+    "initials": "JH",
+    "color": "#315B58",
+    "description": "Find relevant openings and research the companies behind the strongest matches.",
+    "overview": "Builds a verified job shortlist from your profile, researches employers, and saves evidence-backed fit notes and next steps.",
+    "instructions": "Find current roles that fit your profile, verify each posting, and research the best matches.",
+    "toolsSummary": "2 Telegram tools",
+    "trigger": "On demand",
+    "triggerDescription": "Run manually whenever you want a fresh, research-backed job shortlist.",
+    "seedMessage": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
+    "builderMessage": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
+    "model": "gpt-5",
+    "connections": [
+      {
+        "key": "telegram",
+        "role": "Deliver scheduled job-search summaries and report links only to the user's confirmed direct chat.",
+        "required": false,
+        "primary": {
+          "slug": "telegram",
+          "scope": "Connect your own Telegram account and confirm the intended private chat before enabling scheduled delivery. Never use this connection for employer outreach.",
+          "tools": [
+            {
+              "name": "Find direct-chat updates",
+              "description": "Check Telegram updates to identify the user's confirmed direct chat."
+            },
+            {
+              "name": "Send scheduled report",
+              "description": "Deliver a job-search summary and report link to the user's confirmed chat."
+            }
+          ]
+        }
+      }
+    ],
     "example": {
       "prompt": "Find current data engineer roles in Amsterdam that match my profile.",
       "steps": [
@@ -1748,20 +1782,6 @@
         "job-hunt/reports/<date>.md"
       ],
       "status": "Report saved"
-    },
-    "name": "Job Hunt Research Assistant",
-    "category": "Knowledge",
-    "initials": "JH",
-    "color": "#315B58",
-    "description": "Find relevant openings and research the companies behind the strongest matches.",
-    "overview": "Builds a verified job shortlist from your profile, researches employers, and saves evidence-backed fit notes and next steps.",
-    "instructions": "Find current roles that fit your profile, verify each posting, and research the best matches.",
-    "toolsSummary": "",
-    "trigger": "On demand",
-    "triggerDescription": "Run manually whenever you want a fresh, research-backed job shortlist.",
-    "seedMessage": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
-    "builderMessage": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
-    "model": "gpt-5",
-    "connections": []
+    }
   }
 ]

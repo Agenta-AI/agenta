@@ -10,6 +10,7 @@ Replace the placeholders below or ask the agent to onboard you. Do not leave pla
 - Industries to avoid: <optional>
 - Salary or level preference: <optional>
 - LinkedIn/contact for outreach drafts: <optional>
+- Confirmed Telegram chat ID for scheduled report delivery: <optional; only after confirming this is your intended private chat>
 
 ## CV / resume
 
