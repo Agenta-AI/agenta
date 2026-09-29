@@ -21,8 +21,12 @@ A share SHALL be created only for an app folder in a session's working drive. Th
 - **WHEN** an editor tries to share a folder with no valid `app.json`
 - **THEN** the request SHALL be refused.
 
+#### Scenario: Hidden and ignored files
+- **WHEN** the app folder holds an `.env` file, a `.git` folder, or a path that `.gitignore` matches
+- **THEN** the share SHALL NOT include them.
+
 ### Requirement: Only people in an interactive session can change a share
-Creating, updating, restoring, changing, or stopping a share SHALL require the `EDIT_MOUNTS` permission on the project and an interactive sign-in session. A request made with an API key or with the agent's tool credential SHALL be refused, even when that credential carries `EDIT_MOUNTS`. Reading the share state of an app SHALL require `VIEW_MOUNTS`.
+Creating, updating, changing, or stopping a share SHALL require the `EDIT_MOUNTS` permission on the project and an interactive sign-in session. A request made with an API key or with the agent's tool credential SHALL be refused, even when that credential carries `EDIT_MOUNTS`. Reading the share state of an app SHALL require `VIEW_MOUNTS`.
 
 #### Scenario: Editor in the browser
 - **WHEN** a signed-in user with the editor role clicks Share

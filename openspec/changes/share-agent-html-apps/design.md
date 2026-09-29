@@ -39,8 +39,8 @@ Archive means "kept as history". It does not mean "gone". An archived drive keep
 | Access | Callers | Archived drive |
 |---|---|---|
 | `read` | `list_files`, `read_file`, `read_file_bytes`, `stat_file`, `build_archive_work_list` (export), `read_attachment_original`, scope mint at level `read` | Allowed |
-| `write` | `write_file`, `create_folder`, `delete_path`, upload, `write_attachment_original`, `delete_attachment_original`, `edit_mount`, `sign_mount_credentials` (the credentials are read-write), scope mint at level `read-write` | Refused with `MountArchived` |
-| `lifecycle` | `archive_mount`, `unarchive_mount` | Allowed |
+| `write` | `write_file`, `create_folder`, `delete_path`, upload, `write_attachment_original`, `edit_mount`, `sign_mount_credentials` (the credentials are read-write), scope mint at level `read-write` | Refused with `MountArchived` |
+| `lifecycle` | `archive_mount`, `unarchive_mount`, `delete_attachment_original` (the attachment sweep's cleanup) | Allowed |
 
 `_resolve_mount` gets a required keyword `access: Literal["read", "write", "lifecycle"]` with no default. Each caller must state its access level, so a new caller cannot skip the check by accident. `upsert_mount` gets a required `reactivate` keyword: session drives pass `False` and stay archived; agent drives pass `True` and keep today's re-bind behavior. `upsert_mount` therefore stops clearing `deleted_at` for session drives (`api/oss/src/dbs/postgres/mounts/dao.py:91-93`), and `get_or_create_session_mount` raises `MountArchived` for an archived drive, so only unarchive restores a drive.
 
@@ -57,7 +57,7 @@ class AppShare(BaseModel):
     enabled: bool                              # policy
     visibility: Literal["workspace", "link"]   # policy
     nonce: str                                 # credential material, 16 random bytes
-    latest: int                                # data: the live manifest, v<latest>.json
+    snapshot: Optional[str]                    # data: the live publish's folder; None after a stop
     created_by_id: UUID                        # metadata
     created_at: datetime
     updated_at: datetime
@@ -67,12 +67,12 @@ One DAO method locks the row with `with_for_update`, changes one entry, assigns 
 
 Alternatives: a new `app_shares` table (rejected: the owner asked for no table, and the share must die with the drive row anyway). A share keeps no history: each publish replaces what the link shows. A version list with restore was built and then removed, because no screen used it.
 
-### Snapshots are content-addressed objects beside the drive prefix
+### Each publish is its own folder beside the drive prefix
 
 | Object | Key |
 |---|---|
-| File content | `[<ns>/]shares/<project_id>/<mount_id>/blobs/<sha256>` |
-| Manifest, one per publish | `[<ns>/]shares/<project_id>/<mount_id>/apps/<app_path>/v<N>.json` |
+| File content | `[<ns>/]shares/<project_id>/<mount_id>/apps/<app_path>/<snapshot>/blobs/<sha256>` |
+| Manifest | `[<ns>/]shares/<project_id>/<mount_id>/apps/<app_path>/<snapshot>/manifest.json` |
 
 A manifest has four parts:
 
@@ -83,7 +83,7 @@ A manifest has four parts:
 
 The server is the only place that parses references for a share. The viewer does not resolve anything; it looks references up in `refs`.
 
-Blobs are written with `put_object_if_absent`, so unchanged files are not written again. The manifest is written next, and the `latest` pointer in `mounts.data` moves last, so a failed publish never exposes a partial snapshot. The publish rechecks the archive state under the row lock, because the capture runs before the lock. If the drive row is gone by then, the publish removes the share prefix it wrote to.
+A publish writes its blobs and then its manifest into a new folder, with no lock held. Under the row lock it only swaps `snapshot` to the new folder and rechecks the archive state, because the capture runs before the lock; `mutate` is a plain function and does no I/O. After the swap it removes the folder it replaced, and a stop removes the live one, so a share keeps no history and a stopped share holds no files. A publish that fails at any step, including a drive row that is gone or archived by the swap, removes its own folder. Session delete removes the share prefix once more after the rows, for a publish that swapped in between.
 
 The prefix sits outside the drive prefix, so drive listings and sandbox credentials cannot reach it. Session delete removes it with the drive prefix.
 
@@ -136,7 +136,7 @@ Both failures are 403, not 401: a 401 makes the SuperTokens interceptor try a se
 | `GET /mounts/{mount_id}/apps/share?path=` | `fetch_app_share` | `VIEW_MOUNTS` |
 | `POST /mounts/{mount_id}/apps/share/publish` body `{path, visibility?}` | `publish_app_share` | `EDIT_MOUNTS`, interactive session |
 | `PATCH /mounts/{mount_id}/apps/share` body `{path, visibility}` | `edit_app_share` | `EDIT_MOUNTS`, interactive session |
-| `DELETE /mounts/{mount_id}/apps/share?path=` | `stop_app_share` | `EDIT_MOUNTS`, interactive session |
+| `POST /mounts/{mount_id}/apps/share/stop` body `{path}` | `stop_app_share` | `EDIT_MOUNTS`, interactive session |
 
 `is_interactive_session` is what separates the person from the agent, because both hold `EDIT_MOUNTS`. `delete_user_account` uses the same check (`api/oss/src/routers/user_profile.py:120`). Publish returns `external_failed` and `warnings`.
 
@@ -150,7 +150,7 @@ Both failures are 403, not 401: a 401 makes the SuperTokens interceptor try a se
 
 Access is decided once per view, not once per file. Access check, in order: default key (503 `sharing_disabled`); signature and `a` (404 `share_not_found`); drive exists (404); drive not archived (404 `share_unavailable`); share enabled and nonce matches (404); for `workspace`, `resolve_session_user_id` (403 `sign_in_required`, not 401, so the SuperTokens interceptor does not try a refresh for a viewer with no session), `AuthService.check_organization_access` (403 with the policy error), uncached `workspace_member_exists` (403 `not_a_member`); the live manifest exists (503 `storage_unavailable`).
 
-The route calls the organization policy check itself because the middleware skips public routes (`auth.py:1352`). It streams the JSON body. It reads the manifest, writes the metadata, then reads each blob from the store and writes it, one blob at a time, so a 25 MB snapshot is never held in memory whole. The response is `application/json` with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Cache-Control: no-store`. No snapshot file has its own URL, so no snapshot file can render on the Agenta origin.
+The route calls the organization policy check itself because the middleware skips public routes (`auth.py:1352`). It streams the JSON body. It reads the manifest, writes the metadata, then writes each blob in order while reading 8 ahead, so a 25 MB snapshot is never held in memory whole. The 200 status is sent before the blobs, so a failed read closes the body with `"error": {"code": "storage_unavailable"}` instead of cutting it off. Each link is limited to a burst of 20 views and 30 a minute (`check_throttle`, keyed by a hash of the token), then 429 `rate_limited`. The response is `application/json` with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Cache-Control: no-store`. No snapshot file has its own URL, so no snapshot file can render on the Agenta origin.
 
 Alternative: a blob route per file (rejected: one view of a `workspace` share ran the full SuperTokens, policy, and membership check once per file, up to 230 times). Alternative: a signed per-snapshot blob grant (rejected: a second token type and a second expiry for no gain over one response).
 
@@ -213,7 +213,6 @@ Alternative: add `AGENTA_API_KEY` and `AGENTA_RUNNER_TOKEN` to the blanked list 
 - [Chrome `<link rel="prerender">` may ignore CSP (recorded in `docs/design/agent-html-apps/contracts.md:218-221`, not tested here)] → One request per load can leave. Test during implementation and record the result.
 - [Bundled SeaweedFS keeps deleted objects as old versions for `version_retention_days` (`storage.py:184-229`)] → A stopped or deleted share's bytes stay in storage for that time. They are not reachable through any route.
 - [The viewer response is up to about 34 MB of base64] → It is streamed and gzip-compressed (`GZipMiddleware`), and it replaces up to 230 requests.
-- [No rate limit on the public share route] → One view is one request with one access check. Only a person with the link can call the route, and the owner can stop the share at once. A rate limit is out of scope.
 - [Blanking inherited variables can remove one that a harness needs] → The integration check runs each local harness once. A missing variable is added to the allowlist by name.
 - [The `json` column cannot be indexed] → No query needs to search share settings. A `jsonb` migration is possible later.
 
