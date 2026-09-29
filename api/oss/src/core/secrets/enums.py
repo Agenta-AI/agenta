@@ -94,6 +94,43 @@ SUBSCRIPTION_PROVIDER_HARNESSES = {
     SubscriptionProviderKind.CHATGPT: ["pi_core"],
 }
 
+# Every list SUBSCRIPTION_PROVIDER_MODELS has ever held, the current one included. A stored
+# row whose list matches one of these (as a set) carries a create-time snapshot of the
+# defaults, not a user's narrowing: the create path used to write the defaults into the row,
+# so a connection made before a catalog update kept offering the old lineup. Such a row is
+# normalized back to "follow the current defaults". Append the outgoing list here whenever
+# SUBSCRIPTION_PROVIDER_MODELS changes, or connections created under it will stay pinned.
+SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS = {
+    SubscriptionProviderKind.CHATGPT: (
+        # Introduced with the subscription_provider kind (pre Pi 0.87.1).
+        frozenset(
+            {
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-5.5",
+                "gpt-5.4",
+                "gpt-5.4-mini",
+                "gpt-5.3-codex-spark",
+            }
+        ),
+        # After the gpt-6-astra addition.
+        frozenset(
+            {
+                "gpt-6-astra",
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-5.5",
+                "gpt-5.4",
+                "gpt-5.4-mini",
+                "gpt-5.3-codex-spark",
+            }
+        ),
+        frozenset(SUBSCRIPTION_PROVIDER_MODELS[SubscriptionProviderKind.CHATGPT]),
+    ),
+}
+
 # The display name a new subscription connection takes when the caller sends none.
 SUBSCRIPTION_PROVIDER_DISPLAY_NAMES = {
     SubscriptionProviderKind.CHATGPT: "ChatGPT",
