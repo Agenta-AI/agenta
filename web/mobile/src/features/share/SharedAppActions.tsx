@@ -41,7 +41,7 @@ export const SharedAppActions = ({
         <div className="flex shrink-0 items-center gap-1.5">
             {sessionHref ? (
                 <Button asChild variant="ghost" size="xs">
-                    <Link href={sessionHref}>Open in session</Link>
+                    <Link href={sessionHref}>Open in chat</Link>
                 </Button>
             ) : null}
             {snapshot && editable && viewer.project_id ? (
