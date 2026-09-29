@@ -123,9 +123,16 @@ export const KNOWN_SANDBOX_ENV_VARS = [
   "E2B_API_KEY",
 ] as const;
 
+/** Proxy URLs pass to a harness without their `user:password@`, so no proxy login reaches it. */
+const PROXY_URL_ENV_VARS = new Set(["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]);
+
+export const withoutUserinfo = (value: string): string =>
+  value.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/]*@/i, "$1");
+
 /**
  * Locale, time zone, temp dir, shell, proxy and CA settings: what a harness process needs to run
- * and reach the network on this host. None is a platform credential.
+ * and reach the network on this host. None is a platform credential; proxy logins are
+ * stripped (see `withoutUserinfo`).
  */
 export const NEUTRAL_OS_ENV_VARS = [
   "TMPDIR",
@@ -318,7 +325,7 @@ export function buildDaemonEnv(
   // Neutral OS settings a harness process needs to run; none is a credential.
   for (const key of NEUTRAL_OS_ENV_VARS) {
     const value = process.env[key];
-    if (value) env[key] = value;
+    if (value) env[key] = PROXY_URL_ENV_VARS.has(key) ? withoutUserinfo(value) : value;
   }
 
   // Force-blank sandbox infra creds on every run (see KNOWN_SANDBOX_ENV_VARS doc): the underlying

@@ -2,7 +2,11 @@ import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
-import { buildDaemonEnv, closeInheritedEnv } from "../../src/engines/sandbox_agent/daemon.ts";
+import {
+  buildDaemonEnv,
+  closeInheritedEnv,
+  withoutUserinfo,
+} from "../../src/engines/sandbox_agent/daemon.ts";
 
 describe("closeInheritedEnv", () => {
   const runnerEnv: Record<string, string> = {
@@ -64,5 +68,20 @@ describe("closeInheritedEnv", () => {
       if (previous === undefined) delete process.env.TZ;
       else process.env.TZ = previous;
     }
+  });
+
+  it("passes proxy URLs without their credentials", () => {
+    const previous = process.env.HTTPS_PROXY;
+    process.env.HTTPS_PROXY = "http://ops:s3cret@proxy.internal:3128";
+    try {
+      expect(buildDaemonEnv("claude", { clearProviderEnv: true }).HTTPS_PROXY).toBe(
+        "http://proxy.internal:3128",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.HTTPS_PROXY;
+      else process.env.HTTPS_PROXY = previous;
+    }
+    expect(withoutUserinfo("http://proxy.internal:3128")).toBe("http://proxy.internal:3128");
+    expect(withoutUserinfo("proxy.internal:3128")).toBe("proxy.internal:3128");
   });
 });
