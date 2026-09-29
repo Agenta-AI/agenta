@@ -9,7 +9,7 @@
  */
 
 import { clampTimerMs } from "../env.ts";
-import sandboxRecipe from "../../images/sandbox/daytona/sandbox-recipe.json" with {
+import sandboxRecipe from "../../config/sandbox-recipe.json" with {
   type: "json",
 };
 

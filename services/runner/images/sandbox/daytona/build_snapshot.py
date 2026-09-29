@@ -57,7 +57,7 @@ from daytona import (
 )
 from daytona.common.errors import DaytonaNotFoundError
 
-RECIPE_METADATA_PATH = Path(__file__).with_name("sandbox-recipe.json")
+RECIPE_METADATA_PATH = Path(__file__).parents[3] / "config" / "sandbox-recipe.json"
 RECIPE_METADATA = json.loads(RECIPE_METADATA_PATH.read_text())
 SANDBOX_RECIPE_VERSION = int(RECIPE_METADATA["version"])
 SNAPSHOT_NAME = f"agenta-agent-sandbox-v{SANDBOX_RECIPE_VERSION}"
