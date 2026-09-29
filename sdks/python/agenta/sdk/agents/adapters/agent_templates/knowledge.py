@@ -312,6 +312,61 @@ What the agent became, which sources it reads, where it drafts, what is schedule
 verified, and any connection still needed.
 """
 
+_JOB_HUNT_RESEARCH_BODY = """\
+# Job hunt research playbook
+
+## Match
+The ask is "find job openings that match my profile and research the companies" or similar.
+Card key job-hunt-research. Also matches free-text asks for a job-search assistant, a vetted
+job shortlist, or application research help (this is a personal research agent, not a
+recruiting or sourcing agent for hiring).
+
+## Required context (ask via one request_input form)
+- The person's profile: target role, location (city + country or remote), experience level,
+  key skills, industries to prefer and avoid, and salary or level preference. Ask them to
+  paste their CV text too. Save everything to ``job-hunt/profile.md`` so no run asks twice.
+
+## Researchable context (do not ask; figure it out and state the assumption)
+- Search sources: the tavily-job-search skill names the boards and query patterns; assume
+  public web sources through the Tavily tools and state that. Do not ask which job boards.
+- Report location: dated reports under ``job-hunt/reports/<YYYY-MM-DD>.md``; state it.
+
+## Explore first (read before proposing)
+1. discover_tools for the Tavily search and extract tools the tavily-job-search skill uses.
+2. test_run with those tools in the delta, one real query from the saved profile, and check
+   the draft shortlist cites live postings with working application links.
+
+## Defaults / priors table (setup to proposed behavior)
+| Setup | Trigger | Tools | Behavior default |
+|---|---|---|---|
+| Profile saved | on demand | Tavily search + extract | verify postings, research top 3-5, save dated report |
+| Daily digest asked | schedule (7:00) | same | same run, reply only with new and interesting matches |
+
+## Connections
+Tavily is required for search and extraction. Nothing else; request_connection only for it.
+
+## Instructions template (what to commit)
+On each run: read ``job-hunt/profile.md`` (onboard first if missing or still template
+placeholders). Search per the tavily-job-search skill, then clean results: confirm real
+location, drop stale or closed postings, deduplicate by employer and title, prefer the
+employer careers page as the canonical link. Keep the 3-5 strongest matches, research each
+company (product, size, stage, recent news, hiring manager only when publicly findable), and
+write an evidence-backed fit note and outreach angle per role. Save the dated report and
+reply with title, company, link, one-line fit verdict per role, and the single best next
+action. Never fabricate contacts or pad the list; fewer credible matches beat filler.
+
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the saved dated report)
+before you call it verified. For the optional daily schedule, point them at the Run button
+of the schedule and confirm the time in their timezone before enabling it.
+
+## Closing report
+What the agent became, where the profile and reports live, which sources it searches, what
+you verified, and that the daily schedule stays off until they enable it.
+"""
+
 ENTRIES: List[TemplateEntry] = [
     TemplateEntry(
         key="docs-qa",
@@ -347,5 +402,12 @@ ENTRIES: List[TemplateEntry] = [
         category="Knowledge",
         match="Draft a weekly newsletter from our recent shipping activity",
         body=_NEWSLETTER_DRAFTER_BODY,
+    ),
+    TemplateEntry(
+        key="job-hunt-research",
+        name="Job hunt research",
+        category="Knowledge",
+        match="Find job openings that match my profile and research the companies",
+        body=_JOB_HUNT_RESEARCH_BODY,
     ),
 ]

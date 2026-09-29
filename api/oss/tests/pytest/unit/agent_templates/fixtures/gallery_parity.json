@@ -1728,5 +1728,40 @@
         }
       }
     ]
+  },
+  {
+    "key": "job-hunt-research",
+    "source": {
+      "kind": "internal",
+      "key": "job-hunt-research"
+    },
+    "example": {
+      "prompt": "Find current data engineer roles in Amsterdam that match my profile.",
+      "steps": [
+        "Compared postings with the saved role, location, and skills profile",
+        "Checked location, freshness, and application status",
+        "Researched employers and captured sourced fit notes",
+        "Saved the dated report with links and caveats"
+      ],
+      "reply": "Your shortlist is ready with application links, evidence-backed fit notes, and a next step. Unverified details are called out rather than guessed.",
+      "artifacts": [
+        "job-hunt/reports/<date>.md"
+      ],
+      "status": "Report saved"
+    },
+    "name": "Job Hunt Research Assistant",
+    "category": "Knowledge",
+    "initials": "JH",
+    "color": "#315B58",
+    "description": "Find relevant openings and research the companies behind the strongest matches.",
+    "overview": "Builds a verified job shortlist from your profile, researches employers, and saves evidence-backed fit notes and next steps.",
+    "instructions": "Find current roles that fit your profile, verify each posting, and research the best matches.",
+    "toolsSummary": "",
+    "trigger": "On demand",
+    "triggerDescription": "Run manually whenever you want a fresh, research-backed job shortlist.",
+    "seedMessage": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
+    "builderMessage": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
+    "model": "gpt-5",
+    "connections": []
   }
 ]
