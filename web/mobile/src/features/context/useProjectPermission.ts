@@ -6,12 +6,18 @@ export const fetchProjectPermission = async (
     action: string,
 ): Promise<boolean> => {
     try {
-        await getAccessClient().checkPermissions({
-            action,
-            scope_type: "project",
-            scope_id: projectId,
-            resource_type: "service",
-        })
+        await getAccessClient().checkPermissions(
+            {
+                action,
+                scope_type: "project",
+                scope_id: projectId,
+                resource_type: "service",
+            },
+            // Without an explicit `project_id`, the auth middleware scopes the request to
+            // the DEFAULT project, and the scope check compares that against `scope_id` —
+            // denying every permission on a non-default project.
+            {queryParams: {project_id: projectId}},
+        )
         return true
     } catch {
         return false
