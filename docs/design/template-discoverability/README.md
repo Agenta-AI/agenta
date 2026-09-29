@@ -34,128 +34,97 @@ Two more findings:
 
 ## Design principle
 
-Templates are a **start** activity. Sessions are a **doing** activity. Put templates where
-work starts (Home, New agent, empty states, search) and in places that cost zero height
-(icon actions, placeholders, slash menus, inline suggestions). Never put them beside an
-active conversation.
+Templates help with one job: **creating an agent**. Show them only where the user is about
+to create one. Sessions, Skills, and Automations are about other jobs, so templates do not
+belong there. Never put templates beside an active conversation.
+
+Each place below has one role:
+
+- Home **shows** templates.
+- The Agents page **offers** them when the list is short.
+- Search **finds** them.
+- The New agent page is where the user **picks** one.
 
 ## Proposals
 
-Each option lists its cost in session real estate.
+### 1. Home: banner above the composer
 
-### 1. A rail entry that costs zero rows (recommended)
+A compact image banner above the Home composer (`HomeFocus.tsx`) presents the templates
+("Start from a template" or "From the Marketplace", depending on the name we pick in 5).
 
-Add a "Browse templates" icon action to the **Agents** row via `groupAction`, the same
-mechanism the Sessions row uses for search and filter. Hover or focus on the row shows a
-`SquaresFour` icon and a `+`; the `+` opens the existing `NewAgentButton` menu (blank or
-template), the grid icon opens `/templates`. In the collapsed rail, the Agents flyout gets
-a "Templates" child.
+- One short strip, about 64–80 px high: 2–3 template tiles or one featured template, plus
+  "Browse all N →".
+- On a phone, the composer must stay above the fold.
+- Dismissible. It comes back when the catalogue adds templates the user has not seen
+  (compare catalogue keys to a stored set).
+- Home is not a session surface, so this costs sessions nothing.
 
-```
- Home
- Agents                 [▦] [+]    ← appears on hover/focus, always on touch
- Automations
- Skills
- Sessions               [⌕] [≡]
-   ├ …
-```
+### 2. Agents page: when the list is short
 
-- Cost: **0 rows.**
-- Variant 1b: a full "Templates" row under Agents. Cost: 1 row (about 32 px, one session
-  row). Honest and simplest; take it if 1 tests poorly.
-- Variant 1c: a grid icon in the rail footer beside Help. Cost: 0 rows, but it reads as a
-  utility, not a product area.
+The Agents list (`features/agents/AgentListScreen.tsx`) offers templates in three states:
 
-### 2. Home that opens on templates when it should
+- **0 agents.** Template cards replace the text in `states/AgentsEmpty.tsx` ("No agents
+  yet").
+- **1–2 agents.** A "Start from a template" section of cards sits below the table, in the
+  space the short list leaves empty. It goes away at 3 or more agents.
+- **Search with no match.** `states/AgentsNoMatch.tsx` shows the templates that match the
+  search words. A user who searches "github" and has no GitHub agent sees the GitHub
+  templates.
 
-Today the tab choice is binary: agents exist → Agents tab. Change the default rule and the
-empty space under the composer:
+### 3. Command palette: templates are searchable
 
-- Show a **one-line chip row under the composer** in task mode: "Start from a template:
-  Issue triager · Changelog writer · PR reviewer · Browse all N →". One line, no cards.
-  Home has no session content, so this costs nothing that sessions use.
-- Put the count on the tab: "Templates N", and a dot when the catalogue has templates
-  the user has not seen (compare catalogue keys to a stored set).
-- Open on Templates when the project has fewer than 2 agents, not 0.
+Today the palette (`features/nav/useCommandPaletteGroups.tsx`) has only two links to the
+gallery. Template names are not indexed, so typing "changelog" does not find the
+Changelog writer.
 
-- Cost: **0** (Home is not a session surface).
+- Add a "Templates" group next to Sessions, Agents, Pages, and Actions. A match opens the
+  template on `/agents/new?template=<key>`.
+- With an empty query, show 2–3 suggested templates in that group.
+- Add `marketplace` (and the other word from 5) as search keywords for the gallery link.
 
-### 3. Suggest the template that matches what the user types
+### 4. New agent page: collapse instead of hide
 
-When the Home composer is in create mode, or on `/agents/new`, match the typed text
-against the catalogue (name, description, category, `templateProviderSlugs`). Show one
-inline chip above the composer: "Looks like **Issue triager** — use this template?"
-Accepting it binds the template exactly as `selectTemplate` does today.
+`/agents/new` keeps the template strip (`features/onboarding/FirstRunTemplates.tsx`).
+Replace its eye-off "hide" with **collapse**: the strip folds to one row of category chips
+plus "Browse all". Today one tap sets `agenta:templates:strip-hidden`, which hides
+templates on every surface, for good.
 
-- Cost: **0** until relevant, then one line inside the composer's own chrome.
-- This teaches that templates exist at the exact moment they help. It is the highest-value
-  option for returning users who never click "browse".
+### 5. One name everywhere
 
-### 4. Slash command in composers
+The website says "Agent Marketplace". The app says "Templates". Pick one noun and use it
+on the website, in the banner, on the gallery page, and in the palette.
 
-Type `/` in the Home composer (or `/template`) to open an inline picker over the
-composer with search and categories. Same pattern as Slack, Notion, and Linear.
+## Considered and not planned
 
-- Cost: **0** (a popover that closes on pick).
+These were proposed and dropped. They are either too much or in the wrong place.
 
-### 5. Stop "hide" from being permanent
+- **Empty states on Sessions, Automations, and Skills.** These pages are about other jobs.
+  Templates there add noise.
+- **Prompt after an integration connects** ("3 templates use GitHub"). It interrupts the
+  user at a moment that is about something else.
+- **A card in the nav rail**, even while the user has few sessions. The rail belongs to
+  navigation and sessions.
+- **The empty state of a new session.** The user already chose an agent there.
+- **The agent overview page.** The user already has this agent.
+- **A rail entry, intent matching in the composer, a `/` picker.** Not needed for a first
+  version. Revisit only if the four places above do not move the numbers.
 
-Replace the eye-off action on the first-run strip with **collapse**: the strip folds to a
-single chip row (category chips + "Browse all"), not a grey "Templates hidden · Show
-again" line. Keep the full hide only in Settings. The current hide is global, so one
-mis-tap removes templates from every surface forever.
+## Order
 
-- Cost: **0**; it returns space the user already chose to give.
+Each step is small and independent.
 
-### 6. One name everywhere
-
-Pick one noun. Options:
-
-- Keep **Templates** in the app, and title the gallery "Templates — from the Agent
-  Marketplace". Add `marketplace`, `gallery`, `examples`, `starter` as palette keywords.
-- Or rename in-app to **Marketplace**, matching the website and the "Share in the
-  marketplace" action.
-
-Either way, add the palette keywords. It is a one-line change in
-`useCommandPaletteGroups.tsx` (`matches(q, action.label, [...])`).
-
-- Cost: **0.**
-
-### 7. Contextual moments (later)
-
-Short, dismissible prompts at moments where a template is the obvious next step:
-
-- After the user connects an integration (GitHub, Slack, Linear): "3 templates use
-  GitHub" toast with a link to the gallery filtered by that provider.
-- On the Agents list when it has fewer than 3 rows: a "Start from a template" row after
-  the last agent, inside the table's own empty area.
-- The empty Sessions list: "No sessions yet — start one from a template".
-
-- Cost: **0** (they use space that is already empty).
-
-## What not to do
-
-- A templates panel or strip on the session screen. It competes with the transcript.
-- A second rail or a pinned card in the rail. Each fixed row removes a session row.
-- An announcement banner as the main fix. It works once, then people learn to ignore it.
-
-## Recommendation
-
-Ship in this order. Each step is small and independent.
-
-1. Palette keywords and one name (6). Lowest effort.
-2. Zero-row rail entry on Agents (1). Fixes "there is no way to get there".
-3. Collapse instead of hide (5), and the Home chip row plus tab count (2).
-4. Intent matching in the composer (3). Largest effect on returning users.
-5. Slash picker (4) and contextual moments (7) after we measure 1–4.
+1. One name (5) and palette search (3). Lowest effort.
+2. Agents page states (2).
+3. Home banner (1).
+4. Collapse instead of hide (4).
 
 ## How to measure
 
 The app already sends `captureIntent` events with `source: "template"`,
-`"browse_templates"`, and a `surface`. Add the new surface names (`rail`, `home_chips`,
-`intent_match`, `slash`, `palette`) and compare:
+`"browse_templates"`, and a `surface`. Add the new surface names (`home_banner`,
+`agents_empty`, `agents_short_list`, `agents_no_match`, `palette`) and compare:
 
 - Share of agents created from a template, before and after, for users older than 7 days.
 - Gallery visits per active user per week.
-- Hide/collapse rate on the first-run strip.
+- Banner dismiss rate, and collapse rate on the New agent strip.
 - Session-screen metrics must not change (nothing here touches that screen).
