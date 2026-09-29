@@ -27,7 +27,7 @@ import {
     PopoverTrigger,
     cn,
 } from "@agenta/ui/ui"
-import {Check, Copy, GlobeHemisphereWest, ShareNetwork, UsersThree, X} from "@phosphor-icons/react"
+import {Check, Copy, GlobeHemisphereWest, ShareNetwork, UsersThree} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {useMountAssembleIo} from "./mountIo"
@@ -122,13 +122,11 @@ const SharePanel = ({
     appName,
     result,
     loading,
-    onClose,
 }: {
     target: ShareTarget
     appName: string
     result: AppShareResult | undefined
     loading: boolean
-    onClose: () => void
 }) => {
     const {mount, dir, projectId} = target
     const share = result?.share ?? null
@@ -182,24 +180,13 @@ const SharePanel = ({
     return (
         <div className="flex flex-col text-xs">
             <div className="flex flex-col gap-3 p-4">
-                <div className="flex items-start gap-2">
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <h2 className="m-0 truncate text-base font-semibold text-colorText">
-                            Share {appName}
-                        </h2>
-                        <p className="m-0 text-sm text-colorTextSecondary">
-                            People get a read-only snapshot of the app and its data.
-                        </p>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Close"
-                        onClick={onClose}
-                        className="-mr-1 -mt-1 shrink-0"
-                    >
-                        <X className="size-4" />
-                    </Button>
+                <div className="flex min-w-0 flex-col gap-1">
+                    <h2 className="m-0 truncate text-base font-semibold text-colorText">
+                        Share {appName}
+                    </h2>
+                    <p className="m-0 text-sm text-colorTextSecondary">
+                        People get a read-only snapshot of the app and its data.
+                    </p>
                 </div>
 
                 {loading ? (
@@ -223,20 +210,21 @@ const SharePanel = ({
                             <div className="flex items-center gap-2">
                                 <Input
                                     readOnly
+                                    size="sm"
                                     value={link}
                                     aria-label="Share link"
                                     onFocus={(e) => e.currentTarget.select()}
-                                    className="h-9 flex-1 text-sm"
+                                    className="flex-1 text-xs"
                                 />
                                 <Button
                                     variant="outline"
-                                    size="icon"
+                                    size="icon-sm"
                                     onClick={copy}
                                     aria-label={copied ? "Link copied" : "Copy link"}
                                     title={copied ? "Copied" : "Copy link"}
-                                    className="size-9 shrink-0"
+                                    className="shrink-0"
                                 >
-                                    {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                                    {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                                 </Button>
                             </div>
                         ) : null}
@@ -362,7 +350,6 @@ export function ShareAppButton({
                     appName={name}
                     result={query.data}
                     loading={query.isPending}
-                    onClose={() => setOpen(false)}
                 />
             </PopoverContent>
         </Popover>
