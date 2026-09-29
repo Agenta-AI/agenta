@@ -33,7 +33,7 @@ const COPY: Record<string, Copy> = {
     },
     share_unavailable: {
         title: "This app is paused",
-        description: "Its session is archived. It opens again when the owner unarchives it.",
+        description: "Its chat or agent is archived. It opens again when the owner unarchives it.",
         icon: PauseCircle,
     },
     share_not_found: {

@@ -142,6 +142,9 @@ class SharedAppsRouter:
             is_owner=snapshot.share.created_by_id == user_id,
             can_open_session=in_project,
             session_id=snapshot.mount.session_id if in_project else None,
+            agent_id=snapshot.mount.agent_id
+            if in_project and not snapshot.mount.session_id
+            else None,
             workspace_id=workspace_id if in_project else None,
             project_id=project_id if in_project else None,
             mount_id=str(snapshot.mount.id) if can_edit else None,

@@ -8,6 +8,7 @@ export interface SharedAppViewer {
     is_owner?: boolean | undefined;
     can_open_session?: boolean | undefined;
     session_id?: (string | null) | undefined;
+    agent_id?: (string | null) | undefined;
     workspace_id?: (string | null) | undefined;
     project_id?: (string | null) | undefined;
     mount_id?: (string | null) | undefined;

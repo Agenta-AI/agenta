@@ -103,6 +103,9 @@ def _app_path(path: str) -> str:
         validate_file_path(clean)
     except MountPathInvalid as exc:
         raise AppShareError("not_shareable", exc.message) from exc
+    # A hidden folder holds runner or template files (the agent's `.apps/starters`), not an app.
+    if any(part.startswith(".") for part in clean.split("/")):
+        raise AppShareError("not_shareable", "Apps in hidden folders cannot be shared.")
     return clean
 
 
@@ -248,16 +251,28 @@ class AppSharesService:
         )
         if mount is None:
             raise AppShareError("not_found", "Drive not found.")
-        if not self.mounts_service.is_session_cwd_mount(mount):
+        if self.mounts_service.share_drive_kind(mount) is None:
             raise AppShareError(
-                "not_shareable", "Only apps in a session's working drive can be shared."
+                "not_shareable",
+                "Only apps in a chat's working drive or its agent's drive can be shared.",
             )
-        if mount.deleted_at is not None:
-            raise AppShareError(
-                "session_archived",
-                "This session is archived. Unarchive it to share its apps.",
-            )
+        await self._refuse_if_archived(project_id=project_id, mount=mount)
         return mount
+
+    async def _refuse_if_archived(self, *, project_id: UUID, mount: Mount) -> None:
+        if not await self.mounts_service.is_drive_archived(
+            project_id=project_id, mount=mount
+        ):
+            return
+        if self.mounts_service.share_drive_kind(mount) == "agent":
+            raise AppShareError(
+                "agent_archived",
+                "This agent is archived. Unarchive it to share its apps.",
+            )
+        raise AppShareError(
+            "session_archived",
+            "This session is archived. Unarchive it to share its apps.",
+        )
 
     async def fetch_share(
         self, *, project_id: UUID, mount_id: UUID, path: str
@@ -454,6 +469,9 @@ class AppSharesService:
                 + [f.content for f in captured.external.values()],
                 manifest=manifest,
             )
+            # The agent may have been archived during the capture; a session drive is rechecked
+            # under the row lock below.
+            await self._refuse_if_archived(project_id=project_id, mount=mount)
             share = await self.mounts_service.update_app_share(
                 project_id=project_id, mount_id=mount.id, path=app_path, mutate=mutate
             )
@@ -550,10 +568,12 @@ class AppSharesService:
         )
         if mount is None:
             raise AppShareError("share_not_found", "This link does not work.")
-        if mount.deleted_at is not None:
+        if await self.mounts_service.is_drive_archived(
+            project_id=claims.project_id, mount=mount
+        ):
             raise AppShareError(
                 "share_unavailable",
-                "This app is paused because its session is archived.",
+                "This app is paused because its chat or agent is archived.",
             )
         share = mount.data.shares.get(claims.app_path)
         if (

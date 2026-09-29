@@ -10,6 +10,8 @@ class SharedAppViewer(BaseModel):
     is_owner: bool = False
     can_open_session: bool = False
     session_id: Optional[str] = None
+    # Set instead of `session_id` when the app lives in the agent's own drive.
+    agent_id: Optional[str] = None
     workspace_id: Optional[str] = None
     project_id: Optional[str] = None
     mount_id: Optional[str] = None

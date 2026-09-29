@@ -33,9 +33,9 @@ import {HtmlAppEnvContext} from "./htmlAppEnv"
 import {useMountAssembleIo} from "./mountIo"
 import {useAppManifest} from "./useAppManifest"
 
-/** A session's working drive: the only place an app can be shared from. */
+/** Where an app can be shared from: a chat's working drive, or its agent's own drive. */
 export const isShareableMount = (mount: Mount | null | undefined): mount is Mount =>
-    Boolean(mount?.session_id && mount.name === "cwd")
+    Boolean(mount && (mount.session_id ? mount.name === "cwd" : mount.agent_id))
 
 const VISIBILITY: Record<ShareVisibility, {label: string; hint: string; icon: ReactNode}> = {
     workspace: {
@@ -298,7 +298,7 @@ const SharePanel = ({
 }
 
 export interface ShareAppButtonProps {
-    /** A session's working drive (see {@link isShareableMount}); null hides the button. */
+    /** A drive that can share apps (see {@link isShareableMount}); null hides the button. */
     mountId: string | null
     /** Mount-relative app folder. */
     dir: string

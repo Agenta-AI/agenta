@@ -267,8 +267,11 @@ styles, images and fonts. Do not describe Preview as network-isolated either.
 
 ## Sharing
 
-An owner shares an app folder from a session's working drive (`name == "cwd"`) as a read-only
-snapshot. Changing a share needs `EDIT_MOUNTS` and an interactive sign-in session; an API key or
+An owner shares an app folder from a session's working drive (`name == "cwd"`) or from the
+agent's own drive (`agent_id` set, no `session_id`; shown in chats under `agent-files/`) as a
+read-only snapshot. Archiving the session, or for an agent drive the agent, pauses the link
+(`share_unavailable`) and refuses publish (`session_archived` / `agent_archived`, 409). Apps in
+hidden folders (the agent's `.apps/starters`) are `not_shareable`. Changing a share needs `EDIT_MOUNTS` and an interactive sign-in session; an API key or
 the agent's tool credential gets 403 `interactive_session_required`.
 
 Owner routes (mounts router, `VIEW_MOUNTS` to read, the rules above to change):
@@ -285,7 +288,7 @@ Viewer route: `GET /shared/apps/{token}` (public prefixes `/shared/apps/` and
 file and captured external file as base64. Headers: `X-Content-Type-Options: nosniff`,
 `Content-Security-Policy: sandbox; default-src 'none'`, `Cache-Control: no-store`. Refusals are
 403 with a `code` (`sign_in_required`, `not_a_member`, or the organization policy error), 404
-(`share_not_found`, or `share_unavailable` for an archived session), 429 `rate_limited` (per
+(`share_not_found`, or `share_unavailable` when the session or agent is archived), 429 `rate_limited` (per
 viewer of a link: 20 views, then 30 a minute; per link: 300, then 600 a minute), or 503 (`sharing_disabled` on the placeholder crypt key). A
 file that fails to read after the 200 closes the body with `error: {code, message}`.
 

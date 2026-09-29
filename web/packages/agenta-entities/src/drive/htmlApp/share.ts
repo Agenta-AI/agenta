@@ -57,6 +57,7 @@ const sharedAppSchema = z.object({
         is_owner: z.boolean().nullish(),
         can_open_session: z.boolean().nullish(),
         session_id: z.string().nullish(),
+        agent_id: z.string().nullish(),
         workspace_id: z.string().nullish(),
         project_id: z.string().nullish(),
         mount_id: z.string().nullish(),

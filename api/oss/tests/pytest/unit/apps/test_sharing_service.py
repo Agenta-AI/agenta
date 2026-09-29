@@ -31,7 +31,7 @@ def _real_key(monkeypatch):
 
 
 class FakeMounts:
-    def __init__(self, files, *, session=True, archived=False):
+    def __init__(self, files, *, session=True, agent=False, archived=False):
         self.files = dict(files)
         self.mount = Mount(
             id=uuid4(),
@@ -39,8 +39,11 @@ class FakeMounts:
             slug="s",
             name="cwd" if session else "default",
             session_id="sess" if session else None,
+            agent_id=str(uuid4()) if agent else None,
             deleted_at=datetime.now(timezone.utc) if archived else None,
         )
+        # An agent drive is archived with its agent, not with its own row.
+        self.agent_archived = False
         # The drive row was deleted by the time publish takes the lock.
         self.gone = False
         self.read_error = None
@@ -52,8 +55,15 @@ class FakeMounts:
     async def fetch_mount_for_share(self, *, project_id, mount_id):
         return self.mount if mount_id == self.mount.id else None
 
-    def is_session_cwd_mount(self, mount):
-        return mount.session_id is not None and mount.name == "cwd"
+    def share_drive_kind(self, mount):
+        if mount.session_id is not None and mount.name == "cwd":
+            return "session"
+        return "agent" if mount.agent_id and not mount.session_id else None
+
+    async def is_drive_archived(self, *, project_id, mount):
+        return mount.deleted_at is not None or (
+            bool(mount.agent_id) and self.agent_archived
+        )
 
     async def read_file_bytes(self, *, project_id, mount_id, path):
         if self.read_error:
@@ -240,11 +250,22 @@ async def test_a_missing_manifest_is_a_storage_failure_not_a_pause():
     "mounts, path, code",
     [
         (FakeMounts(APP, session=False), "apps/board", "not_shareable"),
+        (
+            FakeMounts({".apps/starters/x@1/app.json": b"{}"}),
+            ".apps/starters/x@1",
+            "not_shareable",
+        ),
         (FakeMounts(APP, archived=True), "apps/board", "session_archived"),
         (FakeMounts(APP), "", "not_shareable"),
         (FakeMounts({"apps/x/index.html": b"<p>"}), "apps/x", "not_an_app"),
     ],
-    ids=["agent drive", "archived session", "drive root", "no manifest"],
+    ids=[
+        "standalone drive",
+        "hidden folder",
+        "archived session",
+        "drive root",
+        "no manifest",
+    ],
 )
 async def test_what_cannot_be_shared(mounts, path, code):
     service = _service(mounts)
@@ -324,6 +345,48 @@ async def test_a_storage_outage_is_not_reported_as_a_missing_app_json():
     mounts.read_error = MountStorageUnavailable()
     with pytest.raises(MountStorageUnavailable):
         await _publish(_service(mounts), mounts)
+
+
+@pytest.mark.asyncio
+async def test_an_agent_drive_app_is_shared_and_paused_with_its_agent():
+    mounts = FakeMounts(APP, session=False, agent=True)
+    service = _service(mounts)
+    token = (await _publish(service, mounts)).token
+    assert await _index(service, token) == "<h1>Board</h1>"
+
+    mounts.agent_archived = True
+    with pytest.raises(AppShareError) as paused:
+        await service.open_shared_app(token=token)
+    assert paused.value.code == "share_unavailable"
+    with pytest.raises(AppShareError) as refused:
+        await _publish(service, mounts)
+    assert refused.value.code == "agent_archived"
+
+    mounts.agent_archived = False
+    assert await _index(service, token) == "<h1>Board</h1>"
+
+
+@pytest.mark.asyncio
+async def test_an_agent_archived_during_publish_gets_no_new_snapshot():
+    mounts = FakeMounts(APP, session=False, agent=True)
+    service = _service(mounts)
+    token = (await _publish(service, mounts)).token
+    live = _snapshots(service)
+    mounts.files["apps/board/index.html"] = b"<h1>Changed</h1>"
+
+    written = service._write_snapshot
+
+    async def write_then_archive(**kw):
+        await written(**kw)
+        mounts.agent_archived = True
+
+    service._write_snapshot = write_then_archive
+    with pytest.raises(AppShareError) as refused:
+        await _publish(service, mounts)
+    assert refused.value.code == "agent_archived"
+    assert _snapshots(service) == live
+    mounts.agent_archived = False
+    assert await _index(service, token) == "<h1>Board</h1>"
 
 
 def test_share_settings_never_leave_through_a_drive_response():

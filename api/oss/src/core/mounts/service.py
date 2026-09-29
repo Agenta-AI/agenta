@@ -535,8 +535,30 @@ class MountsService:
             return None
         return mount
 
-    def is_session_cwd_mount(self, mount: Mount) -> bool:
-        return _is_session_cwd_mount(mount)
+    def share_drive_kind(self, mount: Mount) -> Optional[Literal["session", "agent"]]:
+        """Which drive an app can be shared from: a session's working drive or an agent's own."""
+        if _is_session_cwd_mount(mount):
+            return "session"
+        if mount.agent_id and not mount.session_id and not is_protected_mount(mount):
+            return "agent"
+        return None
+
+    async def is_drive_archived(self, *, project_id: UUID, mount: Mount) -> bool:
+        """A session drive is archived with its row; an agent drive with its agent."""
+        if mount.deleted_at is not None:
+            return True
+        if not mount.agent_id or mount.session_id or self.workflows_service is None:
+            return False
+        agent_id = UUID(mount.agent_id)
+        static_catalog = self.workflows_service.static_catalog
+        if static_catalog is not None and static_catalog.is_static_id(agent_id):
+            return False
+        workflow = await self.workflows_service.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=agent_id),
+            include_archived=True,
+        )
+        return workflow is None or workflow.deleted_at is not None
 
     async def create_mount(
         self,

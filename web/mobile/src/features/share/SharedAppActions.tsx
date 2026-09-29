@@ -24,17 +24,31 @@ export const SharedAppActions = ({
     }
 
     const viewer = snapshot?.viewer
-    const sessionHref =
-        viewer?.can_open_session && viewer.workspace_id && viewer.project_id && viewer.session_id
-            ? `/w/${encodeURIComponent(viewer.workspace_id)}/p/${encodeURIComponent(viewer.project_id)}/sessions/${encodeURIComponent(viewer.session_id)}`
+    // A chat's app opens in its chat; an agent-drive app belongs to the agent, not to one chat.
+    const project =
+        viewer?.can_open_session && viewer.workspace_id && viewer.project_id
+            ? `/w/${encodeURIComponent(viewer.workspace_id)}/p/${encodeURIComponent(viewer.project_id)}`
+            : null
+    const openLink = !project
+        ? null
+        : viewer?.session_id
+          ? {
+                href: `${project}/sessions/${encodeURIComponent(viewer.session_id)}`,
+                label: "Open in chat",
+            }
+          : viewer?.agent_id
+            ? {
+                  href: `${project}/agents/${encodeURIComponent(viewer.agent_id)}`,
+                  label: "Open agent",
+              }
             : null
     const editable = viewer?.role === "editor" && viewer.mount_id && viewer.app_path
 
     return (
         <div className="flex shrink-0 items-center gap-1.5">
-            {sessionHref ? (
+            {openLink ? (
                 <Button asChild variant="ghost" size="xs">
-                    <Link href={sessionHref}>Open in chat</Link>
+                    <Link href={openLink.href}>{openLink.label}</Link>
                 </Button>
             ) : null}
             {snapshot && editable && viewer.project_id ? (
