@@ -75,6 +75,9 @@ def verify_claims(label: str, token: str) -> dict:
         payload, given = _unb64(body), _unb64(signature)
     except ValueError as exc:  # also a non-ASCII token
         raise ValueError("malformed token") from exc
+    # One spelling per token: base64 leaves spare bits that decode the same either way.
+    if _b64(payload) != body or _b64(given) != signature:
+        raise ValueError("malformed token")
     expected = hmac.new(derive_key(label), payload, hashlib.sha256).digest()
     if not hmac.compare_digest(expected, given):
         raise ValueError("bad signature")
