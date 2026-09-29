@@ -11,6 +11,36 @@ const chunk = (text: string) => ({
 });
 
 describe("turn output budget", () => {
+  it("owns streamed deltas without changing split UTF-16 surrogate pairs", () => {
+    const live: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({
+      emitSpans: false,
+      emit: (event) => live.push(event),
+    });
+    run.handleUpdate(chunk("prefix \ud83d"));
+    run.handleUpdate(chunk("\ude00 end"));
+    run.finish();
+    expect(
+      live
+        .filter((event) => event.type === "message_delta")
+        .map((event) => event.delta)
+        .join(""),
+    ).toBe("prefix 😀 end");
+  });
+
+  it("processes an admitted buffered update without charging it twice", () => {
+    vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_EVENTS", "1");
+    const exceeded = vi.fn();
+    const run = createSandboxAgentOtel({
+      emitSpans: false,
+      onOutputLimit: exceeded,
+    });
+    const update = chunk("buffered completion");
+    expect(run.admitUpdate(update)).toBe(true);
+    run.handleUpdate(update, true);
+    expect(run.finish()).toBe("buffered completion");
+    expect(exceeded).not.toHaveBeenCalled();
+  });
   it("counts UTF-8 bytes, rejects the crossing update, and stays closed", () => {
     vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "1024");
     const exceeded = vi.fn();

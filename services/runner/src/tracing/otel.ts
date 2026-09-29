@@ -1953,7 +1953,10 @@ export function createSandboxAgentOtel(
       textBlockId = nextId("msg");
       record({ type: "message_start", id: textBlockId });
     }
-    record({ type: "message_delta", id: textBlockId, delta });
+    // V8 slices can retain the whole growing source string. Own only this delta's
+    // code units before events, persistence and live queues keep it past this callback.
+    const ownedDelta = Buffer.from(delta, "utf16le").toString("utf16le");
+    record({ type: "message_delta", id: textBlockId, delta: ownedDelta });
     textEmitted = target.startsWith(textEmitted) ? target : textEmitted + delta;
     anyTextDelta = true;
   }
@@ -1988,7 +1991,8 @@ export function createSandboxAgentOtel(
       reasoningBlockId = nextId("reason");
       record({ type: "thought_start", id: reasoningBlockId });
     }
-    record({ type: "thought_delta", id: reasoningBlockId, delta });
+    const ownedDelta = Buffer.from(delta, "utf16le").toString("utf16le");
+    record({ type: "thought_delta", id: reasoningBlockId, delta: ownedDelta });
     reasoningEmitted = target.startsWith(reasoningEmitted)
       ? target
       : reasoningEmitted + delta;
