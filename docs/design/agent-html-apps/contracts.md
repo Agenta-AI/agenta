@@ -270,8 +270,9 @@ styles, images and fonts. Do not describe Preview as network-isolated either.
 An owner shares an app folder from a session's working drive (`name == "cwd"`) or from the
 agent's own drive (`agent_id` set, no `session_id`; shown in chats under `agent-files/`) as a
 read-only snapshot. Archiving the session, or for an agent drive the agent, pauses the link
-(`share_unavailable`) and refuses publish (`session_archived` / `agent_archived`, 409). Apps in
-hidden folders (the agent's `.apps/starters`) are `not_shareable`. Changing a share needs `EDIT_MOUNTS` and an interactive sign-in session; an API key or
+(`share_unavailable`) and refuses publish (`session_archived` / `agent_archived`, or
+`drive_archived` when an agent drive is archived on its own; 409). Publishing an app in a hidden
+folder (the agent's `.apps/starters`) is `not_shareable`; an older share there can still be stopped. Changing a share needs `EDIT_MOUNTS` and an interactive sign-in session; an API key or
 the agent's tool credential gets 403 `interactive_session_required`.
 
 Owner routes (mounts router, `VIEW_MOUNTS` to read, the rules above to change):

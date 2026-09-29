@@ -103,9 +103,6 @@ def _app_path(path: str) -> str:
         validate_file_path(clean)
     except MountPathInvalid as exc:
         raise AppShareError("not_shareable", exc.message) from exc
-    # A hidden folder holds runner or template files (the agent's `.apps/starters`), not an app.
-    if any(part.startswith(".") for part in clean.split("/")):
-        raise AppShareError("not_shareable", "Apps in hidden folders cannot be shared.")
     return clean
 
 
@@ -264,10 +261,17 @@ class AppSharesService:
             project_id=project_id, mount=mount
         ):
             return
-        if self.mounts_service.share_drive_kind(mount) == "agent":
+        agent_drive = self.mounts_service.share_drive_kind(mount) == "agent"
+        if agent_drive and mount.deleted_at is None:
             raise AppShareError(
                 "agent_archived",
                 "This agent is archived. Unarchive it to share its apps.",
+            )
+        if agent_drive:
+            # The agent is live; its drive was archived on its own.
+            raise AppShareError(
+                "drive_archived",
+                "This drive is archived. Unarchive it to share its apps.",
             )
         raise AppShareError(
             "session_archived",
@@ -385,6 +389,11 @@ class AppSharesService:
         visibility: Optional[Visibility] = None,
     ) -> PublishResult:
         app_path = _app_path(path)
+        # Only publish refuses a hidden folder, so an older share there can still be stopped.
+        if any(part.startswith(".") for part in app_path.split("/")):
+            raise AppShareError(
+                "not_shareable", "Apps in hidden folders cannot be shared."
+            )
         mount = await self._shareable_mount(project_id=project_id, mount_id=mount_id)
         # Fail before any work when links cannot be issued at all.
         if is_default_crypt_key():

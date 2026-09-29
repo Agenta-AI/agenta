@@ -389,6 +389,45 @@ async def test_an_agent_archived_during_publish_gets_no_new_snapshot():
     assert await _index(service, token) == "<h1>Board</h1>"
 
 
+@pytest.mark.asyncio
+async def test_a_hidden_folder_share_can_still_be_stopped():
+    files = {k.replace("apps/board", ".drafts/board"): v for k, v in APP.items()}
+    mounts = FakeMounts(files)
+    service = _service(mounts)
+    # A share made there before hidden folders were refused.
+    mounts.mount = mounts.mount.model_copy(
+        update={
+            "data": MountData.model_validate(
+                {
+                    "shares": {
+                        ".drafts/board": {
+                            "enabled": True,
+                            "visibility": "link",
+                            "nonce": "n",
+                            "snapshot": None,
+                            "created_by_id": str(USER),
+                            "created_at": "2026-01-01T00:00:00Z",
+                            "updated_at": "2026-01-01T00:00:00Z",
+                        }
+                    }
+                }
+            )
+        }
+    )
+    stopped = await service.stop(
+        project_id=PROJECT, mount_id=mounts.mount.id, path=".drafts/board"
+    )
+    assert stopped.enabled is False
+
+
+@pytest.mark.asyncio
+async def test_an_agent_drive_archived_on_its_own_says_so():
+    mounts = FakeMounts(APP, session=False, agent=True, archived=True)
+    with pytest.raises(AppShareError) as refused:
+        await _publish(_service(mounts), mounts)
+    assert refused.value.code == "drive_archived"
+
+
 def test_share_settings_never_leave_through_a_drive_response():
     mounts = FakeMounts(APP)
     dumped = mounts.mount.model_copy(

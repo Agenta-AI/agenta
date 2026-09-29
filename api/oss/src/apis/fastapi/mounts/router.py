@@ -191,6 +191,7 @@ _APP_SHARE_STATUS = {
     "not_an_app": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "session_archived": status.HTTP_409_CONFLICT,
     "agent_archived": status.HTTP_409_CONFLICT,
+    "drive_archived": status.HTTP_409_CONFLICT,
     "too_large": status.HTTP_413_CONTENT_TOO_LARGE,
     "sharing_disabled": status.HTTP_503_SERVICE_UNAVAILABLE,
     "storage_unavailable": status.HTTP_503_SERVICE_UNAVAILABLE,
