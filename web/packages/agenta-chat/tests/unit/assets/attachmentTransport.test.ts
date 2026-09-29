@@ -36,7 +36,12 @@ describe("uploadAttachment", () => {
         const file = new File(["hello"], "notes.txt", {type: "text/plain"})
 
         await expect(
-            uploadAttachment({file, sessionId: "session-1", projectId: "project-1", idempotencyKey}),
+            uploadAttachment({
+                file,
+                sessionId: "session-1",
+                projectId: "project-1",
+                idempotencyKey,
+            }),
         ).resolves.toEqual(response)
 
         const [url, body, config] = vi.mocked(axios.post).mock.calls[0]
