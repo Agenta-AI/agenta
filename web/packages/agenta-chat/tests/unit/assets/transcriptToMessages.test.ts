@@ -9,7 +9,7 @@ import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 import type {UIMessage} from "ai"
-import {describe, expect, it} from "vitest"
+import {afterEach, describe, expect, it} from "vitest"
 
 import {
     APPROVED_EXECUTION_RESULT_UNKNOWN,
@@ -1527,6 +1527,48 @@ it.each([undefined, null, "Visible", ""])("preserves display override %j on repl
 
 describe("attachmentContentUrl", () => {
     const store = getDefaultStore()
+    const initialProjectId = store.get(projectIdAtom)
+
+    afterEach(() => store.set(projectIdAtom, initialProjectId))
+
+    it.each(["project-other", null])(
+        "keeps replay attachment URLs in the record project when the active project is %s",
+        (activeProjectId) => {
+            const rows = [
+                record(
+                    "r-file",
+                    {
+                        type: "message",
+                        text: "Attached",
+                        attachments: [
+                            {attachmentId: "att-1", mediaType: "image/png", filename: "image.png"},
+                        ],
+                    },
+                    "user",
+                ),
+            ]
+            store.set(projectIdAtom, activeProjectId)
+            const messages = transcriptToMessages(rows)
+            const file = messages?.[0].parts.find((part) => part.type === "file")
+            expect(file?.type).toBe("file")
+            if (file?.type !== "file") throw new Error("Missing attachment")
+            const url = new URL(file.url)
+            expect(url.searchParams.get("project_id")).toBe("project-1")
+            expect(url.searchParams.get("session_id")).toBe("session-1")
+        },
+    )
+
+    it("uses an explicit project instead of the active project", () => {
+        store.set(projectIdAtom, "project-other")
+        const url = new URL(attachmentContentUrl("session-1", "att-1", "project-1"))
+        expect(url.searchParams.get("project_id")).toBe("project-1")
+    })
+
+    it("does not replace an explicit null project with the active project", () => {
+        store.set(projectIdAtom, "project-other")
+        const url = new URL(attachmentContentUrl("session-1", "att-1", null))
+        expect(url.searchParams.has("project_id")).toBe(false)
+    })
 
     it("scopes the content URL to the active project", () => {
         store.set(projectIdAtom, "project-xyz")
