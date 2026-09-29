@@ -44,7 +44,7 @@ A link with a bad signature, a stopped share, an old link after share again, or 
 The share page SHALL be at `/m/share/<token>`. It SHALL NOT redirect to sign-in for `link` shares, SHALL NOT redirect to the classic desktop app, and SHALL NOT send page views to product analytics. Its header SHALL sit outside the app and SHALL show:
 - for everyone: the Agenta logo, the app name, and "App by <owner name>";
 - for a signed-out viewer: a Sign in button;
-- for a signed-in viewer: their avatar, and "Open in session" when they are a member of the app's project;
+- for a signed-in viewer: their avatar, and "Open in chat" when they are a member of the app's project;
 - for a viewer with `EDIT_MOUNTS` on the project: a Share button that opens the owner's share dialog, with "App by you" when they are the owner.
 
 #### Scenario: Classic mode user
@@ -53,7 +53,7 @@ The share page SHALL be at `/m/share/<token>`. It SHALL NOT redirect to sign-in 
 
 #### Scenario: Workspace member outside the project
 - **WHEN** a workspace member who is not in the app's project opens a `workspace` share
-- **THEN** the header SHALL NOT show "Open in session".
+- **THEN** the header SHALL NOT show "Open in chat".
 
 ### Requirement: Shared apps run with no network and no Agenta access
 A shared app SHALL run in a sandboxed frame that cannot read Agenta cookies or storage, open popups, show dialogs, navigate the top page, or submit forms. It SHALL load only inline code and files from its snapshot. Captured scripts and stylesheets SHALL be inlined as code, and captured images and fonts as data, so that the policy allows no source other than the document itself. Any request to another address, including a URL that was captured at publish time, SHALL be blocked. Writes through the app file bridge SHALL fail with `read_only`.
