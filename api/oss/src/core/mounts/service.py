@@ -868,7 +868,8 @@ class MountsService:
             project_id=project_id,
             mount_id=mount_id,
             allow_protected=True,
-            access="write",
+            # Cleanup (the attachment sweep), so an archived session does not block it.
+            access="lifecycle",
         )
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         await self.mounts_store.delete_keys(bucket=self._bucket(), keys=[key])

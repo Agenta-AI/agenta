@@ -135,6 +135,18 @@ async def test_attachment_originals_still_read_on_an_archived_session():
 
 
 @pytest.mark.asyncio
+async def test_the_attachment_sweep_still_deletes_on_an_archived_session():
+    mount = _mount(name=ATTACHMENTS_MOUNT_NAME, purpose=ATTACHMENTS_MOUNT_PURPOSE)
+    service = _service(mount)
+
+    await service.delete_attachment_original(
+        project_id=_PROJECT, mount_id=mount.id, path="notes.txt"
+    )
+
+    assert service.mounts_store.objects == {}
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "call",
     [

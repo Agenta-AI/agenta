@@ -136,7 +136,6 @@ export const NEUTRAL_OS_ENV_VARS = [
   "XDG_CACHE_HOME",
   "XDG_DATA_HOME",
   "XDG_RUNTIME_DIR",
-  "NODE_OPTIONS",
   "TZ",
   "USER",
   "SHELL",

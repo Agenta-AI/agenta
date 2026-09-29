@@ -33,6 +33,18 @@ describe("closeInheritedEnv", () => {
     expect(spawned.OPENAI_API_KEY).toBe("sk-run");
   });
 
+  it("does not hand the runner's NODE_OPTIONS to a harness", () => {
+    // It loads code (`--require`, `--inspect`), so it is not a neutral setting.
+    const previous = process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS = "--require ./otel.js";
+    try {
+      expect(buildDaemonEnv("claude", { clearProviderEnv: true }).NODE_OPTIONS).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env.NODE_OPTIONS;
+      else process.env.NODE_OPTIONS = previous;
+    }
+  });
+
   it("copies the neutral OS settings a harness needs", () => {
     const previous = process.env.TZ;
     process.env.TZ = "UTC";

@@ -24,16 +24,12 @@ has to think about.
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
-import json
 import time
 from dataclasses import dataclass
 from typing import Optional
 from uuid import UUID
 
-from oss.src.utils.crypting import derive_key
+from oss.src.utils.crypting import sign_claims, verify_claims
 
 # A grant lives as long as the tab; the token is refreshed from the page well inside this.
 TOKEN_TTL_SECONDS = 60 * 30
@@ -77,19 +73,6 @@ class AppScope:
         return self.level == "read-write"
 
 
-def _b64(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
-
-
-def _unb64(text: str) -> bytes:
-    pad = "=" * (-len(text) % 4)
-    return base64.urlsafe_b64decode(text + pad)
-
-
-def _sign(payload: bytes) -> str:
-    return _b64(hmac.new(derive_key(_KEY_LABEL), payload, hashlib.sha256).digest())
-
-
 def mint(
     *,
     project_id: UUID,
@@ -120,28 +103,15 @@ def mint(
         "l": level,
         "x": expires_at,
     }
-    payload = json.dumps(claims, separators=(",", ":"), sort_keys=True).encode()
-    return f"{_b64(payload)}.{_sign(payload)}", expires_at
+    return sign_claims(_KEY_LABEL, claims), expires_at
 
 
 def parse(token: str) -> AppScope:
     """Verify a token and return its scope. Raises {@link ScopeTokenInvalid} on anything wrong."""
-    if not token or token.count(".") != 1:
-        raise ScopeTokenInvalid("malformed token")
-    body, signature = token.split(".", 1)
     try:
-        payload = _unb64(body)
-    except Exception as exc:  # noqa: BLE001 - any decode failure is the same answer
-        raise ScopeTokenInvalid("malformed token") from exc
-
-    # Constant-time: a timing oracle on the signature is how forgery starts.
-    if not hmac.compare_digest(_sign(payload), signature):
-        raise ScopeTokenInvalid("bad signature")
-
-    try:
-        claims = json.loads(payload)
-    except json.JSONDecodeError as exc:
-        raise ScopeTokenInvalid("malformed token") from exc
+        claims = verify_claims(_KEY_LABEL, token)
+    except ValueError as exc:
+        raise ScopeTokenInvalid(str(exc)) from exc
 
     if claims.get("a") != _ALG:
         raise ScopeTokenInvalid("unknown token version")
