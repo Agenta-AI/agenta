@@ -1,6 +1,49 @@
 {
   "schema_version": 1,
   "templates": {
+    "job-hunt-research": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/job-hunt-research/1.0.0"
+      },
+      "metadata": {
+        "author_id": "mmabrouk",
+        "display_name": "Job Hunt Research Assistant",
+        "summary": "Find relevant openings and research the companies behind the strongest matches.",
+        "description": "Builds a verified job shortlist from your profile, researches employers, and saves evidence-backed fit notes and next steps.",
+        "category": "Knowledge",
+        "tags": [
+          "career",
+          "job-search",
+          "research"
+        ],
+        "display": {
+          "initials": "JH",
+          "color": "#315B58",
+          "instructions_summary": "Find current roles that fit your profile, verify each posting, and research the best matches.",
+          "trigger": "On demand",
+          "trigger_description": "Run manually whenever you want a fresh, research-backed job shortlist.",
+          "seed_message": "Find current job openings that match my saved profile, verify they are still open, research the strongest companies, and save a dated report.",
+          "model": "gpt-5",
+          "connection_tools": {},
+          "example": {
+            "prompt": "Find current data engineer roles in Amsterdam that match my profile.",
+            "steps": [
+              "Compared postings with the saved role, location, and skills profile",
+              "Checked location, freshness, and application status",
+              "Researched employers and captured sourced fit notes",
+              "Saved the dated report with links and caveats"
+            ],
+            "reply": "Your shortlist is ready with application links, evidence-backed fit notes, and a next step. Unverified details are called out rather than guessed.",
+            "artifacts": [
+              "job-hunt/reports/<date>.md"
+            ],
+            "status": "Report saved"
+          }
+        },
+        "media": []
+      }
+    },
     "pr-reviewer": {
       "latest": "1.0.0",
       "versions": {

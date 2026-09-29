@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "entry": "job-hunt-research",
+  "agents": {
+    "job-hunt-research": {
+      "name": "Job Hunt Research Assistant",
+      "description": "Finds relevant job openings and gives evidence-backed company research and application guidance.",
+      "instructions": "./ai.agenta/agents/job-hunt-research/AGENTS.md",
+      "setup": "./ai.agenta/agents/job-hunt-research/SETUP.md",
+      "skills": ["tavily-job-search"],
+      "connections": [],
+      "automations": [
+        {
+          "key": "daily-job-search",
+          "name": "Daily job search",
+          "required": false,
+          "trigger": {
+            "type": "schedule",
+            "schedule": "0 7 * * *"
+          },
+          "inputs_fields": {
+            "messages": [
+              {
+                "role": "user",
+                "content": "Run my job search using the saved profile. Find new job postings that match me, verify they are open and genuinely relevant, research the strongest matches and companies, then tell me what is new and interesting. Save the dated report."
+              }
+            ]
+          },
+          "setup_notes": "This recipe is inactive until you enable it. Confirm the time in your timezone and make sure your profile is complete before turning it on."
+        }
+      ],
+      "workspace": {
+        "entries": [
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/job-hunt-research/files/job-hunt/profile.md",
+            "path": "job-hunt/profile.md"
+          },
+          {
+            "type": "directory",
+            "path": "job-hunt/reports"
+          }
+        ]
+      }
+    }
+  }
+}

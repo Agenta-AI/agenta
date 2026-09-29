@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "mmabrouk",
+  "name": "Mahmoud Mabrouk",
+  "bio": "Cofounder of @Agenta-AI",
+  "links": [
+    {
+      "kind": "github",
+      "url": "https://github.com/mmabrouk"
+    }
+  ]
+}
