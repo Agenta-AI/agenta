@@ -27,6 +27,7 @@ overrides:
   ws@>=7 <7.5.11: 7.5.11
   sharp: 0.35.4
   fast-uri: 3.1.7
+  image-size: 2.0.3
   js-yaml: 4.3.2
   next@<15.5.18: '>=15.5.18 <16.0.0'
   vite: ^8.0.16
@@ -9222,9 +9223,9 @@ packages:
     resolution: {integrity: sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg==}
     engines: {node: '>= 4'}
 
-  image-size@2.0.2:
-    resolution: {integrity: sha512-IRqXKlaXwgSMAMtpNzZa1ZAe8m+Sa1770Dhk8VkSsP9LS+iHD62Zd8FQKs8fbPiagBE7BzoFX23cxFnwshpV6w==}
-    engines: {node: '>=16.x'}
+  image-size@2.0.3:
+    resolution: {integrity: sha512-9BJAtVCBth+76NwqnEfWr3PiRnYhbquk6K/USuQ1GQajz5NgLzO7tNsnoNjHfO7LuftgkBf+CCH6j28hjMbIYQ==}
+    engines: {node: '>=18'}
     hasBin: true
 
   immer@10.2.0:
@@ -16353,7 +16354,7 @@ snapshots:
       '@types/semver': 7.7.1
       babel-loader: 9.2.1(@babel/core@7.29.7)(webpack@5.109.2(@swc/core@1.15.47(@swc/helpers@0.5.23))(esbuild@0.25.12)(postcss@8.5.26))
       css-loader: 6.11.0(webpack@5.109.2(@swc/core@1.15.47(@swc/helpers@0.5.23))(esbuild@0.25.12)(postcss@8.5.26))
-      image-size: 2.0.2
+      image-size: 2.0.3
       loader-utils: 3.3.1
       next: 15.5.24(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(@types/node@20.19.39)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       node-polyfill-webpack-plugin: 2.0.1(webpack@5.109.2(@swc/core@1.15.47(@swc/helpers@0.5.23))(esbuild@0.25.12)(postcss@8.5.26))
@@ -19992,7 +19993,7 @@ snapshots:
 
   ignore@7.0.5: {}
 
-  image-size@2.0.2: {}
+  image-size@2.0.3: {}
 
   immer@10.2.0: {}
 
