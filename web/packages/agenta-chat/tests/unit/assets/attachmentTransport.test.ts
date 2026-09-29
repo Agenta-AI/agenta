@@ -36,12 +36,12 @@ describe("uploadAttachment", () => {
         const file = new File(["hello"], "notes.txt", {type: "text/plain"})
 
         await expect(
-            uploadAttachment({file, sessionId: "session-1", idempotencyKey}),
+            uploadAttachment({file, sessionId: "session-1", projectId: "project-1", idempotencyKey}),
         ).resolves.toEqual(response)
 
         const [url, body, config] = vi.mocked(axios.post).mock.calls[0]
         expect(url).toBe("https://api.example.test/sessions/attachments")
-        expect(config?.params).toEqual({session_id: "session-1"})
+        expect(config?.params).toEqual({session_id: "session-1", project_id: "project-1"})
         expect(body).toBeInstanceOf(FormData)
         const form = body as FormData
         expect(form.get("idempotency_key")).toBe(idempotencyKey)
@@ -57,6 +57,7 @@ describe("uploadAttachment", () => {
         await uploadAttachment({
             file: new File(["hello"], "notes.txt"),
             sessionId: "session-1",
+            projectId: "project-1",
             idempotencyKey,
             onProgress,
         })
@@ -80,6 +81,7 @@ describe("uploadAttachment", () => {
         const upload = uploadAttachment({
             file: new File(["hello"], "notes.txt"),
             sessionId: "session-1",
+            projectId: "project-1",
             idempotencyKey,
             signal: controller.signal,
         })
@@ -95,6 +97,7 @@ describe("uploadAttachment", () => {
         const upload = uploadAttachment({
             file: new File(["hello"], "notes.txt"),
             sessionId: "session-1",
+            projectId: "project-1",
             idempotencyKey,
         })
 
@@ -119,6 +122,7 @@ describe("uploadAttachment", () => {
         const upload = uploadAttachment({
             file: new File(["hello"], "notes.txt", {type: mediaType}),
             sessionId: "session-1",
+            projectId: "project-1",
             idempotencyKey,
         })
 
@@ -143,6 +147,7 @@ describe("uploadAttachment", () => {
         const upload = uploadAttachment({
             file: new File(["hello"], "notes.txt", {type: "text/plain"}),
             sessionId: "session-1",
+            projectId: "project-1",
             idempotencyKey,
         })
 
@@ -161,6 +166,7 @@ describe("uploadAttachment", () => {
         const upload = uploadAttachment({
             file: new File(["hello"], "notes.txt", {type: "text/plain"}),
             sessionId: "session-1",
+            projectId: "project-1",
             idempotencyKey,
         })
 
@@ -179,6 +185,7 @@ describe("uploadAttachment", () => {
         const upload = uploadAttachment({
             file: new File(["hello"], "notes.txt"),
             sessionId: "session-1",
+            projectId: "project-1",
             idempotencyKey,
         })
 
@@ -198,6 +205,7 @@ describe("uploadAttachment", () => {
         const upload = uploadAttachment({
             file: new File(["hello"], "notes.txt"),
             sessionId: "session-1",
+            projectId: "project-1",
             idempotencyKey,
         })
 
@@ -221,6 +229,7 @@ describe("uploadAttachment", () => {
         const upload = uploadAttachment({
             file: new File(["hello"], "notes.txt"),
             sessionId: "session-1",
+            projectId: "project-1",
             idempotencyKey,
         })
 
