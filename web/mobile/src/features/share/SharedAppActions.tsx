@@ -5,24 +5,17 @@ import Link from "next/link"
 
 import {useSignInAndReturn} from "@/features/auth/useSignInAndReturn"
 
-import {ViewerAvatar} from "./ViewerAvatar"
-
-interface Viewer {
-    username?: string | null
-    email?: string | null
-}
-
-/** Sign in for a signed-out viewer; for a signed-in one, their avatar and what they may do. */
+/** Sign in for a signed-out viewer; for a signed-in one, what they may do. */
 export const SharedAppActions = ({
     snapshot,
-    user,
+    signedIn,
 }: {
     snapshot: SharedAppSnapshot | null
-    user: Viewer | null
+    signedIn: boolean
 }) => {
     const signIn = useSignInAndReturn()
 
-    if (!user) {
+    if (!signedIn) {
         return (
             <Button size="xs" onClick={signIn}>
                 Sign in
@@ -54,7 +47,6 @@ export const SharedAppActions = ({
                     size="xs"
                 />
             ) : null}
-            <ViewerAvatar user={user} />
         </div>
     )
 }

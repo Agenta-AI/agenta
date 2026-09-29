@@ -33,7 +33,7 @@ export const SharedAppHeader = ({snapshot}: {snapshot: SharedAppSnapshot | null}
                 </>
             ) : null}
             <span className="flex-1" />
-            <SharedAppActions snapshot={snapshot} user={user ?? null} />
+            <SharedAppActions snapshot={snapshot} signedIn={Boolean(user)} />
         </header>
     )
 }
