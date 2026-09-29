@@ -2,20 +2,20 @@
 
 ## Purpose
 
-Let the owner of an agent-made HTML app in a session drive publish it as a read-only share link, update it, and control or stop that link.
+Let the owner of an agent-made HTML app in a session drive or an agent drive publish it as a read-only share link, update it, and control or stop that link.
 
 ## ADDED Requirements
 
-### Requirement: Only session-drive apps can be shared
-A share SHALL be created only for an app folder in a session's working drive. The folder SHALL contain a valid `app.json` and SHALL NOT be the drive root. The session SHALL exist and SHALL NOT be archived. An app in an agent drive or in a standalone drive SHALL be refused.
+### Requirement: Session-drive and agent-drive apps can be shared
+A share SHALL be created only for an app folder in a session's working drive or in an agent's own drive (shown in every chat of that agent under `agent-files/`). The folder SHALL contain a valid `app.json`, SHALL NOT be the drive root, and SHALL NOT sit in a hidden folder. The session, or for an agent drive the agent, SHALL NOT be archived. An app in a standalone drive SHALL be refused.
 
 #### Scenario: App in a session drive
 - **WHEN** an editor shares `apps/board`, a valid app folder in the working drive of a live session
 - **THEN** the share SHALL be created and a link SHALL be returned.
 
 #### Scenario: App in the agent drive
-- **WHEN** an editor tries to share an app folder in an agent drive
-- **THEN** the request SHALL be refused and no share SHALL be created.
+- **WHEN** an editor shares `agent-files/apps/board` from any chat of the agent
+- **THEN** the share SHALL be created, and every chat of that agent SHALL show the same share and link.
 
 #### Scenario: Folder without a manifest
 - **WHEN** an editor tries to share a folder with no valid `app.json`
@@ -104,8 +104,8 @@ A share SHALL have one visibility: `workspace` or `link`. Changing visibility SH
 - **WHEN** the owner shares an app again after stopping it
 - **THEN** a new link SHALL be returned, and the old link SHALL still fail.
 
-### Requirement: A share follows its session
-Archiving the session SHALL pause the share: the link SHALL fail as unavailable. Unarchiving the session SHALL make the same link work again. Deleting the session SHALL end the share and remove its snapshots from storage.
+### Requirement: A share follows the drive it lives in
+A session-drive share follows its session: archiving the session SHALL pause it (the link fails as unavailable), unarchiving SHALL make the same link work again, and deleting the session SHALL end it and remove its snapshots from storage. An agent-drive share follows its agent: archiving the agent SHALL pause it and unarchiving SHALL resume it. Archiving or deleting a chat SHALL NOT affect an agent-drive share.
 
 #### Scenario: Session archived
 - **WHEN** the owner archives the session that holds a shared app
@@ -114,6 +114,14 @@ Archiving the session SHALL pause the share: the link SHALL fail as unavailable.
 #### Scenario: Session deleted
 - **WHEN** the owner deletes the session
 - **THEN** the link SHALL fail as not found, and no snapshot file SHALL remain in storage.
+
+#### Scenario: Agent archived
+- **WHEN** the owner archives an agent whose drive holds a shared app
+- **THEN** the link SHALL fail as unavailable, publishing SHALL be refused with `agent_archived`, and unarchiving the agent SHALL make the same link work again.
+
+#### Scenario: Chat deleted, agent-drive app
+- **WHEN** the owner deletes the chat an agent-drive app was shared from
+- **THEN** the link SHALL keep working.
 
 ### Requirement: Share settings are not exposed through drive responses
 The share settings of a drive, including anything needed to build a link, SHALL NOT appear in drive list or drive detail responses. They SHALL be readable only through the share routes.

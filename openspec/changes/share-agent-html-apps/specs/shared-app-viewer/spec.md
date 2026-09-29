@@ -30,7 +30,7 @@ A share link SHALL open for anyone when the share visibility is `link`. When the
 - **THEN** access SHALL be refused with the same policy error the rest of the product returns.
 
 ### Requirement: Failed links reveal nothing
-A link with a bad signature, a stopped share, an old link after share again, or a deleted session SHALL fail as not found. A link to an archived session SHALL fail as unavailable. When the deployment still uses the default encryption key, share links SHALL NOT be issued or accepted.
+A link with a bad signature, a stopped share, an old link after share again, or a deleted session SHALL fail as not found. A link to an app whose session or agent is archived SHALL fail as unavailable. When the deployment still uses the default encryption key, share links SHALL NOT be issued or accepted.
 
 #### Scenario: Tampered link
 - **WHEN** a person changes one character of a share token
@@ -44,7 +44,7 @@ A link with a bad signature, a stopped share, an old link after share again, or 
 The share page SHALL be at `/m/share/<token>`. It SHALL NOT redirect to sign-in for `link` shares, SHALL NOT redirect to the classic desktop app, and SHALL NOT send page views to product analytics. Its header SHALL sit outside the app and SHALL show:
 - for everyone: the Agenta logo, the app name, and "App by <owner name>";
 - for a signed-out viewer: a Sign in button;
-- for a signed-in viewer: "Open in chat" when they are a member of the app's project;
+- for a signed-in viewer who is a member of the app's project: "Open in chat" for a session-drive app, or "Open agent" (the agent's page) for an agent-drive app;
 - for a viewer with `EDIT_MOUNTS` on the project: a Share button that opens the owner's share dialog, with "App by you" when they are the owner.
 
 #### Scenario: Classic mode user

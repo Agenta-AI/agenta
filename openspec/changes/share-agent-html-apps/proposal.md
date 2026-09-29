@@ -12,7 +12,7 @@ A public link also exposes gaps that exist today: archived session drives still 
 - A share serves a frozen snapshot of the app folder, data files included. Viewers cannot write. "Update share" replaces the snapshot the link shows. A share keeps no history.
 - The owner can change visibility (the link stays the same), stop sharing (the link stops at once), and share again (a new link; the old one stays dead).
 - Only a person with `EDIT_MOUNTS` in an interactive sign-in session can create or change a share. The agent cannot, even though it acts with the user's permissions.
-- Only apps in a session drive can be shared. Deleting the session ends the share. Archiving the session pauses it until the session is unarchived.
+- Apps in a session drive or in the agent's own drive can be shared. A session-drive share pauses when the session is archived and ends when it is deleted. An agent-drive share pauses when the agent is archived, and no chat's lifecycle touches it.
 - A new standalone page at `/m/share/<token>` shows the app under a header modeled on the Claude artifact header. It needs no sign-in for `link` shares.
 - Shared apps run with no network. When the owner publishes, the server follows the app's references, including those inside external stylesheets, downloads its external scripts, styles, images, and fonts once, and stores them in the snapshot. The share page inlines them the same way Run inlines local files.
 - A viewer loads a share in one request, with one access check.
