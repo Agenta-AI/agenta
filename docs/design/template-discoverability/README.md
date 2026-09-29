@@ -3,6 +3,8 @@
 Research and proposals for making agent templates visible inside the app (`web/mobile`,
 served at `/m`) without taking space from sessions.
 
+The full user journey spec for the chosen surfaces is in [user-journey.md](user-journey.md).
+
 ## Problem
 
 People find templates on the website (the "Agent Marketplace" at `/marketplace`), but once
