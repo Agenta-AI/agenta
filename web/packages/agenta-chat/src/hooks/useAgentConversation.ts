@@ -790,6 +790,7 @@ export const useAgentConversation = ({
         onSendAccepted,
         onSendFailed,
         server: serverInputs,
+        runActive: busy || acceptedRunPending,
     })
     // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
     // the window between the message leaving and the turn being accepted.
