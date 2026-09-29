@@ -346,7 +346,7 @@ async def test_query_returns_every_listed_template_in_catalog_order(monkeypatch)
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["count"] == len(body["templates"]) == 28
+    assert body["count"] == len(body["templates"]) == 29
     assert [item["key"] for item in body["templates"]] == [
         entry.key for entry in CATALOG.entries()
     ]
@@ -370,7 +370,7 @@ async def test_query_accepts_an_empty_body_and_filters(monkeypatch):
     )
 
     assert empty.status_code == 200
-    assert empty.json()["count"] == 28
+    assert empty.json()["count"] == 29
     assert [item["key"] for item in filtered.json()["templates"]] == [
         "support-reply-drafter"
     ]

@@ -2848,6 +2848,103 @@
         }
       ],
       "media": []
+    },
+    {
+      "key": "job-hunt-research",
+      "source": {
+        "kind": "internal",
+        "key": "job-hunt-research"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:f09cc9143c1207f31a9510106b266fa5aad11a1ea46e312d5ed50b1161a7ac29",
+      "name": "Job Hunt Research Assistant",
+      "summary": "Find relevant openings and research the companies behind the strongest matches.",
+      "description": "Builds a verified job shortlist from your profile, researches employers, and saves evidence-backed fit notes and next steps.",
+      "category": "Knowledge",
+      "tags": [
+        "career",
+        "job-search",
+        "research"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta team",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "avatar_url": "https://agenta.ai/android-chrome-512x512.png",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          },
+          {
+            "kind": "linkedin",
+            "url": "https://www.linkedin.com/company/agenta-ai",
+            "label": "LinkedIn"
+          },
+          {
+            "kind": "x",
+            "url": "https://x.com/agenta_ai",
+            "label": "X"
+          }
+        ]
+      },
+      "initials": "JH",
+      "color": "#315B58",
+      "instructions_summary": "Find current roles that fit your profile, verify each posting, and research the best matches.",
+      "trigger": "On demand",
+      "trigger_description": "Run manually whenever you want a fresh, research-backed job shortlist.",
+      "seed_message": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
+      "builder_message": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report.",
+      "model": "gpt-5",
+      "tools_summary": "2 Telegram tools",
+      "connections": [
+        {
+          "key": "telegram",
+          "role": "Deliver scheduled job-search summaries and report links only to the user's confirmed direct chat.",
+          "required": false,
+          "primary": {
+            "slug": "telegram",
+            "scope": "Connect your own Telegram account and confirm the intended private chat before enabling scheduled delivery. Never use this connection for employer outreach.",
+            "tools": [
+              {
+                "name": "Find direct-chat updates",
+                "description": "Check Telegram updates to identify the user's confirmed direct chat."
+              },
+              {
+                "name": "Send scheduled report",
+                "description": "Deliver a job-search summary and report link to the user's confirmed chat."
+              }
+            ]
+          },
+          "alternatives": []
+        }
+      ],
+      "example": {
+        "prompt": "Find current data engineer roles in Amsterdam that match my profile.",
+        "steps": [
+          "Compared postings with the saved role, location, and skills profile",
+          "Checked location, freshness, and application status",
+          "Researched employers and captured sourced fit notes",
+          "Saved the dated report with links and caveats"
+        ],
+        "reply": "Your shortlist is ready with application links, evidence-backed fit notes, and a next step. Unverified details are called out rather than guessed.",
+        "artifacts": [
+          "job-hunt/reports/<date>.md"
+        ],
+        "status": "Report saved"
+      },
+      "media": []
     }
   ],
   "authors": [
@@ -2907,7 +3004,8 @@
         "standup-summarizer",
         "repo-slack-digest",
         "cross-tool-sync",
-        "weekly-report"
+        "weekly-report",
+        "job-hunt-research"
       ]
     }
   ]
