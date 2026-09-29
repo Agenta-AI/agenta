@@ -226,7 +226,10 @@ export function buildSandboxProvider(
               : {}),
           } as any,
         },
-        { client: buildDaytonaClient(config.daytona) },
+        {
+          client: buildDaytonaClient(config.daytona),
+          target: config.daytona.target,
+        },
       );
     // The process-local Secret wrapper applies to EVERY plan-bearing Daytona run
     // (`buildRunPlan` builds a plan unless AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS switched hiding

@@ -50,6 +50,7 @@ type BaseProvider = ReturnType<typeof daytona>;
 
 interface DaytonaLifecycleDependencies {
   client?: DaytonaClient;
+  target?: string;
   buildBaseProvider?: (options: DaytonaProviderOptions) => BaseProvider;
 }
 
@@ -240,10 +241,12 @@ export function daytonaWithLifecycle(
           throw error;
         }
 
+        const target = dependencies.target;
+
         const buildCommand =
           snapshot === DEFAULT_DAYTONA_SNAPSHOT
-            ? "DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py"
-            : `DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --name ${snapshot}`;
+            ? `DAYTONA_API_KEY=...${target ? ` DAYTONA_TARGET=${target}` : ""} uv run build_snapshot.py`
+            : `DAYTONA_API_KEY=...${target ? ` DAYTONA_TARGET=${target}` : ""} uv run build_snapshot.py --name ${snapshot}`;
 
         throw new Error(
           `Daytona snapshot '${snapshot}' was not found. Build it with: ${buildCommand}`,

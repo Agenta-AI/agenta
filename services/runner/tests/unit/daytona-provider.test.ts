@@ -38,6 +38,7 @@ describe("Daytona provider create", () => {
       },
       {
         client: {} as any,
+        target: "eu",
         buildBaseProvider: () => ({
           ...fakeProvider(),
           create: async () => {
