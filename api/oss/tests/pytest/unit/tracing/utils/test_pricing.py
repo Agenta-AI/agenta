@@ -41,6 +41,10 @@ def _fresh_pricing_caches():
         ("anthropic/claude-opus-5.5", "claude-opus-5-5"),
         ("claude-opus-5", "claude-opus-5"),
         ("claude-sonnet-5", "claude-sonnet-5"),
+        ("claude-sonnet-5-5", "claude-sonnet-5-5"),
+        ("claude-sonnet-5-5[1m]", "claude-sonnet-5-5"),
+        ("anthropic/claude-sonnet-5-5", "claude-sonnet-5-5"),
+        ("anthropic/claude-sonnet-5.5", "claude-sonnet-5-5"),
         ("claude-fable-5-1", "claude-fable-5-1"),
         ("anthropic/claude-fable-5.1", "claude-fable-5-1"),
     ],
@@ -74,6 +78,8 @@ def test_every_alias_points_to_a_priced_litellm_key():
         ("claude-opus-5-5", 4.0, 20.0),
         ("claude-opus-5", 5.0, 25.0),
         ("claude-sonnet-5", 2.0, 10.0),
+        ("claude-sonnet-5-5", 2.0, 10.0),
+        ("sonnet", 2.0, 10.0),
         ("claude-fable-5-1", 10.0, 50.0),
     ],
 )
@@ -104,6 +110,15 @@ def test_price_map_additions_are_priced_from_their_listed_rates():
         cache_write_tokens=1_000_000,
     )
     assert prompt_cost == pytest.approx(4.0 + 0.2 + 5.0)
+
+    prompt_cost, _ = price_tokens(
+        model="claude-sonnet-5-5",
+        prompt_tokens=3_000_000,
+        completion_tokens=0,
+        cache_read_tokens=1_000_000,
+        cache_write_tokens=1_000_000,
+    )
+    assert prompt_cost == pytest.approx(2.0 + 0.2 + 2.5)
 
 
 def test_resolve_pricing_model_is_cached():

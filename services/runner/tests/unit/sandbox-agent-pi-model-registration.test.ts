@@ -322,6 +322,39 @@ describe("models newer than the pinned Pi catalog", () => {
     );
   });
 
+  it("registers Sonnet 5.5 from Opus 5.5's request rules at its own price", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    assert.equal(
+      registry.models("anthropic").some((model) => model.id === "claude-sonnet-5-5"),
+      false,
+    );
+
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-sonnet-5-5"),
+      registry,
+    );
+    assert.ok(plan);
+    assert.equal(plan.builtinProvider, "anthropic");
+    const [entry] = plan.models;
+    assert.equal(entry?.id, "claude-sonnet-5-5");
+    assert.equal(entry?.reasoning, true);
+    assert.equal(entry?.contextWindow, 1000000);
+    assert.equal(entry?.maxTokens, 128000);
+    assert.deepEqual(entry?.cost, {
+      input: 2,
+      output: 10,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+    });
+    // Sonnet 5.5 rejects a non-default temperature, so the inherited dialect must say so, and it
+    // gets the plain adaptive-thinking request rather than the unverified mid-conversation effort.
+    const compat = entry?.compat as Record<string, unknown> | undefined;
+    assert.equal(compat?.supportsTemperature, false);
+    assert.equal(compat?.forceAdaptiveThinking, true);
+    assert.equal("supportsMidConvoEffort" in (compat ?? {}), false);
+  });
+
   it("lists only models the pinned catalog still lacks", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);

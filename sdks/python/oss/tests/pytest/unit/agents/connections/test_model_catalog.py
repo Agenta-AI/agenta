@@ -357,6 +357,7 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
         "anthropic/claude-opus-5-5",
         "anthropic/claude-opus-5",
         "anthropic/claude-fable-5-1",
+        "anthropic/claude-sonnet-5-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
     ]
@@ -434,3 +435,22 @@ def test_opus_5_5_is_a_prompt_model_and_a_default():
     assert "anthropic/claude-fable-5-1" in supported_llm_models["anthropic"]
     assert "anthropic/claude-opus-5-5" in PROVIDER_DEFAULT_MODELS["anthropic"]
     assert "anthropic/claude-fable-5-1" in PROVIDER_DEFAULT_MODELS["anthropic"]
+
+
+def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_catalog_addition():
+    from agenta.sdk.utils.assets import supported_llm_models
+
+    assert "anthropic/claude-sonnet-5-5" in supported_llm_models["anthropic"]
+    assert "anthropic/claude-sonnet-5-5" in PROVIDER_DEFAULT_MODELS["anthropic"]
+    # pi-ai 0.87.1 predates Sonnet 5.5, so its facts ride the curated additions list.
+    entry = next(
+        e for e in pi_model_catalog().models if e.id == "anthropic/claude-sonnet-5-5"
+    )
+    assert entry.name == "Claude Sonnet 5.5" and entry.source == "curated"
+    assert entry.label == "Sonnet 5.5"
+    assert entry.pricing is not None
+    assert (entry.pricing.input_per_mtok, entry.pricing.output_per_mtok) == (2, 10)
+    assert entry.context_window == 1_000_000
+    # Claude names the tier: the pinned Claude Code build resolves `sonnet` to Sonnet 5.5.
+    sonnet = next(e for e in claude_model_catalog().models if e.id == "sonnet")
+    assert sonnet.name == "Claude Sonnet 5.5"

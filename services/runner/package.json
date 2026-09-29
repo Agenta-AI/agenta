@@ -25,7 +25,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agentclientprotocol/claude-agent-acp": "0.81.0",
+    "@agentclientprotocol/claude-agent-acp": "0.84.0",
     "@anthropic-ai/sdk": "0.111.0",
     "@aws-sdk/client-s3": "3.1070.0",
     "@daytonaio/sdk": "npm:@daytona/sdk@^0.198.0",
