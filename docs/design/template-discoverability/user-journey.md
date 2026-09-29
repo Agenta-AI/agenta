@@ -171,12 +171,17 @@ or filters.
 
 - **Placement:** in the page header row, directly left of "New agent", on the same row as
   the "Agents" title. The row already exists, so the button adds no height.
-- **Look:** a secondary (outline or ghost) button, so "New agent" stays the primary action.
-  Grid icon (`SquaresFour`, the icon the palette already uses for templates) and the label
-  "Templates".
-- **Phone:** icon only, same height as "New agent" (`h-control-sm`). It keeps an
-  `aria-label` and a tooltip ("Browse templates"), because the title and "New agent" already
-  fill the row.
+- **Visible without discovery.** The user must see it at first glance, on every screen
+  size. It is never icon-only, never ghost, never inside a menu, and never shown only on
+  hover.
+- **Look:** an outline button with a visible border, the grid icon (`SquaresFour`, the icon
+  the palette already uses for templates), and the label "Templates". Same height and
+  radius as "New agent", so the two read as a pair. "New agent" stays the filled primary
+  action; "Templates" is the clear second choice beside it.
+- **Phone:** the label stays. Both buttons use the small size (`h-control-sm`). At 375 px
+  the row fits: menu button, "Agents" title, "Templates", "New agent". If a narrower screen
+  cannot fit both labels, the "Agents" title truncates first; the "Templates" label does
+  not.
 - **Click:** opens `/templates`.
 - **Always rendered.** It does not depend on the catalogue state: the gallery page handles
   its own loading and error. It has no count, so it never shows a loading or "0" state.
@@ -365,6 +370,8 @@ Also send:
 - No screen shows two template elements at once.
 - The Agents page header shows the "Templates" button in every state: 0, 1–2, and 3+
   agents, with or without search and filters, and while the catalogue loads or fails.
+- The button shows its icon and its "Templates" label at every width down to 375 px. It
+  has a visible border and the same height as "New agent".
 - Every pick lands on `/agents/new?template=<key>` or binds the Home composer; none creates
   an agent without the user pressing Create or Send.
 - Closing the Home banner does not change the Agents page or the New agent page.

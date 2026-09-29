@@ -64,8 +64,9 @@ A compact image banner above the Home composer (`HomeFocus.tsx`) presents the te
 ### 2. Agents page: always a way in, more when the list is short
 
 A "Templates" button sits in the page header, left of "New agent", in every state. It
-opens `/templates`. On a phone it is icon only. It uses the existing header row, so it
-costs no height.
+opens `/templates`. It must be seen at first glance, not discovered: an outline button with
+a border, an icon, and the "Templates" label at every screen size, the same height as "New
+agent". It uses the existing header row, so it costs no height.
 
 The Agents list (`features/agents/AgentListScreen.tsx`) also offers templates in three
 states:
