@@ -799,9 +799,6 @@ jobs:
     timeout-minutes: 30
     env:
       AGENTA_LICENSE: oss
-      AGENTA_WEB_URL: http://localhost:10001
-      AGENTA_API_URL: http://localhost:10001/api
-      AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL: http://127.0.0.1:10005
 
     steps:
       - uses: actions/checkout@v6
@@ -817,6 +814,57 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           package_json_file: web/package.json
+
+      - name: Prepare OSS dev environment
+        run: |
+          cp hosting/docker-compose/oss/env.oss.dev.example \
+            hosting/docker-compose/oss/.env.oss.dev
+
+          AGENTA_AUTH_KEY="${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}" \
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import secrets
+
+          path = Path("hosting/docker-compose/oss/.env.oss.dev")
+
+          values = {
+              "TRAEFIK_PORT": "10001",
+              "TRAEFIK_UI_PORT": "10002",
+              "AGENTA_MOCK_LLM_GATEWAY_PORT": "10004",
+              "AGENTA_MOCK_MCP_GATEWAY_PORT": "10005",
+              "AGENTA_WEB_URL": "http://localhost:10001",
+              "AGENTA_SERVICES_URL": "http://localhost:10001/services",
+              "AGENTA_API_URL": "http://localhost:10001/api",
+              "AGENTA_AUTH_KEY": os.environ["AGENTA_AUTH_KEY"],
+              "AGENTA_SERVICES_INTERNAL_KEY": secrets.token_hex(32),
+              "AGENTA_CRYPT_KEY": secrets.token_hex(32),
+              "AGENTA_RUNNER_TOKEN": secrets.token_hex(32),
+              "AGENTA_STORE_ACCESS_KEY": secrets.token_hex(16),
+              "AGENTA_STORE_SECRET_KEY": secrets.token_hex(32),
+              "AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL": "http://127.0.0.1:10005",
+              "PLAYWRIGHT_HOST_RESOLVER_RULES": "MAP mock-mcp-gateway 127.0.0.1",
+          }
+
+          lines = path.read_text().splitlines()
+          output = []
+          seen = set()
+
+          for line in lines:
+              if "=" in line and not line.lstrip().startswith("#"):
+                  key = line.split("=", 1)[0]
+                  if key in values:
+                      output.append(f"{key}={values[key]}")
+                      seen.add(key)
+                      continue
+              output.append(line)
+
+          for key, value in values.items():
+              if key not in seen:
+                  output.append(f"{key}={value}")
+
+          path.write_text("\n".join(output) + "\n")
+          PY
 
       - name: Start OSS dev stack
         run: |
