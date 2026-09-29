@@ -77,7 +77,7 @@ Alternatives: a new `app_shares` table (rejected: the owner asked for no table, 
 A manifest has four parts:
 
 - `files`: each app-relative path → `{sha256, size, content_type}`.
-- `external`: each captured URL, keyed by the URL as written after it is made absolute → `{sha256, size, content_type, final_url}`.
+- `external`: each captured URL, keyed by the URL as written after it is made absolute → `{sha256, size, content_type}`.
 - `refs`: for each HTML or CSS entry in `files` or `external`, each reference string found in it → its target, `{"file": <app path>}` or `{"url": <external key>}`. A reference that was not captured has no entry.
 - `name`, `entry`, author, and `warnings` (see "External files").
 
@@ -148,7 +148,7 @@ Both failures are 403, not 401: a 401 makes the SuperTokens interceptor try a se
 |---|---|---|
 | `GET /shared/apps/{token}` | `fetch_shared_app` | Name, `entry`, author name, `viewer {role, can_open_session, session_id?, workspace_id?, project_id?}`, `refs`, and the content of every entry in `files` and `external` (base64) |
 
-Access is decided once per view, not once per file. Access check, in order: default key (503 `sharing_disabled`); signature and `a` (404 `share_not_found`); drive exists (404); drive not archived (404 `share_unavailable`); share enabled and nonce matches (404); for `workspace`, `resolve_session_user_id` (403 `sign_in_required`, not 401, so the SuperTokens interceptor does not try a refresh for a viewer with no session), `AuthService.check_organization_access` (403 with the policy error), uncached `workspace_member_exists` (403 `not_a_member`); the live manifest exists (404 `share_unavailable`).
+Access is decided once per view, not once per file. Access check, in order: default key (503 `sharing_disabled`); signature and `a` (404 `share_not_found`); drive exists (404); drive not archived (404 `share_unavailable`); share enabled and nonce matches (404); for `workspace`, `resolve_session_user_id` (403 `sign_in_required`, not 401, so the SuperTokens interceptor does not try a refresh for a viewer with no session), `AuthService.check_organization_access` (403 with the policy error), uncached `workspace_member_exists` (403 `not_a_member`); the live manifest exists (503 `storage_unavailable`).
 
 The route calls the organization policy check itself because the middleware skips public routes (`auth.py:1352`). It streams the JSON body. It reads the manifest, writes the metadata, then reads each blob from the store and writes it, one blob at a time, so a 25 MB snapshot is never held in memory whole. The response is `application/json` with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Cache-Control: no-store`. No snapshot file has its own URL, so no snapshot file can render on the Agenta origin.
 
