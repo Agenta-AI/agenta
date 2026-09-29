@@ -17,6 +17,7 @@ from oss.src.core.channels.adapters.slack.mapping import (
     MAX_CHARS,
     build_locator,
     classify_space_kind,
+    file_media_parts,
     is_bot_authored,
     mentions_user,
     parse_block_action,
@@ -160,34 +161,6 @@ def _profile_fields(user: Dict[str, Any]) -> Dict[str, str]:
     )
     username = user.get("name") or ""
     return {k: v for k, v in (("name", name), ("username", username)) if v}
-
-
-def _file_media_parts(event: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Media parts for the files shared on a message. An entry without a
-    private download URL (an external or tombstoned file) is skipped; the
-    message itself still goes through."""
-
-    parts: List[Dict[str, Any]] = []
-    files = event.get("files")
-    for entry in files if isinstance(files, list) else []:
-        if not isinstance(entry, dict):
-            continue
-        url = entry.get("url_private_download") or entry.get("url_private")
-        if not entry.get("id") or not url:
-            continue
-        prefix = str(entry.get("mimetype") or "").split("/", 1)[0]
-        parts.append(
-            {
-                "type": "media",
-                "kind": prefix if prefix in ("image", "audio", "video") else "document",
-                "media_id": entry["id"],
-                "mime_type": entry.get("mimetype"),
-                "filename": entry.get("name"),
-                "size": entry.get("size"),
-                "url": url,
-            }
-        )
-    return parts
 
 
 class SlackAdapter(ChannelAdapterInterface):
@@ -418,10 +391,13 @@ class SlackAdapter(ChannelAdapterInterface):
                 _bot_handle(connection) if connection else "@Agenta",
                 text,
             )
-        # Text first, then one media part per shared file. A file share with
-        # no comment keeps the empty text part the event always had.
-        content: List[Dict[str, Any]] = [{"type": "text", "text": text}]
-        content.extend(_file_media_parts(event))
+        # Text (or caption) first, then one media part per shared file. A
+        # file share with no comment carries no empty text part.
+        content: List[Dict[str, Any]] = []
+        media = file_media_parts(event)
+        if text or not media:
+            content.append({"type": "text", "text": text})
+        content.extend(media)
 
         return ChannelInboundEvent(
             external_id=event.get("client_msg_id") or f"{channel_id}:{event_ts}",
@@ -482,15 +458,26 @@ class SlackAdapter(ChannelAdapterInterface):
         media: Dict[str, Any],
         max_bytes: Optional[int] = None,
     ) -> Optional[Tuple[bytes, Optional[str]]]:
-        """Download a shared file from its private URL with the bot token.
-        None when Slack reports it larger than `max_bytes`. An HTML response
-        is Slack's login page, meaning the token cannot read files."""
+        """Download a shared file. Two calls: files.info resolves the file id
+        to its current size and private URL (the stored part carries only the
+        id, so a URL rotated since the event still resolves), then the URL is
+        fetched with the bot token. None when Slack reports the file larger
+        than `max_bytes`. An HTML response is Slack's login page, meaning the
+        token cannot read files."""
 
-        size = media.get("size")
+        body = await self._call(
+            connection, "files.info", {"file": media["media_id"]}, as_query=True
+        )
+        entry = body.get("file") if isinstance(body.get("file"), dict) else {}
+        size = entry.get("size")
         if max_bytes is not None and isinstance(size, int) and size > max_bytes:
             return None
+        url = entry.get("url_private_download") or entry.get("url_private")
+        if not url:
+            # An external or tombstoned file has no downloadable copy.
+            raise _SlackApiError(error="file_not_downloadable", status_code=200)
         response = await self._client.get(
-            media["url"],
+            url,
             headers={"Authorization": f"Bearer {_bot_token(connection)}"},
             follow_redirects=True,
             timeout=_MEDIA_TIMEOUT_SECONDS,
@@ -502,7 +489,7 @@ class SlackAdapter(ChannelAdapterInterface):
             )
         if max_bytes is not None and len(response.content) > max_bytes:
             return None
-        return response.content, media.get("mime_type")
+        return response.content, media.get("mime_type") or entry.get("mimetype")
 
     # --- egress --- #
 

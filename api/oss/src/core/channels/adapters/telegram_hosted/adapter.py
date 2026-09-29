@@ -108,16 +108,9 @@ class HostedTelegramAdapter(TelegramAdapter):
             raise ChannelSignatureInvalid(channel=self.channel)
         return project
 
-    async def _call(
-        self, connection: ChannelConnection, method: str, params: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        # Egress for every hosted connection uses the one deployment token.
-        return await self._call_with_token(
-            self._media_token(connection), method, params
-        )
-
-    def _media_token(self, connection: ChannelConnection) -> str:
+    def _api_token(self, connection: ChannelConnection) -> str:
         # The one deployment token, for API calls and file downloads alike.
+        # The base adapter's `_call` and `fetch_media` both read this hook.
         token = env.channels.telegram.bot_token
         if not token:
             raise ChannelSignatureInvalid(channel=self.channel)

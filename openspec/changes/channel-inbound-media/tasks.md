@@ -16,9 +16,9 @@ Requested by Mahmoud on 2026-09-25: images native where supported, everything el
 
 ## 3. Slack
 
-- [x] 3.1 Emit one media part per `event.files` entry in `parse_event`; skip entries without a private download URL.
-- [x] 3.2 Implement `fetch_media` over `url_private_download` with the bot token; refuse an HTML (login page) response.
-- [x] 3.3 Unit tests: mapping with files, fetch over the fake, size refusal.
+- [x] 3.1 Emit one media part per `event.files` entry in `parse_event`, named by file id only; skip entries without an id. A file-only share carries no empty text part.
+- [x] 3.2 Implement `fetch_media`: resolve the id through `files.info` at download time (no private URL is stored on the event), then download with the bot token; refuse an HTML (login page) response.
+- [x] 3.3 Unit tests: mapping with files, files.info resolution plus download over the fake, size refusal.
 
 ## 4. Out of scope
 

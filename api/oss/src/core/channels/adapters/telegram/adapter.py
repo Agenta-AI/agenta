@@ -500,8 +500,9 @@ class TelegramAdapter(ChannelAdapterInterface):
 
     # --- media --- #
 
-    def _media_token(self, connection: ChannelConnection) -> str:
-        # The hosted adapter overrides this with the deployment bot token.
+    def _api_token(self, connection: ChannelConnection) -> str:
+        """The token every Bot API call and file download authenticates with.
+        The hosted adapter overrides this with the one deployment token."""
         return _bot_token(connection)
 
     async def fetch_media(
@@ -516,7 +517,7 @@ class TelegramAdapter(ChannelAdapterInterface):
         token. None when Telegram reports it larger than `max_bytes`. The Bot
         API refuses downloads above 20 MB on its own."""
 
-        token = self._media_token(connection)
+        token = self._api_token(connection)
         body = await self._call_with_token(
             token, "getFile", {"file_id": media["media_id"]}
         )
@@ -540,7 +541,7 @@ class TelegramAdapter(ChannelAdapterInterface):
     async def _call(
         self, connection: ChannelConnection, method: str, params: Dict[str, Any]
     ) -> Dict[str, Any]:
-        return await self._call_with_token(_bot_token(connection), method, params)
+        return await self._call_with_token(self._api_token(connection), method, params)
 
     async def _call_with_token(
         self, token: str, method: str, params: Dict[str, Any]

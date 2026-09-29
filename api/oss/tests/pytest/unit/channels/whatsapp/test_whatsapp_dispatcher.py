@@ -299,6 +299,7 @@ class FakeAttachments:
 
     async def reference_attachments(self, *, project_id, session_id, attachment_ids):
         self.referenced.extend(attachment_ids)
+        self.referenced_project_id = project_id
         return []
 
 
@@ -327,6 +328,10 @@ async def test_a_document_reaches_the_agent_as_a_session_attachment(world, graph
     )
 
     [created] = attachments.created
+    # The attachment is stored under the channel connection's project, never
+    # a user default, and the reference carries the same project.
+    assert created["project_id"] == PROJECT_ID
+    assert attachments.referenced_project_id == PROJECT_ID
     assert created["session_id"] == world.thread.session_id
     assert created["data"] == b"%PDF-1.4"
     assert created["filename"] == "invoice.pdf"

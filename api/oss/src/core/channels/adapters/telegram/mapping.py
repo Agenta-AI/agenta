@@ -80,6 +80,13 @@ _MEDIA_FIELDS = (
 )
 
 
+def _photo_rank(size: Dict[str, Any]) -> Tuple[int, int]:
+    return (
+        (size.get("width") or 0) * (size.get("height") or 0),
+        size.get("file_size") or 0,
+    )
+
+
 def media_parts(message: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Media parts for the files on a Telegram message, in `_MEDIA_FIELDS`
     order. Each part names the file by its Telegram file_id, which
@@ -89,8 +96,14 @@ def media_parts(message: Dict[str, Any]) -> List[Dict[str, Any]]:
     for field, kind in _MEDIA_FIELDS:
         value = message.get(field)
         if field == "photo":
-            # A photo arrives as ascending sizes; the last is the original.
-            value = value[-1] if isinstance(value, list) and value else None
+            # A photo arrives as a list of sizes. The Bot API does not promise
+            # an order, so take the largest by area, then by file_size.
+            sizes = (
+                [s for s in value if isinstance(s, dict)]
+                if isinstance(value, list)
+                else []
+            )
+            value = max(sizes, key=_photo_rank) if sizes else None
         if not isinstance(value, dict) or not value.get("file_id"):
             continue
         parts.append(

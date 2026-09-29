@@ -815,9 +815,15 @@ async def test_parse_event_photo_becomes_a_media_part_after_the_caption():
                 "from": {"id": 555, "is_bot": False},
                 "chat": {"id": 999, "type": "private"},
                 "caption": "the broken part",
+                # Largest first: selection is by area, not list order.
                 "photo": [
-                    {"file_id": "small", "file_size": 100},
-                    {"file_id": "large", "file_size": 90000},
+                    {
+                        "file_id": "large",
+                        "width": 1280,
+                        "height": 960,
+                        "file_size": 90000,
+                    },
+                    {"file_id": "small", "width": 90, "height": 67, "file_size": 100},
                 ],
             },
         }
@@ -928,3 +934,35 @@ def test_capabilities_declare_file_receive_up_to_the_bot_api_cap():
     assert capabilities.rendering.files.receive.supported is True
     assert capabilities.rendering.files.receive.max_bytes == 20 * 1024 * 1024
     assert capabilities.rendering.files.send.supported is False
+
+
+@pytest.mark.asyncio
+async def test_hosted_fetch_media_uses_the_deployment_token(monkeypatch):
+    from oss.src.core.channels.adapters.telegram_hosted.adapter import (
+        HostedTelegramAdapter,
+    )
+    from oss.src.utils.env import env as _env
+
+    monkeypatch.setattr(_env.channels.telegram, "bot_token", "999:deploy")
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/bot999:deploy/getFile":
+            return httpx.Response(
+                200,
+                json={"ok": True, "result": {"file_path": "p/f.jpg", "file_size": 3}},
+            )
+        assert request.url.path == "/file/bot999:deploy/p/f.jpg"
+        return httpx.Response(200, content=b"JPG")
+
+    client = httpx.AsyncClient(
+        base_url="https://api.telegram.org", transport=httpx.MockTransport(handler)
+    )
+    adapter = HostedTelegramAdapter(http_client=client)
+    data, mime_type = await adapter.fetch_media(
+        connection=_connection(), media={"media_id": "F1", "mime_type": "image/jpeg"}
+    )
+    assert data == b"JPG"
+    assert mime_type == "image/jpeg"
+    assert len(seen) == 2

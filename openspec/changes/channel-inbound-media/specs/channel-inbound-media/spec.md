@@ -29,14 +29,14 @@ The Telegram adapter SHALL pass inbound `photo`, `document`, `voice`, `audio`, `
 - **THEN** the adapter SHALL download it with the deployment bot token and the agent SHALL receive it as a session attachment
 
 ### Requirement: Slack file shares
-The Slack adapter SHALL pass each entry of a message's `files` array to the agent as a media part, next to the message text. A file entry without a private download URL SHALL be skipped without failing the message.
+The Slack adapter SHALL pass each `files` entry that carries a file id to the agent as a media part, next to the message text; an entry without an id SHALL be skipped without failing the message. The stored part SHALL name the file by id only; the adapter SHALL resolve the current private URL through `files.info` at download time, so no private URL is persisted on the inbox event. A file resolved without a downloadable URL (an external or tombstoned file) SHALL surface to the agent as the standard short text note.
 
 #### Scenario: File with a comment
 - **WHEN** a Slack user shares a PDF with the comment "please summarize"
 - **THEN** the agent SHALL receive the comment as text and the PDF as a session attachment
 
 ### Requirement: Adapter downloads with the channel's own credentials
-Each adapter SHALL download a named file itself: WhatsApp through the Graph API media endpoint with the connection's access token, Telegram through `getFile` and the file path with the bot token (the deployment token on the hosted path), and Slack through the file's private download URL with the bot token. A download larger than the platform attachment limit SHALL be reported as too large, and the agent SHALL still see a short text note in place of the file.
+Each adapter SHALL download a named file itself: WhatsApp through the Graph API media endpoint with the connection's access token, Telegram through `getFile` and the file path with the bot token (the deployment token on the hosted path), and Slack through `files.info` and the resolved private download URL with the bot token. A download larger than the platform attachment limit SHALL be reported as too large, and the agent SHALL still see a short text note in place of the file.
 
 #### Scenario: Oversize file
 - **WHEN** a user sends a file larger than the platform attachment limit
