@@ -89,7 +89,7 @@ const VisibilityOption = ({
         disabled={disabled}
         onClick={() => onSelect(value)}
         className={cn(
-            "flex w-full cursor-pointer items-center gap-3 rounded-lg border border-solid bg-colorBgContainer p-3 text-left transition-colors disabled:cursor-not-allowed",
+            "flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-solid bg-colorBgContainer px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed",
             selected
                 ? "border-colorText bg-colorFillQuaternary"
                 : "border-colorBorderSecondary hover:border-colorBorder",
@@ -97,7 +97,7 @@ const VisibilityOption = ({
     >
         <span
             className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-md",
+                "flex size-8 shrink-0 items-center justify-center rounded-md",
                 selected ? "bg-colorText text-colorBgContainer" : "bg-colorFillSecondary text-colorTextSecondary",
             )}
         >
@@ -181,7 +181,7 @@ const SharePanel = ({
 
     return (
         <div className="flex flex-col text-xs">
-            <div className="flex flex-col gap-4 p-5">
+            <div className="flex flex-col gap-3 p-4">
                 <div className="flex items-start gap-2">
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <h2 className="m-0 truncate text-base font-semibold text-colorText">
@@ -203,10 +203,10 @@ const SharePanel = ({
                 </div>
 
                 {loading ? (
-                    <div className="h-40 rounded-lg bg-colorFillQuaternary" aria-busy />
+                    <div className="h-36 rounded-lg bg-colorFillQuaternary" aria-busy />
                 ) : (
                     <>
-                        <section role="radiogroup" aria-label="Who can open it" className="flex flex-col gap-2">
+                        <section role="radiogroup" aria-label="Who can open it" className="flex flex-col gap-1.5">
                             <span className="text-sm font-semibold text-colorText">Who can open it</span>
                             {(Object.keys(VISIBILITY) as ShareVisibility[]).map((value) => (
                                 <VisibilityOption
@@ -262,7 +262,7 @@ const SharePanel = ({
                 )}
             </div>
 
-            <div className="border-0 border-t border-solid border-colorBorderSecondary px-5 py-3">
+            <div className="border-0 border-t border-solid border-colorBorderSecondary px-4 py-2.5">
                 {confirmStop ? (
                     <InlineConfirm
                         message="The link stops working now. Sharing again makes a new link."
