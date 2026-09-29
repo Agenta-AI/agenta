@@ -1,4 +1,4 @@
-/** The Share button and its popover: who can open the app, the link, versions, stop sharing. */
+/** The Share button and its popover: who can open the app, the link, and stop sharing. */
 import {useCallback, useState, type ReactNode} from "react"
 
 import {
@@ -6,12 +6,10 @@ import {
     appShareQueryKey,
     editAppShare,
     publishAppShare,
-    restoreAppShare,
     sharePagePath,
     stopAppShare,
     type AppShareIssue,
     type AppShareResult,
-    type AppShareState,
     type ShareVisibility,
 } from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
@@ -29,7 +27,7 @@ import {
     PopoverTrigger,
     cn,
 } from "@agenta/ui/ui"
-import {CaretDown, Check, Copy, GlobeHemisphereWest, ShareNetwork, UsersThree, X} from "@phosphor-icons/react"
+import {Check, Copy, GlobeHemisphereWest, ShareNetwork, UsersThree, X} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {useMountAssembleIo} from "./mountIo"
@@ -118,73 +116,6 @@ const VisibilityOption = ({
         />
     </button>
 )
-
-const VersionList = ({
-    share,
-    busy,
-    onRestore,
-}: {
-    share: AppShareState
-    busy: string | null
-    onRestore: (version: number) => void
-}) => {
-    const [open, setOpen] = useState(false)
-    const live = share.enabled && share.token ? share.token : null
-    return (
-        <section aria-label="Versions" className="flex flex-col gap-1">
-            <button
-                type="button"
-                onClick={() => setOpen((v) => !v)}
-                aria-expanded={open}
-                className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs text-colorTextSecondary"
-            >
-                <CaretDown className={cn("size-3 transition-transform", open ? "" : "-rotate-90")} />
-                {share.versions.length} version{share.versions.length === 1 ? "" : "s"} · v
-                {share.latest} is live
-            </button>
-            {open ? (
-                <ul className="m-0 flex max-h-36 list-none flex-col gap-0.5 overflow-auto p-0 text-xs">
-                    {[...share.versions].reverse().map((v) => (
-                        <li key={v.version} className="flex h-7 items-center gap-2">
-                            <span className="w-7 text-colorText">v{v.version}</span>
-                            <span className="truncate text-colorTextTertiary">
-                                {new Date(v.created_at).toLocaleString()}
-                                {v.restored_from ? ` · from v${v.restored_from}` : ""}
-                            </span>
-                            <span className="flex-1" />
-                            {v.version === share.latest ? (
-                                <span className="text-colorTextTertiary">Live</span>
-                            ) : (
-                                <>
-                                    {live ? (
-                                        <a
-                                            href={`${shareUrl(live)}?v=${v.version}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-colorTextSecondary hover:text-colorText"
-                                        >
-                                            Open
-                                        </a>
-                                    ) : null}
-                                    <LoadingButton
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 px-1.5 text-xs"
-                                        loading={busy === `restore-${v.version}`}
-                                        disabled={busy !== null}
-                                        onClick={() => onRestore(v.version)}
-                                    >
-                                        Restore
-                                    </LoadingButton>
-                                </>
-                            )}
-                        </li>
-                    ))}
-                </ul>
-            ) : null}
-        </section>
-    )
-}
 
 const SharePanel = ({
     target,
@@ -308,16 +239,6 @@ const SharePanel = ({
                                     {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
                                 </Button>
                             </div>
-                        ) : null}
-
-                        {share && share.versions.length > 0 ? (
-                            <VersionList
-                                share={share}
-                                busy={busy}
-                                onRestore={(version) =>
-                                    void run(`restore-${version}`, () => restoreAppShare({...call, version}))
-                                }
-                            />
                         ) : null}
 
                         {error ? <Alert type="error" showIcon message={error} /> : null}
