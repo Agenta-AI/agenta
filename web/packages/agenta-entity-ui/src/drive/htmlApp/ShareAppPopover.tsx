@@ -181,7 +181,7 @@ const SharePanel = ({
         <div className="flex flex-col text-xs">
             <div className="flex flex-col gap-3 p-4">
                 <div className="flex min-w-0 flex-col gap-1">
-                    <h2 className="m-0 truncate text-base font-semibold text-colorText">
+                    <h2 className="m-0 truncate text-sm font-semibold text-colorText">
                         Share {appName}
                     </h2>
                     <p className="m-0 text-sm text-colorTextSecondary">
