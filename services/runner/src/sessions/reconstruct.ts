@@ -19,6 +19,7 @@
  */
 
 import type { AgentEvent, ChatMessage, ContentBlock } from "../protocol.ts";
+import { APPROVED_EXECUTION_RESULT_UNKNOWN } from "../tracing/otel.ts";
 
 /** One durable record row as `POST /sessions/records/query` returns it. `attributes` is the
  * coalesced `AgentEvent`; `record_source` is the author ("user" | "agent"). */
@@ -57,6 +58,10 @@ function eventToBlock(
         input: event.input,
       };
     }
+    case "error":
+      return event.code === "execution_lost"
+        ? { type: "text", text: "The previous turn was interrupted. A tool call without a recorded result has an unknown outcome. Verify its effects before repeating it." }
+        : null;
     case "tool_result":
       return {
         type: "tool_result",
@@ -184,6 +189,17 @@ function foldMessages(records: readonly SessionRecordRow[]): ChatMessage[] {
       continue;
     }
 
+    if (event.type === "error" && event.code === "execution_lost" && assistant) {
+      // A call without a result may already have changed external state. Close it with
+      // the existing unknown-outcome marker, never the approval replay's retry nudge.
+      const completed = new Set(assistant.filter((block) => block.type === "tool_result").map((block) => block.toolCallId));
+      for (const call of [...assistant]) {
+        if (call.type === "tool_call" && call.toolCallId && !completed.has(call.toolCallId)) {
+          assistant.push({ type: "tool_result", toolCallId: call.toolCallId, toolName: call.toolName, output: APPROVED_EXECUTION_RESULT_UNKNOWN });
+          completed.add(call.toolCallId);
+        }
+      }
+    }
     const block = eventToBlock(event, callNames);
     if (block) (assistant ??= []).push(block);
   }

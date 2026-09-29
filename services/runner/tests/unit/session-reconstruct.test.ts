@@ -32,7 +32,8 @@ describe("reconstructMessages", () => {
     const messages = reconstructMessages(records);
     assert.equal(messages.length, 2);
     const blocks = messages[1].content as ContentBlock[];
-    assert.deepEqual(blocks.map((block) => block.type), ["tool_call", "tool_result", "text"]);
+    assert.deepEqual(blocks.map((block) => block.type), ["tool_call", "tool_result", "text", "text"]);
+    assert.match(blocks[3].text!, /unknown outcome/);
     assert.deepEqual(blocks[1].output, { document_id: "doc-123" });
     assert.equal(blocks[2].text, "Created doc-123.");
   });

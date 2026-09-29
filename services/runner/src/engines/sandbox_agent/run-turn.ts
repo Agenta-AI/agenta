@@ -810,6 +810,7 @@ export async function runTurn(
         const waiters = toolCallClosureWaiters.get(toolCallId) ?? new Set();
         waiters.add(onClosed);
         toolCallClosureWaiters.set(toolCallId, waiters);
+        void runLimitTripped.then(() => finish(false));
         timeout = setTimeout(() => finish(false), timeoutMs);
       });
     };
@@ -821,6 +822,10 @@ export async function runTurn(
       pause,
       toolRelay: undefined,
       handleUpdate: (update) => {
+        // One admission before any tool index, timer, argument seed or paused-frame retention.
+        // The tracer later consumes this admitted update without counting it a second time.
+        if (run.admitUpdate?.(update) === false) return;
+        env.toolCallIndex.record(update);
         // The turn is over and waits only for the cancelled prompt's usage. Anything else the
         // harness sends now is a teardown artifact (Codex writes "*Conversation interrupted*").
         if (
@@ -924,7 +929,7 @@ export async function runTurn(
             bufferedPausedCompletedFrames.set(toolCallId, update);
             return;
           }
-          run.handleUpdate(update);
+          run.handleUpdate(update, true);
           if (
             toolCallId &&
             (rawFrame.status === "completed" || rawFrame.status === "failed")
@@ -1110,7 +1115,7 @@ export async function runTurn(
         bufferedPausedCompletedFrames.delete(toolCallId);
         if (pause.isPausedToolCall(toolCallId)) continue;
         if (pause.isAllowedExecution(toolCallId)) {
-          run.handleUpdate(update);
+          run.handleUpdate(update, true);
           notifyToolCallClosed(toolCallId);
           continue;
         }
@@ -1141,7 +1146,7 @@ export async function runTurn(
         );
         const permission = effectivePermission(gate, permissionPlan);
         if (permission === "allow") {
-          run.handleUpdate(update);
+          run.handleUpdate(update, true);
           notifyToolCallClosed(toolCallId);
           continue;
         }
@@ -1569,6 +1574,7 @@ export async function runTurn(
     if (stopReason === "paused") {
       await pause.waitForEventDrain();
       settleBufferedPausedCompletions();
+      if (outputLimitReason) throw new Error(outputLimitReason);
       // A gateway run passes TWO gates on ONE tool-call id: the ACP gate on the outer `run_tool`,
       // whose spec permission is `allow` and which therefore marks an allowed execution, and the
       // gateway's semantic gate on the TARGET action, which answers `ask` and parks that same id.
@@ -1865,6 +1871,7 @@ export async function runTurn(
 
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
     await settleInBandInteractions?.();
+    if (outputLimitReason) throw new Error(outputLimitReason);
     const output = run.finish(swallowedError ? "error" : stopReason);
     await run.flush();
     const turnEndedAt = new Date().toISOString();

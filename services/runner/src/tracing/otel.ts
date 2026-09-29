@@ -1712,7 +1712,9 @@ export interface SandboxAgentOtel {
   /** Start the invoke_agent (AGENT) span as a child of the caller's traceparent. */
   start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void;
   /** Feed one ACP `session/update` payload (the `update` object). */
-  handleUpdate(update: any): void;
+  handleUpdate(update: any, admitted?: boolean): void;
+  /** Admit a raw update before the engine retains correlation, timer or pause state. */
+  admitUpdate(update: any): boolean;
   /**
    * Record an event the ACP stream does not carry (e.g. an `interaction_request` raised via
    * the permission callback). Routes through the same choke point as stream events, so it
@@ -1793,6 +1795,8 @@ export function createSandboxAgentOtel(
   let tokenDetail: ModelTokenUsage | undefined;
   const events: AgentEvent[] = [];
   const outputBudget = createOutputBudget(init.onOutputLimit);
+  let finished = false;
+  const admitUpdate = (update: any): boolean => !finished && outputBudget.accept(update);
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
   const toolSpans = new Map<
@@ -2068,9 +2072,9 @@ export function createSandboxAgentOtel(
     emitMessages(llmSpan, "llm.input_messages", inputMessages, capture);
   }
 
-  function handleUpdate(update: any): void {
+  function handleUpdate(update: any, admitted = false): void {
     const kind = update?.sessionUpdate;
-    if (!kind || !outputBudget.accept(update)) return;
+    if (!kind || finished || (!admitted && !admitUpdate(update))) return;
 
     if (kind === "agent_message_chunk") {
       const t = acpBlockText(update.content);
@@ -2328,6 +2332,8 @@ export function createSandboxAgentOtel(
 
   function finish(stopReason?: string): string {
     const text = stripStartupBanner(accumulated.trim());
+    if (finished) return text;
+    finished = true;
     // The event log is independent of span emission, so build its tail either way.
     closeText();
     closeReasoning();
@@ -2396,7 +2402,9 @@ export function createSandboxAgentOtel(
   return {
     start,
     handleUpdate,
+    admitUpdate,
     emitEvent: (event) => {
+      if (finished) return;
       // Error/done are engine-authored terminal records, not model output. Preserve them
       // after a breach so the turn has one visible, durable ending.
       if (event.type === "error" || event.type === "done" || outputBudget.accept(event)) {
