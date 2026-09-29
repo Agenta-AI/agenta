@@ -57,6 +57,23 @@ def test_strips_nul_from_dict_keys():
     assert _strip_nul({"k\x00ey": "value"}) == {"key": "value"}
 
 
+def test_clean_key_survives_a_collision_with_a_stripped_key():
+    """When stripping makes a poisoned key collide with a clean one, the clean entry must win
+    regardless of insertion order: `"ty\x00pe"` silently replacing `"type"` would corrupt the
+    discriminator that record reconstruction depends on."""
+    assert _strip_nul({"type": "tool_result", "ty\x00pe": "other"}) == {
+        "type": "tool_result"
+    }
+    assert _strip_nul({"ty\x00pe": "other", "type": "tool_result"}) == {
+        "type": "tool_result"
+    }
+
+
+def test_first_stripped_key_wins_when_no_clean_key_exists():
+    # Two poisoned keys colliding with each other: keep the first, deterministically.
+    assert _strip_nul({"k\x00ey": "first", "ke\x00y": "second"}) == {"key": "first"}
+
+
 def test_leaves_non_string_leaves_alone():
     body = {"type": "usage", "total": 17, "cost": 1.5, "ok": True, "none": None}
     assert _strip_nul(body) == body
@@ -97,11 +114,29 @@ async def test_published_record_carries_no_nul():
 
 
 async def test_nul_is_stripped_before_the_size_check():
-    """Stripping runs first so truncation measures the body that will actually be stored."""
-    padding = "p" * (MAX_ATTRIBUTES_BYTES * 2)
+    """Stripping runs first so truncation measures the body that will actually be stored.
+
+    The body is oversized ONLY because of the NULs (each serializes as 6 bytes of `\\u0000`):
+    after stripping it fits the budget with room to spare, so if truncation ran first the
+    output would carry the truncation marker, and if stripping runs first it must not.
+    """
+    content = "p" * 1000
+    nul_padding = "\x00" * MAX_ATTRIBUTES_BYTES
     attributes = await _published_attributes(
-        {"type": "tool_result", "id": "call-2", "output": "\x00" + padding}
+        {"type": "tool_result", "id": "call-2", "output": nul_padding + content}
     )
     assert attributes["id"] == "call-2"
+    assert attributes["output"] == content
+    assert _TRUNCATION_MARKER not in attributes["output"]
+    assert _NUL_ESCAPE not in dumps(attributes)
+
+
+async def test_body_still_oversized_after_stripping_is_truncated():
+    """The two sanitizers compose: NULs gone AND the stored body bounded."""
+    padding = "p" * (MAX_ATTRIBUTES_BYTES * 2)
+    attributes = await _published_attributes(
+        {"type": "tool_result", "id": "call-3", "output": "\x00" + padding}
+    )
+    assert attributes["id"] == "call-3"
     assert attributes["output"].endswith(_TRUNCATION_MARKER)
     assert _NUL_ESCAPE not in dumps(attributes)
