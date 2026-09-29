@@ -785,3 +785,93 @@ jobs:
             echo "| AGENTA_SERVICES_URL | \`${AGENTA_SERVICES_URL}\` | |"
             echo "| Status | \`${JOB_STATUS}\` | |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+
+  run-local-web-acceptance:
+    name: run-local-web-acceptance
+    needs: prepare
+    if: >-
+      ${{
+        contains(fromJSON('["all","web-only"]'), inputs.packages) &&
+        contains(fromJSON(needs.prepare.outputs.layers_json), 'acceptance')
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AGENTA_LICENSE: oss
+      AGENTA_WEB_URL: http://localhost:10001
+      AGENTA_API_URL: http://localhost:10001/api
+      AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL: http://127.0.0.1:10005
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+
+      - name: Start OSS dev stack
+        run: |
+          bash ./hosting/docker-compose/run.sh --oss --dev --build
+
+      - name: Wait for web
+        run: |
+          curl --retry 30 --retry-delay 5 --retry-connrefused \
+            --fail http://localhost:10001
+
+      - name: Wait for mock MCP gateway
+        run: |
+          curl --retry 30 --retry-delay 2 --retry-connrefused \
+            --fail http://127.0.0.1:10005/health
+
+      - name: Run MCP acceptance tests
+        run: |
+          set -o pipefail
+
+          bash ./hosting/docker-compose/test.sh \
+            --oss \
+            --dev \
+            --web \
+            --acceptance \
+            -- \
+            ../oss/tests/playwright/acceptance/settings/mcp-connect.spec.ts \
+            ../oss/tests/playwright/acceptance/playground/mcp-agent-config.spec.ts \
+            2>&1 | tee mcp-acceptance.log
+
+          summary="$(grep -E '\[test\] [0-9]+ passed, [0-9]+ failed, [0-9]+ skipped$' mcp-acceptance.log | tail -1)"
+
+          if [[ -z "$summary" ]]; then
+            echo "Could not find the Playwright test summary."
+            exit 1
+          fi
+
+          if [[ "$summary" =~ \[test\]\ ([0-9]+)\ passed,\ ([0-9]+)\ failed,\ ([0-9]+)\ skipped ]]; then
+            passed="${BASH_REMATCH[1]}"
+            skipped="${BASH_REMATCH[3]}"
+
+            if (( skipped > 0 )); then
+              echo "MCP acceptance tests were skipped; expected the mock MCP gateway to be reachable."
+              exit 1
+            fi
+
+            if (( passed == 0 )); then
+              echo "No MCP acceptance tests executed."
+              exit 1
+            fi
+          else
+            echo "Unexpected Playwright summary: $summary"
+            exit 1
+          fi
+
+      - name: Stop OSS dev stack
+        if: always()
+        run: |
+          bash ./hosting/docker-compose/run.sh --oss --dev --down
