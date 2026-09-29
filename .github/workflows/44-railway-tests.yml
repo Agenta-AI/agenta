@@ -843,6 +843,7 @@ jobs:
               "AGENTA_STORE_ACCESS_KEY": secrets.token_hex(16),
               "AGENTA_STORE_SECRET_KEY": secrets.token_hex(32),
               "AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL": "http://127.0.0.1:10005",
+              "AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL": "http://127.0.0.1:10005",
               "PLAYWRIGHT_HOST_RESOLVER_RULES": "MAP mock-mcp-gateway 127.0.0.1",
           }
 
