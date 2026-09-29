@@ -15,6 +15,7 @@ export interface SharedAppResponse {
     refs?: Record<string, Record<string, Record<string, string>>> | undefined;
     files?: Record<string, AgentaApi.SharedAppFile> | undefined;
     external?: Record<string, AgentaApi.SharedAppFile> | undefined;
+    error?: (AgentaApi.SharedAppStreamError | null) | undefined;
 }
 
 export namespace SharedAppResponse {

@@ -7,7 +7,7 @@
  *         path: "path"
  *     }
  */
-export interface StopAppShareRequest {
+export interface AppShareStopRequest {
     mount_id: string;
     path: string;
 }

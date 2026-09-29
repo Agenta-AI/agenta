@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Awaitable, Callable, List, Optional
+from typing import Callable, List, Optional
 from uuid import UUID
 
 from oss.src.core.mounts.dtos import AppShare, Mount, MountCreate, MountEdit, MountQuery
@@ -96,7 +96,7 @@ class MountsDAOInterface(ABC):
         mount_id: UUID,
         path: str,
         #
-        mutate: Callable[[Mount, Optional[AppShare]], Awaitable[Optional[AppShare]]],
+        mutate: Callable[[Mount, Optional[AppShare]], Optional[AppShare]],
     ) -> Optional[AppShare]: ...
 
     @abstractmethod
@@ -108,9 +108,9 @@ class MountsDAOInterface(ABC):
     ) -> List[Mount]: ...
 
     @abstractmethod
-    async def delete_by_session_id(
+    async def delete_mounts(
         self,
         *,
         project_id: UUID,
-        session_id: str,
-    ) -> List[Mount]: ...
+        mount_ids: List[UUID],
+    ) -> None: ...

@@ -273,17 +273,20 @@ the agent's tool credential gets 403 `interactive_session_required`.
 
 Owner routes (mounts router, `VIEW_MOUNTS` to read, the rules above to change):
 `GET /mounts/{id}/apps/share?path=`, `POST /mounts/{id}/apps/share/publish`,
-`PATCH /mounts/{id}/apps/share`, `DELETE /mounts/{id}/apps/share?path=`. The link token is
+`PATCH /mounts/{id}/apps/share`, `POST /mounts/{id}/apps/share/stop`. The link token is
 returned only to a caller who may change the share. A share keeps no history: each publish
-replaces the snapshot the link shows.
+writes a new folder, swaps it in, and removes the one it replaced; a stop removes the live one.
+A publish skips dotfiles and what `list_files(git_aware=True)` prunes (`.git`, `.gitignore`d
+paths, runner files).
 
 Viewer route: `GET /shared/apps/{token}` (public prefixes `/shared/apps/` and
 `/api/shared/apps/`). It checks access once and streams one JSON body with the whole snapshot: metadata, `viewer`, `refs`, and every
 file and captured external file as base64. Headers: `X-Content-Type-Options: nosniff`,
 `Content-Security-Policy: sandbox; default-src 'none'`, `Cache-Control: no-store`. Refusals are
 403 with a `code` (`sign_in_required`, `not_a_member`, or the organization policy error), 404
-(`share_not_found`, or `share_unavailable` for an archived session), or 503
-(`sharing_disabled` on the placeholder crypt key).
+(`share_not_found`, or `share_unavailable` for an archived session), 429 `rate_limited` (20
+views, then 30 a minute, per link), or 503 (`sharing_disabled` on the placeholder crypt key). A
+file that fails to read after the 200 closes the body with `error: {code, message}`.
 
 Publish follows the reference graph once, on the server, and records every resolved reference
 in the manifest's `refs` (`file:<path>` or `url:<url>` → reference as written → target). The
@@ -295,7 +298,8 @@ viewer resolves nothing itself.
 | CSS, local or captured | `url()`, `@import` | the stylesheet's own location |
 
 External files: `https:` only, through `open_egress`, up to 3 redirects each checked again, a
-depth of 3, at most 30 URLs. One budget covers the snapshot, captured files included: 200 files,
+depth of 3, at most 30 URLs, 30 seconds per download. Each download is capped by what is left of
+the budget when it starts. One budget covers the snapshot, captured files included: 200 files,
 5 MB per file, 25 MB in total. A failed capture is reported, not fatal. A module script that
 imports other URLs is reported as `module_imports_not_captured`.
 

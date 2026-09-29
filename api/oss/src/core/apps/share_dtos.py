@@ -26,9 +26,8 @@ class ShareFileEntry(BaseModel):
 
 
 class ShareManifest(BaseModel):
-    """One publish of a share, stored as `v<N>.json` under the drive's share prefix."""
+    """One publish of a share, stored as `manifest.json` in the publish's own folder."""
 
-    version: int
     name: str
     entry: str
     kit: bool = True

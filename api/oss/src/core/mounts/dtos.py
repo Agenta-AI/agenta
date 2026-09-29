@@ -19,8 +19,8 @@ class AppShare(BaseModel):
     visibility: Literal["workspace", "link"]
     # Revocation material: a new nonce makes every earlier link fail.
     nonce: str
-    # The live manifest, `v<latest>.json`. Publish writes the next one, then moves this.
-    latest: int
+    # The live publish's folder under the share prefix; None once the share is stopped.
+    snapshot: Optional[str] = None
     created_by_id: UUID
     created_at: datetime
     updated_at: datetime

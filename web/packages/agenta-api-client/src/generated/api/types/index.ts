@@ -617,6 +617,7 @@ export * from "./SessionTurnResponse.js";
 export * from "./SessionTurnsResponse.js";
 export * from "./SharedAppFile.js";
 export * from "./SharedAppResponse.js";
+export * from "./SharedAppStreamError.js";
 export * from "./SharedAppViewer.js";
 export * from "./SimpleApplication.js";
 export * from "./SimpleApplicationAdditionalContext.js";

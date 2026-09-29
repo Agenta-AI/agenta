@@ -27,6 +27,10 @@ MAX_EXTERNAL_URLS = 30
 MAX_EXTERNAL_DEPTH = 3
 MAX_REDIRECTS = 3
 FETCH_TIMEOUT_SECONDS = 10.0
+# The whole download, redirects included: the httpx timeout only bounds each read.
+FETCH_DEADLINE_SECONDS = 30.0
+_OVER_FILE_LIMIT = "the file is over the size limit"
+_OVER_BUDGET = "over the 25 MB snapshot limit"
 # Downloads in flight at once; each level of the graph is fetched as one bounded batch.
 FETCH_CONCURRENCY = 6
 
@@ -216,7 +220,7 @@ async def fetch_external(url: str, max_bytes: int) -> Fetched:
                 async for chunk in response.aiter_bytes():
                     body.extend(chunk)
                     if len(body) > max_bytes:
-                        raise CaptureFailed("the file is over the size limit")
+                        raise CaptureFailed(_OVER_FILE_LIMIT)
                 content_type = (
                     response.headers.get("content-type", "application/octet-stream")
                     .split(";", 1)[0]
@@ -377,11 +381,26 @@ async def capture(
     gate = asyncio.Semaphore(FETCH_CONCURRENCY)
 
     async def fetch_one(url: str) -> Fetched | CaptureFailed:
+        """One download, capped by what is left of the budget when it starts."""
+        nonlocal used
         async with gate:
+            limit = min(max_file_bytes, byte_budget - used)
+            if limit <= 0:
+                return CaptureFailed(_OVER_BUDGET)
             try:
-                return await fetch(url, max_file_bytes)
+                fetched = await asyncio.wait_for(
+                    fetch(url, limit), FETCH_DEADLINE_SECONDS
+                )
+            except asyncio.TimeoutError:
+                return CaptureFailed("the download took too long")
             except CaptureFailed as exc:
-                return exc
+                over_budget = exc.reason == _OVER_FILE_LIMIT and limit < max_file_bytes
+                return CaptureFailed(_OVER_BUDGET) if over_budget else exc
+            # Parallel downloads can each fit the budget they started with and not all fit.
+            if used + len(fetched.content) > byte_budget:
+                return CaptureFailed(_OVER_BUDGET)
+            used += len(fetched.content)
+            return fetched
 
     # One level of the graph per pass: everything queued so far is fetched together, and the
     # stylesheets it brings in queue the next level.
@@ -396,12 +415,6 @@ async def capture(
             if isinstance(fetched, CaptureFailed):
                 result.failed.append(ShareIssue(url=url, reason=fetched.reason))
                 continue
-            if used + len(fetched.content) > byte_budget:
-                result.failed.append(
-                    ShareIssue(url=url, reason="over the 25 MB snapshot limit")
-                )
-                continue
-            used += len(fetched.content)
             result.external[url] = fetched
 
             if stylesheet or _is_css(fetched.content_type):

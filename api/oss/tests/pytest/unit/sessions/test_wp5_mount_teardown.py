@@ -41,7 +41,7 @@ class _FakeMountsDAO:
         self.mounts = {m.id: m for m in (mounts or [])}
         self.archive_calls: list[UUID] = []
         self.unarchive_calls: list[UUID] = []
-        self.deleted_session_ids: list[str] = []
+        self.deleted_mount_ids: list = []
 
     async def create_mount(
         self, *, project_id, user_id, mount_create: MountCreate
@@ -98,12 +98,10 @@ class _FakeMountsDAO:
     async def fetch_by_session_id(self, *, project_id, session_id) -> List[Mount]:
         return [m for m in self.mounts.values() if m.session_id == session_id]
 
-    async def delete_by_session_id(self, *, project_id, session_id) -> List[Mount]:
-        self.deleted_session_ids.append(session_id)
-        matched = [m for m in self.mounts.values() if m.session_id == session_id]
-        for m in matched:
-            del self.mounts[m.id]
-        return matched
+    async def delete_mounts(self, *, project_id, mount_ids) -> None:
+        self.deleted_mount_ids.extend(mount_ids)
+        for mount_id in mount_ids:
+            self.mounts.pop(mount_id, None)
 
 
 class _FakeObjectStore:
@@ -139,10 +137,12 @@ async def test_delete_session_mounts_deletes_rows_and_object_store_prefixes():
     deleted = await svc.delete_session_mounts(project_id=_PROJECT, session_id=_SESSION)
 
     assert deleted == [mount]
-    assert dao.deleted_session_ids == [_SESSION]
+    assert dao.deleted_mount_ids == [mount.id]
     assert {call["bucket"] for call in store.delete_prefix_calls} == {_BUCKET}
+    # The drive, its shares, and its shares again once the row is gone.
     assert [call["prefix"] for call in store.delete_prefix_calls] == [
         f"mounts/{_PROJECT}/{mount.id}/",
+        f"shares/{_PROJECT}/{mount.id}/",
         f"shares/{_PROJECT}/{mount.id}/",
     ]
 
@@ -157,9 +157,27 @@ async def test_delete_session_mounts_tears_down_every_bound_mount():
     deleted = await svc.delete_session_mounts(project_id=_PROJECT, session_id=_SESSION)
 
     assert {m.id for m in deleted} == {mount_a.id, mount_b.id}
-    assert len(store.delete_prefix_calls) == 4
+    assert len(store.delete_prefix_calls) == 6
     # the untouched session's mount survives
     assert other.id in dao.mounts
+
+
+@pytest.mark.asyncio
+async def test_delete_session_mounts_keeps_a_mount_bound_after_the_fetch():
+    mount = _mount(session_id=_SESSION, slug="cwd")
+    svc, dao, store = _service([mount])
+    late = _mount(session_id=_SESSION, slug="late")
+    fetch = dao.fetch_by_session_id
+
+    async def fetch_then_bind(**kw):
+        rows = await fetch(**kw)
+        dao.mounts[late.id] = late
+        return rows
+
+    dao.fetch_by_session_id = fetch_then_bind
+    await svc.delete_session_mounts(project_id=_PROJECT, session_id=_SESSION)
+
+    assert list(dao.mounts) == [late.id]
 
 
 @pytest.mark.asyncio
@@ -236,10 +254,10 @@ async def test_delete_session_mounts_keeps_rows_when_the_store_fails_and_a_retry
         await svc.delete_session_mounts(project_id=_PROJECT, session_id=_SESSION)
 
     assert mount.id in dao.mounts
-    assert dao.deleted_session_ids == []
+    assert dao.deleted_mount_ids == []
 
     await svc.delete_session_mounts(project_id=_PROJECT, session_id=_SESSION)
 
     assert dao.mounts == {}
-    # The failed first call, then both prefixes on the retry.
-    assert len(store.delete_prefix_calls) == 3
+    # The failed first call, then all three on the retry.
+    assert len(store.delete_prefix_calls) == 4

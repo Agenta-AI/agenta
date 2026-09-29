@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Awaitable, Callable, List, Optional
+from typing import Callable, List, Optional
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete, select
@@ -263,13 +263,12 @@ class MountsDAO(MountsDAOInterface):
         mount_id: UUID,
         path: str,
         #
-        mutate: Callable[[Mount, Optional[AppShare]], Awaitable[Optional[AppShare]]],
+        mutate: Callable[[Mount, Optional[AppShare]], Optional[AppShare]],
     ) -> Optional[AppShare]:
         """Change one app's share entry under a row lock, so concurrent changes both land.
 
-        `mutate` gets the drive and the current entry and returns the new one (None removes it).
-        It runs while the lock is held and must make no DAO call: a nested call in this task
-        would share this session and commit early.
+        `mutate` is a plain function of the drive and the current entry that returns the new one
+        (None removes it). It runs under the lock, so it does no I/O.
         """
         async with self.engine.session() as session:
             stmt = (
@@ -285,7 +284,7 @@ class MountsDAO(MountsDAOInterface):
                 return None
 
             mount = map_mount_dbe_to_dto(mount_dbe=mount_dbe)
-            updated = await mutate(mount, mount.data.shares.get(path))
+            updated = mutate(mount, mount.data.shares.get(path))
 
             data = dict(mount_dbe.data or {})
             shares = dict(data.get("shares") or {})
@@ -317,35 +316,23 @@ class MountsDAO(MountsDAOInterface):
                 map_mount_dbe_to_dto(mount_dbe=dbe) for dbe in result.scalars().all()
             ]
 
-    async def delete_by_session_id(
+    async def delete_mounts(
         self,
         *,
         project_id: UUID,
-        session_id: str,
-    ) -> List[Mount]:
-        """Hard delete the mount rows bound to a session. Mounts are semi-
-        independent (optional `session_id`, may outlive a session) — this is
-        the explicit, session-scoped fan-out (S7/F1, WP5), not a blind
-        cascade. Returns the deleted rows so the caller can tear down their
-        object-store prefixes."""
+        mount_ids: List[UUID],
+    ) -> None:
+        """Hard delete these mount rows. Session delete passes the rows it tore down."""
+        if not mount_ids:
+            return
         async with self.engine.session() as session:
-            stmt = select(MountDBE).where(
-                MountDBE.project_id == project_id,
-                MountDBE.session_id == session_id,
-            )
-            result = await session.execute(stmt)
-            mount_dbes = list(result.scalars().all())
-            mounts = [map_mount_dbe_to_dto(mount_dbe=dbe) for dbe in mount_dbes]
-
-            if mount_dbes:
-                del_stmt = sa_delete(MountDBE).where(
+            await session.execute(
+                sa_delete(MountDBE).where(
                     MountDBE.project_id == project_id,
-                    MountDBE.session_id == session_id,
+                    MountDBE.id.in_(mount_ids),
                 )
-                await session.execute(del_stmt)
-                await session.commit()
-
-        return mounts
+            )
+            await session.commit()
 
     async def query_mounts(
         self,

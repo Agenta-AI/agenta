@@ -7,7 +7,9 @@ so no snapshot file ever has its own URL on the Agenta origin.
 """
 
 import base64
+import hashlib
 import json
+import math
 from typing import AsyncIterator, Optional
 from uuid import UUID
 
@@ -23,6 +25,15 @@ from oss.src.core.auth.service import AuthService
 from oss.src.middlewares.auth import resolve_session_user_id
 from oss.src.services import db_manager
 from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.logging import get_module_logger
+from oss.src.utils.throttling import check_throttle
+
+log = get_module_logger(__name__)
+
+# Opens of one link: a burst, then a steady rate. A view is one heavy request, so a leaked link
+# cannot be turned into unbounded egress and store reads.
+_VIEWS_BURST = 20
+_VIEWS_PER_MINUTE = 30
 
 _VIEWER_STATUS = {
     "sharing_disabled": status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -155,6 +166,22 @@ class SharedAppsRouter:
         request: Request,
         token: str,
     ):
+        throttle = await check_throttle(
+            {"ep": "shared_app", "t": hashlib.sha256(token.encode()).hexdigest()[:32]},
+            max_capacity=_VIEWS_BURST,
+            refill_rate=_VIEWS_PER_MINUTE,
+        )
+        if not throttle.allow:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "code": "rate_limited",
+                    "message": "This link was opened too many times. Try again in a minute.",
+                },
+                headers={
+                    "Retry-After": str(max(1, math.ceil(throttle.retry_after_seconds)))
+                },
+            )
         try:
             snapshot = await self.app_shares_service.open_shared_app(token=token)
         except AppShareError as e:
@@ -171,7 +198,7 @@ class SharedAppsRouter:
             author_name=await self._author_name(snapshot),
             viewer=viewer,
             refs=snapshot.manifest.refs,
-        ).model_dump(mode="json", exclude={"files", "external"})
+        ).model_dump(mode="json", exclude={"files", "external", "error"})
 
         return StreamingResponse(
             self._stream(head, snapshot),
@@ -182,25 +209,40 @@ class SharedAppsRouter:
     async def _stream(
         self, head: dict, snapshot: SharedAppSnapshot
     ) -> AsyncIterator[bytes]:
-        # The metadata object without its closing brace, then each section blob by blob.
+        # The metadata object without its closing brace, then each section blob by blob. The 200
+        # is already sent, so a failed read ends the body with `error` instead of cutting it off.
         yield json.dumps(head, separators=(",", ":"))[:-1].encode()
+        failed = False
         for section in ("files", "external"):
             yield f',"{section}":{{'.encode()
             first = True
-            async for key, entry, content in self.app_shares_service.iter_blobs(
-                snapshot, section
-            ):
-                item = {
-                    "content_type": entry.content_type,
-                    "size": len(content),
-                    "data": base64.b64encode(content).decode(),
-                }
-                yield (
-                    ("" if first else ",")
-                    + json.dumps(key)
-                    + ":"
-                    + json.dumps(item, separators=(",", ":"))
-                ).encode()
-                first = False
+            try:
+                if not failed:
+                    async for key, entry, content in self.app_shares_service.iter_blobs(
+                        snapshot, section
+                    ):
+                        item = {
+                            "content_type": entry.content_type,
+                            "size": len(content),
+                            "data": base64.b64encode(content).decode(),
+                        }
+                        yield (
+                            ("" if first else ",")
+                            + json.dumps(key)
+                            + ":"
+                            + json.dumps(item, separators=(",", ":"))
+                        ).encode()
+                        first = False
+            except Exception:  # noqa: BLE001 - reported to the viewer in the body
+                log.error(
+                    "shared app: a snapshot file could not be read", exc_info=True
+                )
+                failed = True
             yield b"}"
+        if failed:
+            error = {
+                "code": "storage_unavailable",
+                "message": "This app could not be loaded.",
+            }
+            yield f',"error":{json.dumps(error)}'.encode()
         yield b"}"

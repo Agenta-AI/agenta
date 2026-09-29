@@ -158,6 +158,10 @@ class AppShareEditRequest(BaseModel):
     visibility: Literal["workspace", "link"]
 
 
+class AppShareStopRequest(BaseModel):
+    path: str
+
+
 class AppShareState(BaseModel):
     enabled: bool
     visibility: Literal["workspace", "link"]

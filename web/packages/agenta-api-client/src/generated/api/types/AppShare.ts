@@ -7,7 +7,7 @@ export interface AppShare {
     enabled: boolean;
     visibility: AppShare.Visibility;
     nonce: string;
-    latest: number;
+    snapshot?: (string | null) | undefined;
     created_by_id: string;
     created_at: string;
     updated_at: string;

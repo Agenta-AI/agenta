@@ -1,6 +1,10 @@
 """Publish-time capture: the reference graph, the budget, and what gets reported."""
 
+import asyncio
+
 import pytest
+
+from oss.src.core.apps import share_capture
 
 from oss.src.core.apps.share_capture import (
     CaptureFailed,
@@ -158,6 +162,45 @@ async def test_captured_bytes_share_the_snapshot_budget():
     )
     assert result.external == {}
     assert result.failed[0].reason == "over the 25 MB snapshot limit"
+
+
+@pytest.mark.asyncio
+async def test_each_download_is_capped_by_the_budget_left():
+    web = FakeWeb(
+        {f"https://cdn/{i}.js": ("application/javascript", b"x" * 4) for i in range(3)}
+    )
+    seen = []
+
+    async def fetch(url, max_bytes):
+        seen.append(max_bytes)
+        return await web(url, max_bytes)
+
+    html = "".join(f'<script src="https://cdn/{i}.js"></script>' for i in range(3))
+    result = await capture(
+        files=_files(**{"index.html": html}),
+        byte_budget=10,
+        max_file_bytes=5 * MB,
+        fetch=fetch,
+    )
+    assert len(result.external) == 2
+    assert max(seen) <= 10
+    assert [f.reason for f in result.failed] == ["over the 25 MB snapshot limit"]
+
+
+@pytest.mark.asyncio
+async def test_a_slow_download_is_cut_off(monkeypatch):
+    monkeypatch.setattr(share_capture, "FETCH_DEADLINE_SECONDS", 0.01)
+
+    async def trickle(url, max_bytes):
+        await asyncio.sleep(1)
+
+    result = await capture(
+        files=_files(**{"index.html": '<script src="https://cdn/slow.js"></script>'}),
+        byte_budget=MB,
+        max_file_bytes=MB,
+        fetch=trickle,
+    )
+    assert [f.reason for f in result.failed] == ["the download took too long"]
 
 
 @pytest.mark.asyncio

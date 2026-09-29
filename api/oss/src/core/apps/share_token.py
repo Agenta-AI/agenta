@@ -10,14 +10,10 @@ The payload is readable. It carries ids, not secrets.
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
-import json
 from dataclasses import dataclass
 from uuid import UUID
 
-from oss.src.utils.crypting import derive_key, is_default_crypt_key
+from oss.src.utils.crypting import is_default_crypt_key, sign_claims, verify_claims
 
 _ALG = "ag-share-v1"
 _KEY_LABEL = "agenta/app-share/v1"
@@ -39,46 +35,26 @@ class ShareClaims:
     nonce: str
 
 
-def _b64(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
-
-
-def _unb64(text: str) -> bytes:
-    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
-
-
-def _sign(payload: bytes) -> str:
-    return _b64(hmac.new(derive_key(_KEY_LABEL), payload, hashlib.sha256).digest())
-
-
 def mint(*, project_id: UUID, mount_id: UUID, app_path: str, nonce: str) -> str:
     if is_default_crypt_key():
         raise SharingDisabled()
-    claims = {
-        "a": _ALG,
-        "p": str(project_id),
-        "m": str(mount_id),
-        "d": app_path,
-        "n": nonce,
-    }
-    payload = json.dumps(claims, separators=(",", ":"), sort_keys=True).encode()
-    return f"{_b64(payload)}.{_sign(payload)}"
+    return sign_claims(
+        _KEY_LABEL,
+        {
+            "a": _ALG,
+            "p": str(project_id),
+            "m": str(mount_id),
+            "d": app_path,
+            "n": nonce,
+        },
+    )
 
 
 def parse(token: str) -> ShareClaims:
     if is_default_crypt_key():
         raise SharingDisabled()
-    if not token or token.count(".") != 1:
-        raise ShareTokenInvalid()
-    body, signature = token.split(".", 1)
     try:
-        payload = _unb64(body)
-    except Exception as exc:  # noqa: BLE001 - any decode failure is the same answer
-        raise ShareTokenInvalid() from exc
-    if not hmac.compare_digest(_sign(payload), signature):
-        raise ShareTokenInvalid()
-    try:
-        claims = json.loads(payload)
+        claims = verify_claims(_KEY_LABEL, token)
         if claims.get("a") != _ALG:
             raise ShareTokenInvalid()
         return ShareClaims(

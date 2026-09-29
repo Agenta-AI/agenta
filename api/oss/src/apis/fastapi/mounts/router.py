@@ -55,6 +55,7 @@ from oss.src.apis.fastapi.mounts.models import (
     AppSharePublishRequest,
     AppShareResponse,
     AppShareState,
+    AppShareStopRequest,
     AppScopeRequest,
     AppScopeResponse,
     MountArchiveRequest,
@@ -374,9 +375,9 @@ class MountsRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
-            "/{mount_id}/apps/share",
+            "/{mount_id}/apps/share/stop",
             self.stop_app_share,
-            methods=["DELETE"],
+            methods=["POST"],
             operation_id="stop_app_share",
             response_model=AppShareResponse,
             status_code=status.HTTP_200_OK,
@@ -585,13 +586,13 @@ class MountsRouter:
         request: Request,
         mount_id: UUID,
         *,
-        path: str = Query(...),
+        body: AppShareStopRequest,
     ) -> AppShareResponse:
         await self._check_share_editor(request)
         share = await self._shares().stop(
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
-            path=path,
+            path=body.path,
         )
         return AppShareResponse(
             count=0 if share is None else 1, share=share_state(share)

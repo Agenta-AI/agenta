@@ -65,6 +65,8 @@ const sharedAppSchema = z.object({
     refs: z.record(z.string(), z.record(z.string(), z.record(z.string(), z.string()))).nullish(),
     files: z.record(z.string(), sharedFileSchema).nullish(),
     external: z.record(z.string(), sharedFileSchema).nullish(),
+    // A file that failed to read after the response started.
+    error: z.object({code: z.string(), message: z.string()}).nullish(),
 })
 export type SharedAppViewer = z.infer<typeof sharedAppSchema>["viewer"]
 
@@ -227,6 +229,7 @@ export async function fetchSharedApp({token}: {token: string}): Promise<SharedAp
     }
     const parsed = safeParseWithLogging(sharedAppSchema, data, "[htmlApp.share.view]")
     if (!parsed) throw new ShareError("unavailable", "Unexpected shared app response.")
+    if (parsed.error) throw new ShareError(parsed.error.code, parsed.error.message)
     return {
         name: parsed.name,
         entry: parsed.entry,

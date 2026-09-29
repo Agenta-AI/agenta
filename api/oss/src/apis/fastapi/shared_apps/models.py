@@ -23,6 +23,13 @@ class SharedAppFile(BaseModel):
     data: str
 
 
+class SharedAppStreamError(BaseModel):
+    """Set when a file failed to read after the response started."""
+
+    code: str
+    message: str
+
+
 class SharedAppResponse(BaseModel):
     """A shared app, content included: one request and one access check."""
 
@@ -36,3 +43,4 @@ class SharedAppResponse(BaseModel):
     refs: Dict[str, Dict[str, Dict[str, str]]] = Field(default_factory=dict)
     files: Dict[str, SharedAppFile] = Field(default_factory=dict)
     external: Dict[str, SharedAppFile] = Field(default_factory=dict)
+    error: Optional[SharedAppStreamError] = None

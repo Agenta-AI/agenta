@@ -1,9 +1,9 @@
 """Sharing agent HTML apps: publish a frozen snapshot of an app folder behind a share link.
 
-A share lives in `mounts.data.shares[<app path>]` (settings, the live manifest) plus objects
-under the drive's share prefix (content-addressed blobs and one manifest per publish). Publishing
-writes blobs first, then the next manifest, and moves the `latest` pointer last, so a failed
-publish never exposes a partial snapshot. Every change to a share entry runs under the drive row's lock.
+A share lives in `mounts.data.shares[<app path>]` (settings, the live snapshot id) plus one folder
+per publish under the drive's share prefix. A publish writes its whole folder first, then swaps
+the snapshot id under the drive row's lock, then removes the folder it replaced, so a viewer never
+sees a partial snapshot and nothing outlives the share.
 """
 
 from __future__ import annotations
@@ -13,10 +13,11 @@ import hashlib
 import mimetypes
 import posixpath
 import secrets
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from oss.src.core.apps import share_token
 from oss.src.core.apps.service import (
@@ -33,13 +34,18 @@ from oss.src.core.apps.share_capture import (
 from oss.src.core.apps.share_dtos import ShareFileEntry, ShareIssue, ShareManifest
 from oss.src.core.mounts.dtos import AppShare, Mount
 from oss.src.core.mounts.service import MountsService, validate_file_path
-from oss.src.core.mounts.types import MountPathInvalid
+from oss.src.core.mounts.types import MountFileNotFound, MountPathInvalid
 from oss.src.core.store.storage import ObjectStore
 from oss.src.utils.crypting import is_default_crypt_key
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 MAX_FILES = 200
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_TOTAL_BYTES = 25 * 1024 * 1024
+# Object reads and writes in flight at once, per publish or per view.
+STORE_CONCURRENCY = 8
 
 Visibility = Literal["workspace", "link"]
 
@@ -126,88 +132,112 @@ class AppSharesService:
             )
         return self.store, self.bucket
 
-    def _blob_key(self, *, project_id: UUID, mount_id: UUID, sha256: str) -> str:
-        return self.mounts_service.share_storage_key(
-            project_id=project_id, mount_id=mount_id, path=f"blobs/{sha256}"
-        )
-
-    def _manifest_key(
-        self, *, project_id: UUID, mount_id: UUID, app_path: str, version: int
-    ) -> str:
-        return self.mounts_service.share_storage_key(
-            project_id=project_id,
-            mount_id=mount_id,
-            path=f"apps/{app_path}/v{version}.json",
-        )
-
-    async def _put_blob(
-        self, *, project_id: UUID, mount_id: UUID, content: bytes
-    ) -> str:
-        store, bucket = self._require_store()
-        sha256 = hashlib.sha256(content).hexdigest()
-        await store.put_object_if_absent(
-            bucket=bucket,
-            key=self._blob_key(project_id=project_id, mount_id=mount_id, sha256=sha256),
-            body=content,
-        )
-        return sha256
-
-    async def _read_manifest(
-        self, *, project_id: UUID, mount_id: UUID, app_path: str, version: int
-    ) -> Optional[ShareManifest]:
-        store, bucket = self._require_store()
-        key = self._manifest_key(
-            project_id=project_id, mount_id=mount_id, app_path=app_path, version=version
-        )
-        try:
-            return ShareManifest.model_validate_json(
-                await store.get_object(bucket=bucket, key=key)
-            )
-        except Exception:  # noqa: BLE001 - the caller reports a missing or unreadable manifest
-            return None
-
-    async def _write_manifest(
+    def _snapshot_key(
         self,
         *,
         project_id: UUID,
         mount_id: UUID,
         app_path: str,
+        snapshot: str,
+        path: str = "",
+    ) -> str:
+        return self.mounts_service.share_storage_key(
+            project_id=project_id,
+            mount_id=mount_id,
+            path=f"apps/{app_path}/{snapshot}/{path}",
+        )
+
+    async def _write_snapshot(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        app_path: str,
+        snapshot: str,
+        contents: List[bytes],
         manifest: ShareManifest,
     ) -> None:
+        """Every blob of one publish, then its manifest, all under the publish's own folder."""
         store, bucket = self._require_store()
-        await store.put_object(
-            bucket=bucket,
-            key=self._manifest_key(
+        gate = asyncio.Semaphore(STORE_CONCURRENCY)
+
+        async def put(key: str, body: bytes) -> None:
+            async with gate:
+                await store.put_object(bucket=bucket, key=key, body=body)
+
+        blobs = {hashlib.sha256(c).hexdigest(): c for c in contents}
+        await asyncio.gather(
+            *(
+                put(
+                    self._snapshot_key(
+                        project_id=project_id,
+                        mount_id=mount_id,
+                        app_path=app_path,
+                        snapshot=snapshot,
+                        path=f"blobs/{sha}",
+                    ),
+                    body,
+                )
+                for sha, body in blobs.items()
+            )
+        )
+        await put(
+            self._snapshot_key(
                 project_id=project_id,
                 mount_id=mount_id,
                 app_path=app_path,
-                version=manifest.version,
+                snapshot=snapshot,
+                path="manifest.json",
             ),
-            body=manifest.model_dump_json().encode(),
+            manifest.model_dump_json().encode(),
         )
 
-    async def _put_blobs(
-        self, *, project_id: UUID, mount_id: UUID, contents: Dict[str, bytes]
-    ) -> Dict[str, str]:
-        """Key -> sha256 for each content, written with bounded parallelism."""
-        gate = asyncio.Semaphore(8)
-
-        async def put(key: str, content: bytes) -> Tuple[str, str]:
-            async with gate:
-                return key, await self._put_blob(
-                    project_id=project_id, mount_id=mount_id, content=content
-                )
-
-        return dict(await asyncio.gather(*(put(k, c) for k, c in contents.items())))
-
-    async def _delete_share_objects(self, *, project_id: UUID, mount_id: UUID) -> None:
+    async def _read_manifest(
+        self, *, project_id: UUID, mount_id: UUID, app_path: str, snapshot: str
+    ) -> ShareManifest:
         store, bucket = self._require_store()
-        await store.delete_prefix(
-            bucket=bucket,
-            prefix=self.mounts_service.share_storage_key(
-                project_id=project_id, mount_id=mount_id
-            ),
+        key = self._snapshot_key(
+            project_id=project_id,
+            mount_id=mount_id,
+            app_path=app_path,
+            snapshot=snapshot,
+            path="manifest.json",
         )
+        try:
+            return ShareManifest.model_validate_json(
+                await store.get_object(bucket=bucket, key=key)
+            )
+        except Exception as exc:  # noqa: BLE001 - missing or unreadable is the same answer
+            raise AppShareError(
+                "storage_unavailable", "This app could not be loaded."
+            ) from exc
+
+    async def _delete_snapshot(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        app_path: str,
+        snapshot: Optional[str],
+    ) -> None:
+        """Best effort: a folder left behind is removed with the session."""
+        if snapshot is None:
+            return
+        store, bucket = self._require_store()
+        try:
+            await store.delete_prefix(
+                bucket=bucket,
+                prefix=self._snapshot_key(
+                    project_id=project_id,
+                    mount_id=mount_id,
+                    app_path=app_path,
+                    snapshot=snapshot,
+                ),
+            )
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "app share: could not remove snapshot %s", snapshot, exc_info=True
+            )
 
     # ---------------------------------------------------------------------------------------
     # Owner side
@@ -266,19 +296,27 @@ class AppSharesService:
                 mount_id=mount.id,
                 path=f"{app_path}/{APP_MANIFEST_FILENAME}",
             )
-        except Exception as exc:  # noqa: BLE001 - the store reports a missing key its own way
+        except MountFileNotFound as exc:
             raise AppShareError("not_an_app", "This folder has no app.json.") from exc
         try:
             app_manifest = validate_manifest(manifest_text.decode("utf-8", "replace"))
         except AppsError as exc:
             raise AppShareError("not_an_app", exc.message) from exc
 
+        # The curated view: no `.git`, no `.gitignore`d paths (`node_modules`), no runner files.
         listing = await self.mounts_service.list_files(
-            project_id=project_id, mount_id=mount.id, path=app_path
+            project_id=project_id, mount_id=mount.id, path=app_path, git_aware=True
         )
         prefix = f"{app_path}/"
+        # Nor dotfiles: an `.env` the agent wrote must not reach a public link.
         entries = [
-            f for f in listing.files if not f.is_folder and f.path.startswith(prefix)
+            f
+            for f in listing.files
+            if not f.is_folder
+            and f.path.startswith(prefix)
+            and not any(
+                part.startswith(".") for part in f.path[len(prefix) :].split("/")
+            )
         ]
         # A subfolder with its own app.json is a different app.
         nested = {
@@ -354,66 +392,45 @@ class AppSharesService:
             fetch=self.fetch,
         )
 
-        file_shas = await self._put_blobs(
-            project_id=project_id,
-            mount_id=mount.id,
-            contents={k: v.content for k, v in files.items()},
-        )
-        external_shas = await self._put_blobs(
-            project_id=project_id,
-            mount_id=mount.id,
-            contents={k: v.content for k, v in captured.external.items()},
-        )
-        file_map = {
-            relative: ShareFileEntry(
-                sha256=file_shas[relative],
-                size=len(item.content),
-                content_type=item.content_type,
+        def entry(content: bytes, content_type: str) -> ShareFileEntry:
+            return ShareFileEntry(
+                sha256=hashlib.sha256(content).hexdigest(),
+                size=len(content),
+                content_type=content_type,
             )
-            for relative, item in files.items()
-        }
-        external_map = {
-            url: ShareFileEntry(
-                sha256=external_shas[url],
-                size=len(fetched.content),
-                content_type=fetched.content_type,
-            )
-            for url, fetched in captured.external.items()
-        }
 
         now = _now()
+        manifest = ShareManifest(
+            name=app_manifest["name"],
+            entry=app_manifest["entry"],
+            kit=app_manifest.get("kit", True),
+            created_at=now,
+            created_by_id=user_id,
+            files={k: entry(f.content, f.content_type) for k, f in files.items()},
+            external={
+                url: entry(f.content, f.content_type)
+                for url, f in captured.external.items()
+            },
+            refs=captured.refs,
+            warnings=captured.warnings,
+        )
+        snapshot = uuid4().hex
+        replaced: List[Optional[str]] = []
 
-        async def mutate(locked: Mount, current: Optional[AppShare]) -> AppShare:
+        def mutate(locked: Mount, current: Optional[AppShare]) -> AppShare:
             # The capture took a while: the session may have been archived since the first check.
             if locked.deleted_at is not None:
                 raise AppShareError(
                     "session_archived",
                     "This session is archived. Unarchive it to share its apps.",
                 )
-            version = (current.latest + 1) if current else 1
-            await self._write_manifest(
-                project_id=project_id,
-                mount_id=mount.id,
-                app_path=app_path,
-                manifest=ShareManifest(
-                    version=version,
-                    name=app_manifest["name"],
-                    entry=app_manifest["entry"],
-                    kit=app_manifest.get("kit", True),
-                    created_at=now,
-                    created_by_id=user_id,
-                    files=file_map,
-                    external=external_map,
-                    refs=captured.refs,
-                    warnings=captured.warnings,
-                ),
-            )
+            replaced.append(current.snapshot if current else None)
             if current is None:
                 return AppShare(
                     enabled=True,
                     visibility=visibility or "workspace",
                     nonce=secrets.token_urlsafe(16),
-                    latest=version,
+                    snapshot=snapshot,
                     created_by_id=user_id,
                     created_at=now,
                     updated_at=now,
@@ -426,19 +443,29 @@ class AppSharesService:
                     else secrets.token_urlsafe(16),
                     "enabled": True,
                     "visibility": visibility or current.visibility,
-                    "latest": version,
+                    "snapshot": snapshot,
                     "updated_at": now,
                 }
             )
 
-        share = await self.mounts_service.update_app_share(
-            project_id=project_id, mount_id=mount.id, path=app_path, mutate=mutate
-        )
-        if share is None:
-            # The session was deleted during the capture, after its share objects were removed:
-            # remove what this publish wrote there too.
-            await self._delete_share_objects(project_id=project_id, mount_id=mount.id)
-            raise AppShareError("not_found", "Drive not found.")
+        where = dict(project_id=project_id, mount_id=mount.id, app_path=app_path)
+        try:
+            await self._write_snapshot(
+                **where,
+                snapshot=snapshot,
+                contents=[f.content for f in files.values()]
+                + [f.content for f in captured.external.values()],
+                manifest=manifest,
+            )
+            share = await self.mounts_service.update_app_share(
+                project_id=project_id, mount_id=mount.id, path=app_path, mutate=mutate
+            )
+            if share is None:
+                raise AppShareError("not_found", "Drive not found.")
+        except Exception:
+            await self._delete_snapshot(**where, snapshot=snapshot)
+            raise
+        await self._delete_snapshot(**where, snapshot=replaced[0])
         return PublishResult(
             share=share,
             token=self.link_token(
@@ -459,7 +486,7 @@ class AppSharesService:
         app_path = _app_path(path)
         mount = await self._shareable_mount(project_id=project_id, mount_id=mount_id)
 
-        async def mutate(_mount: Mount, current: Optional[AppShare]) -> AppShare:
+        def mutate(_mount: Mount, current: Optional[AppShare]) -> AppShare:
             if current is None or not current.enabled:
                 raise AppShareError("share_not_found", "This app is not shared.")
             return current.model_copy(
@@ -483,16 +510,28 @@ class AppSharesService:
         if mount is None:
             raise AppShareError("not_found", "Drive not found.")
 
-        async def mutate(
-            _mount: Mount, current: Optional[AppShare]
-        ) -> Optional[AppShare]:
+        replaced: List[Optional[str]] = []
+
+        def mutate(_mount: Mount, current: Optional[AppShare]) -> Optional[AppShare]:
             if current is None:
                 return None
-            return current.model_copy(update={"enabled": False, "updated_at": _now()})
+            replaced.append(current.snapshot)
+            return current.model_copy(
+                update={"enabled": False, "snapshot": None, "updated_at": _now()}
+            )
 
-        return await self.mounts_service.update_app_share(
+        share = await self.mounts_service.update_app_share(
             project_id=project_id, mount_id=mount.id, path=app_path, mutate=mutate
         )
+        # A stopped share keeps its settings, not its files: sharing again publishes anew.
+        if replaced:
+            await self._delete_snapshot(
+                project_id=project_id,
+                mount_id=mount.id,
+                app_path=app_path,
+                snapshot=replaced[0],
+            )
+        return share
 
     # ---------------------------------------------------------------------------------------
     # Viewer side
@@ -523,6 +562,7 @@ class AppSharesService:
         if (
             share is None
             or not share.enabled
+            or share.snapshot is None
             or not secrets.compare_digest(share.nonce, claims.nonce)
         ):
             raise AppShareError("share_not_found", "This link does not work.")
@@ -531,10 +571,8 @@ class AppSharesService:
             project_id=claims.project_id,
             mount_id=mount.id,
             app_path=claims.app_path,
-            version=share.latest,
+            snapshot=share.snapshot,
         )
-        if manifest is None:
-            raise AppShareError("storage_unavailable", "This app could not be loaded.")
         return SharedAppSnapshot(
             project_id=claims.project_id,
             mount=mount,
@@ -546,20 +584,41 @@ class AppSharesService:
     async def iter_blobs(
         self, snapshot: SharedAppSnapshot, section: Literal["files", "external"]
     ) -> AsyncIterator[Tuple[str, ShareFileEntry, bytes]]:
-        """Each entry of one manifest section with its bytes, read one blob at a time."""
+        """Each entry of one manifest section with its bytes, in order, a few reads ahead."""
         store, bucket = self._require_store()
-        entries = (
-            snapshot.manifest.files
-            if section == "files"
-            else snapshot.manifest.external
+        entries = iter(
+            (
+                snapshot.manifest.files
+                if section == "files"
+                else snapshot.manifest.external
+            ).items()
         )
-        for key, entry in entries.items():
-            content = await store.get_object(
-                bucket=bucket,
-                key=self._blob_key(
-                    project_id=snapshot.project_id,
-                    mount_id=snapshot.mount.id,
-                    sha256=entry.sha256,
-                ),
+
+        def read(entry: ShareFileEntry) -> asyncio.Future:
+            return asyncio.ensure_future(
+                store.get_object(
+                    bucket=bucket,
+                    key=self._snapshot_key(
+                        project_id=snapshot.project_id,
+                        mount_id=snapshot.mount.id,
+                        app_path=snapshot.app_path,
+                        snapshot=snapshot.share.snapshot or "",
+                        path=f"blobs/{entry.sha256}",
+                    ),
+                )
             )
-            yield key, entry, content
+
+        ahead: deque = deque()
+        try:
+            for key, entry in entries:
+                ahead.append((key, entry, read(entry)))
+                if len(ahead) < STORE_CONCURRENCY:
+                    continue
+                key, entry, pending = ahead.popleft()
+                yield key, entry, await pending
+            while ahead:
+                key, entry, pending = ahead.popleft()
+                yield key, entry, await pending
+        finally:
+            for _, _, pending in ahead:
+                pending.cancel()

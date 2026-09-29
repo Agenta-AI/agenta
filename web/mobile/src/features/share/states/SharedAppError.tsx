@@ -8,11 +8,19 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "@agenta/ui/ui"
-import {Ban, Lock, LogIn, PauseCircle, Unlink, WifiOff, type LucideIcon} from "lucide-react"
+import {Ban, Lock, LogIn, PauseCircle, Timer, Unlink, WifiOff, type LucideIcon} from "lucide-react"
 
 import {useSignInAndReturn} from "@/features/auth/useSignInAndReturn"
 
-const COPY: Record<string, {title: string; description: string; icon: LucideIcon}> = {
+interface Copy {
+    title: string
+    description: string
+    icon: LucideIcon
+    /** The same request can work later, so the page offers Try again. */
+    retry?: boolean
+}
+
+const COPY: Record<string, Copy> = {
     sign_in_required: {
         title: "Sign in to open this app",
         description: "This app is shared with the members of a workspace.",
@@ -33,6 +41,12 @@ const COPY: Record<string, {title: string; description: string; icon: LucideIcon
         description: "The app may no longer be shared, or the link is incomplete.",
         icon: Unlink,
     },
+    rate_limited: {
+        title: "This link is busy",
+        description: "It was opened many times in a short time. Wait a minute and try again.",
+        icon: Timer,
+        retry: true,
+    },
     sharing_disabled: {
         title: "Sharing is not available",
         description: "This Agenta deployment has sharing turned off.",
@@ -40,10 +54,11 @@ const COPY: Record<string, {title: string; description: string; icon: LucideIcon
     },
 }
 
-const UNAVAILABLE = {
+const UNAVAILABLE: Copy = {
     title: "The app could not load",
     description: "Check your connection and try again.",
     icon: WifiOff,
+    retry: true,
 }
 
 /** Every way a share link can fail, each with the one action that helps. */
@@ -71,7 +86,7 @@ export const SharedAppError = ({
             <EmptyContent>
                 {code === "sign_in_required" ? (
                     <Button onClick={signIn}>Sign in</Button>
-                ) : copy === UNAVAILABLE ? (
+                ) : copy.retry ? (
                     <Button variant="outline" onClick={onRetry}>
                         Try again
                     </Button>

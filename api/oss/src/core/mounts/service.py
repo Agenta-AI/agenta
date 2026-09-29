@@ -6,7 +6,6 @@ from posixpath import basename
 from re import sub
 from typing import (
     AsyncIterator,
-    Awaitable,
     Callable,
     TYPE_CHECKING,
     List,
@@ -498,7 +497,7 @@ class MountsService:
         project_id: UUID,
         mount_id: UUID,
         path: str,
-        mutate: Callable[[Mount, Optional[AppShare]], Awaitable[Optional[AppShare]]],
+        mutate: Callable[[Mount, Optional[AppShare]], Optional[AppShare]],
     ) -> Optional[AppShare]:
         return await self.mounts_dao.update_app_share(
             project_id=project_id,
@@ -1072,10 +1071,27 @@ class MountsService:
                         bucket=self.bucket,
                         prefix=prefix,
                     )
-        await self.mounts_dao.delete_by_session_id(
+        # By id: a mount bound after the fetch keeps its row, since its objects were not removed.
+        await self.mounts_dao.delete_mounts(
             project_id=project_id,
-            session_id=session_id,
+            mount_ids=[mount.id for mount in mounts],
         )
+        # A publish that swapped its snapshot in before the rows went wrote after the first pass.
+        if self.mounts_store is not None and self.bucket:
+            for mount in mounts:
+                try:
+                    await self.mounts_store.delete_prefix(
+                        bucket=self.bucket,
+                        prefix=self.share_storage_key(
+                            project_id=project_id, mount_id=mount.id
+                        ),
+                    )
+                except Exception:  # noqa: BLE001 - the rows are gone; nothing can retry this
+                    log.warning(
+                        "session delete: shares of mount %s were not removed",
+                        mount.id,
+                        exc_info=True,
+                    )
         return mounts
 
     async def archive_session_mounts(
