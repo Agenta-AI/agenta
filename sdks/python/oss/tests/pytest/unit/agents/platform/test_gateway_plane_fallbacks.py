@@ -31,6 +31,7 @@ from agenta.sdk.agents.platform import (
 )
 from agenta.sdk.agents.platform import connection as platform_connection
 from agenta.sdk.agents.platform import connections
+from agenta.sdk.models.workflows import failure_code_of
 
 RESOLVE_PATH = "/gateways/llms/resolve"
 SECRETS_PATH = "/secrets/"
@@ -330,3 +331,113 @@ async def test_any_other_refused_exchange_still_fails_the_run(
         await resolve_mcp(
             [_server()], secret_provider=_EmptySecrets(), connection=platform
         )
+
+
+# ---------------------------------------------------------------------------
+# The LLM plane: a refused credential exchange keeps its status and code
+# ---------------------------------------------------------------------------
+
+
+def _serving_resolve() -> _Response:
+    """A resolve the gateway answered, so the run goes on to exchange for its credential."""
+    return _Response(200, {"connection": {}})
+
+
+@pytest.mark.parametrize(
+    "status, code",
+    [
+        (401, "credential_expired"),
+        (403, "policy_denied"),
+        (409, "secret_missing"),
+    ],
+)
+async def test_a_refused_llm_credential_exchange_keeps_the_refusal_code(
+    status, code, platform, monkeypatch
+):
+    # The invoke layer reads `status_code` and `failure_code` off the raised error. Without
+    # them a refusal the backend explained reached the caller as an unknown 500.
+    routes = _Routes(
+        {
+            RESOLVE_PATH: _serving_resolve(),
+            CREDENTIALS_PATH: _Response(status, _envelope(code, "refused")),
+        }
+    ).install(monkeypatch, connections, platform_connection)
+
+    with pytest.raises(GatewayConnectionRefusedError) as excinfo:
+        await VaultConnectionResolver(platform).resolve(
+            model=_model(), context=_context()
+        )
+
+    error = excinfo.value
+    assert isinstance(error, ConnectionResolutionError)
+    assert error.status_code == 422
+    assert error.gateway_status == status
+    assert failure_code_of(error) == code
+    assert "gateway credential exchange" in str(error)
+    assert isinstance(error.__cause__, platform_connection.GatewayCredentialsError)
+    assert routes.paths() == [RESOLVE_PATH, CREDENTIALS_PATH]
+
+
+async def test_a_refused_llm_credential_exchange_without_a_code_names_the_refusal(
+    platform, monkeypatch
+):
+    _Routes(
+        {
+            RESOLVE_PATH: _serving_resolve(),
+            CREDENTIALS_PATH: _Response(403, {"detail": "Forbidden"}),
+        }
+    ).install(monkeypatch, connections, platform_connection)
+
+    with pytest.raises(GatewayConnectionRefusedError) as excinfo:
+        await VaultConnectionResolver(platform).resolve(
+            model=_model(), context=_context()
+        )
+
+    assert excinfo.value.status_code == 422
+    assert excinfo.value.gateway_status == 403
+    assert failure_code_of(excinfo.value) == "gateway_connection_refused"
+
+
+@pytest.mark.parametrize("status", [500, 503])
+async def test_a_failed_llm_credential_exchange_stays_a_server_fault(
+    status, platform, monkeypatch
+):
+    # A backend that failed is not the deployment's configuration answering.
+    _Routes(
+        {
+            RESOLVE_PATH: _serving_resolve(),
+            CREDENTIALS_PATH: _Response(status, {"detail": "boom"}),
+        }
+    ).install(monkeypatch, connections, platform_connection)
+
+    with pytest.raises(GatewayConnectionRefusedError) as excinfo:
+        await VaultConnectionResolver(platform).resolve(
+            model=_model(), context=_context()
+        )
+
+    assert excinfo.value.status_code == 502
+    assert excinfo.value.gateway_status == status
+
+
+async def test_an_unanswered_llm_credential_exchange_has_no_status_to_keep(
+    platform, monkeypatch
+):
+    class _Unreachable(_Routes):
+        def _answer(self, method, url, body, headers):
+            if url.endswith(CREDENTIALS_PATH):
+                raise OSError("connection refused")
+            return super()._answer(method, url, body, headers)
+
+    _Unreachable({RESOLVE_PATH: _serving_resolve()}).install(
+        monkeypatch, connections, platform_connection
+    )
+
+    with pytest.raises(ConnectionResolutionError) as excinfo:
+        await VaultConnectionResolver(platform).resolve(
+            model=_model(), context=_context()
+        )
+
+    assert type(excinfo.value) is ConnectionResolutionError
+    assert str(excinfo.value) == "gateway credential exchange request failed"
+    assert getattr(excinfo.value, "status_code", None) is None
+    assert failure_code_of(excinfo.value) is None
