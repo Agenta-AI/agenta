@@ -53,18 +53,11 @@ Alternative: refuse every access to an archived drive (rejected: the history vie
 `MountData` gets `shares: Dict[str, AppShare]`, keyed by the app path, with `Field(exclude=True)` so drive responses leave it out.
 
 ```python
-class AppShareVersion(BaseModel):
-    version: int
-    created_at: datetime
-    created_by_id: UUID
-    restored_from: Optional[int] = None
-
 class AppShare(BaseModel):
     enabled: bool                              # policy
     visibility: Literal["workspace", "link"]   # policy
     nonce: str                                 # credential material, 16 random bytes
-    latest: int                                # data
-    versions: List[AppShareVersion]            # data
+    latest: int                                # data: the live manifest, v<latest>.json
     created_by_id: UUID                        # metadata
     created_at: datetime
     updated_at: datetime
@@ -72,14 +65,14 @@ class AppShare(BaseModel):
 
 One DAO method locks the row with `with_for_update`, changes one entry, assigns a new dict (the `json` column has no mutation tracking), and commits. It makes no nested DAO call, because a nested call in the same task shares the session and commits early (`api/oss/src/dbs/postgres/shared/engine.py:47-66`).
 
-Alternatives: a new `app_shares` table (rejected: the owner asked for no table, and the share must die with the drive row anyway); the git layer (`GitDAO`) for versions (rejected: it needs three tables per domain).
+Alternatives: a new `app_shares` table (rejected: the owner asked for no table, and the share must die with the drive row anyway). A share keeps no history: each publish replaces what the link shows. A version list with restore was built and then removed, because no screen used it.
 
 ### Snapshots are content-addressed objects beside the drive prefix
 
 | Object | Key |
 |---|---|
 | File content | `[<ns>/]shares/<project_id>/<mount_id>/blobs/<sha256>` |
-| Version manifest | `[<ns>/]shares/<project_id>/<mount_id>/apps/<app_path>/v<N>.json` |
+| Manifest, one per publish | `[<ns>/]shares/<project_id>/<mount_id>/apps/<app_path>/v<N>.json` |
 
 A manifest has four parts:
 
@@ -90,7 +83,7 @@ A manifest has four parts:
 
 The server is the only place that parses references for a share. The viewer does not resolve anything; it looks references up in `refs`.
 
-Blobs are written with `put_object_if_absent`, so unchanged files are not written again. The manifest is written next, and the `latest` pointer in `mounts.data` moves last, so a failed publish never exposes a partial version. Restore writes a new manifest from an old one and reuses the blobs.
+Blobs are written with `put_object_if_absent`, so unchanged files are not written again. The manifest is written next, and the `latest` pointer in `mounts.data` moves last, so a failed publish never exposes a partial snapshot. The publish rechecks the archive state under the row lock, because the capture runs before the lock. If the drive row is gone by then, the publish removes the share prefix it wrote to.
 
 The prefix sits outside the drive prefix, so drive listings and sandbox credentials cannot reach it. Session delete removes it with the drive prefix.
 
@@ -143,24 +136,23 @@ Both failures are 403, not 401: a 401 makes the SuperTokens interceptor try a se
 | `GET /mounts/{mount_id}/apps/share?path=` | `fetch_app_share` | `VIEW_MOUNTS` |
 | `POST /mounts/{mount_id}/apps/share/publish` body `{path, visibility?}` | `publish_app_share` | `EDIT_MOUNTS`, interactive session |
 | `PATCH /mounts/{mount_id}/apps/share` body `{path, visibility}` | `edit_app_share` | `EDIT_MOUNTS`, interactive session |
-| `POST /mounts/{mount_id}/apps/share/restore` body `{path, version}` | `restore_app_share` | `EDIT_MOUNTS`, interactive session |
 | `DELETE /mounts/{mount_id}/apps/share?path=` | `stop_app_share` | `EDIT_MOUNTS`, interactive session |
 
 `is_interactive_session` is what separates the person from the agent, because both hold `EDIT_MOUNTS`. `delete_user_account` uses the same check (`api/oss/src/routers/user_profile.py:120`). Publish returns `external_failed` and `warnings`.
 
 ### Viewer route: one access check per view
 
-`/shared/apps/` is added to `_PUBLIC_ENDPOINTS`, with the trailing slash, because the match is a plain prefix.
+`/shared/apps/` and `/api/shared/apps/` are added to `_PUBLIC_ENDPOINTS`, like the other public routes, with the trailing slash, because the match is a plain prefix.
 
 | Method and path | Operation id | Returns |
 |---|---|---|
-| `GET /shared/apps/{token}?v=` | `fetch_shared_app` | Name, shown and latest version, `entry`, author name, `viewer {role, can_open_session, session_id?, workspace_id?, project_id?}`, `refs`, and the content of every entry in `files` and `external` (base64) |
+| `GET /shared/apps/{token}` | `fetch_shared_app` | Name, `entry`, author name, `viewer {role, can_open_session, session_id?, workspace_id?, project_id?}`, `refs`, and the content of every entry in `files` and `external` (base64) |
 
-Access is decided once per version view, not once per file. Access check, in order: default key (503 `sharing_disabled`); signature and `a` (404 `share_not_found`); drive exists (404); drive not archived (404 `share_unavailable`); share enabled and nonce matches (404); for `workspace`, `resolve_session_user_id` (403 `sign_in_required`, not 401, so the SuperTokens interceptor does not try a refresh for a viewer with no session), `AuthService.check_organization_access` (403 with the policy error), uncached `workspace_member_exists` (403 `not_a_member`); version exists (404 `version_not_found`).
+Access is decided once per view, not once per file. Access check, in order: default key (503 `sharing_disabled`); signature and `a` (404 `share_not_found`); drive exists (404); drive not archived (404 `share_unavailable`); share enabled and nonce matches (404); for `workspace`, `resolve_session_user_id` (403 `sign_in_required`, not 401, so the SuperTokens interceptor does not try a refresh for a viewer with no session), `AuthService.check_organization_access` (403 with the policy error), uncached `workspace_member_exists` (403 `not_a_member`); the live manifest exists (404 `share_unavailable`).
 
 The route calls the organization policy check itself because the middleware skips public routes (`auth.py:1352`). It streams the JSON body. It reads the manifest, writes the metadata, then reads each blob from the store and writes it, one blob at a time, so a 25 MB snapshot is never held in memory whole. The response is `application/json` with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Cache-Control: no-store`. No snapshot file has its own URL, so no snapshot file can render on the Agenta origin.
 
-Alternative: a blob route per file (rejected: one view of a `workspace` share ran the full SuperTokens, policy, and membership check once per file, up to 230 times). Alternative: a signed per-version blob grant (rejected: a second token type and a second expiry for no gain over one response).
+Alternative: a blob route per file (rejected: one view of a `workspace` share ran the full SuperTokens, policy, and membership check once per file, up to 230 times). Alternative: a signed per-snapshot blob grant (rejected: a second token type and a second expiry for no gain over one response).
 
 ### The share page reuses Run with a strict policy and one inlining path
 
@@ -220,7 +212,7 @@ Alternative: add `AGENTA_API_KEY` and `AGENTA_RUNNER_TOKEN` to the blanked list 
 - [A shared app can still show a form that asks for a password] → The strict policy stops the typed data from leaving the frame. The header, outside the frame, always names the author.
 - [Chrome `<link rel="prerender">` may ignore CSP (recorded in `docs/design/agent-html-apps/contracts.md:218-221`, not tested here)] → One request per load can leave. Test during implementation and record the result.
 - [Bundled SeaweedFS keeps deleted objects as old versions for `version_retention_days` (`storage.py:184-229`)] → A stopped or deleted share's bytes stay in storage for that time. They are not reachable through any route.
-- [The viewer response is up to about 34 MB of base64] → It is streamed and gzip-compressed (`GZipMiddleware`), and it replaces up to 230 requests. A `?v=` change loads the whole version again.
+- [The viewer response is up to about 34 MB of base64] → It is streamed and gzip-compressed (`GZipMiddleware`), and it replaces up to 230 requests.
 - [No rate limit on the public share route] → One view is one request with one access check. Only a person with the link can call the route, and the owner can stop the share at once. A rate limit is out of scope.
 - [Blanking inherited variables can remove one that a harness needs] → The integration check runs each local harness once. A missing variable is added to the allowlist by name.
 - [The `json` column cannot be indexed] → No query needs to search share settings. A `jsonb` migration is possible later.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Let the owner of an agent-made HTML app in a session drive publish it as a read-only share link, keep versions of it, and control or stop that link.
+Let the owner of an agent-made HTML app in a session drive publish it as a read-only share link, update it, and control or stop that link.
 
 ## ADDED Requirements
 
@@ -41,11 +41,11 @@ Publishing SHALL copy every file in the app folder, including data files and sub
 
 #### Scenario: Agent edits the app after sharing
 - **WHEN** the agent changes `apps/board/index.html` after the owner shared it
-- **THEN** the link SHALL keep showing the published version.
+- **THEN** the link SHALL keep showing the published snapshot.
 
 #### Scenario: Snapshot over the limit
 - **WHEN** an app folder holds 30 MB of files
-- **THEN** publishing SHALL be refused with an error that names the limit, and the live version SHALL NOT change.
+- **THEN** publishing SHALL be refused with an error that names the limit, and the live snapshot SHALL NOT change.
 
 ### Requirement: External files are captured at publish time
 Publishing SHALL follow each `https:` script, stylesheet, image, and font that the app's HTML or CSS references, and each `url()` and `@import` inside a captured stylesheet, resolved against that stylesheet's own URL, to a depth of 3. It SHALL store what it downloads in the snapshot, at most 30 URLs in total, inside the snapshot budget. A URL that resolves to a private or internal address SHALL NOT be fetched. A redirect SHALL be followed up to 3 hops, and each hop SHALL be checked as a new URL. A URL that cannot be downloaded, or that does not fit the budget, SHALL be reported to the owner and SHALL NOT stop the publish. A module script that imports other URLs SHALL be reported to the owner as a warning, because its imports are not captured.
@@ -74,19 +74,19 @@ Publishing SHALL follow each `https:` script, stylesheet, image, and font that t
 - **WHEN** an app has a module script that imports `https://esm.sh/lib`
 - **THEN** publishing SHALL succeed, and the owner SHALL see a warning that names the script.
 
-### Requirement: Versions change only on publish
-The first publish SHALL create version 1. Each later "Update share" SHALL create the next version, and the link SHALL show the latest version. Restoring version K SHALL create a new version with the content of version K. The owner SHALL be able to list all versions.
+### Requirement: The snapshot changes only on publish
+Each "Update share" SHALL replace the snapshot the link shows with the app folder as it is now. A share SHALL keep no history of earlier snapshots.
 
 #### Scenario: Update share
-- **WHEN** the owner clicks "Update share" on a share at version 2
-- **THEN** version 3 SHALL be created, and the link SHALL show version 3.
+- **WHEN** the owner clicks "Update share" after the app changed
+- **THEN** the same link SHALL show the changed app.
 
-#### Scenario: Restore
-- **WHEN** the owner restores version 1 on a share at version 3
-- **THEN** version 4 SHALL be created with the content of version 1, and the link SHALL show version 4.
+#### Scenario: Session archived during publish
+- **WHEN** the session is archived while a publish is capturing files
+- **THEN** the publish SHALL be refused, and the link SHALL keep showing the earlier snapshot.
 
 ### Requirement: Visibility, stop, and share again
-A share SHALL have one visibility: `workspace` or `link`. Changing visibility SHALL NOT change the link. Stopping a share SHALL make the link fail on the next request. Sharing again after a stop SHALL produce a new link, and the old link SHALL keep failing. The version list SHALL be kept across stop and share again.
+A share SHALL have one visibility: `workspace` or `link`. Changing visibility SHALL NOT change the link. Stopping a share SHALL make the link fail on the next request. Sharing again after a stop SHALL produce a new link, and the old link SHALL keep failing.
 
 #### Scenario: Change visibility
 - **WHEN** the owner changes a share from `workspace` to `link`

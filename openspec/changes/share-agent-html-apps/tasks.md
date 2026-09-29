@@ -25,7 +25,7 @@ Groups 1 to 3 are the prerequisite PR. Groups 4 to 8 are the sharing PR.
 
 ## 4. Share data and token
 
-- [x] 4.1 Add `AppShare`, `AppShareVersion`, and `MountData.shares` with `exclude=True`; verify with a unit test that a drive response has no `shares` and that a stored entry survives a read.
+- [x] 4.1 Add `AppShare` and `MountData.shares` with `exclude=True`; verify with a unit test that a drive response has no `shares` and that a stored entry survives a read.
 - [ ] 4.2 Add the locked DAO method that updates one share entry; verify with a Postgres test that two concurrent updates both land.
 - [x] 4.3 Add `api/oss/src/core/apps/share_token.py` (mint, parse, refuse on the default key) using the `agenta/app-share/v1` key; verify with unit tests for a valid token, a tampered token, a scope token passed as a share token, a wrong nonce, and the default key.
 
@@ -33,7 +33,7 @@ Groups 1 to 3 are the prerequisite PR. Groups 4 to 8 are the sharing PR.
 
 - [x] 5.1 Add the share service with publish: drive and session checks, manifest validation, file listing that skips nested apps, the snapshot budget, blob and manifest writes, pointer move; verify with API tests for a session drive, an agent drive, a standalone drive, a folder with no manifest, the drive root, and an app over the limits.
 - [x] 5.2 Add the reference graph walk from the rules table in `design.md`. It records `refs` for every HTML and CSS entry, resolves CSS references against the stylesheet's own base, and fetches `https:` URLs through `open_egress` with up to 3 redirect hops, each checked again, to a depth of 3, inside the shared budget. Verify with unit tests for HTML and CSS reference discovery, a Google Fonts stylesheet whose font files are captured, a CDN stylesheet with relative `url()`, a redirect to a public address, a redirect to a private address, a private address, a URL over 5 MB, a graph over 30 URLs, captured bytes that exceed 25 MB in total, and a module script with a URL import that gives `module_imports_not_captured`.
-- [x] 5.3 Add restore, edit, stop, and share again (new nonce); verify with API tests that the link stays the same on edit, fails after stop, and that the old link still fails after share again.
+- [x] 5.3 Add edit, stop, and share again (new nonce); verify with API tests that the link stays the same on edit, fails after stop, and that the old link still fails after share again.
 - [x] 5.4 Remove `[<ns>/]shares/<project_id>/<mount_id>/` in `delete_session_mounts`; verify with an API test that a deleted session leaves no share objects.
 
 ## 6. API routes
@@ -49,7 +49,7 @@ Groups 1 to 3 are the prerequisite PR. Groups 4 to 8 are the sharing PR.
 - [ ] 7.1 Add `SHARE_CSP` and a `csp` option on `buildRunFrame` in `@agenta/entities`; verify with a unit test that the assembled shared document carries `SHARE_CSP` and the owner's Run still carries `RUN_CSP`.
 - [x] 7.2 In `assemble.ts` (`@agenta/entity-ui`), add the optional `AssembleIo.resolve(base, ref)` and make the inliner handle a reference by its kind: script to script text, stylesheet to `<style>` with its `url()` and `@import` inlined against its own base, image or font to a `data:` URI. Verify with unit tests that Preview and Run keep leaving `https:` references alone, that a relative `url()` in a local stylesheet is now inlined, and that with `resolve` a captured script and stylesheet become inline text and a captured font becomes a `data:` URI.
 - [x] 7.3 Add the read-only snapshot `FsClient`, the snapshot `AssembleIo` that answers `resolve` from `refs` and content from the response, and the share API call with zod validation, in `@agenta/entities`; verify with unit tests that reads come from the snapshot, writes return `read_only`, and a reference with no `refs` entry is removed and reported.
-- [ ] 7.4 Add `ShareAppButton` and `ShareAppDialog` in `@agenta/entity-ui` (visibility, copy link, update share, versions with restore, stop sharing, the session-delete note, failed external files, and warnings), shown only for session drives and `EDIT_MOUNTS`; verify with component tests and a Storybook story.
+- [ ] 7.4 Add `ShareAppButton` and `ShareAppDialog` in `@agenta/entity-ui` (visibility, copy link, update share, stop sharing, the session-delete note, failed external files, and warnings), shown only for session drives and `EDIT_MOUNTS`; verify with component tests and a Storybook story.
 - [ ] 7.5 Add `SharedAppView` in `@agenta/entity-ui` that renders `RunView` from a snapshot and shows an error state on any build failure; verify with a unit test.
 - [ ] 7.6 Run `pnpm lint-fix` in `web/`; verify it passes.
 
@@ -63,7 +63,7 @@ Groups 1 to 3 are the prerequisite PR. Groups 4 to 8 are the sharing PR.
 
 ## 9. Integration check
 
-- [ ] 9.1 In the local stack (OSS and EE), share an app that loads a CDN script and a Google Fonts stylesheet, open it signed out as `link` with the network panel open, sign in through an OAuth provider from a `workspace` share and land back on it, open it as a member of another workspace, update and restore a version, archive the session and check that its history still shows attachments while the link fails, unarchive, stop sharing, and delete the session. Verify each outcome matches the specs, that the shared app makes no network request, and that no object remains under `shares/` after the delete.
+- [ ] 9.1 In the local stack (OSS and EE), share an app that loads a CDN script and a Google Fonts stylesheet, open it signed out as `link` with the network panel open, sign in through an OAuth provider from a `workspace` share and land back on it, open it as a member of another workspace, update the share, archive the session and check that its history still shows attachments while the link fails, unarchive, stop sharing, and delete the session. Verify each outcome matches the specs, that the shared app makes no network request, and that no object remains under `shares/` after the delete.
 - [ ] 9.2 Run one local session with each harness after the runner environment change; verify each one starts and completes a turn.
 - [ ] 9.3 Test whether `<link rel="prerender">` sends a request from a shared app in Chrome; record the result in `design.md`.
 - [ ] 9.4 Run `openspec validate share-agent-html-apps --strict`; verify it passes.
