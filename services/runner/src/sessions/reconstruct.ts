@@ -91,7 +91,10 @@ export function reconstructMessages(
 }
 
 function isErrorRecord(row: SessionRecordRow): boolean {
-  return row.record_source !== "user" && eventOf(row)?.type === "error";
+  const event = eventOf(row);
+  // Infrastructure loss is not a provider refusal. Keep already persisted work so the
+  // next turn can see completed tool actions instead of unknowingly repeating them.
+  return row.record_source !== "user" && event?.type === "error" && event.code !== "execution_lost";
 }
 
 /** What a failed turn leaves out: everything but the person's message. */

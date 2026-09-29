@@ -431,6 +431,7 @@ export async function runTurn(
   );
   let runLimitTrip: (() => void) | undefined;
   let runLimitReason: string | undefined;
+  let outputLimitReason: string | undefined;
   const runLimitTripped = new Promise<void>((resolve) => {
     runLimitTrip = resolve;
   });
@@ -576,6 +577,11 @@ export async function runTurn(
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
       // through. Per-tool-call timers are driven separately from `handleUpdate` below.
       emit: emit && runLimits.wrapEmit(emit),
+      onOutputLimit: (reason) => {
+        outputLimitReason = reason;
+        runLimitReason = reason;
+        runLimitTrip?.();
+      },
     });
     otel = run;
 
@@ -1539,7 +1545,7 @@ export async function runTurn(
     }
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
-    if (raced === RUN_LIMIT_TRIPPED) {
+    if (raced === RUN_LIMIT_TRIPPED || outputLimitReason) {
       throw new Error(runLimitReason ?? "run limit tripped");
     }
     let stopReason =
@@ -1983,7 +1989,7 @@ export async function runTurn(
     // subscription copy: either "sign in again" or "the sign-in was renewed, send it again".
     const recovery = await subscriptionRecovery(err);
     if (recovery) classified = recovery.classified;
-    const error = classified.message;
+    const error = outputLimitReason ?? classified.message;
     await harnessTrace.cancelBeforeDrain();
     const traceFinish = await harnessTrace.finish();
     const nativeTraceBatches = traceFinish?.pickedUpBatches;
@@ -1994,7 +2000,7 @@ export async function runTurn(
     } else if (nativeTraceBatches === 0) {
       await harnessTrace.emitMissingBatchFallback(otel, error);
     }
-    otel?.emitEvent(errorEventWithDetail(error, classified.code));
+    otel?.emitEvent(errorEventWithDetail(error, outputLimitReason ? "output_limit_exceeded" : classified.code));
     // An aborted turn may have left a partial turn in the native transcript: roll it back, or
     // drop the resume point.
     await settleFailedTurnContinuity();

@@ -21,6 +21,7 @@
  *    "user" for the inbound user turn persisted at run start.
  */
 
+import { randomUUID } from "node:crypto";
 import { apiBase } from "../apiBase.ts";
 import { envInt, envTimerMs } from "../env.ts";
 import type { AgentEvent } from "../protocol.ts";
@@ -90,6 +91,9 @@ async function postEvent(
   const url = `${apiBase()}/sessions/records/ingest`;
   const maxRetries = durableMaxRetries();
   const timeoutMs = ingestRequestTimeoutMs();
+  // Allocate once, before retries: a timeout can happen after the API accepted the row.
+  const retryRecordId = recordId ?? randomUUID();
+  const timestamp = new Date().toISOString();
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -104,11 +108,10 @@ async function postEvent(
         },
         body: JSON.stringify({
           session_id: sessionId,
-          // Present only for tool-family records (stable uuid5); the backend mints a
-          // uuid4 when omitted. A re-sent id upserts the same row.
-          ...(recordId ? { record_id: recordId } : {}),
+          // Re-sending an accepted request upserts the same row, for every event family.
+          record_id: retryRecordId,
           record_index: eventIndex,
-          timestamp: new Date().toISOString(),
+          timestamp,
           record_source: sender,
           record_type: event.type,
           attributes: event,
@@ -118,6 +121,8 @@ async function postEvent(
           ...(spanId ? { span_id: spanId } : {}),
         }),
       });
+      // We need only the status. Release the response body on both success and retry.
+      await res.body?.cancel();
       // Prefixed so a runner-side 401 is distinguishable from a provider refusal; see
       // `RUNNER_INTERNAL_401` in engines/sandbox_agent/errors.ts.
       if (!res.ok)
@@ -442,6 +447,16 @@ export function buildPersistingEmitter(
   const flush = async (): Promise<void> => {
     // A paused call ends the turn with its slot still open — persist it before draining.
     flushOpenTool();
+    // An interrupted producer may never send an end marker. Preserve its accepted prefix,
+    // then release the buffers even when the same emitter is flushed again.
+    for (const [key, acc] of coalescedMessages) {
+      persistEvent(
+        sessionId, auth,
+        { type: key.startsWith("thought:") ? "thought" : "message", text: acc.text, message_id: acc.id },
+        eventIndex++, "agent", undefined, redactor, turnId, spanId,
+      );
+    }
+    coalescedMessages.clear();
     await drainPersist(sessionId);
     // The drop count is deliberately NOT consumed here. The turn's caller (server.ts's `finally`)
     // reads it exactly once, after this drain, via `takePersistFailures` to decide whether to mark

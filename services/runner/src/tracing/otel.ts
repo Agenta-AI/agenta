@@ -31,6 +31,7 @@
  *   AGENTA_CREDENTIALS                       — per-run caller credential (no static API key)
  *   OTEL_SERVICE_NAME            — resource service.name (default "pi-agent")
  */
+import { createOutputBudget } from "./output-budget.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   context,
@@ -1703,6 +1704,8 @@ export interface SandboxAgentOtelInit extends Omit<
    * `events[]`. This split is what keeps a delta'd block from being re-sent in full.
    */
   emit?: EmitEvent;
+  /** Stop the turn through the engine's existing run-limit cancellation path. */
+  onOutputLimit?: (reason: string) => void;
 }
 
 export interface SandboxAgentOtel {
@@ -1789,6 +1792,7 @@ export function createSandboxAgentOtel(
   let usageSettled = false;
   let tokenDetail: ModelTokenUsage | undefined;
   const events: AgentEvent[] = [];
+  const outputBudget = createOutputBudget(init.onOutputLimit);
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
   const toolSpans = new Map<
@@ -2066,7 +2070,7 @@ export function createSandboxAgentOtel(
 
   function handleUpdate(update: any): void {
     const kind = update?.sessionUpdate;
-    if (!kind) return;
+    if (!kind || !outputBudget.accept(update)) return;
 
     if (kind === "agent_message_chunk") {
       const t = acpBlockText(update.content);
@@ -2392,7 +2396,13 @@ export function createSandboxAgentOtel(
   return {
     start,
     handleUpdate,
-    emitEvent: record,
+    emitEvent: (event) => {
+      // Error/done are engine-authored terminal records, not model output. Preserve them
+      // after a breach so the turn has one visible, durable ending.
+      if (event.type === "error" || event.type === "done" || outputBudget.accept(event)) {
+        record(event);
+      }
+    },
     finish,
     recordError,
     setUsage,

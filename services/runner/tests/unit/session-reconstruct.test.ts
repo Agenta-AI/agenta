@@ -20,6 +20,22 @@ function rec(
 }
 
 describe("reconstructMessages", () => {
+  it("keeps completed actions and text after execution_lost instead of forgetting them", () => {
+    const turn = { turn_id: "crashed-turn" };
+    const records = [
+      rec("user", { type: "message", text: "create the document" }, turn),
+      rec("agent", { type: "tool_call", id: "write", name: "create_document", input: { title: "Notes" } }, turn),
+      rec("agent", { type: "tool_result", id: "write", output: { document_id: "doc-123" } }, turn),
+      rec("agent", { type: "message", text: "Created doc-123." }, turn),
+      rec("agent", { type: "error", code: "execution_lost", message: "Runner disconnected" }, turn),
+    ];
+    const messages = reconstructMessages(records);
+    assert.equal(messages.length, 2);
+    const blocks = messages[1].content as ContentBlock[];
+    assert.deepEqual(blocks.map((block) => block.type), ["tool_call", "tool_result", "text"]);
+    assert.deepEqual(blocks[1].output, { document_id: "doc-123" });
+    assert.equal(blocks[2].text, "Created doc-123.");
+  });
   it("folds a simple user→assistant text exchange", () => {
     const out = reconstructMessages([
       rec("user", { type: "message", text: "hi" }),
