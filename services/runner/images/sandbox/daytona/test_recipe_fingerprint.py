@@ -28,6 +28,6 @@ def test_sandbox_recipe_fingerprint_is_current() -> None:
 
     assert recorded["fingerprint"] == actual, (
         "Sandbox recipe inputs changed without bumping the sandbox recipe version. "
-        "Update services/runner/images/sandbox/daytona/sandbox-recipe.json to the "
+        "Update services/runner/config/sandbox-recipe.json to the "
         "new recipe version and regenerate sandbox-recipe-fingerprint.json."
     )
