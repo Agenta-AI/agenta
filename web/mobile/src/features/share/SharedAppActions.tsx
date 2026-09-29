@@ -26,7 +26,7 @@ export const SharedAppActions = ({
     if (!user) {
         return (
             <Button
-                size="sm"
+                size="xs"
                 onClick={() => {
                     rememberReturnPath(router.asPath)
                     void router.push("/auth")
@@ -47,7 +47,7 @@ export const SharedAppActions = ({
     return (
         <div className="flex shrink-0 items-center gap-1.5">
             {sessionHref ? (
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="xs">
                     <Link href={sessionHref}>Open in session</Link>
                 </Button>
             ) : null}
@@ -62,7 +62,7 @@ export const SharedAppActions = ({
                     canEdit
                     appName={snapshot.name}
                     projectId={viewer.project_id}
-                    className="h-8"
+                    size="xs"
                 />
             ) : null}
             <ViewerAvatar user={user} />

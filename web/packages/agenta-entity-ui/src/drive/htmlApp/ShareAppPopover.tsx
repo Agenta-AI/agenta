@@ -304,6 +304,8 @@ export interface ShareAppButtonProps {
     appName?: string
     /** The drive's project; default the project in scope (a share link's page has none). */
     projectId?: string
+    /** Kit button size; `sm` keeps the drive toolbar's 28px trigger. */
+    size?: "xs" | "sm"
     className?: string
 }
 
@@ -314,6 +316,7 @@ export function ShareAppButton({
     canEdit,
     appName,
     projectId: projectIdProp,
+    size = "sm",
     className,
 }: ShareAppButtonProps) {
     const [open, setOpen] = useState(false)
@@ -336,9 +339,9 @@ export function ShareAppButton({
             <PopoverTrigger asChild>
                 <Button
                     variant="outline"
-                    size="sm"
+                    size={size}
                     aria-label={`Share ${name}`}
-                    className={cn("h-7 gap-1.5 px-2.5 text-xs", className)}
+                    className={cn(size === "sm" && "h-7 gap-1.5 px-2.5 text-xs", className)}
                 >
                     {TRIGGER[state].icon}
                     {TRIGGER[state].label}
