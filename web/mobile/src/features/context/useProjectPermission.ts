@@ -13,9 +13,7 @@ export const fetchProjectPermission = async (
                 scope_id: projectId,
                 resource_type: "service",
             },
-            // Without an explicit `project_id`, the auth middleware scopes the request to
-            // the DEFAULT project, and the scope check compares that against `scope_id` —
-            // denying every permission on a non-default project.
+            // Match auth scope to scope_id; session auth otherwise selects the default project.
             {queryParams: {project_id: projectId}},
         )
         return true
