@@ -142,7 +142,9 @@ async def test_attachment_originals_still_read_on_an_archived_session():
             project_id=_PROJECT, mount_id=m.id, path="notes.txt", content=b"new"
         ),
         lambda s, m: s.create_folder(project_id=_PROJECT, mount_id=m.id, path="new"),
-        lambda s, m: s.delete_path(project_id=_PROJECT, mount_id=m.id, path="notes.txt"),
+        lambda s, m: s.delete_path(
+            project_id=_PROJECT, mount_id=m.id, path="notes.txt"
+        ),
         lambda s, m: s.sign_mount_credentials(project_id=_PROJECT, mount_id=m.id),
         lambda s, m: s.edit_mount(
             project_id=_PROJECT, user_id=_USER, mount_edit=MountEdit(id=m.id, name="x")

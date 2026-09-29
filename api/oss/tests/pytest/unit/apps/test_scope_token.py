@@ -266,13 +266,22 @@ class TestSigningKey:
         from oss.src.utils.env import env
 
         payload = json.dumps(
-            {"a": "ag-app-v1", "d": "apps/board", "l": "read", "m": "m", "p": "p", "x": 2**40},
+            {
+                "a": "ag-app-v1",
+                "d": "apps/board",
+                "l": "read",
+                "m": "m",
+                "p": "p",
+                "x": 2**40,
+            },
             separators=(",", ":"),
             sort_keys=True,
         ).encode()
         old_key = hashlib.sha256((env.agenta.crypt_key or "").encode()).digest()
         b64 = lambda raw: base64.urlsafe_b64encode(raw).rstrip(b"=").decode()  # noqa: E731
-        token = f"{b64(payload)}.{b64(hmac.new(old_key, payload, hashlib.sha256).digest())}"
+        token = (
+            f"{b64(payload)}.{b64(hmac.new(old_key, payload, hashlib.sha256).digest())}"
+        )
 
         with pytest.raises(ScopeTokenInvalid):
             parse(token)

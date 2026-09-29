@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildDaemonEnv, closeInheritedEnv } from "../../src/engines/sandbox_agent/daemon.ts";
 
 describe("closeInheritedEnv", () => {
-  const runnerEnv = {
+  const runnerEnv: Record<string, string> = {
     PATH: "/usr/bin",
     HOME: "/home/runner",
     LANG: "en_US.UTF-8",
