@@ -122,12 +122,16 @@ export function buildRunFrameScript(appHtml: string): string {
     return `(${runFrame.toString()})(${scriptLiteral(appHtml)}, ${scriptLiteral(SANDBOX_FLAGS)}, ${BRIDGE_VERSION})`
 }
 
+/** A value that stays inside one double-quoted HTML attribute. */
+const attributeValue = (value: string): string =>
+    value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
+
 /** The wrapper document for an app; `csp` is the app's policy (default {@link RUN_CSP}). */
 export function buildRunFrame(appHtml: string, {csp}: {csp?: string} = {}): string {
     const frameCsp = csp ? `${csp}; frame-src 'none'; object-src 'none'` : RUN_FRAME_CSP
     return (
         "<!doctype html><html><head>" +
-        `<meta http-equiv="Content-Security-Policy" content="${frameCsp}">` +
+        `<meta http-equiv="Content-Security-Policy" content="${attributeValue(frameCsp)}">` +
         "<style>html,body{margin:0;height:100%;overflow:hidden}</style>" +
         `</head><body><script>${buildRunFrameScript(appHtml)}</script></body></html>`
     )

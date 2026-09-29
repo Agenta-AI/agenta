@@ -6,6 +6,7 @@ import {z} from "zod"
 import {projectScopedRequest} from "@agenta/entities/session"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
+import {cleanPath} from "../driveTree"
 
 import {FsClientError, type FsClient} from "./fsClient"
 import type {FileEntry} from "./protocol"
@@ -279,7 +280,7 @@ export function createSnapshotFsClient(snapshot: Pick<SharedAppSnapshot, "files"
     }
 
     const list: FsClient["list"] = async (folder) => {
-        const prefix = folder === "" ? "" : `${folder.replace(/\/+$/, "")}/`
+        const prefix = folder === "" ? "" : `${cleanPath(folder)}/`
         const children = new Map<string, FileEntry>()
         for (const [path, file] of snapshot.files) {
             if (!path.startsWith(prefix)) continue
