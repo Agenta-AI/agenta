@@ -27,7 +27,7 @@ import {
     PopoverTrigger,
     cn,
 } from "@agenta/ui/ui"
-import {Check, Copy, GlobeHemisphereWest, ShareNetwork, UsersThree} from "@phosphor-icons/react"
+import {Check, Copy, Globe, UsersThree} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {useMountAssembleIo} from "./mountIo"
@@ -52,7 +52,7 @@ const VISIBILITY: Record<ShareVisibility, {label: string; hint: string; icon: Re
     link: {
         label: "Anyone with the link",
         hint: "No sign-in needed.",
-        icon: <GlobeHemisphereWest className="size-4" />,
+        icon: <Globe className="size-4" />,
     },
 }
 
@@ -288,12 +288,6 @@ const SharePanel = ({
     )
 }
 
-const TRIGGER: Record<"off" | ShareVisibility, {label: string; icon: ReactNode}> = {
-    off: {label: "Share", icon: <ShareNetwork className="size-3.5" />},
-    workspace: {label: "Workspace", icon: <UsersThree className="size-3.5" />},
-    link: {label: "Public", icon: <GlobeHemisphereWest className="size-3.5" />},
-}
-
 export interface ShareAppButtonProps {
     mount: Mount | null
     /** Mount-relative app folder. */
@@ -309,7 +303,7 @@ export interface ShareAppButtonProps {
     className?: string
 }
 
-/** The Share button: shown only where sharing can work, labelled with the share's state. */
+/** The Share button, shown only where sharing can work. */
 export function ShareAppButton({
     mount,
     dir,
@@ -331,9 +325,6 @@ export function ShareAppButton({
     )
 
     if (!eligible || !name || !mount) return null
-    const share = query.data?.share
-    const state = share?.enabled ? share.visibility : "off"
-
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
@@ -343,8 +334,8 @@ export function ShareAppButton({
                     aria-label={`Share ${name}`}
                     className={cn(size === "sm" && "h-7 gap-1.5 px-2.5 text-xs", className)}
                 >
-                    {TRIGGER[state].icon}
-                    {TRIGGER[state].label}
+                    <Globe className="size-3.5" />
+                    Share
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="end" sideOffset={8} className="w-[380px] max-w-[calc(100vw-32px)] p-0">
