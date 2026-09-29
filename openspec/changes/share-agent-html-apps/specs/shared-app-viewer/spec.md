@@ -44,7 +44,7 @@ A link with a bad signature, a stopped share, an old link after share again, or 
 The share page SHALL be at `/m/share/<token>`. It SHALL NOT redirect to sign-in for `link` shares, SHALL NOT redirect to the classic desktop app, and SHALL NOT send page views to product analytics. Its header SHALL sit outside the app and SHALL show:
 - for everyone: the Agenta logo, the app name, and "App by <owner name>";
 - for a signed-out viewer: a Sign in button;
-- for a signed-in viewer: their avatar, and "Open in chat" when they are a member of the app's project;
+- for a signed-in viewer: "Open in chat" when they are a member of the app's project;
 - for a viewer with `EDIT_MOUNTS` on the project: a Share button that opens the owner's share dialog, with "App by you" when they are the owner.
 
 #### Scenario: Classic mode user
