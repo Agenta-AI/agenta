@@ -1,4 +1,4 @@
-"""The share service over in-memory fakes: publish, versions, visibility, stop, and the viewer."""
+"""The share service over in-memory fakes: publish, update, visibility, stop, and the viewer."""
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -40,6 +40,8 @@ class FakeMounts:
             session_id="sess" if session else None,
             deleted_at=datetime.now(timezone.utc) if archived else None,
         )
+        # The drive row was deleted by the time publish takes the lock.
+        self.gone = False
 
     def share_storage_key(self, *, project_id, mount_id, path=""):
         return f"shares/{project_id}/{mount_id}/{path}"
@@ -66,6 +68,8 @@ class FakeMounts:
         )
 
     async def update_app_share(self, *, project_id, mount_id, path, mutate):
+        if self.gone:
+            return None
         current = self.mount.data.shares.get(path)
         updated = await mutate(self.mount, current)
         shares = dict(self.mount.data.shares)
@@ -94,6 +98,10 @@ class FakeStore:
     async def get_object(self, *, bucket, key):
         return self.objects[key]
 
+    async def delete_prefix(self, *, bucket, prefix):
+        for key in [k for k in self.objects if k.startswith(prefix)]:
+            del self.objects[key]
+
 
 async def _no_web(url, max_bytes):
     raise CaptureFailed("no network in tests")
@@ -111,8 +119,8 @@ async def _publish(service, mounts, **kw):
     )
 
 
-async def _index(service, token, version=None):
-    snapshot = await service.open_shared_app(token=token, version=version)
+async def _index(service, token):
+    snapshot = await service.open_shared_app(token=token)
     async for key, _meta, content in service.iter_blobs(snapshot, "files"):
         if key == "index.html":
             return content.decode()
@@ -125,12 +133,12 @@ async def test_publish_snapshots_the_app_and_leaves_nested_apps_out():
     result = await _publish(service, mounts, visibility="link")
 
     snapshot = await service.open_shared_app(token=result.token)
-    assert snapshot.version == 1 and result.share.visibility == "link"
+    assert snapshot.manifest.version == 1 and result.share.visibility == "link"
     assert set(snapshot.manifest.files) == {"app.json", "index.html", "data.json"}
 
 
 @pytest.mark.asyncio
-async def test_the_link_keeps_the_published_version_until_update():
+async def test_the_link_keeps_the_published_snapshot_until_update():
     mounts = FakeMounts(APP)
     service = _service(mounts)
     token = (await _publish(service, mounts)).token
@@ -141,22 +149,6 @@ async def test_the_link_keeps_the_published_version_until_update():
     updated = await _publish(service, mounts)
     assert updated.share.latest == 2 and updated.token == token
     assert await _index(service, token) == "<h1>Changed</h1>"
-    assert await _index(service, token, version=1) == "<h1>Board</h1>"
-
-
-@pytest.mark.asyncio
-async def test_restore_makes_a_new_version_with_the_old_content():
-    mounts = FakeMounts(APP)
-    service = _service(mounts)
-    token = (await _publish(service, mounts)).token
-    mounts.files["apps/board/index.html"] = b"<h1>Changed</h1>"
-    await _publish(service, mounts)
-
-    share = await service.restore(
-        project_id=PROJECT, user_id=USER, mount_id=mounts.mount.id, path="apps/board", version=1
-    )
-    assert share.latest == 3 and share.versions[-1].restored_from == 1
-    assert await _index(service, token) == "<h1>Board</h1>"
 
 
 @pytest.mark.asyncio
@@ -189,7 +181,7 @@ async def test_stop_kills_the_link_and_sharing_again_makes_a_new_one():
     assert again.token != old and again.share.latest == 2
     with pytest.raises(AppShareError):
         await service.open_shared_app(token=old)
-    assert (await service.open_shared_app(token=again.token)).version == 2
+    assert (await service.open_shared_app(token=again.token)).manifest.version == 2
 
 
 @pytest.mark.asyncio
@@ -225,7 +217,7 @@ async def test_what_cannot_be_shared(mounts, path, code):
 
 
 @pytest.mark.asyncio
-async def test_an_app_over_the_limit_is_refused_and_the_live_version_stays():
+async def test_an_app_over_the_limit_is_refused_and_the_live_snapshot_stays():
     mounts = FakeMounts(APP)
     service = _service(mounts)
     token = (await _publish(service, mounts)).token
@@ -234,7 +226,41 @@ async def test_an_app_over_the_limit_is_refused_and_the_live_version_stays():
     with pytest.raises(AppShareError) as refused:
         await _publish(service, mounts)
     assert refused.value.code == "too_large"
-    assert (await service.open_shared_app(token=token)).version == 1
+    assert (await service.open_shared_app(token=token)).manifest.version == 1
+
+
+@pytest.mark.asyncio
+async def test_a_session_archived_during_publish_gets_no_new_snapshot():
+    mounts = FakeMounts(APP)
+    service = _service(mounts)
+    token = (await _publish(service, mounts)).token
+    mounts.files["apps/board/index.html"] = b"<h1>Changed</h1>"
+
+    locked = mounts.update_app_share
+
+    async def archive_then_lock(**kw):
+        mounts.mount = mounts.mount.model_copy(update={"deleted_at": datetime.now(timezone.utc)})
+        return await locked(**kw)
+
+    mounts.update_app_share = archive_then_lock
+    with pytest.raises(AppShareError) as refused:
+        await _publish(service, mounts)
+    assert refused.value.code == "session_archived"
+    assert mounts.mount.data.shares["apps/board"].latest == 1
+    mounts.mount = mounts.mount.model_copy(update={"deleted_at": None})
+    assert await _index(service, token) == "<h1>Board</h1>"
+
+
+@pytest.mark.asyncio
+async def test_a_session_deleted_during_publish_leaves_no_share_objects():
+    mounts = FakeMounts(APP)
+    service = _service(mounts)
+    mounts.gone = True
+
+    with pytest.raises(AppShareError) as refused:
+        await _publish(service, mounts)
+    assert refused.value.code == "not_found"
+    assert service.store.objects == {}
 
 
 def test_share_settings_never_leave_through_a_drive_response():

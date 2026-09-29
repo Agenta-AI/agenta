@@ -62,8 +62,8 @@ import {DriveTreePane} from "./DriveTreePane"
 import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
 import {dirOf} from "./htmlApp/assemble"
-import {HtmlAppEnvContext} from "./htmlApp/HtmlAppBody"
-import {ShareAppButton} from "./htmlApp/ShareAppPopover"
+import {HtmlAppEnvContext} from "./htmlApp/htmlAppEnv"
+import {isShareableMount, ShareAppButton} from "./htmlApp/ShareAppPopover"
 import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDrivePasteUpload} from "./useDrivePasteUpload"
@@ -627,7 +627,7 @@ export function DriveExplorer({
                 trailing={
                     htmlRunnable ? (
                         <ShareAppButton
-                            mount={selectedMount}
+                            mountId={isShareableMount(selectedMount) ? selectedMount.id : null}
                             dir={dirOf(selectedMountPath)}
                             canEdit={canWrite && htmlAppEnv.canEditMounts !== false}
                         />

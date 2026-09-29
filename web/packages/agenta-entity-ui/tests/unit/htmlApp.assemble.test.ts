@@ -608,6 +608,17 @@ describe("one inlining path for local and captured files", () => {
         expect(html).toContain('url("data:image/svg+xml;base64,QkI=")')
     })
 
+    it("keeps a $ in an imported stylesheet as text", async () => {
+        const io: AssembleIo = {
+            fetchText: async (k) =>
+                ({"site/main.css": '@import "price.css";', "site/price.css": `.p::before{content:"$'$&"}`})[k] ??
+                null,
+            fetchDataUri: async () => null,
+        }
+        const html = await assemblePreview('<link rel="stylesheet" href="main.css">', {dir: "site", io})
+        expect(html).toContain(`.p::before{content:"$'$&"}`)
+    })
+
     it("leaves https references alone without a snapshot", async () => {
         const {html} = await assembleRunDocument('<script src="https://cdn/lib.js"></script>', {
             dir: "site",

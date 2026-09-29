@@ -2,7 +2,7 @@
 
 Exempt from the auth middleware (see `_PUBLIC_ENDPOINTS`), so this route names its own caller
 from the session cookie and runs the organization policy check itself. Access is decided once
-per version view; the whole version comes back in one streamed JSON body, one blob at a time,
+per view; the whole snapshot comes back in one streamed JSON body, one blob at a time,
 so no snapshot file ever has its own URL on the Agenta origin.
 """
 
@@ -11,7 +11,7 @@ import json
 from typing import AsyncIterator, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from supertokens_python.recipe.session.asyncio import get_session
 
@@ -28,7 +28,6 @@ _VIEWER_STATUS = {
     "sharing_disabled": status.HTTP_503_SERVICE_UNAVAILABLE,
     "share_not_found": status.HTTP_404_NOT_FOUND,
     "share_unavailable": status.HTTP_404_NOT_FOUND,
-    "version_not_found": status.HTTP_404_NOT_FOUND,
     "storage_unavailable": status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
@@ -155,10 +154,9 @@ class SharedAppsRouter:
         self,
         request: Request,
         token: str,
-        v: Optional[int] = Query(default=None, ge=1),
     ):
         try:
-            snapshot = await self.app_shares_service.open_shared_app(token=token, version=v)
+            snapshot = await self.app_shares_service.open_shared_app(token=token)
         except AppShareError as e:
             raise _refuse(
                 e.code, e.message, _VIEWER_STATUS.get(e.code, status.HTTP_404_NOT_FOUND)
@@ -169,9 +167,6 @@ class SharedAppsRouter:
             name=snapshot.manifest.name,
             entry=snapshot.manifest.entry,
             kit=snapshot.manifest.kit,
-            version=snapshot.version,
-            latest=snapshot.share.latest,
-            versions=[item.version for item in snapshot.share.versions],
             visibility=snapshot.share.visibility,
             author_name=await self._author_name(snapshot),
             viewer=viewer,

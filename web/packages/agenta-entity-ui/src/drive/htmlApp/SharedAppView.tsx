@@ -71,7 +71,6 @@ export function SharedAppView({snapshot, className}: SharedAppViewProps) {
 
     return (
         <RunView
-            key={`${snapshot.version}`}
             host={host}
             dir=""
             entryPath={snapshot.entry}

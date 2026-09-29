@@ -2,7 +2,6 @@ export type { AgentMountQueryRequest } from "./AgentMountQueryRequest.js";
 export { AppScopeRequest } from "./AppScopeRequest.js";
 export { AppShareEditRequest } from "./AppShareEditRequest.js";
 export { AppSharePublishRequest } from "./AppSharePublishRequest.js";
-export type { AppShareRestoreRequest } from "./AppShareRestoreRequest.js";
 export type { ArchiveMountRequest } from "./ArchiveMountRequest.js";
 export type { BodyUploadMountFile } from "./BodyUploadMountFile.js";
 export type { CreateMountFolderRequest } from "./CreateMountFolderRequest.js";

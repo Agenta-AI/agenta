@@ -147,7 +147,7 @@ class AppScopeResponse(BaseModel):
 
 
 class AppSharePublishRequest(BaseModel):
-    """Publish the app folder at `path` as the share's next version."""
+    """Publish the app folder at `path`; the new snapshot replaces the one the link shows."""
 
     path: str
     visibility: Optional[Literal["workspace", "link"]] = None
@@ -158,23 +158,9 @@ class AppShareEditRequest(BaseModel):
     visibility: Literal["workspace", "link"]
 
 
-class AppShareRestoreRequest(BaseModel):
-    path: str
-    version: int
-
-
-class AppShareVersionItem(BaseModel):
-    version: int
-    created_at: datetime
-    created_by_id: UUID
-    restored_from: Optional[int] = None
-
-
 class AppShareState(BaseModel):
     enabled: bool
     visibility: Literal["workspace", "link"]
-    latest: int
-    versions: List[AppShareVersionItem]
     created_at: datetime
     updated_at: datetime
     # The link token, only for a caller who may change the share, and only while it is on.

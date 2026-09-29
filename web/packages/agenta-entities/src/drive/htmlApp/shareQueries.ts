@@ -25,17 +25,16 @@ export const appShareQueryFamily = atomFamily(
     (a, b) => a.projectId === b.projectId && a.mountId === b.mountId && a.path === b.path,
 )
 
-/** One version of a shared app; `gcTime: 0` so a stopped share stops on the next open. */
+/** A shared app; `gcTime: 0` so a stopped share stops on the next open. */
 export const sharedAppQueryFamily = atomFamily(
-    ({token, version}: {token: string; version: number | null}) =>
+    (token: string) =>
         atomWithQuery<SharedAppSnapshot>(() => ({
-            queryKey: ["shared-app", token, version],
-            queryFn: () => fetchSharedApp({token, version}),
+            queryKey: ["shared-app", token],
+            queryFn: () => fetchSharedApp({token}),
             enabled: Boolean(token),
             staleTime: Infinity,
             gcTime: 0,
             retry: false,
             refetchOnWindowFocus: false,
         })),
-    (a, b) => a.token === b.token && a.version === b.version,
 )

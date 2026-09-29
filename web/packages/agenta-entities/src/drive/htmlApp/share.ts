@@ -20,15 +20,6 @@ export type ShareVisibility = z.infer<typeof shareVisibilitySchema>
 const shareStateSchema = z.object({
     enabled: z.boolean(),
     visibility: shareVisibilitySchema,
-    latest: z.number(),
-    versions: z.array(
-        z.object({
-            version: z.number(),
-            created_at: z.string(),
-            created_by_id: z.string(),
-            restored_from: z.number().nullish(),
-        }),
-    ),
     created_at: z.string(),
     updated_at: z.string(),
     token: z.string().nullish(),
@@ -60,9 +51,6 @@ const sharedAppSchema = z.object({
     name: z.string(),
     entry: z.string(),
     kit: z.boolean().nullish(),
-    version: z.number(),
-    latest: z.number(),
-    versions: z.array(z.number()),
     visibility: shareVisibilitySchema,
     author_name: z.string().nullish(),
     viewer: z.object({
@@ -178,23 +166,6 @@ export async function editAppShare({
     }
 }
 
-export async function restoreAppShare({
-    projectId,
-    mountId,
-    path,
-    version,
-}: ShareTarget & {version: number}) {
-    try {
-        const data = await getMountsClient().restoreAppShare(
-            {mount_id: mountId, path, version},
-            projectScopedRequest(projectId),
-        )
-        return parseShare(data, "[htmlApp.share.restore]")
-    } catch (error) {
-        throw toShareError(error)
-    }
-}
-
 export async function stopAppShare({projectId, mountId, path}: ShareTarget) {
     try {
         const data = await getMountsClient().stopAppShare(
@@ -225,9 +196,6 @@ export interface SharedAppSnapshot {
     name: string
     entry: string
     kit: boolean
-    version: number
-    latest: number
-    versions: number[]
     visibility: ShareVisibility
     authorName: string | null
     viewer: SharedAppViewer
@@ -254,20 +222,11 @@ const decodeFiles = (files: Record<string, z.infer<typeof sharedFileSchema>> | n
         ]),
     )
 
-/** One version of a shared app in one request; refusals are 403 with a `code`, never 401. */
-export async function fetchSharedApp({
-    token,
-    version,
-}: {
-    token: string
-    version?: number | null
-}): Promise<SharedAppSnapshot> {
+/** A shared app in one request; refusals are 403 with a `code`, never 401. */
+export async function fetchSharedApp({token}: {token: string}): Promise<SharedAppSnapshot> {
     let data: unknown
     try {
-        data = await getSharedAppsClient().fetchSharedApp({
-            token,
-            ...(version ? {v: version} : {}),
-        })
+        data = await getSharedAppsClient().fetchSharedApp({token})
     } catch (error) {
         throw toShareError(error)
     }
@@ -277,9 +236,6 @@ export async function fetchSharedApp({
         name: parsed.name,
         entry: parsed.entry,
         kit: parsed.kit ?? true,
-        version: parsed.version,
-        latest: parsed.latest,
-        versions: parsed.versions,
         visibility: parsed.visibility,
         authorName: parsed.author_name ?? null,
         viewer: parsed.viewer,

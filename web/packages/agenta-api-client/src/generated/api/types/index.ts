@@ -104,8 +104,6 @@ export * from "./AppShare.js";
 export * from "./AppShareIssue.js";
 export * from "./AppShareResponse.js";
 export * from "./AppShareState.js";
-export * from "./AppShareVersion.js";
-export * from "./AppShareVersionItem.js";
 export * from "./ArchiveMount.js";
 export * from "./BodyConfigsFetchVariantsConfigsFetchPost.js";
 export * from "./Bucket.js";

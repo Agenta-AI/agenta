@@ -127,10 +127,10 @@ function referenceKey(
     return path
 }
 
-/** Inline a stylesheet's `url()` and `@import` targets, resolved against its own location. */
 /** The base of a fetched stylesheet: its own key, and its folder when it is a mount path. */
 const baseOf = (key: string): RefBase => ({key, dir: dirOf(key)})
 
+/** Inline a stylesheet's `url()` and `@import` targets, resolved against its own location. */
 async function inlineCss(
     css: string,
     base: RefBase,
@@ -149,7 +149,8 @@ async function inlineCss(
         imports.push({match: match[0], text: media && inner ? `@media ${media}{${inner}}` : inner})
     }
     let out = css
-    for (const {match, text} of imports) out = out.replace(match, text)
+    // A function replacement: a `$` in the imported CSS is text, not a replacement pattern.
+    for (const {match, text} of imports) out = out.replace(match, () => text)
 
     const urls = new Map<string, string | null>()
     for (const match of out.matchAll(CSS_URL_RE)) {

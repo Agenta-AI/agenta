@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional
+from typing import Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,14 +24,11 @@ class SharedAppFile(BaseModel):
 
 
 class SharedAppResponse(BaseModel):
-    """One version of a shared app, content included: one request and one access check."""
+    """A shared app, content included: one request and one access check."""
 
     name: str
     entry: str
     kit: bool = True
-    version: int
-    latest: int
-    versions: List[int]
     visibility: Literal["workspace", "link"]
     author_name: Optional[str] = None
     viewer: SharedAppViewer

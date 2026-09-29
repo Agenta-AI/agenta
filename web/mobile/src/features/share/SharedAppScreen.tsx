@@ -9,8 +9,8 @@ import {SharedAppError} from "./states/SharedAppError"
 import {SharedAppSkeleton} from "./states/SharedAppSkeleton"
 
 /** A shared app under a header that sits outside it and always names the author. */
-export const SharedAppScreen = ({token, version}: {token: string; version: number | null}) => {
-    const query = useAtomValue(sharedAppQueryFamily({token, version}))
+export const SharedAppScreen = ({token}: {token: string}) => {
+    const query = useAtomValue(sharedAppQueryFamily(token))
     const snapshot = query.data
 
     return (

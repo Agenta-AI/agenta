@@ -8,5 +8,4 @@
  */
 export interface FetchSharedAppRequest {
     token: string;
-    v?: number | null;
 }

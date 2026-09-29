@@ -53,12 +53,8 @@ export const SharedAppActions = ({
             ) : null}
             {snapshot && editable && viewer.project_id ? (
                 <ShareAppButton
-                    mount={{
-                        id: viewer.mount_id as string,
-                        session_id: viewer.session_id ?? "shared",
-                        name: "cwd",
-                    }}
-                    dir={viewer.app_path as string}
+                    mountId={viewer.mount_id ?? null}
+                    dir={viewer.app_path ?? ""}
                     canEdit
                     appName={snapshot.name}
                     projectId={viewer.project_id}

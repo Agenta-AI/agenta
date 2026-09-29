@@ -28,7 +28,7 @@ class ShareFileEntry(BaseModel):
 
 
 class ShareManifest(BaseModel):
-    """One version of a share, stored as `v<N>.json` under the drive's share prefix."""
+    """One publish of a share, stored as `v<N>.json` under the drive's share prefix."""
 
     version: int
     name: str
@@ -36,7 +36,6 @@ class ShareManifest(BaseModel):
     kit: bool = True
     created_at: datetime
     created_by_id: UUID
-    restored_from: Optional[int] = None
     files: Dict[str, ShareFileEntry] = Field(default_factory=dict)
     external: Dict[str, ShareFileEntry] = Field(default_factory=dict)
     refs: ShareRefs = Field(default_factory=dict)

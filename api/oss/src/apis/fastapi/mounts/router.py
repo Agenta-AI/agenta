@@ -54,9 +54,7 @@ from oss.src.apis.fastapi.mounts.models import (
     AppShareIssue,
     AppSharePublishRequest,
     AppShareResponse,
-    AppShareRestoreRequest,
     AppShareState,
-    AppShareVersionItem,
     AppScopeRequest,
     AppScopeResponse,
     MountArchiveRequest,
@@ -188,7 +186,6 @@ _APP_SHARE_STATUS = {
     "not_found": status.HTTP_404_NOT_FOUND,
     "share_not_found": status.HTTP_404_NOT_FOUND,
     "share_unavailable": status.HTTP_404_NOT_FOUND,
-    "version_not_found": status.HTTP_404_NOT_FOUND,
     "not_shareable": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "not_an_app": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "session_archived": status.HTTP_409_CONFLICT,
@@ -221,8 +218,6 @@ def share_state(share: Optional[AppShare], *, token: Optional[str] = None) -> Op
     return AppShareState(
         enabled=share.enabled,
         visibility=share.visibility,
-        latest=share.latest,
-        versions=[AppShareVersionItem(**v.model_dump()) for v in share.versions],
         created_at=share.created_at,
         updated_at=share.updated_at,
         token=token if share.enabled else None,
@@ -371,14 +366,6 @@ class MountsRouter:
             self.edit_app_share,
             methods=["PATCH"],
             operation_id="edit_app_share",
-            response_model=AppShareResponse,
-            status_code=status.HTTP_200_OK,
-        )
-        self.router.add_api_route(
-            "/{mount_id}/apps/share/restore",
-            self.restore_app_share,
-            methods=["POST"],
-            operation_id="restore_app_share",
             response_model=AppShareResponse,
             status_code=status.HTTP_200_OK,
         )
@@ -579,35 +566,6 @@ class MountsRouter:
         )
         token = shares.link_token(
             project_id=project_id, mount_id=mount_id, path=body.path, share=share
-        )
-        return AppShareResponse(count=1, share=share_state(share, token=token))
-
-    @intercept_exceptions()
-    @handle_app_share_exceptions()
-    @handle_mount_exceptions()
-    async def restore_app_share(
-        self,
-        request: Request,
-        mount_id: UUID,
-        *,
-        body: AppShareRestoreRequest,
-    ) -> AppShareResponse:
-        await self._check_share_editor(request)
-        project_id = UUID(request.state.project_id)
-        shares = self._shares()
-        share = await shares.restore(
-            project_id=project_id,
-            user_id=UUID(str(request.state.user_id)),
-            mount_id=mount_id,
-            path=body.path,
-            version=body.version,
-        )
-        token = (
-            shares.link_token(
-                project_id=project_id, mount_id=mount_id, path=body.path, share=share
-            )
-            if share.enabled
-            else None
         )
         return AppShareResponse(count=1, share=share_state(share, token=token))
 

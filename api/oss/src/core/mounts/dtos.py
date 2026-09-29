@@ -12,13 +12,6 @@ from oss.src.core.shared.dtos import (
 )
 
 
-class AppShareVersion(BaseModel):
-    version: int
-    created_at: datetime
-    created_by_id: UUID
-    restored_from: Optional[int] = None
-
-
 class AppShare(BaseModel):
     """One app's share settings, keyed by the app path in `MountData.shares`."""
 
@@ -26,8 +19,8 @@ class AppShare(BaseModel):
     visibility: Literal["workspace", "link"]
     # Revocation material: a new nonce makes every earlier link fail.
     nonce: str
+    # The live manifest, `v<latest>.json`. Publish writes the next one, then moves this.
     latest: int
-    versions: List[AppShareVersion] = Field(default_factory=list)
     created_by_id: UUID
     created_at: datetime
     updated_at: datetime

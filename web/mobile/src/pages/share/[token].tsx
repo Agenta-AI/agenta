@@ -6,7 +6,6 @@ import {SharedAppScreen} from "@/features/share/SharedAppScreen"
 export default function SharedApp() {
     const router = useRouter()
     const token = typeof router.query.token === "string" ? router.query.token : ""
-    const v = typeof router.query.v === "string" ? Number.parseInt(router.query.v, 10) : NaN
     if (!router.isReady) return null
-    return <SharedAppScreen token={token} version={Number.isFinite(v) && v > 0 ? v : null} />
+    return <SharedAppScreen token={token} />
 }

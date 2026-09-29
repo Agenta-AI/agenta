@@ -1,9 +1,9 @@
 """Sharing agent HTML apps: publish a frozen snapshot of an app folder behind a share link.
 
-A share lives in `mounts.data.shares[<app path>]` (settings, versions) plus objects under the
-drive's share prefix (content-addressed blobs and one manifest per version). Publishing writes
-blobs first, then the manifest, and moves the `latest` pointer last, so a failed publish never
-exposes a partial version. Every change to a share entry runs under the drive row's lock.
+A share lives in `mounts.data.shares[<app path>]` (settings, the live manifest) plus objects
+under the drive's share prefix (content-addressed blobs and one manifest per publish). Publishing
+writes blobs first, then the next manifest, and moves the `latest` pointer last, so a failed
+publish never exposes a partial snapshot. Every change to a share entry runs under the drive row's lock.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from oss.src.core.apps.share_capture import (
     fetch_external,
 )
 from oss.src.core.apps.share_dtos import ShareFileEntry, ShareIssue, ShareManifest
-from oss.src.core.mounts.dtos import AppShare, AppShareVersion, Mount
+from oss.src.core.mounts.dtos import AppShare, Mount
 from oss.src.core.mounts.service import MountsService, validate_file_path
 from oss.src.core.mounts.types import MountPathInvalid
 from oss.src.core.store.storage import ObjectStore
@@ -72,7 +72,6 @@ class SharedAppSnapshot:
     mount: Mount
     app_path: str
     share: AppShare
-    version: int
     manifest: ShareManifest
 
 
@@ -185,6 +184,15 @@ class AppSharesService:
                 )
 
         return dict(await asyncio.gather(*(put(k, c) for k, c in contents.items())))
+
+    async def _delete_share_objects(self, *, project_id: UUID, mount_id: UUID) -> None:
+        store, bucket = self._require_store()
+        await store.delete_prefix(
+            bucket=bucket,
+            prefix=self.mounts_service.share_storage_key(
+                project_id=project_id, mount_id=mount_id
+            ),
+        )
 
     # ---------------------------------------------------------------------------------------
     # Owner side
@@ -358,7 +366,12 @@ class AppSharesService:
 
         now = _now()
 
-        async def mutate(_mount: Mount, current: Optional[AppShare]) -> AppShare:
+        async def mutate(locked: Mount, current: Optional[AppShare]) -> AppShare:
+            # The capture took a while: the session may have been archived since the first check.
+            if locked.deleted_at is not None:
+                raise AppShareError(
+                    "session_archived", "This session is archived. Unarchive it to share its apps."
+                )
             version = (current.latest + 1) if current else 1
             await self._write_manifest(
                 project_id=project_id,
@@ -377,14 +390,12 @@ class AppSharesService:
                     warnings=captured.warnings,
                 ),
             )
-            entry = AppShareVersion(version=version, created_at=now, created_by_id=user_id)
             if current is None:
                 return AppShare(
                     enabled=True,
                     visibility=visibility or "workspace",
                     nonce=secrets.token_urlsafe(16),
                     latest=version,
-                    versions=[entry],
                     created_by_id=user_id,
                     created_at=now,
                     updated_at=now,
@@ -396,7 +407,6 @@ class AppSharesService:
                     "enabled": True,
                     "visibility": visibility or current.visibility,
                     "latest": version,
-                    "versions": [*current.versions, entry],
                     "updated_at": now,
                 }
             )
@@ -405,6 +415,9 @@ class AppSharesService:
             project_id=project_id, mount_id=mount.id, path=app_path, mutate=mutate
         )
         if share is None:
+            # The session was deleted during the capture, after its share objects were removed:
+            # remove what this publish wrote there too.
+            await self._delete_share_objects(project_id=project_id, mount_id=mount.id)
             raise AppShareError("not_found", "Drive not found.")
         return PublishResult(
             share=share,
@@ -414,66 +427,6 @@ class AppSharesService:
             external_failed=captured.failed,
             warnings=captured.warnings,
         )
-
-    async def restore(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        mount_id: UUID,
-        path: str,
-        version: int,
-    ) -> AppShare:
-        app_path = _app_path(path)
-        mount = await self._shareable_mount(project_id=project_id, mount_id=mount_id)
-        source = await self._read_manifest(
-            project_id=project_id, mount_id=mount.id, app_path=app_path, version=version
-        )
-        if source is None:
-            raise AppShareError("version_not_found", f"Version {version} does not exist.")
-        now = _now()
-
-        async def mutate(_mount: Mount, current: Optional[AppShare]) -> AppShare:
-            if current is None:
-                raise AppShareError("share_not_found", "This app is not shared.")
-            if version not in {v.version for v in current.versions}:
-                raise AppShareError("version_not_found", f"Version {version} does not exist.")
-            next_version = current.latest + 1
-            await self._write_manifest(
-                project_id=project_id,
-                mount_id=mount.id,
-                app_path=app_path,
-                manifest=source.model_copy(
-                    update={
-                        "version": next_version,
-                        "created_at": now,
-                        "created_by_id": user_id,
-                        "restored_from": version,
-                    }
-                ),
-            )
-            return current.model_copy(
-                update={
-                    "latest": next_version,
-                    "versions": [
-                        *current.versions,
-                        AppShareVersion(
-                            version=next_version,
-                            created_at=now,
-                            created_by_id=user_id,
-                            restored_from=version,
-                        ),
-                    ],
-                    "updated_at": now,
-                }
-            )
-
-        share = await self.mounts_service.update_app_share(
-            project_id=project_id, mount_id=mount.id, path=app_path, mutate=mutate
-        )
-        if share is None:
-            raise AppShareError("not_found", "Drive not found.")
-        return share
 
     async def edit(
         self,
@@ -519,9 +472,7 @@ class AppSharesService:
     # Viewer side
     # ---------------------------------------------------------------------------------------
 
-    async def open_shared_app(
-        self, *, token: str, version: Optional[int] = None
-    ) -> SharedAppSnapshot:
+    async def open_shared_app(self, *, token: str) -> SharedAppSnapshot:
         """Check the token, the drive, and the share. The caller checks who the viewer is."""
         try:
             claims = share_token.parse(token)
@@ -547,25 +498,19 @@ class AppSharesService:
         ):
             raise AppShareError("share_not_found", "This link does not work.")
 
-        shown = version if version is not None else share.latest
-        manifest = (
-            await self._read_manifest(
-                project_id=claims.project_id,
-                mount_id=mount.id,
-                app_path=claims.app_path,
-                version=shown,
-            )
-            if shown in {v.version for v in share.versions}
-            else None
+        manifest = await self._read_manifest(
+            project_id=claims.project_id,
+            mount_id=mount.id,
+            app_path=claims.app_path,
+            version=share.latest,
         )
         if manifest is None:
-            raise AppShareError("version_not_found", f"Version {shown} does not exist.")
+            raise AppShareError("share_unavailable", "This app could not be loaded.")
         return SharedAppSnapshot(
             project_id=claims.project_id,
             mount=mount,
             app_path=claims.app_path,
             share=share,
-            version=shown,
             manifest=manifest,
         )
 

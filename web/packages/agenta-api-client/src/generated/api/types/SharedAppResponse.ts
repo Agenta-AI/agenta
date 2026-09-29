@@ -3,15 +3,12 @@
 import type * as AgentaApi from "../index.js";
 
 /**
- * One version of a shared app, content included: one request and one access check.
+ * A shared app, content included: one request and one access check.
  */
 export interface SharedAppResponse {
     name: string;
     entry: string;
     kit?: boolean | undefined;
-    version: number;
-    latest: number;
-    versions: number[];
     visibility: SharedAppResponse.Visibility;
     author_name?: (string | null) | undefined;
     viewer: AgentaApi.SharedAppViewer;

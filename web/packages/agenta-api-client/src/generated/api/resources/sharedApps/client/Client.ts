@@ -44,10 +44,7 @@ export class SharedAppsClient {
         request: AgentaApi.FetchSharedAppRequest,
         requestOptions?: SharedAppsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SharedAppResponse>> {
-        const { token, v } = request;
-        const _queryParams: Record<string, unknown> = {
-            v,
-        };
+        const { token } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -63,7 +60,7 @@ export class SharedAppsClient {
             ),
             method: "GET",
             headers: _headers,
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            queryParameters: requestOptions?.queryParams,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,

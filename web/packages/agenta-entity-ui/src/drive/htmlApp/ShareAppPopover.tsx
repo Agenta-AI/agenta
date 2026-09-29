@@ -1,12 +1,11 @@
 /** The Share button and its popover: who can open the app, the link, and stop sharing. */
-import {useCallback, useState, type ReactNode} from "react"
+import {useCallback, useContext, useState, type ReactNode} from "react"
 
 import {
     appShareQueryFamily,
     appShareQueryKey,
     editAppShare,
     publishAppShare,
-    sharePagePath,
     stopAppShare,
     type AppShareIssue,
     type AppShareResult,
@@ -30,18 +29,13 @@ import {
 import {Check, Copy, Globe, UsersThree} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {HtmlAppEnvContext} from "./htmlAppEnv"
 import {useMountAssembleIo} from "./mountIo"
 import {useAppManifest} from "./useAppManifest"
 
 /** A session's working drive: the only place an app can be shared from. */
 export const isShareableMount = (mount: Mount | null | undefined): mount is Mount =>
     Boolean(mount?.session_id && mount.name === "cwd")
-
-/** The full link for a share token. The app is served under `/m`. */
-export const shareUrl = (token: string): string =>
-    typeof window === "undefined"
-        ? `/m${sharePagePath(token)}`
-        : new URL(`/m${sharePagePath(token)}`, window.location.origin).toString()
 
 const VISIBILITY: Record<ShareVisibility, {label: string; hint: string; icon: ReactNode}> = {
     workspace: {
@@ -65,7 +59,7 @@ const errorText = (error: unknown): string =>
     error instanceof Error ? error.message : "Something went wrong. Try again."
 
 interface ShareTarget {
-    mount: Mount
+    mountId: string
     /** Mount-relative app folder. */
     dir: string
     projectId: string
@@ -122,13 +116,15 @@ const SharePanel = ({
     appName,
     result,
     loading,
+    shareUrl,
 }: {
     target: ShareTarget
     appName: string
     result: AppShareResult | undefined
     loading: boolean
+    shareUrl: (token: string) => string
 }) => {
-    const {mount, dir, projectId} = target
+    const {mountId, dir, projectId} = target
     const share = result?.share ?? null
     const live = share?.enabled ? share : null
 
@@ -139,14 +135,14 @@ const SharePanel = ({
     const [copied, setCopied] = useState(false)
     const [confirmStop, setConfirmStop] = useState(false)
 
-    const call = {projectId, mountId: mount.id, path: dir}
+    const call = {projectId, mountId, path: dir}
     const run = useCallback(
         async (label: string, action: () => Promise<AppShareResult>) => {
             setBusy(label)
             setError(null)
             try {
                 const next = await action()
-                getHostQueryClient().setQueryData(appShareQueryKey(projectId, mount.id, dir), next)
+                getHostQueryClient().setQueryData(appShareQueryKey(projectId, mountId, dir), next)
                 setIssues([...(next.external_failed ?? []), ...(next.warnings ?? [])])
             } catch (e) {
                 setError(errorText(e))
@@ -154,7 +150,7 @@ const SharePanel = ({
                 setBusy(null)
             }
         },
-        [projectId, mount.id, dir],
+        [projectId, mountId, dir],
     )
 
     const visibility = live?.visibility ?? draft
@@ -289,7 +285,8 @@ const SharePanel = ({
 }
 
 export interface ShareAppButtonProps {
-    mount: Mount | null
+    /** A session's working drive (see {@link isShareableMount}); null hides the button. */
+    mountId: string | null
     /** Mount-relative app folder. */
     dir: string
     /** The caller may edit this drive (EDIT_MOUNTS). The server checks it again. */
@@ -305,7 +302,7 @@ export interface ShareAppButtonProps {
 
 /** The Share button, shown only where sharing can work. */
 export function ShareAppButton({
-    mount,
+    mountId,
     dir,
     canEdit,
     appName,
@@ -314,17 +311,18 @@ export function ShareAppButton({
     className,
 }: ShareAppButtonProps) {
     const [open, setOpen] = useState(false)
+    const {sharePageUrl} = useContext(HtmlAppEnvContext)
     const scopedProjectId = useAtomValue(projectIdAtom) ?? ""
     const projectId = projectIdProp ?? scopedProjectId
-    const eligible = canEdit && dir !== "" && isShareableMount(mount) && Boolean(projectId)
-    const io = useMountAssembleIo(eligible && !appName ? (mount?.id ?? null) : null, projectId || null)
+    const eligible = canEdit && dir !== "" && Boolean(mountId && projectId && sharePageUrl)
+    const io = useMountAssembleIo(eligible && !appName ? mountId : null, projectId || null)
     const {manifest} = useAppManifest(io, dir)
     const name = appName ?? manifest?.name
     const query = useAtomValue(
-        appShareQueryFamily({projectId: eligible ? projectId : "", mountId: mount?.id ?? "", path: dir}),
+        appShareQueryFamily({projectId: eligible ? projectId : "", mountId: mountId ?? "", path: dir}),
     )
 
-    if (!eligible || !name || !mount) return null
+    if (!eligible || !name || !mountId || !sharePageUrl) return null
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
@@ -340,10 +338,11 @@ export function ShareAppButton({
             </PopoverTrigger>
             <PopoverContent align="end" sideOffset={8} className="w-[380px] max-w-[calc(100vw-32px)] p-0">
                 <SharePanel
-                    target={{mount, dir, projectId}}
+                    target={{mountId, dir, projectId}}
                     appName={name}
                     result={query.data}
                     loading={query.isPending}
+                    shareUrl={sharePageUrl}
                 />
             </PopoverContent>
         </Popover>

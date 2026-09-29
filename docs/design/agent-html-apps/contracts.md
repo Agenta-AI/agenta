@@ -273,16 +273,16 @@ the agent's tool credential gets 403 `interactive_session_required`.
 
 Owner routes (mounts router, `VIEW_MOUNTS` to read, the rules above to change):
 `GET /mounts/{id}/apps/share?path=`, `POST /mounts/{id}/apps/share/publish`,
-`PATCH /mounts/{id}/apps/share`, `POST /mounts/{id}/apps/share/restore`,
-`DELETE /mounts/{id}/apps/share?path=`. The link token is returned only to a caller who may
-change the share.
+`PATCH /mounts/{id}/apps/share`, `DELETE /mounts/{id}/apps/share?path=`. The link token is
+returned only to a caller who may change the share. A share keeps no history: each publish
+replaces the snapshot the link shows.
 
-Viewer route: `GET /shared/apps/{token}?v=` (public prefix `/shared/apps/`). It checks access
-once and streams one JSON body with the whole version: metadata, `viewer`, `refs`, and every
+Viewer route: `GET /shared/apps/{token}` (public prefixes `/shared/apps/` and
+`/api/shared/apps/`). It checks access once and streams one JSON body with the whole snapshot: metadata, `viewer`, `refs`, and every
 file and captured external file as base64. Headers: `X-Content-Type-Options: nosniff`,
 `Content-Security-Policy: sandbox; default-src 'none'`, `Cache-Control: no-store`. Refusals are
 403 with a `code` (`sign_in_required`, `not_a_member`, or the organization policy error), 404
-(`share_not_found`, `share_unavailable` for an archived session, `version_not_found`), or 503
+(`share_not_found`, or `share_unavailable` for an archived session), or 503
 (`sharing_disabled` on the placeholder crypt key).
 
 Publish follows the reference graph once, on the server, and records every resolved reference
