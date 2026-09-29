@@ -343,16 +343,19 @@ export function buildDaemonEnv(
 
 /**
  * Close the inheritance that `local()` adds: it spawns `{...process.env, ...env}`, so a key the
- * allowlist left out still reaches the harness. Blanking every other runner key makes the child
- * environment equal to `env`, so a platform credential such as AGENTA_API_KEY cannot leak.
- * Local only: Daytona receives `env` as its full `envVars` and inherits nothing.
+ * allowlist left out still reaches the harness. Every other runner key is set to `undefined`,
+ * which `child_process` drops, so the child environment equals `env` and a platform credential
+ * such as AGENTA_API_KEY cannot leak. Unset, not `""`: an empty `SSL_CERT_DIR` or `GIT_*` does
+ * not behave like an absent one. Local only: Daytona receives `env` as its full `envVars`.
  */
 export function closeInheritedEnv(
   env: Record<string, string>,
   inherited: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
+  const closed: Record<string, string | undefined> = { ...env };
   for (const key of Object.keys(inherited)) {
-    if (!(key in env)) env[key] = "";
+    if (!(key in env)) closed[key] = undefined;
   }
-  return env;
+  // `local()` types its env as strings; `child_process` accepts and skips `undefined`.
+  return closed as Record<string, string>;
 }

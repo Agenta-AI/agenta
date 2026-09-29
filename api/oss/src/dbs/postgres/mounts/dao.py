@@ -97,12 +97,24 @@ class MountsDAO(MountsDAOInterface):
         stmt = stmt.on_conflict_do_update(
             constraint="uq_mounts_project_id_slug",
             set_=set_,
+            # Without `reactivate`, an archived row is read-only: leave it untouched.
+            where=None if reactivate else MountDBE.deleted_at.is_(None),
         ).returning(MountDBE)
 
         async with self.engine.session() as session:
             result = await session.execute(stmt)
             await session.commit()
             mount_dbe = result.scalars().first()
+            if mount_dbe is None:
+                # The conflict hit an archived row, which the update skipped: return it as is.
+                mount_dbe = (
+                    await session.execute(
+                        select(MountDBE).where(
+                            MountDBE.project_id == project_id,
+                            MountDBE.slug == mount_create.slug,
+                        )
+                    )
+                ).scalar_one()
 
         return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
 

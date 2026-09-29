@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+
 import { describe, expect, it } from "vitest";
 
 import { buildDaemonEnv, closeInheritedEnv } from "../../src/engines/sandbox_agent/daemon.ts";
@@ -16,9 +18,17 @@ describe("closeInheritedEnv", () => {
     const env = closeInheritedEnv({ PATH: "/adapters:/usr/bin", HOME: "/home/runner" }, runnerEnv);
     const spawned = { ...runnerEnv, ...env };
 
-    expect(spawned.AGENTA_API_KEY).toBe("");
-    expect(spawned.AGENTA_RUNNER_TOKEN).toBe("");
-    expect(spawned.ANTHROPIC_API_KEY).toBe("");
+    expect(spawned.AGENTA_API_KEY).toBeUndefined();
+    expect(spawned.AGENTA_RUNNER_TOKEN).toBeUndefined();
+    expect(spawned.ANTHROPIC_API_KEY).toBeUndefined();
+  });
+
+  it("unsets an inherited key in the child instead of leaving it empty", () => {
+    const env = closeInheritedEnv({ PATH: process.env.PATH ?? "" }, { SSL_CERT_DIR: "/etc/ssl" });
+    const child = spawnSync("sh", ["-c", "echo ${SSL_CERT_DIR-unset}"], {
+      env: { ...process.env, SSL_CERT_DIR: "/etc/ssl", ...env },
+    });
+    expect(child.stdout.toString().trim()).toBe("unset");
   });
 
   it("keeps every key the run set", () => {
