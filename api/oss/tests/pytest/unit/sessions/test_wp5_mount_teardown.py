@@ -2,9 +2,9 @@
 
 Unit-level: fakes MountsDAOInterface + ObjectStore so the orchestration (which
 DAO calls happen, which store prefixes get torn down) is pinned without a real
-DB or store. delete_session_mounts must call ObjectStore.delete_prefix once per
-deleted mount, using the same `_storage_key` prefix the mount's own file ops
-use. archive/unarchive_session_mounts must only touch mount rows (soft), never
+DB or store. delete_session_mounts must call ObjectStore.delete_prefix for each
+deleted mount's drive prefix (the `_storage_key` its file ops use) and its share
+prefix. archive/unarchive_session_mounts must only touch mount rows (soft), never
 the store.
 """
 
@@ -140,10 +140,11 @@ async def test_delete_session_mounts_deletes_rows_and_object_store_prefixes():
 
     assert deleted == [mount]
     assert dao.deleted_session_ids == [_SESSION]
-    assert len(store.delete_prefix_calls) == 1
-    call = store.delete_prefix_calls[0]
-    assert call["bucket"] == _BUCKET
-    assert call["prefix"] == f"mounts/{_PROJECT}/{mount.id}/"
+    assert {call["bucket"] for call in store.delete_prefix_calls} == {_BUCKET}
+    assert [call["prefix"] for call in store.delete_prefix_calls] == [
+        f"mounts/{_PROJECT}/{mount.id}/",
+        f"shares/{_PROJECT}/{mount.id}/",
+    ]
 
 
 @pytest.mark.asyncio
@@ -156,7 +157,7 @@ async def test_delete_session_mounts_tears_down_every_bound_mount():
     deleted = await svc.delete_session_mounts(project_id=_PROJECT, session_id=_SESSION)
 
     assert {m.id for m in deleted} == {mount_a.id, mount_b.id}
-    assert len(store.delete_prefix_calls) == 2
+    assert len(store.delete_prefix_calls) == 4
     # the untouched session's mount survives
     assert other.id in dao.mounts
 
@@ -240,4 +241,5 @@ async def test_delete_session_mounts_keeps_rows_when_the_store_fails_and_a_retry
     await svc.delete_session_mounts(project_id=_PROJECT, session_id=_SESSION)
 
     assert dao.mounts == {}
-    assert len(store.delete_prefix_calls) == 2
+    # The failed first call, then both prefixes on the retry.
+    assert len(store.delete_prefix_calls) == 3

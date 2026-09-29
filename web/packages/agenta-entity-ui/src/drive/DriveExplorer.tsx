@@ -3,7 +3,15 @@
  * (folder grid / list, the editors, or a preview). Its own module so hosts `next/dynamic`-import
  * it. A composition root: every concern lives in a sibling hook.
  */
-import {type KeyboardEvent, type ReactNode, useCallback, useContext, useMemo, useRef, useState} from "react"
+import {
+    type KeyboardEvent,
+    type ReactNode,
+    useCallback,
+    useContext,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {looksLikeFilePath} from "@agenta/entities/drive"
 import {type DriveId, type DriveScope} from "@agenta/entities/drive"

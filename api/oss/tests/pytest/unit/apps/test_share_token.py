@@ -6,7 +6,12 @@ import pytest
 
 from oss.src.core.apps import share_token
 from oss.src.core.apps.scope_token import mint as mint_scope
-from oss.src.core.apps.share_token import ShareTokenInvalid, SharingDisabled, mint, parse
+from oss.src.core.apps.share_token import (
+    ShareTokenInvalid,
+    SharingDisabled,
+    mint,
+    parse,
+)
 
 PROJECT = uuid4()
 MOUNT = uuid4()
@@ -40,7 +45,9 @@ def test_rejects_a_tampered_token():
 
 
 def test_rejects_a_scope_token():
-    scope, _ = mint_scope(project_id=PROJECT, mount_id=MOUNT, prefix="apps/board", level="read")
+    scope, _ = mint_scope(
+        project_id=PROJECT, mount_id=MOUNT, prefix="apps/board", level="read"
+    )
     with pytest.raises(ShareTokenInvalid):
         parse(scope)
 

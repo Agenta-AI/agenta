@@ -19,7 +19,11 @@ from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.apps import share_token
-from oss.src.core.apps.service import APP_MANIFEST_FILENAME, AppsError, validate_manifest
+from oss.src.core.apps.service import (
+    APP_MANIFEST_FILENAME,
+    AppsError,
+    validate_manifest,
+)
 from oss.src.core.apps.share_capture import (
     Fetcher,
     LocalFile,
@@ -87,7 +91,9 @@ def _content_type(path: str) -> str:
 def _app_path(path: str) -> str:
     clean = (path or "").strip().strip("/")
     if not clean:
-        raise AppShareError("not_shareable", "The drive root is not an app. Share an app folder.")
+        raise AppShareError(
+            "not_shareable", "The drive root is not an app. Share an app folder."
+        )
     try:
         validate_file_path(clean)
     except MountPathInvalid as exc:
@@ -115,7 +121,9 @@ class AppSharesService:
 
     def _require_store(self) -> Tuple[ObjectStore, str]:
         if self.store is None or not self.bucket:
-            raise AppShareError("storage_unavailable", "File storage is not configured.")
+            raise AppShareError(
+                "storage_unavailable", "File storage is not configured."
+            )
         return self.store, self.bucket
 
     def _blob_key(self, *, project_id: UUID, mount_id: UUID, sha256: str) -> str:
@@ -132,7 +140,9 @@ class AppSharesService:
             path=f"apps/{app_path}/v{version}.json",
         )
 
-    async def _put_blob(self, *, project_id: UUID, mount_id: UUID, content: bytes) -> str:
+    async def _put_blob(
+        self, *, project_id: UUID, mount_id: UUID, content: bytes
+    ) -> str:
         store, bucket = self._require_store()
         sha256 = hashlib.sha256(content).hexdigest()
         await store.put_object_if_absent(
@@ -157,7 +167,12 @@ class AppSharesService:
             return None
 
     async def _write_manifest(
-        self, *, project_id: UUID, mount_id: UUID, app_path: str, manifest: ShareManifest
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        app_path: str,
+        manifest: ShareManifest,
     ) -> None:
         store, bucket = self._require_store()
         await store.put_object(
@@ -210,7 +225,8 @@ class AppSharesService:
             )
         if mount.deleted_at is not None:
             raise AppShareError(
-                "session_archived", "This session is archived. Unarchive it to share its apps."
+                "session_archived",
+                "This session is archived. Unarchive it to share its apps.",
             )
         return mount
 
@@ -225,7 +241,9 @@ class AppSharesService:
             raise AppShareError("not_found", "Drive not found.")
         return mount.data.shares.get(app_path)
 
-    def link_token(self, *, project_id: UUID, mount_id: UUID, path: str, share: AppShare) -> str:
+    def link_token(
+        self, *, project_id: UUID, mount_id: UUID, path: str, share: AppShare
+    ) -> str:
         try:
             return share_token.mint(
                 project_id=project_id,
@@ -285,7 +303,7 @@ class AppSharesService:
             if (entry.size or 0) > MAX_FILE_BYTES:
                 raise AppShareError(
                     "too_large",
-                    f"{entry.path[len(prefix):]} is over the 5 MB limit for one file.",
+                    f"{entry.path[len(prefix) :]} is over the 5 MB limit for one file.",
                     details={"limit": "file_size", "max": MAX_FILE_BYTES},
                 )
         if sum(entry.size or 0 for entry in entries) > MAX_TOTAL_BYTES:
@@ -369,7 +387,8 @@ class AppSharesService:
             # The capture took a while: the session may have been archived since the first check.
             if locked.deleted_at is not None:
                 raise AppShareError(
-                    "session_archived", "This session is archived. Unarchive it to share its apps."
+                    "session_archived",
+                    "This session is archived. Unarchive it to share its apps.",
                 )
             version = (current.latest + 1) if current else 1
             await self._write_manifest(
@@ -402,7 +421,9 @@ class AppSharesService:
             return current.model_copy(
                 update={
                     # Sharing again after a stop mints a new link; the old one stays dead.
-                    "nonce": current.nonce if current.enabled else secrets.token_urlsafe(16),
+                    "nonce": current.nonce
+                    if current.enabled
+                    else secrets.token_urlsafe(16),
                     "enabled": True,
                     "visibility": visibility or current.visibility,
                     "latest": version,
@@ -441,7 +462,9 @@ class AppSharesService:
         async def mutate(_mount: Mount, current: Optional[AppShare]) -> AppShare:
             if current is None or not current.enabled:
                 raise AppShareError("share_not_found", "This app is not shared.")
-            return current.model_copy(update={"visibility": visibility, "updated_at": _now()})
+            return current.model_copy(
+                update={"visibility": visibility, "updated_at": _now()}
+            )
 
         share = await self.mounts_service.update_app_share(
             project_id=project_id, mount_id=mount.id, path=app_path, mutate=mutate
@@ -450,7 +473,9 @@ class AppSharesService:
             raise AppShareError("not_found", "Drive not found.")
         return share
 
-    async def stop(self, *, project_id: UUID, mount_id: UUID, path: str) -> Optional[AppShare]:
+    async def stop(
+        self, *, project_id: UUID, mount_id: UUID, path: str
+    ) -> Optional[AppShare]:
         app_path = _app_path(path)
         mount = await self.mounts_service.fetch_mount_for_share(
             project_id=project_id, mount_id=mount_id
@@ -458,7 +483,9 @@ class AppSharesService:
         if mount is None:
             raise AppShareError("not_found", "Drive not found.")
 
-        async def mutate(_mount: Mount, current: Optional[AppShare]) -> Optional[AppShare]:
+        async def mutate(
+            _mount: Mount, current: Optional[AppShare]
+        ) -> Optional[AppShare]:
             if current is None:
                 return None
             return current.model_copy(update={"enabled": False, "updated_at": _now()})
@@ -476,7 +503,9 @@ class AppSharesService:
         try:
             claims = share_token.parse(token)
         except share_token.SharingDisabled as exc:
-            raise AppShareError("sharing_disabled", "Sharing is not available.") from exc
+            raise AppShareError(
+                "sharing_disabled", "Sharing is not available."
+            ) from exc
         except share_token.ShareTokenInvalid as exc:
             raise AppShareError("share_not_found", "This link does not work.") from exc
 
@@ -487,7 +516,8 @@ class AppSharesService:
             raise AppShareError("share_not_found", "This link does not work.")
         if mount.deleted_at is not None:
             raise AppShareError(
-                "share_unavailable", "This app is paused because its session is archived."
+                "share_unavailable",
+                "This app is paused because its session is archived.",
             )
         share = mount.data.shares.get(claims.app_path)
         if (
@@ -518,7 +548,11 @@ class AppSharesService:
     ) -> AsyncIterator[Tuple[str, ShareFileEntry, bytes]]:
         """Each entry of one manifest section with its bytes, read one blob at a time."""
         store, bucket = self._require_store()
-        entries = snapshot.manifest.files if section == "files" else snapshot.manifest.external
+        entries = (
+            snapshot.manifest.files
+            if section == "files"
+            else snapshot.manifest.external
+        )
         for key, entry in entries.items():
             content = await store.get_object(
                 bucket=bucket,

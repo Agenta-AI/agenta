@@ -203,7 +203,9 @@ def handle_app_share_exceptions():
                 return await func(*args, **kwargs)
             except AppShareError as e:
                 raise HTTPException(
-                    status_code=_APP_SHARE_STATUS.get(e.code, status.HTTP_400_BAD_REQUEST),
+                    status_code=_APP_SHARE_STATUS.get(
+                        e.code, status.HTTP_400_BAD_REQUEST
+                    ),
                     detail={"code": e.code, "message": e.message, "details": e.details},
                 ) from e
 
@@ -212,7 +214,9 @@ def handle_app_share_exceptions():
     return decorator
 
 
-def share_state(share: Optional[AppShare], *, token: Optional[str] = None) -> Optional[AppShareState]:
+def share_state(
+    share: Optional[AppShare], *, token: Optional[str] = None
+) -> Optional[AppShareState]:
     if share is None:
         return None
     return AppShareState(
@@ -510,7 +514,9 @@ class MountsRouter:
         await self._check(request, Permission.VIEW_MOUNTS)
         project_id = UUID(request.state.project_id)
         shares = self._shares()
-        share = await shares.fetch_share(project_id=project_id, mount_id=mount_id, path=path)
+        share = await shares.fetch_share(
+            project_id=project_id, mount_id=mount_id, path=path
+        )
         token = None
         if share is not None and share.enabled and await self._may_edit_shares(request):
             token = shares.link_token(
@@ -541,7 +547,9 @@ class MountsRouter:
         return AppShareResponse(
             count=1,
             share=share_state(result.share, token=result.token),
-            external_failed=[AppShareIssue(**item.model_dump()) for item in result.external_failed],
+            external_failed=[
+                AppShareIssue(**item.model_dump()) for item in result.external_failed
+            ],
             warnings=[AppShareIssue(**item.model_dump()) for item in result.warnings],
         )
 
@@ -585,7 +593,9 @@ class MountsRouter:
             mount_id=mount_id,
             path=path,
         )
-        return AppShareResponse(count=0 if share is None else 1, share=share_state(share))
+        return AppShareResponse(
+            count=0 if share is None else 1, share=share_state(share)
+        )
 
     @intercept_exceptions()
     @handle_mount_exceptions()

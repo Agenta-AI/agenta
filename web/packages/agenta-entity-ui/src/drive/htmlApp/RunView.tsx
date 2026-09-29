@@ -297,91 +297,91 @@ export function RunView({
     return (
         <div className={cn("flex min-h-0 flex-1 flex-col text-xs", className)}>
             {statusBar ? (
-            <div
-                data-slot="run-status"
-                className="flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1 text-colorTextSecondary"
-            >
-                <span
-                    aria-hidden
-                    className={cn(
-                        "size-2 shrink-0 rounded-full",
-                        doc == null
-                            ? "bg-colorTextQuaternary"
-                            : stopped
-                              ? "bg-colorError"
-                              : "bg-colorSuccess",
-                    )}
-                />
-                <span className="truncate">
-                    <span className="text-colorText">
-                        {doc == null ? "Starting" : stopped ? "Stopped" : "Running"}
+                <div
+                    data-slot="run-status"
+                    className="flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1 text-colorTextSecondary"
+                >
+                    <span
+                        aria-hidden
+                        className={cn(
+                            "size-2 shrink-0 rounded-full",
+                            doc == null
+                                ? "bg-colorTextQuaternary"
+                                : stopped
+                                  ? "bg-colorError"
+                                  : "bg-colorSuccess",
+                        )}
+                    />
+                    <span className="truncate">
+                        <span className="text-colorText">
+                            {doc == null ? "Starting" : stopped ? "Stopped" : "Running"}
+                        </span>
+                        {" · "}
+                        {GRANT_LABEL[grant]}
+                        {" · "}
+                        <code className="text-[11px]">{dir || "/"}</code>
+                        {pageLabel ? (
+                            <span className="text-colorTextTertiary"> · {pageLabel}</span>
+                        ) : null}
                     </span>
-                    {" · "}
-                    {GRANT_LABEL[grant]}
-                    {" · "}
-                    <code className="text-[11px]">{dir || "/"}</code>
-                    {pageLabel ? (
-                        <span className="text-colorTextTertiary"> · {pageLabel}</span>
-                    ) : null}
-                </span>
 
-                <span className="ml-auto flex items-center gap-1">
-                    {backStack.length > 0 ? (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={goBack}
-                            aria-label="Back to the previous page"
-                            className="h-6 gap-0.5 px-1.5 text-xs"
-                        >
-                            <CaretLeft weight="bold" className="size-3" />
-                            back
-                        </Button>
-                    ) : null}
-
-                    {changedPaths.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={reload}
-                            title={changedPaths.join("\n")}
-                            className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
-                        >
-                            Files changed · Reload
-                        </button>
-                    ) : null}
-
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                    <span className="ml-auto flex items-center gap-1">
+                        {backStack.length > 0 ? (
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                aria-label="Refresh"
-                                className="h-6 gap-1 px-1.5 text-xs"
+                                onClick={goBack}
+                                aria-label="Back to the previous page"
+                                className="h-6 gap-0.5 px-1.5 text-xs"
                             >
-                                <ArrowsClockwise className="size-3" />
-                                Refresh
-                                <CaretDown weight="bold" className="size-2.5 opacity-70" />
+                                <CaretLeft weight="bold" className="size-3" />
+                                back
                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[160px]">
-                            <DropdownMenuItem onSelect={reload}>Reload files</DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                        ) : null}
 
-                    {errors.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={() => setErrorsOpen((v) => !v)}
-                            aria-expanded={errorsOpen}
-                            aria-label={`${errors.length} error${errors.length === 1 ? "" : "s"}`}
-                            className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
-                        >
-                            <Warning weight="fill" className="size-3" />
-                            {errors.length}
-                        </button>
-                    ) : null}
-                </span>
-            </div>
+                        {changedPaths.length > 0 ? (
+                            <button
+                                type="button"
+                                onClick={reload}
+                                title={changedPaths.join("\n")}
+                                className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
+                            >
+                                Files changed · Reload
+                            </button>
+                        ) : null}
+
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    aria-label="Refresh"
+                                    className="h-6 gap-1 px-1.5 text-xs"
+                                >
+                                    <ArrowsClockwise className="size-3" />
+                                    Refresh
+                                    <CaretDown weight="bold" className="size-2.5 opacity-70" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-[160px]">
+                                <DropdownMenuItem onSelect={reload}>Reload files</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {errors.length > 0 ? (
+                            <button
+                                type="button"
+                                onClick={() => setErrorsOpen((v) => !v)}
+                                aria-expanded={errorsOpen}
+                                aria-label={`${errors.length} error${errors.length === 1 ? "" : "s"}`}
+                                className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
+                            >
+                                <Warning weight="fill" className="size-3" />
+                                {errors.length}
+                            </button>
+                        ) : null}
+                    </span>
+                </div>
             ) : null}
 
             {statusBar && errorsOpen && errors.length > 0 ? (

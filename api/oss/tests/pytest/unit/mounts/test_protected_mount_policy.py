@@ -615,6 +615,8 @@ async def test_session_hard_delete_still_includes_protected_mount(mount_context)
     assert {
         f"mounts/{_PROJECT_ID}/{protected.id}/",
         f"mounts/{_PROJECT_ID}/{cwd.id}/",
+        f"shares/{_PROJECT_ID}/{protected.id}/",
+        f"shares/{_PROJECT_ID}/{cwd.id}/",
     } == set(store.deleted_prefixes)
 
 

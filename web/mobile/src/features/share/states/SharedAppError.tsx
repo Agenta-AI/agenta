@@ -47,7 +47,13 @@ const UNAVAILABLE = {
 }
 
 /** Every way a share link can fail, each with the one action that helps. */
-export const SharedAppError = ({error, onRetry}: {error: ShareError | null; onRetry: () => void}) => {
+export const SharedAppError = ({
+    error,
+    onRetry,
+}: {
+    error: ShareError | null
+    onRetry: () => void
+}) => {
     const signIn = useSignInAndReturn()
     const code = error?.code ?? "unavailable"
     const copy = COPY[code] ?? UNAVAILABLE

@@ -92,7 +92,9 @@ const VisibilityOption = ({
         <span
             className={cn(
                 "flex size-8 shrink-0 items-center justify-center rounded-md",
-                selected ? "bg-colorText text-colorBgContainer" : "bg-colorFillSecondary text-colorTextSecondary",
+                selected
+                    ? "bg-colorText text-colorBgContainer"
+                    : "bg-colorFillSecondary text-colorTextSecondary",
             )}
         >
             {VISIBILITY[value].icon}
@@ -156,7 +158,8 @@ const SharePanel = ({
     const visibility = live?.visibility ?? draft
     const choose = (next: ShareVisibility) => {
         if (!live) setDraft(next)
-        else if (next !== live.visibility) void run("visibility", () => editAppShare({...call, visibility: next}))
+        else if (next !== live.visibility)
+            void run("visibility", () => editAppShare({...call, visibility: next}))
     }
     const publish = () =>
         run("publish", () => publishAppShare({...call, visibility: live ? undefined : draft}))
@@ -189,8 +192,14 @@ const SharePanel = ({
                     <div className="h-36 rounded-lg bg-colorFillQuaternary" aria-busy />
                 ) : (
                     <>
-                        <section role="radiogroup" aria-label="Who can open it" className="flex flex-col gap-1.5">
-                            <span className="text-sm font-semibold text-colorText">Who can open it</span>
+                        <section
+                            role="radiogroup"
+                            aria-label="Who can open it"
+                            className="flex flex-col gap-1.5"
+                        >
+                            <span className="text-sm font-semibold text-colorText">
+                                Who can open it
+                            </span>
                             {(Object.keys(VISIBILITY) as ShareVisibility[]).map((value) => (
                                 <VisibilityOption
                                     key={value}
@@ -220,7 +229,11 @@ const SharePanel = ({
                                     title={copied ? "Copied" : "Copy link"}
                                     className="shrink-0"
                                 >
-                                    {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                                    {copied ? (
+                                        <Check className="size-3.5" />
+                                    ) : (
+                                        <Copy className="size-3.5" />
+                                    )}
                                 </Button>
                             </div>
                         ) : null}
@@ -319,7 +332,11 @@ export function ShareAppButton({
     const {manifest} = useAppManifest(io, dir)
     const name = appName ?? manifest?.name
     const query = useAtomValue(
-        appShareQueryFamily({projectId: eligible ? projectId : "", mountId: mountId ?? "", path: dir}),
+        appShareQueryFamily({
+            projectId: eligible ? projectId : "",
+            mountId: mountId ?? "",
+            path: dir,
+        }),
     )
 
     if (!eligible || !name || !mountId || !sharePageUrl) return null
@@ -336,7 +353,11 @@ export function ShareAppButton({
                     Share
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" sideOffset={8} className="w-[380px] max-w-[calc(100vw-32px)] p-0">
+            <PopoverContent
+                align="end"
+                sideOffset={8}
+                className="w-[380px] max-w-[calc(100vw-32px)] p-0"
+            >
                 <SharePanel
                     target={{mountId, dir, projectId}}
                     appName={name}

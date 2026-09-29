@@ -115,7 +115,11 @@ def _service(mounts):
 
 async def _publish(service, mounts, **kw):
     return await service.publish(
-        project_id=PROJECT, user_id=USER, mount_id=mounts.mount.id, path="apps/board", **kw
+        project_id=PROJECT,
+        user_id=USER,
+        mount_id=mounts.mount.id,
+        path="apps/board",
+        **kw,
     )
 
 
@@ -157,11 +161,16 @@ async def test_visibility_changes_keep_the_link():
     service = _service(mounts)
     first = await _publish(service, mounts)
     share = await service.edit(
-        project_id=PROJECT, mount_id=mounts.mount.id, path="apps/board", visibility="link"
+        project_id=PROJECT,
+        mount_id=mounts.mount.id,
+        path="apps/board",
+        visibility="link",
     )
     assert share.visibility == "link"
     assert (
-        service.link_token(project_id=PROJECT, mount_id=mounts.mount.id, path="apps/board", share=share)
+        service.link_token(
+            project_id=PROJECT, mount_id=mounts.mount.id, path="apps/board", share=share
+        )
         == first.token
     )
 
@@ -189,7 +198,9 @@ async def test_an_archived_session_pauses_the_link():
     mounts = FakeMounts(APP)
     service = _service(mounts)
     token = (await _publish(service, mounts)).token
-    mounts.mount = mounts.mount.model_copy(update={"deleted_at": datetime.now(timezone.utc)})
+    mounts.mount = mounts.mount.model_copy(
+        update={"deleted_at": datetime.now(timezone.utc)}
+    )
 
     with pytest.raises(AppShareError) as paused:
         await service.open_shared_app(token=token)
@@ -252,7 +263,9 @@ async def test_a_session_archived_during_publish_gets_no_new_snapshot():
     locked = mounts.update_app_share
 
     async def archive_then_lock(**kw):
-        mounts.mount = mounts.mount.model_copy(update={"deleted_at": datetime.now(timezone.utc)})
+        mounts.mount = mounts.mount.model_copy(
+            update={"deleted_at": datetime.now(timezone.utc)}
+        )
         return await locked(**kw)
 
     mounts.update_app_share = archive_then_lock
@@ -279,10 +292,22 @@ async def test_a_session_deleted_during_publish_leaves_no_share_objects():
 def test_share_settings_never_leave_through_a_drive_response():
     mounts = FakeMounts(APP)
     dumped = mounts.mount.model_copy(
-        update={"data": MountData.model_validate({"shares": {"apps/board": {
-            "enabled": True, "visibility": "link", "nonce": "secret", "latest": 1,
-            "created_by_id": str(USER), "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z",
-        }}})}
+        update={
+            "data": MountData.model_validate(
+                {
+                    "shares": {
+                        "apps/board": {
+                            "enabled": True,
+                            "visibility": "link",
+                            "nonce": "secret",
+                            "latest": 1,
+                            "created_by_id": str(USER),
+                            "created_at": "2026-01-01T00:00:00Z",
+                            "updated_at": "2026-01-01T00:00:00Z",
+                        }
+                    }
+                }
+            )
+        }
     ).model_dump(mode="json")
     assert "shares" not in dumped["data"]

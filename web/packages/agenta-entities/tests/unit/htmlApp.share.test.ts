@@ -32,7 +32,10 @@ const snapshot = {
     ]),
     external: new Map([["https://cdn/a.css", file(".a{}", "text/css")]]),
     refs: {
-        "file:index.html": {"https://cdn/a.css": {url: "https://cdn/a.css"}, "d.json": {file: "data/items.json"}},
+        "file:index.html": {
+            "https://cdn/a.css": {url: "https://cdn/a.css"},
+            "d.json": {file: "data/items.json"},
+        },
         "url:https://cdn/a.css": {"f.woff2": {url: "https://cdn/f.woff2"}},
     },
 }
@@ -40,7 +43,9 @@ const snapshot = {
 describe("resolveSnapshotRef", () => {
     it("answers from the refs of the file the reference is written in", () => {
         expect(resolveSnapshotRef(snapshot, "index.html", "d.json")).toBe("data/items.json")
-        expect(resolveSnapshotRef(snapshot, "https://cdn/a.css", "f.woff2")).toBe("https://cdn/f.woff2")
+        expect(resolveSnapshotRef(snapshot, "https://cdn/a.css", "f.woff2")).toBe(
+            "https://cdn/f.woff2",
+        )
     })
 
     it("drops a reference the server did not record", () => {

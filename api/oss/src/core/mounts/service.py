@@ -469,7 +469,9 @@ class MountsService:
         )
         return f"{base}/{path.lstrip('/')}" if path else f"{base}/"
 
-    def share_storage_key(self, *, project_id: UUID, mount_id: UUID, path: str = "") -> str:
+    def share_storage_key(
+        self, *, project_id: UUID, mount_id: UUID, path: str = ""
+    ) -> str:
         """Key under a drive's share prefix: [<namespace>/]shares/<project_id>/<mount_id>/<path>.
 
         Beside the drive prefix, never under it, so drive listings and sandbox credentials
@@ -528,7 +530,9 @@ class MountsService:
         self, *, project_id: UUID, mount_id: UUID
     ) -> Optional[Mount]:
         """The drive behind a share, archived rows included: an archived one pauses the share."""
-        mount = await self.mounts_dao.fetch_mount(project_id=project_id, mount_id=mount_id)
+        mount = await self.mounts_dao.fetch_mount(
+            project_id=project_id, mount_id=mount_id
+        )
         if mount is None or is_protected_mount(mount):
             return None
         return mount

@@ -48,7 +48,7 @@ def test_html_references_cover_every_kind():
     refs = html_references(
         '<link rel="stylesheet" href="a.css"><script src="b.js"></script>'
         '<img src="c.png"><style>.x{background:url(d.png)}</style>'
-        '<div style="background:url(\'e.png\')"></div>'
+        "<div style=\"background:url('e.png')\"></div>"
     )
     assert refs.stylesheets == ["a.css"]
     assert refs.scripts == ["b.js"]
@@ -126,7 +126,9 @@ async def test_a_refused_address_is_reported_and_dropped_from_refs():
         max_file_bytes=5 * MB,
         fetch=FakeWeb({}, fail=[bad]),
     )
-    assert [(f.url, f.reason) for f in result.failed] == [(bad, "the address is not reachable from the server")]
+    assert [(f.url, f.reason) for f in result.failed] == [
+        (bad, "the address is not reachable from the server")
+    ]
     assert bad not in result.refs.get("file:index.html", {})
 
 
@@ -171,9 +173,15 @@ async def test_a_module_that_imports_urls_is_a_warning():
         max_file_bytes=5 * MB,
         fetch=FakeWeb({}),
     )
-    assert [(w.code, w.path) for w in result.warnings] == [("module_imports_not_captured", "mod.js")]
+    assert [(w.code, w.path) for w in result.warnings] == [
+        ("module_imports_not_captured", "mod.js")
+    ]
 
 
 def test_import_url_forms_are_imports():
-    refs = dict(css_references("@import url(theme.css); @import url('x.css'); .a{background:url(b.png)}"))
+    refs = dict(
+        css_references(
+            "@import url(theme.css); @import url('x.css'); .a{background:url(b.png)}"
+        )
+    )
     assert refs == {"theme.css": True, "x.css": True, "b.png": False}

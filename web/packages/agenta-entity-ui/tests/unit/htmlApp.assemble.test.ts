@@ -611,11 +611,16 @@ describe("one inlining path for local and captured files", () => {
     it("keeps a $ in an imported stylesheet as text", async () => {
         const io: AssembleIo = {
             fetchText: async (k) =>
-                ({"site/main.css": '@import "price.css";', "site/price.css": `.p::before{content:"$'$&"}`})[k] ??
-                null,
+                ({
+                    "site/main.css": '@import "price.css";',
+                    "site/price.css": `.p::before{content:"$'$&"}`,
+                })[k] ?? null,
             fetchDataUri: async () => null,
         }
-        const html = await assemblePreview('<link rel="stylesheet" href="main.css">', {dir: "site", io})
+        const html = await assemblePreview('<link rel="stylesheet" href="main.css">', {
+            dir: "site",
+            io,
+        })
         expect(html).toContain(`.p::before{content:"$'$&"}`)
     })
 

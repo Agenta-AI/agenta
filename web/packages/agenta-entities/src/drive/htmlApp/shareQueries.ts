@@ -2,12 +2,7 @@
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {
-    fetchAppShare,
-    fetchSharedApp,
-    type AppShareResult,
-    type SharedAppSnapshot,
-} from "./share"
+import {fetchAppShare, fetchSharedApp, type AppShareResult, type SharedAppSnapshot} from "./share"
 
 export const appShareQueryKey = (projectId: string, mountId: string, path: string) =>
     ["mounts", "app-share", projectId, mountId, path] as const
@@ -26,15 +21,14 @@ export const appShareQueryFamily = atomFamily(
 )
 
 /** A shared app; `gcTime: 0` so a stopped share stops on the next open. */
-export const sharedAppQueryFamily = atomFamily(
-    (token: string) =>
-        atomWithQuery<SharedAppSnapshot>(() => ({
-            queryKey: ["shared-app", token],
-            queryFn: () => fetchSharedApp({token}),
-            enabled: Boolean(token),
-            staleTime: Infinity,
-            gcTime: 0,
-            retry: false,
-            refetchOnWindowFocus: false,
-        })),
+export const sharedAppQueryFamily = atomFamily((token: string) =>
+    atomWithQuery<SharedAppSnapshot>(() => ({
+        queryKey: ["shared-app", token],
+        queryFn: () => fetchSharedApp({token}),
+        enabled: Boolean(token),
+        staleTime: Infinity,
+        gcTime: 0,
+        retry: false,
+        refetchOnWindowFocus: false,
+    })),
 )

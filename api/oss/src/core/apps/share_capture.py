@@ -188,7 +188,9 @@ async def fetch_external(url: str, max_bytes: int) -> Fetched:
             try:
                 target = await open_egress(current)
             except EgressRefusedError as exc:
-                raise CaptureFailed("the address is not reachable from the server") from exc
+                raise CaptureFailed(
+                    "the address is not reachable from the server"
+                ) from exc
             try:
                 response = await client.send(
                     client.build_request(
@@ -314,7 +316,9 @@ async def capture(
         return url
 
     def warn_module(path: str) -> None:
-        result.warnings.append(ShareIssue(code="module_imports_not_captured", path=path))
+        result.warnings.append(
+            ShareIssue(code="module_imports_not_captured", path=path)
+        )
 
     for path, item in files.items():
         base_dir = posixpath.dirname(path)
@@ -322,11 +326,32 @@ async def capture(
         if _is_html(path):
             refs = html_references(_text(item.content))
             for ref in refs.scripts + refs.images:
-                resolve(entry, ref, base_dir=base_dir, base_url=None, depth=1, stylesheet=False)
+                resolve(
+                    entry,
+                    ref,
+                    base_dir=base_dir,
+                    base_url=None,
+                    depth=1,
+                    stylesheet=False,
+                )
             for ref in refs.stylesheets:
-                resolve(entry, ref, base_dir=base_dir, base_url=None, depth=1, stylesheet=True)
+                resolve(
+                    entry,
+                    ref,
+                    base_dir=base_dir,
+                    base_url=None,
+                    depth=1,
+                    stylesheet=True,
+                )
             for ref, is_import in refs.css:
-                resolve(entry, ref, base_dir=base_dir, base_url=None, depth=1, stylesheet=is_import)
+                resolve(
+                    entry,
+                    ref,
+                    base_dir=base_dir,
+                    base_url=None,
+                    depth=1,
+                    stylesheet=is_import,
+                )
             for ref in refs.module_scripts:
                 local = local_path(ref, base_dir=base_dir)
                 if local is not None:
@@ -338,7 +363,14 @@ async def capture(
                 warn_module(path)
         elif _is_css(path):
             for ref, is_import in css_references(_text(item.content)):
-                resolve(entry, ref, base_dir=base_dir, base_url=None, depth=1, stylesheet=is_import)
+                resolve(
+                    entry,
+                    ref,
+                    base_dir=base_dir,
+                    base_url=None,
+                    depth=1,
+                    stylesheet=is_import,
+                )
 
     used = 0
     index = 0
@@ -365,7 +397,9 @@ async def capture(
                 result.failed.append(ShareIssue(url=url, reason=fetched.reason))
                 continue
             if used + len(fetched.content) > byte_budget:
-                result.failed.append(ShareIssue(url=url, reason="over the 25 MB snapshot limit"))
+                result.failed.append(
+                    ShareIssue(url=url, reason="over the 25 MB snapshot limit")
+                )
                 continue
             used += len(fetched.content)
             result.external[url] = fetched

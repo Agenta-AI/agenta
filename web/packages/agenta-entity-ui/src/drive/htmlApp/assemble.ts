@@ -138,14 +138,15 @@ async function inlineCss(
     opts: InlineOptions,
     depth = 0,
 ): Promise<string> {
-    const imports: Array<{match: string; text: string}> = []
+    const imports: {match: string; text: string}[] = []
     for (const match of css.matchAll(CSS_IMPORT_RE)) {
         const ref = match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5] ?? ""
         const media = match[6]?.trim()
         const key = depth < MAX_CSS_DEPTH ? referenceKey(ref, base, "Stylesheet", io, opts) : null
         if (key === undefined) continue
         const text = key === null ? null : await io.fetchText(key)
-        const inner = key && text != null ? await inlineCss(text, baseOf(key), io, opts, depth + 1) : ""
+        const inner =
+            key && text != null ? await inlineCss(text, baseOf(key), io, opts, depth + 1) : ""
         imports.push({match: match[0], text: media && inner ? `@media ${media}{${inner}}` : inner})
     }
     let out = css
@@ -178,7 +179,13 @@ async function inlineAssets(
     await Promise.all(
         Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]')).map(
             async (link) => {
-                const key = referenceKey(link.getAttribute("href") ?? "", page, "Stylesheet", io, opts)
+                const key = referenceKey(
+                    link.getAttribute("href") ?? "",
+                    page,
+                    "Stylesheet",
+                    io,
+                    opts,
+                )
                 if (key === undefined) return
                 if (key === null) {
                     link.remove()
