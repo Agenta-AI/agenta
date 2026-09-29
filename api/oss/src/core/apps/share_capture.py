@@ -1,18 +1,7 @@
 """Reference discovery and external capture for a shared app's snapshot.
 
-A shared app runs with no network, so publish follows the app's references once and stores what
-they point at. The server is the only place that parses references for a share: what it found is
-written into the manifest's `refs`, and the viewer looks references up there instead of parsing
-again.
-
-Rules (the same table as the design):
-
-- HTML: `<script src>`, `<link rel="stylesheet" href>`, `<img src>`, `<style>` blocks and
-  `style=""` attributes, resolved against the HTML file's folder.
-- CSS, local or captured: `url()` and `@import`, resolved against the stylesheet's own location.
-
-Only `https:` (and protocol-relative) URLs are fetched, each through `open_egress`, following up
-to 3 redirects with every hop checked again.
+Publish follows the app's references once, downloads what is external, and records every resolved
+reference in the manifest's `refs`. The rules are in docs/design/agent-html-apps/contracts.md.
 """
 
 from __future__ import annotations

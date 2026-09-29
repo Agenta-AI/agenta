@@ -197,6 +197,19 @@ async def test_an_archived_session_pauses_the_link():
 
 
 @pytest.mark.asyncio
+async def test_a_missing_manifest_is_a_storage_failure_not_a_pause():
+    mounts = FakeMounts(APP)
+    service = _service(mounts)
+    token = (await _publish(service, mounts)).token
+    for key in [k for k in service.store.objects if k.endswith(".json")]:
+        del service.store.objects[key]
+
+    with pytest.raises(AppShareError) as failed:
+        await service.open_shared_app(token=token)
+    assert failed.value.code == "storage_unavailable"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "mounts, path, code",
     [

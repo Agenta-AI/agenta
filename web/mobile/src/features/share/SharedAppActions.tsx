@@ -2,9 +2,8 @@ import {type SharedAppSnapshot} from "@agenta/entities/drive"
 import {ShareAppButton} from "@agenta/entity-ui/drive"
 import {Button} from "@agenta/ui/ui"
 import Link from "next/link"
-import {useRouter} from "next/router"
 
-import {rememberReturnPath} from "@/lib/context"
+import {useSignInAndReturn} from "@/features/auth/useSignInAndReturn"
 
 import {ViewerAvatar} from "./ViewerAvatar"
 
@@ -21,17 +20,11 @@ export const SharedAppActions = ({
     snapshot: SharedAppSnapshot | null
     user: Viewer | null
 }) => {
-    const router = useRouter()
+    const signIn = useSignInAndReturn()
 
     if (!user) {
         return (
-            <Button
-                size="xs"
-                onClick={() => {
-                    rememberReturnPath(router.asPath)
-                    void router.push("/auth")
-                }}
-            >
+            <Button size="xs" onClick={signIn}>
                 Sign in
             </Button>
         )

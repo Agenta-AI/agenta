@@ -153,7 +153,7 @@ class AppSharesService:
             return ShareManifest.model_validate_json(
                 await store.get_object(bucket=bucket, key=key)
             )
-        except Exception:  # noqa: BLE001 - a missing or unreadable manifest is no version
+        except Exception:  # noqa: BLE001 - the caller reports a missing or unreadable manifest
             return None
 
     async def _write_manifest(
@@ -359,7 +359,6 @@ class AppSharesService:
                 sha256=external_shas[url],
                 size=len(fetched.content),
                 content_type=fetched.content_type,
-                final_url=fetched.final_url,
             )
             for url, fetched in captured.external.items()
         }
@@ -505,7 +504,7 @@ class AppSharesService:
             version=share.latest,
         )
         if manifest is None:
-            raise AppShareError("share_unavailable", "This app could not be loaded.")
+            raise AppShareError("storage_unavailable", "This app could not be loaded.")
         return SharedAppSnapshot(
             project_id=claims.project_id,
             mount=mount,

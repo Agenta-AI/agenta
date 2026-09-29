@@ -2,6 +2,7 @@ import {type PropsWithChildren, useMemo} from "react"
 
 import {sharePagePath} from "@agenta/entities/drive"
 import {HtmlAppEnvContext} from "@agenta/entity-ui/drive"
+import {shareUrl} from "@agenta/sessions/link"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -19,8 +20,7 @@ export const HtmlAppEnvBridge = ({children}: PropsWithChildren) => {
     const env = useMemo(
         () => ({
             canEditMounts,
-            sharePageUrl: (token: string) =>
-                new URL(`${basePath}${sharePagePath(token)}`, window.location.origin).toString(),
+            sharePageUrl: (token: string) => shareUrl(`${basePath}${sharePagePath(token)}`),
         }),
         [canEditMounts, basePath],
     )

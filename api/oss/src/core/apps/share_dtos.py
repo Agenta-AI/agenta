@@ -23,8 +23,6 @@ class ShareFileEntry(BaseModel):
     sha256: str
     size: int
     content_type: str
-    # Captured files only: where the last redirect landed.
-    final_url: Optional[str] = None
 
 
 class ShareManifest(BaseModel):

@@ -24,7 +24,6 @@ const shareStateSchema = z.object({
     updated_at: z.string(),
     token: z.string().nullish(),
 })
-export type AppShareState = z.infer<typeof shareStateSchema>
 
 const shareIssueSchema = z.object({
     code: z.string().nullish(),
@@ -76,12 +75,10 @@ export type SharedAppViewer = z.infer<typeof sharedAppSchema>["viewer"]
 /** A refused share call, with the server's stable `code` (`share_not_found`, `too_large`, …). */
 export class ShareError extends Error {
     readonly code: string
-    readonly status?: number
-    constructor(code: string, message: string, status?: number) {
+    constructor(code: string, message: string) {
         super(message)
         this.name = "ShareError"
         this.code = code
-        if (status !== undefined) this.status = status
     }
 }
 
@@ -89,17 +86,15 @@ const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === "obj
 
 function toShareError(error: unknown): ShareError {
     if (error instanceof ShareError) return error
-    const status = isRecord(error) && typeof error.statusCode === "number" ? error.statusCode : undefined
     const body = isRecord(error) ? error.body : undefined
     const detail = isRecord(body) ? body.detail : undefined
     if (isRecord(detail) && typeof detail.code === "string") {
         const message = typeof detail.message === "string" ? detail.message : detail.code
-        return new ShareError(detail.code, message, status)
+        return new ShareError(detail.code, message)
     }
     return new ShareError(
         "unavailable",
         typeof detail === "string" ? detail : "The share could not be reached.",
-        status,
     )
 }
 

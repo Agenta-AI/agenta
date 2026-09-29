@@ -8,10 +8,9 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "@agenta/ui/ui"
-import {Ban, History, Lock, LogIn, PauseCircle, Unlink, WifiOff, type LucideIcon} from "lucide-react"
-import {useRouter} from "next/router"
+import {Ban, Lock, LogIn, PauseCircle, Unlink, WifiOff, type LucideIcon} from "lucide-react"
 
-import {rememberReturnPath} from "@/lib/context"
+import {useSignInAndReturn} from "@/features/auth/useSignInAndReturn"
 
 const COPY: Record<string, {title: string; description: string; icon: LucideIcon}> = {
     sign_in_required: {
@@ -29,10 +28,10 @@ const COPY: Record<string, {title: string; description: string; icon: LucideIcon
         description: "Its session is archived. It opens again when the owner unarchives it.",
         icon: PauseCircle,
     },
-    version_not_found: {
-        title: "This version does not exist",
-        description: "Open the link without a version to see the latest one.",
-        icon: History,
+    share_not_found: {
+        title: "This link does not work",
+        description: "The app may no longer be shared, or the link is incomplete.",
+        icon: Unlink,
     },
     sharing_disabled: {
         title: "Sharing is not available",
@@ -41,25 +40,17 @@ const COPY: Record<string, {title: string; description: string; icon: LucideIcon
     },
 }
 
-const NOT_FOUND = {
-    title: "This link does not work",
-    description: "The app may no longer be shared, or the link is incomplete.",
-    icon: Unlink,
+const UNAVAILABLE = {
+    title: "The app could not load",
+    description: "Check your connection and try again.",
+    icon: WifiOff,
 }
 
 /** Every way a share link can fail, each with the one action that helps. */
 export const SharedAppError = ({error, onRetry}: {error: ShareError | null; onRetry: () => void}) => {
-    const router = useRouter()
+    const signIn = useSignInAndReturn()
     const code = error?.code ?? "unavailable"
-    const copy =
-        COPY[code] ??
-        (code === "share_not_found"
-            ? NOT_FOUND
-            : {
-                  title: "The app could not load",
-                  description: "Check your connection and try again.",
-                  icon: WifiOff,
-              })
+    const copy = COPY[code] ?? UNAVAILABLE
     const Icon = copy.icon
 
     return (
@@ -73,15 +64,8 @@ export const SharedAppError = ({error, onRetry}: {error: ShareError | null; onRe
             </EmptyHeader>
             <EmptyContent>
                 {code === "sign_in_required" ? (
-                    <Button
-                        onClick={() => {
-                            rememberReturnPath(router.asPath)
-                            void router.push("/auth")
-                        }}
-                    >
-                        Sign in
-                    </Button>
-                ) : code === "unavailable" ? (
+                    <Button onClick={signIn}>Sign in</Button>
+                ) : copy === UNAVAILABLE ? (
                     <Button variant="outline" onClick={onRetry}>
                         Try again
                     </Button>
