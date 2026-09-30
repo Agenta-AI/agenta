@@ -255,6 +255,8 @@ export const pendingSessionInputSchema = z.object({
     policy: z.enum(["queue", "steer"]),
     created_at: z.string().nullish(),
     promoted_execution_id: z.string().nullish(),
+    /** The admitting client's `Idempotency-Key`: the echo id of the send it came from. */
+    idempotency_key: z.string().nullish(),
 })
 
 export const pendingInputResponseSchema = z.object({

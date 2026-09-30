@@ -174,15 +174,18 @@ const Row = ({
                         <PencilSimple size={13} />
                     </Button>
                 ) : null}
-                <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Remove queued message"
-                    className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
-                    onClick={() => onRemove(message.id)}
-                >
-                    <Trash size={13} />
-                </Button>
+                {/* A local row is not on the server yet (sending) or already started. */}
+                {message.source !== "local" ? (
+                    <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Remove queued message"
+                        className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                        onClick={() => onRemove(message.id)}
+                    >
+                        <Trash size={13} />
+                    </Button>
+                ) : null}
             </span>
             {error ? (
                 <span role="alert" className="basis-full pb-1 text-xs text-colorError">

@@ -16,7 +16,6 @@ import {
     McpServerNoticeCard,
     TurnFooter,
 } from "@agenta/chat/components"
-import {useHeldFor} from "@agenta/chat/hooks"
 import {
     endsOnClosedText,
     readableTraceError,
@@ -47,6 +46,7 @@ import {useProviderRecovery} from "./providerRecovery"
 import {RunErrorCallout} from "./RunErrorCallout"
 import {runRetryAction} from "./runRetry"
 import {mobileTurnRowClass} from "./turnRowClass"
+import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
 /** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
 const downloadAttachment = (url: string, name: string) => {
@@ -60,8 +60,6 @@ const downloadAttachment = (url: string, name: string) => {
 }
 
 /** One transcript turn: a user bubble, or an assistant fold, answer, meta line and any run error. */
-/** How long a closed text waits for a following call; it only ever delays while the run is open. */
-const ANSWER_HOLD_MS = 1200
 const ASSISTANT_META: ("tokens" | "cost")[] = ["tokens", "cost"]
 
 const TurnRowInner = ({
@@ -157,21 +155,34 @@ const TurnRowInner = ({
     const errorText = turn.status.showError
         ? (turn.status.errorText ?? "Something went wrong.")
         : traceError
-    // A just-closed text becomes the answer after a beat: a following call lands a commit later.
+    // A closed text is only the answer once the run is over: until then a call can still follow it,
+    // and the model may take many seconds to start that call. A timed hold promoted such asides to
+    // the answer and pulled them back into the fold when the call landed.
     const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
-    // Hold while the run is open anywhere. A turn this client streamed is over the moment its
-    // stream closes, so it never waits on the liveness poll that still says "running".
     const streamedHereRef = useRef(false)
     if (turn.isStreamingTurn) streamedHereRef.current = true
-    const runOpen = turn.isStreamingTurn || (live && !streamedHereRef.current)
-    const closedLongEnough = useHeldFor(trailingClosed && runOpen, ANSWER_HOLD_MS)
+    // `live`, as the fold's header reads it: a send can flip the local stream on and off and then
+    // run on the shared reader, so a closed local stream is not a finished run.
+    const runOpen = live
     const activity = useMemo(
         () =>
             splitTurnActivity(turn.items, {
-                holdClosedText: runOpen && trailingClosed && !closedLongEnough,
+                holdClosedText: runOpen && trailingClosed,
             }),
-        [turn.items, runOpen, trailingClosed, closedLongEnough],
+        [turn.items, runOpen, trailingClosed],
     )
+    // An answer present at mount is history (reload, session open); a later one arrived live.
+    // By message id alone: adoption can shift the answer's index without it being a new answer.
+    const answerKey = activity.answer ? turn.message.id : null
+    const mountAnswerKeyRef = useRef(answerKey)
+    const rowMarkers = turn.isLast
+        ? {
+              [LAST_TURN_ATTR]: turn.isUser ? "user" : "assistant",
+              ...(answerKey !== null && answerKey !== mountAnswerKeyRef.current
+                  ? {[ARRIVED_ANSWER_ATTR]: answerKey}
+                  : {}),
+          }
+        : undefined
     // Browser-fulfilled tools keep their place on the timeline, widget and all.
     const renderClientTool = useCallback(
         (part: ToolUIPart) =>
@@ -328,7 +339,10 @@ const TurnRowInner = ({
     if (turn.hidden) return null
 
     return (
-        <div className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
+        <div
+            className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}
+            {...rowMarkers}
+        >
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}

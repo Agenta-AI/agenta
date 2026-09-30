@@ -153,7 +153,10 @@ describe("useAgentChatQueue", () => {
             "steer",
             expect.anything(),
         )
-        expect(result.current.queued).toHaveLength(0)
+        // A busy-time queued send shows in the dock at once; the steer never does.
+        expect(result.current.queued).toEqual([
+            expect.objectContaining({text: "wait next", source: "local", editable: false}),
+        ])
     })
 
     it("admits Steer while the run is parked on a client tool, before the snapshot says busy", async () => {
