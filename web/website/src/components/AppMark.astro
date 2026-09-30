@@ -86,14 +86,37 @@ const vars = [
   }
   .ag-appstack .ag-appmark:nth-child(1) {
     z-index: 5;
+    --i: 0;
   }
   .ag-appstack .ag-appmark:nth-child(2) {
     z-index: 4;
+    --i: 1;
   }
   .ag-appstack .ag-appmark:nth-child(3) {
     z-index: 3;
+    --i: 2;
   }
   .ag-appstack .ag-appmark:nth-child(4) {
     z-index: 2;
+    --i: 3;
+  }
+  .ag-appstack .ag-appmark:nth-child(5) {
+    --i: 4;
+  }
+  /* Hovering a stack fans its marks out to the right of the first one; the hovered mark lifts. */
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .ag-appstack .ag-appmark {
+      transform-origin: 50% 100%;
+      transform: translate(var(--fan-x, 0), var(--lift, 0)) rotate(var(--fan-r, 0));
+      transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .ag-appstack:hover .ag-appmark {
+      --fan-x: calc(var(--i) * 1px);
+      --fan-r: calc(var(--i) * 3deg);
+    }
+    .ag-appstack .ag-appmark:hover {
+      --lift: -4px;
+      z-index: 6;
+    }
   }
 </style>
