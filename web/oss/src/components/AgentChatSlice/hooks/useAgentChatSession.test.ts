@@ -227,9 +227,6 @@ vi.mock("./useSessionHydration", () => ({
         }
     },
 }))
-vi.mock("./useToolCacheInvalidation", () => ({
-    useToolCacheInvalidation: vi.fn(),
-}))
 
 import {useAgentChatSession} from "./useAgentChatSession"
 

@@ -82,6 +82,7 @@ import {useFirstRunSeed} from "./hooks/useFirstRunSeed"
 import {useOnboardingChat} from "./hooks/useOnboardingChat"
 import {useScrollIntent} from "./hooks/useScrollIntent"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
+import {useToolCacheInvalidation} from "./hooks/useToolCacheInvalidation"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
 import {
@@ -463,6 +464,15 @@ const AgentConversation = ({
             turnDeliverySource === "legacy" || previewMessages.length === 0 ? [] : previewMessages
         return mergePendingSendEchoRows(durableMessages, pendingSendRows, live)
     }, [messages, pendingSendRows, previewMessages, turnDeliverySource])
+
+    // Server-side platform ops (create_schedule, …) stale the client cache with no other signal, so
+    // a settled tool call must drop the trigger lists or the playground's Automations section only
+    // updates on a manual reload (#5781). Scan the RENDERED transcript, not the sender hook's
+    // `messages`: in shared-delivery mode the streamed tool calls arrive on the live-preview reader
+    // (`previewMessages`) and are merged in here — they never reach `useChat`'s own message array,
+    // so wiring this to that array (its original home) silently stopped firing once shared delivery
+    // landed. `transcriptMessages` carries the tool call in both delivery modes.
+    useToolCacheInvalidation({sessionId, messages: transcriptMessages})
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
     // in THIS mount marks the resume as live — a restored approval-requested tail the user answers

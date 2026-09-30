@@ -80,7 +80,6 @@ import {captureTurnRequestAtom} from "../state/turnCaptures"
 
 import {type ScrollIntent} from "./useScrollIntent"
 import {useSessionHydration} from "./useSessionHydration"
-import {useToolCacheInvalidation} from "./useToolCacheInvalidation"
 
 /**
  * The chat stream for one session tab: transport, `useChat`, and every side effect that belongs to
@@ -385,8 +384,9 @@ export const useAgentChatSession = ({
     // own session hook rather than `useAgentConversation`, so it calls the shared detector itself.
     useFileActivityDetector({sessionId, messages})
 
-    // Server-side platform ops (create_schedule, …) stale the client cache with no other signal.
-    useToolCacheInvalidation({sessionId, messages})
+    // Tool-cache invalidation (create_schedule, …) is NOT wired here: in shared-delivery mode the
+    // streamed tool calls arrive on the live-preview reader, never on this hook's `messages`, so it
+    // runs in `AgentConversation` over the merged transcript instead (#5781 regression). See there.
 
     const {
         isHydrating,
