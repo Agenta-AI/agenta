@@ -44,7 +44,7 @@ The snapshot recipe therefore:
   data, and the web, and one headless Chromium installed by Playwright under
   `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and linked as `chromium`. Every section of the
   script asserts its own pin and fails the build otherwise; the pins live at the top of that file;
-- installs `@earendil-works/pi-coding-agent@0.87.1`;
+- installs `@earendil-works/pi-coding-agent@0.99.1`;
 - fails the build unless `pi --version` succeeds;
 - applies the pi-ai provider-cost patch to the copy of pi-ai bundled into the `pi` CLI: Pi's
   OpenAI-completions client keeps OpenRouter's billed `usage.cost` instead of replacing it with

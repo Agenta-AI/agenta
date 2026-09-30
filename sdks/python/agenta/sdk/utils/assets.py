@@ -94,6 +94,7 @@ supported_llm_models = {
         # and then pick nothing in particular. A guard test pins this (see
         # test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers).
         "gpt-6-astra",
+        "gpt-6.1-sol",
         "gpt-6-sol",
         "gpt-6-luna",
         "gpt-5.6-sol",

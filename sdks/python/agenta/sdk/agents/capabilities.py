@@ -76,6 +76,7 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
     # ``openai-codex``, served via ``chatgpt.com/backend-api``); keep it in sync when the pinned
     # Pi version changes its codex model list.
     "openai-codex": [
+        "gpt-6.1-sol",
         "gpt-6-sol",
         "gpt-6-astra",
         "gpt-6-luna",
@@ -153,6 +154,7 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
 PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     "openai": [
         "openai/gpt-6-astra",
+        "openai/gpt-6.1-sol",
         "openai/gpt-6-sol",
         "openai/gpt-6-luna",
         "openai/gpt-5.6-luna",
@@ -187,8 +189,9 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "minimax/MiniMax-M3",
         "minimax/MiniMax-M2.7-highspeed",
     ],
+    # Kimi K2.7 Code left the pi-ai catalog with the 0.99.1 bump; K3 replaced it.
     "together_ai": [
-        "together_ai/moonshotai/Kimi-K2.7-Code",
+        "together_ai/moonshotai/Kimi-K3",
         "together_ai/zai-org/GLM-5.2",
     ],
     "openrouter": [

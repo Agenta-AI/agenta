@@ -78,6 +78,7 @@ class SubscriptionLoginState(str, Enum):
 # version changes its codex model set.
 SUBSCRIPTION_PROVIDER_MODELS = {
     SubscriptionProviderKind.CHATGPT: [
+        "gpt-6.1-sol",
         "gpt-6-astra",
         "gpt-6-sol",
         "gpt-6-luna",

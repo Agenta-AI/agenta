@@ -322,37 +322,42 @@ describe("models newer than the pinned Pi catalog", () => {
     );
   });
 
-  it("registers Sonnet 5.5 from Opus 5.5's request rules at its own price", async () => {
+  // Pi 0.99.1 carries Sonnet 5.5 and GPT-6.1 Sol itself, so the runner registers nothing for
+  // them either (Sonnet 5.5's runner-side entry was dropped with the 0.99.1 bump).
+  it("leaves Sonnet 5.5 and GPT-6.1 Sol to the pinned catalog, which prices them", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);
-    assert.equal(
-      registry.models("anthropic").some((model) => model.id === "claude-sonnet-5-5"),
-      false,
-    );
 
-    const plan = buildPiModelRegistrationPlan(
-      piRequest("anthropic/claude-sonnet-5-5"),
-      registry,
-    );
-    assert.ok(plan);
-    assert.equal(plan.builtinProvider, "anthropic");
-    const [entry] = plan.models;
-    assert.equal(entry?.id, "claude-sonnet-5-5");
-    assert.equal(entry?.reasoning, true);
-    assert.equal(entry?.contextWindow, 1000000);
-    assert.equal(entry?.maxTokens, 128000);
-    assert.deepEqual(entry?.cost, {
+    const sonnet = registry
+      .models("anthropic")
+      .find((model) => model.id === "claude-sonnet-5-5");
+    assert.deepEqual(pickRates(sonnet?.cost), {
       input: 2,
       output: 10,
       cacheRead: 0.2,
       cacheWrite: 2.5,
     });
-    // Sonnet 5.5 rejects a non-default temperature, so the inherited dialect must say so, and it
-    // gets the plain adaptive-thinking request rather than the unverified mid-conversation effort.
-    const compat = entry?.compat as Record<string, unknown> | undefined;
-    assert.equal(compat?.supportsTemperature, false);
-    assert.equal(compat?.forceAdaptiveThinking, true);
-    assert.equal("supportsMidConvoEffort" in (compat ?? {}), false);
+    const sol = registry
+      .models("openai")
+      .find((model) => model.id === "gpt-6.1-sol");
+    assert.deepEqual(pickRates(sol?.cost), {
+      input: 2,
+      output: 10,
+      cacheRead: 0.1,
+      cacheWrite: 2.5,
+    });
+
+    assert.equal(
+      buildPiModelRegistrationPlan(
+        piRequest("anthropic/claude-sonnet-5-5"),
+        registry,
+      ),
+      undefined,
+    );
+    assert.equal(
+      buildPiModelRegistrationPlan(piRequest("openai/gpt-6.1-sol"), registry),
+      undefined,
+    );
   });
 
   it("lists only models the pinned catalog still lacks", async () => {
