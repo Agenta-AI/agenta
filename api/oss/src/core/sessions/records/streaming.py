@@ -30,6 +30,40 @@ MAX_ATTRIBUTES_BYTES = 64 * 1024  # 64 KB per record
 
 _TRUNCATION_MARKER = "…[truncated]"
 
+# Postgres stores neither `text` nor `jsonb` containing U+0000, so a single NUL anywhere in a
+# record body fails the INSERT with `UntranslatableCharacterError` (SQLSTATE 22P05). Record
+# bodies carry arbitrary tool output — a `grep` across a binary file is enough to produce one —
+# and by the time the write fails the record is long past the runner, so the batch can only be
+# redelivered, forever. Strip the character here instead, at the same producer boundary that
+# already bounds the body size. orjson escapes it, so a serialized body can be scanned for the
+# escape before paying for the walk.
+_NUL = "\x00"
+_NUL_ESCAPE = b"\\u0000"
+
+
+def _strip_nul(value):
+    """Drop every U+0000 from a record body, in dict keys as well as string values."""
+    if isinstance(value, str):
+        return value.replace(_NUL, "")
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            clean_key = _strip_nul(key) if isinstance(key, str) else key
+            if clean_key in result and clean_key != key:
+                # Stripping made this key collide with one already kept. The kept entry wins:
+                # a NUL-bearing key must never displace a clean one (``"ty\x00pe"`` overwriting
+                # ``"type"`` would corrupt the discriminator reconstruction relies on). A clean
+                # key reaching here later still overwrites, since ``clean_key == key`` then.
+                continue
+            result[clean_key] = _strip_nul(item)
+        return result
+    if isinstance(value, list):
+        return [_strip_nul(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_strip_nul(item) for item in value)
+    return value
+
+
 RECORD_STREAM_NAME = "streams:records"
 LIVE_FRAME_STREAM_NAME = "streams:session-live-frames"
 _FRAME_TRIM_INTERVAL = 64
@@ -250,11 +284,22 @@ async def publish_record(
         return False
 
     try:
-        # Truncate attributes before publishing so oversized record bodies are
-        # caught at the producer boundary, not after touching the DB.
-        truncated_event = record_event
+        # Sanitize attributes before publishing so an unstorable record body is caught at the
+        # producer boundary, not after touching the DB: oversized bodies are truncated and NULs
+        # are stripped.
+        sanitized_event = record_event
         if record_event.attributes is not None:
-            raw_attributes = dumps(record_event.attributes, default=_orjson_default)
+            attributes = record_event.attributes
+            raw_attributes = dumps(attributes, default=_orjson_default)
+            # Before the size check: stripping shrinks the body, and a NUL that survives to the
+            # DB costs the whole batch (see `_strip_nul`).
+            if _NUL_ESCAPE in raw_attributes:
+                log.warning(
+                    "[RECORDS] Stripped NUL characters from attributes",
+                    session_id=str(record_event.session_id),
+                )
+                attributes = _strip_nul(attributes)
+                raw_attributes = dumps(attributes, default=_orjson_default)
             if len(raw_attributes) > MAX_ATTRIBUTES_BYTES:
                 log.warning(
                     "[RECORDS] Attributes truncated",
@@ -262,19 +307,20 @@ async def publish_record(
                     original_bytes=len(raw_attributes),
                 )
                 # Keep the event shape + partial content so records stay reconstructable.
-                new_attributes = _truncate_attributes(
-                    record_event.attributes,
+                attributes = _truncate_attributes(
+                    attributes,
                     MAX_ATTRIBUTES_BYTES,
                     len(raw_attributes),
                 )
-                truncated_event = record_event.model_copy(
-                    update={"attributes": new_attributes}
+            if attributes is not record_event.attributes:
+                sanitized_event = record_event.model_copy(
+                    update={"attributes": attributes}
                 )
 
         message = {
             "organization_id": str(organization_id) if organization_id else None,
             "project_id": str(project_id),
-            "record_event": truncated_event.model_dump(mode="json"),
+            "record_event": sanitized_event.model_dump(mode="json"),
         }
 
         event_bytes = dumps(message, default=_orjson_default)

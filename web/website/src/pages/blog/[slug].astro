@@ -6,7 +6,13 @@ import PostCard from "../../components/PostCard.astro";
 import InlineCTA from "../../components/InlineCta.astro";
 import BlogImage from "../../components/BlogImage.astro";
 import { getCollection, getEntry, render } from "astro:content";
-import { authorRefs, formatDate, relatedPosts } from "../../lib/blog";
+import LegacyNotice from "../../components/LegacyNotice.astro";
+import {
+  authorRefs,
+  formatDate,
+  isLegacyPost,
+  relatedPosts,
+} from "../../lib/blog";
 
 export const getStaticPaths = (async () => {
   const posts = await getCollection("posts");
@@ -240,6 +246,8 @@ const faqJsonLd = faq?.length
         </div>
       )
     }
+
+    {isLegacyPost(post) && <LegacyNotice />}
 
     <!-- body -->
     <div

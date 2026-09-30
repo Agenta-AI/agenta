@@ -17,7 +17,7 @@ log = get_module_logger(__name__)
 
 # Bare family names that harnesses send as the model id (e.g. Claude Code's "sonnet").
 MODEL_ALIASES: Dict[str, str] = {
-    "sonnet": "claude-sonnet-5",
+    "sonnet": "claude-sonnet-5-5",
     "opus": "claude-opus-5",
     "haiku": "claude-haiku-4-5",
 }
@@ -37,6 +37,19 @@ PRICE_MAP_ADDITIONS: Dict[str, Tuple[str, Dict[str, float]]] = {
             "cache_read_input_token_cost": 2e-07,
             "cache_creation_input_token_cost": 5e-06,
             "cache_creation_input_token_cost_above_1hr": 8e-06,
+        },
+    ),
+    # Anthropic list price: $2 input, $10 output, $0.20 cache read, $2.50 cache write
+    # (5-minute), $4 cache write (1-hour) per million tokens, the same as Sonnet 5.
+    # litellm 1.101.0 (the version this API pins) does not carry it yet.
+    "claude-sonnet-5-5": (
+        "claude-sonnet-5",
+        {
+            "input_cost_per_token": 2e-06,
+            "output_cost_per_token": 1e-05,
+            "cache_read_input_token_cost": 2e-07,
+            "cache_creation_input_token_cost": 2.5e-06,
+            "cache_creation_input_token_cost_above_1hr": 4e-06,
         },
     ),
 }

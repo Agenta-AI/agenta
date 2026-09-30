@@ -5,7 +5,15 @@
 import type { APIRoute, GetStaticPaths } from "astro";
 import { getCollection, getEntry } from "astro:content";
 import { markdownResponse, mdxToMarkdown, page } from "../../lib/markdown";
-import { authorRefs, formatDate } from "../../lib/blog";
+import {
+  authorRefs,
+  formatDate,
+  isLegacyPost,
+  LEGACY_NOTICE_DATE,
+  LEGACY_NOTICE_LINK_HREF,
+  LEGACY_NOTICE_LINK_LABEL,
+  LEGACY_NOTICE_TEXT,
+} from "../../lib/blog";
 
 export const getStaticPaths = (async () => {
   const posts = await getCollection("posts");
@@ -32,12 +40,18 @@ export const GET: APIRoute = async ({ props }) => {
     .map((line) => `- ${line}`)
     .join("\n");
 
+  // Same dated note the HTML page shows on pre-relaunch posts (LegacyNotice),
+  // so agents reading the markdown twin get the current definition of Agenta.
+  const legacyNote = isLegacyPost(post)
+    ? `\n\n> **Update (${LEGACY_NOTICE_DATE}):** ${LEGACY_NOTICE_TEXT} [${LEGACY_NOTICE_LINK_LABEL}](${LEGACY_NOTICE_LINK_HREF}).`
+    : "";
+
   return markdownResponse(
     page({
       title: post.data.title,
       description: post.data.description,
       path: `/blog/${post.id}`,
-      body: `${meta}\n\n${mdxToMarkdown(post.body ?? "")}`,
+      body: `${meta}${legacyNote}\n\n${mdxToMarkdown(post.body ?? "")}`,
     }),
   );
 };

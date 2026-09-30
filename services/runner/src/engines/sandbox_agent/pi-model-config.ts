@@ -185,10 +185,19 @@ interface PiModelAheadOfCatalog {
   withoutCompat?: string[];
 }
 
-// Empty while the pinned Pi catalog carries every model the SDK curates. Pi 0.87.1 added Claude
-// Opus 5.5 and Grok 4.7 at the prices these entries used to supply, so both were dropped.
-export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> =
-  {};
+// Pi 0.87.1 added Claude Opus 5.5 and Grok 4.7 at the prices their entries used to supply, so both
+// were dropped.
+export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> = {
+  // Sonnet 5.5 shares Opus 5.5's request rules rather than Sonnet 5's: a non-default temperature,
+  // top_p, or top_k is a 400, thinking is adaptive and cannot be switched off, 1M context, 128K
+  // output. `supportsMidConvoEffort` makes Pi send `thinking.block_binding` and a pinned effort,
+  // which Sonnet 5.5 has not been verified to accept, so it gets the plain adaptive path.
+  "anthropic/claude-sonnet-5-5": {
+    inheritsFrom: "claude-opus-5-5",
+    cost: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+    withoutCompat: ["supportsMidConvoEffort"],
+  },
+};
 
 function entryAheadOfCatalog(
   provider: string,

@@ -2,8 +2,8 @@
   "schema_version": "1",
   "_curation": {
     "harness": "claude",
-    "note": "Hand-curated. `id` is the stable Claude Code request value (model_selection = alias). label/description/ratings written by a human from the current lineup. The live harness can add or remove context-hinted variants as account access changes, so the catalog uses the stable bare id the runner can widen to a `[1m]` option when available. Current lineup: Claude Fable 5.1 is the frontier, Claude Opus 5.5 is the recommended default one tier below it. The pinned Claude Code build no longer offers `claude-fable-5` as a selectable model (it offers `claude-fable-5-1`, or `claude-fable-5-1[1m]` on subscription accounts), so Fable 5 is not listed. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest).",
-    "sources": "@anthropic-ai/claude-agent-sdk@0.3.280 accepted set; Anthropic models overview + pricing pages, checked 2026-09-22."
+    "note": "Hand-curated. `id` is the stable Claude Code request value (model_selection = alias). label/description/ratings written by a human from the current lineup. The live harness can add or remove context-hinted variants as account access changes, so the catalog uses the stable bare id the runner can widen to a `[1m]` option when available. Current lineup: Claude Fable 5.1 is the frontier, Claude Opus 5.5 is the recommended default one tier below it, and the `sonnet` alias resolves to Claude Sonnet 5.5 from Claude Code 2.1.284. The pinned Claude Code build no longer offers `claude-fable-5` as a selectable model (it offers `claude-fable-5-1`, or `claude-fable-5-1[1m]` on subscription accounts), so Fable 5 is not listed. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest).",
+    "sources": "@anthropic-ai/claude-agent-sdk@0.3.284 accepted set (sonnet -> claude-sonnet-5-5); Anthropic models overview + pricing pages, checked 2026-09-29."
   },
   "models": [
     {
@@ -25,7 +25,7 @@
       "id": "sonnet",
       "provider": "anthropic",
       "source": "curated",
-      "name": "Claude Sonnet 5",
+      "name": "Claude Sonnet 5.5",
       "pricing": {
         "input_per_mtok": 2.0,
         "output_per_mtok": 10.0,
@@ -38,8 +38,8 @@
         "text",
         "image"
       ],
-      "label": "Sonnet 5",
-      "description": "Balanced speed and capability for everyday agentic work, cheaper than Opus.",
+      "label": "Sonnet 5.5",
+      "description": "The best balance of speed and intelligence for everyday agentic work, cheaper than Opus.",
       "ratings": {
         "cost": 4,
         "intelligence": 3,

@@ -51,6 +51,8 @@ export interface ProjectOrgSwitcherViewProps {
     theme?: SwitcherThemeControl
     /** Rendered beside the trigger on the expanded rail — the desktop's help menu button. */
     trailing?: ReactNode
+    /** Quiet text inside the expanded trigger, before the caret (the app version). */
+    triggerMeta?: ReactNode
     /** Optional rows — absent handlers render nothing, so a shell offers what it supports. */
     onCreateProject?: () => void
     onCreateOrg?: () => void
@@ -152,6 +154,7 @@ export const ProjectOrgSwitcherView = ({
     panelContainer,
     theme,
     trailing,
+    triggerMeta,
     onCreateProject,
     onCreateOrg,
     onOrgSettings,
@@ -319,6 +322,11 @@ export const ProjectOrgSwitcherView = ({
                                 <span className="min-w-0 flex-1 truncate text-left text-[13px] leading-none text-colorText">
                                     {projectLabel}
                                 </span>
+                                {triggerMeta ? (
+                                    <span className="shrink-0 text-[10px] leading-none text-colorTextTertiary">
+                                        {triggerMeta}
+                                    </span>
+                                ) : null}
                                 <CaretUpDown
                                     size={12}
                                     className="shrink-0 text-colorTextSecondary"
