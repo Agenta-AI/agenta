@@ -6,6 +6,8 @@ export interface ReleaseEntry {
     title: string
     description: string
     link?: string
+    /** Cloudflare Stream demo clip for this release (same account as the docs embeds). */
+    streamVideoId?: string
 }
 
 /** Where "View all releases" goes. */
