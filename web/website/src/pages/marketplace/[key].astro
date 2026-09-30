@@ -12,6 +12,7 @@ import AuthorMark from "../../components/AuthorMark.astro";
 import TriggerPill from "../../components/TriggerPill.astro";
 import ExampleOutput from "../../components/ExampleOutput.astro";
 import TemplateMedia from "../../components/TemplateMedia.astro";
+import TemplateCard from "../../components/TemplateCard.astro";
 import {
   USE_IT_FOR_FREE_LABEL,
   templates,
@@ -31,7 +32,6 @@ import {
   renderableMedia,
   requirementsOf,
   setupStepsOf,
-  templatePath,
   toolsOf,
 } from "../../lib/marketplace";
 
@@ -298,6 +298,24 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
     </div>
   </Section>
 
+  {
+    related.length > 0 && (
+      <Section class="ag-tpl-related ag-pad" data-screen-label="Suggested templates">
+        <div class="ag-tpl-related__head">
+          <h2 class="ag-tpl-related__title">Suggested templates</h2>
+          <a class="ag-tpl-related__all" href={categoryPath(template.category)}>
+            More in {template.category} →
+          </a>
+        </div>
+        <div class="ag-tplgrid">
+          {related.map((other) => (
+            <TemplateCard template={other} />
+          ))}
+        </div>
+      </Section>
+    )
+  }
+
   <CtaBand
     title={ctaHeadlineOf(template)}
     body=""
@@ -306,29 +324,6 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
     secondaryLabel=""
   />
 
-  {
-    related.length > 0 && (
-      <Section class="ag-tpl-related ag-pad" data-screen-label="Related">
-        <div class="ag-tpl-related__head">
-          <h2 class="ag-tpl-related__title">More in {template.category}</h2>
-          <a class="ag-tpl-related__all" href={categoryPath(template.category)}>
-            See all →
-          </a>
-        </div>
-        <div class="ag-tpl-related__grid">
-          {related.map((other) => (
-            <a class="ag-tpl-related__card" href={templatePath(other.key)}>
-              <div class="ag-appstack" style="--appmark:28px;">
-                {appsOf(other).slice(0, 3).map((app) => <AppMark app={app} />)}
-              </div>
-              <span class="ag-tpl-related__name">{other.name}</span>
-              <span class="ag-tpl-related__summary">{other.summary}</span>
-            </a>
-          ))}
-        </div>
-      </Section>
-    )
-  }
 
   <script>
     const button = document.querySelector<HTMLButtonElement>("[data-copy-link]");
@@ -812,7 +807,7 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
 
     .ag-tpl-related {
       background: var(--th-bg-1);
-      padding: 72px 64px 88px;
+      padding: 72px 64px 96px;
     }
     .ag-tpl-related__head {
       display: flex;
@@ -823,7 +818,7 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
     }
     .ag-tpl-related__title {
       margin: 0;
-      font: 300 28px/34px var(--font-display);
+      font: var(--text-display-md);
       color: var(--th-text-hi);
     }
     .ag-tpl-related__all {
@@ -834,33 +829,6 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
     }
     .ag-tpl-related__all:hover {
       color: var(--th-text-hi);
-    }
-    .ag-tpl-related__grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 16px;
-    }
-    .ag-tpl-related__card {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      padding: 22px 24px;
-      border-radius: var(--radius-lg);
-      background: var(--th-bg-2);
-      box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
-      text-decoration: none;
-      --stack-ring: var(--th-bg-2);
-    }
-    .ag-tpl-related__card:hover {
-      background: var(--th-hover);
-    }
-    .ag-tpl-related__name {
-      font: var(--text-title);
-      color: var(--th-text-hi);
-    }
-    .ag-tpl-related__summary {
-      font: var(--text-body-sm);
-      color: var(--th-text-body);
     }
 
     @media (max-width: 1199px) {
@@ -932,9 +900,6 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
       }
       .ag-tpl-setup li {
         box-shadow: inset 0 -1px 0 var(--th-border-subtle);
-      }
-      .ag-tpl-related__grid {
-        grid-template-columns: minmax(0, 1fr);
       }
     }
   </style>
