@@ -10,6 +10,13 @@
   background: var(--yellow-400);
 }
 
+/* The marketplace hero background: a dotted grid over a soft vertical wash. */
+.ag-mkt-herobg {
+  background:
+    radial-gradient(circle at 1px 1px, var(--th-border) 1px, transparent 0) 0 0 / 24px 24px,
+    linear-gradient(180deg, var(--th-bg-2) 0%, var(--th-bg-0) 100%);
+}
+
 .ag-mkt-crumb {
   display: flex;
   align-items: center;

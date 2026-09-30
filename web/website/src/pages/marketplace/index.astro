@@ -38,7 +38,7 @@ const featured = templates.filter((template) => template.example);
   title={`${MARKETPLACE_NAME} — Agenta`}
   description="Start from a working agent. Connect your apps, adjust the skills, and let it run. Every template starts in Agenta for free."
 >
-  <Section class="ag-mkt-hero ag-pad" data-screen-label="Index header">
+  <Section class="ag-mkt-hero ag-mkt-herobg ag-pad" data-screen-label="Index header">
     <div class="ag-mkt-hero__copy">
       <h1 class="ag-mkt-hero__title">{MARKETPLACE_NAME}</h1>
       <p class="ag-mkt-hero__sub">
@@ -414,7 +414,6 @@ const featured = templates.filter((template) => template.example);
 
   <style is:global>
     .ag-mkt-hero {
-      background: var(--th-bg-1);
       padding: 88px 64px 96px;
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 620px);

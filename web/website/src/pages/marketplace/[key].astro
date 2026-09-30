@@ -70,7 +70,7 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
   description={template.summary}
   showCta={false}
 >
-  <Section class="ag-tpl-hero ag-pad" data-screen-label="Hero">
+  <Section class="ag-tpl-hero ag-mkt-herobg ag-pad" data-screen-label="Hero">
     <div class="ag-tpl-hero__bar">
       <nav class="ag-mkt-crumb" aria-label="Breadcrumb">
         <a href={MARKETPLACE_PATH}>{MARKETPLACE_NAME}</a>
@@ -346,10 +346,6 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
 
   <style is:global>
     .ag-tpl-hero {
-      /* Dotted grid over a soft vertical wash. */
-      background:
-        radial-gradient(circle at 1px 1px, var(--th-border) 1px, transparent 0) 0 0 / 24px 24px,
-        linear-gradient(180deg, var(--th-bg-2) 0%, var(--th-bg-0) 100%);
       padding: 28px 64px 0;
       overflow: hidden;
     }
