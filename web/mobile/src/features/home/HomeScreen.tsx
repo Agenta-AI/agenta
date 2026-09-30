@@ -126,7 +126,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                             {/* Entering the platform is where "what shipped since you last
                                 looked" belongs — above the work, dismissible, and absent for a
                                 new user (see WhatsNewCard). */}
-                            <WhatsNewCard className={`mb-0 mt-4 ${frame}`} />
+                            <WhatsNewCard />
                             {homeBody}
                         </>
                     ) : (
