@@ -387,9 +387,39 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+    // A secret attach/edit/remove commits a new revision from inside the open drawer. Keep the
+    // drawer open on it: re-snapshot the (clean) draft from the adopted revision instead of closing.
+    const credentialRebaseTarget = useRef<string | null>(null)
+    const rebaseSectionOnCredentialCommit = useCallback((nextRevisionId: string) => {
+        credentialRebaseTarget.current = nextRevisionId
+    }, [])
     useEffect(() => {
-        if (openSection && sectionRevision !== (revisionId ?? "")) closeSectionDraft()
-    }, [revisionId, sectionRevision, openSection, closeSectionDraft])
+        if (!openSection || sectionRevision === (revisionId ?? "")) return
+        const rebase =
+            revisionId !== null &&
+            credentialRebaseTarget.current === revisionId &&
+            !isCurrentSectionDirty()
+        credentialRebaseTarget.current = null
+        if (!rebase) {
+            closeSectionDraft()
+            return
+        }
+        const snapshotConfig = (value ?? {}) as Record<string, unknown>
+        store.set(migrateBuildKitStateAtom, revisionId)
+        const snapshotBuildKit = store.get(workflowBuildKitUiStateAtomFamily(revisionId))
+        setDraftConfig(snapshotConfig)
+        setDraftBuildKit(snapshotBuildKit)
+        setSectionRevision(revisionId)
+        sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
+    }, [
+        revisionId,
+        sectionRevision,
+        openSection,
+        closeSectionDraft,
+        isCurrentSectionDirty,
+        value,
+        store,
+    ])
 
     // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
     // the sibling AgentOperationsSections; this shares the same deduped query).
@@ -1486,7 +1516,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         revisionId={sectionRevision ?? revisionId}
                         buildKitOverride={draftBuildKitOverride}
                         credentialOperationsBlocked={sectionDirty}
-                        onCredentialRevisionCommitted={closeSectionDraft}
+                        onCredentialRevisionCommitted={rebaseSectionOnCredentialCommit}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>

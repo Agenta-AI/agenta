@@ -50,6 +50,28 @@ Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (`local` o
 `daytona`, where supported) are per-run config from the Python service, carried on the
 request's `harness` / `sandbox` fields.
 
+## Output and ingest limits
+
+Each turn admits at most 16 MiB of serialized provider updates and 50,000 updates before
+stopping with `output_limit_exceeded`. Admission happens before tool correlation, pause
+buffers, tracing, record coalescing and live delivery retain the update. The update that
+crosses the limit and later provider updates are rejected. Cleanup can still write the
+terminal error and close accepted message prefixes.
+
+- `AGENTA_RUNNER_OUTPUT_MAX_BYTES`: default `16777216`, range `1024` to `268435456`.
+- `AGENTA_RUNNER_OUTPUT_MAX_EVENTS`: default `50000`, range `1` to `1000000`.
+- `AGENTA_RECORDS_INGEST_TIMEOUT_MS`: default `30000`, range `1000` to `120000` per attempt.
+
+The output budget counts repeated snapshots and metadata, not just new text. It bounds
+admitted output and its downstream backlog, not total heap use or concurrency. A single
+transport frame has already been decoded before admission. Container memory limits and
+restart monitoring remain separate operational safeguards.
+
+Ingest retries reuse a record ID and timestamp, including after an ambiguous timeout.
+If a runner execution is lost, cold replay retains persisted tool results and marks calls
+without results as having unknown outcomes. It must not tell the model to repeat those
+calls. This recovers persisted history only, not bytes lost when the process died.
+
 ## Result
 
 ```json

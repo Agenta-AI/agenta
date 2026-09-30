@@ -114,12 +114,14 @@ const errorForResponse = (error: unknown, file: File): AttachmentUploadError => 
 export async function uploadAttachment({
     file,
     sessionId,
+    projectId,
     idempotencyKey,
     onProgress,
     signal,
 }: {
     file: File
     sessionId: string
+    projectId: string
     idempotencyKey: string
     onProgress?: (percent: number) => void
     signal?: AbortSignal
@@ -133,7 +135,7 @@ export async function uploadAttachment({
         // The explicit header matters: the shared instance defaults to application/json, and
         // axios then JSON-serializes the FormData, collapsing the File to {}.
         const response = await axios.post(`${getAgentaApiUrl()}/sessions/attachments`, form, {
-            params: {session_id: sessionId},
+            params: {session_id: sessionId, project_id: projectId},
             headers: {"Content-Type": "multipart/form-data"},
             signal,
             onUploadProgress: (event) => {

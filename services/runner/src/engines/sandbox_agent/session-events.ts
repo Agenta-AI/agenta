@@ -11,8 +11,8 @@ import type { SessionEnvironment } from "./runtime-contracts.ts";
  * thrown handler would corrupt the event stream, so any error is swallowed and logged.
  *
  * Steps: let the ENOTCONN watcher observe the raw event, extract the update payload (dropping events
- * that carry none), record live tool_call ids for client-tool correlation, then hand the update to
- * the active turn — or, between turns when no turn owns it, log and drop it.
+ * that carry none), then hand the update to the active turn. The turn admits output before
+ * indexing tool calls. Between turns, log and drop updates rather than retaining stray calls.
  */
 function routeSessionEventToActiveTurn(
   environment: SessionEnvironment,
@@ -25,9 +25,6 @@ function routeSessionEventToActiveTurn(
     const payload = event?.payload;
     const update = payload?.params?.update ?? payload?.update;
     if (!update) return;
-    // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's bubble
-    // (session-scoped; a lookup CONSUMES its matched id).
-    environment.toolCallIndex.record(update);
     const turn = environment.currentTurn;
     // Claude's running cost total can land on the SSE stream after the prompt response settled
     // the turn's usage, or after the turn ended. The turn keeps what it reported; the reading
