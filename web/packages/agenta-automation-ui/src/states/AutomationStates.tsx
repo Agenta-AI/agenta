@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {Funnel, Lightning, MagnifyingGlass} from "@phosphor-icons/react"
 
@@ -66,7 +68,7 @@ export const AutomationListNoMatch = ({
  * No button of its own either: "New automation" already sits in the page header, a few hundred
  * pixels above, and the same action twice on one screen reads as two different ones.
  */
-export const AutomationListEmpty = () => (
+export const AutomationListEmpty = ({action}: {action?: ReactNode} = {}) => (
     // Inside the table, under the header row, like {@link AutomationListNoMatch}: the columns
     // are still true, and a project with no automations is a table with no rows rather than a
     // different screen. The header above it is the frame, so this carries no card of its own.
@@ -79,6 +81,9 @@ export const AutomationListEmpty = () => (
             An automation runs one of your agents without you asking — on a schedule, or when
             something happens in an app you have connected.
         </p>
+        {/* The host's education affordance (the feature-guide dialog lives app-side): an empty
+            list is the one screen the reader is already looking at with nothing to read. */}
+        {action}
     </div>
 )
 
