@@ -18,3 +18,12 @@ export const ALL_RELEASES_LINK = "https://agenta.ai/docs/changelog"
  * task: it belongs in a list you open, not in a card you have to clear.
  */
 export const RELEASES: ReleaseEntry[] = changelogData as ReleaseEntry[]
+
+export {
+    computeUnseenReleases,
+    getUnseenReleases,
+    markAllReleasesSeen,
+    QUIET_PERIOD_MS,
+    WHATS_NEW_FIRST_VISIT_KEY,
+    WHATS_NEW_SEEN_KEY,
+} from "./seen"

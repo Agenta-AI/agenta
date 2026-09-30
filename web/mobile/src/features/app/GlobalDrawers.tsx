@@ -2,6 +2,7 @@ import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useRouter} from "next/router"
 
+import {FeatureGuideDialog} from "@/features/education/FeatureGuideDialog"
 import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeams"
 import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
 
@@ -22,5 +23,12 @@ export const GlobalDrawers = () => {
     registerTraceDrawerSlots()
     // The split puts a 320px tree beside a content pane of at least 400px, so it stacks below 720px.
     const wide = useMediaQuery("(min-width: 720px)")
-    return <TraceDrawer layout={wide ? "split" : "stacked"} />
+    return (
+        <>
+            <TraceDrawer layout={wide ? "split" : "stacked"} />
+            {/* The feature-guide dialog opens by atom, so it must be mounted wherever an entry
+                point can set it — same reasoning as the trace drawer above. */}
+            <FeatureGuideDialog />
+        </>
+    )
 }

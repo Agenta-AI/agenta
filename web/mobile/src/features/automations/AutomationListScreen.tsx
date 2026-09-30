@@ -26,13 +26,16 @@ import {
     type ListTableColumn,
 } from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {Plus} from "@phosphor-icons/react"
+import {Play, Plus} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {openFeatureGuideAtom} from "../education/featureGuideAtom"
+import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -159,6 +162,7 @@ export const AutomationListScreen = ({
         [agentNames, agentsReady],
     )
 
+    const openGuide = useSetAtom(openFeatureGuideAtom)
     const term = search.trim()
     const isEmpty = !isLoading && !error && automations.length === 0
     const groups = useMemo(
@@ -194,7 +198,19 @@ export const AutomationListScreen = ({
                     // `isEmpty` alone is not "this project has none": the search narrows the
                     // query itself, so a term that matches nothing empties the list too.
                     isEmpty && !term && isDefaultAutomationListView(view) ? (
-                        <AutomationListEmpty />
+                        <AutomationListEmpty
+                            action={
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-1"
+                                    onClick={() => openGuide("automations")}
+                                >
+                                    <Play size={14} aria-hidden />
+                                    See how automations work
+                                </Button>
+                            }
+                        />
                     ) : (
                         <AutomationListNoMatch
                             term={term || undefined}
@@ -311,6 +327,11 @@ export const AutomationListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Automations
                                 </h1>
+                                {/* The populated-screen path: rows an agent created still leave
+                                    the manual flow undiscovered, so the guide stays one click
+                                    away. Hidden on a phone, where the title already fights the
+                                    New button for width. */}
+                                <HowThisWorksButton guide="automations" className="max-sm:hidden" />
                                 <Button
                                     aria-label="New automation"
                                     // Square icon button on a phone, where the label is hidden.
