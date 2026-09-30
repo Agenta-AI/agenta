@@ -11,6 +11,7 @@ import {buildTriggerReferences} from "@agenta/entity-ui/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 
+import {maybeShowAskAgentAutomationHint} from "./askAgentAutomationHint"
 import {
     buildAutomationCreate,
     SCHEDULE_EVENT_KEY,
@@ -58,6 +59,7 @@ export const useAutomationCreate = ({
     defaultAgentId = null,
     defaultAgentName = null,
     defaultReferences,
+    playgroundEntityId,
 }: {
     /** Which half of the "Runs when" control the draft opens on. */
     defaultKind?: AutomationKind
@@ -74,6 +76,11 @@ export const useAutomationCreate = ({
      * absent they are derived from the picked agent, which is what the app's own screen does.
      */
     defaultReferences?: AutomationReferences
+    /**
+     * Present when the create surface sits inside the playground, where a chat composer
+     * is mounted — the one-time ask-agent hint then carries a prefill action.
+     */
+    playgroundEntityId?: string
 } = {}) => {
     // Seeded once, so a later change never overwrites what has been typed since.
     const [draft, setDraft] = useState<AutomationDraft>(() => ({
@@ -248,6 +255,14 @@ export const useAutomationCreate = ({
                     ? "Automation created — it's on and will run at its next time"
                     : "Automation created — it stays off until you switch it on",
             )
+            // This create path is always the MANUAL one (the agent creates through its own
+            // tools), so it is the moment to teach the chat path — once per browser.
+            maybeShowAskAgentAutomationHint({
+                name: draft.name.trim() || generatedName,
+                kind: draft.kind,
+                cron: draft.cron,
+                inPlayground: Boolean(playgroundEntityId),
+            })
             return created
         } catch {
             message.error("Couldn't create this automation")
@@ -255,7 +270,7 @@ export const useAutomationCreate = ({
         } finally {
             setSaving(false)
         }
-    }, [blockedReason, createEntity, draft, generatedName, references, saving])
+    }, [blockedReason, createEntity, draft, generatedName, playgroundEntityId, references, saving])
 
     return {
         draft,

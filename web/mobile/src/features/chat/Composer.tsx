@@ -18,10 +18,12 @@ import {
     type useComposerAttachments,
 } from "@agenta/chat/hooks"
 import {refusedSendRejections} from "@agenta/chat/model"
+import {composerPrefillSignalAtom} from "@agenta/shared/state"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import type {FileUIPart} from "ai"
+import {useAtom} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -92,6 +94,17 @@ export const Composer = ({
     // A tab switch is a route change here, so the whole composer unmounts — the per-session
     // draft is what carries unsent text across it.
     const draft = useComposerDraft({sessionId, richInputRef})
+
+    // Ask-agent hints prefill through a signal atom (they fire from non-React code, e.g. a
+    // notification action). Insert at the caret and focus — never send: the user keeps the
+    // last word. Consumed (cleared) here so a later composer mount does not replay it.
+    const [prefill, setPrefill] = useAtom(composerPrefillSignalAtom)
+    useEffect(() => {
+        if (!prefill) return
+        richInputRef.current?.insertText(prefill.text)
+        richInputRef.current?.focus()
+        setPrefill(null)
+    }, [prefill, richInputRef, setPrefill])
 
     // The `/` palette and its pickers, anchored to the composer box so they open where the
     // palette was. /new mirrors the session rail's `+`, exactly as it does on the desktop.
