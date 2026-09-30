@@ -72,6 +72,7 @@ import {
 } from "./agentTemplate/AgentTemplateSectionList"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
+import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
 import {
     embedRevisionVersion,
@@ -1145,11 +1146,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 title: "Integrations",
                 summary: countSummary(integrationCount, "integration"),
                 indicator: sectionIndicator("tools"),
-                // One action, so the header plus opens the drawer directly instead of a menu.
+                // "Create with AI" beside the drawer that adds one by hand.
                 extra:
-                    !disabled && openIntegrationDrawer
-                        ? headerAddButton("Add integration", openIntegrationDrawer)
-                        : undefined,
+                    !disabled && openIntegrationDrawer ? (
+                        <CreateWithAIAddMenu
+                            label="Add integration"
+                            starterPrompt="I want to connect"
+                            onManual={openIntegrationDrawer}
+                            manualTitle="Browse integrations"
+                            manualHint="Pick an app and choose what the agent can do with it."
+                            manualIcon={<PuzzlePiece size={16} />}
+                        />
+                    ) : undefined,
                 defaultOpen: integrationCount > 0,
                 content: (
                     <ToolManagementList
@@ -1226,7 +1234,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
             indicator: sectionIndicator("skills"),
-            extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
+            extra: !disabled ? (
+                <CreateWithAIAddMenu
+                    label="Add skill"
+                    starterPrompt="I want a skill that"
+                    onManual={handleAddSkill}
+                    manualTitle="Add manually"
+                    manualHint="Pick a skill from your library or write one."
+                    manualIcon={<GraduationCap size={16} />}
+                />
+            ) : undefined,
             defaultOpen: skills.length > 0,
             content: (
                 <>
