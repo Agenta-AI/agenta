@@ -60,7 +60,7 @@ export const WhatsNewDialog = () => {
                 }
             }}
         >
-            <DialogContent className="flex max-w-[880px] gap-0 overflow-hidden p-0 max-md:max-w-[calc(100%-2rem)]">
+            <DialogContent className="gap-0 overflow-hidden p-0 md:max-h-[560px] md:max-w-[880px] md:flex-row">
                 {/* Left: the release stack. */}
                 <div className="flex w-full flex-col md:w-[300px] md:shrink-0 md:border-r md:border-border">
                     <div className="flex items-center gap-2 px-4 pb-2 pt-4">
