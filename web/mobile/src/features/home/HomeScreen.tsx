@@ -25,7 +25,7 @@ import {HOME_PAGE_FRAME} from "./pageFrame"
 import {HomeSkeleton} from "./states/HomeSkeleton"
 import {HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
-import {WhatsNewCard} from "./WhatsNewCard"
+import {WhatsNewDialog} from "./WhatsNewDialog"
 
 /**
  * The project's home — one question, one composer, one list.
@@ -124,9 +124,9 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                     {surface === "home" ? (
                         <>
                             {/* Entering the platform is where "what shipped since you last
-                                looked" belongs — above the work, dismissible, and absent for a
-                                new user (see WhatsNewCard). */}
-                            <WhatsNewCard />
+                                looked" belongs — a one-time modal, absent for a new user (see
+                                WhatsNewDialog). */}
+                            <WhatsNewDialog />
                             {homeBody}
                         </>
                     ) : (
