@@ -366,13 +366,17 @@ const featured = templates.filter((template) => template.example);
     };
 
     search?.addEventListener("input", render);
+    // Keeps ?category= in step with the selection.
+    const setCategory = (next: string) => {
+      category = next;
+      const url = new URL(location.href);
+      if (category === "All") url.searchParams.delete("category");
+      else url.searchParams.set("category", category);
+      history.replaceState(null, "", url);
+    };
     for (const button of catButtons) {
       button.addEventListener("click", () => {
-        category = button.dataset.mktCat ?? "All";
-        const url = new URL(location.href);
-        if (category === "All") url.searchParams.delete("category");
-        else url.searchParams.set("category", category);
-        history.replaceState(null, "", url);
+        setCategory(button.dataset.mktCat ?? "All");
         render();
       });
     }
@@ -390,7 +394,7 @@ const featured = templates.filter((template) => template.example);
     clear?.addEventListener("click", () => {
       if (search) search.value = "";
       for (const input of appInputs) input.checked = false;
-      category = "All";
+      setCategory("All");
       render();
       search?.focus();
     });
