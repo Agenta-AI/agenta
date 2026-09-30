@@ -35,6 +35,7 @@ interface SpeechRecognitionLike {
     interimResults: boolean
     lang: string
     onstart: (() => void) | null
+    onspeechstart: (() => void) | null
     onresult: ((e: SpeechRecognitionEventLike) => void) | null
     onerror: ((e: {error: string}) => void) | null
     onend: (() => void) | null
@@ -94,6 +95,8 @@ export function useVoiceInput(): VoiceInput {
     const recRef = useRef<SpeechRecognitionLike | null>(null)
     const finalRef = useRef("")
     const hasWordsRef = useRef(false)
+    /** Set when the browser detected speech; an empty session without it was just a silent stop. */
+    const heardSpeechRef = useRef(false)
     /** The person's intent, read by every callback below. The recogniser's events lag it. */
     const wantRef = useRef(false)
     const relaunchTimerRef = useRef<number | undefined>(undefined)
@@ -123,7 +126,7 @@ export function useVoiceInput(): VoiceInput {
 
     const finishSession = useCallback(() => {
         setActive(false)
-        if (!hasWordsRef.current) {
+        if (heardSpeechRef.current && !hasWordsRef.current) {
             setError(
                 (previous) =>
                     previous ??
@@ -146,6 +149,10 @@ export function useVoiceInput(): VoiceInput {
         rec.onstart = () => {
             attemptsRef.current = 0
             setActive(true)
+        }
+
+        rec.onspeechstart = () => {
+            heardSpeechRef.current = true
         }
 
         rec.onresult = (e) => {
@@ -196,6 +203,7 @@ export function useVoiceInput(): VoiceInput {
     const reset = useCallback(() => {
         finalRef.current = ""
         hasWordsRef.current = false
+        heardSpeechRef.current = false
         setTranscript({finalText: "", interimText: ""})
         setError(null)
     }, [])
@@ -207,6 +215,7 @@ export function useVoiceInput(): VoiceInput {
         setError(null)
         finalRef.current = ""
         hasWordsRef.current = false
+        heardSpeechRef.current = false
         setTranscript({finalText: "", interimText: ""})
         // Intent, not the recogniser's `onstart` — the control must latch on the press.
         setRecording(true)
