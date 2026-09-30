@@ -481,6 +481,12 @@ html,
 .ag-btn--block {
   width: 100%;
 }
+.ag-btn--sm {
+  height: 28px;
+  padding: 0 10px;
+  gap: 5px;
+  font: var(--text-caption);
+}
 
 /* ── nav dropdowns (Resources / Community) ───────────────────────────
    Open on hover and on keyboard focus (focus-within). The panel sits flush

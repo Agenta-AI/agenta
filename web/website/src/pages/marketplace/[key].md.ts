@@ -12,6 +12,7 @@ import {
   appsOf,
   authorPath,
   howItWorksOf,
+  howStepSentence,
   relatedTemplatesOf,
   requirementsOf,
   setupStepsOf,
@@ -40,7 +41,7 @@ export const GET: APIRoute = async ({ props }) => {
   const numbered = (items: string[]) =>
     items.map((item, i) => `${i + 1}. ${item}`).join("\n");
   const related = relatedTemplatesOf(template, templates);
-  const steps = howItWorksOf(template);
+  const steps = howItWorksOf(template).map(howStepSentence);
   const requirements = requirementsOf(template);
 
   const sections = [

@@ -20,6 +20,15 @@ export const categoriesOf = (templates: WebsiteTemplate[]): string[] => [
   ...new Set(templates.map((template) => template.category)),
 ];
 
+/** Templates in one category; "All" counts every template. */
+export const categoryCountOf = (
+  templates: WebsiteTemplate[],
+  category: string,
+): number =>
+  category === "All"
+    ? templates.length
+    : templates.filter((template) => template.category === category).length;
+
 export const categorySlug = (category: string): string =>
   category
     .toLowerCase()
@@ -124,20 +133,20 @@ export const renderableMedia = (
 export interface AuthorLink {
   label: string;
   url: string;
-  /** Icon key for socialIcon(); undefined draws a plain text link. */
-  platform?: string;
 }
+
+/** The Agenta team's own author id; its templates are the official ones. */
+export const AGENTA_AUTHOR_ID = "agenta";
 
 export interface AuthorProfile {
   id: string;
   name: string;
+  official: boolean;
   bio?: string;
   avatar?: string;
   initials: string;
   links: AuthorLink[];
 }
-
-const SOCIAL_PLATFORMS = new Set(["github", "linkedin", "x", "twitter"]);
 
 export const initialsOf = (name: string): string =>
   name
@@ -157,6 +166,7 @@ export const authorProfiles = (
       return {
         id: author.id,
         name: author.name,
+        official: author.id === AGENTA_AUTHOR_ID,
         bio: author.bio,
         avatar:
           isHttpUrl(rawAvatar) || /^\/(?!\/)/.test(rawAvatar ?? "")
@@ -168,7 +178,6 @@ export const authorProfiles = (
           .map((link) => ({
             label: link.label ?? link.kind,
             url: link.url,
-            platform: SOCIAL_PLATFORMS.has(link.kind) ? link.kind : undefined,
           })),
       };
     })
@@ -203,7 +212,7 @@ const APP_NAMES: Record<string, string> = {
   zendesk: "Zendesk",
 };
 
-// Monochrome marks self-hosted in public/logos/tools/ (Simple Icons, CC0).
+// Simple Icons (CC0) marks in public/logos/tools/; each needs --brand-<slug> in tokens.css.
 const APP_LOGOS = new Set([
   "confluence",
   "datadog",
@@ -259,26 +268,83 @@ export const joinNames = (names: string[]): string =>
     ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
     : (names[0] ?? "");
 
-/** The text the index search matches: name, description and app names. */
+/** The text the index search matches: name, summary, description and apps. */
 export const searchTextOf = (template: WebsiteTemplate): string =>
   [
     template.name,
+    template.summary,
     template.description,
     ...appsOf(template).map((app) => app.name),
   ]
     .join(" ")
     .toLowerCase();
 
-/** "How it works": when it runs, then what it does with each connection. */
-export const howItWorksOf = (template: WebsiteTemplate): string[] => [
-  ...(template.trigger_description ? [template.trigger_description] : []),
-  ...template.connections.map((connection) => {
-    const app = connection.primary
-      ? ` with ${appName(connection.primary.slug)}`
-      : "";
-    return `${connection.role}${app}${connection.required ? "" : " (optional)"}.`;
-  }),
+/** One row of "How it works": the trigger, then one step per connection. */
+export type HowStep =
+  | { kind: "trigger"; text: string }
+  | {
+      kind: "connection";
+      number: number;
+      role: string;
+      app?: TemplateApp;
+      scope?: string;
+      optional: boolean;
+    };
+
+export const howItWorksOf = (template: WebsiteTemplate): HowStep[] => [
+  ...(template.trigger_description
+    ? [{ kind: "trigger" as const, text: template.trigger_description }]
+    : []),
+  ...template.connections.map((connection, i) => ({
+    kind: "connection" as const,
+    number: i + 1,
+    role: connection.role,
+    app: connection.primary ? toApp(connection.primary.slug) : undefined,
+    scope: connection.primary?.scope || undefined,
+    optional: !connection.required,
+  })),
 ];
+
+/** A how-it-works row as one sentence (the markdown twin). */
+export const howStepSentence = (step: HowStep): string =>
+  step.kind === "trigger"
+    ? step.text
+    : `${step.role}${step.app ? ` with ${step.app.name}` : ""}${step.optional ? " (optional)" : ""}.`;
+
+export interface TemplateTool {
+  name: string;
+  description: string;
+  app?: TemplateApp;
+}
+
+/** Every tool the template's connections grant, with the app it belongs to. */
+export const toolsOf = (template: WebsiteTemplate): TemplateTool[] =>
+  template.connections.flatMap((connection) =>
+    (connection.primary?.tools ?? []).map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      app: connection.primary ? toApp(connection.primary.slug) : undefined,
+    })),
+  );
+
+/** Apps across the catalog with how many templates use each, most used first. */
+export const appFacetsOf = (
+  all: readonly WebsiteTemplate[],
+): { app: TemplateApp; count: number }[] => {
+  const counts = new Map<string, number>();
+  for (const template of all) {
+    for (const app of appsOf(template)) {
+      counts.set(app.slug, (counts.get(app.slug) ?? 0) + 1);
+    }
+  }
+  return [...counts]
+    .map(([slug, count]) => ({ app: toApp(slug), count }))
+    .sort((a, b) => b.count - a.count || a.app.name.localeCompare(b.app.name));
+};
+
+/** Index link that opens the catalog on one category. */
+export const categoryPath = (category: string): string =>
+  `${MARKETPLACE_PATH}?category=${encodeURIComponent(category)}#catalog`;
 
 export interface SetupStep {
   title: string;

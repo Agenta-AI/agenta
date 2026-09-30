@@ -2,14 +2,18 @@
 import Section from "../../components/Section.astro";
 import type { GetStaticPaths } from "astro";
 import Site from "../../layouts/Site.astro";
+import Badge from "../../components/Badge.astro";
 import TemplateCard from "../../components/TemplateCard.astro";
-import { socialIcon } from "../../lib/blog";
+import FilterGroup from "../../components/FilterGroup.astro";
 import { authors as templateAuthors, templatesByAuthor } from "../../lib/templates";
 import {
   MARKETPLACE_NAME,
   MARKETPLACE_PATH,
   authorProfiles,
+  categoriesOf,
+  categoryCountOf,
 } from "../../lib/marketplace";
+import "../../styles/marketplace.css";
 
 // Agent Marketplace creator pages live at /creators/<id>, one per template
 // author in the catalog. Blog authors keep their own /authors/<slug> pages.
@@ -20,176 +24,268 @@ export const getStaticPaths = (() =>
   }))) satisfies GetStaticPaths;
 
 const { profile, templates } = Astro.props;
-const { name, avatar, bio, initials, links } = profile;
+const { name, avatar, bio, initials, links, official } = profile;
 const title = `${name} — ${MARKETPLACE_NAME}`;
 const description = bio ?? `${name} — agent templates on the ${MARKETPLACE_NAME}.`;
+
+const categoryNames = categoriesOf(templates);
+const categories = ["All", ...categoryNames];
+const stats = [
+  { value: templates.length, label: templates.length === 1 ? "Template" : "Templates" },
+  { value: categoryNames.length, label: categoryNames.length === 1 ? "Category" : "Categories" },
+];
 ---
 
 <Site title={title} description={description}>
-  <!-- Author hero -->
-  <Section tone="flat"
-    class="ag-pad"
-    style="background:var(--au-sec-1);padding:64px 24px 48px;"
-  >
-    <div
-      style="max-width:760px;margin:0 auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px;"
-    >
-      <a
-        href={MARKETPLACE_PATH}
-        style="align-self:flex-start;display:inline-flex;align-items:center;gap:7px;font:var(--text-label);color:var(--au-quiet);text-decoration:none;"
+  <Section class="ag-cr-hero ag-pad" data-screen-label="Creator header">
+    <nav class="ag-mkt-crumb" aria-label="Breadcrumb">
+      <a href={MARKETPLACE_PATH}>{MARKETPLACE_NAME}</a>
+      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+        ><path d="M4 2.5 8 6l-4 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+        ></path></svg
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-          ><path
-            d="M8.5 3.5 5 7l3.5 3.5"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"></path></svg
-        >{MARKETPLACE_NAME}
-      </a>
-      {
-        avatar ? (
-          <img
-            src={avatar}
-            alt={name}
-            width="128"
-            height="128"
-            loading="eager"
-            fetchpriority="high"
-            decoding="async"
-            style="width:128px;height:128px;border-radius:50%;object-fit:cover;box-shadow:var(--au-hero-avatar);"
-          />
-        ) : (
-          <span
-            role="img"
-            aria-label={name}
-            style="width:128px;height:128px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:300 44px/1 var(--font-display);color:var(--th-text-hi);background:var(--au-tile-bg);box-shadow:var(--au-hero-avatar);"
-          >
-            {initials}
-          </span>
-        )
-      }
-      <h1
-        class="ag-h1"
-        style="margin:0;font:300 52px/1.06 var(--font-display);color:var(--th-text-hi);"
-      >
-        {name}
-      </h1>
-      {
-        links.length > 0 && (
-          <div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;margin-top:4px;">
-            {links.map((link) =>
-              link.platform ? (
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener"
-                  aria-label={link.label}
-                  style="width:38px;height:38px;border-radius:9px;background:var(--au-tile-bg);box-shadow:var(--au-tile-ring);display:inline-flex;align-items:center;justify-content:center;"
-                >
-                  <img
-                    src={socialIcon(link.platform)}
-                    alt=""
-                    style="width:18px;height:18px;filter:var(--au-icon-filter);"
-                  />
-                </a>
-              ) : (
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener"
-                  style="height:38px;padding:0 14px;border-radius:9px;background:var(--au-tile-bg);box-shadow:var(--au-tile-ring);display:inline-flex;align-items:center;font:var(--text-label);color:var(--th-text-hi);text-decoration:none;"
-                >
-                  {link.label}
-                </a>
-              ),
-            )}
+      <span aria-current="page">{name}</span>
+    </nav>
+
+    <div class="ag-cr-hero__main">
+      <div class="ag-cr-id">
+        <span class="ag-cr-logo" role="img" aria-label={name}>
+          {
+            official ? (
+              <>
+                <img class="th-dark-only" src="/logos/Agenta-symbol-dark-accent.svg" alt="" />
+                <img class="th-light-only" src="/logos/Agenta-symbol-light.svg" alt="" />
+              </>
+            ) : avatar ? (
+              <img class="ag-cr-logo__photo" src={avatar} alt="" loading="eager" decoding="async" />
+            ) : (
+              initials
+            )
+          }
+        </span>
+        <div class="ag-cr-id__text">
+          <div class="ag-cr-id__name">
+            <h1 class="ag-cr-title">{name}</h1>
+            {official && <Badge variant="yellow">Official</Badge>}
           </div>
-        )
-      }
+          {bio && <p class="ag-cr-bio">{bio}</p>}
+          {
+            links.length > 0 && (
+              <div class="ag-cr-links">
+                {links.map((link) => (
+                  <a
+                    class="ag-btn ag-btn--outline ag-btn--sm"
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            )
+          }
+        </div>
+      </div>
+
+      <dl class="ag-cr-stats">
+        {
+          stats.map((stat) => (
+            <div class="ag-cr-stat">
+              <dt>{stat.label}</dt>
+              <dd>{stat.value}</dd>
+            </div>
+          ))
+        }
+      </dl>
     </div>
   </Section>
 
-  <!-- Bio -->
-  {
-    bio && (
-      <Section tone="flat"
-        class="ag-prose ag-pad"
-        style="background:var(--au-sec-0);padding:48px 24px;"
-      >
-        <div style="max-width:720px;margin:0 auto;">
-          <p style="margin:0;font:400 19px/1.7 var(--font-sans);color:var(--au-bio);">
-            {bio}
-          </p>
-        </div>
-      </Section>
-    )
-  }
-
-  <!-- Templates from the author (Agent Marketplace) -->
   {
     templates.length > 0 && (
-      <Section tone="flat"
-        class="ag-pad"
-        style="background:var(--au-sec-0);padding:24px 64px 88px;"
-        id="templates"
-      >
-        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;">
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:var(--th-text-hi);">
-              Templates from the author
-            </h2>
-            <p style="margin:0;font:var(--text-body-sm);color:var(--au-sub);">
-              {templates.length} {templates.length === 1 ? "template" : "templates"} on the {MARKETPLACE_NAME}
-            </p>
+      <Section class="ag-mkt-catalog ag-pad" id="templates" data-screen-label="Templates">
+        <aside class="ag-mkt-side" aria-label="Filters">
+          <FilterGroup label="Category" id="cr-categories" value="All" single>
+            {categories.map((category) => (
+              <button
+                type="button"
+                class="ag-mkt-row ag-mkt-cat"
+                data-cr-cat={category}
+                aria-pressed={category === "All" ? "true" : "false"}
+              >
+                <span>{category}</span>
+                <span class="ag-mkt-row__count">{categoryCountOf(templates, category)}</span>
+              </button>
+            ))}
+          </FilterGroup>
+        </aside>
+
+        <div class="ag-mkt-results">
+          <div class="ag-mkt-results__head">
+            <h2 class="ag-mkt-results__count">Templates by {name}</h2>
           </div>
-          <a href={MARKETPLACE_PATH} class="ag-btn ag-btn--outline">
-            View all templates
-          </a>
-        </div>
-        <div class="ag-tplgrid ag-tplgrid--boxed">
-          {templates.map((template) => (
-            <TemplateCard template={template} />
-          ))}
+          <div class="ag-tplgrid">
+            {templates.map((template) => (
+              <TemplateCard template={template} />
+            ))}
+          </div>
         </div>
       </Section>
     )
   }
 
-  <style is:global>
-    /* Author-page theme vars. The mockups don't cover authors pages; light
-       mirrors the blog-post author-bio treatment (all-white page, ink text
-       scale, white social tiles with paper-200 rings). [data-theme="dark"]
-       restores the exact literals the page previously hard-coded, so dark
-       stays pixel-identical. */
-    :root {
-      --au-sec-1: var(--paper-0); /* hero band            */
-      --au-sec-0: var(--paper-0); /* bio + posts bands    */
-      --au-quiet: var(--ink-600); /* "All blogs" back link */
-      --au-hero-avatar:
-        inset 0 0 0 1px var(--paper-150), 0 8px 32px rgba(36, 36, 36, 0.12);
-      --au-role: var(--ink-600);
-      --au-tile-bg: #ffffff;
-      --au-tile-ring: 0 0 0 1px var(--paper-200);
-      /* Icons are black source SVGs; ~ink-600 grey in light. */
-      --au-icon-filter: invert(0.4);
-      --au-bio: var(--ink-600);
-      --au-sub: var(--ink-600);
-      --au-empty: var(--ink-500);
+  <script>
+    // Category filter: one category at a time, "All" shows every template.
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>("[data-cr-cat]")];
+    const cards = [...document.querySelectorAll<HTMLElement>("#templates [data-template-key]")];
+    const value = document.querySelector("#templates [data-filter-value]");
+    for (const button of buttons) {
+      button.addEventListener("click", () => {
+        const category = button.dataset.crCat ?? "All";
+        if (value) value.textContent = category;
+        buttons.forEach((other) => other.setAttribute("aria-pressed", String(other === button)));
+        cards.forEach((card) => {
+          card.hidden = category !== "All" && card.dataset.category !== category;
+        });
+      });
     }
-    [data-theme="dark"] {
-      --au-sec-1: #0e0d0f;
-      --au-sec-0: #0a0a0b;
-      --au-quiet: rgba(255, 255, 255, 0.55);
-      --au-hero-avatar:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 8px 32px rgba(0, 0, 0, 0.4);
-      --au-role: var(--yellow-400);
-      --au-tile-bg: rgba(255, 255, 255, 0.05);
-      --au-tile-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-      --au-icon-filter: invert(1) brightness(0.85);
-      --au-bio: rgba(255, 255, 255, 0.74);
-      --au-sub: rgba(255, 255, 255, 0.55);
-      --au-empty: rgba(255, 255, 255, 0.5);
+  </script>
+
+  <style is:global>
+    .ag-cr-hero {
+      background: var(--th-bg-1);
+      padding: 28px 64px 56px;
+    }
+    .ag-cr-hero__main {
+      margin-top: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 48px;
+    }
+    .ag-cr-id {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    .ag-cr-logo {
+      width: 108px;
+      height: 108px;
+      flex: 0 0 auto;
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--th-bg-1);
+      box-shadow: inset 0 0 0 1px var(--th-border);
+      font: 300 40px/1 var(--font-display);
+      color: var(--th-text-hi);
+    }
+    .ag-cr-logo img {
+      width: 48px;
+      height: 48px;
+    }
+    .ag-cr-logo .ag-cr-logo__photo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .ag-cr-id__text {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .ag-cr-id__name {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+    .ag-cr-title {
+      margin: 0;
+      font: 300 52px/1.06 var(--font-display);
+      color: var(--th-text-hi);
+    }
+    .ag-cr-bio {
+      margin: 0;
+      max-width: 560px;
+      font: var(--text-body-md);
+      color: var(--th-text-body);
+    }
+    .ag-cr-links {
+      margin-top: 4px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ag-cr-stats {
+      margin: 0;
+      flex: 0 0 auto;
+      display: flex;
+      border-radius: var(--radius-xl);
+      box-shadow: inset 0 0 0 1px var(--th-border);
+    }
+    .ag-cr-stat {
+      min-width: 140px;
+      padding: 18px 24px;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 6px;
+    }
+    .ag-cr-stat + .ag-cr-stat {
+      border-left: 1px solid var(--th-border);
+    }
+    .ag-cr-stat dt {
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-cr-stat dd {
+      margin: 0;
+      font: var(--text-display-md);
+      color: var(--th-text-hi);
+    }
+
+    @media (max-width: 1199px) {
+      .ag-cr-hero__main {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 32px;
+      }
+    }
+    @media (max-width: 767px) {
+      .ag-cr-hero {
+        padding-top: 20px;
+        padding-bottom: 40px;
+      }
+      .ag-cr-hero__main {
+        margin-top: 32px;
+      }
+      .ag-cr-id {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
+      }
+      .ag-cr-logo {
+        width: 80px;
+        height: 80px;
+      }
+      .ag-cr-logo img {
+        width: 36px;
+        height: 36px;
+      }
+      .ag-cr-title {
+        font-size: 40px;
+      }
+      .ag-cr-stats {
+        align-self: stretch;
+      }
+      .ag-cr-stat {
+        flex: 1;
+        min-width: 0;
+      }
     }
   </style>
 </Site>

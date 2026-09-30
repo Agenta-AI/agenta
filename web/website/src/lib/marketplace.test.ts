@@ -7,6 +7,7 @@ import {
   categorySlug,
   ctaHeadlineOf,
   howItWorksOf,
+  howStepSentence,
   joinNames,
   authorProfiles,
   relatedTemplatesOf,
@@ -122,8 +123,10 @@ describe("author profiles", () => {
       initials: "AL",
       avatar: undefined,
     });
-    expect(profiles[0]!.links[0]).toMatchObject({ platform: "github" });
-    expect(profiles[0]!.links[1]).toMatchObject({ platform: undefined });
+    expect(profiles[0]!.links[0]).toEqual({
+      label: "GitHub",
+      url: "https://github.com/jane",
+    });
   });
 
   it("drops author links and avatars that are not web URLs", () => {
@@ -180,7 +183,7 @@ describe("template page sections", () => {
   });
 
   it("builds how it works from the trigger and the connections", () => {
-    expect(howItWorksOf(codeQa)).toEqual([
+    expect(howItWorksOf(codeQa).map(howStepSentence)).toEqual([
       "Runs when the agent is @-mentioned.",
       "Read the code with GitHub.",
       "Answer on a Slack mention with Slack (optional).",

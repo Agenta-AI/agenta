@@ -91,6 +91,35 @@
   --yellow-500: #e7e712;
   --terracotta-500: #d97757;
 
+  /* App tile brand colours from Simple Icons (Slack, Salesforce: v13); -ink when white is under 3:1. */
+  --brand-confluence: #172b4d;
+  --brand-datadog: #632ca6;
+  --brand-discord: #5865f2;
+  --brand-github: #181717;
+  --brand-gitlab: #fc6d26;
+  --brand-gitlab-ink: var(--ink-900);
+  --brand-gmail: #ea4335;
+  --brand-googlecalendar: #4285f4;
+  --brand-googledrive: #4285f4;
+  --brand-hubspot: #ff7a59;
+  --brand-hubspot-ink: var(--ink-900);
+  --brand-intercom: #6afdef;
+  --brand-intercom-ink: var(--ink-900);
+  --brand-jira: #0052cc;
+  --brand-linear: #5e6ad2;
+  --brand-newrelic: #1ce783;
+  --brand-newrelic-ink: var(--ink-900);
+  --brand-notion: #000000;
+  --brand-pagerduty: #06ac38;
+  --brand-posthog: #000000;
+  --brand-salesforce: #00a1e0;
+  --brand-salesforce-ink: var(--ink-900);
+  --brand-sentry: #362d59;
+  --brand-slack: #4a154b;
+  --brand-telegram: #26a5e4;
+  --brand-telegram-ink: var(--ink-900);
+  --brand-zendesk: #03363d;
+
   /* dark section surfaces */
   --carbon-900: #1e1c1d;
   --carbon-800: #242220;
