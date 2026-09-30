@@ -57,7 +57,12 @@ export const NavDrawer = ({
                     <ListIcon />
                 </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[236px] gap-0 p-0">
+            {/* Flush to the viewport's left edge, unlike the kit's floating panel: a nav drawer
+                reads as the rail sliding in, so only its open side is rounded. */}
+            <SheetContent
+                side="left"
+                className="inset-y-0 left-0 w-[236px] gap-0 rounded-none rounded-r-xl p-0"
+            >
                 {/* The sheet's own X is off: the rail's header already has the button, and
                     `onDismiss` turns it into this sheet's close. */}
                 <SheetHeader className="sr-only" showCloseButton={false}>

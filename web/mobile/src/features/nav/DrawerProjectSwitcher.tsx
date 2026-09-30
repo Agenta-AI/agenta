@@ -155,16 +155,8 @@ export const DrawerProjectSwitcher = ({
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
-                trailing={
-                    <div className="flex shrink-0 items-center gap-1">
-                        {!collapsed && version ? (
-                            <span className="text-muted-foreground text-[10px] leading-none">
-                                v{version}
-                            </span>
-                        ) : null}
-                        <SidebarIconMenu item={helpItem} />
-                    </div>
-                }
+                triggerMeta={version ? `v${version}` : undefined}
+                trailing={<SidebarIconMenu item={helpItem} />}
             />
             <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <CreateProjectSheet
