@@ -46,6 +46,7 @@ class FakeRecognition {
     interimResults = false
     lang = ""
     onstart: (() => void) | null = null
+    onspeechstart: (() => void) | null = null
     onresult: ((e: FakeResultEvent) => void) | null = null
     onerror: ((e: {error: string}) => void) | null = null
     onend: (() => void) | null = null
@@ -255,6 +256,7 @@ describe("useVoiceInput", () => {
     it.each(["", "already spoken"])("finishes during a pending relaunch (words: %s)", (words) => {
         const {result} = renderHook(() => useVoiceInput())
         act(() => result.current.start())
+        act(() => FakeRecognition.instances[0].onspeechstart?.())
         if (words) act(() => void live()[0].say(words, true))
         act(() => FakeRecognition.instances[0].endOnSilence())
         act(() => result.current.stop())
@@ -267,13 +269,23 @@ describe("useVoiceInput", () => {
         expect(result.current.finalText).toBe(words)
     })
 
-    it("explains an empty dictation after the browser finishes stopping", () => {
+    it("explains unrecognized speech after the browser finishes stopping", () => {
         const {result} = renderHook(() => useVoiceInput())
         act(() => result.current.start())
+        act(() => FakeRecognition.instances[0].onspeechstart?.())
         act(() => result.current.stop())
         expect(result.current.error).toBeNull()
         act(() => vi.advanceTimersByTime(TEARDOWN_MS))
         expect(result.current.error).toContain("No speech was recognized")
+    })
+
+    it("stays quiet when the mic is stopped before anything was said", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => result.current.stop())
+        act(() => vi.advanceTimersByTime(TEARDOWN_MS))
+        expect(result.current.recording).toBe(false)
+        expect(result.current.error).toBeNull()
     })
 
     it("accepts words that arrive only after stop without reporting empty dictation", () => {
