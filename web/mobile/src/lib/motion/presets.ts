@@ -59,6 +59,21 @@ export const crossfade: Variants = {
     exit: {opacity: 0, transition: crossfadeTransition},
 }
 
+/** Tween for a stack of tiles fanning out under the pointer. */
+export const fanTransition: Transition = {
+    duration: 0.3,
+    ease: "easeOut",
+}
+
+/** Cadence, in ms, at which an example run reveals its steps one by one. */
+export const stepRevealMs = 900
+
+/** How long the featured carousel dwells on a slide before it moves on. */
+export const featuredDwellMs = 5000
+
+/** How long a finished example run holds before it fades and plays again. */
+export const runHoldMs = 4000
+
 /** Instant variants used when the user prefers reduced motion. */
 const instant: Variants = {
     initial: {opacity: 0},
@@ -78,6 +93,13 @@ export interface MotionPresets {
     pushTransition: Transition
     sheetTransition: Transition
     crossfadeTransition: Transition
+    fanTransition: Transition
+    /** 0 when reduced: every step shows at once. */
+    stepRevealMs: number
+    /** 0 when reduced: a finished run stays still instead of looping. */
+    runHoldMs: number
+    /** 0 when reduced: the featured carousel does not advance by itself. */
+    featuredDwellMs: number
 }
 
 /**
@@ -99,6 +121,10 @@ export function useMotionPresets(): MotionPresets {
                       pushTransition: instantTransition,
                       sheetTransition: instantTransition,
                       crossfadeTransition: instantTransition,
+                      fanTransition: instantTransition,
+                      stepRevealMs: 0,
+                      runHoldMs: 0,
+                      featuredDwellMs: 0,
                   }
                 : {
                       reduced,
@@ -108,6 +134,10 @@ export function useMotionPresets(): MotionPresets {
                       pushTransition,
                       sheetTransition,
                       crossfadeTransition,
+                      fanTransition,
+                      stepRevealMs,
+                      runHoldMs,
+                      featuredDwellMs,
                   },
         [reduced],
     )
