@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
 import {
     agentTemplatesAtom,
@@ -9,6 +9,7 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
+import {getUnseenReleases} from "@agenta/navigation"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -17,6 +18,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
+import {whatsNewAtom} from "../education/whatsNewAtom"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -25,7 +27,6 @@ import {HOME_PAGE_FRAME} from "./pageFrame"
 import {HomeSkeleton} from "./states/HomeSkeleton"
 import {HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
-import {WhatsNewDialog} from "./WhatsNewDialog"
 
 /**
  * The project's home — one question, one composer, one list.
@@ -49,6 +50,11 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const templates = useAtomValue(agentTemplatesAtom)
     const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
     const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
+    // Opens once per unseen release; never for a new user (see `getUnseenReleases`).
+    const openWhatsNew = useSetAtom(whatsNewAtom)
+    useEffect(() => {
+        if (getUnseenReleases().length > 0) openWhatsNew({})
+    }, [openWhatsNew])
     const surface = resolveHomeSurface({
         agentCount: agents.length,
         isPending: agentsQuery.isPending,
@@ -121,17 +127,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                         </div>
                     }
                 >
-                    {surface === "home" ? (
-                        <>
-                            {/* Entering the platform is where "what shipped since you last
-                                looked" belongs — a one-time modal, absent for a new user (see
-                                WhatsNewDialog). */}
-                            <WhatsNewDialog />
-                            {homeBody}
-                        </>
-                    ) : (
-                        <HomeSkeleton className={frame} />
-                    )}
+                    {surface === "home" ? homeBody : <HomeSkeleton className={frame} />}
                 </ScreenScaffold>
             </AppShell>
         </>
