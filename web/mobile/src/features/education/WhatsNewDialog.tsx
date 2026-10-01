@@ -118,12 +118,12 @@ export const WhatsNewDialog = () => {
                                         <span
                                             className={cn(
                                                 "absolute bottom-0 left-1/2 w-px -translate-x-1/2 bg-border",
-                                                index === 0 ? "top-[15px]" : "top-0",
+                                                index === 0 ? "top-[19px]" : "top-0",
                                             )}
                                         />
                                         <span
                                             className={cn(
-                                                "absolute left-1/2 top-[11px] box-border size-[9px] -translate-x-1/2 rounded-full border-[1.5px] border-solid",
+                                                "absolute left-1/2 top-[15px] box-border size-[9px] -translate-x-1/2 rounded-full border-[1.5px] border-solid",
                                                 active
                                                     ? "border-foreground bg-foreground shadow-[0_0_0_3px_var(--hero-action-bg)]"
                                                     : "border-colorTextQuaternary bg-muted shadow-[0_0_0_3px_var(--muted)]",
@@ -132,7 +132,7 @@ export const WhatsNewDialog = () => {
                                     </span>
                                     <span
                                         className={cn(
-                                            "flex min-w-0 flex-col gap-0.5 rounded-lg border border-solid px-2.5 py-1.5 transition-colors",
+                                            "my-1 flex min-w-0 flex-col gap-0.5 rounded-lg border border-solid px-2.5 py-1.5 transition-colors",
                                             active
                                                 ? "border-colorBorderSecondary bg-background shadow-[var(--ag-surface-card-shadow)]"
                                                 : "border-transparent group-hover:bg-background",
