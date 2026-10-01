@@ -19,10 +19,13 @@ import {FeatureTemplateGridSkeleton} from "./states/FeatureTemplateGridSkeleton"
 export const FeatureTemplateGrid = ({
     templateKeys,
     browseHref,
+    disabled = false,
     onSelect,
 }: {
     templateKeys: readonly string[]
     browseHref: string
+    /** True while a pick is being created, so a second click cannot start another. */
+    disabled?: boolean
     onSelect: (template: AgentStarterTemplate) => void
 }) => {
     const catalog = useAtomValue(agentTemplatesAtom)
@@ -64,6 +67,7 @@ export const FeatureTemplateGrid = ({
                         <FeatureTemplateCard
                             key={template.key}
                             template={template}
+                            disabled={disabled}
                             onSelect={onSelect}
                         />
                     ))}

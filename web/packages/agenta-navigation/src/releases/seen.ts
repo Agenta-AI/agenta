@@ -31,9 +31,28 @@ export const computeUnseenReleases = ({
     return releases.filter((release) => !seen.has(release.id))
 }
 
-const readSeenIds = (): string[] | null => {
+// Storage can throw (private mode, blocked storage, quota); What's New then just stays quiet.
+const readStorage = (key: string): string | null => {
     if (typeof window === "undefined") return null
-    const raw = window.localStorage.getItem(WHATS_NEW_SEEN_KEY)
+    try {
+        return window.localStorage.getItem(key)
+    } catch {
+        return null
+    }
+}
+
+const writeStorage = (key: string, value: string | null) => {
+    if (typeof window === "undefined") return
+    try {
+        if (value === null) window.localStorage.removeItem(key)
+        else window.localStorage.setItem(key, value)
+    } catch {
+        // Not persisted: the modal may show again, which beats crashing it.
+    }
+}
+
+const readSeenIds = (): string[] | null => {
+    const raw = readStorage(WHATS_NEW_SEEN_KEY)
     if (raw === null) return null
     try {
         const parsed = JSON.parse(raw) as unknown
@@ -58,20 +77,13 @@ export const getUnseenReleases = (): ReleaseEntry[] => {
  * entry that drops out of the capped list and returns does not resurface as news.
  */
 export const markAllReleasesSeen = () => {
-    if (typeof window === "undefined") return
     const previous = readSeenIds() ?? []
     const union = new Set([...previous, ...RELEASES.map((release) => release.id)])
-    window.localStorage.setItem(WHATS_NEW_SEEN_KEY, JSON.stringify([...union]))
+    writeStorage(WHATS_NEW_SEEN_KEY, JSON.stringify([...union]))
 }
 
 /** Whether the user asked never to have the modal open on its own again. */
-export const isWhatsNewOptedOut = (): boolean => {
-    if (typeof window === "undefined") return false
-    return window.localStorage.getItem(WHATS_NEW_OPTED_OUT_KEY) === "true"
-}
+export const isWhatsNewOptedOut = (): boolean => readStorage(WHATS_NEW_OPTED_OUT_KEY) === "true"
 
-export const setWhatsNewOptedOut = (optedOut: boolean) => {
-    if (typeof window === "undefined") return
-    if (optedOut) window.localStorage.setItem(WHATS_NEW_OPTED_OUT_KEY, "true")
-    else window.localStorage.removeItem(WHATS_NEW_OPTED_OUT_KEY)
-}
+export const setWhatsNewOptedOut = (optedOut: boolean) =>
+    writeStorage(WHATS_NEW_OPTED_OUT_KEY, optedOut ? "true" : null)

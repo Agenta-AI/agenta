@@ -136,7 +136,8 @@ export const SkillListScreen = ({
     const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
 
     // The search narrows the query, so with no term an empty registry means the project has none.
-    const projectEmpty = !isLoading && !query.isError && !projectHasSkills && !term
+    const projectEmpty =
+        !isLoading && !query.isError && !projectHasSkills && !term && !view.archived
     const emptyState = isLoading ? null : (
         <SkillsNoMatch
             term={term || undefined}

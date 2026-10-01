@@ -14,8 +14,14 @@ export const FeatureOnboarding = ({guideKey, base}: {guideKey: FeatureGuideKey; 
             <FeatureTemplateGrid
                 templateKeys={FEATURE_GUIDES[guideKey].templateKeys}
                 browseHref={`${base}/templates`}
+                disabled={newAgent.creating}
                 onSelect={(template) => newAgent.createFromTemplate(template.key)}
             />
+            {newAgent.error ? (
+                <p role="alert" className="m-0 -mt-5 text-[12.5px] text-destructive">
+                    {newAgent.error}
+                </p>
+            ) : null}
         </div>
     )
 }
