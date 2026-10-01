@@ -80,12 +80,12 @@ export const WhatsNewDialog = () => {
                 aria-describedby={undefined}
                 className="gap-0 rounded-2xl p-0 shadow-dialog md:grid md:h-[540px] md:max-w-[920px] md:grid-cols-[272px_1fr] md:overflow-hidden"
             >
-                <div className="flex flex-col border-0 border-solid border-colorBorderSecondary bg-muted px-4 pb-3.5 pt-6 md:border-r">
+                <div className="flex flex-col border-0 border-solid border-colorBorderSecondary bg-muted px-4 pb-3.5 pt-6 max-md:border-t md:border-r">
                     <div className="flex flex-col gap-1 px-2 pb-4">
                         <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                             What&apos;s new
                         </span>
-                        <DialogTitle className="m-0 text-[18px] font-semibold tracking-[-0.015em] text-foreground">
+                        <DialogTitle className="m-0 text-[18px] font-medium tracking-[-0.015em] text-foreground">
                             Latest releases
                         </DialogTitle>
                     </div>
@@ -167,7 +167,7 @@ export const WhatsNewDialog = () => {
                     ) : null}
                 </div>
 
-                <div className="flex min-w-0 flex-col px-7 py-6">
+                <div className="order-first flex min-w-0 flex-col px-5 py-5 md:order-none md:px-7 md:py-6">
                     <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-solid border-colorBorderSecondary">
                         {selected.streamVideoId && playing ? (
                             <iframe
@@ -224,7 +224,7 @@ export const WhatsNewDialog = () => {
                     <div className="-mb-3 mt-auto flex items-center justify-between gap-3 pt-4">
                         <label
                             htmlFor={optOutId}
-                            className="flex cursor-pointer items-center gap-2 text-[13px] text-muted-foreground"
+                            className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-[13px] text-muted-foreground"
                         >
                             <Checkbox
                                 id={optOutId}
