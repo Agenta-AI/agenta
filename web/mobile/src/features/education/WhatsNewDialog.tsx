@@ -80,8 +80,8 @@ export const WhatsNewDialog = () => {
                 aria-describedby={undefined}
                 className="gap-0 rounded-2xl p-0 shadow-dialog max-md:max-h-[85dvh] md:grid md:h-[540px] md:max-w-[920px] md:grid-cols-[272px_1fr] md:overflow-hidden"
             >
-                <div className="flex flex-col border-0 border-solid border-colorBorderSecondary bg-muted px-4 pb-3.5 pt-6 max-md:border-t md:border-r">
-                    <div className="flex flex-col gap-1 px-2 pb-4">
+                <div className="flex flex-col border-0 border-solid border-colorBorderSecondary bg-muted px-3 pb-3 pt-5 max-md:border-t md:border-r">
+                    <div className="flex flex-col gap-1 px-2 pb-3">
                         <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                             What&apos;s new
                         </span>
@@ -167,14 +167,14 @@ export const WhatsNewDialog = () => {
                     ) : null}
                 </div>
 
-                <div className="relative order-first flex min-w-0 flex-col px-5 pb-5 pt-12 md:order-none md:px-7 md:py-6">
+                <div className="relative order-first flex min-w-0 flex-col px-4 pb-4 pt-11 md:order-none md:p-5">
                     {/* Phones: the sheet leaves little backdrop to tap, so it gets its own close. */}
                     <DialogClose asChild>
                         <Button
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Close"
-                            className="absolute right-3 top-3 md:hidden"
+                            className="absolute right-2 top-2 md:hidden"
                         >
                             <X />
                         </Button>
@@ -223,7 +223,7 @@ export const WhatsNewDialog = () => {
                         )}
                     </div>
 
-                    <div className="mt-5 flex flex-col gap-1.5">
+                    <div className="mt-4 flex flex-col gap-1.5">
                         <h2 className="m-0 text-[17px] font-semibold tracking-[-0.015em] text-foreground md:text-[20px]">
                             {selected.title}
                         </h2>
@@ -232,7 +232,7 @@ export const WhatsNewDialog = () => {
                         </p>
                     </div>
 
-                    <div className="-mb-3 mt-auto flex items-center justify-between gap-3 pt-4">
+                    <div className="-mb-2 mt-auto flex items-center justify-between gap-3 pt-3">
                         <label
                             htmlFor={optOutId}
                             className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-[13px] text-muted-foreground"
