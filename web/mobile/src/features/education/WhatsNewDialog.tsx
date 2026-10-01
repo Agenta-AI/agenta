@@ -12,12 +12,12 @@ import {Button, Checkbox, Dialog, DialogClose, DialogContent, DialogTitle} from 
 import {ArrowUpRight, Package, Play, Sparkle, X} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
+import {cn} from "@/lib/utils"
+
 import {useMobileVersion} from "../nav/useMobileNavItems"
 
 import {streamPlayerUrl, streamThumbnailUrl} from "./streamMedia"
 import {whatsNewAtom} from "./whatsNewAtom"
-
-import {cn} from "@/lib/utils"
 
 /** The rail lists this many releases, newest first; the rest are one link away. */
 const RAIL_COUNT = 4
