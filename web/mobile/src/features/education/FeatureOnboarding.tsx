@@ -13,6 +13,7 @@ export const FeatureOnboarding = ({guideKey, base}: {guideKey: FeatureGuideKey; 
             <FeatureOnboardingBanner guideKey={guideKey} />
             <FeatureTemplateGrid
                 templateKeys={FEATURE_GUIDES[guideKey].templateKeys}
+                browseHref={`${base}/templates`}
                 onSelect={(template) => newAgent.createFromTemplate(template.key)}
             />
         </div>
