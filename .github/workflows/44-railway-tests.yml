@@ -901,7 +901,13 @@ jobs:
 
           if [[ "$summary" =~ \[test\]\ ([0-9]+)\ passed,\ ([0-9]+)\ failed,\ ([0-9]+)\ skipped ]]; then
             passed="${BASH_REMATCH[1]}"
+            failed="${BASH_REMATCH[2]}"
             skipped="${BASH_REMATCH[3]}"
+
+            if (( failed > 0 )); then
+              echo "MCP acceptance tests reported failures."
+              exit 1
+            fi
 
             if (( skipped > 0 )); then
               echo "MCP acceptance tests were skipped; expected the mock MCP gateway to be reachable."
