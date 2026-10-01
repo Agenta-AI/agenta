@@ -17,12 +17,9 @@ import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
-
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
+import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -33,6 +30,10 @@ import {SessionListTable} from "./SessionListTable"
 import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
 import {useProjectHasSessions} from "./useProjectHasSessions"
 import {useSessionRowMenu} from "./useSessionRowMenu"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
 /**
  * The sessions page — the same table, toolbar and filter menu the automations page renders, over
@@ -174,6 +175,12 @@ export const SessionListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Sessions
                                 </h1>
+                                {projectEmpty ? null : (
+                                    <HowThisWorksButton
+                                        guide="sessions"
+                                        className="max-sm:hidden"
+                                    />
+                                )}
                                 {/* Sessions start from Home's composer. */}
                                 {projectEmpty ? (
                                     <Button asChild>
