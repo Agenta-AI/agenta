@@ -1,8 +1,8 @@
 [
     {
         "id": "changelog-2026-09-25-whatsapp-and-channel-tools",
-        "title": "WhatsApp and channel tools",
-        "description": "Connect a WhatsApp business number to an agent, and let connected agents read, search, and send channel messages.",
+        "title": "Agents on WhatsApp",
+        "description": "Connect your WhatsApp Business number to an agent so it answers your customers there.",
         "link": "https://agenta.ai/docs/changelog/whatsapp-channel-and-channel-tools"
     },
     {
