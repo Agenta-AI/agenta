@@ -70,8 +70,8 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                         variant="outline"
                         className="border-colorBorderSecondary hover:border-colorTextQuaternary hover:bg-background"
                     >
-                        <a href={guide.docsUrl} target="_blank" rel="noreferrer">
-                            Docs
+                        <a href={guide.docsUrl} target="_blank" rel="noopener noreferrer">
+                            Read the docs
                             <ArrowUpRight className="size-3" aria-hidden />
                         </a>
                     </Button>
