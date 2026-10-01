@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-28-agent-templates-and-marketplace",
+        "title": "Agent templates",
+        "description": "Start from a ready-made agent in the marketplace, or save your own agent as a template.",
+        "link": "https://agenta.ai/docs/changelog/agent-templates-and-marketplace"
+    },
+    {
         "id": "changelog-2026-09-07-session-control-and-queued-work",
         "title": "Edit queued instructions",
         "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
