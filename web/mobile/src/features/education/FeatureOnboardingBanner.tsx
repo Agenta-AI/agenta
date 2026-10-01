@@ -59,7 +59,7 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                 <div className="flex items-center gap-2">
                     {video ? (
                         <Button size="sm" onClick={watch}>
-                            <Play weight="fill" className="size-[11px]" aria-hidden />
+                            <Play className="size-3" aria-hidden />
                             Watch video
                         </Button>
                     ) : null}
