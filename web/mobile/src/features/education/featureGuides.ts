@@ -1,45 +1,58 @@
-/**
- * The feature-guide catalog: one entry per feature the guide dialog can explain.
- *
- * Iteration 1 pulls the demo clips the docs already host on Cloudflare Stream (the
- * changelog entries under `docs/blog/entries/`). Those clips are silent announcement
- * demos, so every guide pairs its video with a written line and the docs link — the
- * video shows the flow, the text explains it.
- */
+/** What each empty page's onboarding says; templates are agent-template catalog keys. */
 
-/** The Stream account the docs embeds use. */
-const STREAM_CUSTOMER = "customer-8r37tdgzpxskd9f1"
+export type FeatureGuideKey = "agents" | "automations" | "skills" | "sessions"
 
 export interface FeatureGuide {
-    /** Dialog heading. */
+    /** The page's own name; the banner's pill reads "{title} walkthrough". */
     title: string
-    /** Two or three written lines — the video is silent and cannot carry these. */
-    blurb: string
-    /** Cloudflare Stream video id, from the docs changelog entry for the feature. */
-    streamVideoId: string
-    /** Where "Read the guide" goes; also the fallback when Stream is unreachable. */
+    headline: string
+    body: string
     docsUrl: string
-    /** What a user could type in chat instead of doing it by hand. */
-    askAgentExample: string
+    /** Absent until the page has its own walkthrough clip. */
+    video?: {
+        /** Cloudflare Stream id of the walkthrough. */
+        id: string
+        /** The lightbox footer's name for the clip. */
+        title: string
+        /** Where the still is taken and playback starts. */
+        startSeconds: number
+    }
+    /** Agent-template catalog keys, in display order. */
+    templateKeys: readonly string[]
 }
-
-export type FeatureGuideKey = "automations"
 
 export const FEATURE_GUIDES: Record<FeatureGuideKey, FeatureGuide> = {
+    agents: {
+        title: "Agents",
+        headline: "Build an agent by chatting with it",
+        body: "You describe the work, connect the apps it needs, and improve it through feedback. Share it with your team when it works.",
+        docsUrl: "https://agenta.ai/docs/concepts/agents",
+        templateKeys: ["code-qa", "knowledge-chatbot", "outreach-drafter"],
+    },
     automations: {
-        title: "How automations work",
-        blurb:
-            "An automation runs one of your agents without you asking — on a schedule, or when " +
-            "something happens in a connected app. Create one here, or just describe it to your " +
-            "agent in chat and it sets the automation up for you.",
-        // docs/blog/entries/automation-runs.mdx
-        streamVideoId: "676408fc495006b18b9854fbafe321a8",
-        docsUrl: "https://agenta.ai/docs/changelog/automation-runs",
-        askAgentExample: "Create an automation that runs every weekday at 09:00.",
+        title: "Automations",
+        headline: "Put your agents to work in the background",
+        body: "An automation runs one of your agents without you asking — on a schedule, or when something happens in an app you have connected.",
+        docsUrl: "https://agenta.ai/docs/concepts/automations",
+        video: {
+            id: "f32acd7ba24a22793626d625f83498fb",
+            title: "Automations in Agenta",
+            startSeconds: 4,
+        },
+        templateKeys: ["pr-reviewer", "changelog-writer", "issue-triage"],
+    },
+    skills: {
+        title: "Skills",
+        headline: "Teach your agents how your team works",
+        body: "Define your agent with AGENTS.md, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.",
+        docsUrl: "https://agenta.ai/docs/concepts/skills",
+        templateKeys: [],
+    },
+    sessions: {
+        title: "Sessions",
+        headline: "Every conversation with an agent, in one place",
+        body: "Each chat with an agent is a session. Pick one up where you left off, search across them, and inspect every model and tool call.",
+        docsUrl: "https://agenta.ai/docs/reference/agents/sessions-and-turns",
+        templateKeys: ["standup-summarizer", "meeting-followup", "weekly-report"],
     },
 }
-
-/** The iframe src for a guide's clip. Controls on, no autoplay: this is a how-to, not
- * a background demo — the docs' `muted&loop&autoplay` params are deliberately absent. */
-export const streamIframeSrc = (guide: FeatureGuide): string =>
-    `https://${STREAM_CUSTOMER}.cloudflarestream.com/${guide.streamVideoId}/iframe?preload=metadata`

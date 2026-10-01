@@ -27,6 +27,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -41,7 +42,6 @@ import {
     type SkillListRow,
     type SkillListView,
 } from "./skillListView"
-import {SkillsEmpty} from "./states/SkillsEmpty"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
 
 /** The page column, shared with agents and automations, so the nav entries line up. */
@@ -134,15 +134,15 @@ export const SkillListScreen = ({
     const closeImport = useCallback(() => setImportOpen(false), [])
     const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
 
-    const emptyState = isLoading ? null : projectHasSkills || term ? (
+    // The search narrows the query, so with no term an empty registry means the project has none.
+    const projectEmpty = !isLoading && !query.isError && !projectHasSkills && !term
+    const emptyState = isLoading ? null : (
         <SkillsNoMatch
             term={term || undefined}
             onClear={
                 term ? () => setSearch("") : isDefaultSkillFilters(view) ? undefined : resetFilters
             }
         />
-    ) : (
-        <SkillsEmpty />
     )
 
     const body = query.isError ? (
@@ -187,30 +187,36 @@ export const SkillListScreen = ({
                     }
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        {/* Search belongs to the list, not to the page: it sits on the results'
-                            own left edge. The facets ride one control beside it; the view switch
-                            takes the far edge, where it changes how the results are drawn rather
-                            than which ones are. */}
-                        <ListTableToolbar
-                            search={search}
-                            onSearchChange={setSearch}
-                            searchPlaceholder="Search skills by name…"
-                            actions={
-                                <>
-                                    <SkillFilterMenu
-                                        view={view}
-                                        onChange={setView}
-                                        repositories={repositories}
-                                    />
-                                    <ListTableViewToggle
-                                        value={view.mode}
-                                        onChange={setMode}
-                                        className="ml-auto"
-                                    />
-                                </>
-                            }
-                        />
-                        {body}
+                        {projectEmpty ? (
+                            <FeatureOnboarding guideKey="skills" base={base} />
+                        ) : (
+                            <>
+                                {/* Search belongs to the list, not to the page: it sits on the
+                                    results' own left edge. The facets ride one control beside it;
+                                    the view switch takes the far edge, where it changes how the
+                                    results are drawn rather than which ones are. */}
+                                <ListTableToolbar
+                                    search={search}
+                                    onSearchChange={setSearch}
+                                    searchPlaceholder="Search skills by name…"
+                                    actions={
+                                        <>
+                                            <SkillFilterMenu
+                                                view={view}
+                                                onChange={setView}
+                                                repositories={repositories}
+                                            />
+                                            <ListTableViewToggle
+                                                value={view.mode}
+                                                onChange={setMode}
+                                                className="ml-auto"
+                                            />
+                                        </>
+                                    }
+                                />
+                                {body}
+                            </>
+                        )}
                     </div>
                 </ScreenScaffold>
             </AppShell>

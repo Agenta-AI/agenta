@@ -12,9 +12,9 @@ import {Filter, Search} from "lucide-react"
 /**
  * The project has skills, but none the reader asked for.
  *
- * Distinct from `SkillsEmpty`: a registry a filter has hidden must not be told it is empty, and
- * the way out is the control that narrowed it — so this carries the action rather than leaving
- * the reader to work out which of four rows is set.
+ * Distinct from the onboarding a project with no skills gets: a registry a filter has hidden must
+ * not be told it is empty, and the way out is the control that narrowed it — so this carries the
+ * action rather than leaving the reader to work out which of four rows is set.
  */
 export const SkillsNoMatch = ({
     term,
