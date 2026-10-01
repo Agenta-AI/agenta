@@ -101,7 +101,9 @@ def test_web_registry_is_rendered_once() -> None:
         labels = doc.get("metadata", {}).get("labels", {})
         if labels.get("app.kubernetes.io/component") not in ("web", "web-mobile"):
             continue
-        names = [e["name"] for e in doc["spec"]["template"]["spec"]["containers"][0]["env"]]
+        names = [
+            e["name"] for e in doc["spec"]["template"]["spec"]["containers"][0]["env"]
+        ]
         assert names.count("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS") == 1
 
 
