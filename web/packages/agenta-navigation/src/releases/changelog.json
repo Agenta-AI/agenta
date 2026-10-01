@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-11-create-and-test-automations",
+        "title": "Test your automations",
+        "description": "Create an automation, run a test, and follow every run in its own session.",
+        "link": "https://agenta.ai/docs/changelog/create-and-test-automations"
+    },
+    {
         "id": "changelog-2026-09-07-session-control-and-queued-work",
         "title": "Edit queued instructions",
         "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
