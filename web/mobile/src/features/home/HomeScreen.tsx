@@ -1,4 +1,4 @@
-import {useEffect, useMemo} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import {
     agentTemplatesAtom,
@@ -9,12 +9,9 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
-import {getUnseenReleases} from "@agenta/navigation"
+import {getUnseenReleases, isWhatsNewOptedOut} from "@agenta/navigation"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
@@ -27,6 +24,9 @@ import {HOME_PAGE_FRAME} from "./pageFrame"
 import {HomeSkeleton} from "./states/HomeSkeleton"
 import {HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /**
  * The project's home — one question, one composer, one list.
@@ -50,11 +50,18 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const templates = useAtomValue(agentTemplatesAtom)
     const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
     const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
-    // Opens once per unseen release; never for a new user (see `getUnseenReleases`).
+    // Existing users only (they have an agent), once per new release, unless they opted out.
     const openWhatsNew = useSetAtom(whatsNewAtom)
+    const agentsSettled = !agentsQuery.isPending && !agentsQuery.isError
+    const hasAgents = agents.length > 0
+    const whatsNewCheckedRef = useRef(false)
     useEffect(() => {
-        if (getUnseenReleases().length > 0) openWhatsNew({})
-    }, [openWhatsNew])
+        if (!agentsSettled || whatsNewCheckedRef.current) return
+        whatsNewCheckedRef.current = true
+        // Called for new users too: the first call seeds what already shipped as seen.
+        const unseen = getUnseenReleases()
+        if (hasAgents && unseen.length > 0 && !isWhatsNewOptedOut()) openWhatsNew({})
+    }, [agentsSettled, hasAgents, openWhatsNew])
     const surface = resolveHomeSurface({
         agentCount: agents.length,
         isPending: agentsQuery.isPending,
