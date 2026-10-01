@@ -78,25 +78,32 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
             </div>
             {video ? (
                 <>
-                    {/* Narrow containers: a framed still, stacked on top, then beside the text. */}
-                    <button
-                        type="button"
-                        onClick={watch}
-                        aria-label={`Watch ${video.title}`}
-                        className="relative order-first block aspect-video w-full cursor-pointer overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-black p-0 @xl:order-none @3xl:hidden"
-                    >
-                        <img
-                            src={streamThumbnailUrl(video.id, video.startSeconds)}
-                            alt=""
-                            className="block size-full object-cover"
+                    {/* Narrow containers: the still on stacked cards, on top, then beside the text. */}
+                    <div className="relative order-first pl-3.5 pt-3.5 @xl:order-none @3xl:hidden">
+                        <div
+                            aria-hidden
+                            className="absolute bottom-7 left-0 right-7 top-0 -rotate-[2.5deg] rounded-[14px] border border-solid border-colorBorderSecondary bg-background opacity-70"
                         />
-                        <span className="absolute bottom-3 left-3 inline-flex h-7 items-center gap-1.5 rounded-full bg-background pl-1 pr-2.5 text-[12px] font-medium text-foreground shadow-overlay">
-                            <span className="inline-flex size-5 items-center justify-center rounded-full bg-hero-action text-hero-action-foreground">
-                                <Play size={9} weight="fill" aria-hidden />
+                        <div
+                            aria-hidden
+                            className="absolute bottom-3.5 left-[7px] right-3.5 top-[7px] -rotate-[1.2deg] rounded-[14px] border border-solid border-colorBorderSecondary bg-background"
+                        />
+                        <button
+                            type="button"
+                            onClick={watch}
+                            aria-label={`Watch ${video.title}`}
+                            className="relative block aspect-[16/10] w-full cursor-pointer overflow-hidden rounded-[14px] border-0 bg-black p-0 shadow-overlay outline outline-4 outline-background"
+                        >
+                            <img
+                                src={streamThumbnailUrl(video.id, video.startSeconds)}
+                                alt=""
+                                className="block size-full object-cover"
+                            />
+                            <span className="absolute left-1/2 top-1/2 inline-flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-black shadow-overlay ring-[6px] ring-white/20">
+                                <Play size={14} weight="fill" className="ml-0.5" aria-hidden />
                             </span>
-                            Play
-                        </span>
-                    </button>
+                        </button>
+                    </div>
                     <div aria-hidden className="hidden h-[240px] @3xl:block" />
                 </>
             ) : null}
