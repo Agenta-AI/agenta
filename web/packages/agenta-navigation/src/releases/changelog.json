@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-30-new-models-and-cost-tracking",
+        "title": "Grok, Opus 5.5, Sonnet 5.5",
+        "description": "New models to choose from, and cost tracking that accounts for caching.",
+        "link": "https://agenta.ai/docs/changelog/new-models-and-cost-tracking"
+    },
+    {
         "id": "changelog-2026-09-09-agent-permission-policies",
         "title": "Choose when agents ask",
         "description": "Set a default permission policy for an agent and review the tool-specific rules that can override it.",
