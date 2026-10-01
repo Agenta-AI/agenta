@@ -9,7 +9,7 @@ export const FeatureOnboarding = ({guideKey, base}: {guideKey: FeatureGuideKey; 
     const newAgent = useNewAgentAction(base)
 
     return (
-        <div className="@container flex flex-col gap-8 pt-5">
+        <div className="@container flex flex-col gap-8 pt-1">
             <FeatureOnboardingBanner guideKey={guideKey} />
             <FeatureTemplateGrid
                 templateKeys={FEATURE_GUIDES[guideKey].templateKeys}
