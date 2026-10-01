@@ -11,7 +11,10 @@ import {
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -19,6 +22,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -27,6 +31,7 @@ import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
 import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
+import {useProjectHasSessions} from "./useProjectHasSessions"
 import {useSessionRowMenu} from "./useSessionRowMenu"
 
 /**
@@ -46,6 +51,7 @@ export const SessionListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const base = `/w/${workspaceId}/p/${projectId}`
     // `?mode=automation` — what the agent overview's "Automation runs" card links to, so a cold
     // load or a pasted link lands on the same set the card was showing. Applied below, once the
     // search field exists to be cleared with it.
@@ -84,6 +90,15 @@ export const SessionListScreen = ({
     // narrowed list with an empty box reads as broken rather than as filtered.
     const setSearch = useSetAtom(sessionSearchAtom)
     const seedSearch = useAtomValue(sessionSearchAtom)
+    const listSettledEmpty = list.isEmpty && !list.isPlaceholder && !list.isPending
+    const probe = useProjectHasSessions(listSettledEmpty)
+    // No session anywhere in the project: teach sessions instead of listing them.
+    const projectEmpty =
+        listSettledEmpty &&
+        !list.isError &&
+        !probe.pending &&
+        !probe.hasSessions &&
+        !seedSearch.trim()
     const search = useDebouncedAtomSearch(setSearch, 300, seedSearch)
 
     const resetFilters = useSetAtom(resetSessionFiltersAtom)
@@ -112,9 +127,9 @@ export const SessionListScreen = ({
 
     // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
     // the desktop list bind. Without them a row here offers only the pin.
-    const sessionMenu = useSessionRowMenu(`/w/${workspaceId}/p/${projectId}`)
+    const sessionMenu = useSessionRowMenu(base)
     // An agent heading's "+": the same blank start every other "+" in the app makes.
-    const startBlank = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
+    const startBlank = useStartBlankSession(base)
     const verbs = useMemo(
         () => ({
             open: sessionMenu.open,
@@ -159,49 +174,61 @@ export const SessionListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Sessions
                                 </h1>
+                                {/* Sessions start from Home's composer. */}
+                                {projectEmpty ? (
+                                    <Button asChild>
+                                        <Link href={`${base}/apps`}>
+                                            <Plus />
+                                            New session
+                                        </Link>
+                                    </Button>
+                                ) : null}
                             </div>
                         </div>
                     }
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`}>
-                        {/* Search belongs to the list, not to the page: it sits on the table's own
-                            left edge so it reads as the control that narrows what is below it.
-                            One control beside the field, not four — type, status, agent and
-                            grouping are rows inside it, so the bar stays a search bar. */}
-                        <ListTableToolbar
-                            search={search.value}
-                            onSearchChange={search.onChange}
-                            searchPlaceholder="Search sessions"
-                            actions={
-                                <SessionFilterMenu
-                                    view={view}
-                                    onChange={setView}
-                                    agents={agents}
-                                    waitingCount={list.waitingCount}
-                                    onReset={resetView}
+                        {projectEmpty ? (
+                            <FeatureOnboarding guideKey="sessions" base={base} />
+                        ) : (
+                            <>
+                                {/* Search belongs to the list, not to the page: it sits on the
+                                    table's own left edge so it reads as the control that narrows
+                                    what is below it. One control beside the field, not four — type,
+                                    status, agent and grouping are rows inside it, so the bar stays
+                                    a search bar. */}
+                                <ListTableToolbar
+                                    search={search.value}
+                                    onSearchChange={search.onChange}
+                                    searchPlaceholder="Search sessions"
+                                    actions={
+                                        <SessionFilterMenu
+                                            view={view}
+                                            onChange={setView}
+                                            agents={agents}
+                                            waitingCount={list.waitingCount}
+                                            onReset={resetView}
+                                        />
+                                    }
                                 />
-                            }
-                        />
-                        <SessionListTable
-                            group={view.group}
-                            activityFloor={activityFloor}
-                            agentNames={agentNames}
-                            agentNamesReady={!agentsQuery.isPending}
-                            verbs={verbs}
-                            onNewSession={startBlank}
-                            onClearSearch={clearSearch}
-                            onResetView={resetView}
-                        />
+                                <SessionListTable
+                                    group={view.group}
+                                    activityFloor={activityFloor}
+                                    agentNames={agentNames}
+                                    agentNamesReady={!agentsQuery.isPending}
+                                    verbs={verbs}
+                                    onNewSession={startBlank}
+                                    onClearSearch={clearSearch}
+                                    onResetView={resetView}
+                                />
+                            </>
+                        )}
                     </div>
                 </ScreenScaffold>
             </AppShell>
             {/* The trigger drawers the automation row verbs open, at screen level so one survives
                 its row unmounting underneath it. */}
-            <SessionAutomationDrawers
-                base={`/w/${workspaceId}/p/${projectId}`}
-                workspaceId={workspaceId}
-                projectId={projectId}
-            />
+            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
         </>
     )
 }

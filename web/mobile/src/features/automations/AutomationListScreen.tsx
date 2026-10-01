@@ -3,7 +3,6 @@ import {useCallback, useMemo, useState} from "react"
 import {
     agentLabel,
     AutomationLastRunCell,
-    AutomationListEmpty,
     AutomationListNoMatch,
     automationStatus,
     type Automation,
@@ -26,15 +25,14 @@ import {
     type ListTableColumn,
 } from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {Play, Plus} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {Plus} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {openFeatureGuideAtom} from "../education/featureGuideAtom"
+import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -162,9 +160,10 @@ export const AutomationListScreen = ({
         [agentNames, agentsReady],
     )
 
-    const openGuide = useSetAtom(openFeatureGuideAtom)
     const term = search.trim()
     const isEmpty = !isLoading && !error && automations.length === 0
+    // Filters narrow client-side, so with no search term an empty list means the project has none.
+    const projectEmpty = isEmpty && !term
     const groups = useMemo(
         () => deriveAutomationList(automations, view, agentNames),
         [agentNames, automations, view],
@@ -192,43 +191,23 @@ export const AutomationListScreen = ({
                 collapsedKeys={collapsed}
                 onToggleGroup={toggleGroup}
                 empty={
-                    // The columns stay true whether the project has no automations or a filter
-                    // hid them all, so both states sit UNDER the header rather than replacing the
-                    // table — what is missing is rows.
-                    // `isEmpty` alone is not "this project has none": the search narrows the
-                    // query itself, so a term that matches nothing empties the list too.
-                    isEmpty && !term && isDefaultAutomationListView(view) ? (
-                        <AutomationListEmpty
-                            action={
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="mt-1"
-                                    onClick={() => openGuide("automations")}
-                                >
-                                    <Play size={14} aria-hidden />
-                                    See how automations work
-                                </Button>
-                            }
-                        />
-                    ) : (
-                        <AutomationListNoMatch
-                            term={term || undefined}
-                            onClear={
-                                term
-                                    ? () => setSearch("")
-                                    : isDefaultAutomationListView(view)
-                                      ? undefined
-                                      : // The mode survives: it is how the reader chose to
-                                        // read the list, not what they narrowed it to.
-                                        () =>
-                                            setView({
-                                                ...DEFAULT_AUTOMATION_LIST_VIEW,
-                                                mode: view.mode,
-                                            })
-                            }
-                        />
-                    )
+                    // The project has automations; the search or the filters hid them.
+                    <AutomationListNoMatch
+                        term={term || undefined}
+                        onClear={
+                            term
+                                ? () => setSearch("")
+                                : isDefaultAutomationListView(view)
+                                  ? undefined
+                                  : // The mode survives: it is how the reader chose to read the
+                                    // list, not what they narrowed it to.
+                                    () =>
+                                        setView({
+                                            ...DEFAULT_AUTOMATION_LIST_VIEW,
+                                            mode: view.mode,
+                                        })
+                        }
+                    />
                 }
                 renderCard={(automation) => (
                     <AutomationCardBody
@@ -331,7 +310,12 @@ export const AutomationListScreen = ({
                                     the manual flow undiscovered, so the guide stays one click
                                     away. Hidden on a phone, where the title already fights the
                                     New button for width. */}
-                                <HowThisWorksButton guide="automations" className="max-sm:hidden" />
+                                {projectEmpty ? null : (
+                                    <HowThisWorksButton
+                                        guide="automations"
+                                        className="max-sm:hidden"
+                                    />
+                                )}
                                 <Button
                                     aria-label="New automation"
                                     // Square icon button on a phone, where the label is hidden.
@@ -348,33 +332,39 @@ export const AutomationListScreen = ({
                     }
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        {/* Search belongs to the list, not to the page: it sits on the table's
-                            own left edge so it reads as the control that narrows what is below
-                            it. */}
-                        {/* One control beside the field, not three: sort and group are rows
-                            inside it, so the bar stays a search bar. The view switch takes the
-                            far edge, where it changes how the results are drawn rather than
-                            which ones are. */}
-                        <ListTableToolbar
-                            search={search}
-                            onSearchChange={setSearch}
-                            searchPlaceholder="Search automations"
-                            actions={
-                                <>
-                                    <AutomationFilterMenu
-                                        view={view}
-                                        onChange={setView}
-                                        agents={agents}
-                                    />
-                                    <ListTableViewToggle
-                                        value={view.mode}
-                                        onChange={setMode}
-                                        className="ml-auto"
-                                    />
-                                </>
-                            }
-                        />
-                        {body}
+                        {projectEmpty ? (
+                            <FeatureOnboarding guideKey="automations" base={base} />
+                        ) : (
+                            <>
+                                {/* Search belongs to the list, not to the page: it sits on the
+                                    table's own left edge so it reads as the control that narrows
+                                    what is below it. */}
+                                {/* One control beside the field, not three: sort and group are rows
+                                    inside it, so the bar stays a search bar. The view switch takes
+                                    the far edge, where it changes how the results are drawn rather
+                                    than which ones are. */}
+                                <ListTableToolbar
+                                    search={search}
+                                    onSearchChange={setSearch}
+                                    searchPlaceholder="Search automations"
+                                    actions={
+                                        <>
+                                            <AutomationFilterMenu
+                                                view={view}
+                                                onChange={setView}
+                                                agents={agents}
+                                            />
+                                            <ListTableViewToggle
+                                                value={view.mode}
+                                                onChange={setMode}
+                                                className="ml-auto"
+                                            />
+                                        </>
+                                    }
+                                />
+                                {body}
+                            </>
+                        )}
                     </div>
                 </ScreenScaffold>
             </AppShell>

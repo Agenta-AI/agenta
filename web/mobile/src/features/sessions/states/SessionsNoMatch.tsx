@@ -12,9 +12,10 @@ import {Filter, Search} from "lucide-react"
 /**
  * The list has sessions, but none the reader asked for.
  *
- * Distinct from `SessionsEmpty`: a project with sessions that a filter has hidden must not be
- * told it has none, and the way out is the control that narrowed it — so this carries the action
- * rather than leaving the reader to work out which of four rows is set.
+ * Distinct from the onboarding a project with no sessions gets: a project with sessions that a
+ * filter has hidden must not be told it has none, and the way out is the control that narrowed it
+ * — so this carries the action rather than leaving the reader to work out which of four rows is
+ * set.
  */
 export const SessionsNoMatch = ({
     term,
