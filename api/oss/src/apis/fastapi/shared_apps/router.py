@@ -38,10 +38,18 @@ _LINK_BURST, _LINK_PER_MINUTE = 300, 600
 
 
 def _client_ip(request: Request) -> str:
-    for header in ("cf-connecting-ip", "x-forwarded-for", "x-real-ip"):
-        value = request.headers.get(header)
-        if value:
-            return value.split(",")[0].strip()
+    """The viewer's address as the ingress saw it, never a value the client can choose.
+
+    The bundled proxies overwrite `X-Real-IP` with the peer address and append that same address
+    to `X-Forwarded-For`, so the first is trusted and, without it, only the last forwarded hop.
+    """
+    real_ip = (request.headers.get("x-real-ip") or "").strip()
+    if real_ip:
+        return real_ip
+    forwarded = request.headers.get("x-forwarded-for") or ""
+    last_hop = forwarded.rsplit(",", 1)[-1].strip()
+    if last_hop:
+        return last_hop
     return request.client.host if request.client else ""
 
 

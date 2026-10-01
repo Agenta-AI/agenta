@@ -2,7 +2,7 @@ import {useCallback} from "react"
 
 import {useRouter} from "next/router"
 
-import {takeReturnPath} from "@/lib/context"
+import {completeSignIn, takeReturnPath} from "@/lib/context"
 import {queryClient} from "@/lib/queryClient"
 
 /**
@@ -12,11 +12,15 @@ import {queryClient} from "@/lib/queryClient"
  */
 export function useAuthSuccess() {
     const router = useRouter()
-    return useCallback(async () => {
-        await Promise.all([
-            queryClient.invalidateQueries({queryKey: ["profile"]}),
-            queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
-        ])
-        await router.replace(takeReturnPath() || "/")
-    }, [router])
+    return useCallback(
+        () =>
+            completeSignIn(async () => {
+                await Promise.all([
+                    queryClient.invalidateQueries({queryKey: ["profile"]}),
+                    queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
+                ])
+                await router.replace(takeReturnPath() || "/")
+            }),
+        [router],
+    )
 }

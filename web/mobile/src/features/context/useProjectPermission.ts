@@ -17,14 +17,15 @@ export const fetchProjectPermission = async (
             {queryParams: {project_id: projectId}},
         )
         return true
-    } catch {
-        return false
+    } catch (error) {
+        // Only a 403 is an answer; anything else (offline, 5xx) leaves the permission unknown.
+        if ((error as {statusCode?: number} | null)?.statusCode === 403) return false
+        throw error
     }
 }
 
-/** Read one effective project permission from the authenticated backend. */
-export const useProjectPermission = (projectId: string, action: string): boolean => {
-    const query = useQuery({
+const useProjectPermissionQuery = (projectId: string, action: string) =>
+    useQuery({
         queryKey: ["mobile", "project-permission", projectId, action],
         queryFn: () => fetchProjectPermission(projectId, action),
         enabled: Boolean(projectId),
@@ -32,5 +33,15 @@ export const useProjectPermission = (projectId: string, action: string): boolean
         retry: false,
     })
 
-    return query.data === true
+/** Read one effective project permission from the authenticated backend. */
+export const useProjectPermission = (projectId: string, action: string): boolean =>
+    useProjectPermissionQuery(projectId, action).data === true
+
+/** The same permission, `undefined` until the backend has answered. */
+export const useProjectPermissionState = (
+    projectId: string,
+    action: string,
+): boolean | undefined => {
+    const query = useProjectPermissionQuery(projectId, action)
+    return query.isSuccess ? query.data : undefined
 }

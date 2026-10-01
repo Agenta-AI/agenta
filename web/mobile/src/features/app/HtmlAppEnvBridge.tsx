@@ -7,7 +7,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {useProjectPermission} from "../context/useProjectPermission"
+import {useProjectPermissionState} from "../context/useProjectPermission"
 
 /**
  * Tells the HTML app viewer whether this person may change drive files (write grants, Share), and
@@ -15,7 +15,8 @@ import {useProjectPermission} from "../context/useProjectPermission"
  */
 export const HtmlAppEnvBridge = ({children}: PropsWithChildren) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
-    const canEditMounts = useProjectPermission(projectId, "edit_mounts")
+    // Unknown while the check runs: a `false` here would let Run save a lasting read-only grant.
+    const canEditMounts = useProjectPermissionState(projectId, "edit_mounts")
     const {basePath} = useRouter()
     const env = useMemo(
         () => ({

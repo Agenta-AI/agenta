@@ -84,6 +84,22 @@ export function rememberReturnPath(path: string, now = Date.now()): void {
     }
 }
 
+// Set while a successful sign-in hands over to the page that asked for it, so the session gate
+// does not race it with its own redirect from `/auth`.
+let completingSignIn = false
+
+/** Run the post-sign-in navigation as the only one: the gate stands down while it runs. */
+export async function completeSignIn(navigate: () => Promise<unknown>): Promise<void> {
+    completingSignIn = true
+    try {
+        await navigate()
+    } finally {
+        completingSignIn = false
+    }
+}
+
+export const isCompletingSignIn = (): boolean => completingSignIn
+
 /** The kept path, used once: reading it forgets it. "" when none is kept or it expired. */
 export function takeReturnPath(now = Date.now()): string {
     try {
