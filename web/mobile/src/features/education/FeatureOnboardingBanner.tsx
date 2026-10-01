@@ -49,10 +49,10 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                     </span>
                 ) : null}
                 <div className="flex flex-col gap-2.5">
-                    <h2 className="m-0 text-balance text-[24px] font-semibold leading-[1.1] tracking-[-0.03em] text-foreground">
+                    <h2 className="m-0 text-balance text-[20px] font-semibold @xl:text-[22px] @3xl:text-[24px] leading-[1.1] tracking-[-0.03em] text-foreground">
                         {guide.headline}
                     </h2>
-                    <p className="m-0 max-w-[46ch] text-[14.5px] leading-[1.6] text-muted-foreground">
+                    <p className="m-0 max-w-[46ch] text-[14px] leading-[1.6] @3xl:text-[14.5px] text-muted-foreground">
                         {guide.body}
                     </p>
                 </div>
