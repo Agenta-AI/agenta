@@ -28,8 +28,8 @@ export interface FeatureGuide {
         id: string
         /** The lightbox footer's name for the clip. */
         title: string
-        /** Where the still is taken and playback starts. */
-        startSeconds: number
+        /** Where the banner still is taken; playback always starts at 0. */
+        stillSeconds: number
     }
     /** The banner's illustration when there is no video: the feature flanked by two related ones. */
     icons: {main: Icon; left: Icon; right: Icon}
@@ -54,7 +54,7 @@ export const FEATURE_GUIDES: Record<FeatureGuideKey, FeatureGuide> = {
         video: {
             id: "f32acd7ba24a22793626d625f83498fb",
             title: "Automations in Agenta",
-            startSeconds: 4,
+            stillSeconds: 4,
         },
         icons: {main: Lightning, left: Clock, right: Robot},
         templateKeys: ["pr-reviewer", "changelog-writer", "issue-triage"],

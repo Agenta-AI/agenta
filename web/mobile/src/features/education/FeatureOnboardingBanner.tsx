@@ -28,7 +28,7 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                         className="absolute inset-y-0 right-0 hidden w-[58%] cursor-pointer border-0 bg-black p-0 @3xl:block"
                     >
                         <img
-                            src={streamThumbnailUrl(video.id, video.startSeconds)}
+                            src={streamThumbnailUrl(video.id, video.stillSeconds)}
                             alt=""
                             className="block size-full object-cover"
                         />
@@ -96,7 +96,7 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                             className="relative block aspect-[16/10] w-full cursor-pointer overflow-hidden rounded-[14px] border-0 bg-black p-0 shadow-overlay outline outline-4 outline-background"
                         >
                             <img
-                                src={streamThumbnailUrl(video.id, video.startSeconds)}
+                                src={streamThumbnailUrl(video.id, video.stillSeconds)}
                                 alt=""
                                 className="block size-full object-cover"
                             />
