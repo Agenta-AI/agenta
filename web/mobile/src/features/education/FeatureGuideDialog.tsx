@@ -28,7 +28,7 @@ export const FeatureGuideDialog = () => {
                 >
                     <div className="aspect-video w-full overflow-hidden rounded-[14px] bg-black">
                         <iframe
-                            src={streamPlayerUrl(video.id, video.startSeconds)}
+                            src={streamPlayerUrl(video.id)}
                             title={video.title}
                             className="block size-full border-0"
                             allow="autoplay; fullscreen; picture-in-picture"

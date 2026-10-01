@@ -6,5 +6,5 @@ export const streamThumbnailUrl = (videoId: string, atSeconds = 0): string =>
     `${STREAM_HOST}/${videoId}/thumbnails/thumbnail.jpg?time=${atSeconds}s&height=720`
 
 /** Autoplays: it only mounts after a click, which lets the browser start it with sound. */
-export const streamPlayerUrl = (videoId: string, startSeconds = 0): string =>
-    `${STREAM_HOST}/${videoId}/iframe?autoplay=true&startTime=${startSeconds}s`
+export const streamPlayerUrl = (videoId: string): string =>
+    `${STREAM_HOST}/${videoId}/iframe?autoplay=true&startTime=0s`
