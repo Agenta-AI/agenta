@@ -36,7 +36,7 @@ export const FeatureGuideDialog = () => {
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-3 px-2 pb-1 pt-3 sm:px-3">
                         <div className="flex min-w-0 flex-col gap-1">
-                            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                            <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                                 {guide.title} walkthrough
                             </span>
                             <DialogTitle className="m-0 text-[16px] font-semibold leading-snug text-foreground">

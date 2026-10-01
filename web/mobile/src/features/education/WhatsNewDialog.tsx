@@ -11,12 +11,12 @@ import {Button, Dialog, DialogContent, DialogTitle} from "@agenta/ui/ui"
 import {ArrowUpRight, Package, Play, Sparkle} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
-import {cn} from "@/lib/utils"
-
 import {useMobileVersion} from "../nav/useMobileNavItems"
 
 import {streamPlayerUrl, streamThumbnailUrl} from "./streamMedia"
 import {whatsNewAtom} from "./whatsNewAtom"
+
+import {cn} from "@/lib/utils"
 
 /** The rail lists this many releases, newest first; the rest are one link away. */
 const RAIL_COUNT = 4
@@ -81,7 +81,7 @@ export const WhatsNewDialog = () => {
             >
                 <div className="flex flex-col border-0 border-solid border-colorBorderSecondary bg-muted px-4 pb-3.5 pt-6 md:border-r">
                     <div className="flex flex-col gap-1 px-2 pb-4">
-                        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                             What&apos;s new
                         </span>
                         <div className="flex items-center justify-between gap-2">
@@ -130,7 +130,7 @@ export const WhatsNewDialog = () => {
                                                 : "border-transparent group-hover:bg-background",
                                         )}
                                     >
-                                        <span className="font-mono text-[10.5px] uppercase tracking-[0.1em] text-colorTextTertiary">
+                                        <span className="text-[10.5px] font-medium uppercase tracking-[0.06em] text-colorTextTertiary">
                                             {formatReleaseDate(release)}
                                         </span>
                                         <span
@@ -211,7 +211,7 @@ export const WhatsNewDialog = () => {
                                 <span className="text-[17px] font-semibold text-foreground">
                                     {selected.title}
                                 </span>
-                                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-colorTextTertiary">
+                                <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-colorTextTertiary">
                                     {formatReleaseDate(selected)}
                                 </span>
                             </div>
