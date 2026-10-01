@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-25-talk-to-your-agent-in-telegram",
+        "title": "Agents in Telegram",
+        "description": "Scan a QR code to chat with your agent in Telegram, or connect your own bot.",
+        "link": "https://agenta.ai/docs/changelog/talk-to-your-agent-in-telegram"
+    },
+    {
         "id": "changelog-2026-09-07-session-control-and-queued-work",
         "title": "Edit queued instructions",
         "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
