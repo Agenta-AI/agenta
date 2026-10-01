@@ -41,8 +41,8 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
 
             <div className="relative z-[1] flex min-w-0 flex-col gap-5">
                 {video ? (
-                    <span className="box-border inline-flex h-6 w-fit items-center gap-1.5 whitespace-nowrap rounded-full border border-solid border-colorBorderSecondary bg-background pl-1 pr-2.5 text-[12px] text-zinc-8">
-                        <span className="inline-flex size-4 items-center justify-center rounded-full bg-hero-action text-hero-action-foreground">
+                    <span className="box-border inline-flex h-6 w-fit items-center gap-1.5 whitespace-nowrap rounded-md border border-solid border-colorBorderSecondary bg-background pl-1 pr-2.5 text-[12px] text-zinc-8">
+                        <span className="inline-flex size-4 items-center justify-center rounded bg-hero-action text-hero-action-foreground">
                             <Play size={7} weight="fill" aria-hidden />
                         </span>
                         {guide.title} walkthrough
