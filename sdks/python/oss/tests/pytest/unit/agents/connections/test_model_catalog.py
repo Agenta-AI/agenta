@@ -347,6 +347,7 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     # follow the accepted set rather than the curated list's canonical spelling.
     assert pi_defaults["openai"] == [
         "gpt-6-astra",
+        "gpt-6.1-sol",
         "gpt-6-sol",
         "gpt-6-luna",
         "gpt-5.6-luna",
@@ -437,16 +438,17 @@ def test_opus_5_5_is_a_prompt_model_and_a_default():
     assert "anthropic/claude-fable-5-1" in PROVIDER_DEFAULT_MODELS["anthropic"]
 
 
-def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_catalog_addition():
+def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_generated_model():
     from agenta.sdk.utils.assets import supported_llm_models
 
     assert "anthropic/claude-sonnet-5-5" in supported_llm_models["anthropic"]
     assert "anthropic/claude-sonnet-5-5" in PROVIDER_DEFAULT_MODELS["anthropic"]
-    # pi-ai 0.87.1 predates Sonnet 5.5, so its facts ride the curated additions list.
+    # pi-ai 0.99.1 carries Sonnet 5.5, so its facts come from the generated catalog and the
+    # curated addition retired.
     entry = next(
         e for e in pi_model_catalog().models if e.id == "anthropic/claude-sonnet-5-5"
     )
-    assert entry.name == "Claude Sonnet 5.5" and entry.source == "curated"
+    assert entry.name == "Claude Sonnet 5.5" and entry.source == "pi_generated"
     assert entry.label == "Sonnet 5.5"
     assert entry.pricing is not None
     assert (entry.pricing.input_per_mtok, entry.pricing.output_per_mtok) == (2, 10)
