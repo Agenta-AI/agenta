@@ -1,5 +1,5 @@
 import {Button, Dialog, DialogContent, DialogTitle, Kbd} from "@agenta/ui/ui"
-import {BookOpen} from "@phosphor-icons/react"
+import {ArrowSquareOut} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
 import {openFeatureGuideAtom} from "./featureGuideAtom"
@@ -46,8 +46,8 @@ export const FeatureGuideDialog = () => {
                         <div className="flex shrink-0 items-center gap-2">
                             <Button asChild size="sm" variant="outline">
                                 <a href={guide.docsUrl} target="_blank" rel="noreferrer">
-                                    <BookOpen aria-hidden />
                                     Read the docs
+                                    <ArrowSquareOut aria-hidden />
                                 </a>
                             </Button>
                             <Button size="sm" onClick={() => setGuideKey(null)}>
