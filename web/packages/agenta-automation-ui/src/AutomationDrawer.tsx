@@ -235,7 +235,6 @@ const AutomationCreateDrawer = ({
         defaultAgentId: playgroundEntityId ?? null,
         defaultAgentName,
         defaultReferences,
-        playgroundEntityId,
     })
 
     return (
