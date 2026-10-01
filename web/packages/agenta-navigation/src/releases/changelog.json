@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-20-docs-on-wide-screens",
+        "title": "Docs on wide screens",
+        "description": "The docs sidebar, page and outline now stay together on large monitors.",
+        "link": "https://agenta.ai/docs/changelog/docs-on-wide-screens"
+    },
+    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",
