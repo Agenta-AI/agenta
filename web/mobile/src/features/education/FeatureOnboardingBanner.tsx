@@ -4,9 +4,10 @@ import {useSetAtom} from "jotai"
 
 import {openFeatureGuideAtom} from "./featureGuideAtom"
 import {FEATURE_GUIDES, type FeatureGuideKey} from "./featureGuides"
+import {FeatureIllustration} from "./FeatureIllustration"
 import {streamThumbnailUrl} from "./streamMedia"
 
-/** What the feature is for, beside a walkthrough still that opens the lightbox. */
+/** What the feature is for, beside a walkthrough still (or an illustration when there is none). */
 export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey}) => {
     const guide = FEATURE_GUIDES[guideKey]
     const {video} = guide
@@ -15,7 +16,7 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
 
     return (
         <section
-            className={`relative grid items-center gap-5 overflow-hidden rounded-[14px] border border-solid border-colorBorderSecondary bg-muted px-7 py-6 @xl:gap-6 @3xl:gap-10 ${video ? "@xl:grid-cols-2 @3xl:grid-cols-[1fr_420px]" : ""}`}
+            className={`relative grid items-center gap-5 overflow-hidden rounded-[14px] border border-solid border-colorBorderSecondary bg-muted px-7 py-6 @xl:gap-6 @3xl:gap-10 @xl:grid-cols-2 @3xl:grid-cols-[1fr_420px]`}
         >
             {/* Sized by the container, not the viewport: the sidebar takes its share first. */}
             {video ? (
@@ -106,7 +107,9 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                     </div>
                     <div aria-hidden className="hidden h-[240px] @3xl:block" />
                 </>
-            ) : null}
+            ) : (
+                <FeatureIllustration guideKey={guideKey} />
+            )}
         </section>
     )
 }
