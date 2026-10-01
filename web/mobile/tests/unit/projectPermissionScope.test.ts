@@ -34,8 +34,20 @@ describe("fetchProjectPermission", () => {
     })
 
     it("returns false when the backend denies", async () => {
-        checkPermissions.mockRejectedValueOnce(new Error("403"))
+        checkPermissions.mockRejectedValueOnce(
+            Object.assign(new Error("Forbidden"), {statusCode: 403}),
+        )
 
         await expect(fetchProjectPermission("proj-123", "edit_secret")).resolves.toBe(false)
+    })
+
+    it("leaves the permission unknown when the check itself fails", async () => {
+        checkPermissions.mockRejectedValueOnce(
+            Object.assign(new Error("Bad gateway"), {statusCode: 502}),
+        )
+
+        await expect(fetchProjectPermission("proj-123", "edit_secret")).rejects.toThrow(
+            "Bad gateway",
+        )
     })
 })

@@ -20,13 +20,14 @@ export const useLogout = () => {
         await signOut().catch(() => undefined)
         await resetAnalytics()
         clearLastContext()
-        // A signed-out tab keeps no destination for whoever signs in next.
-        takeReturnPath()
         clearTranscriptSnapshots()
         await Promise.all([
             queryClient.invalidateQueries({queryKey: ["profile"]}),
             queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
         ])
-        void router.replace("/auth")
+        await router.replace("/auth")
+        // A signed-out tab keeps no destination for whoever signs in next. Cleared only once on
+        // `/auth`: the refetch above makes the session gate save the page it is leaving.
+        takeReturnPath()
     }, [router])
 }
