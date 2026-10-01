@@ -35,7 +35,9 @@ The snapshot recipe therefore:
   hash-pinned Python lock `agent-requirements.txt`, both embedded (gzip, base64, one `RUN`
   line each) because the Daytona build has no repo context. To change the Python set, edit the
   package list, then regenerate the lock with
-  `uv pip compile --python-version 3.11 --generate-hashes --no-header --no-annotate requirements.in -o agent-requirements.txt`;
+  `uv pip compile --python-version 3.11 --generate-hashes --no-header --no-annotate --override overrides.txt requirements.in -o agent-requirements.txt`,
+  where `overrides.txt` holds `pillow==12.3.0` (moviepy 2.2.1 caps Pillow below 12, and the install
+  runs with `--no-deps` so the override holds);
   the install runs with `--require-hashes`, so a hand-edited pin without a hash fails the build. The same file runs in both runner
   Dockerfiles, so the local sandbox and the Daytona sandbox ship one tool list: the everyday shell
   tools, `gh` from GitHub's apt repo, `uv`, `fd` 10.4.2 (Pi's `find` builtin needs a flag Debian's
