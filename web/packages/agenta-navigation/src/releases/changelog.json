@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-25-talk-to-your-agent-in-slack",
+        "title": "Agents in Slack",
+        "description": "Connect an agent to Slack from Publish and mention it in any channel or thread.",
+        "link": "https://agenta.ai/docs/changelog/talk-to-your-agent-in-slack"
+    },
+    {
         "id": "changelog-2026-09-07-session-control-and-queued-work",
         "title": "Edit queued instructions",
         "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
