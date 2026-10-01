@@ -142,6 +142,20 @@ SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS = {
                 "gpt-5.3-codex-spark",
             }
         ),
+        # After the GPT-6.1 Sol addition (Pi 0.99.1).
+        frozenset(
+            {
+                "gpt-6.1-sol",
+                "gpt-6-astra",
+                "gpt-6-sol",
+                "gpt-6-luna",
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-5.5",
+                "gpt-5.3-codex-spark",
+            }
+        ),
     ),
 }
 
