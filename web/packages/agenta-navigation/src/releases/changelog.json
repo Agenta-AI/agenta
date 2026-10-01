@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-26-agents-work-with-your-channels",
+        "title": "Agents post to your channels",
+        "description": "Connected agents can post, read and search Slack and Telegram from any run, and link back to their chat.",
+        "link": "https://agenta.ai/docs/changelog/agents-work-with-your-channels"
+    },
+    {
         "id": "changelog-2026-09-07-session-control-and-queued-work",
         "title": "Edit queued instructions",
         "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
