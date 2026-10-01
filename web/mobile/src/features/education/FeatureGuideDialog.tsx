@@ -24,9 +24,9 @@ export const FeatureGuideDialog = () => {
                         event.preventDefault()
                         ;(event.currentTarget as HTMLElement).focus()
                     }}
-                    className="max-w-[1000px] gap-0 overflow-hidden rounded-[24px] p-3 shadow-dialog"
+                    className="max-w-[1000px] gap-0 overflow-hidden rounded-[20px] p-2 shadow-dialog"
                 >
-                    <div className="aspect-video w-full overflow-hidden rounded-[16px] bg-black">
+                    <div className="aspect-video w-full overflow-hidden rounded-[14px] bg-black">
                         <iframe
                             src={streamPlayerUrl(video.id, video.startSeconds)}
                             title={video.title}
@@ -34,7 +34,7 @@ export const FeatureGuideDialog = () => {
                             allow="autoplay; fullscreen; picture-in-picture"
                         />
                     </div>
-                    <div className="flex flex-wrap items-center justify-between gap-4 px-2 pb-1 pt-4 sm:px-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-2 pb-1 pt-3 sm:px-3">
                         <div className="flex min-w-0 flex-col gap-1">
                             <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                                 {guide.title} walkthrough
@@ -44,13 +44,13 @@ export const FeatureGuideDialog = () => {
                             </DialogTitle>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                            <Button asChild variant="outline">
+                            <Button asChild size="sm" variant="outline">
                                 <a href={guide.docsUrl} target="_blank" rel="noreferrer">
                                     <BookOpen aria-hidden />
                                     Read the docs
                                 </a>
                             </Button>
-                            <Button onClick={() => setGuideKey(null)}>
+                            <Button size="sm" onClick={() => setGuideKey(null)}>
                                 Close
                                 <Kbd tone="inverse">Esc</Kbd>
                             </Button>
