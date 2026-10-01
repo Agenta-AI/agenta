@@ -832,7 +832,6 @@ jobs:
               "TRAEFIK_PORT": "10001",
               "TRAEFIK_UI_PORT": "10002",
               "AGENTA_MOCK_LLM_GATEWAY_PORT": "10004",
-              "AGENTA_MOCK_MCP_GATEWAY_PORT": "10005",
               "AGENTA_WEB_URL": "http://localhost:10001",
               "AGENTA_SERVICES_URL": "http://localhost:10001/services",
               "AGENTA_API_URL": "http://localhost:10001/api",
@@ -842,8 +841,6 @@ jobs:
               "AGENTA_RUNNER_TOKEN": secrets.token_hex(32),
               "AGENTA_STORE_ACCESS_KEY": secrets.token_hex(16),
               "AGENTA_STORE_SECRET_KEY": secrets.token_hex(32),
-              "AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL": "http://127.0.0.1:10005",
-              "AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL": "http://127.0.0.1:10005",
               "PLAYWRIGHT_HOST_RESOLVER_RULES": "MAP mock-mcp-gateway 127.0.0.1",
           }
 
@@ -879,7 +876,7 @@ jobs:
       - name: Wait for mock MCP gateway
         run: |
           curl --retry 30 --retry-delay 2 --retry-connrefused \
-            --fail http://127.0.0.1:10005/health
+            --fail http://127.0.0.1:9092/health
 
       - name: Run MCP acceptance tests
         run: |
