@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-25-whatsapp-and-channel-tools",
+        "title": "Agents on WhatsApp",
+        "description": "Connect your WhatsApp Business number to an agent so it answers your customers there.",
+        "link": "https://agenta.ai/docs/changelog/whatsapp-channel-and-channel-tools"
+    },
+    {
         "id": "changelog-2026-09-07-session-control-and-queued-work",
         "title": "Edit queued instructions",
         "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",

@@ -33,6 +33,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Channels: 2DD4BF
   // Mobile: F472B6
   {
+    id: "channels",
+    title: "Channels: WhatsApp, Slack, Telegram, and More",
+    description:
+      "Connect an agent to the messaging surfaces people already use. A channel routes an incoming WhatsApp, Slack, or Telegram message to an agent session and delivers the agent's reply back to that same surface.",
+    changelogPath: "/docs/changelog/whatsapp-channel-and-channel-tools",
+    shippedAt: "2026-09-25",
+    labels: [
+      {
+        name: "Channels",
+        color: "2DD4BF",
+      },
+    ],
+  },
+  {
     id: "mobile",
     title: "Agenta on Mobile",
     description:
@@ -160,19 +174,6 @@ export const shippedFeatures: ShippedFeature[] = [
   },
 ];
 export const inProgressFeatures: PlannedFeature[] = [
-  {
-    id: "channels",
-    title: "Channels: Slack, Telegram, and More",
-    description:
-      "Connect an agent to the messaging surfaces people already use. A channel routes an incoming Slack or Telegram message to an agent session and delivers the agent's reply back to that same surface.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5510",
-    labels: [
-      {
-        name: "Channels",
-        color: "2DD4BF",
-      },
-    ],
-  },
   {
     id: "build-kit-context",
     title: "A Build Kit That Manages Its Own Context",
