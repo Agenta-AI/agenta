@@ -32,6 +32,7 @@ import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {SkillCreateOptions} from "./SkillCreateOptions"
 import {SkillFilterMenu} from "./SkillFilterMenu"
 import {SkillListTable} from "./SkillListTable"
 import {
@@ -193,7 +194,13 @@ export const SkillListScreen = ({
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
                         {projectEmpty ? (
-                            <FeatureOnboarding guideKey="skills" base={base} />
+                            <FeatureOnboarding guideKey="skills" base={base}>
+                                <SkillCreateOptions
+                                    onWrite={onWrite}
+                                    onUpload={onUpload}
+                                    onImport={openImport}
+                                />
+                            </FeatureOnboarding>
                         ) : (
                             <>
                                 {/* Search belongs to the list, not to the page: it sits on the
