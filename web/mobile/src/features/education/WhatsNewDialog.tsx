@@ -1,13 +1,15 @@
-import {useMemo, useState} from "react"
+import {useId, useMemo, useState} from "react"
 
 import {
     ALL_RELEASES_LINK,
     getUnseenReleases,
+    isWhatsNewOptedOut,
     markAllReleasesSeen,
     RELEASES,
+    setWhatsNewOptedOut,
     type ReleaseEntry,
 } from "@agenta/navigation"
-import {Button, Dialog, DialogContent, DialogTitle} from "@agenta/ui/ui"
+import {Button, Checkbox, Dialog, DialogContent, DialogTitle} from "@agenta/ui/ui"
 import {ArrowUpRight, Package, Play, Sparkle} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
@@ -48,6 +50,10 @@ export const WhatsNewDialog = () => {
     const version = useMobileVersion()
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const [playingId, setPlayingId] = useState<string | null>(null)
+    // Null until touched, so each opening starts from the stored choice.
+    const [optOutDraft, setOptOutDraft] = useState<boolean | null>(null)
+    const optOut = optOutDraft ?? isWhatsNewOptedOut()
+    const optOutId = useId()
     // Counted once per opening, before closing marks everything seen.
     const newCount = useMemo(() => {
         if (!state) return 0
@@ -62,7 +68,9 @@ export const WhatsNewDialog = () => {
     const playing = playingId === selected.id
 
     const close = () => {
+        setWhatsNewOptedOut(optOut)
         markAllReleasesSeen()
+        setOptOutDraft(null)
         setState(null)
         setSelectedId(null)
         setPlayingId(null)
@@ -227,7 +235,18 @@ export const WhatsNewDialog = () => {
                         </p>
                     </div>
 
-                    <div className="-mb-3 mt-auto flex justify-end pt-4">
+                    <div className="-mb-3 mt-auto flex items-center justify-between gap-3 pt-4">
+                        <label
+                            htmlFor={optOutId}
+                            className="flex cursor-pointer items-center gap-2 text-[13px] text-muted-foreground"
+                        >
+                            <Checkbox
+                                id={optOutId}
+                                checked={optOut}
+                                onCheckedChange={(checked) => setOptOutDraft(checked === true)}
+                            />
+                            Don&apos;t show this again
+                        </label>
                         <Button
                             asChild
                             variant="ghost"

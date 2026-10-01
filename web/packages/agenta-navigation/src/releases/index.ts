@@ -24,8 +24,9 @@ export const RELEASES: ReleaseEntry[] = changelogData as ReleaseEntry[]
 export {
     computeUnseenReleases,
     getUnseenReleases,
+    isWhatsNewOptedOut,
     markAllReleasesSeen,
-    QUIET_PERIOD_MS,
-    WHATS_NEW_FIRST_VISIT_KEY,
+    setWhatsNewOptedOut,
+    WHATS_NEW_OPTED_OUT_KEY,
     WHATS_NEW_SEEN_KEY,
 } from "./seen"
