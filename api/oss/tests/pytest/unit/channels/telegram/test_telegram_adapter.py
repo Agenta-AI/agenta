@@ -929,6 +929,30 @@ async def test_fetch_media_refuses_a_file_larger_than_the_limit():
     assert fetched is None
 
 
+@pytest.mark.asyncio
+async def test_a_failed_download_keeps_the_bot_token_out_of_the_error():
+    """The download URL holds the bot token, and the dispatcher logs the
+    error message. A failed download must not put the token in it."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/bot123:abc/getFile":
+            return httpx.Response(
+                200,
+                json={"ok": True, "result": {"file_path": "voice/f.oga"}},
+            )
+        return httpx.Response(404, text="Not Found")
+
+    client = httpx.AsyncClient(
+        base_url="https://api.telegram.org", transport=httpx.MockTransport(handler)
+    )
+    adapter = TelegramAdapter(http_client=client)
+    with pytest.raises(Exception) as caught:
+        await adapter.fetch_media(connection=_connection(), media={"media_id": "F1"})
+    assert "123:abc" not in str(caught.value)
+    assert "123:abc" not in repr(caught.value)
+    assert caught.value.status_code == 404
+
+
 def test_capabilities_declare_file_receive_up_to_the_bot_api_cap():
     capabilities = fetch_telegram_capabilities()
     assert capabilities.rendering.files.receive.supported is True

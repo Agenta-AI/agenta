@@ -20,7 +20,13 @@ Requested by Mahmoud on 2026-09-25: images native where supported, everything el
 - [x] 3.2 Implement `fetch_media`: resolve the id through `files.info` at download time (no private URL is stored on the event), then download with the bot token; refuse an HTML (login page) response.
 - [x] 3.3 Unit tests: mapping with files, files.info resolution plus download over the fake, size refusal.
 
-## 4. Out of scope
+## 4. Review follow-ups
+
+- [x] 4.1 Telegram `fetch_media` raises a status-only error on a failed download instead of `raise_for_status()`, whose message carries the token-bearing URL into the dispatcher's warning log. Unit test asserts the token is absent.
+- [x] 4.2 A file without a platform filename is stored as `<kind>-<send time>.<ext>`, with the extension from the detected type. Built from the message, not the clock, so the attachment idempotency check still matches on retry.
+- [x] 4.3 Spec states that the platform attachment limit (10 MB, 15 MB audio; video counts as other) is the effective cap, below each channel's advertised `files.receive.max_bytes`.
+
+## 5. Out of scope
 
 - Sending files from the agent to any channel.
 - Transcription or document parsing anywhere in the platform; the harness owns file content.

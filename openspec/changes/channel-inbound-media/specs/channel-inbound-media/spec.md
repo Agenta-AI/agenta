@@ -42,8 +42,23 @@ Each adapter SHALL download a named file itself: WhatsApp through the Graph API 
 - **WHEN** a user sends a file larger than the platform attachment limit
 - **THEN** the agent SHALL receive a text note naming the kind and that it was too large, and the turn SHALL still run
 
+#### Scenario: A failed download does not expose a token
+- **WHEN** a Telegram file download returns an HTTP error
+- **THEN** the raised error SHALL carry the status code only, never the download URL, because that URL contains the bot token and the dispatcher logs the error message
+
+### Requirement: The platform attachment limit decides what the agent can read
+A channel's `files.receive.max_bytes` capability SHALL describe the channel's own cap (Telegram 20 MB, WhatsApp 100 MB, Slack 1 GB). The effective limit SHALL be the platform attachment limit for the file's kind, which is lower: 10 MB for images and documents, 15 MB for audio, and 10 MB for everything else. Video has no kind of its own, so it counts as "other" and is capped at 10 MB.
+
+#### Scenario: A long video
+- **WHEN** a user sends a 40 MB video on WhatsApp, which the channel accepts
+- **THEN** the agent SHALL receive the "too large to read" text note in place of the video, and the turn SHALL still run
+
 ### Requirement: Attachment delivery to the agent is unchanged
 The shared pipeline SHALL keep its behavior: media parts become stored session attachments, every attachment is materialized as a file under `attachments/<attachment-id>/<filename>` in the session working directory with a prompt mention, and only supported native image types are additionally inlined into the model prompt. The platform SHALL NOT transcribe audio or extract document contents; acting on a file's content is the harness's responsibility.
+
+#### Scenario: A file sent without a name
+- **WHEN** a user sends a file the platform names nowhere (a Telegram photo, voice note, or video note, or a WhatsApp image or voice note)
+- **THEN** the attachment SHALL be named `<kind>-<YYYYMMDD-HHMMSS>.<ext>`, using the message's send time in UTC and an extension taken from the file's detected type (for example `audio-20261001-143005.ogg`), so a retried dispatch stores the same name
 
 #### Scenario: Audio reaches the harness as a file
 - **WHEN** a voice note is attached to a turn

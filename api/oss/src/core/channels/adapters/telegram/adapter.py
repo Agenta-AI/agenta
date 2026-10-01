@@ -531,7 +531,13 @@ class TelegramAdapter(ChannelAdapterInterface):
         response = await self._client.get(
             f"/file/bot{token}/{file_path}", timeout=_MEDIA_TIMEOUT_SECONDS
         )
-        response.raise_for_status()
+        if response.is_error:
+            # Not raise_for_status(): its message carries the request URL,
+            # which holds the bot token, and the caller logs the message.
+            raise _TelegramApiError(
+                description="file download failed",
+                status_code=response.status_code,
+            )
         if max_bytes is not None and len(response.content) > max_bytes:
             return None
         return response.content, media.get("mime_type")
