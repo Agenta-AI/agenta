@@ -4,7 +4,7 @@ import { describe, it } from "vitest";
 import { applyCodexAcpApprovalPatch } from "../../src/engines/sandbox_agent/codex-acp-patch.ts";
 
 /**
- * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 1.13.1,
+ * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 2.1.1,
  * `dist/index.js`, `src/AgentMode.ts` section). Keep it byte-exact: the patch's only job
  * is to rewrite this shape, so a fixture that drifts from the real bundle proves nothing.
  */
@@ -31,8 +31,21 @@ var AgentMode = class _AgentMode {
   }
   static ReadOnly = new _AgentMode(
     "read-only",
-    "Ask for approval",
-    "Always ask to edit external files and use the internet",
+    "Read-only",
+    "Requires approval to edit files and access the internet.",
+    "standard",
+    "on-request",
+    "user",
+    {
+      type: "readOnly",
+      networkAccess: false
+    },
+    "read-only"
+  );
+  static WorkspaceWrite = new _AgentMode(
+    "workspace-write",
+    "Workspace access",
+    "Edit workspace files; ask before writing outside the workspace or accessing the network.",
     "standard",
     "on-request",
     "user",
@@ -47,7 +60,7 @@ var AgentMode = class _AgentMode {
   );
   static Agent = new _AgentMode(
     "agent",
-    "Approve for me",
+    "Auto review",
     "Only ask for actions detected as potentially unsafe",
     "auto_review",
     "on-request",
@@ -96,8 +109,9 @@ describe("applyCodexAcpApprovalPatch", () => {
     // The whole point is decoupling: full access must stay full access.
     assert.equal(patched.includes('{ "type": "dangerFullAccess" }'), true);
     assert.equal(patched.includes('"danger-full-access"'), true);
-    // read-only and agent were already on-request; the patch must not duplicate or drop them.
-    assert.equal(patched.split('"on-request"').length - 1, 3);
+    // read-only, workspace-write and agent were already on-request; the patch must not
+    // duplicate or drop them.
+    assert.equal(patched.split('"on-request"').length - 1, 4);
     assert.equal(patched.includes('type: "workspaceWrite"'), true);
   });
 
@@ -134,7 +148,10 @@ describe("applyCodexAcpApprovalPatch", () => {
       `    "never",\n    "auto_review",\n    { "type": "dangerFullAccess" },`,
     );
     assert.notEqual(autoReviewed, AGENT_MODE_SECTION);
-    assert.equal(applyCodexAcpApprovalPatch(autoReviewed).kind, "anchor-missing");
+    assert.equal(
+      applyCodexAcpApprovalPatch(autoReviewed).kind,
+      "anchor-missing",
+    );
   });
 
   it("never rewrites a `never` that is not the full-access approval argument", () => {

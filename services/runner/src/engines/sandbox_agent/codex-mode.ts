@@ -1,6 +1,7 @@
 /**
- * The ACP session modes codex-acp exposes. All three send `on-request` approvals in our image:
- * `read-only` and `agent` ship that way, and the runner image patches the `agent-full-access`
+ * The ACP session modes Agenta offers on Codex. codex-acp 2.x also exposes a fourth,
+ * `workspace-write`, which Agenta does not offer yet. All three send `on-request` approvals in
+ * our image: `read-only` and `agent` ship that way, and the runner image patches the `agent-full-access`
  * preset from the stock `approvalPolicy: "never"` to `on-request` (see `codex-acp-patch.ts`).
  * That is what makes Codex tool approvals park WARM, like Claude's, instead of resuming cold on
  * a follow-up turn. The sandbox policies are untouched, so full access is still full access and

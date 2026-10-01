@@ -150,3 +150,135 @@ describe("the harnesses that already worked stay unchanged", () => {
     assert.equal(result.output, "");
   });
 });
+
+/**
+ * codex-acp 2.x sends a shell command's output only as `_meta` chunks, never in `rawOutput`.
+ * The frames below are the shapes `@agentclientprotocol/codex-acp` 2.1.1 sent to a client that
+ * declares no terminal capability (as sandbox-agent does), captured live on 2026-10-01.
+ */
+describe("codex-acp 2.x command output (terminal chunks)", () => {
+  function closeWith(frames: Array<Record<string, unknown>>): {
+    output: string;
+    isError: boolean;
+  } {
+    const run = createSandboxAgentOtel({
+      harness: "codex",
+      model: "gpt-6.1-sol",
+    });
+    run.start({ prompt: "run it" });
+    run.handleUpdate({
+      sessionUpdate: "tool_call",
+      toolCallId: "exec-1",
+      name: "exec_command",
+      kind: "execute",
+      title: "echo PROBE-SHELL-OK",
+      status: "in_progress",
+      content: [{ type: "terminal", terminalId: "exec-1" }],
+      rawInput: { command: "echo PROBE-SHELL-OK", cwd: "/ws" },
+      _meta: { terminal_info: { cwd: "/ws", terminal_id: "exec-1" } },
+    });
+    for (const frame of frames) {
+      run.handleUpdate({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "exec-1",
+        ...frame,
+      });
+    }
+    run.finish();
+    const result = run
+      .events()
+      .find((event) => event.type === "tool_result") as Extract<
+      AgentEvent,
+      { type: "tool_result" }
+    >;
+    assert.ok(result, "the completing update must record a tool_result");
+    return { output: result.output ?? "", isError: result.isError === true };
+  }
+
+  it("reports a terminal command's output from the closing chunk", () => {
+    const result = closeWith([
+      {
+        status: "completed",
+        _meta: {
+          terminal_output_delta: {
+            data: "PROBE-SHELL-OK\n",
+            terminal_id: "exec-1",
+          },
+          terminal_exit: { exit_code: 0, signal: null, terminal_id: "exec-1" },
+        },
+      },
+    ]);
+    assert.equal(result.output, "PROBE-SHELL-OK\n");
+    assert.equal(result.isError, false);
+  });
+
+  it("joins chunks streamed before the close, in order", () => {
+    const result = closeWith([
+      {
+        _meta: {
+          terminal_output_delta: { data: "line 1\n", terminal_id: "exec-1" },
+        },
+      },
+      {
+        _meta: {
+          terminal_output_delta: { data: "line 2\n", terminal_id: "exec-1" },
+        },
+      },
+      {
+        status: "completed",
+        _meta: {
+          terminal_exit: { exit_code: 0, signal: null, terminal_id: "exec-1" },
+        },
+      },
+    ]);
+    assert.equal(result.output, "line 1\nline 2\n");
+  });
+
+  it("prefers a failed command's output over its bare exit code", () => {
+    const result = closeWith([
+      {
+        status: "failed",
+        rawOutput: { exit_code: 2 },
+        _meta: {
+          terminal_output_delta: {
+            data: "ls: cannot access '/definitely-missing-dir': No such file or directory\n",
+            terminal_id: "exec-1",
+          },
+        },
+      },
+    ]);
+    assert.equal(
+      result.output,
+      "ls: cannot access '/definitely-missing-dir': No such file or directory\n",
+    );
+    assert.equal(result.isError, true);
+  });
+
+  it("does not double a 1.x close that sends the output both ways", () => {
+    const result = closeWith([
+      {
+        status: "completed",
+        rawOutput: { formatted_output: "PROBE-SHELL-OK\n", exit_code: 0 },
+        _meta: {
+          terminal_output_delta: {
+            data: "PROBE-SHELL-OK\n",
+            terminal_id: "exec-1",
+          },
+        },
+      },
+    ]);
+    assert.equal(result.output, "PROBE-SHELL-OK\n");
+  });
+
+  it("still records an empty output for a command that printed nothing", () => {
+    const result = closeWith([
+      {
+        status: "completed",
+        _meta: {
+          terminal_exit: { exit_code: 0, signal: null, terminal_id: "exec-1" },
+        },
+      },
+    ]);
+    assert.equal(result.output, "");
+  });
+});

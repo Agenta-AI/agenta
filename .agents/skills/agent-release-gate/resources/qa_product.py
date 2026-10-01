@@ -2105,6 +2105,12 @@ def _bash_call_outcome(t: "Turn") -> tuple[dict | None, str | None]:
         name = (call.get("toolName") or "").lower()
         if name in ("bash", "terminal"):
             return call, t.tool_outcomes.get(call["toolCallId"])
+    # Codex names a shell call after the command itself (`echo ...`), not `bash`; its input is
+    # `{command, cwd}` with the command as one string.
+    for call in t.tool_calls:
+        payload = call.get("input")
+        if isinstance(payload, dict) and isinstance(payload.get("command"), str):
+            return call, t.tool_outcomes.get(call["toolCallId"])
     return None, None
 
 

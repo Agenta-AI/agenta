@@ -147,18 +147,23 @@ RUN gh --version >/dev/null && uv --version >/dev/null && fd --version >/dev/nul
     && chromium --headless=new --no-sandbox --disable-gpu --dump-dom about:blank 2>/dev/null | grep -q '<html'
 
 # Pin the Codex ACP adapter (decision D-005). The sandbox-agent daemon otherwise installs
-# @agentclientprotocol/codex-acp from the npm registry with a FLOATING `^1.13.1` range at first Codex
+# @agentclientprotocol/codex-acp from the npm registry with a FLOATING caret range at first Codex
 # use, so a later registry release would drift protocol behavior (gate shapes, config channels)
-# under us. `install-agent codex --agent-process-version 1.13.1` pre-installs it here, generating a
-# lockfile (package-lock.json, lockfileVersion 3) that pins codex-acp 1.13.1 exactly (with its
-# bundled @openai/codex 0.156.1). The daemon finds the adapter already present at runtime and skips
+# under us. `install-agent codex --agent-process-version 2.1.1` pre-installs it here, generating a
+# lockfile (package-lock.json, lockfileVersion 3) that pins codex-acp 2.1.1 exactly (with its
+# bundled @openai/codex 0.159.3). The daemon finds the adapter already present at runtime and skips
 # the floating fetch. Codex (codex-acp + @openai/codex) is Apache-2.0, so baking it is licensing-
 # clean, unlike proprietary Claude Code. Pinned versions recorded next to the sandbox-agent pin in
 # package.json. Runs as `node` so the install lands in the runtime user's HOME.
-# PIN: @agentclientprotocol/codex-acp 1.13.1 (bundles @openai/codex 0.156.1).
+# PIN: @agentclientprotocol/codex-acp 2.1.1 (bundles @openai/codex 0.159.3).
 # The sandbox-agent package ships no bin entry (its CLI is a transitive optional dep), so the
 # pin script resolves the daemon binary via the runner's own daemon.ts resolution.
-RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.13.1 -n
+RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 2.1.1 -n
+# The daemon records the pin as a caret range (`^2.1.1`) in the adapter package.json, so a newer
+# 2.x release would install silently. Fail the build unless the exact pinned version landed, as the
+# Daytona snapshot recipe does (images/sandbox/daytona/build_snapshot.py).
+RUN test "$(node -p "require('/home/node/.local/share/sandbox-agent/bin/agent_processes/codex/node_modules/@agentclientprotocol/codex-acp/package.json').version")" = "2.1.1" \
+    && echo codex-acp-version=2.1.1
 
 # Decouple approvals from the full-access sandbox in the adapter we just pinned (decision D-008
 # amendment). codex-acp's `agent-full-access` preset hardcodes `approvalPolicy: "never"`, which

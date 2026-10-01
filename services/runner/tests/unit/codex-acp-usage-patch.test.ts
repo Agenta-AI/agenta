@@ -5,7 +5,7 @@ import { applyCodexAcpUsagePatch } from "../../src/engines/sandbox_agent/codex-a
 
 /**
  * `toTokenCount`, `toPromptUsage`, `handleTokenUsageUpdated` and `buildPromptUsage` are verbatim
- * from the pinned bundle (`@agentclientprotocol/codex-acp` 1.13.1, `dist/index.js`). The turn
+ * from the pinned bundle (`@agentclientprotocol/codex-acp` 2.1.1, `dist/index.js`; unchanged since 1.13.1). The turn
  * methods keep the bundle's exact anchor lines inside a smaller body, so the patched source can
  * run here.
  */

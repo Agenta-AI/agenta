@@ -1529,11 +1529,14 @@ function jsonText(value: unknown): string {
  * failures alike — stored and streamed empty.
  *
  * Candidates are tried in that order and an empty one falls through to the next, so a failed MCP
- * call (`{result: null, error: "..."}`) carries its real error message; an object with no known
- * key serializes whole, so a completed call is never silently empty.
+ * call (`{result: null, error: "..."}`) carries its real error message. Then come the command's
+ * streamed terminal chunks (`terminalOutput`, see `acpTerminalOutputChunk`), which are the only
+ * copy of a shell command's output on codex-acp 2.x. An object with no known key and no chunks
+ * serializes whole, so a completed call is never silently empty.
  */
-function acpRawOutputText(raw: any): string {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+function acpRawOutputText(raw: any, terminalOutput?: string): string {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return terminalOutput ?? "";
   for (const key of ["formatted_output", "result", "output", "error"]) {
     const value = raw[key];
     if (typeof value === "string") {
@@ -1548,7 +1551,27 @@ function acpRawOutputText(raw: any): string {
       if (json) return json;
     }
   }
-  return jsonText(raw);
+  return terminalOutput || jsonText(raw);
+}
+
+/**
+ * The command output chunk an ACP tool-call frame carries in `_meta`, or "" when it has none.
+ *
+ * codex-acp 2.x sends a shell command's output ONLY as chunks, never in `rawOutput`: a client
+ * that declares no terminal capability (sandbox-agent declares none) gets
+ * `_meta.terminal_output_delta: {data, terminal_id}` on the updates, and the closing update
+ * carries at most `{exit_code}` (a non-terminal command) or nothing. 1.x also sent
+ * `rawOutput.formatted_output`, which is why reading `rawOutput` alone used to be enough.
+ * `terminal_output` is the Zed spelling of the same chunk. Chunks append in arrival order.
+ */
+function acpTerminalOutputChunk(update: any): string {
+  const meta = update?._meta;
+  if (!meta || typeof meta !== "object") return "";
+  for (const key of ["terminal_output_delta", "terminal_output"]) {
+    const data = meta[key]?.data;
+    if (typeof data === "string" && data) return data;
+  }
+  return "";
 }
 
 /**
@@ -1801,7 +1824,7 @@ export function createSandboxAgentOtel(
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
   const toolSpans = new Map<
     string,
-    { span?: Span; name: string; inputJson?: string }
+    { span?: Span; name: string; inputJson?: string; terminalOutput?: string }
   >();
   // Tool-call ids the runner replied `reject` to for a HITL deny. The harness closes such a call
   // as a FAILED tool call (`isError`), indistinguishable on the wire from a real breakage, so the
@@ -2148,6 +2171,7 @@ export function createSandboxAgentOtel(
         span,
         name: String(name),
         inputJson: toolInputJson(update.rawInput),
+        terminalOutput: acpTerminalOutputChunk(update) || undefined,
       });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
@@ -2167,6 +2191,9 @@ export function createSandboxAgentOtel(
       // tool-input-start), mirroring the gated approval-refresh path.
       const id = update.toolCallId;
       const entry = id ? toolSpans.get(id) : undefined;
+      const chunk = acpTerminalOutputChunk(update);
+      if (entry && chunk)
+        entry.terminalOutput = (entry.terminalOutput ?? "") + chunk;
       if (entry && hasToolArgs(update.rawInput)) {
         const nextJson = toolInputJson(update.rawInput);
         if (nextJson !== entry.inputJson) {
@@ -2222,7 +2249,7 @@ export function createSandboxAgentOtel(
     const out =
       acpToolContentText(update.content) ||
       acpToolContentText(update.rawOutput) ||
-      acpRawOutputText(update.rawOutput);
+      acpRawOutputText(update.rawOutput, entry.terminalOutput);
     if (entry.span) {
       setOutput(entry.span, out, capture);
       if (status === "failed")
