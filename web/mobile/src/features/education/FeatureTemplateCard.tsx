@@ -13,9 +13,11 @@ const MAX_APPS = 3
 /** One starter template: the apps it connects, what it does, and when it runs. */
 export const FeatureTemplateCard = ({
     template,
+    disabled = false,
     onSelect,
 }: {
     template: AgentStarterTemplate
+    disabled?: boolean
     onSelect: (template: AgentStarterTemplate) => void
 }) => {
     const slugs = templateProviderSlugs(template)
@@ -27,8 +29,9 @@ export const FeatureTemplateCard = ({
     return (
         <button
             type="button"
+            disabled={disabled}
             onClick={() => onSelect(template)}
-            className="box-border flex min-w-0 cursor-pointer flex-col rounded-xl border border-solid border-colorBorderSecondary bg-background px-4 pb-0 pt-4 text-left transition-[border-color,box-shadow] hover:border-border hover:shadow-[0_2px_8px_-2px_color-mix(in_srgb,var(--ag-colorText)_12%,transparent)]"
+            className="box-border flex min-w-0 cursor-pointer flex-col disabled:cursor-wait disabled:opacity-60 rounded-xl border border-solid border-colorBorderSecondary bg-background px-4 pb-0 pt-4 text-left transition-[border-color,box-shadow] hover:border-border hover:shadow-[0_2px_8px_-2px_color-mix(in_srgb,var(--ag-colorText)_12%,transparent)]"
         >
             <span className="flex h-[30px] items-center">
                 {shown.map((slug, index) => {
