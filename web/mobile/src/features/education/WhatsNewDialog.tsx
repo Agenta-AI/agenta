@@ -1,8 +1,7 @@
-import {useId, useMemo, useState} from "react"
+import {useId, useState} from "react"
 
 import {
     ALL_RELEASES_LINK,
-    getUnseenReleases,
     isWhatsNewOptedOut,
     markAllReleasesSeen,
     RELEASES,
@@ -54,12 +53,6 @@ export const WhatsNewDialog = () => {
     const [optOutDraft, setOptOutDraft] = useState<boolean | null>(null)
     const optOut = optOutDraft ?? isWhatsNewOptedOut()
     const optOutId = useId()
-    // Counted once per opening, before closing marks everything seen.
-    const newCount = useMemo(() => {
-        if (!state) return 0
-        const unseen = new Set(getUnseenReleases().map((release) => release.id))
-        return NEWEST_RELEASES.filter((release) => unseen.has(release.id)).length
-    }, [state])
 
     const selected =
         NEWEST_RELEASES.find((release) => release.id === (selectedId ?? state?.releaseId)) ??
@@ -92,16 +85,9 @@ export const WhatsNewDialog = () => {
                         <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                             What&apos;s new
                         </span>
-                        <div className="flex items-center justify-between gap-2">
-                            <DialogTitle className="m-0 text-[18px] font-semibold tracking-[-0.015em] text-foreground">
-                                Latest releases
-                            </DialogTitle>
-                            {newCount > 0 ? (
-                                <span className="inline-flex h-5 items-center rounded-full bg-hero-action px-[7px] text-[11.5px] font-semibold text-hero-action-foreground">
-                                    {newCount} new
-                                </span>
-                            ) : null}
-                        </div>
+                        <DialogTitle className="m-0 text-[18px] font-semibold tracking-[-0.015em] text-foreground">
+                            Latest releases
+                        </DialogTitle>
                     </div>
 
                     <div className="flex flex-col">
