@@ -1,6 +1,6 @@
-import type {TemplateExampleSession} from "@agenta/entities/workflow"
 import {useRef} from "react"
 
+import type {TemplateExampleSession} from "@agenta/entities/workflow"
 import {Badge} from "@agenta/ui/ui"
 import {CheckIcon} from "@phosphor-icons/react"
 import {motion, useInView} from "motion/react"
