@@ -8,7 +8,9 @@ import {
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {ArrowRight} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+import Link from "next/link"
 
 import {FeatureTemplateCard} from "./FeatureTemplateCard"
 import {FeatureTemplateGridSkeleton} from "./states/FeatureTemplateGridSkeleton"
@@ -16,9 +18,11 @@ import {FeatureTemplateGridSkeleton} from "./states/FeatureTemplateGridSkeleton"
 /** The guide's template picks, resolved against the fetched catalog; unknown keys are skipped. */
 export const FeatureTemplateGrid = ({
     templateKeys,
+    browseHref,
     onSelect,
 }: {
     templateKeys: readonly string[]
+    browseHref: string
     onSelect: (template: AgentStarterTemplate) => void
 }) => {
     const catalog = useAtomValue(agentTemplatesAtom)
@@ -42,9 +46,13 @@ export const FeatureTemplateGrid = ({
                 <h2 className="m-0 text-[14px] font-semibold text-foreground">
                     Start from a template
                 </h2>
-                <span className="text-[12.5px] text-colorTextTertiary @max-xl:hidden">
-                    Opens in chat, ready to edit
-                </span>
+                <Link
+                    href={browseHref}
+                    className="inline-flex items-center gap-1 text-[12.5px] text-muted-foreground no-underline hover:text-foreground"
+                >
+                    View all templates
+                    <ArrowRight className="size-3" aria-hidden />
+                </Link>
             </div>
             {status === "pending" ? (
                 <FeatureTemplateGridSkeleton count={templateKeys.length} />
