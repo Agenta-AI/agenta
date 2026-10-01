@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-10-reuse-skills-across-agents",
+        "title": "Reuse skills across agents",
+        "description": "Publish a skill once, install it in any agent, and apply updates when you choose.",
+        "link": "https://agenta.ai/docs/changelog/reuse-skills-across-agents"
+    },
+    {
         "id": "changelog-2026-09-07-session-control-and-queued-work",
         "title": "Edit queued instructions",
         "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
