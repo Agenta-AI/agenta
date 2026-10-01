@@ -106,8 +106,8 @@ export function useModelHarness({
     buildKitOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
     /** The owning section drawer has unsaved local state outside the workflow draft atom. */
     credentialOperationsBlocked?: boolean
-    /** Clear the owning section draft before the host adopts an immediate credential revision. */
-    onCredentialRevisionCommitted?: () => void
+    /** Tell the owning section drawer which revision a credential commit is about to adopt. */
+    onCredentialRevisionCommitted?: (nextRevisionId: string) => void
     /** Only the live panel owner normalizes; mounting a section body never does. */
     normalizeSandbox?: boolean
 }) {
@@ -264,7 +264,7 @@ export function useModelHarness({
     const {llmProviderConfig, permissions, onWorkflowRevisionCommitted} = useDrillInUI()
     const handleCredentialRevisionCommitted = useCallback(
         (nextRevisionId: string) => {
-            onCredentialRevisionCommitted?.()
+            onCredentialRevisionCommitted?.(nextRevisionId)
             onWorkflowRevisionCommitted?.(nextRevisionId)
         },
         [onCredentialRevisionCommitted, onWorkflowRevisionCommitted],

@@ -22,6 +22,7 @@ import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
 import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
+import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
@@ -196,9 +197,17 @@ export const SessionWorkspace = ({
     const configSlide = usePaneSlide(showPane)
     const filesSlide = usePaneSlide(showFiles)
 
+    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+
+    // "Create with AI" in the config pane writes a prompt into the composer. On a phone the pane
+    // covers the conversation, so hand the screen back to the chat where the prompt landed.
+    const composerPrefillRequest = useAtomValue(composerPrefillRequestAtom)
+    useEffect(() => {
+        if (composerPrefillRequest && !twoPane) setConfigCollapsed(true)
+    }, [composerPrefillRequest, twoPane, setConfigCollapsed])
+
     // The desktop's coexistence rule: too narrow for both side panes, so they take turns.
     // Edge-triggered, so they cannot evict each other in a loop.
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const panesMustAlternate = twoPane && !canPanesCoexist
     const prevFilesOpenRef = useRef(filesOpen)

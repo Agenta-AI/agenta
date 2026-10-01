@@ -31,6 +31,7 @@
  *   AGENTA_CREDENTIALS                       — per-run caller credential (no static API key)
  *   OTEL_SERVICE_NAME            — resource service.name (default "pi-agent")
  */
+import { createOutputBudget } from "./output-budget.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   context,
@@ -1703,13 +1704,17 @@ export interface SandboxAgentOtelInit extends Omit<
    * `events[]`. This split is what keeps a delta'd block from being re-sent in full.
    */
   emit?: EmitEvent;
+  /** Stop the turn through the engine's existing run-limit cancellation path. */
+  onOutputLimit?: (reason: string) => void;
 }
 
 export interface SandboxAgentOtel {
   /** Start the invoke_agent (AGENT) span as a child of the caller's traceparent. */
   start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void;
   /** Feed one ACP `session/update` payload (the `update` object). */
-  handleUpdate(update: any): void;
+  handleUpdate(update: any, admitted?: boolean): void;
+  /** Admit a raw update before the engine retains correlation, timer or pause state. */
+  admitUpdate(update: any): boolean;
   /**
    * Record an event the ACP stream does not carry (e.g. an `interaction_request` raised via
    * the permission callback). Routes through the same choke point as stream events, so it
@@ -1789,6 +1794,9 @@ export function createSandboxAgentOtel(
   let usageSettled = false;
   let tokenDetail: ModelTokenUsage | undefined;
   const events: AgentEvent[] = [];
+  const outputBudget = createOutputBudget(init.onOutputLimit);
+  let finished = false;
+  const admitUpdate = (update: any): boolean => !finished && outputBudget.accept(update);
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
   const toolSpans = new Map<
@@ -1945,7 +1953,10 @@ export function createSandboxAgentOtel(
       textBlockId = nextId("msg");
       record({ type: "message_start", id: textBlockId });
     }
-    record({ type: "message_delta", id: textBlockId, delta });
+    // V8 slices can retain the whole growing source string. Own only this delta's
+    // code units before events, persistence and live queues keep it past this callback.
+    const ownedDelta = Buffer.from(delta, "utf16le").toString("utf16le");
+    record({ type: "message_delta", id: textBlockId, delta: ownedDelta });
     textEmitted = target.startsWith(textEmitted) ? target : textEmitted + delta;
     anyTextDelta = true;
   }
@@ -1980,7 +1991,8 @@ export function createSandboxAgentOtel(
       reasoningBlockId = nextId("reason");
       record({ type: "thought_start", id: reasoningBlockId });
     }
-    record({ type: "thought_delta", id: reasoningBlockId, delta });
+    const ownedDelta = Buffer.from(delta, "utf16le").toString("utf16le");
+    record({ type: "thought_delta", id: reasoningBlockId, delta: ownedDelta });
     reasoningEmitted = target.startsWith(reasoningEmitted)
       ? target
       : reasoningEmitted + delta;
@@ -2064,9 +2076,9 @@ export function createSandboxAgentOtel(
     emitMessages(llmSpan, "llm.input_messages", inputMessages, capture);
   }
 
-  function handleUpdate(update: any): void {
+  function handleUpdate(update: any, admitted = false): void {
     const kind = update?.sessionUpdate;
-    if (!kind) return;
+    if (!kind || finished || (!admitted && !admitUpdate(update))) return;
 
     if (kind === "agent_message_chunk") {
       const t = acpBlockText(update.content);
@@ -2324,6 +2336,8 @@ export function createSandboxAgentOtel(
 
   function finish(stopReason?: string): string {
     const text = stripStartupBanner(accumulated.trim());
+    if (finished) return text;
+    finished = true;
     // The event log is independent of span emission, so build its tail either way.
     closeText();
     closeReasoning();
@@ -2392,7 +2406,15 @@ export function createSandboxAgentOtel(
   return {
     start,
     handleUpdate,
-    emitEvent: record,
+    admitUpdate,
+    emitEvent: (event) => {
+      if (finished) return;
+      // Error/done are engine-authored terminal records, not model output. Preserve them
+      // after a breach so the turn has one visible, durable ending.
+      if (event.type === "error" || event.type === "done" || outputBudget.accept(event)) {
+        record(event);
+      }
+    },
     finish,
     recordError,
     setUsage,

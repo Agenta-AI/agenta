@@ -201,11 +201,8 @@ export type WaitingKind = "approval" | ActivityIcon
 export const WaitingGlyph = ({kind = "approval"}: {kind?: WaitingKind}) => {
     const Glyph = kind === "approval" ? ShieldCheck : KIND_GLYPHS[kind]
     return (
-        <span
-            aria-hidden
-            className="flex size-6 shrink-0 items-center justify-center text-colorWarning"
-        >
-            <Glyph size={16} />
+        <span aria-hidden className="flex size-6 shrink-0 items-center justify-center">
+            <Glyph size={13} />
         </span>
     )
 }

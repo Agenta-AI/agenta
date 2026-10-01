@@ -9,6 +9,9 @@
  */
 
 import { clampTimerMs } from "../env.ts";
+import sandboxRecipe from "../../config/sandbox-recipe.json" with {
+  type: "json",
+};
 
 /**
  * Sandbox providers this runner can actually provision. `inprocess` runs Pi inside the runner
@@ -61,7 +64,9 @@ export function sandboxProviderTraits(id: string | undefined): SandboxProviderTr
 }
 
 /** The runner's pinned default Daytona artifact, used when neither snapshot nor image is set. */
-export const DEFAULT_DAYTONA_SNAPSHOT = "agenta-agent-sandbox-v1";
+export const SANDBOX_RECIPE_VERSION = sandboxRecipe.version;
+export const DEFAULT_DAYTONA_SNAPSHOT =
+  `agenta-agent-sandbox-v${SANDBOX_RECIPE_VERSION}`;
 
 /** Idle-minute thresholds for Daytona lifecycle transitions (see `provider.ts`). */
 export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;

@@ -431,6 +431,7 @@ export async function runTurn(
   );
   let runLimitTrip: (() => void) | undefined;
   let runLimitReason: string | undefined;
+  let outputLimitReason: string | undefined;
   const runLimitTripped = new Promise<void>((resolve) => {
     runLimitTrip = resolve;
   });
@@ -576,6 +577,11 @@ export async function runTurn(
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
       // through. Per-tool-call timers are driven separately from `handleUpdate` below.
       emit: emit && runLimits.wrapEmit(emit),
+      onOutputLimit: (reason) => {
+        outputLimitReason = reason;
+        runLimitReason = reason;
+        runLimitTrip?.();
+      },
     });
     otel = run;
 
@@ -804,6 +810,7 @@ export async function runTurn(
         const waiters = toolCallClosureWaiters.get(toolCallId) ?? new Set();
         waiters.add(onClosed);
         toolCallClosureWaiters.set(toolCallId, waiters);
+        void runLimitTripped.then(() => finish(false));
         timeout = setTimeout(() => finish(false), timeoutMs);
       });
     };
@@ -815,6 +822,10 @@ export async function runTurn(
       pause,
       toolRelay: undefined,
       handleUpdate: (update) => {
+        // One admission before any tool index, timer, argument seed or paused-frame retention.
+        // The tracer later consumes this admitted update without counting it a second time.
+        if (run.admitUpdate?.(update) === false) return;
+        env.toolCallIndex.record(update);
         // The turn is over and waits only for the cancelled prompt's usage. Anything else the
         // harness sends now is a teardown artifact (Codex writes "*Conversation interrupted*").
         if (
@@ -918,7 +929,7 @@ export async function runTurn(
             bufferedPausedCompletedFrames.set(toolCallId, update);
             return;
           }
-          run.handleUpdate(update);
+          run.handleUpdate(update, true);
           if (
             toolCallId &&
             (rawFrame.status === "completed" || rawFrame.status === "failed")
@@ -1104,7 +1115,7 @@ export async function runTurn(
         bufferedPausedCompletedFrames.delete(toolCallId);
         if (pause.isPausedToolCall(toolCallId)) continue;
         if (pause.isAllowedExecution(toolCallId)) {
-          run.handleUpdate(update);
+          run.handleUpdate(update, true);
           notifyToolCallClosed(toolCallId);
           continue;
         }
@@ -1135,7 +1146,7 @@ export async function runTurn(
         );
         const permission = effectivePermission(gate, permissionPlan);
         if (permission === "allow") {
-          run.handleUpdate(update);
+          run.handleUpdate(update, true);
           notifyToolCallClosed(toolCallId);
           continue;
         }
@@ -1539,7 +1550,7 @@ export async function runTurn(
     }
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
-    if (raced === RUN_LIMIT_TRIPPED) {
+    if (raced === RUN_LIMIT_TRIPPED || outputLimitReason) {
       throw new Error(runLimitReason ?? "run limit tripped");
     }
     let stopReason =
@@ -1563,6 +1574,7 @@ export async function runTurn(
     if (stopReason === "paused") {
       await pause.waitForEventDrain();
       settleBufferedPausedCompletions();
+      if (outputLimitReason) throw new Error(outputLimitReason);
       // A gateway run passes TWO gates on ONE tool-call id: the ACP gate on the outer `run_tool`,
       // whose spec permission is `allow` and which therefore marks an allowed execution, and the
       // gateway's semantic gate on the TARGET action, which answers `ask` and parks that same id.
@@ -1859,6 +1871,7 @@ export async function runTurn(
 
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
     await settleInBandInteractions?.();
+    if (outputLimitReason) throw new Error(outputLimitReason);
     const output = run.finish(swallowedError ? "error" : stopReason);
     await run.flush();
     const turnEndedAt = new Date().toISOString();
@@ -1983,7 +1996,7 @@ export async function runTurn(
     // subscription copy: either "sign in again" or "the sign-in was renewed, send it again".
     const recovery = await subscriptionRecovery(err);
     if (recovery) classified = recovery.classified;
-    const error = classified.message;
+    const error = outputLimitReason ?? classified.message;
     await harnessTrace.cancelBeforeDrain();
     const traceFinish = await harnessTrace.finish();
     const nativeTraceBatches = traceFinish?.pickedUpBatches;
@@ -1994,7 +2007,7 @@ export async function runTurn(
     } else if (nativeTraceBatches === 0) {
       await harnessTrace.emitMissingBatchFallback(otel, error);
     }
-    otel?.emitEvent(errorEventWithDetail(error, classified.code));
+    otel?.emitEvent(errorEventWithDetail(error, outputLimitReason ? "output_limit_exceeded" : classified.code));
     // An aborted turn may have left a partial turn in the native transcript: roll it back, or
     // drop the resume point.
     await settleFailedTurnContinuity();

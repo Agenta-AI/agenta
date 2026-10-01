@@ -4,6 +4,7 @@ import {
     hasStoredKey,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
+    toUpdateSecretPayload,
     transformSecret,
     transformStandardProviderPayloadData,
 } from "../../src/secret/core/transforms"
@@ -331,5 +332,24 @@ describe("clearing the environment default", () => {
             defaultEnvVar: "",
         })
         expect(payload.secret.data).toMatchObject({secret: {default_env_var: null}})
+    })
+})
+
+// PUT /secrets/{id} forbids unknown fields, so an edit must never carry the immutable slug.
+describe("toUpdateSecretPayload", () => {
+    it("drops the slug from an edited custom secret", () => {
+        const payload = transformCustomSecretPayloadData({
+            id: "secret-1",
+            name: "GitHub token",
+            slug: "github-token",
+            format: "text",
+            content: "rotated-value",
+        })
+        expect(payload).toHaveProperty("slug", "github-token")
+
+        const update = toUpdateSecretPayload(payload)
+
+        expect(Object.keys(update).sort()).toEqual(["header", "secret"])
+        expect(update).toEqual({header: payload.header, secret: payload.secret})
     })
 })

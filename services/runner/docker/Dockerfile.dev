@@ -60,6 +60,7 @@ RUN pnpm install --frozen-lockfile
 COPY tsconfig.json ./
 COPY scripts ./scripts
 COPY src ./src
+COPY config ./config
 # The Agenta harness's forced skills (resolved from /app/skills per run). Baked like the
 # prod image; the dev compose also bind-mounts skills/ over this for live edits.
 COPY skills ./skills

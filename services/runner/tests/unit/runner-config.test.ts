@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
   DEFAULT_DAYTONA_AUTODELETE_MINUTES,
+  SANDBOX_RECIPE_VERSION,
+  DEFAULT_DAYTONA_SNAPSHOT,
   RunnerConfigError,
   parseRunnerConfig,
   providerNotEnabledMessage,
@@ -164,6 +166,12 @@ describe("default provider", () => {
 });
 
 describe("daytona configuration", () => {
+  it("uses the shared sandbox recipe version for the default snapshot", () => {
+    assert.equal(
+      DEFAULT_DAYTONA_SNAPSHOT,
+      `agenta-agent-sandbox-v${SANDBOX_RECIPE_VERSION}`,
+    );
+  });
   it("daytona enabled without a provisioning credential fails", () => {
     assert.throws(
       () => parse({ AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: "local,daytona" }),

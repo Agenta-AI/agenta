@@ -16,7 +16,9 @@ import type {
 } from "@agenta/entities/session"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
+import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
+import {getDefaultStore} from "jotai"
 
 /**
  * Replay adapter — durable session-record `AgentEvent`s → v6 `UIMessage[]`.
@@ -36,8 +38,14 @@ import type {UIMessage} from "ai"
 type Part = Record<string, unknown>
 
 /** Content URL for one durable attachment. Mirrors the OSS original's `attachmentMedia.ts`. */
-export function attachmentContentUrl(sessionId: string, attachmentId: string): string {
+export function attachmentContentUrl(
+    sessionId: string,
+    attachmentId: string,
+    projectId: string | null = getDefaultStore().get(projectIdAtom),
+): string {
     const params = new URLSearchParams({session_id: sessionId})
+    // Replay supplies the record's project so navigation cannot change the content scope.
+    if (projectId) params.set("project_id", projectId)
     return `${getAgentaApiUrl()}/sessions/attachments/${encodeURIComponent(attachmentId)}/content?${params.toString()}`
 }
 
@@ -389,6 +397,7 @@ function applyEvent(
     payload: Record<string, unknown>,
     index: TranscriptIndex,
     sessionId: string,
+    projectId: string,
 ): void {
     const type = payload.type as string | undefined
     const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v))
@@ -407,7 +416,7 @@ function applyEvent(
                 if (!attachmentId) continue
                 draft.parts.push({
                     type: "file",
-                    url: attachmentContentUrl(sessionId, attachmentId),
+                    url: attachmentContentUrl(sessionId, attachmentId, projectId),
                     mediaType: str(attachment.mediaType) || "application/octet-stream",
                     filename: str(attachment.filename) || undefined,
                     providerMetadata: {
@@ -762,7 +771,7 @@ export function transcriptToMessages(
             drafts.push(current)
         }
         if (traceId && !current.traceId) current.traceId = traceId
-        applyEvent(current, p, index, row.session_id)
+        applyEvent(current, p, index, row.session_id, row.project_id)
         if (
             p.type === "error" &&
             current.approvalContinuation &&
