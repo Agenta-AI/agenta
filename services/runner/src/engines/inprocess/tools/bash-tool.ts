@@ -86,8 +86,13 @@ export function createSandboxBashTool(
           throw new Error(withStatus(output.format(shownPath, "").text, `Command timed out after ${outcome.seconds} seconds`));
         }
         const { text, truncation } = output.format(shownPath);
-        if (outcome.exitCode !== 0) throw new Error(withStatus(text, `Command exited with code ${outcome.exitCode}`));
         const details: BashToolDetails | undefined = truncation ? { truncation, ...(shownPath ? { fullOutputPath: shownPath } : {}) } : undefined;
+        // Pi 0.99 returns a non-zero exit as an `isError` result instead of throwing (its
+        // `structuredContent` for codemode scripts is not mirrored here: the full output lives in
+        // the sandbox file, not in this process).
+        if (outcome.exitCode !== 0) {
+          return { content: [{ type: "text", text: withStatus(text, `Command exited with code ${outcome.exitCode}`) }], details, isError: true };
+        }
         return { content: [{ type: "text", text }], details };
       } finally {
         if (timer) clearTimeout(timer);

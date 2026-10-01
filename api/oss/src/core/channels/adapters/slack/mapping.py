@@ -181,3 +181,27 @@ def slack_ts(value: datetime) -> str:
     epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
     delta = value.astimezone(timezone.utc) - epoch
     return f"{delta.days * 86400 + delta.seconds}.{delta.microseconds:06d}"
+
+
+def file_media_parts(event: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Media parts for the files shared on a message, named by their Slack
+    file id. `fetch_media` resolves the id through files.info at download
+    time, so no private URL is stored. An entry without an id is skipped;
+    the message itself still goes through."""
+
+    parts: List[Dict[str, Any]] = []
+    files = event.get("files")
+    for entry in files if isinstance(files, list) else []:
+        if not isinstance(entry, dict) or not entry.get("id"):
+            continue
+        prefix = str(entry.get("mimetype") or "").split("/", 1)[0]
+        parts.append(
+            {
+                "type": "media",
+                "kind": prefix if prefix in ("image", "audio", "video") else "document",
+                "media_id": entry["id"],
+                "mime_type": entry.get("mimetype"),
+                "filename": entry.get("name"),
+            }
+        )
+    return parts
