@@ -1,5 +1,5 @@
 import {Button} from "@agenta/ui/ui"
-import {ArrowUpRight, Play} from "@phosphor-icons/react"
+import {ArrowSquareOut, Play} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {openFeatureGuideAtom} from "./featureGuideAtom"
@@ -72,7 +72,7 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                     >
                         <a href={guide.docsUrl} target="_blank" rel="noopener noreferrer">
                             Read the docs
-                            <ArrowUpRight className="size-3" aria-hidden />
+                            <ArrowSquareOut className="size-3.5" aria-hidden />
                         </a>
                     </Button>
                 </div>
