@@ -15,6 +15,9 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
@@ -35,9 +38,6 @@ import {AgentsNoMatch} from "./states/AgentsNoMatch"
 import {useAgentOwners} from "./useAgentOwners"
 import {useArchivedAgents} from "./useArchivedAgents"
 import {useNewAgentAction} from "./useNewAgentAction"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /** The page column, shared with sessions and automations, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
