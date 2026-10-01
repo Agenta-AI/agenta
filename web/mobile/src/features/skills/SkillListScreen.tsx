@@ -22,12 +22,10 @@ import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
+import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -43,6 +41,9 @@ import {
     type SkillListView,
 } from "./skillListView"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /** The page column, shared with agents and automations, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
@@ -176,6 +177,9 @@ export const SkillListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Skills
                                 </h1>
+                                {projectEmpty ? null : (
+                                    <HowThisWorksButton guide="skills" className="max-sm:hidden" />
+                                )}
                                 <NewSkillMenuButton
                                     onWrite={onWrite}
                                     onUpload={onUpload}

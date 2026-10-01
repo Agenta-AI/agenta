@@ -15,11 +15,9 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
+import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -37,6 +35,9 @@ import {AgentsNoMatch} from "./states/AgentsNoMatch"
 import {useAgentOwners} from "./useAgentOwners"
 import {useArchivedAgents} from "./useArchivedAgents"
 import {useNewAgentAction} from "./useNewAgentAction"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /** The page column, shared with sessions and automations, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
@@ -184,6 +185,9 @@ export const AgentListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Agents
                                 </h1>
+                                {projectEmpty ? null : (
+                                    <HowThisWorksButton guide="agents" className="max-sm:hidden" />
+                                )}
                                 <NewAgentAction
                                     create={() => void newAgent.create()}
                                     createFromTemplate={newAgent.createFromTemplate}
