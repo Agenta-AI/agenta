@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-01-playground-keyboard-shortcuts",
+        "title": "Keyboard shortcuts",
+        "description": "Press ? to see every shortcut for sessions, panels, runs and approvals.",
+        "link": "https://agenta.ai/docs/changelog/playground-keyboard-shortcuts"
+    },
+    {
         "id": "changelog-2026-09-07-session-control-and-queued-work",
         "title": "Edit queued instructions",
         "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
