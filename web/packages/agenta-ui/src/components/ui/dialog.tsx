@@ -57,6 +57,7 @@ function DialogContent({
     onEscapeKeyDown,
     showCloseButton = true,
     closeIcon,
+    overlayClassName,
     ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
     /** Portal target; defaults to document.body. */
@@ -67,10 +68,12 @@ function DialogContent({
     showCloseButton?: boolean
     /** Replaces the default X icon. */
     closeIcon?: React.ReactNode
+    /** Extra backdrop classes, e.g. a darker mask for a media lightbox. */
+    overlayClassName?: string
 }) {
     return (
         <DialogPortal container={container}>
-            <DialogOverlay />
+            <DialogOverlay className={overlayClassName} />
             {/* Flex-centred, not transform-centred: the zoom keyframes would overwrite a translate. */}
             <div
                 data-slot="dialog-positioner"
