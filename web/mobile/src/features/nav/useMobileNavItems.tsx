@@ -11,6 +11,7 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
+    RELEASES,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     setSidebarSessionFilterDefaults,
@@ -44,6 +45,7 @@ import {unwrap} from "jotai/utils"
 
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
+import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
 
@@ -277,6 +279,7 @@ export const useMobileHelpItem = ({
     onOpenShortcuts,
 }: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
     const version = useMobileVersion()
+    const openWhatsNew = useSetAtom(whatsNewAtom)
 
     return useMemo(
         () =>
@@ -297,9 +300,18 @@ export const useMobileHelpItem = ({
                         // The rule between the destinations and the release list.
                         divider: true,
                     },
-                    ...buildReleaseNavItems(version),
+                    // Release rows reopen the what's-new dialog; "View all releases" links out.
+                    ...buildReleaseNavItems(version).map((item) =>
+                        RELEASES.some((release) => release.id === item.key)
+                            ? {
+                                  ...item,
+                                  link: undefined,
+                                  onClick: () => openWhatsNew({releaseId: item.key}),
+                              }
+                            : item,
+                    ),
                 ],
             }),
-        [onOpenShortcuts, version],
+        [onOpenShortcuts, openWhatsNew, version],
     )
 }

@@ -3,6 +3,7 @@ import {useMediaQuery} from "@agenta/ui/hooks"
 import {useRouter} from "next/router"
 
 import {FeatureGuideDialog} from "@/features/education/FeatureGuideDialog"
+import {WhatsNewDialog} from "@/features/education/WhatsNewDialog"
 import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeams"
 import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
 
@@ -26,9 +27,9 @@ export const GlobalDrawers = () => {
     return (
         <>
             <TraceDrawer layout={wide ? "split" : "stacked"} />
-            {/* The feature-guide dialog opens by atom, so it must be mounted wherever an entry
-                point can set it — same reasoning as the trace drawer above. */}
+            {/* These dialogs open by atom, so they mount wherever an entry point can set them. */}
             <FeatureGuideDialog />
+            <WhatsNewDialog />
         </>
     )
 }
