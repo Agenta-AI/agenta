@@ -11,7 +11,9 @@ thread get-or-create) stays inside the service.
 """
 
 import asyncio
+from datetime import datetime, timezone
 from functools import partial
+import mimetypes
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID, uuid4, uuid5
 
@@ -72,6 +74,7 @@ from oss.src.core.channels.identity import (
     ChannelIdentityService,
     compose_external_user_key,
 )
+from oss.src.core.sessions.attachments.media import classify
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.core.sessions.attachments.types import AttachmentTooLarge
 from oss.src.core.sessions.streams.service import SessionStreamsService
@@ -596,6 +599,7 @@ class InboxDispatcher:
             project_id=project_id,
             connection=connection,
             resolution=resolution,
+            sent_at=event.sent_at or event.created_at,
             user_id=user_id or resolution.agent.created_by_id,
             content=turn_input.content,
         )
@@ -705,6 +709,7 @@ class InboxDispatcher:
         project_id: UUID,
         connection: ChannelConnection,
         resolution: ChannelResolution,
+        sent_at: Optional[datetime],
         user_id: Optional[UUID],
         content: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
@@ -744,7 +749,13 @@ class InboxDispatcher:
                     user_id=user_id,
                     session_id=session_id,
                     idempotency_key=f"channels:{part.get('media_id')}",
-                    filename=part.get("filename") or part.get("kind"),
+                    filename=part.get("filename")
+                    or _fallback_filename(
+                        kind=part.get("kind"),
+                        data=data,
+                        media_type=media_type,
+                        sent_at=sent_at,
+                    ),
                     declared_media_type=media_type,
                     data=data,
                 )
@@ -1112,6 +1123,37 @@ class InboxDispatcher:
 
 _OPT_OUT_WORDS = {"STOP", "UNSUBSCRIBE"}
 _OPT_IN_WORDS = {"START"}
+
+
+# Extensions the agent's tools expect where `mimetypes` picks a rarer one
+# (`.oga`) or none at all.
+_EXTENSIONS = {"audio/ogg": ".ogg", "audio/webm": ".webm"}
+
+
+def _fallback_filename(
+    *,
+    kind: Optional[str],
+    data: bytes,
+    media_type: Optional[str],
+    sent_at: Optional[datetime],
+) -> str:
+    """A name for a file the platform sent without one (a photo, a voice
+    note): the kind, the message's send time, and an extension from the
+    content, e.g. `audio-20261001-143005.ogg`. It is built from the message,
+    not the clock, so a retried dispatch stores the same name and the
+    attachment's idempotency check still matches."""
+
+    try:
+        media_type = classify(data=data, declared_media_type=media_type).media_type
+    except Exception:  # noqa: BLE001 - the platform's type is a fine fallback
+        pass
+    extension = ""
+    if media_type:
+        extension = _EXTENSIONS.get(media_type) or (
+            mimetypes.guess_extension(media_type) or ""
+        )
+    stamp = (sent_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    return f"{kind or 'file'}-{stamp:%Y%m%d-%H%M%S}{extension}"
 
 
 def _consent_keyword(event: ChannelInboxEvent) -> Optional[str]:

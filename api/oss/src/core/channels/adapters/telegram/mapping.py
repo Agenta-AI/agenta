@@ -67,6 +67,57 @@ def _entities_text(message: Dict[str, Any]) -> str:
     return message.get("text") or message.get("caption") or ""
 
 
+# Message fields we pass to the agent as media parts, with the attachment kind
+# each maps to. A photo is a list of sizes; every other field is one object
+# carrying its own file_id.
+_MEDIA_FIELDS = (
+    ("photo", "image"),
+    ("document", "document"),
+    ("voice", "audio"),
+    ("audio", "audio"),
+    ("video", "video"),
+    ("video_note", "video"),
+)
+
+
+def _photo_rank(size: Dict[str, Any]) -> Tuple[int, int]:
+    return (
+        (size.get("width") or 0) * (size.get("height") or 0),
+        size.get("file_size") or 0,
+    )
+
+
+def media_parts(message: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Media parts for the files on a Telegram message, in `_MEDIA_FIELDS`
+    order. Each part names the file by its Telegram file_id, which
+    `fetch_media` resolves through getFile at download time."""
+
+    parts: List[Dict[str, Any]] = []
+    for field, kind in _MEDIA_FIELDS:
+        value = message.get(field)
+        if field == "photo":
+            # A photo arrives as a list of sizes. The Bot API does not promise
+            # an order, so take the largest by area, then by file_size.
+            sizes = (
+                [s for s in value if isinstance(s, dict)]
+                if isinstance(value, list)
+                else []
+            )
+            value = max(sizes, key=_photo_rank) if sizes else None
+        if not isinstance(value, dict) or not value.get("file_id"):
+            continue
+        parts.append(
+            {
+                "type": "media",
+                "kind": kind,
+                "media_id": value["file_id"],
+                "mime_type": value.get("mime_type"),
+                "filename": value.get("file_name"),
+            }
+        )
+    return parts
+
+
 def is_addressed(
     message: Dict[str, Any],
     *,
