@@ -1,4 +1,5 @@
-import {Button, Dialog, DialogContent, DialogTitle} from "@agenta/ui/ui"
+import {Button, Dialog, DialogContent, DialogTitle, Kbd} from "@agenta/ui/ui"
+import {BookOpen} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
 import {openFeatureGuideAtom} from "./featureGuideAtom"
@@ -17,9 +18,15 @@ export const FeatureGuideDialog = () => {
                 <DialogContent
                     showCloseButton={false}
                     aria-describedby={undefined}
-                    className="max-w-[880px] gap-0 overflow-hidden rounded-2xl p-0 shadow-dialog"
+                    overlayClassName="bg-black/40"
+                    // Focus in the cross-origin player would swallow Esc.
+                    onOpenAutoFocus={(event) => {
+                        event.preventDefault()
+                        ;(event.currentTarget as HTMLElement).focus()
+                    }}
+                    className="max-w-[1000px] gap-0 overflow-hidden rounded-[24px] p-3 shadow-dialog"
                 >
-                    <div className="aspect-video w-full bg-black">
+                    <div className="aspect-video w-full overflow-hidden rounded-[16px] bg-black">
                         <iframe
                             src={streamPlayerUrl(video.id, video.startSeconds)}
                             title={video.title}
@@ -27,25 +34,25 @@ export const FeatureGuideDialog = () => {
                             allow="autoplay; fullscreen; picture-in-picture"
                         />
                     </div>
-                    <div className="flex items-center justify-between gap-3 px-[18px] py-3.5">
-                        <DialogTitle className="m-0 truncate text-[14px] font-semibold leading-5 text-foreground">
-                            {video.title}
-                        </DialogTitle>
-                        <div className="flex shrink-0 items-center gap-3">
-                            <a
-                                href={guide.docsUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[13px] text-muted-foreground no-underline hover:text-foreground"
-                            >
-                                Read the docs
-                            </a>
-                            <Button
-                                variant="secondary"
-                                className="h-[30px] rounded-lg bg-accent px-3 hover:bg-colorBorderSecondary"
-                                onClick={() => setGuideKey(null)}
-                            >
-                                Done
+                    <div className="flex flex-wrap items-center justify-between gap-4 px-2 pb-1 pt-4 sm:px-5">
+                        <div className="flex min-w-0 flex-col gap-1">
+                            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                                {guide.title} walkthrough
+                            </span>
+                            <DialogTitle className="m-0 text-[16px] font-semibold leading-snug text-foreground">
+                                {guide.headline}
+                            </DialogTitle>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                            <Button asChild variant="outline">
+                                <a href={guide.docsUrl} target="_blank" rel="noreferrer">
+                                    <BookOpen aria-hidden />
+                                    Read the docs
+                                </a>
+                            </Button>
+                            <Button onClick={() => setGuideKey(null)}>
+                                Close
+                                <Kbd tone="inverse">Esc</Kbd>
                             </Button>
                         </div>
                     </div>
