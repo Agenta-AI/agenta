@@ -129,6 +129,14 @@ class TestDefaultTracking:
     and the next catalog update reaches every un-narrowed connection.
     """
 
+    def test_the_current_defaults_are_a_recorded_snapshot(self):
+        # Fails when SUBSCRIPTION_PROVIDER_MODELS changes without a new snapshot entry.
+        # Without one, rows created under the outgoing lineup would stay pinned to it.
+        assert (
+            frozenset(SUBSCRIPTION_PROVIDER_MODELS[SubscriptionProviderKind.CHATGPT])
+            in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS[SubscriptionProviderKind.CHATGPT]
+        )
+
     def test_a_historical_default_snapshot_reads_as_the_current_defaults(self):
         for snapshot in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS[
             SubscriptionProviderKind.CHATGPT
