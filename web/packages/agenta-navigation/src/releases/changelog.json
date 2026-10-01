@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-30-let-the-agent-set-itself-up",
+        "title": "Create with AI",
+        "description": "Ask the agent to add its own integrations, skills and automations, and connect accounts before the first task.",
+        "link": "https://agenta.ai/docs/changelog/let-the-agent-set-itself-up"
+    },
+    {
         "id": "changelog-2026-09-07-session-control-and-queued-work",
         "title": "Edit queued instructions",
         "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
