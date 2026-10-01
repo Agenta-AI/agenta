@@ -144,7 +144,7 @@ export const WhatsNewDialog = () => {
                                         <span
                                             className={cn(
                                                 "text-[13.5px] leading-[1.35] text-foreground",
-                                                active ? "font-semibold" : "font-medium",
+                                                active ? "font-medium" : "font-normal",
                                             )}
                                         >
                                             {release.title}
