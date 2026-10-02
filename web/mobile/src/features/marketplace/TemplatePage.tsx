@@ -1,8 +1,4 @@
-import {
-    categorySlug,
-    type AgentStarterTemplate,
-    type AgentTemplateProvenance,
-} from "@agenta/entities/workflow"
+import {categorySlug, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {
     Badge,
     Breadcrumb,
@@ -38,14 +34,12 @@ import {useCopyLink} from "./useCopyLink"
 export const TemplatePage = ({
     template,
     all,
-    provenance,
     marketplaceHref,
     busy,
     onUse,
 }: {
     template: AgentStarterTemplate
     all: readonly AgentStarterTemplate[]
-    provenance?: AgentTemplateProvenance
     marketplaceHref: string
     busy: boolean
     onUse: () => void
@@ -158,12 +152,7 @@ export const TemplatePage = ({
                 </div>
 
                 <div className="w-full lg:sticky lg:top-4 lg:w-[320px] lg:shrink-0">
-                    <TemplateUseCard
-                        template={template}
-                        provenance={provenance}
-                        busy={busy}
-                        onUse={onUse}
-                    />
+                    <TemplateUseCard template={template} busy={busy} onUse={onUse} />
                 </div>
             </div>
 

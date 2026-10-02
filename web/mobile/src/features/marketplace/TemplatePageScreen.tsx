@@ -1,6 +1,5 @@
 import {
     agentTemplateLookupAtomFamily,
-    agentTemplateProvenanceAtom,
     agentTemplatesAtom,
     refetchAgentTemplatesAtom,
 } from "@agenta/entities/workflow"
@@ -41,7 +40,6 @@ export const TemplatePageScreen = ({
     const fade = useScrollFade<HTMLDivElement>()
     const lookup = useAtomValue(agentTemplateLookupAtomFamily(templateKey))
     const all = useAtomValue(agentTemplatesAtom)
-    const provenance = useAtomValue(agentTemplateProvenanceAtom)
     const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
     const template = lookup.template
     const use = () => {
@@ -80,7 +78,6 @@ export const TemplatePageScreen = ({
                             <TemplatePage
                                 template={template}
                                 all={all}
-                                provenance={provenance[template.key]}
                                 marketplaceHref={marketplaceHref}
                                 busy={newAgent.creating}
                                 onUse={use}
