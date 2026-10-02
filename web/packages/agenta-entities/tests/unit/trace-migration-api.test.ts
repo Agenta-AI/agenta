@@ -364,4 +364,22 @@ describe("fetchSpansAnalytics (Phase 6 — POST /spans/analytics/query)", () => 
         querySpansAnalytics.mockRejectedValueOnce(abort)
         await expect(fetchSpansAnalytics({projectId: "proj-9"})).rejects.toBe(abort)
     })
+
+    it("sends `specs` as a JSON-string query param", async () => {
+        querySpansAnalytics.mockResolvedValueOnce({count: 0, buckets: []})
+        await fetchSpansAnalytics({
+            projectId: "proj-9",
+            specs: [{type: "categorical/single", path: "attributes.ag.meta.tool.name"}],
+        })
+        const [request] = querySpansAnalytics.mock.calls[0]
+        expect(JSON.parse(request.specs)).toEqual([
+            {type: "categorical/single", path: "attributes.ag.meta.tool.name"},
+        ])
+    })
+
+    it("throws the request error in strict mode", async () => {
+        const failure = new Error("500")
+        querySpansAnalytics.mockRejectedValueOnce(failure)
+        await expect(fetchSpansAnalytics({projectId: "proj-9", strict: true})).rejects.toBe(failure)
+    })
 })
