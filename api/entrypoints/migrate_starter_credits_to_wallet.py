@@ -10,7 +10,13 @@ new requests but not the ones already running, and the proxy writes their spend 
 2. Wait for running requests and the proxy's spend writes to finish (10 minutes is ample).
 3. `--apply` reads each blocked key's final spend and grants the remainder
    (`max_budget - spend`) as a `starter_credits` wallet credit that expires after twelve
-   months. A key that is not blocked yet is counted and left alone.
+   months, then deletes the organization's seeded "Agenta" vault connection: its key is
+   blocked, so an agent that picked it would only fail. The gateway's built-in models
+   (`builtin/agenta`) take its place in the model picker. A key that is not blocked yet is
+   counted and left alone.
+
+Turn seeding off (AGENTA_STARTER_CREDITS_BRIDGE_ENABLED=false) before `--block`, so no new
+organization is given a connection the job then has to retire.
 
 Run it against the deployment's own database and proxy, once the wallet funds the models:
 
@@ -36,9 +42,15 @@ from uuid import UUID
 from sqlalchemy import text
 
 from ee.src.core.starter_credits_bridge.client import StarterCreditsProxyClient
-from ee.src.core.starter_credits_bridge.service import PROXY_ORIGIN
+from ee.src.core.starter_credits_bridge.service import (
+    PROXY_ORIGIN,
+    STARTER_CREDITS_SLUG,
+)
 from ee.src.core.wallets.service import WalletsService
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
+from oss.src.core.secrets.managed import SecretManager
+from oss.src.core.secrets.services import VaultService
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -57,6 +69,10 @@ _ORGANIZATION_EXISTS = text(
     "SELECT 1 FROM organizations WHERE id = :organization_id AND deleted_at IS NULL"
 )
 
+_ORGANIZATION_PROJECTS = text(
+    "SELECT id FROM projects WHERE organization_id = :organization_id"
+)
+
 
 @dataclass
 class MigrationCounts:
@@ -69,6 +85,7 @@ class MigrationCounts:
     granted: int = 0
     granted_musd: int = 0
     remaining_musd: int = 0
+    connections_removed: int = 0
     failed: int = 0
 
 
@@ -103,12 +120,46 @@ async def _organization_exists(engine, organization_id: UUID) -> bool:
         return row.first() is not None
 
 
+async def _remove_bridge_connections(
+    *, engine, vault: VaultService, organization_id: UUID
+) -> int:
+    """Delete the seeded "Agenta" connection from each of the organization's projects.
+
+    Only the row the bridge manages: a user who saved their own connection under the same
+    slug keeps it. Idempotent, so a rerun removes what a failed run left."""
+    async with engine.session() as session:
+        rows = await session.execute(
+            _ORGANIZATION_PROJECTS, {"organization_id": organization_id}
+        )
+        project_ids = [row[0] for row in rows]
+
+    removed = 0
+    for project_id in project_ids:
+        row = await vault.get_secret_by_slug(
+            STARTER_CREDITS_SLUG, project_id=project_id
+        )
+        management = getattr(row, "management", None) if row is not None else None
+        if (
+            management is None
+            or management.manager != SecretManager.STARTER_CREDITS_BRIDGE
+        ):
+            continue
+        await vault.delete_managed_secret(
+            secret_id=row.id,
+            manager=SecretManager.STARTER_CREDITS_BRIDGE,
+            project_id=project_id,
+        )
+        removed += 1
+    return removed
+
+
 async def _migrate_key(
     *,
     key: dict[str, Any],
     stage: str,
     client: StarterCreditsProxyClient,
     service: WalletsService,
+    vault: VaultService,
     engine,
     counts: MigrationCounts,
 ) -> None:
@@ -144,14 +195,18 @@ async def _migrate_key(
     counts.remaining_musd += amount_musd
     if amount_musd <= 0:
         counts.zero_remaining += 1
-        return
+    else:
+        credit = await service.grant_starter_credits(
+            organization_id=organization_id,
+            amount_musd=amount_musd,
+        )
+        counts.granted += 1
+        counts.granted_musd += credit.amount_musd
 
-    credit = await service.grant_starter_credits(
-        organization_id=organization_id,
-        amount_musd=amount_musd,
+    # After the grant, so a failed delete is retried by a rerun whose grant is a no-op.
+    counts.connections_removed += await _remove_bridge_connections(
+        engine=engine, vault=vault, organization_id=organization_id
     )
-    counts.granted += 1
-    counts.granted_musd += credit.amount_musd
 
 
 async def migrate_starter_credits(
@@ -163,6 +218,7 @@ async def migrate_starter_credits(
 ) -> MigrationCounts:
     engine = get_transactions_engine()
     service = WalletsService(wallets_dao=WalletsDAO(engine=engine))
+    vault = VaultService(SecretsDAO())
     counts = MigrationCounts()
     page = 1
 
@@ -183,6 +239,7 @@ async def migrate_starter_credits(
                     stage=stage,
                     client=client,
                     service=service,
+                    vault=vault,
                     engine=engine,
                     counts=counts,
                 )

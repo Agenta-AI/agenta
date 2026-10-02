@@ -78,6 +78,17 @@ A `builtin` call is charged from its tokens alone. The gateway refuses (400
 it to Google Search grounding), `extra_body` (Vertex's `google` extensions, cached content
 and grounding among them), and any `tools` entry whose type is not `function`.
 
+## Replacing the starter-credits connection
+
+The starter-credits transfer job (`api/entrypoints/migrate_starter_credits_to_wallet.py`,
+step 1.3) now deletes each organization's seeded "Agenta" vault connection in its `--apply`
+stage, after the grant: the connection's proxy key is blocked by then. The built-in models
+take its place in the picker. Chosen over keeping the row and routing its slug to
+`builtin/agenta`, which would be a compatibility alias in the resolver; over archiving,
+which the vault does not have. The vault gained `delete_managed_secret`, which deletes a
+managed row only for the manager that owns it. Details in
+[credit-sources.md](credit-sources.md#starter-credits-transfer).
+
 ## Usage
 
 Vertex reports usage in OpenAI's shape with two differences, both handled in
