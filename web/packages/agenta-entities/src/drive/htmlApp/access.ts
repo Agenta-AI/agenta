@@ -34,11 +34,13 @@ export function createAccessGate(opts: {
             const ask = opts.requestAccess
             if (!ask || coversAccess(level, need)) return Promise.resolve()
             // Queued: calls waiting on an open question share its answer before asking again.
-            queue = queue.then(async () => {
+            const next = queue.then(async () => {
                 if (coversAccess(level, need)) return
                 set(await ask(need).catch(() => level))
             })
-            return queue
+            // One failed question must not reject every later one.
+            queue = next.catch(() => undefined)
+            return next
         },
     }
 }
