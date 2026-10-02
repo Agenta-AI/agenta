@@ -51,7 +51,10 @@ export const formatCredits = (musd: number): string =>
 
 const CREDIT_KIND_LABELS: Record<string, string> = {
     signup_grant: "Welcome credits",
+    daily_free: "Daily free credits",
     plan_allowance: "Monthly plan credits",
+    purchase: "Purchased credits",
+    starter_credits: "Starter credits",
 }
 
 /** A credit's kind in plain words; a kind this view does not know reads as its own words. */
