@@ -40,8 +40,11 @@ def _ts(value):
     return datetime.fromtimestamp(value, tz=timezone.utc)
 
 
-def _install_event(monkeypatch, event_type, data_object, *, signed=True):
+def _install_event(
+    monkeypatch, event_type, data_object, *, signed=True, wallets_enabled=True
+):
     event = SimpleNamespace(type=event_type, data=SimpleNamespace(object=data_object))
+    monkeypatch.setattr(billing_router_module.env.wallets, "enabled", wallets_enabled)
     monkeypatch.setattr(billing_router_module.env.stripe, "api_key", "sk_test_123")
     monkeypatch.setattr(
         billing_router_module.env.stripe,
@@ -277,6 +280,35 @@ async def test_invoices_that_open_no_paid_period_grant_nothing(
         monkeypatch,
         "invoice.payment_succeeded",
         _invoice(billing_reason=billing_reason, total=total),
+    )
+
+    response = await router.handle_events(DummyRequest())
+
+    assert response.status_code == 200
+    router.subscription_service.grant_period_credits.assert_not_awaited()
+    router.subscription_service.process_event.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "invoice,signed",
+    [
+        (_invoice(billing_reason="subscription_cycle"), False),
+        (_invoice(billing_reason="subscription_cycle", plan="unknown"), True),
+        (_invoice(billing_reason="subscription_cycle", lines=[]), True),
+    ],
+    ids=["unsigned", "unknown-plan", "no-lines"],
+)
+async def test_with_the_wallet_off_a_renewal_resumes_without_reading_credits(
+    monkeypatch, invoice, signed
+):
+    router = _router()
+    _install_event(
+        monkeypatch,
+        "invoice.payment_succeeded",
+        invoice,
+        signed=signed,
+        wallets_enabled=False,
     )
 
     response = await router.handle_events(DummyRequest())

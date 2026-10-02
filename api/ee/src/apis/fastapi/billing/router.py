@@ -564,6 +564,11 @@ class BillingRouter:
         metadata: Any,
         invoice: Any,
     ) -> None:
+        # With the wallet off there is nothing to grant, and its checks below must not
+        # fail the subscription resume that follows.
+        if not env.wallets.enabled:
+            return
+
         billing_reason = _stripe_get(invoice, "billing_reason")
         if billing_reason not in _PERIOD_BILLING_REASONS:
             return
