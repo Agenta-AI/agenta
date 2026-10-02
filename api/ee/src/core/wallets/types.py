@@ -32,21 +32,6 @@ class WalletGeneralBalanceNotFoundError(WalletError):
         )
 
 
-class WalletCreditBalanceNotFoundError(WalletError):
-    """A credit of this organization has no per-credit balance row. Every credit is
-    minted together with its balance row in one transaction, so this is a broken
-    invariant, never a routine outcome — and it is raised rather than skipped, because
-    skipping would silently leave that credit's value unaccounted for."""
-
-    def __init__(self, *, organization_id: UUID, wallet_credit_id: UUID):
-        self.organization_id = organization_id
-        self.wallet_credit_id = wallet_credit_id
-        super().__init__(
-            f"No balance row for wallet credit {wallet_credit_id} "
-            f"of organization {organization_id}"
-        )
-
-
 # ---------------------------------------------------------------------------
 # Domain DTOs
 # ---------------------------------------------------------------------------

@@ -340,7 +340,7 @@ A credit is the credit-side record; it is not duplicated in `measurements`.
 }
 ```
 
-Expiry, cancellation, and clawback create new wallet debits against the affected credit. They must
+Expiry and other removals of value create new wallet debits against the affected credit. They must
 not silently rewrite this arrival row.
 
 **Delivered (`WP-1-04`, `WP-1-05`; no migration beyond `ee0000000005`).** Organization creation
@@ -378,12 +378,13 @@ signed up while the flag was off are granted by the one-off job
 **`credit_kind` (delivered set, `WP-1-04`).** `GENERAL_CREDIT_KINDS` in `ee.src.core.wallets.types`
 carries eight of `mechanics.md` §4's thirteen inbound kinds — enough to distinguish a signup grant
 from a contribution award from the row alone, which a single catch-all `"award"` value could not
-do. Only `signup_grant` and `plan_allowance` are wired to a real code path today; the rest are
+do. Only `signup_grant` is wired to a real code path today; `plan_allowance` waits for the
+recurring period allowance (release plan step 1.3), and the rest are
 valid, validated values with no producer yet.
 
 | `credit_kind` | Spend priority | Wired? |
 | --- | --- | --- |
-| `plan_allowance` | 10 | yes — `ee.src.core.wallets.plans` / plan-change proration |
+| `plan_allowance` | 10 | not yet — amounts in `ee.src.core.wallets.plans`; the period grant is release plan step 1.3 |
 | `signup_grant` | 20 | yes — `ee.src.core.wallets.grants.GRANT_CATALOG["signup"]` |
 | `promotion` | 30 | no — catalog row not yet added |
 | `referral_bonus` | 40 | no — catalog row not yet added |

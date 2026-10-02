@@ -2,8 +2,8 @@
 provisioning flow from WP-1-04. Unit tests in
 `ee/tests/pytest/unit/wallets/test_wallets_provisioning.py` cover the same behavior
 against the in-memory `FakeWalletsDAO`; this file proves the real DAO's `ON CONFLICT DO
-NOTHING` (partial unique index) and locking/replay-guard logic actually hold against
-Postgres — a compiled-SQL-only unit test cannot prove either.
+NOTHING` (partial unique index) actually holds against Postgres — a compiled-SQL-only unit
+test cannot prove it.
 
 Self-skips via `conftest.py` when `env.postgres.uri_core` is unreachable. WRITTEN BUT NOT
 RUN — see `docs/design/wallets-research/v1/nodes/im-1-02-pipeline/acceptance.md`.
@@ -11,7 +11,6 @@ RUN — see `docs/design/wallets-research/v1/nodes/im-1-02-pipeline/acceptance.m
 
 import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
 
 import pytest
 from alembic import command
@@ -36,12 +35,6 @@ DOWN_REVISION = "ee0000000003"
 # these DAO-level tests and would otherwise scan the whole shared `organizations` table
 # unnecessarily.
 SCHEMA_REVISION = "ee0000000004"
-
-PERIOD_START = datetime(2026, 1, 1, tzinfo=timezone.utc)
-PERIOD_END = datetime(2026, 2, 1, tzinfo=timezone.utc)
-# Every expiry decision below is made against this injected instant, never the database
-# clock, so the fixed period above cannot go stale as wall-clock time passes it.
-NOW = PERIOD_START + timedelta(days=21)
 
 
 @pytest.fixture(autouse=True)
