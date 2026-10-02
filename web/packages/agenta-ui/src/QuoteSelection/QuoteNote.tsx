@@ -97,7 +97,7 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onSend, onCancel}: Qu
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
-                                size="icon-sm"
+                                size="icon-xs"
                                 className="shrink-0"
                                 aria-label="Send now"
                                 aria-keyshortcuts="Meta+Enter Control+Enter"
