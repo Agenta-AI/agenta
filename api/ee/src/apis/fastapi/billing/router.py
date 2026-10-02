@@ -364,8 +364,12 @@ class BillingRouter:
                 metadata = _stripe_get(stripe_event.data.object, "metadata")
 
         if stripe_event.type.startswith("invoice"):
+            # Top level before Stripe API version 2025-03-31, under `parent` after it.
             subscription_details = _stripe_get(
                 stripe_event.data.object,
+                "subscription_details",
+            ) or _stripe_get(
+                _stripe_get(stripe_event.data.object, "parent"),
                 "subscription_details",
             )
 

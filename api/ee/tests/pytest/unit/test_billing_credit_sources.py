@@ -183,20 +183,21 @@ async def test_the_period_comes_from_a_recurring_plan_line_only(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_the_period_reads_the_new_webhook_line_shape(monkeypatch):
+async def test_the_grant_reads_the_new_webhook_invoice_shape(monkeypatch):
     router = _router()
-    _install_event(
-        monkeypatch,
-        "invoice.payment_succeeded",
-        _invoice(
-            billing_reason="subscription_cycle",
-            lines=[
-                _new_shape_line(SEP_1, OCT_1),
-                _new_shape_line(OCT_1, NOV_1),
-                _new_shape_line(OCT_1 + 60, NOV_1, proration=True),
-            ],
-        ),
+    invoice = _invoice(
+        billing_reason="subscription_cycle",
+        lines=[
+            _new_shape_line(SEP_1, OCT_1),
+            _new_shape_line(OCT_1, NOV_1),
+            _new_shape_line(OCT_1 + 60, NOV_1, proration=True),
+        ],
     )
+    invoice["parent"] = {
+        "type": "subscription_details",
+        "subscription_details": invoice.pop("subscription_details"),
+    }
+    _install_event(monkeypatch, "invoice.payment_succeeded", invoice)
 
     await router.handle_events(DummyRequest())
 
