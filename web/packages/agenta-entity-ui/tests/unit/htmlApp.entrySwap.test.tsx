@@ -65,7 +65,7 @@ describe("swapping the entry while the app runs", () => {
         const sink: {fire?: (href: string) => void} = {}
         const seen: string[] = []
         const grants = createGrantStore()
-        grants.set("m1", DIR, "read", "read")
+        grants.set("m1", DIR, {level: "read", writeRefused: false})
 
         const render = async (path: string) => {
             await act(async () => {

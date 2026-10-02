@@ -28,6 +28,7 @@ import {
     type FsFailure,
     type FsRequest,
     type FsResponse,
+    type GrantLevel,
     type Hello,
     type ParentToIframe,
 } from "../../src/drive/htmlApp/protocol"
@@ -214,7 +215,7 @@ const make = (
     files: Record<string, string>,
     opts: {
         grant?: AppAccess
-        requestAccess?: () => Promise<AppAccess>
+        requestAccess?: (need: GrantLevel) => Promise<AppAccess>
         dir?: string
         tokens?: Record<string, string>
         onWrite?: () => void
@@ -630,24 +631,49 @@ describe("createHtmlAppHost access", () => {
         expect(fake.calls).toEqual([])
     })
 
-    it("asks once on the first call, shares the answer, and serves under it", async () => {
+    it("asks for what the call needs, and waiting calls share the open question", async () => {
         let answer!: (a: AppAccess) => void
         const requestAccess = vi.fn(
-            () =>
+            (_need: GrantLevel) =>
                 new Promise<AppAccess>((done) => {
                     answer = done
                 }),
         )
         const {host} = make(seed, {grant: "none", requestAccess})
         const first = host.handle(req({id: 1, method: "read", path: "index.html"}))
-        const second = host.handle(req({id: 2, method: "write", path: "a.txt", body: "a"}))
+        const second = host.handle(req({id: 2, method: "exists", path: "index.html"}))
         await Promise.resolve()
         expect(requestAccess).toHaveBeenCalledTimes(1)
-        answer("read-write")
+        expect(requestAccess).toHaveBeenLastCalledWith("read")
+        answer("read")
         expectOk(await first)
         expectOk(await second)
-        expectOk(await host.handle(req({id: 3, method: "exists", path: "a.txt"})))
-        expect(requestAccess).toHaveBeenCalledTimes(1)
+        expect(requestAccess, "the second read was covered by the first answer").toHaveBeenCalledTimes(1)
+
+        const write = host.handle(req({id: 3, method: "write", path: "a.txt", body: "a"}))
+        await Promise.resolve()
+        await Promise.resolve()
+        expect(requestAccess).toHaveBeenLastCalledWith("read-write")
+        answer("read")
+        expectFailure(await write, "read_only")
+    })
+
+    it("an upgrade answer serves the write that asked", async () => {
+        const requestAccess = vi.fn(() => Promise.resolve<AppAccess>("read-write"))
+        const {host} = make(seed, {grant: "read", requestAccess})
+        expectOk(await host.handle(req({method: "write", path: "a.txt", body: "a"})))
+        expect(requestAccess).toHaveBeenCalledWith("read-write")
+    })
+
+    it("a downgrade through setAccess refuses the next write without asking", async () => {
+        const {host, fake} = make(seed, {grant: "read-write"})
+        expectOk(await host.handle(req({method: "write", path: "a.txt", body: "a"})))
+        host.setAccess?.("read")
+        expectFailure(await host.handle(req({method: "write", path: "b.txt", body: "b"})), "read_only")
+        host.setAccess?.("none")
+        const before = fake.calls.length
+        expectFailure(await host.handle(req({method: "read", path: "index.html"})), "unavailable")
+        expect(fake.calls.length, "a revoked app reaches nothing").toBe(before)
     })
 
     it("a refused or failed question leaves no access", async () => {

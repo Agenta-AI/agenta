@@ -1,18 +1,15 @@
+import {ACTIVE_USER_ID_KEY} from "@agenta/shared/state"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {
     clearGrants,
-    exceedsGrant,
     getGrant,
-    GRANTS_STORAGE_KEY,
-    reloadGrants,
+    grantsStorageKey,
     setGrant,
+    subscribeGrants,
 } from "../../src/drive/htmlApp/grants"
 
-/** The level the user chose, ignoring what the app had asked for. */
-const level = (mountId: string, dir: string) => getGrant(mountId, dir)?.level ?? null
-
-/** A minimal in-memory `Storage` so the node test env has a sessionStorage to mirror into. */
+/** A minimal in-memory `Storage`, standing in for localStorage. */
 const fakeStorage = () => {
     const data = new Map<string, string>()
     return {
@@ -33,10 +30,12 @@ const fakeStorage = () => {
 }
 
 let storage: ReturnType<typeof fakeStorage>
+const signIn = (userId: string) => storage.data.set(ACTIVE_USER_ID_KEY, userId)
 
 beforeEach(() => {
     storage = fakeStorage()
-    vi.stubGlobal("sessionStorage", storage)
+    vi.stubGlobal("localStorage", storage)
+    signIn("u1")
     clearGrants()
 })
 
@@ -50,71 +49,74 @@ describe("grant store", () => {
     })
 
     it("set/get round-trips and is keyed by mount AND dir", () => {
-        setGrant("m1", "apps/board", "read-write")
-        expect(getGrant("m1", "apps/board")).toEqual({level: "read-write", asked: "read-write"})
+        setGrant("m1", "apps/board", {level: "read-write", writeRefused: false})
+        expect(getGrant("m1", "apps/board")).toEqual({level: "read-write", writeRefused: false})
         expect(getGrant("m2", "apps/board")).toBeNull()
         expect(getGrant("m1", "apps/other")).toBeNull()
-        setGrant("m1", "apps/board", "read")
-        expect(level("m1", "apps/board")).toBe("read")
     })
 
-    it("records what the app asked for, not only what the user chose", () => {
-        // The user was offered read-write and picked read: `asked` remembers the offer, which is
-        // what stops the sheet re-opening every time the app asks.
-        setGrant("m1", "apps/board", "read", "read-write")
-        expect(getGrant("m1", "apps/board")).toEqual({level: "read", asked: "read-write"})
+    it("keeps a refused write upgrade and an unanswered read", () => {
+        setGrant("m1", "apps/board", {level: null, writeRefused: true})
+        expect(getGrant("m1", "apps/board")).toEqual({level: null, writeRefused: true})
     })
 
-    it("stores a refusal and survives a reload of the mirror", () => {
-        setGrant("m1", "apps/board", "none", "read-write")
-        reloadGrants()
-        expect(getGrant("m1", "apps/board")).toEqual({level: "none", asked: "read-write"})
-        setGrant("m1", "apps/x", "none")
-        expect(getGrant("m1", "apps/x")).toEqual({level: "none", asked: "read"})
-    })
-
-    it("defaults `asked` to the granted level so a later escalation still asks", () => {
-        setGrant("m1", "apps/board", "read")
-        expect(getGrant("m1", "apps/board")?.asked).toBe("read")
-    })
-
-    it("mirrors into sessionStorage under the agreed key with `${mountId}|${dir}` keys", () => {
-        setGrant("m1", "apps/board", "read-write")
-        setGrant("m2", "x", "read")
-        expect(JSON.parse(storage.data.get(GRANTS_STORAGE_KEY) as string)).toEqual({
-            "m1|apps/board": {level: "read-write", asked: "read-write"},
-            "m2|x": {level: "read", asked: "read"},
+    it("persists under the user's settings key, so a reload or another tab sees it", () => {
+        setGrant("m1", "apps/board", {level: "read", writeRefused: true})
+        expect(grantsStorageKey("u1")).toBe("agenta:settings:u1:app-grants")
+        expect(JSON.parse(storage.data.get("agenta:settings:u1:app-grants") as string)).toEqual({
+            "m1|apps/board": {level: "read", writeRefused: true},
         })
-    })
-
-    it("clearGrants empties memory and removes the mirror", () => {
-        setGrant("m1", "apps/board", "read-write")
-        clearGrants()
-        expect(getGrant("m1", "apps/board")).toBeNull()
-        expect(storage.data.has(GRANTS_STORAGE_KEY)).toBe(false)
-    })
-
-    it("hydrates from an existing mirror (a reload) and ignores garbage values", () => {
+        // Another tab writes; the next read sees it.
         storage.data.set(
-            GRANTS_STORAGE_KEY,
+            "agenta:settings:u1:app-grants",
+            JSON.stringify({"m1|apps/board": {level: "none", writeRefused: false}}),
+        )
+        expect(getGrant("m1", "apps/board")).toEqual({level: "none", writeRefused: false})
+    })
+
+    it("another user on the same browser does not inherit the grants", () => {
+        setGrant("m1", "apps/board", {level: "read-write", writeRefused: false})
+        signIn("u2")
+        expect(getGrant("m1", "apps/board")).toBeNull()
+        setGrant("m1", "apps/board", {level: "none", writeRefused: false})
+        signIn("u1")
+        expect(getGrant("m1", "apps/board")).toEqual({level: "read-write", writeRefused: false})
+    })
+
+    it("without a signed-in user, answers live in memory only", () => {
+        storage.data.delete(ACTIVE_USER_ID_KEY)
+        setGrant("m1", "apps/board", {level: "read", writeRefused: false})
+        expect(getGrant("m1", "apps/board")).toEqual({level: "read", writeRefused: false})
+        expect([...storage.data.keys()].some((k) => k.includes("app-grants"))).toBe(false)
+    })
+
+    it("ignores garbage entries and a corrupt map", () => {
+        storage.data.set(
+            grantsStorageKey("u1"),
             JSON.stringify({
-                "m1|apps/board": {level: "read", asked: "read-write"},
-                "m9|bad": {level: "admin", asked: "read"},
+                "m1|apps/board": {level: "read", writeRefused: false},
+                "m9|bad": {level: "admin"},
                 "m8|n": 3,
             }),
         )
-        reloadGrants()
-        expect(getGrant("m1", "apps/board")).toEqual({level: "read", asked: "read-write"})
+        expect(getGrant("m1", "apps/board")).toEqual({level: "read", writeRefused: false})
         expect(getGrant("m9", "bad")).toBeNull()
         expect(getGrant("m8", "n")).toBeNull()
+
+        storage.data.set(grantsStorageKey("u1"), "{not json")
+        expect(() => getGrant("m1", "apps/board")).not.toThrow()
+        setGrant("m1", "apps/x", {level: "read", writeRefused: false})
+        expect(getGrant("m1", "apps/x")).toEqual({level: "read", writeRefused: false})
     })
 
-    it("survives a corrupt mirror", () => {
-        storage.data.set(GRANTS_STORAGE_KEY, "{not json")
-        reloadGrants()
-        expect(getGrant("m1", "apps/board")).toBeNull()
-        setGrant("m1", "apps/board", "read")
-        expect(level("m1", "apps/board")).toBe("read")
+    it("notifies subscribers on every stored answer", () => {
+        const listener = vi.fn()
+        const unsubscribe = subscribeGrants(listener)
+        setGrant("m1", "apps/board", {level: "read", writeRefused: false})
+        expect(listener).toHaveBeenCalledTimes(1)
+        unsubscribe()
+        setGrant("m1", "apps/board", {level: "none", writeRefused: false})
+        expect(listener).toHaveBeenCalledTimes(1)
     })
 
     it("keeps working when storage throws on every access", () => {
@@ -129,52 +131,10 @@ describe("grant store", () => {
                 throw new Error("blocked")
             },
         }
-        vi.stubGlobal("sessionStorage", throwing)
-        reloadGrants()
-        expect(() => setGrant("m1", "apps/board", "read-write")).not.toThrow()
-        expect(level("m1", "apps/board")).toBe("read-write")
+        vi.stubGlobal("localStorage", throwing)
+        expect(() => setGrant("m1", "apps/board", {level: "read", writeRefused: false})).not.toThrow()
+        expect(getGrant("m1", "apps/board")).toEqual({level: "read", writeRefused: false})
         expect(() => clearGrants()).not.toThrow()
         expect(getGrant("m1", "apps/board")).toBeNull()
-    })
-
-    it("keeps working when the sessionStorage getter itself throws", () => {
-        Object.defineProperty(globalThis, "sessionStorage", {
-            configurable: true,
-            get() {
-                throw new Error("SecurityError")
-            },
-        })
-        reloadGrants()
-        setGrant("m1", "d", "read")
-        expect(level("m1", "d")).toBe("read")
-        // Restore a plain value so unstubAllGlobals has something sane to reset.
-        Object.defineProperty(globalThis, "sessionStorage", {
-            configurable: true,
-            writable: true,
-            value: storage,
-        })
-    })
-
-    it("works with no sessionStorage at all (SSR / node)", () => {
-        vi.stubGlobal("sessionStorage", undefined)
-        reloadGrants()
-        setGrant("m1", "d", "read-write")
-        expect(level("m1", "d")).toBe("read-write")
-    })
-
-    it("reads a pre-record mirror (a bare level) so an open tab keeps its grant", () => {
-        storage.data.set(GRANTS_STORAGE_KEY, JSON.stringify({"m1|apps/board": "read-write"}))
-        reloadGrants()
-        // `asked` mirrors the level: the safe reading, since a real escalation still asks.
-        expect(getGrant("m1", "apps/board")).toEqual({level: "read-write", asked: "read-write"})
-    })
-})
-
-describe("exceedsGrant", () => {
-    it("is true only when read-write is wanted over a read grant", () => {
-        expect(exceedsGrant("read", "read-write")).toBe(true)
-        expect(exceedsGrant("read", "read")).toBe(false)
-        expect(exceedsGrant("read-write", "read")).toBe(false)
-        expect(exceedsGrant("read-write", "read-write")).toBe(false)
     })
 })

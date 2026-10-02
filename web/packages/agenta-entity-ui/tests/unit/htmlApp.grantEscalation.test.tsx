@@ -1,24 +1,15 @@
 /**
  * When does an app ask for file access, and what does the answer leave behind?
  *
- * An app opens running with no access. Its first file call asks (the host calls `requestAccess`),
- * unless an answer is on file. The trap is escalation: a user who was OFFERED read-write and
- * deliberately picked read must not be asked again, while an app whose manifest later grows to
- * read-write asks once more. The grant record carries both levels so the two cases separate.
- *
- * Everything the body touches from the outside (mount io, host factory, grant store, the
- * upload permission) arrives through `HtmlAppEnvContext`, so no network, no jotai store and no
- * real bridge is needed here.
+ * An app opens running with the stored answer, or none. A call that needs more asks about what it
+ * tried: a read asks "read files?", a write asks "change files?". Refusals are remembered, so an app
+ * that keeps writing is not asked again; a cancel holds for the run only. The host calls
+ * `requestAccess(need)`; these tests play the host and answer through the dialog.
  */
 
 import {act} from "react"
 
-import type {
-    AppAccess,
-    GrantLevel,
-    HtmlAppHost,
-    HtmlAppHostOptions,
-} from "@agenta/entities/drive"
+import type {AppAccess, GrantLevel, HtmlAppHost, HtmlAppHostOptions} from "@agenta/entities/drive"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -34,7 +25,6 @@ const MOUNT = {id: "m1"} as never
 const DIR = "apps/board"
 const ENTRY = "apps/board/index.html"
 
-/** A host that does nothing: the test never reaches the iframe. */
 const stubHost = (): HtmlAppHost => ({
     attach: vi.fn(),
     detach: vi.fn(),
@@ -43,18 +33,14 @@ const stubHost = (): HtmlAppHost => ({
     notifyChanged: vi.fn(),
     onError: () => () => undefined,
     onNav: () => () => undefined,
+    setAccess: vi.fn(),
 })
 
-/** Serves one `app.json` declaring `access`, and nothing else. */
-const manifestIo = (access: GrantLevel) => ({
+const io: AssembleIo = {
     fetchText: (path: string) =>
-        Promise.resolve(
-            path.endsWith("app.json")
-                ? JSON.stringify({agenta_app: 1, name: "Board", access})
-                : null,
-        ),
+        Promise.resolve(path.endsWith("app.json") ? JSON.stringify({agenta_app: 1, name: "Board"}) : null),
     fetchDataUri: () => Promise.resolve(null),
-})
+}
 
 let container: HTMLDivElement
 let root: Root
@@ -76,7 +62,7 @@ const settle = () =>
         await Promise.resolve()
     })
 
-const sheetIsOpen = () => document.body.textContent?.includes("Let Board use files?") === true
+const dialogText = () => document.querySelector("[role=dialog]")?.textContent ?? null
 
 const click = async (element: Element | null | undefined) => {
     expect(element).toBeTruthy()
@@ -90,20 +76,28 @@ const dialogButton = (label: string) =>
         (el) => el.textContent?.trim() === label,
     )
 
-const renderBody = async (opts: {
-    grants: GrantStore
-    io: AssembleIo
-    createHost: (o: HtmlAppHostOptions) => HtmlAppHost
-    path?: string
-    canEditMounts?: boolean
-}) => {
+const open = async (
+    opts: {
+        grants?: GrantStore
+        canEditMounts?: boolean
+        path?: string
+        io?: AssembleIo
+    } = {},
+) => {
+    const grants = opts.grants ?? createGrantStore()
+    const hosts: HtmlAppHost[] = []
+    const createHost = vi.fn((_o: HtmlAppHostOptions) => {
+        const host = stubHost()
+        hosts.push(host)
+        return host
+    })
     await act(async () =>
         root.render(
             <HtmlAppEnvContext.Provider
                 value={{
-                    io: opts.io,
-                    createHost: opts.createHost,
-                    grants: opts.grants,
+                    io: opts.io ?? io,
+                    createHost,
+                    grants,
                     canEditMounts: opts.canEditMounts ?? true,
                     kitCss: "",
                     bridgeStub: "",
@@ -115,44 +109,35 @@ const renderBody = async (opts: {
         ),
     )
     await settle()
-}
-
-/** Open the app with an optional stored answer; returns what the host was built with. */
-const open = async (opts: {
-    manifestAccess: GrantLevel
-    stored?: {level: AppAccess; asked: GrantLevel}
-    canEditMounts?: boolean
-}) => {
-    const grants = createGrantStore()
-    if (opts.stored) grants.set("m1", DIR, opts.stored.level, opts.stored.asked)
-    const createHost = vi.fn((_o: HtmlAppHostOptions) => stubHost())
-    await renderBody({
-        grants,
-        io: manifestIo(opts.manifestAccess),
-        createHost,
-        canEditMounts: opts.canEditMounts,
-    })
     const built = () => createHost.mock.calls[createHost.mock.calls.length - 1]?.[0]
-    return {grants, createHost, built}
+    const host = () => hosts[hosts.length - 1]
+    return {grants, createHost, built, host}
 }
 
-/** What the host does on the app's first file call: ask; the answer settles later. */
-const firstFileCall = async (options: HtmlAppHostOptions | undefined) => {
+/** What the host does when a call needs `need`: ask; the answer settles later. */
+const call = async (options: HtmlAppHostOptions | undefined, need: GrantLevel) => {
     expect(options?.requestAccess).toBeTypeOf("function")
     let answer!: Promise<AppAccess>
     act(() => {
-        answer = options!.requestAccess!()
+        answer = options!.requestAccess!(need)
     })
     await settle()
     // Wrapped: an async function returning the promise would wait for the answer itself.
     return {answer}
 }
 
-describe("Run: opening never asks", () => {
-    it("runs at once with no access and no sheet", async () => {
-        const {built} = await open({manifestAccess: "read-write"})
-        expect(sheetIsOpen()).toBe(false)
+describe("opening never asks", () => {
+    it("runs at once with no access and no dialog", async () => {
+        const {built} = await open()
+        expect(dialogText()).toBeNull()
         expect(built()?.grant).toBe("none")
+    })
+
+    it("runs with the stored level", async () => {
+        const grants = createGrantStore()
+        grants.set("m1", DIR, {level: "read-write", writeRefused: false})
+        const {built} = await open({grants})
+        expect(built()?.grant).toBe("read-write")
     })
 
     it("does not start the app before the manifest settles", async () => {
@@ -160,116 +145,130 @@ describe("Run: opening never asks", () => {
         const waiting = new Promise<string>((done) => {
             resolve = done
         })
-        const createHost = vi.fn((_o: HtmlAppHostOptions) => stubHost())
-        await renderBody({
-            grants: createGrantStore(),
+        const {createHost} = await open({
             io: {fetchText: () => waiting, fetchDataUri: () => Promise.resolve(null)},
-            createHost,
         })
         expect(createHost).not.toHaveBeenCalled()
-        await act(async () =>
-            resolve(JSON.stringify({agenta_app: 1, name: "Board", access: "read"})),
-        )
+        await act(async () => resolve(JSON.stringify({agenta_app: 1, name: "Board"})))
         await settle()
         expect(createHost).toHaveBeenCalledTimes(1)
-        expect(sheetIsOpen()).toBe(false)
     })
 })
 
-describe("Run: the first file call asks", () => {
-    it("Allow stores the answer and hands it to the running host", async () => {
-        const {grants, built, createHost} = await open({manifestAccess: "read-write"})
-        const {answer} = await firstFileCall(built())
-        expect(sheetIsOpen()).toBe(true)
+describe("a read asks about reading", () => {
+    it("Allow gives read and stores it", async () => {
+        const {grants, built} = await open()
+        const {answer} = await call(built(), "read")
+        expect(dialogText()).toContain("Let Board read files in")
         await click(dialogButton("Allow"))
-        await expect(answer).resolves.toBe("read-write")
-        expect(grants.get("m1", DIR)).toEqual({level: "read-write", asked: "read-write"})
-        expect(createHost).toHaveBeenCalledTimes(1)
+        await expect(answer).resolves.toBe("read")
+        expect(grants.get("m1", DIR)).toEqual({level: "read", writeRefused: false})
     })
 
-    it("Don't allow is stored, so the next open does not ask", async () => {
-        const {grants, built} = await open({manifestAccess: "read"})
-        const {answer} = await firstFileCall(built())
-        await click(document.querySelector('[role=radio][value="none"]'))
+    it("Don't allow stores none, and a later read does not ask", async () => {
+        const {grants, built} = await open()
+        const first = await call(built(), "read")
         await click(dialogButton("Don't allow"))
-        await expect(answer).resolves.toBe("none")
-        expect(grants.get("m1", DIR)).toEqual({level: "none", asked: "read"})
+        await expect(first.answer).resolves.toBe("none")
+        expect(grants.get("m1", DIR)).toEqual({level: "none", writeRefused: false})
 
-        const again = await open({manifestAccess: "read", stored: {level: "none", asked: "read"}})
-        expect(again.built()?.grant).toBe("none")
-        expect(again.built()?.requestAccess).toBeUndefined()
+        const again = await call(built(), "read")
+        expect(dialogText()).toBeNull()
+        await expect(again.answer).resolves.toBe("none")
     })
 
     it("Cancel leaves no access for this run and stores nothing", async () => {
-        const {grants, built, createHost} = await open({manifestAccess: "read"})
-        const {answer} = await firstFileCall(built())
-        await click(dialogButton("Cancel"))
-        await expect(answer).resolves.toBe("none")
+        const {grants, built} = await open()
+        const first = await call(built(), "read")
+        await click(document.querySelector('[role=dialog] [data-slot="dialog-close-x"]'))
+        await expect(first.answer).resolves.toBe("none")
         expect(grants.get("m1", DIR)).toBeNull()
-        expect(sheetIsOpen()).toBe(false)
-        expect(createHost).toHaveBeenCalledTimes(1)
-    })
 
-    it("never records write access when write permission is off", async () => {
-        const {grants, built} = await open({manifestAccess: "read-write", canEditMounts: false})
-        const {answer} = await firstFileCall(built())
-        await click(dialogButton("Allow"))
-        await expect(answer).resolves.toBe("read")
-        expect(grants.get("m1", DIR)).toEqual({level: "read", asked: "read-write"})
-    })
-
-    it("does not carry a selection into a different app's request", async () => {
-        const grants = createGrantStore()
-        const createHost = vi.fn((_o: HtmlAppHostOptions) => stubHost())
-        const io = manifestIo("read-write")
-        await renderBody({grants, io, createHost})
-        await firstFileCall(createHost.mock.calls[0][0])
-        await click(document.querySelector('[role=radio][value="read"]'))
-        await renderBody({grants, io, createHost, path: "apps/other/index.html"})
-        const other = createHost.mock.calls.find(([o]) => o.dir === "apps/other")?.[0]
-        await firstFileCall(other)
-        await click(dialogButton("Allow"))
-        expect(grants.get("m1", DIR)).toBeNull()
-        expect(grants.get("m1", "apps/other")).toEqual({level: "read-write", asked: "read-write"})
+        const again = await call(built(), "read")
+        expect(dialogText(), "not asked again in this run").toBeNull()
+        await expect(again.answer).resolves.toBe("none")
     })
 })
 
-describe("Run: when a stored answer asks again", () => {
-    it("asks when the app now wants read-write and only read was ever offered", async () => {
-        const {built} = await open({
-            manifestAccess: "read-write",
-            stored: {level: "read", asked: "read"},
-        })
-        expect(built()?.grant).toBe("none")
-        expect(built()?.requestAccess).toBeTypeOf("function")
+describe("a write asks about changing files", () => {
+    it("read, then write: asks twice, and Allow on the second gives read-write", async () => {
+        const {grants, built} = await open()
+        const read = await call(built(), "read")
+        await click(dialogButton("Allow"))
+        await expect(read.answer).resolves.toBe("read")
+
+        const write = await call(built(), "read-write")
+        expect(dialogText()).toContain("Let Board change files in")
+        await click(dialogButton("Allow"))
+        await expect(write.answer).resolves.toBe("read-write")
+        expect(grants.get("m1", DIR)).toEqual({level: "read-write", writeRefused: false})
     })
 
-    it("does NOT ask when read was chosen over an offered read-write", async () => {
-        const {built} = await open({
-            manifestAccess: "read-write",
-            stored: {level: "read", asked: "read-write"},
-        })
+    it("a refused upgrade is remembered: the next write does not ask", async () => {
+        const grants = createGrantStore()
+        grants.set("m1", DIR, {level: "read", writeRefused: false})
+        const {built} = await open({grants})
+        const first = await call(built(), "read-write")
+        await click(dialogButton("Don't allow"))
+        await expect(first.answer).resolves.toBe("read")
+        expect(grants.get("m1", DIR)).toEqual({level: "read", writeRefused: true})
+
+        const reopened = await open({grants})
+        const again = await call(reopened.built(), "read-write")
+        expect(dialogText()).toBeNull()
+        await expect(again.answer).resolves.toBe("read")
+    })
+
+    it("a write before any read asks about writing first", async () => {
+        const {grants, built} = await open()
+        const write = await call(built(), "read-write")
+        expect(dialogText()).toContain("change files")
+        await click(dialogButton("Don't allow"))
+        await expect(write.answer).resolves.toBe("none")
+        expect(grants.get("m1", DIR)).toEqual({level: null, writeRefused: true})
+
+        const read = await call(built(), "read")
+        expect(dialogText(), "reading is still its own question").toContain("read files")
+        await click(dialogButton("Allow"))
+        await expect(read.answer).resolves.toBe("read")
+    })
+
+    it("never asks about writing where edits are off", async () => {
+        const grants = createGrantStore()
+        grants.set("m1", DIR, {level: "read", writeRefused: false})
+        const {built} = await open({grants, canEditMounts: false})
+        const write = await call(built(), "read-write")
+        expect(dialogText()).toBeNull()
+        await expect(write.answer).resolves.toBe("read")
+    })
+
+    it("caps a stored read-write to read where edits are off", async () => {
+        const grants = createGrantStore()
+        grants.set("m1", DIR, {level: "read-write", writeRefused: false})
+        const {built} = await open({grants, canEditMounts: false})
         expect(built()?.grant).toBe("read")
-        expect(built()?.requestAccess).toBeUndefined()
+    })
+})
+
+describe("a stored change reaches the running app", () => {
+    it("a downgrade from the setting applies to the live host at once", async () => {
+        const grants = createGrantStore()
+        grants.set("m1", DIR, {level: "read-write", writeRefused: false})
+        const {host} = await open({grants})
+        act(() => grants.set("m1", DIR, {level: "none", writeRefused: false}))
+        expect(host().setAccess).toHaveBeenLastCalledWith("none")
+        act(() => grants.set("m1", DIR, {level: "read", writeRefused: true}))
+        expect(host().setAccess).toHaveBeenLastCalledWith("read")
     })
 
-    it("does NOT ask when the grant already covers what the app wants", async () => {
-        const {built} = await open({
-            manifestAccess: "read-write",
-            stored: {level: "read-write", asked: "read-write"},
-        })
-        expect(built()?.grant).toBe("read-write")
-        expect(built()?.requestAccess).toBeUndefined()
-    })
-
-    it("does NOT ask when the user cannot be offered write anyway", async () => {
-        // No EDIT_MOUNTS: the sheet has no write option, so re-prompting would only loop.
-        const {built} = await open({
-            manifestAccess: "read-write",
-            stored: {level: "read", asked: "read"},
-            canEditMounts: false,
-        })
-        expect(built()?.grant).toBe("read")
-        expect(built()?.requestAccess).toBeUndefined()
+    it("does not carry a question into another folder", async () => {
+        const grants = createGrantStore()
+        const first = await open({grants})
+        void (await call(first.built(), "read"))
+        expect(dialogText()).not.toBeNull()
+        const other = await open({grants, path: "apps/other/index.html"})
+        expect(dialogText(), "switching folders closes the question").toBeNull()
+        expect(other.built()?.dir).toBe("apps/other")
+        expect(grants.get("m1", DIR)).toBeNull()
     })
 })

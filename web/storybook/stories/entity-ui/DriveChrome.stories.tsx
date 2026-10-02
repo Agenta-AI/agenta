@@ -159,7 +159,7 @@ export const Row2: Story = {
                     variant="other"
                     path="apps/board/index.html"
                     actions={FILE_ACTIONS}
-                    appView={{code: false, onToggle: noop}}
+                    appView={{code: false, onToggle: noop, access: {label: "Read", onOpen: noop}}}
                 />
             </Frame>
             <Frame>

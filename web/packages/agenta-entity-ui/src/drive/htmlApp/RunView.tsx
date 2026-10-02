@@ -1,10 +1,11 @@
 /**
- * The Run tab: the app in a sandboxed iframe under a status strip.
+ * The Run tab: the app in a sandboxed iframe.
  *
- * Strip: a dot, `Running · read + write · <dir>` (or `no file access`), a "‹ back" control once
- * the app navigated to a sibling page, a Refresh button (re-assemble + re-attach), a "Files
- * changed" pill when the drive moved underneath the app, and an error badge that expands into the
- * list (with Copy). The host is attached on the frame's first load and detached on unmount; theme changes
+ * Controls: a "‹ back" control once the app navigated to a sibling page, a "Files changed" pill
+ * when the drive moved underneath the app, Refresh (re-assemble + re-attach) and an error badge
+ * that opens the list (with Copy) above the app. They portal into the host's toolbar when it gives
+ * one (`controlsContainer`), else sit in a row above the app. The host is attached on the frame's
+ * first load and detached on unmount; theme changes
  * (`.dark` / `data-theme` on the root, or the OS preference) re-resolve the kit tokens and reach
  * the app through `host.setTheme`.
  *
@@ -13,20 +14,16 @@
  * which opens that file in the drive.
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {createPortal} from "react-dom"
 
 import {
     SANDBOX_FLAGS,
     buildRunFrame,
     isFrameNavigated,
-    type AppAccess,
     type HtmlAppHost,
     type HtmlAppHostError,
 } from "@agenta/entities/drive"
-import {
-    Button,
-    Skeleton,
-    cn,
-} from "@agenta/ui/ui"
+import {Button, Skeleton, cn} from "@agenta/ui/ui"
 import {ArrowsClockwise, CaretLeft, Copy, Warning} from "@phosphor-icons/react"
 
 import {
@@ -37,6 +34,8 @@ import {
     withinDir,
     type AssembleIo,
 } from "./assemble"
+import {ROW_ICON_BTN} from "../DriveHeader"
+
 import {resolveKitTokens} from "./kit"
 
 /** Kit tokens read off the host document's root (lane E's resolver); `{}` without a DOM. */
@@ -78,8 +77,6 @@ export interface RunViewProps {
     entryPath: string
     /** The entry file's text (the caller owns the query). */
     entryContent: string
-    /** What the app may touch now; the strip shows it. */
-    access: AppAccess
     io: AssembleIo | null
     /** Kit stylesheet; null when the manifest disables the kit. */
     kitCss: string | null
@@ -98,13 +95,9 @@ export interface RunViewProps {
     onNavigate?: (path: string) => void
     /** Maps a mount-relative path to the presented one for `onNavigate` (default: identity). */
     toDisplayPath?: (path: string) => string
+    /** The host's toolbar slot the controls portal into; without one they sit above the app. */
+    controlsContainer?: HTMLElement | null
     className?: string
-}
-
-const ACCESS_LABEL: Record<AppAccess, string> = {
-    none: "no file access",
-    read: "read",
-    "read-write": "read + write",
 }
 
 const describeError = (e: HtmlAppHostError): string => {
@@ -118,7 +111,6 @@ export function RunView({
     dir,
     entryPath,
     entryContent,
-    access,
     io,
     kitCss,
     bridgeStub,
@@ -129,6 +121,7 @@ export function RunView({
     onReload,
     onNavigate,
     toDisplayPath = (p) => p,
+    controlsContainer,
     className,
 }: RunViewProps) {
     const frameRef = useRef<HTMLIFrameElement>(null)
@@ -281,91 +274,70 @@ export function RunView({
         })
     }, [errors])
 
-    const pageLabel = useMemo(
-        () => (currentPath === entryPath ? null : currentPath.split("/").pop()),
-        [currentPath, entryPath],
+    const controls = (
+        <>
+            {backStack.length > 0 ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={goBack}
+                    aria-label="Back to the previous page"
+                    className="h-6 gap-0.5 px-1.5 text-xs"
+                >
+                    <CaretLeft weight="bold" className="size-3" />
+                    back
+                </Button>
+            ) : null}
+
+            {changedPaths.length > 0 ? (
+                <button
+                    type="button"
+                    onClick={reload}
+                    title={changedPaths.join("\n")}
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
+                >
+                    Files changed · Reload
+                </button>
+            ) : null}
+
+            {errors.length > 0 ? (
+                <button
+                    type="button"
+                    onClick={() => setErrorsOpen((v) => !v)}
+                    aria-expanded={errorsOpen}
+                    aria-label={`${errors.length} error${errors.length === 1 ? "" : "s"}`}
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
+                >
+                    <Warning weight="fill" className="size-3" />
+                    {errors.length}
+                </button>
+            ) : null}
+
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={reload}
+                aria-label="Refresh"
+                title="Refresh"
+                className={ROW_ICON_BTN}
+            >
+                <ArrowsClockwise size={14} />
+            </Button>
+        </>
     )
 
     return (
         <div className={cn("flex min-h-0 flex-1 flex-col text-xs", className)}>
-            <div
-                data-slot="run-status"
-                className="flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1 text-colorTextSecondary"
-            >
-                <span
-                    aria-hidden
-                    className={cn(
-                        "size-2 shrink-0 rounded-full",
-                        doc == null
-                            ? "bg-colorTextQuaternary"
-                            : stopped
-                              ? "bg-colorError"
-                              : "bg-colorSuccess",
-                    )}
-                />
-                <span className="truncate">
-                    <span className="text-colorText">
-                        {doc == null ? "Starting" : stopped ? "Stopped" : "Running"}
-                    </span>
-                    {" · "}
-                    {ACCESS_LABEL[access]}
-                    {" · "}
-                    <code className="text-[11px]">{dir || "/"}</code>
-                    {pageLabel ? (
-                        <span className="text-colorTextTertiary"> · {pageLabel}</span>
-                    ) : null}
-                </span>
-
-                <span className="ml-auto flex items-center gap-1">
-                    {backStack.length > 0 ? (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={goBack}
-                            aria-label="Back to the previous page"
-                            className="h-6 gap-0.5 px-1.5 text-xs"
-                        >
-                            <CaretLeft weight="bold" className="size-3" />
-                            back
-                        </Button>
-                    ) : null}
-
-                    {changedPaths.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={reload}
-                            title={changedPaths.join("\n")}
-                            className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
-                        >
-                            Files changed · Reload
-                        </button>
-                    ) : null}
-
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={reload}
-                        title="Reload the app's files"
-                        className="h-6 gap-1 px-1.5 text-xs"
-                    >
-                        <ArrowsClockwise className="size-3" />
-                        Refresh
-                    </Button>
-
-                    {errors.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={() => setErrorsOpen((v) => !v)}
-                            aria-expanded={errorsOpen}
-                            aria-label={`${errors.length} error${errors.length === 1 ? "" : "s"}`}
-                            className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
-                        >
-                            <Warning weight="fill" className="size-3" />
-                            {errors.length}
-                        </button>
-                    ) : null}
-                </span>
-            </div>
+            {controlsContainer ? (
+                createPortal(controls, controlsContainer)
+            ) : (
+                <div
+                    data-slot="run-controls"
+                    className="flex shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1"
+                >
+                    {controls}
+                </div>
+            )}
 
             {errorsOpen && errors.length > 0 ? (
                 <div
@@ -406,8 +378,8 @@ export function RunView({
                 </div>
             ) : stopped ? (
                 <div data-slot="run-stopped" className="min-h-0 flex-1 p-3 text-colorTextSecondary">
-                    The app tried to load another page and was stopped. Use Refresh, then Reload
-                    files, to start it again.
+                    The app tried to load another page and was stopped. Use Refresh to start it
+                    again.
                 </div>
             ) : (
                 // No allow-same-origin: the app is an opaque origin and reaches the drive only over

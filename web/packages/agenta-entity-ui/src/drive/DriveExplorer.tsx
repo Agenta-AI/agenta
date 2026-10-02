@@ -69,7 +69,7 @@ import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
 import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
-import {HtmlAppEnvContext} from "./htmlApp"
+import {dirOf, HtmlAppEnvContext, useAppAccessMenu} from "./htmlApp"
 import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDrivePasteUpload} from "./useDrivePasteUpload"
@@ -369,16 +369,26 @@ export function DriveExplorer({
     // An HTML file on a mount opens as a running app; ⋯ shows its code.
     const htmlApp = chrome && !selectedIsFolder && selectedKind === "html" && !!selectedMount
     const htmlAppEnv = useContext(HtmlAppEnvContext)
+    // Row 2's slot for a running app's controls.
+    const [appControlsEl, setAppControlsEl] = useState<HTMLDivElement | null>(null)
     // An app's access sheet stays inside this pane, so the chat beside it stays usable.
     const paneHtmlAppEnv = useMemo(
-        () => ({...htmlAppEnv, sheetContainer: getPane}),
-        [htmlAppEnv, getPane],
+        () => ({...htmlAppEnv, sheetContainer: getPane, toolbarSlot: appControlsEl}),
+        [htmlAppEnv, getPane, appControlsEl],
     )
     // The app whose code is on screen; every other app opens running.
     const [htmlCodePath, setHtmlCodePath] = useState<string | null>(null)
     if (htmlCodePath !== null && htmlCodePath !== selectedPath) setHtmlCodePath(null)
     const htmlCode = htmlApp && htmlCodePath === selectedPath
     const htmlRunning = htmlApp && !htmlCode
+    const appDir = dirOf(selectedMountPath)
+    const appAccess = useAppAccessMenu({
+        mountId: htmlApp ? (selectedMount?.id ?? null) : null,
+        dir: appDir,
+        displayDir: dirOf(selectedPath ?? ""),
+        appName: appDir.split("/").pop() || nameOf(selectedPath ?? ""),
+        env: paneHtmlAppEnv,
+    })
     const editing = editableMarkdown || editableCode
     const editor = useDriveFileEditor(
         editing ? selectedMount : null,
@@ -608,9 +618,11 @@ export function DriveExplorer({
                         ? {
                               code: htmlCode,
                               onToggle: () => setHtmlCodePath(htmlCode ? null : selectedPath),
+                              access: {label: appAccess.label, onOpen: appAccess.open},
                           }
                         : undefined
                 }
+                controlsRef={htmlRunning ? setAppControlsEl : undefined}
                 onCopyPath={onCopyCurrentPath}
                 onDownload={onDownloadCurrent}
             />
@@ -837,6 +849,7 @@ export function DriveExplorer({
                     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onNavKeyDown}>
                         {body}
                     </div>
+                    {appAccess.dialog}
                 </div>
             ) : (
                 body

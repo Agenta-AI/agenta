@@ -300,6 +300,8 @@ export interface HtmlAppHost {
     onNav(cb: (href: string) => void): () => void
     /** Subscribe to `changed` paths (app-relative) as the host sends them; returns the unsubscribe. */
     onChanged?(cb: (paths: string[]) => void): () => void
+    /** Change what the app may touch now; the next call is served under it. */
+    setAccess?(level: AppAccess): void
 }
 
 export interface HtmlAppHostOptions {
@@ -308,8 +310,8 @@ export interface HtmlAppHostOptions {
     /** App dir relative to the mount root. */
     dir: string
     grant: AppAccess
-    /** Asked before the first fs call is served; the answer replaces `grant` for this host. */
-    requestAccess?: () => Promise<AppAccess>
+    /** Asked when a call needs more than `grant` (one question at a time); resolves the new level. */
+    requestAccess?: (need: GrantLevel) => Promise<AppAccess>
     tokens: Record<string, string>
     visible?: boolean
     /** Called after every successful write/remove so the drive can revalidate. */

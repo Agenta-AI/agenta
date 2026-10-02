@@ -47,7 +47,6 @@ describe("parseManifest", () => {
             agenta_app: 1,
             name: "Board",
             entry: APP_DEFAULT_ENTRY,
-            access: "read",
             kit: true,
         })
         expect(APP_DEFAULT_ENTRY).toBe("index.html")
@@ -63,12 +62,10 @@ describe("parseManifest", () => {
         expect(parseManifest(minimal({entry: 3}))).toBeNull()
     })
 
-    it("falls back to read when access is missing or invalid", () => {
-        expect(parseManifest(minimal())?.access).toBe("read")
-        expect(parseManifest(minimal({access: "read-write"}))?.access).toBe("read-write")
-        expect(parseManifest(minimal({access: "write"}))?.access).toBe("read")
-        expect(parseManifest(minimal({access: "admin"}))?.access).toBe("read")
-        expect(parseManifest(minimal({access: true}))?.access).toBe("read")
+    it("keeps an access field as an unknown one: access is asked at run time", () => {
+        const manifest = parseManifest(minimal({access: "read-write"}))
+        expect(manifest?.extra).toEqual({access: "read-write"})
+        expect(manifest).not.toHaveProperty("access")
     })
 
     it("defaults kit to true and honours an explicit boolean only", () => {

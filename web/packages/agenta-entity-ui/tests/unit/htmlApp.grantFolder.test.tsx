@@ -62,7 +62,7 @@ const settle = () =>
 describe("switching folders while an app runs", () => {
     const setup = () => {
         const grants = createGrantStore()
-        grants.set("m1", "apps/a", "read-write", "read-write")
+        grants.set("m1", "apps/a", {level: "read-write", writeRefused: false})
         const createHost = vi.fn((_opts: HtmlAppHostOptions) => stubHost())
         const render = (path: string) =>
             act(async () => {
@@ -118,7 +118,7 @@ describe("switching folders while an app runs", () => {
 describe("a new host while the app stays open", () => {
     it("gets a fresh frame, so the new host is attached on its first load", async () => {
         const grants = createGrantStore()
-        grants.set("m1", "apps/a", "read-write", "read-write")
+        grants.set("m1", "apps/a", {level: "read-write", writeRefused: false})
         const hosts: HtmlAppHost[] = []
         const factory = () => {
             const host = stubHost()

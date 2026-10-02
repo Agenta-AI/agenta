@@ -60,11 +60,13 @@ const settle = () =>
     })
 
 const frame = () => container.querySelector("iframe")
+const stopped = () => container.querySelector('[data-slot="run-stopped"]')
 
 const mount = async (
     host: HtmlAppHost,
     changedPaths: string[] = [],
     io: typeof siblingIo | null = null,
+    controlsContainer?: HTMLElement,
 ) => {
     await act(async () => {
         root.render(
@@ -73,12 +75,12 @@ const mount = async (
                 dir="apps/x"
                 entryPath="apps/x/index.html"
                 entryContent="<html><body>app</body></html>"
-                access="read-write"
                 io={io}
                 kitCss={null}
                 bridgeStub=""
                 resolveTokens={() => ({})}
                 changedPaths={changedPaths}
+                controlsContainer={controlsContainer}
             />,
         )
     })
@@ -114,7 +116,7 @@ describe("Run frame", () => {
         expect(host.attach, "a navigated frame must never get a port").toHaveBeenCalledTimes(1)
         expect(host.detach).toHaveBeenCalled()
         expect(frame(), "the navigated frame is removed").toBeNull()
-        expect(container.textContent).toContain("Stopped")
+        expect(stopped()).toBeTruthy()
     })
 
     it("stops when the wrapper reports the app's frame navigated", async () => {
@@ -157,7 +159,7 @@ describe("Run frame", () => {
             }
         })
         expect(frame()).toBe(el)
-        expect(container.textContent).not.toContain("Stopped")
+        expect(stopped()).toBeNull()
     })
 
     it.each([
@@ -181,7 +183,7 @@ describe("Run frame", () => {
         if (host.attach.mock.calls.length === 1) await load(second!)
         expect(host.attach).toHaveBeenCalledTimes(2)
         expect(host.attach).toHaveBeenLastCalledWith(second)
-        expect(container.textContent).not.toContain("Stopped")
+        expect(stopped()).toBeNull()
     })
 
     it("reload starts a fresh frame, which gets its own first attach", async () => {
@@ -205,5 +207,28 @@ describe("Run frame", () => {
         if (host.attach.mock.calls.length === 1) await load(second!)
         expect(host.attach).toHaveBeenCalledTimes(2)
         expect(host.attach).toHaveBeenLastCalledWith(second)
+    })
+
+    it("portals its controls into the host's toolbar, where Refresh restarts the app", async () => {
+        const host = fakeHost()
+        const toolbar = document.createElement("div")
+        document.body.appendChild(toolbar)
+        await mount(host, [], null, toolbar)
+        expect(container.querySelector('[data-slot="run-controls"]')).toBeNull()
+        const first = frame()!
+        if (host.attach.mock.calls.length === 0) await load(first)
+        await load(first)
+        expect(stopped()).toBeTruthy()
+
+        const refresh = toolbar.querySelector('button[aria-label="Refresh"]')
+        expect(refresh).toBeTruthy()
+        await act(async () => {
+            refresh?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        await settle()
+        expect(stopped()).toBeNull()
+        expect(frame()).toBeTruthy()
+        expect(frame()).not.toBe(first)
+        toolbar.remove()
     })
 })

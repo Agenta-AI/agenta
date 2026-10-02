@@ -35,7 +35,8 @@ export const activeUserIdAtom = atomWithStorage<string | null>(
     stringStorage,
 )
 
-const scopedKey = (userId: string, key: string) => `agenta:settings:${userId}:${key}`
+/** The storage key of a per-user setting; non-atom stores (the app grant store) use it too. */
+export const userSettingsKey = (userId: string, key: string) => `agenta:settings:${userId}:${key}`
 
 /**
  * A boolean preference scoped to whoever is signed in.
@@ -47,7 +48,7 @@ const scopedKey = (userId: string, key: string) => `agenta:settings:${userId}:${
  */
 export const userScopedFlagAtom = (key: string, defaultValue = false) => {
     const family = atomFamily((userId: string) =>
-        atomWithStorage<boolean>(scopedKey(userId, key), defaultValue),
+        atomWithStorage<boolean>(userSettingsKey(userId, key), defaultValue),
     )
 
     return atom(

@@ -64,7 +64,7 @@ const BodyStory = ({
               }
             : baseIo
         const grants = createGrantStore()
-        if (preGrant) grants.set(STORY_MOUNT.id, APP_DIR, preGrant)
+        if (preGrant) grants.set(STORY_MOUNT.id, APP_DIR, {level: preGrant, writeRefused: false})
         return {
             io,
             canEditMounts,
@@ -95,7 +95,7 @@ const BodyStory = ({
     )
 }
 
-/** First visit: the app runs with no access; its first file call asks, the answer applies live. */
+/** First visit: no access; the board's first read asks "read files?", its first write "change files?". */
 export const AsksOnFirstFileCall: Story = {
     render: () => <BodyStory />,
 }
@@ -110,7 +110,7 @@ export const Refused: Story = {
     render: () => <BodyStory preGrant="none" />,
 }
 
-/** A drive without edits: the sheet offers read access only. */
+/** A drive without edits: the app is asked about reading only; its writes fail `read_only`. */
 export const ReadOnlyDrive: Story = {
     render: () => <BodyStory canEditMounts={false} />,
 }

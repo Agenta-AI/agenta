@@ -31,6 +31,7 @@ import {
     DotsThreeVertical,
     DownloadSimple,
     HardDrive,
+    Key,
     LinkSimple,
     ListBullets,
     MarkdownLogo,
@@ -92,10 +93,12 @@ const IconPill = ({value, options, onChange}: ToolbarMode) => (
     </Tabs>
 )
 
-/** An HTML app's view switch: the running app or its code. */
+/** An HTML app's ⋯ entries: the app / code switch and its file-access setting. */
 export interface DriveAppView {
     code: boolean
     onToggle: () => void
+    /** The stored access level as shown ("Read", "Not set", …) and the setting it opens. */
+    access: {label: string; onOpen: () => void}
 }
 
 /** A file's write actions; absent on a read-only mount. */
@@ -145,6 +148,8 @@ type DriveToolbarProps =
           note?: string
           /** An HTML app: the ⋯ menu switches between the app and its code. */
           appView?: DriveAppView
+          /** Where a running app portals its controls (Refresh, errors), before the ⋯ menu. */
+          controlsRef?: (el: HTMLDivElement | null) => void
           onCopyPath?: () => void
           onDownload?: () => void
       }
@@ -205,6 +210,13 @@ const FileActionsMenu = ({
                     <DropdownMenuItem onSelect={appView.onToggle}>
                         {appView.code ? <Play /> : <Code />}
                         {appView.code ? "View app" : "View code"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={appView.access.onOpen}>
+                        <Key />
+                        File access…
+                        <span className="ml-auto pl-3 text-xs text-colorTextTertiary">
+                            {appView.access.label}
+                        </span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                 </>
@@ -374,7 +386,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
         )
     }
 
-    const {path, actions, draft, note, appView, onCopyPath, onDownload} = props
+    const {path, actions, draft, note, appView, controlsRef, onCopyPath, onDownload} = props
     return (
         <Row>
             <DriveInlineName
@@ -387,6 +399,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
             ) : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
+            {controlsRef ? <div ref={controlsRef} className="flex items-center gap-1" /> : null}
             <FileActionsMenu
                 actions={actions}
                 appView={appView}

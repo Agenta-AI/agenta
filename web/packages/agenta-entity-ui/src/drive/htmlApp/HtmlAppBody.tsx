@@ -4,8 +4,9 @@
  * The source view belongs to the host (the Files pane's code editor or code block).
  *
  * The entry's folder is the app dir. The app runs at once with the access stored for that folder,
- * or none. Its first file call with no stored answer opens the {@link GrantSheet}; the answer
- * (read, read-write or none) is stored per mount + dir and applies to the running host.
+ * or none. A call that needs more opens an {@link AccessQuestion} about what it tried (reading,
+ * or changing files); the answer is stored per user, mount and folder and applies to the running
+ * host, as does a change made from the ⋯ "File access…" setting.
  * Everything a host needs — the bridge host factory, mount io, the kit CSS, the token resolver,
  * the grant store — arrives through {@link HtmlAppEnvContext}, with defaults that are the real
  * drive: mount io, `createHtmlAppHost`, `BRIDGE_STUB` and `KIT_CSS`.
@@ -14,10 +15,10 @@ import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useS
 
 import {
     createHtmlAppHost,
-    exceedsGrant,
     fetchMountFileBlob,
     getGrant,
     setGrant as storeGrant,
+    subscribeGrants,
     type AppAccess,
     type GrantLevel,
     type GrantRecord,
@@ -30,7 +31,7 @@ import {Skeleton} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {blobToDataUri, dirOf, type AssembleIo} from "./assemble"
-import {GrantSheet} from "./GrantSheet"
+import {AccessQuestion} from "./GrantSheet"
 import {KIT_CSS} from "./kit"
 import {RunView, resolveHostKitTokens} from "./RunView"
 import {useAppManifest} from "./useAppManifest"
@@ -44,7 +45,9 @@ export {dirOf}
 
 export interface GrantStore {
     get: (mountId: string, dir: string) => GrantRecord | null
-    set: (mountId: string, dir: string, level: AppAccess, asked?: GrantLevel) => void
+    set: (mountId: string, dir: string, record: GrantRecord) => void
+    /** Called after any answer is stored; returns the unsubscribe. */
+    subscribe: (listener: () => void) => () => void
 }
 
 const grantKey = (mountId: string, dir: string) => `${mountId}::${dir}`
@@ -52,16 +55,28 @@ const grantKey = (mountId: string, dir: string) => `${mountId}::${dir}`
 /** An isolated in-memory store (stories, tests). */
 export const createGrantStore = (): GrantStore => {
     const grants = new Map<string, GrantRecord>()
+    const listeners = new Set<() => void>()
     return {
         get: (mountId, dir) => grants.get(grantKey(mountId, dir)) ?? null,
-        set: (mountId, dir, level, asked = level === "none" ? "read" : level) => {
-            grants.set(grantKey(mountId, dir), {level, asked})
+        set: (mountId, dir, record) => {
+            grants.set(grantKey(mountId, dir), record)
+            for (const listener of listeners) listener()
+        },
+        subscribe: (listener) => {
+            listeners.add(listener)
+            return () => {
+                listeners.delete(listener)
+            }
         },
     }
 }
 
-/** Tab-lived grants (sessionStorage): a reload keeps the answer, a new browser session asks. */
-const defaultGrants: GrantStore = {get: getGrant, set: storeGrant}
+/** Per-user grants in localStorage: they hold across tabs and reloads, never across users. */
+export const defaultGrants: GrantStore = {get: getGrant, set: storeGrant, subscribe: subscribeGrants}
+
+/** What a stored level lets the app do here; write is capped to read where edits are off. */
+export const effectiveAccess = (level: AppAccess | null, canEditMounts: boolean): AppAccess =>
+    level === null ? "none" : level === "read-write" && !canEditMounts ? "read" : level
 
 export interface HtmlAppEnv {
     /** Bridge host factory; default `createHtmlAppHost` (stories inject the mock). */
@@ -78,6 +93,8 @@ export interface HtmlAppEnv {
     grants?: GrantStore
     /** The positioned pane the access sheet is confined to; default: the whole page. */
     sheetContainer?: () => HTMLElement | null
+    /** The toolbar slot the running app's controls portal into; default: a row above the app. */
+    toolbarSlot?: HTMLElement | null
 }
 
 export const HtmlAppEnvContext = createContext<HtmlAppEnv>({})
@@ -160,12 +177,11 @@ export function HtmlAppBody({
     const {manifest, loaded: manifestLoaded} = useAppManifest(runnable ? io : null, dir)
     const appName = manifest?.name ?? (dir ? (dir.split("/").pop() ?? dir) : path)
     const canEditMounts = env.canEditMounts ?? !!mountId
-    /** What the app asks for. The sheet preselects it; the grant store records it. */
-    const requestedAccess: GrantLevel = manifest?.access ?? "read"
 
-    const [access, setAccess] = useState<AppAccess>("none")
-    const [sheetOpen, setSheetOpen] = useState(false)
-    const answerRef = useRef<((answer: AppAccess) => void) | null>(null)
+    /** The open question: what the app tried that needs an answer. */
+    const [question, setQuestion] = useState<"read" | "write" | null>(null)
+    /** Allow (true), Don't allow (false), or closed without an answer (null). */
+    const answerRef = useRef<((answer: boolean | null) => void) | null>(null)
     // Callers reuse this body across files without a key: show a host only for its own folder.
     const folder = `${mountId ?? ""}/${dir}`
     const [built, setBuilt] = useState<{host: HtmlAppHost; folder: string} | null>(null)
@@ -173,7 +189,7 @@ export function HtmlAppBody({
     const [hostFolder, setHostFolder] = useState(folder)
     if (hostFolder !== folder) {
         setHostFolder(folder)
-        setSheetOpen(false)
+        setQuestion(null)
     }
 
     const hint = useChangedHint({
@@ -186,38 +202,68 @@ export function HtmlAppBody({
     const onWriteRef = useRef(hint.onWrite)
     onWriteRef.current = hint.onWrite
 
-    // One host per folder, running at once; without a stored answer its first file call asks.
+    // One host per folder, running at once with the stored answer; a call needing more asks.
     useEffect(() => {
         if (!runnable || !mountId || !manifestLoaded) return
-        const record = grants.get(mountId, dir)
-        // Re-ask only when the manifest now wants more than was asked, and write can be offered.
-        const stored: AppAccess | null =
-            record && !(canEditMounts && exceedsGrant(record.asked, requestedAccess))
-                ? canEditMounts || record.level === "none"
-                    ? record.level
-                    : "read"
-                : null
-        setAccess(stored ?? "none")
-        const ask = () =>
-            new Promise<AppAccess>((resolve) => {
+        const empty: GrantRecord = {level: null, writeRefused: false}
+        // Closed without an answer: no more questions of that kind for this run.
+        const dismissed = {read: false, write: false}
+        const ask = (kind: "read" | "write") =>
+            new Promise<boolean | null>((resolve) => {
                 answerRef.current = resolve
-                setSheetOpen(true)
+                setQuestion(kind)
             })
+        const requestAccess = async (need: GrantLevel): Promise<AppAccess> => {
+            const record = grants.get(mountId, dir) ?? empty
+            const current = effectiveAccess(record.level, canEditMounts)
+            if (need === "read") {
+                if (record.level !== null || dismissed.read) return current
+                const allow = await ask("read")
+                if (allow === null) {
+                    dismissed.read = true
+                    return "none"
+                }
+                const level: AppAccess = allow ? "read" : "none"
+                grants.set(mountId, dir, {...record, level})
+                return level
+            }
+            if (current === "read-write" || record.level === "none") return current
+            // Never asked about writing where edits are off, after a refusal, or after a cancel.
+            if (!canEditMounts || record.writeRefused || dismissed.write) return current
+            const allow = await ask("write")
+            if (allow === null) {
+                dismissed.write = true
+                return current
+            }
+            grants.set(
+                mountId,
+                dir,
+                allow ? {level: "read-write", writeRefused: false} : {...record, writeRefused: true},
+            )
+            return allow ? "read-write" : current
+        }
         const createHost = env.createHost ?? createHtmlAppHost
         const next = createHost({
             mountId,
             projectId: projectId || "",
             dir,
-            grant: stored ?? "none",
-            requestAccess: stored ? undefined : ask,
+            grant: effectiveAccess(grants.get(mountId, dir)?.level ?? null, canEditMounts),
+            requestAccess,
             tokens: (env.resolveTokens ?? resolveHostKitTokens)(),
             visible,
             onWrite: () => onWriteRef.current(),
         })
+        // A stored change (the ⋯ setting, another view of this app) applies to the running app.
+        const unsubscribe = grants.subscribe(() =>
+            next.setAccess?.(
+                effectiveAccess(grants.get(mountId, dir)?.level ?? null, canEditMounts),
+            ),
+        )
         setBuilt({host: next, folder: `${mountId}/${dir}`})
         return () => {
+            unsubscribe()
             next.detach()
-            answerRef.current?.("none")
+            answerRef.current?.(null)
             answerRef.current = null
             setBuilt(null)
         }
@@ -230,29 +276,13 @@ export function HtmlAppBody({
         manifestLoaded,
         grants,
         canEditMounts,
-        requestedAccess,
         env.createHost,
         env.resolveTokens,
     ])
 
-    const answer = useCallback(
-        (level: AppAccess) => {
-            if (!mountId) return
-            const allowed: AppAccess = level === "none" || canEditMounts ? level : "read"
-            grants.set(mountId, dir, allowed, requestedAccess)
-            setAccess(allowed)
-            setSheetOpen(false)
-            answerRef.current?.(allowed)
-            answerRef.current = null
-        },
-        [mountId, dir, grants, requestedAccess, canEditMounts],
-    )
-
-    // Dismissed: no access for this run, and nothing stored, so the next open asks again.
-    const dismiss = useCallback(() => {
-        setAccess("none")
-        setSheetOpen(false)
-        answerRef.current?.("none")
+    const settleQuestion = useCallback((answer: boolean | null) => {
+        setQuestion(null)
+        answerRef.current?.(answer)
         answerRef.current = null
     }, [])
 
@@ -282,7 +312,7 @@ export function HtmlAppBody({
                     dir={dir}
                     entryPath={path}
                     entryContent={content}
-                    access={access}
+                    controlsContainer={env.toolbarSlot}
                     io={io}
                     kitCss={manifest?.kit === false ? null : (env.kitCss ?? KIT_CSS)}
                     bridgeStub={env.bridgeStub}
@@ -299,23 +329,14 @@ export function HtmlAppBody({
             )}
 
             {runnable ? (
-                <GrantSheet
-                    key={JSON.stringify([
-                        mountId,
-                        dir,
-                        appName,
-                        requestedAccess,
-                        canEditMounts,
-                        sheetOpen,
-                    ])}
-                    open={sheetOpen}
+                <AccessQuestion
+                    open={question !== null}
                     appName={appName}
                     dir={dirOf(displayPath ?? path)}
-                    requested={requestedAccess}
-                    canWrite={canEditMounts}
-                    container={sheetOpen ? env.sheetContainer?.() : null}
-                    onCancel={dismiss}
-                    onConfirm={answer}
+                    need={question ?? "read"}
+                    container={question ? env.sheetContainer?.() : null}
+                    onAnswer={settleQuestion}
+                    onCancel={() => settleQuestion(null)}
                 />
             ) : null}
         </>

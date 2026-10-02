@@ -13,6 +13,7 @@
  * guarded so importing this module in node never touches DOM globals at import time.
  */
 
+import {createAccessGate} from "./access"
 import {
     isFsRequest,
     isIframeToParent,
@@ -20,7 +21,6 @@ import {
     READ_CAP,
     WRITE_CAP,
     WRITE_METHODS,
-    type AccessMsg,
     type AppAccess,
     type BridgeError,
     type BridgeErrorCode,
@@ -32,6 +32,7 @@ import {
     type FsRequest,
     type FsResponse,
     type FsResults,
+    type GrantLevel,
     type Hello,
     type HtmlAppHost,
     type HtmlAppHostError,
@@ -44,8 +45,8 @@ import {normalizeAppPath} from "./scope"
 
 export interface MockHtmlAppHostOptions {
     grant?: AppAccess
-    /** Asked before the first fs call is served, as the real host does. */
-    requestAccess?: () => Promise<AppAccess>
+    /** Asked when a call needs more access, as the real host does. */
+    requestAccess?: (need: GrantLevel) => Promise<AppAccess>
     dir?: string
     latencyMs?: number
     visible?: boolean
@@ -116,9 +117,11 @@ export function createMockHtmlAppHost(
     initialFiles: Record<string, string>,
     opts: MockHtmlAppHostOptions = {},
 ): MockHtmlAppHost {
-    let grant: AppAccess = opts.grant ?? "read"
-    let requestAccess = opts.requestAccess
-    let answering: Promise<void> | null = null
+    const gate = createAccessGate({
+        grant: opts.grant ?? "read",
+        requestAccess: opts.requestAccess,
+        onChange: (next) => post({v: 1, type: "access", canWrite: next === "read-write"}),
+    })
     const dir = opts.dir ?? "app"
     const latencyMs = opts.latencyMs ?? 0
     const failWith = opts.failWith ?? {}
@@ -223,8 +226,10 @@ export function createMockHtmlAppHost(
         const path = normalizeAppPath(req.path, {allowRoot: method === "list"})
         if (path === null) return failure(id, {code: "scope", message: FORCED_MESSAGES.scope})
 
-        if (grant === "none") return failure(id, {code: "unavailable", message: NO_ACCESS_MESSAGE})
-        if (WRITE_METHODS.has(method) && grant !== "read-write") {
+        if (gate.level === "none") {
+            return failure(id, {code: "unavailable", message: NO_ACCESS_MESSAGE})
+        }
+        if (WRITE_METHODS.has(method) && gate.level !== "read-write") {
             return failure(id, {code: "read_only", message: FORCED_MESSAGES.read_only})
         }
 
@@ -300,24 +305,12 @@ export function createMockHtmlAppHost(
         }
     }
 
-    // Same rule as the real host: concurrent calls share one question, asked once per host.
-    const settleAccess = (ask: () => Promise<AppAccess>): Promise<void> => {
-        answering ??= ask()
-            .catch((): AppAccess => "none")
-            .then((answer) => {
-                grant = answer
-                requestAccess = undefined
-                const msg: AccessMsg = {v: 1, type: "access", canWrite: answer === "read-write"}
-                post(msg)
-            })
-        return answering
-    }
-
     const handle = async (req: FsRequest): Promise<FsResponse | FsFailure> => {
         log.push(req)
         if (latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, latencyMs))
         const inScope = normalizeAppPath(req.path, {allowRoot: req.method === "list"}) !== null
-        if (requestAccess && inScope && !failWith[req.method]) await settleAccess(requestAccess)
+        const need: GrantLevel = WRITE_METHODS.has(req.method) ? "read-write" : "read"
+        if (inScope && !failWith[req.method]) await gate.settle(need)
         const res = serve(req)
         if (!res.ok) {
             emitError({
@@ -364,7 +357,7 @@ export function createMockHtmlAppHost(
             v: 1,
             type: "hello",
             dir,
-            canWrite: grant === "read-write",
+            canWrite: gate.level === "read-write",
             visible,
             tokens,
         }
@@ -436,6 +429,7 @@ export function createMockHtmlAppHost(
                 changedCbs.delete(cb)
             }
         },
+        setAccess: gate.set,
     }
 
     return host
