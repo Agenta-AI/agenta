@@ -5,11 +5,12 @@ import Section from "../../components/Section.astro";
 import "../../styles/marketplace.css";
 import Site from "../../layouts/Site.astro";
 import Badge from "../../components/Badge.astro";
+import FaqItem from "../../components/FaqItem.astro";
+import SectionTitle from "../../components/SectionTitle.astro";
 import Button from "../../components/Button.astro";
 import CtaBand from "../../components/CtaBand.astro";
 import AppMark from "../../components/AppMark.astro";
 import AuthorMark from "../../components/AuthorMark.astro";
-import TriggerPill from "../../components/TriggerPill.astro";
 import ExampleOutput from "../../components/ExampleOutput.astro";
 import TemplateMedia from "../../components/TemplateMedia.astro";
 import TemplateCard from "../../components/TemplateCard.astro";
@@ -27,11 +28,13 @@ import {
   authorPath,
   categoryPath,
   ctaHeadlineOf,
+  faqJsonLd,
   howItWorksOf,
   relatedTemplatesOf,
   renderableMedia,
   requirementsOf,
   setupStepsOf,
+  templateFaqOf,
   toolsOf,
 } from "../../lib/marketplace";
 
@@ -52,6 +55,7 @@ const tools = toolsOf(template);
 const setup = setupStepsOf(template);
 const requirements = requirementsOf(template);
 const related = relatedTemplatesOf(template, templates);
+const faq = templateFaqOf(template);
 const authorTemplates = templatesByAuthor(template.author.id).length;
 
 // With hero media, the example run moves to its own numbered section.
@@ -70,6 +74,9 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
   description={template.summary}
   showCta={false}
 >
+  <Fragment slot="head">
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(faqJsonLd(faq))} />
+  </Fragment>
   <Section class="ag-tpl-hero ag-mkt-herobg ag-pad" data-screen-label="Hero">
     <div class="ag-tpl-hero__bar">
       <nav class="ag-mkt-crumb" aria-label="Breadcrumb">
@@ -115,19 +122,22 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
             </>
           )
         }
-        <span class="ag-tpl-connect__agenta" aria-hidden="true">a</span>
+        <span class="ag-tpl-connect__agenta" aria-hidden="true"><img src="/logos/Agenta-symbol-light.svg" alt="" /></span>
       </div>
       <div class="ag-tpl-hero__chips">
         <Badge>{template.category}</Badge>
-        {template.trigger && <TriggerPill>{template.trigger}</TriggerPill>}
       </div>
       <h1 class="ag-tpl-hero__title">{template.name}</h1>
       <p class="ag-tpl-hero__summary">{template.summary}</p>
       <div class="ag-tpl-hero__actions">
         <Button variant="contrast" href={cta}>{USE_IT_FOR_FREE_LABEL}</Button>
-        <a class="ag-btn ag-btn--outline ag-tpl-hero__author" href={authorPath(template.author.id)}>
+        <a
+          class="ag-btn ag-btn--outline ag-tpl-hero__author"
+          href={authorPath(template.author.id)}
+          aria-label={template.author.name}
+          title={template.author.name}
+        >
           <AuthorMark author={template.author} size={24} />
-          {template.author.name}
         </a>
       </div>
 
@@ -282,18 +292,6 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
             ></path></svg
           >
         </a>
-        <dl class="ag-tpl-side__group ag-tpl-facts">
-          {
-            template.model && (
-              <>
-                <dt>Model</dt>
-                <dd>{template.model}</dd>
-              </>
-            )
-          }
-          <dt>Version</dt>
-          <dd>{template.version}</dd>
-        </dl>
       </aside>
     </div>
   </Section>
@@ -315,6 +313,19 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
       </Section>
     )
   }
+
+  <Section class="ag-mkt-faq ag-pad" data-screen-label="FAQ">
+    <SectionTitle badge="FAQ" title={`${template.name} FAQ`} />
+    <div class="ag-mkt-faq__list">
+      {
+        faq.map((item, i) => (
+          <FaqItem question={item.question} open={i === 0}>
+            {item.answer}
+          </FaqItem>
+        ))
+      }
+    </div>
+  </Section>
 
   <CtaBand
     title={ctaHeadlineOf(template)}
@@ -410,8 +421,11 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
         0 0 0 3px var(--stack-ring),
         inset 0 0 0 1px color-mix(in srgb, var(--ink-900) 12%, transparent),
         var(--th-menu-shadow);
-      font: 400 30px/1 var(--font-display);
-      color: var(--ink-900);
+    }
+    /* The dark-ink symbol in both themes: the tile stays yellow. */
+    .ag-tpl-connect__agenta img {
+      width: 50%;
+      height: auto;
     }
     .ag-tpl-hero__chips {
       margin-top: 36px;
@@ -450,9 +464,17 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
       height: 40px;
       padding: 0 18px;
     }
+    /* Icon only: a square the height of the Use button, the bare symbol inside it. */
     .ag-tpl-hero__actions .ag-tpl-hero__author {
-      padding: 0 16px 0 8px;
-      gap: 8px;
+      padding: 0;
+      aspect-ratio: 1;
+    }
+    .ag-tpl-hero__author .ag-authormark {
+      background: none;
+      box-shadow: none;
+    }
+    .ag-tpl-hero__author .ag-authormark img {
+      width: 75%;
     }
     /* The run (or the media) sits on the hero's bottom edge. */
     .ag-tpl-hero__stage {
@@ -783,24 +805,6 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
       font-weight: 400;
       color: var(--th-text-mut);
     }
-    .ag-tpl-facts {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 10px 16px;
-      font: var(--text-caption);
-    }
-    .ag-tpl-facts dt {
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--th-text-mut);
-    }
-    .ag-tpl-facts dd {
-      margin: 0;
-      text-align: right;
-      font-family: var(--font-mono);
-      color: var(--th-text-hi);
-    }
-
     .ag-tpl-related {
       background: var(--th-bg-1);
       padding: 72px 64px 96px;
@@ -863,7 +867,6 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
         width: 44px;
         height: 44px;
         border-radius: 12px;
-        font-size: 24px;
       }
       .ag-tpl-connect__line span:nth-child(2) {
         width: 24px;

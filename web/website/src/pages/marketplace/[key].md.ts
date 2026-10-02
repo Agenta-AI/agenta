@@ -16,6 +16,7 @@ import {
   relatedTemplatesOf,
   requirementsOf,
   setupStepsOf,
+  templateFaqOf,
   templatePath,
 } from "../../lib/marketplace";
 
@@ -65,6 +66,9 @@ export const GET: APIRoute = async ({ props }) => {
           (other) => `[${other.name}](${SITE_URL}${templatePath(other.key)})`,
         ),
       )}`,
+    `## FAQ\n\n${templateFaqOf(template)
+      .map(({ question, answer }) => `### ${question}\n\n${answer}`)
+      .join("\n\n")}`,
   ].filter(Boolean);
 
   const body = `[${USE_IT_FOR_FREE_LABEL}](${useItForFreeUrl(template.key)})

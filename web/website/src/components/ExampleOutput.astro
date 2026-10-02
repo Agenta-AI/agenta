@@ -22,7 +22,7 @@ const { name, example, class: className } = Astro.props;
   data-run
 >
   <div class="ag-tpl-output__head">
-    <span class="ag-tpl-output__mark" aria-hidden="true">a</span>
+    <span class="ag-tpl-output__mark" aria-hidden="true"><img src="/logos/Agenta-symbol-light.svg" alt="" /></span>
     <span class="ag-tpl-output__from">{name}</span>
     <span class="ag-tpl-output__tag">Example run</span>
     <span class="ag-tpl-output__side">
@@ -79,8 +79,10 @@ const { name, example, class: className } = Astro.props;
     display: flex;
     align-items: center;
     justify-content: center;
-    font: 400 16px/1 var(--font-display);
-    color: var(--ink-900);
+  }
+  .ag-tpl-output__mark img {
+    width: 16px;
+    height: auto;
   }
   .ag-tpl-output__from {
     font: 600 13.5px/18px var(--font-sans);

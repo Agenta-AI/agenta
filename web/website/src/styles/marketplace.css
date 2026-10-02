@@ -338,3 +338,27 @@
     align-content: start;
   }
 }
+
+/* The marketplace FAQ band (the index and every template page). */
+.ag-mkt-faq {
+  background: var(--th-bg-1);
+  padding: 96px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 48px;
+}
+.ag-mkt-faq__list {
+  width: 768px;
+  max-width: 100%;
+}
+@media (max-width: 1199px) {
+  .ag-mkt-faq {
+    gap: 40px;
+  }
+}
+@media (max-width: 767px) {
+  .ag-mkt-faq {
+    gap: 32px;
+  }
+}

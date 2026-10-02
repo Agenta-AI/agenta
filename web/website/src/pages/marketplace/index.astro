@@ -17,6 +17,7 @@ import {
 } from "../../lib/templates";
 import {
   MARKETPLACE_FAQ,
+  faqJsonLd,
   MARKETPLACE_NAME,
   appFacetsOf,
   appsOf,
@@ -38,6 +39,13 @@ const featured = templates.filter((template) => template.example);
   title={`${MARKETPLACE_NAME} — Agenta`}
   description="Start from a working agent. Connect your apps, adjust the skills, and let it run. Every template starts in Agenta for free."
 >
+  <Fragment slot="head">
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(faqJsonLd(MARKETPLACE_FAQ))}
+    />
+  </Fragment>
   <Section class="ag-mkt-hero ag-mkt-herobg ag-pad" data-screen-label="Index header">
     <div class="ag-mkt-hero__copy">
       <h1 class="ag-mkt-hero__title">{MARKETPLACE_NAME}</h1>
@@ -647,18 +655,6 @@ const featured = templates.filter((template) => template.example);
       color: var(--th-text-body);
     }
 
-    .ag-mkt-faq {
-      background: var(--th-bg-1);
-      padding: 96px 64px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 48px;
-    }
-    .ag-mkt-faq__list {
-      width: 768px;
-      max-width: 100%;
-    }
 
     @media (max-width: 1199px) {
       .ag-mkt-hero {
@@ -669,9 +665,6 @@ const featured = templates.filter((template) => template.example);
       }
       .ag-mkt-hero__title {
         max-width: none;
-      }
-      .ag-mkt-faq {
-        gap: 40px;
       }
     }
     @media (max-width: 767px) {
@@ -689,9 +682,6 @@ const featured = templates.filter((template) => template.example);
       }
       .ag-mkt-empty {
         padding: 40px 0;
-      }
-      .ag-mkt-faq {
-        gap: 32px;
       }
     }
   </style>
