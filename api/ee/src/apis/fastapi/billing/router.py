@@ -117,11 +117,20 @@ def _is_plan_line(line: Any) -> bool:
     return False
 
 
-def _invoice_period(invoice: Any) -> Optional[Tuple[datetime, datetime]]:
+def _invoice_lines(stripe: Any, invoice: Any) -> Any:
+    """All of the invoice's lines. The event embeds only the first page."""
+    embedded = _stripe_get(invoice, "lines")
+    if not _stripe_get(embedded, "has_more"):
+        return _stripe_get(embedded, "data") or []
+    return stripe.Invoice.list_lines(
+        _stripe_get(invoice, "id"), limit=100
+    ).auto_paging_iter()
+
+
+def _invoice_period(lines: Any) -> Optional[Tuple[datetime, datetime]]:
     """The billing period an invoice opens: the latest-starting period among its
     recurring subscription lines. A renewal also carries usage lines billed in arrears
     for the period that just ended, and may carry prorations and one-off items."""
-    lines = _stripe_get(_stripe_get(invoice, "lines"), "data") or []
     periods = []
     for line in lines:
         if not _is_plan_line(line):
@@ -566,7 +575,7 @@ class BillingRouter:
         if not (_stripe_get(invoice, "total") or 0) > 0:
             return
 
-        period = _invoice_period(invoice)
+        period = _invoice_period(_invoice_lines(_load_stripe(), invoice))
         if period is None:
             raise EventException(
                 f"Invoice for organization ID {organization_id} carries no plan period"

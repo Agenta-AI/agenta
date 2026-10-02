@@ -183,6 +183,29 @@ async def test_the_period_comes_from_a_recurring_plan_line_only(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_the_period_reads_every_page_of_invoice_lines(monkeypatch):
+    router = _router()
+    invoice = _invoice(billing_reason="subscription_cycle", lines=[_line(SEP_1, OCT_1)])
+    invoice["id"] = "in_123"
+    invoice["lines"]["has_more"] = True
+    _install_event(monkeypatch, "invoice.payment_succeeded", invoice)
+    stripe = billing_router_module._load_stripe()
+    list_lines = Mock(
+        return_value=SimpleNamespace(
+            auto_paging_iter=lambda: iter([_line(SEP_1, OCT_1), _line(OCT_1, NOV_1)])
+        )
+    )
+    stripe.Invoice = SimpleNamespace(list_lines=list_lines)
+    monkeypatch.setattr(billing_router_module, "_load_stripe", lambda: stripe)
+
+    await router.handle_events(DummyRequest())
+
+    list_lines.assert_called_once_with("in_123", limit=100)
+    kwargs = router.subscription_service.grant_period_credits.await_args.kwargs
+    assert kwargs["period_start"] == _ts(OCT_1)
+
+
+@pytest.mark.asyncio
 async def test_the_grant_reads_the_new_webhook_invoice_shape(monkeypatch):
     router = _router()
     invoice = _invoice(

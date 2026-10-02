@@ -82,6 +82,8 @@ def remaining_musd(info: dict[str, Any]) -> int:
         raise ValueError("key info carries no numeric max_budget and spend") from exc
     if not max_budget.is_finite() or not spend.is_finite():
         raise ValueError("key info carries a non-finite max_budget or spend")
+    if max_budget < 0 or spend < 0:
+        raise ValueError("key info carries a negative max_budget or spend")
     return max(0, int((max_budget - spend) * _MUSD_PER_USD))
 
 
