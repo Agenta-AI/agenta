@@ -1,4 +1,6 @@
 const MUSD_PER_USD = 1_000_000
+/** 1 credit = 1 US cent. */
+const MUSD_PER_CREDIT = 10_000
 
 /** Compact dollars for the sidebar: "$19.98". */
 export const formatUsd = (musd: number): string =>
@@ -42,3 +44,29 @@ export const formatUnits = (
     const singular = unit.endsWith("s") ? unit.slice(0, -1) : unit
     return `${quantity.toLocaleString()} ${quantity === 1 ? singular : unit}`
 }
+
+/** Credits, the unit people see: "1,234.5". */
+export const formatCredits = (musd: number): string =>
+    (musd / MUSD_PER_CREDIT).toLocaleString(undefined, {maximumFractionDigits: 1})
+
+const CREDIT_KIND_LABELS: Record<string, string> = {
+    signup_grant: "Welcome credits",
+    plan_allowance: "Monthly plan credits",
+}
+
+/** A credit's kind in plain words; a kind this view does not know reads as its own words. */
+export const creditKindLabel = (kind: string): string => {
+    const known = CREDIT_KIND_LABELS[kind]
+    if (known) return known
+    const words = kind.replace(/_/g, " ").trim()
+    return words ? words[0].toUpperCase() + words.slice(1) : "Credits"
+}
+
+export const formatDate = (iso: string): string =>
+    new Date(iso).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        // Days and expiries are UTC boundaries; a local zone would show the day before.
+        timeZone: "UTC",
+    })

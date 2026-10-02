@@ -49,6 +49,20 @@ export const RETRYABLE_CODES = new Set([
     "subscription_login_refreshed",
 ])
 
+/**
+ * Plan limits, by the code the platform puts on the turn, with the title the chat shows over the
+ * platform's own sentence. The sentence already names the limit, the plan's number, what happened
+ * to the work and what to do next, so it is shown whole; the host adds a way to the plans.
+ */
+export const PLAN_LIMIT_TITLES: Record<string, string> = {
+    wallet_balance_exhausted: "Out of credits",
+    concurrent_turns_limit: "Too many agents running",
+    turn_time_limit_reached: "Turn time limit reached",
+}
+
+export const planLimitTitle = (code?: string | null): string | null =>
+    (code && PLAN_LIMIT_TITLES[code]) || null
+
 /** An admission refusal means the message was not sent, not that an agent run failed. */
 export const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
 
@@ -69,6 +83,8 @@ export interface RunFailureCalloutProps {
     onAddKey?: () => void
     /** Where the reader signs in again; offered for the dead-subscription classes. */
     onSignIn?: () => void
+    /** Where the reader sees plans and buys credits; offered for the plan-limit classes. */
+    onOpenBilling?: () => void
 }
 
 export const RunFailureCallout = ({
@@ -79,6 +95,7 @@ export const RunFailureCallout = ({
     onRetry,
     onAddKey,
     onSignIn,
+    onOpenBilling,
 }: RunFailureCalloutProps) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
@@ -87,6 +104,7 @@ export const RunFailureCallout = ({
     const offerOwnKey = !!onAddKey && !!code && STARTER_CREDIT_CODES.has(code)
     const offerSignIn = !!onSignIn && !!code && SUBSCRIPTION_LOGIN_CODES.has(code)
     const notSent = !!code && NOT_SENT_CODES.has(code)
+    const limitTitle = planLimitTitle(code)
     const offerRetry =
         !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
@@ -95,7 +113,7 @@ export const RunFailureCallout = ({
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <span className="text-xs font-medium text-colorError">
-                    {notSent ? "Message not sent" : "The agent run failed"}
+                    {limitTitle ?? (notSent ? "Message not sent" : "The agent run failed")}
                 </span>
                 {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
@@ -130,6 +148,11 @@ export const RunFailureCallout = ({
                 {offerSignIn && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onSignIn}>
                         Sign in again
+                    </Button>
+                )}
+                {limitTitle && onOpenBilling && (
+                    <Button size="sm" variant="outline" className="mt-1" onClick={onOpenBilling}>
+                        Plans and billing
                     </Button>
                 )}
                 {offerRetry && (

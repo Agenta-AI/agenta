@@ -10,6 +10,8 @@ import {
 } from "@agenta/shared/api"
 import {useRouter} from "next/router"
 
+import {useWalletSummary} from "../wallet/useWalletSummary"
+
 /** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
 export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "apiKeys",
@@ -25,6 +27,7 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "projects",
     "auditLog",
     "billing",
+    "credits",
     "walletUsage",
     "account",
     "preferences",
@@ -46,6 +49,9 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     const toolsEnabled = isToolsEnabled()
     const mcpGatewayEnabled = isMcpGatewayEnabled()
     const walletsEnabled = isWalletsEnabled()
+    const router = useRouter()
+    const projectId = typeof router.query.project_id === "string" ? router.query.project_id : ""
+    const walletEnforced = useWalletSummary(projectId).data?.mode === "enforce"
 
     return useMemo(
         () => ({
@@ -61,8 +67,18 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             // every other view flag here — their pages are read-only and the API authorizes.
             isOwner: true,
             walletsEnabled,
+            walletEnforced,
+            // The raw wallet data is for developers: it stays out of production builds.
+            walletDebug: process.env.NODE_ENV !== "production",
         }),
-        [enterprise, billingEnabled, toolsEnabled, mcpGatewayEnabled, walletsEnabled],
+        [
+            enterprise,
+            billingEnabled,
+            toolsEnabled,
+            mcpGatewayEnabled,
+            walletsEnabled,
+            walletEnforced,
+        ],
     )
 }
 
@@ -86,7 +102,9 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)) return "preferences"
     if (requested === "tools" && !access.canShowTools) return "preferences"
     if (requested === "billing" && !access.billingEnabled) return "preferences"
-    if (requested === "walletUsage" && !access.walletsEnabled) return "preferences"
+    if (requested === "walletUsage" && !(access.walletsEnabled && access.walletDebug))
+        return "preferences"
+    if (requested === "credits" && !access.walletsEnabled) return "preferences"
     // A deployment serving no MCP gateway refuses every route behind this tab, so a deep
     // link to it would render a surface whose every action fails.
     if (requested === "mcpEndpoints" && !access.canShowMcpEndpoints) return "preferences"

@@ -5,6 +5,7 @@ import {
     Broadcast,
     Buildings,
     Bug,
+    Coins,
     ClockCounterClockwise,
     FolderSimple,
     Key,
@@ -49,6 +50,8 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
             return <ClockCounterClockwise size={14} />
         case "billing":
             return <Receipt size={14} />
+        case "credits":
+            return <Coins size={14} />
         case "walletUsage":
             return <Bug size={14} />
         case "account":
