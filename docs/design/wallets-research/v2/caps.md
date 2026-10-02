@@ -98,7 +98,9 @@ admission answer, which is the simplest place: the runner asks before every turn
 The runner uses the smaller of the plan's limit and its env deadline, so an operator's lower
 deadline still wins, and a deployment without the wallet keeps its env value. When the plan's
 limit is the one that fires, the turn ends with the code `turn_time_limit_reached` and the
-API's message. A pause for a person's approval stops every deadline, as before.
+API's message. A pause for a person's approval stops every deadline, as before. The plan's
+limit runs from admission: when the runner re-prompts a turn that stalled before its first
+response (`stall-retry.ts`), the retry gets only the time left, not a new limit.
 
 ### Billing only while a turn runs
 

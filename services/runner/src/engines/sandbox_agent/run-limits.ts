@@ -55,11 +55,30 @@ export interface TurnLimit {
   message: string;
 }
 
-const turnLimitStorage = new AsyncLocalStorage<TurnLimit | undefined>();
+interface AdmittedTurnLimit {
+  limit: TurnLimit;
+  deadlineMs: number;
+}
 
-/** Run `fn` with the plan's turn limit in scope for every turn it starts. */
+const turnLimitStorage = new AsyncLocalStorage<AdmittedTurnLimit | undefined>();
+
+/**
+ * Run `fn` with the plan's turn limit in scope for every turn it starts. The limit runs from
+ * this call, so an attempt started later in the same admitted turn (a stall retry) gets only
+ * the time left, not a fresh limit.
+ */
 export function runWithTurnLimit<T>(limit: TurnLimit | undefined, fn: () => T): T {
-  return turnLimitStorage.run(limit, fn);
+  return turnLimitStorage.run(limit && { limit, deadlineMs: Date.now() + limit.ms }, fn);
+}
+
+/** The plan's turn limit in scope, shortened to the time left since admission. */
+function remainingTurnLimit(): TurnLimit | undefined {
+  const admitted = turnLimitStorage.getStore();
+  if (!admitted) return undefined;
+  return {
+    ms: Math.max(1, admitted.deadlineMs - Date.now()),
+    message: admitted.limit.message,
+  };
 }
 
 /** Every timer field is a usable timer delay (integer ms, at least 1, within Node's timer range) —
@@ -80,7 +99,7 @@ export interface ResolvedRunLimits {
  */
 export function resolveRunLimits(
   log: (message: string) => void = () => {},
-  turnLimit: TurnLimit | undefined = turnLimitStorage.getStore(),
+  turnLimit: TurnLimit | undefined = remainingTurnLimit(),
 ): ResolvedRunLimits {
   const envMs = (name: string, defaultMs: number): number =>
     envTimerMs(name, defaultMs, { log });

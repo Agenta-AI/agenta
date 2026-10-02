@@ -162,9 +162,30 @@ describe("resolveRunLimits", () => {
   it("reads the turn limit in scope for the run that resolves it", () => {
     withEnv({ [TOTAL_DEADLINE_ENV]: undefined }, () => {
       const inside = runWithTurnLimit({ ms: 1_800_000, message: "Stopped." }, () => resolveRunLimits());
-      assert.equal(inside.totalMs, 1_800_000);
+      assert.ok(inside.totalMs <= 1_800_000 && inside.totalMs > 1_790_000);
       assert.equal(resolveRunLimits().totalMs, DEFAULT_TOTAL_DEADLINE_MS);
     });
+  });
+
+  it("a later attempt in the same admitted turn gets only the time left", () => {
+    const realNow = Date.now;
+    let now = 1_000_000;
+    Date.now = () => now;
+    try {
+      withEnv({ [TOTAL_DEADLINE_ENV]: undefined }, () => {
+        const totals = runWithTurnLimit({ ms: 1_800_000, message: "Stopped." }, () => {
+          const first = resolveRunLimits().totalMs;
+          now += 120_000; // the first attempt stalled for two minutes and is retried
+          const retry = resolveRunLimits().totalMs;
+          now += 1_800_000; // a retry that starts past the limit trips at once
+          const late = resolveRunLimits();
+          return [first, retry, late.totalMs, late.turnLimitMessage];
+        });
+        assert.deepEqual(totals, [1_800_000, 1_680_000, 1, "Stopped."]);
+      });
+    } finally {
+      Date.now = realNow;
+    }
   });
 
   it("a degenerate total cannot derive an idle timeout that fires instantly", () => {
