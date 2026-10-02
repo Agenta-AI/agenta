@@ -471,6 +471,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      crisp-sdk-web:
+        specifier: ^1.0.26
+        version: 1.1.2
       jotai:
         specifier: ^2.16.1
         version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
