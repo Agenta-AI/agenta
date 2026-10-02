@@ -4,6 +4,7 @@ import {
     applyAgentCreationPrefs,
     applyAgentModelSelection,
     ensureEnabledSandbox,
+    selectionFromAgentCreationPrefs,
 } from "../../src/workflow/state/agentCreationPrefs"
 
 describe("applyAgentCreationPrefs", () => {
@@ -93,6 +94,39 @@ describe("applyAgentModelSelection", () => {
             expect(existing.llm.model).toBe("old-model")
             expect(existing.runner).toEqual({permissions: {default: policy}})
         })
+    })
+})
+
+describe("a built-in pick's namespace", () => {
+    const builtin = {
+        harness: "pi_core",
+        modelId: "gpt-5.5",
+        provider: "openai",
+        mode: "agenta" as const,
+        slug: "agenta",
+        namespace: "builtin" as const,
+    }
+
+    it("is saved beside the slug, so a custom endpoint named alike cannot take the run", () => {
+        expect(applyAgentModelSelection({}, builtin).llm).toEqual({
+            model: "gpt-5.5",
+            provider: "openai",
+            connection: {mode: "agenta", slug: "agenta", namespace: "builtin"},
+        })
+    })
+
+    it("survives the last-used preferences", () => {
+        expect(
+            selectionFromAgentCreationPrefs({
+                version: 1,
+                harness: "pi_core",
+                model: "gpt-5.5",
+                provider: "openai",
+                connectionMode: "agenta",
+                connectionSlug: "agenta",
+                connectionNamespace: "builtin",
+            }),
+        ).toEqual(builtin)
     })
 })
 

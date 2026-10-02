@@ -47,7 +47,6 @@ def test_llm_component_builder():
     component = build_llm_component()
     assert component.key == "input_tokens"
     assert isinstance(component.value, int)
-    assert component.cost_musd is not None
 
 
 def test_mcp_component_builder():

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone
@@ -1160,6 +1160,7 @@ async def verify_secret_token(
         # these claims separate from the ordinary tenant scope: they are not
         # general-purpose authorization attributes.
         request.state.gateway_run_id = auth_context.get("gateway_run_id")
+        request.state.gateway_run_labels = auth_context.get("gateway_run_labels")
         request.state.gateway_tools = auth_context.get("gateway_tools")
 
     except ExpiredSignatureError as exc:
@@ -1240,6 +1241,7 @@ async def sign_secret_token(
     organization_name: Optional[str] = None,
     gateway_run_id: Optional[str] = None,
     gateway_tools: Optional[list[dict]] = None,
+    gateway_run_labels: Optional[Dict[str, str]] = None,
     grants: Optional[List[str]] = None,
     audience: Optional[str] = None,
     expires_in: Optional[int] = None,
@@ -1282,6 +1284,11 @@ async def sign_secret_token(
             "iat": _issued_at,
             "exp": _exp,
         }
+
+        # Labels only, never authorization: they name the session and agent a gateway
+        # call's usage record belongs to. Absent unless set, like `grants` below.
+        if gateway_run_labels:
+            auth_context["gateway_run_labels"] = dict(gateway_run_labels)
 
         # A token with no grants carries no `grants` key at all, rather than a null or
         # empty one, so its payload stays the shape every existing holder was issued.

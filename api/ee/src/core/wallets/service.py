@@ -8,7 +8,7 @@ checks the wallet's committed balance against its floor.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Tuple
 from uuid import UUID
 
 from ee.src.core.wallets.contracts import DebitCommandV1
@@ -38,6 +38,23 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         self.wallets_dao = wallets_dao
 
     async def check(self, *, organization_id: UUID) -> bool:
+        balance, floor = await self._spendable(organization_id=organization_id)
+        # Non-strict: reject only once already-committed balance is at/below the floor.
+        return balance > floor
+
+    async def covers(self, *, organization_id: UUID, amount_musd: int) -> bool:
+        """Whether the organization can pay `amount_musd` and stay at or above its floor.
+
+        A threshold, not a hold: nothing is reserved, so concurrent calls can each pass it.
+        Used where a call's worst-case price is known before dispatch (a managed tool
+        action). Not on `WalletCheckPort`, whose contract keeps an amount out until a
+        reserving check exists."""
+        if amount_musd < 0:
+            raise ValueError("amount_musd must not be negative")
+        balance, floor = await self._spendable(organization_id=organization_id)
+        return balance > floor and balance - amount_musd >= floor
+
+    async def _spendable(self, *, organization_id: UUID) -> Tuple[int, int]:
         # Spendable, not the raw general balance: nothing posts an expired credit's
         # remainder out of the general row, so the raw number would admit calls that
         # settlement can only book as deficit (open-designs item 21).
@@ -63,9 +80,7 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
                 raise WalletGeneralBalanceNotFoundError(organization_id)
 
         floor = balance.floor_musd if balance.floor_musd is not None else 0
-
-        # Non-strict: reject only once already-committed balance is at/below the floor.
-        return balance.spendable_musd > floor
+        return balance.spendable_musd, floor
 
     async def settle(self, command: DebitCommandV1) -> None:
         await self.wallets_dao.settle(command=command)

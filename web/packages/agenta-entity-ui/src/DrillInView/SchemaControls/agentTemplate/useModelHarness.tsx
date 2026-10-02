@@ -6,6 +6,7 @@ import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     customSecretsAtom,
+    type AgentConnectionNamespace,
     type AgentSecretBinding,
     standardSecretsAtom,
     vaultSecretsQueryAtom,
@@ -290,6 +291,7 @@ export function useModelHarness({
             provider?: string | null
             mode?: ConnectionMode
             slug?: string | null
+            namespace?: AgentConnectionNamespace | null
             /** A vault-hosted option's own connection kind (`metadata.provider` from
              * `vaultModelGroups`) — a fallback family source, see `vaultPickedProviderFamily`. */
             metadataProvider?: string | null
@@ -306,6 +308,13 @@ export function useModelHarness({
                     : patch.modelId !== undefined
                       ? null
                       : connection.slug
+            // The namespace qualifies the slug, so it goes wherever the slug goes.
+            const nextNamespace =
+                patch.namespace !== undefined
+                    ? patch.namespace
+                    : patch.slug !== undefined || patch.modelId !== undefined
+                      ? null
+                      : connection.namespace
             // Provider is always the model FAMILY — a vault connection's own `provider` is its
             // DEPLOYMENT kind (bedrock/…), which would fail the harness provider check, so
             // `vaultPickedProviderFamily` resolves the family from the id, the kind, or the driving
@@ -334,6 +343,7 @@ export function useModelHarness({
                     provider: nextProvider,
                     mode: patch.mode !== undefined ? patch.mode : connection.mode,
                     slug: nextSlug,
+                    namespace: nextNamespace,
                     existing: llm,
                 }),
             )
@@ -359,6 +369,7 @@ export function useModelHarness({
                     providerForModel(capabilities, nextHarness, selection.modelId),
                 mode: selection.mode,
                 slug: selection.slug,
+                namespace: selection.namespace,
                 existing: llm,
             })
             onChange({
@@ -540,6 +551,7 @@ export function useModelHarness({
             provider={connection.provider ?? null}
             mode={connection.mode}
             slug={connection.slug ?? null}
+            namespace={connection.namespace}
             replaceable={revisionId?.startsWith("local-") ?? false}
             disabled={disabled}
             // A subscription is a login mounted into the deployment; cloud has nowhere to mount one.

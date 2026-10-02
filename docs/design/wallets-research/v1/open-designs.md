@@ -72,17 +72,19 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 13 | Open | Whether earned value expires at all, and what decides spend order between lots. |
 | 14 | Decided | How an organization provisioned while `AGENTA_WALLETS_ENABLED` was off gets its balance row. |
 | 15 | Decided | What, if anything, restores the value those organizations also missed. |
-| 16 | Open | Which design owns the rate card, and who reviews a change to a price. |
-| 17 | Open | What the admission ceiling enforces, and on what evidence. |
-| 18 | Open | The unit and rounding of a provider-declared cost. |
-| 19 | Open | How the rate card stays in step with the model catalogue. |
+| 16 | Decided | Which design owns the rate card, and who reviews a change to a price. |
+| 17 | Decided | What the admission ceiling enforces, and on what evidence. |
+| 18 | Decided | The unit and rounding of a provider-declared cost. |
+| 19 | Decided | How the rate card stays in step with the model catalogue. |
 | 20 | Decided | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
 | 21 | Decided | Whether expired credit value leaves the general balance, and what admission reads. |
 | 22 | Decided (option 2; option 3 deferred) | What identifies one plan change, so two in a billing period are not treated as one. |
 | 23 | Open | Whether a plan-change clawback depends on usage still queued in the streams. |
 | 24 | Open | Whether settlement funds usage from the credits alive when it happened or when it settled. |
+| 25 | Decided | How sandbox time is billed. |
+| 26 | Decided (mock slice) | How managed tool actions are admitted and billed. |
 
-Items 2, 4, 7, 14, 15, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
+Items 2, 4, 7, 14, 15, 16, 17, 18, 19, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
 
 **What Wave 1 closed, and what it did not.** Wave 1 delivered the measurement and settlement
@@ -1501,7 +1503,7 @@ already granted, and one outside the window are left alone).
 
 ## 16. Which design owns the rate card
 
-**Status:** Open
+**Status:** Decided
 
 ### Context
 
@@ -1555,11 +1557,26 @@ under this reading; if the decision goes the other way the file moves and nothin
 
 ### Decision
 
-_Unresolved._
+**Decided (2026-09-25, Wave 2): option 3, in one file.** `ee/src/core/measurements/rate_card.py`
+is EE code keyed by the gateway's vocabulary: `(provider, model)` for tokens and the MCP
+`server` for requests, both read from `resource_locator`. It holds our price in integer
+micro-dollars per million tokens (or per request). The wallet owns the arithmetic
+(`charges.py`, `calculate_charge`) and nothing else interprets provider metrics.
+
+- **Who reviews a price:** a price change is a PR that edits this file; product (Mahmoud)
+  approves it. No admin UI, no second process.
+- **Version:** `RATE_CARD_VERSION` is derived, `"rc-" + sha256(canonical JSON of the
+  table)[:12]`, so a rate cannot change without the version every debit carries. No
+  hand-kept constant and no checksum test to keep in sync.
+- **Why:** the mechanism is identical under all three options, and this one needs no
+  cross-package import from the OSS gateway and leaves `DebitCommandV1` as designed.
+- **Today's contents are synthetic:** the six `builtin` LLM entries (`agenta`, `mock` x
+  the three mock models) and the MCP flat 50 musd per request carried over from the Wave 1
+  fixture. None is an approved price; `builtin` serves only the mock.
 
 ## 17. What the admission ceiling enforces
 
-**Status:** Open
+**Status:** Decided
 
 ### Context
 
@@ -1607,11 +1624,28 @@ costs a request-path dependency on the price list and buys an over-refusal.
 
 ### Decision
 
-_Unresolved._
+**Decided for Wave 2 (2026-09-25): option 1 in behaviour, the field kept.** Admission is a
+boolean: a `builtin` call is refused when `WalletsService.check` says the spendable balance
+is at or below the floor, and a wallet that cannot answer refuses (fail closed).
+`SpendAdmission.ceiling_musd` stays on the gateway DTO as `Optional[int] = None`, documented
+as carried and never enforced; nothing sets it and nothing may read it as a budget.
+`WalletCheckPort.check` keeps its `bool` return (no `WalletAdmissionDTO`), and the
+measurement carries no ceiling reference.
+
+- **Why:** a number nothing enforces is one a later reader misuses. The evidence the ceiling
+  was meant to collect (how far balances go below the floor) is already in the ledger:
+  for each settled debit, the general balance minus the floor after settlement is the
+  overshoot. Option 2 puts the card on the request path and over-refuses; option 3 is
+  item 2's strict admission and out of scope.
+- **Cost on the request path:** one `check` read per admitted `builtin` call. No cache, no
+  reservation. `standard` and `custom` never consult the wallet.
+- **Reopens when:** a real platform-funded `builtin` provider carries material spend and the
+  ledger shows overshoot below the floor that matters. The answer then is a bounded
+  reservation, not a carried number.
 
 ## 18. The unit and rounding of a provider-declared cost
 
-**Status:** Open
+**Status:** Decided
 
 ### Context
 
@@ -1662,11 +1696,23 @@ this item is what adds the field.
 
 ### Decision
 
-_Unresolved._
+**Decided (2026-09-25): option 1, drop it.** The usage sink writes no `cost_musd`, and
+`GatewayUsage.cost` (a float with no unit) stays gateway-internal and in the audit event. The
+envelope does not change: the `secret_origin` field the Wave 2 plan once proposed was cut too
+(charging follows `endpoint_kind`, the namespace).
+
+- **Why:** nothing in production sets a provider cost; only the mock sets `0.0`.
+  Reconciliation against a provider invoice (item 8) needs exact token counts per
+  component, which the measurement stores exactly, times the provider's list price. A float
+  in the money path is the defect the integer unit exists to prevent.
+- **Reopens when:** a `builtin` provider's charge cannot be derived from tokens (for example a
+  router that reports a per-call cost). Then store it exactly as integer nano-dollars on a new
+  component key such as `provider_cost_ndusd`. The component key space is open, so the
+  envelope still does not change.
 
 ## 19. How the rate card stays in step with the model catalogue
 
-**Status:** Open
+**Status:** Decided
 
 ### Context
 
@@ -1714,7 +1760,25 @@ it maintainable.
 
 ### Decision
 
-_Unresolved._
+**Decided (2026-09-25): option 2 alone, and an unknown rate is not a free call.**
+
+- **The test:** `test_every_model_the_builtin_namespace_serves_has_a_rate`
+  (`ee/tests/pytest/unit/measurements/test_measurements_charges.py`) enumerates every model of
+  every provider in `BUILTIN_LLM_PROVIDERS` with mocks on and asserts a rate. The `builtin`
+  catalogue is code, so every source of drift passes through a PR this test runs on.
+- **At runtime:** a `builtin` measurement the card does not price raises the retryable
+  `UnpricedMeasurementError`. Nothing is stored (a stored "no charge" would be final), the
+  message is retried by the reclaim pass, and after `max_deliveries` it moves to
+  `streams:measurements:dead`. A replay once the card prices the model charges it once.
+  This covers the case the test cannot: an API newer than its worker during a rolling
+  deploy.
+- **Activation order:** deploy the measurement worker (with the new card) before the API
+  that routes the new model. The retry window absorbs a short overlap; the dead-letter stream
+  absorbs a long one.
+- **Why not litellm (option 3):** there is nothing to generate today (three mock models), and
+  it adds a build step. **Reopens when** the first real `builtin` provider lands: snapshot its
+  rates from litellm by hand into the file, with source and date, and automate only if the
+  model list outgrows review.
 
 ## 20. Where a stream entry this pipeline cannot accept goes
 
@@ -2268,3 +2332,86 @@ order-independent reconciliation needs the same field. Option 2 is rejected: it 
 charge for another and still fails replay. The debit envelope and the settlement port are frozen
 while the coverage contract is designed, so this branch records the gap and changes nothing. The
 flag is off everywhere, so no customer is charged under the current rule.
+
+## 25. How sandbox time is billed
+
+**Status:** Decided (2026-09-26): wallet only, per running second; included allowance deferred
+
+### Context
+
+Agent turns run in Daytona sandboxes on the platform's own account, and nothing measured that
+time. `GatewayKind.SBX` existed in the stream contract, but no producer used it and the rate card
+priced only tokens and requests.
+
+### Decision
+
+Designed in [v2/sandbox-seconds.md](../v2/sandbox-seconds.md). In short:
+
+- **Wallet only.** Every running second is charged; there is no included allowance yet. The
+  option of an allowance first (the
+  [include-sandbox-usage](../v2/openspec/changes/include-sandbox-usage/) change) was set aside
+  for this slice by the owner, and stays the follow-up.
+- **Price by resource.** Daytona's list price times 1.5: 75,600 musd per vCPU-hour and 24,300
+  musd per GiB-hour of memory, charged per second, in the rate card and its version hash. Disk
+  is not charged (5 GiB, inside Daytona's free tier). Pricing by named size was rejected: the
+  runner reads the real size from Daytona, and a size change would otherwise need a card edit.
+- **Measured by the runner, from outside the sandbox**, as one-minute whole-second intervals
+  plus a final partial interval, each with a deterministic measurement id so retries are
+  charged once. Options considered: riding the session heartbeat (rejected: OSS and
+  turn-scoped, while sandboxes outlive turns), or one measurement per sandbox lifetime
+  (rejected: a crash would lose the whole lifetime).
+- **Only running seconds.** Stopped and parked sandboxes are not billed, although Daytona bills
+  their disk. Known gap.
+- **Admission before acquire.** A turn on `daytona` or `inprocess` asks the wallet first; an
+  explicit refusal ends it with `wallet_balance_exhausted` before any sandbox exists. Any other
+  answer admits it, so a metering outage never stops agents. A running turn is never stopped
+  for its balance, so a turn near the floor can settle below it (items 2 and 17).
+- **Never measured:** `local`, self-hosted, and OSS. The runner reads the API's own switch,
+  `AGENTA_WALLETS_ENABLED`, and with it off makes no admission call and starts no meter or
+  credential lease (whole-stack review finding 6, 2026-09-27). Options: the API telling the
+  runner per turn (rejected: a new run-request field through the SDK for a deployment-level
+  switch), or reading the 404 after the first call (the original design; rejected: every turn
+  still paid an admission call, up to five seconds with the API down, and a lease per sandbox).
+- **Runner-authenticated reports** (whole-stack review finding 1, P0, 2026-09-27). Both routes
+  require the shared runner token beside the run's credential; the credential alone let any
+  tenant member debit the organization wallet with invented intervals. Binding a report to a
+  session turn that recorded the sandbox was rejected: sessionless runs and the in-process
+  command sandbox write no such row, so real usage would be refused.
+
+
+## 26. How managed tool actions are admitted and billed
+
+**Status:** Decided (2026-09-27) for the mock slice; a real provider reopens the prices and
+reconciliation
+
+### Context
+
+Paid integration actions (enrichment, company search) run on provider accounts Agenta holds and
+must be charged to the wallet. Unlike a model call, an action's maximum price is known before
+dispatch.
+
+### Decision
+
+Designed in [v2/managed-tools.md](../v2/managed-tools.md). In short:
+
+- **The shared pipeline, a new kind.** One `MeasurementCommandV1` per dispatched execution,
+  `gateway_kind: tool`, priced by the measurement worker from `ACTION_RATES` in the rate card
+  (part of its version hash) and settled by the debit worker. No new ledger, stream, worker or
+  table. Reusing the `mcp` kind was rejected: that branch prices per MCP server, and an action's
+  price does not depend on the transport it arrived on.
+- **Price shapes.** A price per billable unit, with a cap per call: per successful call
+  (`action_calls`) or per result (`action_results`, cap required). Units are counted by the
+  executor from the validated output, never reported by a provider.
+- **Admission against the worst-case price.** `WalletsService.covers(organization_id,
+  amount_musd)` answers `spendable - amount >= floor` on the same spendable read as `check`,
+  with the worst case from the rate card. A threshold, not a hold (items 2 and 17 still apply
+  to concurrent calls). `WalletCheckPort` does not change: its contract keeps an amount out
+  until a reserving check exists, and `covers` is a separate read on the service.
+- **Not charged:** upstream failures, unreadable output, unknown outcomes (timeouts,
+  cancellation). All are recorded with their execution id (`outcome` in the measurement
+  references) for reconciliation. Settling an unknown later is a separate adjustment, not a
+  replay: a stored measurement is immutable.
+- **Idempotency:** charge once per execution (the execution id is the measurement id). A
+  repeated request is a new purchase; see spec-divergences row 24 (item 26).
+- **Price drift** between admission (API) and pricing (worker) is accepted, as for models, with
+  the same deploy order (worker first).

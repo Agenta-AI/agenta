@@ -8,6 +8,7 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
 )
+from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.core.events.service import EventsService
@@ -20,6 +21,8 @@ from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.dbs.postgres.events.dao import EventsRetentionDAO
 from ee.src.dbs.postgres.sessions.records.dao import RecordsRetentionDAO
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
+from ee.src.dbs.postgres.wallets.usage import WalletUsageDAO
+from ee.src.dbs.postgres.measurements.usage import MeasurementUsageDAO
 
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingRetentionService
@@ -27,10 +30,14 @@ from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.events.service import EventsRetentionService
 from ee.src.core.sessions.records.service import RecordsRetentionService
 from ee.src.core.wallets.service import WalletsService
+from ee.src.core.wallets.usage.service import WalletUsageService
+from ee.src.core.measurements.sandboxes import SandboxUsageService
+from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
 from ee.src.core.organizations.service import register_wallets_service
 
 from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
+from ee.src.apis.fastapi.wallets.router import WalletsRouter
 from ee.src.apis.fastapi.spans.router import SpansRetentionRouter
 from ee.src.apis.fastapi.events.router import EventsRouter, EventsRetentionRouter
 from ee.src.apis.fastapi.sessions.records.router import RecordsRetentionRouter
@@ -98,6 +105,12 @@ wallets_service = WalletsService(
     wallets_dao=wallets_dao,
 )
 
+wallet_usage_service = WalletUsageService(
+    wallets_dao=wallets_dao,
+    usage_dao=WalletUsageDAO(engine=_transactions_engine),
+    measurements_dao=MeasurementUsageDAO(engine=_analytics_engine),
+)
+
 subscription_service = SubscriptionsService(
     subscriptions_dao=subscriptions_dao,
     wallets_service=wallets_service,
@@ -120,6 +133,16 @@ access_router = AccessRouter()
 billing_router = BillingRouter(
     subscription_service=subscription_service,
     meters_service=meters_service,
+)
+
+wallets_router = WalletsRouter(
+    wallet_usage_service=wallet_usage_service,
+    sandbox_usage_service=SandboxUsageService(
+        wallet=wallets_service,
+        publisher=RedisMeasurementPublisher(
+            redis_client=get_streams_engine().get_redis()
+        ),
+    ),
 )
 
 spans_retention_router = SpansRetentionRouter(
@@ -162,6 +185,14 @@ def extend_main(app: FastAPI):
         tags=["Admin"],
         include_in_schema=False,
     )
+
+    # Absent, not refused, while the wallet is off: every route here is then a 404.
+    if env.wallets.enabled:
+        app.include_router(
+            router=wallets_router.router,
+            prefix="/wallets",
+            tags=["Wallets"],
+        )
 
     app.include_router(
         router=spans_retention_router.admin_router,

@@ -58,6 +58,7 @@ export {
     fetchAgTypeSchema,
     // Harness capabilities catalog
     fetchHarnessCapabilities,
+    fetchBuiltinModelEndpoints,
     // Catalog
     fetchWorkflowCatalogTemplates,
     type WorkflowCatalogTemplate,
