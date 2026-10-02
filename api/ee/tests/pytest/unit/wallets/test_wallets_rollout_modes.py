@@ -5,6 +5,7 @@ never refuses, and measures everything. `enforce` is the wallet's answer, as bef
 """
 
 import asyncio
+import time
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -24,7 +25,16 @@ from oss.src.core.managed_tools.dtos import (
     ManagedActionOutcome,
 )
 from oss.src.core.managed_tools.mock.actions import ENRICH_PERSON
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.gateways.policy import service as policy_service_module
+from oss.src.core.gateways.policy.dtos import PolicyDecision
+from oss.src.core.gateways.policy.service import (
+    SPEND_ADMISSION_TIMEOUT_SECONDS,
+    GatewayPolicyService,
+)
+from oss.src.core.rollout import switches
 from oss.src.core.rollout.switches import WalletMode
+from oss.src.utils.env import env
 from oss.src.utils.context import AuthScope
 
 from ee.src.core.measurements.sandboxes import (
@@ -259,3 +269,120 @@ async def test_only_off_skips_the_measurement(produce, mode, value, published):
     mode(value)
 
     assert await produce(_scope()) == published
+
+
+# Through the gateway's own bounds, with the real rollout lookup
+
+
+class _SlowPostHog:
+    def __init__(self, payload, delay):
+        self.payload = payload
+        self.delay = delay
+
+    def get_feature_flag_payload(self, flag, distinct_id):
+        time.sleep(self.delay)
+        return self.payload
+
+
+@pytest.fixture
+def real_rollout(monkeypatch):
+    """The real `wallet_mode_for`, with the rollout flags on and no shared cache."""
+    monkeypatch.setattr(admission, "wallet_mode_for", switches.wallet_mode_for)
+    monkeypatch.setattr(env.wallets, "enabled", True)
+    monkeypatch.setattr(env.rollout, "enabled", True)
+
+    async def _miss(**_kwargs):
+        return None
+
+    monkeypatch.setattr(switches, "get_cache", _miss)
+    monkeypatch.setattr(switches, "set_cache", _miss)
+    switches._payloads.clear()
+    switches._refreshes.clear()
+    yield
+    switches._payloads.clear()
+    switches._refreshes.clear()
+
+
+class _StuckWallet:
+    async def check(self, *, organization_id):
+        await asyncio.sleep(10)
+        return False
+
+
+def _policy(publisher=None):
+    return GatewayPolicyService(
+        resolver=None,
+        spend_admission=WalletSpendAdmission(wallet=_StuckWallet()),
+        usage_sink=MeasurementUsageSink(
+            publisher=publisher or InMemoryMeasurementPublisher()
+        ),
+    )
+
+
+async def test_shadow_admits_inside_the_gateways_bound_even_with_a_stuck_wallet(
+    real_rollout, monkeypatch
+):
+    scope = _scope()
+    switches._payloads[switches.WALLETS_ROLLOUT_FLAG] = (
+        time.monotonic(),
+        {str(scope.organization_id): "shadow"},
+    )
+
+    started = time.monotonic()
+    result = await _policy().admit(scope=scope, target=_TARGET)
+
+    assert result.allowed is True
+    assert time.monotonic() - started < SPEND_ADMISSION_TIMEOUT_SECONDS
+
+
+async def test_a_slow_first_lookup_admits_inside_the_gateways_bound(
+    real_rollout, monkeypatch
+):
+    scope = _scope()
+    monkeypatch.setattr(
+        switches,
+        "_load_posthog",
+        lambda: _SlowPostHog({str(scope.organization_id): "shadow"}, delay=1.2),
+    )
+
+    started = time.monotonic()
+    result = await _policy().admit(scope=scope, target=_TARGET)
+
+    assert result.allowed is True
+    assert time.monotonic() - started < SPEND_ADMISSION_TIMEOUT_SECONDS
+
+
+async def test_an_expired_payload_never_delays_the_measurement_past_its_bound(
+    real_rollout, monkeypatch
+):
+    # The payload expired during the provider call and PostHog is slow: the hand-off
+    # still publishes inside its 0.5s bound, on the stale payload.
+    scope = _scope()
+    switches._payloads[switches.WALLETS_ROLLOUT_FLAG] = (
+        time.monotonic() - switches.ROLLOUT_CACHE_TTL_SECONDS - 1,
+        {str(scope.organization_id): "enforce"},
+    )
+    monkeypatch.setattr(
+        switches,
+        "_load_posthog",
+        lambda: _SlowPostHog({str(scope.organization_id): "enforce"}, delay=1.0),
+    )
+    publisher = InMemoryMeasurementPublisher()
+
+    async def _no_audit(**_kwargs):
+        return None
+
+    monkeypatch.setattr(policy_service_module, "publish_gateway_call", _no_audit)
+
+    await _policy(publisher).record(
+        scope=scope,
+        target=_TARGET,
+        decision=PolicyDecision(allowed=True, permission=Permission.USE_LLM_ENDPOINTS),
+        outcome=GatewayOutcome(
+            status_code=200,
+            usage=GatewayUsage(input_tokens=3, output_tokens=2),
+            origin=SecretOrigin.LOCAL,
+        ),
+    )
+
+    assert len(publisher.published) == 1

@@ -20,8 +20,9 @@ answers an unreachable PostHog with no payload rather than an error, so "no payl
 
 import asyncio
 import json
+import time
 from enum import Enum
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set, Tuple
 from uuid import UUID
 
 from oss.src.utils.caching import get_cache, set_cache
@@ -34,13 +35,14 @@ log = get_module_logger(__name__)
 LLM_GATEWAY_ROLLOUT_FLAG = "llm-gateway-rollout"
 WALLETS_ROLLOUT_FLAG = "wallets-rollout"
 
-# How long a payload, or a failed lookup, is reused before PostHog is asked again. It bounds
-# how long a payload edit takes to apply, and how often an unreachable PostHog is retried.
-ROLLOUT_CACHE_TTL_SECONDS = 60
+# How long a payload is used before it is refreshed, in this process and in the shared
+# `posthog:flags` cache. A payload edit applies within about two of these.
+ROLLOUT_CACHE_TTL_SECONDS = 30
 
-# Below the 2s bound the wallet admission points put around their whole answer, so a slow
-# PostHog reads as "switch off" instead of timing out the admission that asked.
-ROLLOUT_LOOKUP_TIMEOUT_SECONDS = 1.5
+# How long a caller waits when this process holds no payload yet (its first lookup per
+# flag). Short enough that the lookup plus a 1s shadow wallet check stays inside the 2s
+# bound each wallet admission point puts around its answer.
+ROLLOUT_LOOKUP_TIMEOUT_SECONDS = 0.5
 
 # The flags are rolled out to everyone; the payload, not the targeting, carries the rollout.
 _DISTINCT_ID = "agenta-rollout"
@@ -70,43 +72,84 @@ async def wallet_mode_for(organization_id: UUID) -> WalletMode:
     return _parse_wallet_modes(payload).get(str(organization_id), WalletMode.OFF)
 
 
-async def _flag_payload(flag: str) -> Optional[Any]:
-    """The flag's raw payload, from the shared `posthog:flags` cache when fresh.
+# flag -> (monotonic time fetched, payload), and the one refresh in flight per flag.
+_payloads: Dict[str, Tuple[float, Any]] = {}
+_refreshes: Dict[str, "asyncio.Future[Any]"] = {}
 
-    A failed lookup is cached as "no payload" too, so an unreachable PostHog costs one
-    request per TTL rather than one per gateway call.
+
+async def _flag_payload(flag: str) -> Optional[Any]:
+    """The flag's raw payload, without a PostHog round trip on the request path.
+
+    A fresh payload is returned as is. A stale one is returned too, while one shared
+    refresh runs in the background; the request path waits only when this process has no
+    payload at all, and then at most `ROLLOUT_LOOKUP_TIMEOUT_SECONDS`. The admission that
+    precedes a measurement therefore leaves a payload behind for the measurement to read.
     """
+    cached = _payloads.get(flag)
+    if cached and time.monotonic() - cached[0] < ROLLOUT_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    refresh = _refreshes.get(flag)
+    if refresh is None:
+        refresh = asyncio.ensure_future(_refresh(flag))
+        _refreshes[flag] = refresh
+        refresh.add_done_callback(lambda _: _refreshes.pop(flag, None))
+
+    if cached:
+        return cached[1]
+    try:
+        # Shielded: a caller that gives up must not cancel the refresh other callers share.
+        return await asyncio.wait_for(
+            asyncio.shield(refresh), timeout=ROLLOUT_LOOKUP_TIMEOUT_SECONDS
+        )
+    except Exception as exc:  # noqa: BLE001 - a lookup not answered in time reads as "off"
+        log.warning(
+            "[rollout] payload not ready; rollout switch off for this call",
+            feature_flag=flag,
+            reason=repr(exc),
+        )
+        return None
+
+
+async def _refresh(flag: str) -> Optional[Any]:
+    """Read the payload from the shared cache, else from PostHog, and keep it here.
+
+    Any failure keeps "no payload", so an unreachable PostHog is asked once per TTL per
+    process, not once per call.
+    """
+    payload: Optional[Any] = None
+    try:
+        payload = await _shared_payload(flag)
+    except Exception as exc:  # noqa: BLE001 - any failure reads as "switch off"
+        log.warning(
+            "[rollout] PostHog lookup failed; rollout switch off",
+            feature_flag=flag,
+            reason=repr(exc),
+        )
+    _payloads[flag] = (time.monotonic(), payload)
+    return payload
+
+
+async def _shared_payload(flag: str) -> Optional[Any]:
     cache_key = {"ff": flag, "kind": "payload"}
     cached = await get_cache(namespace="posthog:flags", key=cache_key, retry=False)
     if isinstance(cached, dict):
         return cached.get("payload")
 
-    payload: Optional[Any] = None
     posthog = _load_posthog()
     if posthog is None:
         log.warning(
             "[rollout] PostHog unavailable; rollout switch off", feature_flag=flag
         )
-    else:
-        try:
-            # The client call is blocking HTTP; keep it off the event loop.
-            payload = await asyncio.wait_for(
-                asyncio.to_thread(posthog.get_feature_flag_payload, flag, _DISTINCT_ID),
-                timeout=ROLLOUT_LOOKUP_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:  # noqa: BLE001 - any failure reads as "switch off"
-            log.warning(
-                "[rollout] PostHog lookup failed; rollout switch off",
-                feature_flag=flag,
-                reason=repr(exc),
-            )
-        else:
-            if payload is None:
-                log.warning(
-                    "[rollout] no payload from PostHog; rollout switch off",
-                    feature_flag=flag,
-                )
-
+        return None
+    # The client call is blocking HTTP with its own timeout; keep it off the event loop.
+    payload = await asyncio.to_thread(
+        posthog.get_feature_flag_payload, flag, _DISTINCT_ID
+    )
+    if payload is None:
+        log.warning(
+            "[rollout] no payload from PostHog; rollout switch off", feature_flag=flag
+        )
     await set_cache(
         namespace="posthog:flags",
         key=cache_key,

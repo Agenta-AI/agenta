@@ -38,6 +38,22 @@ class _PostHog:
         return self.payloads.get(flag)
 
 
+@pytest.fixture(autouse=True)
+def _fresh_process_state():
+    """Each test starts as a process that has read no payload yet."""
+    switches._payloads.clear()
+    switches._refreshes.clear()
+    yield
+    switches._payloads.clear()
+    switches._refreshes.clear()
+
+
+async def _settle():
+    """Let a background refresh finish."""
+    for refresh in list(switches._refreshes.values()):
+        await refresh
+
+
 @pytest.fixture
 def cache(monkeypatch):
     """The shared `posthog:flags` cache, in memory, recording each write's TTL."""
@@ -198,15 +214,46 @@ async def test_a_payload_is_read_once_per_ttl_in_the_shared_cache(posthog, cache
     assert ttl == switches.ROLLOUT_CACHE_TTL_SECONDS
 
 
-async def test_an_edit_applies_once_the_cached_payload_expires(posthog, cache):
+async def test_another_process_reads_the_shared_cache_instead_of_posthog(
+    posthog, cache
+):
+    client = posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "shadow"}}))
+    assert await wallet_mode_for(ORG) is WalletMode.SHADOW
+
+    switches._payloads.clear()  # a second API process, same Redis
+    assert await wallet_mode_for(ORG) is WalletMode.SHADOW
+
+    assert client.calls == [WALLETS_ROLLOUT_FLAG]
+
+
+async def test_a_stale_payload_is_served_while_one_refresh_fetches_the_edit(
+    posthog, cache
+):
     client = posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "shadow"}}))
     assert await wallet_mode_for(ORG) is WalletMode.SHADOW
 
     client.payloads[WALLETS_ROLLOUT_FLAG] = {str(ORG): "enforce"}
-    assert await wallet_mode_for(ORG) is WalletMode.SHADOW
-    cache.clear()  # the TTL ran out
+    cache.clear()  # the shared TTL ran out
+    fetched_at, payload = switches._payloads[WALLETS_ROLLOUT_FLAG]
+    switches._payloads[WALLETS_ROLLOUT_FLAG] = (
+        fetched_at - switches.ROLLOUT_CACHE_TTL_SECONDS - 1,
+        payload,
+    )
 
+    # Served at once from the stale payload; the edit lands with the background refresh.
+    assert await wallet_mode_for(ORG) is WalletMode.SHADOW
+    await _settle()
     assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
+    assert client.calls == [WALLETS_ROLLOUT_FLAG] * 2
+
+
+async def test_concurrent_first_callers_share_one_lookup(posthog):
+    client = posthog(_PostHog({LLM_GATEWAY_ROLLOUT_FLAG: [str(ORG)]}, delay=0.05))
+
+    answers = await asyncio.gather(*(llm_gateway_enabled_for(ORG) for _ in range(12)))
+
+    assert answers == [True] * 12
+    assert client.calls == [LLM_GATEWAY_ROLLOUT_FLAG]
 
 
 # PostHog failing
@@ -231,7 +278,7 @@ async def test_posthog_unavailable_is_off(posthog):
     assert await wallet_mode_for(ORG) is WalletMode.OFF
 
 
-async def test_a_failed_lookup_is_cached_so_an_outage_costs_one_request_per_ttl(
+async def test_a_failed_lookup_is_kept_so_an_outage_costs_one_request_per_ttl(
     posthog,
 ):
     client = posthog(_PostHog(raises=True))
@@ -242,12 +289,14 @@ async def test_a_failed_lookup_is_cached_so_an_outage_costs_one_request_per_ttl(
     assert client.calls == [WALLETS_ROLLOUT_FLAG]
 
 
-async def test_a_slow_posthog_reads_as_off_within_the_lookup_bound(
+async def test_a_slow_first_lookup_reads_as_off_and_its_answer_lands_later(
     posthog, monkeypatch
 ):
     monkeypatch.setattr(switches, "ROLLOUT_LOOKUP_TIMEOUT_SECONDS", 0.05)
-    posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "enforce"}}, delay=0.5))
+    posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "enforce"}}, delay=0.3))
 
-    mode = await asyncio.wait_for(wallet_mode_for(ORG), timeout=0.4)
-
+    mode = await asyncio.wait_for(wallet_mode_for(ORG), timeout=0.2)
     assert mode is WalletMode.OFF
+
+    await _settle()
+    assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
