@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import NoResultFound
 
 from oss.src.utils.common import APIRouter
 from oss.src.services import api_key_service
@@ -139,7 +140,7 @@ async def delete_api_key(
             user_id=request.state.user_id, key_prefix=key_prefix
         )
         return {"message": "API key deleted successfully"}
-    except KeyError:
+    except NoResultFound:
         raise HTTPException(
             status_code=404, detail="API key not found or does not belong to the user."
         )
