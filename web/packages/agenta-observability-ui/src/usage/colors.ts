@@ -1,0 +1,51 @@
+/**
+ * Every color the Usage tab draws with, in one place. Edit a value here to restyle the tab;
+ * components read them only as `var(--usage-*)`, which `USAGE_COLOR_CSS` defines.
+ */
+const LIGHT = {
+    cost: "#7e90a4",
+    runs: "#b5b16c",
+    success: "#88ad94",
+    tokens: "#d2a08a",
+    tools: "#a995b3",
+    avgcost: "#88b0ad",
+    failed: "#d99491",
+    // Stacked series by rank, then the "Other" remainder.
+    series1: "#7e90a4",
+    series2: "#d2a08a",
+    series3: "#b5b16c",
+    series4: "#88b0ad",
+    series5: "#a995b3",
+    other: "#d7d5d1",
+    // Failure-rate bars: above and below the overall rate.
+    failAbove: "#e3a9a5",
+    failBelow: "#ecd2cf",
+    // Status dots and text.
+    dotOk: "#88ad94",
+    dotFailed: "#d94c4a",
+    textBad: "#b33a38",
+    textWarn: "#9a6b1f",
+    textGood: "#2e7d3a",
+}
+
+const DARK: typeof LIGHT = {
+    ...LIGHT,
+    other: "#4b4a48",
+    failBelow: "#6b4442",
+    textBad: "#e5807e",
+    textWarn: "#d7a75a",
+    textGood: "#7fbf88",
+}
+
+export type UsageColor = keyof typeof LIGHT
+
+export const usageColor = (name: UsageColor) => `var(--usage-${name})`
+
+export const SERIES_COLORS: UsageColor[] = ["series1", "series2", "series3", "series4", "series5"]
+
+const declarations = (palette: typeof LIGHT) =>
+    Object.entries(palette)
+        .map(([name, value]) => `--usage-${name}:${value};`)
+        .join("")
+
+export const USAGE_COLOR_CSS = `:root{${declarations(LIGHT)}}.dark{${declarations(DARK)}}`
