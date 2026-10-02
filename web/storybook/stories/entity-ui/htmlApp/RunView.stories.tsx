@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {type FsRequest, type GrantLevel, type MockHtmlAppHostOptions} from "@agenta/entities/drive"
+import {type AppAccess, type FsRequest, type MockHtmlAppHostOptions} from "@agenta/entities/drive"
 import {KIT_CSS, RunView} from "@agenta/entity-ui/drive"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
@@ -65,7 +65,7 @@ const RunStory = ({
     files: Record<string, string>
     dir?: string
     entry?: string
-    grant?: GrantLevel
+    grant?: AppAccess
     actions?: DriverAction[]
     latencyMs?: number
     failWith?: MockHtmlAppHostOptions["failWith"]
@@ -99,7 +99,7 @@ const RunStory = ({
                     dir={dir}
                     entryPath={`${dir}/${entry}`}
                     entryContent={files[entry] ?? ""}
-                    grant={grant}
+                    access={grant}
                     io={io}
                     kitCss={KIT_CSS}
                     changedPaths={changed}
@@ -141,6 +141,22 @@ export const RunningReadOnly: Story = {
                 {
                     label: "Write board.json (refused)",
                     run: (h) => h.handle(req("writeJSON", "board.json", "{}")),
+                },
+            ]}
+        />
+    ),
+}
+
+/** No file access (never asked, or refused) — the strip says so, every call fails `unavailable`. */
+export const RunningNoAccess: Story = {
+    render: () => (
+        <RunStory
+            files={BOARD_APP}
+            grant="none"
+            actions={[
+                {
+                    label: "Read board.json (refused)",
+                    run: (h) => h.handle(req("readJSON", "board.json")),
                 },
             ]}
         />

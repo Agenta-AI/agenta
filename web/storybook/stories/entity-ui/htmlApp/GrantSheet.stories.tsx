@@ -7,9 +7,10 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 import {APP_DIR} from "../../../fixtures/htmlApp"
 
 /**
- * The grant question before an app runs. Four states: read preselected (the manifest asks for
- * `read`, or asks for nothing), read-write preselected (the manifest asks for it and the user may
- * edit mounts), the write option hidden (the drive's upload gate is off), and the cancel path.
+ * The access question an app raises on its first file call. Four states: read preselected (the
+ * manifest asks for `read`, or asks for nothing), read-write preselected (the manifest asks for it
+ * and the user may edit mounts), the write option hidden (the drive's upload gate is off), and the
+ * cancel path. "Don't allow" is always offered.
  */
 const meta = {
     title: "@agenta/entity-ui/Drive/HtmlApp/GrantSheet",
@@ -27,12 +28,12 @@ const Harness = ({
     requested,
     canWrite,
     appName = "Retro board",
-    pending = false,
+    container,
 }: {
     requested: GrantLevel
     canWrite: boolean
     appName?: string
-    pending?: boolean
+    container?: HTMLElement | null
 }) => {
     const [open, setOpen] = useState(true)
     const [outcome, setOutcome] = useState<string>("(no answer yet)")
@@ -43,7 +44,7 @@ const Harness = ({
                 onClick={() => setOpen(true)}
                 className="cursor-pointer rounded border border-solid border-colorBorder bg-colorBgContainer px-2 py-1 text-xs text-colorText hover:bg-colorFillTertiary"
             >
-                Run…
+                Ask…
             </button>
             <span>
                 Outcome: <code className="text-colorText">{outcome}</code>
@@ -54,13 +55,13 @@ const Harness = ({
                 dir={APP_DIR}
                 requested={requested}
                 canWrite={canWrite}
-                pending={pending}
+                container={container}
                 onCancel={() => {
-                    setOutcome("cancelled → back to Preview")
+                    setOutcome("cancelled → no access this run")
                     setOpen(false)
                 }}
                 onConfirm={(level) => {
-                    setOutcome(`granted ${level}`)
+                    setOutcome(`answered ${level}`)
                     setOpen(false)
                 }}
             />
@@ -87,15 +88,38 @@ export const WriteHidden: Story = {
     render: (args) => <Harness requested={args.requested} canWrite={args.canWrite} />,
 }
 
-export const LoadingManifest: Story = {
-    args: {requested: "read", canWrite: true, pending: true},
-    render: (args) => <Harness requested={args.requested} canWrite={args.canWrite} pending />,
-}
-
-/** Acceptance: Cancel closes the sheet and returns to Preview (click Cancel, then "Run…" again). */
+/** Acceptance: Cancel closes the sheet; the app keeps running with no access (click "Ask…" again). */
 export const Cancel: Story = {
     args: {requested: "read", canWrite: true},
     render: (args) => (
         <Harness requested={args.requested} canWrite={args.canWrite} appName="Broken app" />
     ),
+}
+
+/** Confined to a pane (the Files pane in the drive): only the pane is masked, the rest stays live. */
+export const ContainedInPane: Story = {
+    args: {requested: "read", canWrite: true},
+    render: function Render(args) {
+        const [pane, setPane] = useState<HTMLDivElement | null>(null)
+        return (
+            <div className="flex h-[420px] w-[760px] gap-3 text-xs">
+                <textarea
+                    className="w-[300px] rounded border border-solid border-colorBorder bg-colorBgContainer p-2 text-colorText"
+                    defaultValue="The chat column stays usable while the sheet is open."
+                />
+                <div
+                    ref={setPane}
+                    className="relative flex-1 overflow-hidden rounded border border-solid border-colorBorderSecondary"
+                >
+                    {pane ? (
+                        <Harness
+                            requested={args.requested}
+                            canWrite={args.canWrite}
+                            container={pane}
+                        />
+                    ) : null}
+                </div>
+            </div>
+        )
+    },
 }

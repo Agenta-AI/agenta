@@ -1,20 +1,15 @@
 /**
- * Assembles the documents the HTML viewer's iframe renders.
+ * Assembles the document the HTML app's iframe runs.
  *
- * - `assemblePreview` is the Preview tab: it folds a multi-file site into ONE self-contained
- *   document (linked stylesheets → inline `<style>`, images → data URIs, all fetched from the SAME
- *   mount and resolved against the HTML file's folder), then hardens it for
- *   `sandbox="allow-scripts"` — the agent's scripts, inline `on*` handlers and `javascript:` URLs
- *   are stripped so ONLY {@link HTML_NAV_INTERCEPTOR} runs. Lifted verbatim out of
- *   `renderers.tsx`; the lock is `tests/unit/htmlApp.assemble.test.ts`.
- * - `assembleRunDocument` is the Run tab (agent HTML apps): the same asset inlining, but the
- *   author's scripts are KEPT (same-folder `<script src>` is inlined, `https:` ones load as-is),
- *   and the head gains the CSP, the kit tokens + CSS, and the bridge stub that gives the app
- *   `window.agenta`. No nav interceptor: the stub carries navigation over the port.
+ * `assembleRunDocument` folds a multi-file app into one document: linked stylesheets become inline
+ * `<style>` and images become data URIs, all fetched from the SAME mount and resolved against the
+ * app's folder. The author's scripts are KEPT (same-folder `<script src>` is inlined, `https:` ones
+ * load as-is), and the head gains the CSP, the kit tokens + CSS, and the bridge stub that gives the
+ * app `window.agenta`.
  *
- * Both are pure — mount access arrives through {@link AssembleIo}.
+ * Pure: mount access arrives through {@link AssembleIo}.
  */
-import {BRIDGE_STUB, PREVIEW_CSP, RUN_CSP} from "@agenta/entities/drive"
+import {BRIDGE_STUB, RUN_CSP} from "@agenta/entities/drive"
 
 import {tokensToCss} from "./kit"
 
@@ -50,8 +45,7 @@ export const INLINE_ASSET_CAP = 8 * 1024 * 1024
 
 /**
  * How the assembler reaches the mount. Paths are mount-relative (already resolved against the
- * HTML file's folder). `null` in a context means "no mount" — a local composer attachment — and
- * skips every asset fetch while the sanitize + interceptor pipeline still runs.
+ * HTML file's folder). `null` in a context means "no mount" and skips every asset fetch.
  */
 export interface AssembleIo {
     /** Text of a file, or null when it cannot be read. */
@@ -74,34 +68,32 @@ export const blobToDataUri = (blob: Blob | null): Promise<string | null> => {
 /**
  * Options for {@link inlineAssets}.
  *
- * `confine` is what separates Run from Preview. Preview renders ANY html file in the drive, where
- * `../assets/site.css` is an ordinary thing to write and the reader could open that file directly
- * anyway, so it resolves freely. Run happens under a grant the person gave for ONE folder, so a
- * reference that climbs out of it is refused: `resolveRel` pops `..` with no floor, and without
- * this an app could pull any text file in the mount into a `<style>` (or execute it as a script)
- * and then write what it read back into its own folder. The `fs` bridge has always refused those
+ * `confine` keeps every reference inside the app folder. Run happens under a grant the person gave
+ * for ONE folder, so a reference that climbs out of it is refused: `resolveRel` pops `..` with no
+ * floor, and without this an app could pull any text file in the mount into a `<style>` (or
+ * execute it as a script) and then write what it read back into its own folder. The `fs` bridge has always refused those
  * paths; markup went around it.
  */
 interface InlineOptions {
-    /** App dir every reference must stay inside. Omitted: resolve anywhere in the mount. */
-    confine?: string
+    /** App dir every reference must stay inside. */
+    confine: string
     /** Sink for references dropped by `confine`, surfaced in the Run tab's error strip. */
     errors?: string[]
 }
 
-/** Inline relative stylesheets/images from the mount into `doc`. Shared by Preview and Run. */
+/** Inline relative stylesheets/images from the mount into `doc`. */
 async function inlineAssets(
     doc: Document,
     dir: string,
     io: AssembleIo,
-    opts: InlineOptions = {},
+    opts: InlineOptions,
 ): Promise<void> {
     const {confine, errors} = opts
 
     /** Mount-relative target, or null when it leaves `confine`. */
     const target = (ref: string, kind: string): string | null => {
         const path = resolveRel(dir, ref)
-        if (confine !== undefined && !withinDir(confine, path)) {
+        if (!withinDir(confine, path)) {
             errors?.push(`${kind} outside the app folder was not loaded: ${ref}`)
             return null
         }
@@ -143,85 +135,6 @@ async function inlineAssets(
 }
 
 // ---------------------------------------------------------------------------------------------
-// Preview
-// ---------------------------------------------------------------------------------------------
-
-export interface PreviewContext {
-    /** Folder of the HTML file, mount-relative (`""` for the root). */
-    dir: string
-    /** Mount access, or null for a local (mount-less) document. */
-    io: AssembleIo | null
-}
-
-// The ONLY script that runs in the preview (the agent's are stripped): it turns an internal
-// relative link click into a `postMessage` the parent uses to open that file in the drive, and
-// external links fall through to the browser (a new tab). Anchors (#…) become a hash change on the
-// document itself: a srcdoc document resolves `#x` against the PARENT app's URL, so left to the
-// browser the click navigated to the app instead of scrolling.
-export const HTML_NAV_INTERCEPTOR =
-    '(function(){document.addEventListener("click",function(e){var el=e.target;while(el&&el.tagName!=="A")el=el.parentElement;if(!el)return;var href=el.getAttribute("href");if(!href)return;if(href.charAt(0)==="#"){e.preventDefault();location.hash=href;return}if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf("//")===0)return;e.preventDefault();parent.postMessage({type:"ag-html-nav",href:href},"*")},true)})()'
-
-/**
- * Fold a multi-file site into ONE self-contained document the sandboxed iframe can render: linked
- * stylesheets become inline `<style>`, images become data URIs — all fetched from the SAME mount,
- * resolved against the HTML file's folder. Best-effort: external URLs are left alone, and CSS's own
- * `url(...)`/`@import` chains aren't followed (v1).
- *
- * Then hardened for `sandbox="allow-scripts"`: the agent's `<script>`s, inline `on*` handlers, and
- * `javascript:` URLs are stripped so ONLY {@link HTML_NAV_INTERCEPTOR} runs; external links open in a
- * new tab; internal links are intercepted and routed to the drive.
- */
-export async function assemblePreview(html: string, {dir, io}: PreviewContext): Promise<string> {
-    try {
-        const doc = new DOMParser().parseFromString(html, "text/html")
-
-        // Skipped for a LOCAL preview (a composer attachment has no mount) — the sanitize +
-        // interceptor pipeline below still runs, so the Preview tab assembles instead of loading
-        // forever.
-        if (io) await inlineAssets(doc, dir, io)
-
-        // Strip every agent-authored script vector so allow-scripts only runs our interceptor.
-        doc.querySelectorAll("script").forEach((s) => s.remove())
-        doc.querySelectorAll("iframe[srcdoc]").forEach((f) => f.removeAttribute("srcdoc"))
-        doc.querySelectorAll("*").forEach((el) => {
-            for (const attr of Array.from(el.attributes)) {
-                if (/^on/i.test(attr.name)) el.removeAttribute(attr.name)
-                else if (/^\s*javascript:/i.test(attr.value)) el.setAttribute(attr.name, "#")
-            }
-        })
-        doc.querySelectorAll("a[href]").forEach((a) => {
-            const href = a.getAttribute("href") ?? ""
-            // Anchors stay in the document (the interceptor scrolls); a new tab would resolve
-            // `#x` against the app's URL and reload the whole app there.
-            if (isExternalUrl(href) && !href.startsWith("#")) {
-                a.setAttribute("target", "_blank")
-                a.setAttribute("rel", "noopener noreferrer")
-            }
-        })
-        // First child of <head>, because a policy only governs what the parser meets after it —
-        // a nested browsing context declared earlier in the document would load unpoliced.
-        const csp = doc.createElement("meta")
-        csp.setAttribute("http-equiv", "Content-Security-Policy")
-        csp.setAttribute("content", PREVIEW_CSP)
-        const head =
-            doc.head ??
-            doc.documentElement.insertBefore(
-                doc.createElement("head"),
-                doc.documentElement.firstChild,
-            )
-        head.insertBefore(csp, head.firstChild)
-
-        const interceptor = doc.createElement("script")
-        interceptor.textContent = HTML_NAV_INTERCEPTOR
-        ;(doc.body ?? doc.documentElement).appendChild(interceptor)
-
-        return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`
-    } catch {
-        return html
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
 // Run
 // ---------------------------------------------------------------------------------------------
 
@@ -251,7 +164,7 @@ export interface RunDocument {
 const escapeInlineScript = (text: string): string => text.replace(/<\/script/gi, "<\\/script")
 
 /**
- * The Run document: assets inlined as in Preview, author scripts kept (same-folder `<script src>`
+ * The Run document: same-mount assets inlined, author scripts kept (same-folder `<script src>`
  * inlined through `io`, `https:` ones left for the browser to load under {@link RUN_CSP}, any other
  * scheme dropped with a note), then — at the top of `<head>`, in this
  * order — the CSP meta, the kit tokens, the kit CSS (when enabled) and the bridge stub, so the stub

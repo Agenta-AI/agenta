@@ -16,9 +16,12 @@
 import {
     isFsRequest,
     isIframeToParent,
+    NO_ACCESS_MESSAGE,
     READ_CAP,
     WRITE_CAP,
     WRITE_METHODS,
+    type AccessMsg,
+    type AppAccess,
     type BridgeError,
     type BridgeErrorCode,
     type ChangedMsg,
@@ -29,7 +32,6 @@ import {
     type FsRequest,
     type FsResponse,
     type FsResults,
-    type GrantLevel,
     type Hello,
     type HtmlAppHost,
     type HtmlAppHostError,
@@ -41,7 +43,9 @@ import {
 import {normalizeAppPath} from "./scope"
 
 export interface MockHtmlAppHostOptions {
-    grant?: GrantLevel
+    grant?: AppAccess
+    /** Asked before the first fs call is served, as the real host does. */
+    requestAccess?: () => Promise<AppAccess>
     dir?: string
     latencyMs?: number
     visible?: boolean
@@ -112,7 +116,9 @@ export function createMockHtmlAppHost(
     initialFiles: Record<string, string>,
     opts: MockHtmlAppHostOptions = {},
 ): MockHtmlAppHost {
-    const grant: GrantLevel = opts.grant ?? "read"
+    let grant: AppAccess = opts.grant ?? "read"
+    let requestAccess = opts.requestAccess
+    let answering: Promise<void> | null = null
     const dir = opts.dir ?? "app"
     const latencyMs = opts.latencyMs ?? 0
     const failWith = opts.failWith ?? {}
@@ -217,6 +223,7 @@ export function createMockHtmlAppHost(
         const path = normalizeAppPath(req.path, {allowRoot: method === "list"})
         if (path === null) return failure(id, {code: "scope", message: FORCED_MESSAGES.scope})
 
+        if (grant === "none") return failure(id, {code: "unavailable", message: NO_ACCESS_MESSAGE})
         if (WRITE_METHODS.has(method) && grant !== "read-write") {
             return failure(id, {code: "read_only", message: FORCED_MESSAGES.read_only})
         }
@@ -293,9 +300,24 @@ export function createMockHtmlAppHost(
         }
     }
 
+    // Same rule as the real host: concurrent calls share one question, asked once per host.
+    const settleAccess = (ask: () => Promise<AppAccess>): Promise<void> => {
+        answering ??= ask()
+            .catch((): AppAccess => "none")
+            .then((answer) => {
+                grant = answer
+                requestAccess = undefined
+                const msg: AccessMsg = {v: 1, type: "access", canWrite: answer === "read-write"}
+                post(msg)
+            })
+        return answering
+    }
+
     const handle = async (req: FsRequest): Promise<FsResponse | FsFailure> => {
         log.push(req)
         if (latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, latencyMs))
+        const inScope = normalizeAppPath(req.path, {allowRoot: req.method === "list"}) !== null
+        if (requestAccess && inScope && !failWith[req.method]) await settleAccess(requestAccess)
         const res = serve(req)
         if (!res.ok) {
             emitError({

@@ -1,8 +1,8 @@
 /**
  * The Run tab: the app in a sandboxed iframe under a status strip.
  *
- * Strip: a dot, `Running · read + write · <dir>`, a "‹ back" control once the app navigated to a
- * sibling page, a Refresh MENU (one item, "Reload files": re-assemble + re-attach), a "Files
+ * Strip: a dot, `Running · read + write · <dir>` (or `no file access`), a "‹ back" control once
+ * the app navigated to a sibling page, a Refresh button (re-assemble + re-attach), a "Files
  * changed" pill when the drive moved underneath the app, and an error badge that expands into the
  * list (with Copy). The host is attached on the frame's first load and detached on unmount; theme changes
  * (`.dark` / `data-theme` on the root, or the OS preference) re-resolve the kit tokens and reach
@@ -10,7 +10,7 @@
  *
  * Navigation: the host reports `nav` hrefs. A target inside the app dir is fetched, assembled and
  * shown here (with the previous page pushed on the back stack); anything else goes to `onNavigate`,
- * exactly as the Preview tab routes internal links today.
+ * which opens that file in the drive.
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
@@ -18,20 +18,16 @@ import {
     SANDBOX_FLAGS,
     buildRunFrame,
     isFrameNavigated,
-    type GrantLevel,
+    type AppAccess,
     type HtmlAppHost,
     type HtmlAppHostError,
 } from "@agenta/entities/drive"
 import {
     Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
     Skeleton,
     cn,
 } from "@agenta/ui/ui"
-import {ArrowsClockwise, CaretDown, CaretLeft, Copy, Warning} from "@phosphor-icons/react"
+import {ArrowsClockwise, CaretLeft, Copy, Warning} from "@phosphor-icons/react"
 
 import {
     assembleRunDocument,
@@ -82,7 +78,8 @@ export interface RunViewProps {
     entryPath: string
     /** The entry file's text (the caller owns the query). */
     entryContent: string
-    grant: GrantLevel
+    /** What the app may touch now; the strip shows it. */
+    access: AppAccess
     io: AssembleIo | null
     /** Kit stylesheet; null when the manifest disables the kit. */
     kitCss: string | null
@@ -95,16 +92,20 @@ export interface RunViewProps {
     visible?: boolean
     /** Paths that changed underneath the app (from `useChangedHint`); shown as a pill. */
     changedPaths?: string[]
-    /** Called after "Reload files" (the caller may refetch the entry text and clear the hint). */
+    /** Called after Refresh (the caller may refetch the entry text and clear the hint). */
     onReload?: () => void
-    /** Navigation OUTSIDE the app dir — the Preview tab's behaviour (open that file in the drive). */
+    /** Navigation OUTSIDE the app dir: open that file in the drive. */
     onNavigate?: (path: string) => void
     /** Maps a mount-relative path to the presented one for `onNavigate` (default: identity). */
     toDisplayPath?: (path: string) => string
     className?: string
 }
 
-const GRANT_LABEL: Record<GrantLevel, string> = {read: "read", "read-write": "read + write"}
+const ACCESS_LABEL: Record<AppAccess, string> = {
+    none: "no file access",
+    read: "read",
+    "read-write": "read + write",
+}
 
 const describeError = (e: HtmlAppHostError): string => {
     if (e.kind === "script") return `Script error${e.line ? ` (line ${e.line})` : ""}: ${e.message}`
@@ -117,7 +118,7 @@ export function RunView({
     dir,
     entryPath,
     entryContent,
-    grant,
+    access,
     io,
     kitCss,
     bridgeStub,
@@ -137,7 +138,7 @@ export function RunView({
     const [frameKey, setFrameKey] = useState(0)
     /** Bumped per assembled page, so every page gets a fresh iframe and a fresh first load. */
     const [docVersion, setDocVersion] = useState(0)
-    /** The app tried to load another document; it stays stopped until "Reload files". */
+    /** The app tried to load another document; it stays stopped until Refresh. */
     const [stopped, setStopped] = useState(false)
     const attachedFrameRef = useRef<HTMLIFrameElement | null>(null)
     const [errors, setErrors] = useState<string[]>([])
@@ -152,7 +153,7 @@ export function RunView({
     useEffect(() => host.onError((e) => pushError(describeError(e))), [host, pushError])
 
     // Assemble the current page. The entry uses the text the caller already holds; a sibling
-    // page is fetched through `io`. `frameKey` in the deps makes "Reload files" re-assemble.
+    // page is fetched through `io`. `frameKey` in the deps makes Refresh re-assemble.
     useEffect(() => {
         let alive = true
         setDoc(null)
@@ -203,7 +204,7 @@ export function RunView({
     const stopApp = useCallback(() => {
         host.detach()
         setStopped(true)
-        pushError("The app tried to load another page and was stopped. Reload files to restart it.")
+        pushError("The app tried to load another page and was stopped. Refresh to restart it.")
     }, [host, pushError])
 
     // Attach on the frame's FIRST load only; detach when the view goes away. The hello goes to
@@ -307,7 +308,7 @@ export function RunView({
                         {doc == null ? "Starting" : stopped ? "Stopped" : "Running"}
                     </span>
                     {" · "}
-                    {GRANT_LABEL[grant]}
+                    {ACCESS_LABEL[access]}
                     {" · "}
                     <code className="text-[11px]">{dir || "/"}</code>
                     {pageLabel ? (
@@ -340,23 +341,16 @@ export function RunView({
                         </button>
                     ) : null}
 
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                aria-label="Refresh"
-                                className="h-6 gap-1 px-1.5 text-xs"
-                            >
-                                <ArrowsClockwise className="size-3" />
-                                Refresh
-                                <CaretDown weight="bold" className="size-2.5 opacity-70" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[160px]">
-                            <DropdownMenuItem onSelect={reload}>Reload files</DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={reload}
+                        title="Reload the app's files"
+                        className="h-6 gap-1 px-1.5 text-xs"
+                    >
+                        <ArrowsClockwise className="size-3" />
+                        Refresh
+                    </Button>
 
                     {errors.length > 0 ? (
                         <button

@@ -60,9 +60,17 @@ describe("grant store", () => {
 
     it("records what the app asked for, not only what the user chose", () => {
         // The user was offered read-write and picked read: `asked` remembers the offer, which is
-        // what stops the sheet re-opening every time they choose Run.
+        // what stops the sheet re-opening every time the app asks.
         setGrant("m1", "apps/board", "read", "read-write")
         expect(getGrant("m1", "apps/board")).toEqual({level: "read", asked: "read-write"})
+    })
+
+    it("stores a refusal and survives a reload of the mirror", () => {
+        setGrant("m1", "apps/board", "none", "read-write")
+        reloadGrants()
+        expect(getGrant("m1", "apps/board")).toEqual({level: "none", asked: "read-write"})
+        setGrant("m1", "apps/x", "none")
+        expect(getGrant("m1", "apps/x")).toEqual({level: "none", asked: "read"})
     })
 
     it("defaults `asked` to the granted level so a later escalation still asks", () => {

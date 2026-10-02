@@ -14,13 +14,13 @@
  * manifest LATER grows to read-write asks once, because `asked` is still `read`.
  */
 
-import type {GrantLevel} from "./protocol"
+import type {AppAccess, GrantLevel} from "./protocol"
 
 export const GRANTS_STORAGE_KEY = "agenta:app-grants"
 
-/** What the user chose, and the level the app was asking for at the time. */
+/** What the user chose (`none` refuses access), and the level the app was asking for at the time. */
 export interface GrantRecord {
-    level: GrantLevel
+    level: AppAccess
     asked: GrantLevel
 }
 
@@ -31,6 +31,8 @@ const grantKey = (mountId: string, dir: string): string => `${mountId}|${dir}`
 
 const isGrantLevel = (x: unknown): x is GrantLevel => x === "read" || x === "read-write"
 
+const isAppAccess = (x: unknown): x is AppAccess => x === "none" || isGrantLevel(x)
+
 /**
  * Read one mirrored entry. Accepts the pre-record shape (a bare level string) so a tab that was
  * open across the upgrade keeps its grant instead of re-prompting; those entries read as
@@ -40,8 +42,9 @@ const toRecord = (value: unknown): GrantRecord | null => {
     if (isGrantLevel(value)) return {level: value, asked: value}
     if (typeof value !== "object" || value === null) return null
     const {level, asked} = value as Record<string, unknown>
-    if (!isGrantLevel(level)) return null
-    return {level, asked: isGrantLevel(asked) ? asked : level}
+    if (!isAppAccess(level)) return null
+    if (isGrantLevel(asked)) return {level, asked}
+    return isGrantLevel(level) ? {level, asked: level} : null
 }
 
 /** True when `want` is strictly more access than `have`. */
@@ -101,8 +104,8 @@ export function getGrant(mountId: string, dir: string): GrantRecord | null {
 export function setGrant(
     mountId: string,
     dir: string,
-    grant: GrantLevel,
-    asked: GrantLevel = grant,
+    grant: AppAccess,
+    asked: GrantLevel = grant === "none" ? "read" : grant,
 ): void {
     hydrate()
     grants.set(grantKey(mountId, dir), {level: grant, asked})

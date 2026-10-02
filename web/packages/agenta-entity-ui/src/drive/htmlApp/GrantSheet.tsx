@@ -1,11 +1,11 @@
 /**
- * The one question before an app runs: what may it touch. Read files, or read and write them —
- * preselected from the manifest's `access`, the write option only offered where the user may edit
- * mounts at all. A third, empty, hidden section is reserved for what comes next (tools, network).
+ * The question an app raises when it first reaches for its files: read them, read and write them,
+ * or nothing. Preselected from the manifest's `access`; the write option only where the user may
+ * edit mounts. A hidden section is reserved for what comes next (tools, network).
  */
 import {useEffect, useState} from "react"
 
-import {type GrantLevel} from "@agenta/entities/drive"
+import {type AppAccess, type GrantLevel} from "@agenta/entities/drive"
 import {
     Button,
     Dialog,
@@ -28,9 +28,10 @@ export interface GrantSheetProps {
     requested: GrantLevel
     /** Whether the "Read and write files" option is offered at all. */
     canWrite: boolean
-    pending?: boolean
+    /** A positioned pane to confine the sheet to; the rest of the page stays live. */
+    container?: HTMLElement | null
     onCancel: () => void
-    onConfirm: (level: GrantLevel) => void
+    onConfirm: (level: AppAccess) => void
 }
 
 export function GrantSheet({
@@ -39,23 +40,32 @@ export function GrantSheet({
     dir,
     requested,
     canWrite,
-    pending = false,
+    container,
     onCancel,
     onConfirm,
 }: GrantSheetProps) {
     const preselected: GrantLevel = canWrite ? requested : "read"
-    const [level, setLevel] = useState<GrantLevel>(preselected)
+    const [level, setLevel] = useState<AppAccess>(preselected)
     useEffect(() => {
         if (open) setLevel(preselected)
     }, [open, preselected])
 
     return (
-        <Dialog open={open} onOpenChange={(next) => (next ? undefined : onCancel())}>
-            <DialogContent className="max-w-sm gap-4 text-xs" showCloseButton={false}>
+        <Dialog
+            open={open}
+            modal={!container}
+            onOpenChange={(next) => (next ? undefined : onCancel())}
+        >
+            <DialogContent
+                container={container}
+                contained={!!container}
+                className="max-w-sm gap-4 text-xs"
+                showCloseButton={false}
+            >
                 <DialogHeader className="gap-1">
-                    <DialogTitle className="text-sm">Run {appName}?</DialogTitle>
+                    <DialogTitle className="text-sm">Let {appName} use files?</DialogTitle>
                     <DialogDescription className="text-xs text-colorTextSecondary">
-                        This app can use files in{" "}
+                        The app asked to use files in{" "}
                         <code className="rounded bg-colorFillSecondary px-1 py-0.5 text-[11px] text-colorText">
                             {dir || "/"}
                         </code>
@@ -65,7 +75,7 @@ export function GrantSheet({
                 <section aria-label="File access" data-slot="grant-sheet-access">
                     <RadioGroup
                         value={level}
-                        onValueChange={(v) => setLevel(v as GrantLevel)}
+                        onValueChange={(v) => setLevel(v as AppAccess)}
                         className="flex flex-col gap-2"
                     >
                         <label className="flex cursor-pointer items-center gap-2">
@@ -78,6 +88,10 @@ export function GrantSheet({
                                 Read and write files
                             </label>
                         ) : null}
+                        <label className="flex cursor-pointer items-center gap-2">
+                            <RadioGroupItem value="none" />
+                            Don't allow
+                        </label>
                     </RadioGroup>
                 </section>
 
@@ -96,10 +110,9 @@ export function GrantSheet({
                     </Button>
                     <Button
                         size="sm"
-                        disabled={pending}
-                        onClick={() => onConfirm(canWrite ? level : "read")}
+                        onClick={() => onConfirm(canWrite || level === "none" ? level : "read")}
                     >
-                        {pending ? "Loading permissions…" : "Run"}
+                        {level === "none" ? "Don't allow" : "Allow"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

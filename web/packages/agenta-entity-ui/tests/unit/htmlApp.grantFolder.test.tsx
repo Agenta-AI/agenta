@@ -2,9 +2,9 @@
  * A grant belongs to one folder.
  *
  * The drive renders the HTML body without a key, and a file whose content is already cached
- * renders with no loading gap to remount it. So picking an app in folder B while Run is selected
+ * renders with no loading gap to remount it. So picking an app in folder B while an app runs
  * reused the body that held folder A's grant, and the host was built for B under A's level.
- * `HtmlAppBody` resets its folder state when the mount or folder changes; these tests pin that.
+ * `HtmlAppBody` builds one host per folder from that folder's own answer; these tests pin that.
  */
 
 import {act} from "react"
@@ -59,17 +59,16 @@ const settle = () =>
         await Promise.resolve()
     })
 
-describe("switching folders while Run is selected", () => {
+describe("switching folders while an app runs", () => {
     const setup = () => {
         const grants = createGrantStore()
         grants.set("m1", "apps/a", "read-write", "read-write")
         const createHost = vi.fn((_opts: HtmlAppHostOptions) => stubHost())
-        const render = (path: string, controlledView?: "preview" | "run") =>
+        const render = (path: string) =>
             act(async () => {
                 root.render(
                     <HtmlAppEnvContext.Provider
                         value={{
-                            enabled: true,
                             io,
                             createHost,
                             grants,
@@ -79,12 +78,7 @@ describe("switching folders while Run is selected", () => {
                             resolveTokens: () => ({}),
                         }}
                     >
-                        <HtmlAppBody
-                            mount={MOUNT}
-                            path={path}
-                            content="<html></html>"
-                            controlledView={controlledView}
-                        />
+                        <HtmlAppBody mount={MOUNT} path={path} content="<html></html>" />
                     </HtmlAppEnvContext.Provider>,
                 )
             })
@@ -93,41 +87,27 @@ describe("switching folders while Run is selected", () => {
         return {render, hostsFor}
     }
 
-    it("does not carry folder A's grant to folder B (host-owned tabs)", async () => {
-        const {render, hostsFor} = setup()
-        await render(A, "run")
-        await settle()
-        expect(hostsFor("apps/a").map((o) => o.grant)).toContain("read-write")
-
-        await render(B, "run")
-        await settle()
-
-        expect(hostsFor("apps/b"), "folder B has no grant yet").toEqual([])
-    })
-
-    it("does not carry folder A's grant to folder B (own tabs)", async () => {
+    it("does not carry folder A's grant to folder B", async () => {
         const {render, hostsFor} = setup()
         await render(A)
         await settle()
-        const run = [...container.querySelectorAll("*")].find(
-            (el) => el.children.length === 0 && el.textContent?.trim() === "Run",
-        )
-        await act(async () => {
-            run?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
-        })
-        await settle()
-        expect(hostsFor("apps/a")).not.toEqual([])
+        expect(hostsFor("apps/a").map((o) => o.grant)).toContain("read-write")
 
         await render(B)
         await settle()
-        expect(hostsFor("apps/b")).toEqual([])
+
+        const b = hostsFor("apps/b")
+        expect(b.length, "folder B runs too").toBeGreaterThan(0)
+        expect(b.every((o) => o.grant === "none" && o.requestAccess), "and asks for itself").toBe(
+            true,
+        )
     })
 
     it("keeps the grant for another file in the same folder", async () => {
         const {render, hostsFor} = setup()
-        await render(A, "run")
+        await render(A)
         await settle()
-        await render("apps/a/other.html", "run")
+        await render("apps/a/other.html")
         await settle()
         const hosts = hostsFor("apps/a")
         expect(hosts.length).toBeGreaterThan(0)
@@ -135,7 +115,7 @@ describe("switching folders while Run is selected", () => {
     })
 })
 
-describe("a new host while Run stays open", () => {
+describe("a new host while the app stays open", () => {
     it("gets a fresh frame, so the new host is attached on its first load", async () => {
         const grants = createGrantStore()
         grants.set("m1", "apps/a", "read-write", "read-write")
@@ -150,7 +130,6 @@ describe("a new host while Run stays open", () => {
                 root.render(
                     <HtmlAppEnvContext.Provider
                         value={{
-                            enabled: true,
                             io,
                             createHost,
                             grants,
@@ -160,12 +139,7 @@ describe("a new host while Run stays open", () => {
                             resolveTokens: () => ({}),
                         }}
                     >
-                        <HtmlAppBody
-                            mount={MOUNT}
-                            path={A}
-                            content="<html></html>"
-                            controlledView="run"
-                        />
+                        <HtmlAppBody mount={MOUNT} path={A} content="<html></html>" />
                     </HtmlAppEnvContext.Provider>,
                 )
             })

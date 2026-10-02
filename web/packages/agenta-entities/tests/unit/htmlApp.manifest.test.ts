@@ -14,7 +14,6 @@ describe("@agenta/entities/drive barrel", () => {
         expect(driveBarrel.APP_MANIFEST_FILENAME).toBe(APP_MANIFEST_FILENAME)
         expect(typeof driveBarrel.createMockHtmlAppHost).toBe("function")
         expect(driveBarrel.BRIDGE_VERSION).toBe(1)
-        expect(driveBarrel.AGENT_APPS_FLAG).toBe("agent-apps")
     })
 })
 

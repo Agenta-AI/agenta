@@ -1,6 +1,7 @@
 /**
  * Row 2 of the Files pane, following the selection: a folder (grid / list · sort · ⋯), a markdown
- * file (formatting bar · save status · mode · ⋯) or any other file (name · save status · ⋯).
+ * file (formatting bar · save status · mode · ⋯) or any other file (name · save status · ⋯; an
+ * HTML app's ⋯ also switches between the app and its code).
  */
 import {type ReactNode} from "react"
 
@@ -26,6 +27,7 @@ import {
     CaretDown,
     CircleNotch,
     Clock,
+    Code,
     DotsThreeVertical,
     DownloadSimple,
     HardDrive,
@@ -33,6 +35,7 @@ import {
     ListBullets,
     MarkdownLogo,
     PencilSimple,
+    Play,
     SortAscending,
     SquaresFour,
     TextAa,
@@ -89,6 +92,12 @@ const IconPill = ({value, options, onChange}: ToolbarMode) => (
     </Tabs>
 )
 
+/** An HTML app's view switch: the running app or its code. */
+export interface DriveAppView {
+    code: boolean
+    onToggle: () => void
+}
+
 /** A file's write actions; absent on a read-only mount. */
 export interface DriveFileActions {
     /** Rename from the menu: the tile / row field in the file's folder. */
@@ -134,8 +143,8 @@ type DriveToolbarProps =
           draft?: {status: DriveSaveStatus; onRetry: () => void}
           /** A muted line after the name. */
           note?: string
-          /** A view switch (HTML: Source / Preview). */
-          mode?: ToolbarMode
+          /** An HTML app: the ⋯ menu switches between the app and its code. */
+          appView?: DriveAppView
           onCopyPath?: () => void
           onDownload?: () => void
       }
@@ -163,10 +172,12 @@ const DraftStatus = ({status, onRetry}: {status: DriveSaveStatus; onRetry: () =>
 
 const FileActionsMenu = ({
     actions,
+    appView,
     onCopyPath,
     onDownload,
 }: {
     actions?: DriveFileActions
+    appView?: DriveAppView
     /** Read-side actions, offered on a read-only mount too. */
     onCopyPath?: () => void
     onDownload?: () => void
@@ -189,6 +200,15 @@ const FileActionsMenu = ({
             // New / Rename open a name field; the menu must not pull focus back to its trigger.
             onCloseAutoFocus={(e) => e.preventDefault()}
         >
+            {appView ? (
+                <>
+                    <DropdownMenuItem onSelect={appView.onToggle}>
+                        {appView.code ? <Play /> : <Code />}
+                        {appView.code ? "View app" : "View code"}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                </>
+            ) : null}
             <DropdownMenuItem disabled={!onDownload} onSelect={onDownload}>
                 <DownloadSimple />
                 Download
@@ -354,7 +374,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
         )
     }
 
-    const {path, actions, draft, note, mode, onCopyPath, onDownload} = props
+    const {path, actions, draft, note, appView, onCopyPath, onDownload} = props
     return (
         <Row>
             <DriveInlineName
@@ -367,8 +387,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
             ) : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
-            {mode ? <IconPill {...mode} /> : null}
-            <FileActionsMenu actions={actions} onCopyPath={onCopyPath} onDownload={onDownload} />
+            <FileActionsMenu
+                actions={actions}
+                appView={appView}
+                onCopyPath={onCopyPath}
+                onDownload={onDownload}
+            />
         </Row>
     )
 }

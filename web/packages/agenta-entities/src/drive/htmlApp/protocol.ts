@@ -52,6 +52,12 @@ export type FsMethod =
 /** Access the manifest asks for; the host may narrow it (never widen). */
 export type GrantLevel = "read" | "read-write"
 
+/** What an app may touch right now: a grant, or nothing (not asked yet, or refused). */
+export type AppAccess = GrantLevel | "none"
+
+/** The `unavailable` message an app gets for any fs call made without file access. */
+export const NO_ACCESS_MESSAGE = "the app has no file access"
+
 export interface FileStat {
     /** Path relative to the app dir, `/`-separated, no leading slash. */
     path: string
@@ -161,7 +167,21 @@ export interface ThemeMsg {
     tokens: Record<string, string>
 }
 
-export type ParentToIframe = Hello | FsResponse | FsFailure | VisibilityMsg | ChangedMsg | ThemeMsg
+/** The user answered the access question: `window.agenta.canWrite` follows it. */
+export interface AccessMsg {
+    v: 1
+    type: "access"
+    canWrite: boolean
+}
+
+export type ParentToIframe =
+    | Hello
+    | FsResponse
+    | FsFailure
+    | VisibilityMsg
+    | ChangedMsg
+    | ThemeMsg
+    | AccessMsg
 
 /** What `FsResponse.result` holds, per method. */
 export interface FsResults {
@@ -215,29 +235,6 @@ export const SANDBOX_FLAGS = "allow-scripts allow-forms"
 export const RUN_CSP =
     "default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; connect-src https:; form-action 'none'"
 
-/**
- * CSP injected into the PREVIEW document (ordinary drive HTML, not an app).
- *
- * Preview strips every agent script and renders with `allow-popups`, and for a while the first
- * half was taken as the reason the second half was safe. It is not. The stripper clears
- * `iframe[srcdoc]` but nothing stopped `<iframe src="data:text/html,…">`: the nested context
- * inherits `allow-scripts`, its script runs, and with no policy in the document it could `fetch`
- * anywhere. Verified against these exact flags — the request arrived at a listening server with
- * its query string intact.
- *
- * So the fix is a policy rather than another element on a strip list. `object-src`/`frame-src`
- * close the nested contexts (`<object data="data:…">` and `<embed>` execute the same way), and
- * `default-src 'none'` covers `connect-src`, so even a context that somehow runs has no way out.
- * Enumerating vectors does not terminate; denying the capability does.
- *
- * Narrower than {@link RUN_CSP} in one respect, deliberately: Preview strips scripts and allows
- * no `connect-src`. Like Run, it leaves external URLs alone
- * (`inlineAssets` only folds in same-mount assets), so ordinary drive HTML that links a remote
- * stylesheet, image or font renders today and must keep rendering. Those are fetches the policy
- * still confines to their element type; `connect-src` stays denied.
- */
-export const PREVIEW_CSP =
-    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; form-action 'none'; frame-src 'none'; object-src 'none'"
 
 /** Theme tokens the kit CSS consumes; the host fills them from its palette. */
 export const KIT_TOKENS = [
@@ -275,9 +272,6 @@ export const KIT_CLASSES = [
 
 export type KitToken = (typeof KIT_TOKENS)[number]
 
-/** `userScopedFlagAtom` key that gates the whole feature. */
-export const AGENT_APPS_FLAG = "agent-apps" as const
-
 // ---------------------------------------------------------------------------------------------
 // Host interface (lane A implements, lane C calls)
 // ---------------------------------------------------------------------------------------------
@@ -313,7 +307,9 @@ export interface HtmlAppHostOptions {
     projectId: string
     /** App dir relative to the mount root. */
     dir: string
-    grant: GrantLevel
+    grant: AppAccess
+    /** Asked before the first fs call is served; the answer replaces `grant` for this host. */
+    requestAccess?: () => Promise<AppAccess>
     tokens: Record<string, string>
     visible?: boolean
     /** Called after every successful write/remove so the drive can revalidate. */

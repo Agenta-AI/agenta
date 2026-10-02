@@ -4,23 +4,23 @@ import {Meta} from "@storybook/addon-docs/blocks"
 
 # Agent HTML apps — Run mode
 
-An HTML file in an agent drive can be **run**, not just previewed: the file's folder becomes the
+An HTML file in an app folder of an agent drive **runs**: the file's folder becomes the
 app dir, the page renders in a sandboxed iframe (no `allow-same-origin`), and it reaches its own
 files through `window.agenta.fs`, a `MessagePort` the host hands it on load. The contract lives in
 `@agenta/entities/drive` (`protocol.ts`, `manifest.ts`, `mockHost.ts`); these stories run on
 `createMockHtmlAppHost`, the behavioural reference lane A's real host must match.
 
-Everything here is behind `userScopedFlagAtom("agent-apps")`. Flag off, the viewer is byte-for-byte
-the Preview | Source it was (locked by `tests/unit/htmlApp.assemble.test.ts`).
+In the Files pane an app opens running with no file access; the file's ⋯ menu switches to its code
+and back. The app's first `window.agenta.fs` call asks the user once: read, read and write, or
+don't allow. The answer is kept per folder for the tab and applies to the running app.
 
 ## Pieces
 
 | Piece                 | What it does                                                                                                                                                                                                                              |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `assemblePreview`     | Today's Preview: inline same-mount CSS + images, strip every script vector, add the nav interceptor.                                                                                                                                      |
-| `assembleRunDocument` | Run: the same inlining, author scripts kept (same-folder `<script src>` inlined, external dropped with a note), then CSP meta → `#agenta-tokens` → `#agenta-kit` → bridge stub prepended to `<head>`. No interceptor: nav rides the port. |
-| `HtmlAppBody`         | Preview \| Source \| Run. Run needs a drive and a grant; the env context injects host factory, mount io, kit CSS, token resolver, grant store.                                                                                            |
-| `GrantSheet`          | "Run _name_?" — Read files / Read and write files, preselected from `app.json`'s `access`; the write option only where the drive's upload gate allows edits. A hidden third section is reserved.                                          |
+| `assembleRunDocument` | Run: same-mount CSS + images inlined, author scripts kept (same-folder `<script src>` inlined, external dropped with a note), then CSP meta → `#agenta-tokens` → `#agenta-kit` → bridge stub prepended to `<head>`. No interceptor: nav rides the port. |
+| `HtmlAppBody`         | The running app. It starts with the stored answer or no access, and asks on the first file call; the env context injects host factory, mount io, kit CSS, token resolver, grant store.                                                 |
+| `GrantSheet`          | "Let _name_ use files?" — Read files / Read and write files / Don't allow, preselected from `app.json`'s `access`; the write option only where the drive's upload gate allows edits. A hidden section is reserved.                       |
 | `RunView`             | The iframe + status strip: dot, `Running · read + write · dir`, ‹ back, Refresh ▾ (Reload files), "Files changed" pill, error badge → list → Copy. Attaches the host on load, detaches on unmount, pushes theme tokens on theme change.   |
 | `useAppManifest`      | Reads `<dir>/app.json` (absent → defaults: `read`, `index.html`, kit on).                                                                                                                                                                 |
 | `useChangedHint`      | Diffs the app dir's listing query (etag → mtime → size) on refetches not caused by the app's own write and calls `host.notifyChanged`; `onWrite` bumps the listing through `refreshMountListing`.                                         |
@@ -29,16 +29,17 @@ the Preview | Source it was (locked by `tests/unit/htmlApp.assemble.test.ts`).
 
 | Story                                 | Stands for                                                                                                    |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **HtmlAppBody / FlagOff**             | Flag off ⇒ Preview \| Source unchanged; no Run, no sheet, no host.                                            |
-| **HtmlAppBody / FlagOn**              | Flag on ⇒ Run offered; picking it opens the grant sheet, confirming mounts RunView.                           |
-| **HtmlAppBody / FlagOnGranted**       | A stored grant skips the sheet.                                                                               |
-| **HtmlAppBody / Loading**             | Slow drive ⇒ assembling skeleton, never a frozen pane.                                                        |
-| **HtmlAppBody / Unavailable**         | No drive (composer attachment) ⇒ Run not offered, Preview/Source intact.                                      |
+| **HtmlAppBody / AsksOnFirstFileCall** | Runs with no access; the first file call opens the sheet and the answer applies live.                         |
+| **HtmlAppBody / Granted**             | A stored grant applies; no sheet.                                                                             |
+| **HtmlAppBody / Refused**             | A stored "Don't allow": no access, never asked again.                                                         |
+| **HtmlAppBody / ReadOnlyDrive**       | Upload gate off ⇒ the sheet offers read access only.                                                          |
+| **HtmlAppBody / Loading**             | Slow drive ⇒ starting skeleton, never a frozen pane.                                                          |
 | **GrantSheet / ReadPreselected**      | Manifest `access: "read"` (or no manifest).                                                                   |
 | **GrantSheet / ReadWritePreselected** | Manifest `access: "read-write"` and the user may edit mounts.                                                 |
 | **GrantSheet / WriteHidden**          | Upload gate off ⇒ write option absent, request narrowed to read.                                              |
-| **GrantSheet / Cancel**               | Cancel ⇒ back to Preview.                                                                                     |
+| **GrantSheet / Cancel**               | Cancel ⇒ no access for this run, nothing stored; the app keeps running.                                       |
 | **RunView / RunningReadOnly**         | `read` grant: strip label, write refused with `read_only`.                                                    |
+| **RunView / RunningNoAccess**         | No access: strip says so, every call fails `unavailable`.                                                     |
 | **RunView / RunningReadWrite**        | `read-write` grant: writes land.                                                                              |
 | **RunView / ErrorStrip**              | A bridge rejection + a script error: badge count, expandable list, Copy.                                      |
 | **RunView / ConflictRetried**         | `externalWrite` after a read ⇒ `conflict` (with the server's etag); re-read then retry succeeds.              |
