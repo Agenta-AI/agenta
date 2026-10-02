@@ -565,3 +565,47 @@ async def test_a_disconnect_during_a_pending_upstream_read_is_still_charged(vert
     assert outcome.usage == GatewayUsage(
         input_tokens=2457, cache_read_tokens=12256, output_tokens=68
     )
+
+
+@pytest.mark.asyncio
+async def test_the_reader_holds_a_bounded_buffer_for_a_slow_consumer():
+    import asyncio
+
+    from oss.src.core.gateways.llms.service import _UpstreamReader
+
+    produced = []
+
+    async def endless():
+        for index in range(10_000):
+            produced.append(index)
+            yield b"x"
+
+    reader = _UpstreamReader(endless())
+    await asyncio.sleep(0.05)  # nobody consumes
+
+    assert len(produced) <= _UpstreamReader._BUFFERED_CHUNKS + 2
+
+    await reader.finish(timeout=5)  # the consumer left: the rest is read and dropped
+    assert len(produced) == 10_000
+
+
+@pytest.mark.asyncio
+async def test_a_stream_past_the_drain_bound_is_stopped_and_cleaned_up_before_the_record():
+    import asyncio
+
+    from oss.src.core.gateways.llms.service import _UpstreamReader
+
+    closed = asyncio.Event()
+
+    async def never_ends():
+        try:
+            while True:
+                yield b"x"
+                await asyncio.sleep(0.01)
+        finally:
+            closed.set()
+
+    reader = _UpstreamReader(never_ends())
+    await reader.finish(timeout=0.1)
+
+    assert closed.is_set()

@@ -134,12 +134,15 @@ class _UpstreamReader:
     """Reads an upstream body in a task of its own and hands its chunks over a queue.
 
     Cancelling the consumer, which is what a client disconnect does, does not reach the
-    task, so the upstream is read to its end and the adapter fills the call's usage. Once
-    the consumer has left, chunks are discarded instead of queued.
+    task, so the upstream is read to its end and the adapter fills the call's usage. The
+    queue is bounded, so a slow consumer slows the read instead of buffering the response.
+    Once the consumer has left, queued chunks are dropped and new ones discarded.
     """
 
+    _BUFFERED_CHUNKS = 64
+
     def __init__(self, body: AsyncIterator[bytes]) -> None:
-        self._queue: "asyncio.Queue[Any]" = asyncio.Queue()
+        self._queue: "asyncio.Queue[Any]" = asyncio.Queue(maxsize=self._BUFFERED_CHUNKS)
         self._abandoned = False
         self._task = asyncio.ensure_future(self._read(body))
 
@@ -147,9 +150,12 @@ class _UpstreamReader:
         try:
             async for chunk in body:
                 if not self._abandoned:
-                    self._queue.put_nowait(chunk)
+                    await self._queue.put(chunk)
         finally:
-            self._queue.put_nowait(_END)
+            try:
+                self._queue.put_nowait(_END)
+            except asyncio.QueueFull:
+                pass  # only when the consumer has left, so nobody waits for the end
 
     async def chunks(self) -> AsyncIterator[bytes]:
         while True:
@@ -161,16 +167,24 @@ class _UpstreamReader:
         await self._task
 
     async def finish(self, *, timeout: float) -> None:
-        """Wait for the read to end, at most `timeout`, then stop it. Never raises: a
-        failed or overlong upstream is recorded with whatever usage it reached."""
+        """Wait for the read to end, at most `timeout`, then stop it and wait for its
+        cleanup. Never raises: a failed or overlong upstream is recorded with whatever
+        usage it reached."""
         self._abandoned = True
+        while not self._queue.empty():
+            self._queue.get_nowait()  # frees a reader blocked on a full queue
+        try:
+            await asyncio.wait_for(asyncio.shield(self._task), timeout=timeout)
+        except Exception:  # pylint: disable=broad-except
+            pass
         if not self._task.done():
-            try:
-                await asyncio.wait_for(asyncio.shield(self._task), timeout=timeout)
-            except Exception:  # pylint: disable=broad-except
-                self._task.cancel()
-        if self._task.done() and not self._task.cancelled():
-            self._task.exception()  # retrieved, so asyncio does not log it as unhandled
+            self._task.cancel()
+        try:
+            await self._task
+        except (Exception, asyncio.CancelledError):  # pylint: disable=broad-except
+            # Its outcome is read here, so asyncio does not log it as unhandled; the
+            # caller already received any error the read raised while it was reading.
+            pass
 
 
 async def _replay_body(payload: bytes) -> AsyncIterator[bytes]:
