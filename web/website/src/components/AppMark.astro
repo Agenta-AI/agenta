@@ -1,23 +1,30 @@
 ---
-// One app's mark in a small tile (template cards, the template page sidebar).
-// Logos are monochrome SVGs drawn through a CSS mask in the theme's text
-// colour; an app without a hosted logo shows its initial.
+// One app's official logo on a white tile in both themes (its initial on a neutral tile if none).
 import type { TemplateApp } from "../lib/marketplace";
 
 interface Props {
   app: TemplateApp;
+  size?: number;
 }
-const { app } = Astro.props;
+const { app, size } = Astro.props;
+const logoSize = Math.round((size ?? 34) * 0.5);
 ---
 
-<span class="ag-appmark" title={app.name}>
+<span
+  class:list={["ag-appmark", app.logo && "ag-appmark--logo"]}
+  title={app.name}
+  style={size ? `--appmark:${size}px;` : undefined}
+>
   {
     app.logo ? (
-      <span
+      <img
         class="ag-appmark__logo"
-        role="img"
-        aria-label={app.name}
-        style={`--logo:url(${app.logo});`}
+        src={app.logo}
+        alt={app.name}
+        width={logoSize}
+        height={logoSize}
+        loading="lazy"
+        decoding="async"
       />
     ) : (
       <span class="ag-appmark__initial" role="img" aria-label={app.name}>
@@ -28,10 +35,13 @@ const { app } = Astro.props;
 </span>
 
 <style is:global>
+  :root {
+    --appmark: 34px;
+  }
   .ag-appmark {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
+    width: var(--appmark);
+    height: var(--appmark);
+    border-radius: calc(var(--appmark) * 0.27);
     flex: 0 0 auto;
     display: flex;
     align-items: center;
@@ -40,15 +50,68 @@ const { app } = Astro.props;
     box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
   }
   .ag-appmark__logo {
-    width: 16px;
-    height: 16px;
-    background: var(--th-text-hi);
-    opacity: 0.85;
-    -webkit-mask: var(--logo) center / contain no-repeat;
-    mask: var(--logo) center / contain no-repeat;
+    width: calc(var(--appmark) * 0.5);
+    height: calc(var(--appmark) * 0.5);
+    object-fit: contain;
   }
   .ag-appmark__initial {
-    font: 600 12px/1 var(--font-sans);
+    font: 600 calc(var(--appmark) * 0.36) / 1 var(--font-sans);
     color: var(--th-text-hi);
+  }
+  /* Overlapping row of marks; the ring matches the surface behind the stack. */
+  .ag-appstack {
+    display: flex;
+    align-items: center;
+    padding-left: calc(var(--appmark) * 0.28);
+    isolation: isolate;
+  }
+  /* Earlier marks sit on top so no mark covers the logo before it. */
+  .ag-appstack .ag-appmark {
+    position: relative;
+    z-index: 1;
+    margin-left: calc(var(--appmark) * -0.28);
+    background: var(--th-bg-2);
+    box-shadow:
+      0 0 0 2px var(--stack-ring, var(--th-bg-1)),
+      inset 0 0 0 1px var(--th-ctl-ring);
+  }
+  .ag-appstack .ag-appmark:nth-child(1) {
+    z-index: 5;
+    --i: 0;
+  }
+  .ag-appstack .ag-appmark:nth-child(2) {
+    z-index: 4;
+    --i: 1;
+  }
+  .ag-appstack .ag-appmark:nth-child(3) {
+    z-index: 3;
+    --i: 2;
+  }
+  .ag-appstack .ag-appmark:nth-child(4) {
+    z-index: 2;
+    --i: 3;
+  }
+  .ag-appstack .ag-appmark:nth-child(5) {
+    --i: 4;
+  }
+  /* Hovering a stack fans its marks out to the right of the first one; the hovered mark lifts. */
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .ag-appstack .ag-appmark {
+      transform-origin: 50% 100%;
+      transform: translate(var(--fan-x, 0), var(--lift, 0)) rotate(var(--fan-r, 0));
+      transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .ag-appstack:hover .ag-appmark {
+      --fan-x: calc(var(--i) * 1px);
+      --fan-r: calc(var(--i) * 3deg);
+    }
+    .ag-appstack .ag-appmark:hover {
+      --lift: -4px;
+      z-index: 6;
+    }
+  }
+  /* Brand logos are drawn for a light ground, so a logo tile stays white in dark mode too. */
+  .ag-appmark.ag-appmark--logo {
+    background: var(--paper-0);
   }
 </style>

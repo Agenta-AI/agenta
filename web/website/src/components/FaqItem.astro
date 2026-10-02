@@ -1,7 +1,5 @@
 ---
-// One FAQ row (native <details>): the question, a plus that turns into a cross,
-// and the answer in the default slot. Used by the pricing and marketplace FAQs.
-// A page can tint the icon with `--faq-icon`.
+// One FAQ row (native <details>) that animates open and closed; tint the icon with `--faq-icon`.
 interface Props {
   question: string;
   open?: boolean;
@@ -23,8 +21,50 @@ const { question, open = false } = Astro.props;
   <p class="faq-a"><slot /></p>
 </details>
 
+<script>
+  const DURATION = 260;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  for (const item of document.querySelectorAll<HTMLDetailsElement>("details.faq-item")) {
+    const summary = item.querySelector("summary");
+    if (!summary) continue;
+    let running: Animation | null = null;
+    const closedHeight = () => {
+      const style = getComputedStyle(item);
+      return (
+        summary.offsetHeight +
+        parseFloat(style.paddingTop) +
+        parseFloat(style.paddingBottom) +
+        parseFloat(style.borderTopWidth) +
+        parseFloat(style.borderBottomWidth)
+      );
+    };
+    summary.addEventListener("click", (event) => {
+      if (reduced.matches) return;
+      event.preventDefault();
+      const start = item.offsetHeight;
+      running?.cancel();
+      // A click mid-close reopens from wherever the row is.
+      const opening = !item.open || item.dataset.state === "closing";
+      item.dataset.state = opening ? "opening" : "closing";
+      item.open = true;
+      const end = opening ? item.offsetHeight : closedHeight();
+      const animation = item.animate(
+        { height: [`${start}px`, `${end}px`] },
+        { duration: DURATION, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      );
+      running = animation;
+      animation.onfinish = () => {
+        running = null;
+        if (!opening) item.open = false;
+        delete item.dataset.state;
+      };
+    });
+  }
+</script>
+
 <style>
   .faq-item {
+    overflow: hidden;
     border-top: 1px solid var(--th-border);
     padding: 24px 0;
   }
@@ -48,7 +88,7 @@ const { question, open = false } = Astro.props;
     margin-top: 2px;
     transition: transform 0.16s ease;
   }
-  .faq-item[open] .faq-icon {
+  .faq-item[open]:not([data-state="closing"]) .faq-icon {
     transform: rotate(45deg);
   }
   .faq-a {
@@ -57,7 +97,13 @@ const { question, open = false } = Astro.props;
     font: var(--text-body-md);
     color: var(--th-text-body);
   }
-  .faq-item[open] .faq-a {
+  .faq-a {
+    transition: opacity 0.2s ease;
+  }
+  .faq-item[open]:not([data-state="closing"]) .faq-a {
     animation: accordion-in 0.2s ease both;
+  }
+  .faq-item[data-state="closing"] .faq-a {
+    opacity: 0;
   }
 </style>
