@@ -6,21 +6,25 @@
  * switch the API's wallet reads. Off, no turn asks for admission and no meter or credential lease
  * starts, so an OSS or wallet-off deployment pays nothing for this.
  *
- * Two calls, each authenticated twice: the runner token proves the runner is reporting, and the
+ * Every call is authenticated twice: the runner token proves the runner is reporting, and the
  * run's own platform credential names the payer.
  * - `admitSandboxTurn` asks, before a turn that may run a sandbox starts, whether the caller's
- *   wallet can still spend. Only a clear "no" refuses; anything else admits, because a metering
- *   outage must not stop agents.
- * - `startSandboxMeter` reports every interval the sandbox runs: one per minute, and the final
- *   partial one when it stops. A crash loses at most the interval in progress. Each interval is
- *   whole seconds and names its sandbox and start second, so a retried report is the same
- *   measurement on the platform and is charged once.
+ *   wallet can still spend and its organization runs fewer turns than its plan allows. The answer
+ *   carries the plan's turn limit. Only a clear "no" refuses; anything else admits, because a
+ *   metering outage must not stop agents.
+ * - `holdTurnSlot` keeps the turn in its organization's count of running turns while it runs.
+ * - `startSandboxMeter` reports every interval the sandbox runs while one of its session's turns
+ *   runs: one per minute, and the final partial one when the turn ends or the sandbox stops. Warm
+ *   time between turns is not billed. A crash loses at most the interval in progress. Each
+ *   interval is whole seconds and names its sandbox and start second, so a retried report is the
+ *   same measurement on the platform and is charged once.
  *
  * A platform that answers 404 (the runner's switch is on and the API's is off) admits the turn,
  * and the meter goes quiet and gives back its credential lease.
  */
 import { apiBase } from "../apiBase.ts";
 import type { RunErrorCode } from "../engines/sandbox_agent/errors.ts";
+import type { TurnLimit } from "../engines/sandbox_agent/run-limits.ts";
 import { platformCredentialForRequest } from "../engines/sandbox_agent/runtime-policy.ts";
 import type { AgentRunRequest } from "../protocol.ts";
 import { startPlatformCredentialLease, type PlatformCredentialLease } from "../sessions/auth.ts";
@@ -35,7 +39,12 @@ const FINAL_FLUSH_RETRY_MS = 500;
 /** Three hours of intervals: past that, a platform that is still down loses the oldest. */
 const MAX_PENDING_INTERVALS = 180;
 
+/** Every running turn the platform counts beats this often; its hold lasts three beats. */
+export const TURN_SLOT_HEARTBEAT_MS = 60_000;
+
 export const WALLET_BALANCE_EXHAUSTED_CODE: RunErrorCode = "wallet_balance_exhausted";
+export const CONCURRENT_TURNS_LIMIT_CODE: RunErrorCode = "concurrent_turns_limit";
+/** Used only when a refusal states no message of its own. */
 export const WALLET_BALANCE_EXHAUSTED_MESSAGE =
   "Your Agenta credits are used up, so this turn did not start. Add credits to keep going.";
 
@@ -57,8 +66,6 @@ const defaultLog: Log = (message) => process.stderr.write(`[sandbox-usage] ${mes
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type SandboxAdmission = "admitted" | "refused";
-
 const TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enable", "enabled"]);
 
 /** Whether this deployment meters sandboxes. Read per call, as the API reads its own switch. */
@@ -71,18 +78,32 @@ export function meteringCredentialForRequest(request: AgentRunRequest): string {
   return sandboxMeteringEnabled() ? platformCredentialForRequest(request) : "";
 }
 
+/**
+ * The key a session's turns and its sandboxes' meters share: `<projectId>:<sessionId>`, the
+ * session pool's own key, with the project resolved the pool's way (run context first, then the
+ * signed mount). A session id alone is a label two projects may share.
+ */
+export function meteredTurnKey(projectId: string | undefined, sessionId: string | undefined): string | undefined {
+  const project = projectId?.trim();
+  const session = sessionId?.trim();
+  return project && session ? `${project}:${session}` : undefined;
+}
+
 /** Who a run's command sandbox reports for, or undefined when nothing is metered. */
 export function sandboxUsageContext(
   request: AgentRunRequest,
   sessionId: string | undefined,
+  projectScopeId?: string,
 ): SandboxUsageContext | undefined {
   const authorization = meteringCredentialForRequest(request);
   if (!authorization) return undefined;
   const agentId = request.runContext?.workflow?.artifact?.id;
+  const turnKey = meteredTurnKey(projectScopeId, sessionId);
   return {
     authorization,
     ...(sessionId ? { sessionId } : {}),
     ...(agentId ? { agentId } : {}),
+    ...(turnKey ? { turnKey } : {}),
   };
 }
 
@@ -91,33 +112,140 @@ function platformHeaders(authorization: string): Record<string, string> {
   return { authorization, ...(runnerToken ? { "x-agenta-runner-token": runnerToken } : {}) };
 }
 
-/** Whether the caller's wallet admits a turn that may run a platform sandbox. */
+/** What the platform answered for a turn that may run a platform sandbox. */
+export type SandboxTurnAdmission =
+  | {
+      admitted: true;
+      /** The plan's longest turn; absent where the platform states none. */
+      turnLimit?: TurnLimit;
+      /** The platform counts this turn against the organization's running turns. */
+      slotHeld?: boolean;
+    }
+  | { admitted: false; code: RunErrorCode; message: string };
+
+const ADMITTED: SandboxTurnAdmission = { admitted: true };
+
+const REFUSAL_CODES = new Set<RunErrorCode>([WALLET_BALANCE_EXHAUSTED_CODE, CONCURRENT_TURNS_LIMIT_CODE]);
+
+interface AdmissionBody {
+  allowed?: unknown;
+  code?: unknown;
+  message?: unknown;
+  turn_limit?: { seconds?: unknown; message?: unknown } | null;
+  slot_held?: unknown;
+}
+
+function readAdmission(body: AdmissionBody): SandboxTurnAdmission {
+  if (body.allowed === false) {
+    const code = REFUSAL_CODES.has(body.code as RunErrorCode)
+      ? (body.code as RunErrorCode)
+      : WALLET_BALANCE_EXHAUSTED_CODE;
+    const message =
+      typeof body.message === "string" && body.message.trim()
+        ? body.message.trim().split("\n")[0]!
+        : WALLET_BALANCE_EXHAUSTED_MESSAGE;
+    return { admitted: false, code, message };
+  }
+  const seconds = body.turn_limit?.seconds;
+  const limitMessage = body.turn_limit?.message;
+  const turnLimit =
+    typeof seconds === "number" && seconds > 0 && typeof limitMessage === "string" && limitMessage.trim()
+      ? { ms: Math.floor(seconds * 1000), message: limitMessage.trim().split("\n")[0]! }
+      : undefined;
+  return {
+    admitted: true,
+    ...(turnLimit ? { turnLimit } : {}),
+    ...(body.slot_held === true ? { slotHeld: true } : {}),
+  };
+}
+
+/**
+ * Whether the platform admits a turn that may run a platform sandbox: the caller's wallet can
+ * still spend, and its organization runs fewer turns at once than its plan allows. Only a clear
+ * "no" refuses; anything else admits, because a metering outage must not stop agents.
+ */
 export async function admitSandboxTurn(
   authorization: string,
+  turnId: string,
   deps: { fetch?: Fetch; baseUrl?: string; log?: Log } = {},
-): Promise<SandboxAdmission> {
+): Promise<SandboxTurnAdmission> {
   const log = deps.log ?? defaultLog;
-  if (!authorization) return "admitted";
+  if (!authorization) return ADMITTED;
   try {
     const res = await (deps.fetch ?? fetch)(
       `${deps.baseUrl ?? apiBase()}/wallets/sandboxes/admit`,
       {
         method: "POST",
-        headers: platformHeaders(authorization),
+        headers: { "content-type": "application/json", ...platformHeaders(authorization) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        body: JSON.stringify({ turn_id: turnId }),
       },
     );
-    if (res.status === 404) return "admitted";
+    if (res.status === 404) return ADMITTED;
     if (!res.ok) {
       log(`admission HTTP ${res.status}; admitting`);
-      return "admitted";
+      return ADMITTED;
     }
-    const body = (await res.json()) as { allowed?: unknown };
-    return body.allowed === false ? "refused" : "admitted";
+    return readAdmission((await res.json()) as AdmissionBody);
   } catch (err) {
     log(`admission failed; admitting: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`);
-    return "admitted";
+    return ADMITTED;
   }
+}
+
+/** The platform's hold on one running turn; let go of it once when the turn ends. */
+export interface TurnSlot {
+  release(): void;
+}
+
+/**
+ * Keep the platform's count of this organization's running turns true while the turn runs: a
+ * beat every interval, and a release at the end. A runner that dies stops beating, so its turns
+ * leave the count on their own once the platform's hold expires. A failed beat or release is
+ * logged and never touches the turn.
+ */
+export function holdTurnSlot(
+  authorization: string,
+  turnId: string,
+  deps: {
+    fetch?: Fetch;
+    baseUrl?: string;
+    log?: Log;
+    intervalMs?: number;
+    startLease?: (authorization: string) => PlatformCredentialLease;
+  } = {},
+): TurnSlot {
+  const log = deps.log ?? defaultLog;
+  const doFetch = deps.fetch ?? fetch;
+  const baseUrl = deps.baseUrl ?? apiBase();
+  const lease = (deps.startLease ?? ((value: string) => startPlatformCredentialLease(baseUrl, value)))(authorization);
+  const post = async (action: "heartbeat" | "release"): Promise<void> => {
+    try {
+      const res = await doFetch(`${baseUrl}/wallets/sandboxes/turns/${action}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...platformHeaders(lease.credential()) },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        body: JSON.stringify({ turn_id: turnId }),
+      });
+      if (!res.ok) log(`turn ${action} HTTP ${res.status}`);
+    } catch (err) {
+      log(`turn ${action} failed: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`);
+    }
+  };
+  // One call at a time, in order: a beat still in flight must not land after the release.
+  let queue: Promise<void> = Promise.resolve();
+  const serial = (action: "heartbeat" | "release"): Promise<void> => (queue = queue.then(() => post(action)));
+  const timer = setInterval(() => void serial("heartbeat"), deps.intervalMs ?? TURN_SLOT_HEARTBEAT_MS);
+  timer.unref?.();
+  let released = false;
+  return {
+    release() {
+      if (released) return;
+      released = true;
+      clearInterval(timer);
+      void serial("release").finally(() => lease.release());
+    },
+  };
 }
 
 /** Who a sandbox's time is reported for: the newest run that holds it. */
@@ -125,6 +253,8 @@ export interface SandboxUsageContext {
   authorization: string;
   sessionId?: string;
   agentId?: string;
+  /** `meteredTurnKey` of the run: the sandbox is billed only while one of these turns runs. */
+  turnKey?: string;
 }
 
 export interface SandboxMeterOptions {
@@ -139,6 +269,8 @@ export interface SandboxMeterOptions {
   credential: () => string;
   sessionId?: string;
   agentId?: string;
+  /** `meteredTurnKey` of the session: billed only while one of its turns runs. Without one, always. */
+  turnKey?: string;
   /** Called once if the platform turns out not to meter sandboxes, so the credential is let go. */
   onUnmetered?: () => void;
   /** When the sandbox started running; defaults to now. */
@@ -156,6 +288,55 @@ export interface SandboxMeter {
    * within a bounded time. Never throws.
    */
   stop(): Promise<void>;
+}
+
+/** A meter of one session's sandbox, which runs only while one of that session's turns runs. */
+interface SessionMeter {
+  pause(): void;
+  resume(): void;
+}
+
+const runningTurns = new Map<string, number>();
+const sessionMeters = new Map<string, Set<SessionMeter>>();
+
+/**
+ * A turn of this session (`meteredTurnKey`) started: its sandboxes are billed again until the
+ * returned function is called, which pauses them.
+ *
+ * Only running turns are billed. A sandbox kept warm after a turn, or waiting for a person to
+ * answer an approval, keeps running on the provider's account, but its time between turns is not
+ * charged. A meter runs until a turn of its key ends: a run that never parks (no session, no
+ * project scope, the cold path) has no window to pause, and is billed until its sandbox stops.
+ */
+export function beginMeteredTurn(turnKey: string | undefined): () => void {
+  if (!turnKey) return () => {};
+  runningTurns.set(turnKey, (runningTurns.get(turnKey) ?? 0) + 1);
+  for (const meter of sessionMeters.get(turnKey) ?? []) meter.resume();
+  let ended = false;
+  return () => {
+    if (ended) return;
+    ended = true;
+    const left = (runningTurns.get(turnKey) ?? 1) - 1;
+    if (left > 0) {
+      runningTurns.set(turnKey, left);
+      return;
+    }
+    runningTurns.delete(turnKey);
+    for (const meter of sessionMeters.get(turnKey) ?? []) meter.pause();
+  };
+}
+
+function watchSession(turnKey: string, meter: SessionMeter): () => void {
+  let meters = sessionMeters.get(turnKey);
+  if (!meters) {
+    meters = new Set();
+    sessionMeters.set(turnKey, meters);
+  }
+  meters.add(meter);
+  return () => {
+    meters.delete(meter);
+    if (meters.size === 0 && sessionMeters.get(turnKey) === meters) sessionMeters.delete(turnKey);
+  };
 }
 
 interface Interval {
@@ -194,6 +375,7 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
   let pending: Interval[] = [];
   let unmetered = false;
   let stopped = false;
+  let paused = false;
   // One report in flight at a time, in order.
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
@@ -266,23 +448,44 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
   const timer = setInterval(() => {
     void serial(async () => {
       if (stopped) return;
-      cut();
+      if (!paused) cut();
       await flush();
     });
   }, options.intervalMs ?? SANDBOX_USAGE_INTERVAL_MS);
   timer.unref?.();
+
+  const unwatch = options.turnKey
+    ? watchSession(options.turnKey, {
+        pause() {
+          if (paused || stopped) return;
+          // Cut at the turn's end now; the report follows in order, like any interval.
+          cut();
+          paused = true;
+          void serial(async () => {
+            await flush();
+          });
+        },
+        resume() {
+          if (!paused || stopped) return;
+          paused = false;
+          cursor = Math.max(cursor, Math.floor(now() / 1000));
+        },
+      })
+    : () => {};
 
   return {
     async stop(): Promise<void> {
       if (stopped) return;
       stopped = true;
       clearInterval(timer);
+      unwatch();
       // Read now, not when the queue gets here: a report in flight must not stretch the last
       // interval past the stop, or into the next running period of the same sandbox.
       const stoppedAt = Math.floor(now() / 1000);
+      const wasPaused = paused;
       const deadline = now() + FINAL_FLUSH_BUDGET_MS;
       const finalFlush = serial(async () => {
-        cut(stoppedAt);
+        if (!wasPaused) cut(stoppedAt);
         while (!(await flush()) && now() < deadline) {
           await new Promise((resolve) => setTimeout(resolve, FINAL_FLUSH_RETRY_MS));
         }

@@ -78,7 +78,9 @@ import {
   classifyRunError,
   conciseError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
+  TURN_TIME_LIMIT_CODE,
   withinCredentialPropagationWindow,
+  withPublicCode,
 } from "./errors.ts";
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
 import { isUserStopAbort } from "../../sessions/stop-signal.ts";
@@ -431,12 +433,20 @@ export async function runTurn(
   );
   let runLimitTrip: (() => void) | undefined;
   let runLimitReason: string | undefined;
+  // The plan's turn limit ends the turn with a line written for the person in the chat.
+  let turnLimitError: Error | undefined;
   let outputLimitReason: string | undefined;
   const runLimitTripped = new Promise<void>((resolve) => {
     runLimitTrip = resolve;
   });
-  runLimits.onTrip((reason) => {
+  runLimits.onTrip((reason, kind) => {
     runLimitReason = reason;
+    if (kind === "total" && resolvedRunLimits.turnLimitMessage) {
+      turnLimitError = withPublicCode(
+        new Error(resolvedRunLimits.turnLimitMessage),
+        TURN_TIME_LIMIT_CODE,
+      );
+    }
     runLimitTrip?.();
   });
 
@@ -1551,7 +1561,7 @@ export async function runTurn(
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
     if (raced === RUN_LIMIT_TRIPPED || outputLimitReason) {
-      throw new Error(runLimitReason ?? "run limit tripped");
+      throw turnLimitError ?? new Error(runLimitReason ?? "run limit tripped");
     }
     let stopReason =
       raced === CANCELLED

@@ -847,7 +847,7 @@ async function acquireEnvironmentOnce(
         piModelConfig && !isPiModelRegistrationPlan(piModelConfig)
           ? { providerId: piModelConfig.providerId, keyEnv: piModelConfig.apiKeyEnv }
           : undefined;
-      const usage = sandboxUsageContext(request, sessionForMount);
+      const usage = sandboxUsageContext(request, sessionForMount, environment.projectScopeId);
       return {
         conversationId: sessionForMount,
         projectId: environment.projectScopeId,
@@ -927,7 +927,7 @@ async function acquireEnvironmentOnce(
     // pointer reads and a failed reconnect before it are not running time.
     // The in-process provider holds no sandbox here: it meters its own command sandbox.
     const meteredSandboxId = (environment.sandbox as { sandboxId?: string } | undefined)?.sandboxId;
-    const meterUsage = sandboxUsageContext(request, sessionForMount);
+    const meterUsage = sandboxUsageContext(request, sessionForMount, environment.projectScopeId);
     if (
       meteredSandboxId &&
       meterUsage &&

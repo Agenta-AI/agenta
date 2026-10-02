@@ -71,7 +71,7 @@ vi.mock("../../src/sessions/records-query.ts", () => ({
 // nothing. The meter's own suite calls `vi.unmock` on this module.
 vi.mock("../../src/metering/sandbox-usage.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/metering/sandbox-usage.ts")>()),
-  admitSandboxTurn: async () => "admitted",
+  admitSandboxTurn: async () => ({ admitted: true }),
   startSandboxMeter: () => ({ stop: async () => {} }),
 }));
 

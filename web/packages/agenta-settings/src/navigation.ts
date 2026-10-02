@@ -14,6 +14,7 @@ export type SettingsTabKey =
     | "organization"
     | "auditLog"
     | "billing"
+    | "credits"
     | "walletUsage"
     | "account"
     | "preferences"
@@ -31,6 +32,10 @@ export interface SettingsAccess {
     isOwner: boolean
     /** Whether the credit wallet is on. Only then does its debug view have data behind it. */
     walletsEnabled?: boolean
+    /** Whether credits stop this organization's work (its wallet is enforced). */
+    walletEnforced?: boolean
+    /** Whether the wallet's raw debug view is offered (development builds only). */
+    walletDebug?: boolean
 }
 
 /** A tertiary docs link rendered at the far right of a settings page header. */
@@ -148,6 +153,11 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
                 : "Track how much of your plan you have used.",
     },
     {
+        key: "credits",
+        scope: "organization",
+        description: "See the credits your organization has left and where they were used.",
+    },
+    {
         key: "walletUsage",
         scope: "organization",
         description:
@@ -187,6 +197,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     organizationGeneral: "Organizations",
     organization: "Access & Security",
     auditLog: "Audit Log",
+    credits: "Credits",
     walletUsage: "Usage (debug)",
     account: "Account",
     preferences: "Preferences",
@@ -226,8 +237,10 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.isEE && access.canViewEvents
         case "billing":
             return access.isEE && access.isOwner
+        case "credits":
+            return access.isEE && Boolean(access.walletsEnabled && access.walletEnforced)
         case "walletUsage":
-            return access.isEE && Boolean(access.walletsEnabled)
+            return access.isEE && Boolean(access.walletsEnabled && access.walletDebug)
         case "account":
             return access.isEE
         default:

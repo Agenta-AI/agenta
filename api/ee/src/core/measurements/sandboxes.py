@@ -7,12 +7,13 @@ like any other measurement.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
 from oss.src.utils.context import AuthScope
+from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.measurements.components import (
     MEMORY_GIB_SECONDS,
@@ -21,6 +22,18 @@ from ee.src.core.measurements.components import (
 )
 from ee.src.core.measurements.rate_card import sandbox_rates_for
 from ee.src.core.wallets.admission import admit_in_mode, measured
+from ee.src.core.wallets.caps import (
+    CONCURRENT_TURNS_LIMIT_CODE,
+    TURN_SLOT_TTL_SECONDS,
+    WALLET_BALANCE_EXHAUSTED_CODE,
+    TurnAdmission,
+    TurnLimit,
+    TurnSlotsInterface,
+    concurrent_turns_message,
+    credit_exhausted_message,
+    turn_caps_for,
+    turn_length_message,
+)
 from ee.src.core.wallets.contracts import (
     GatewayKind,
     MeasurementCommandV1,
@@ -28,6 +41,8 @@ from ee.src.core.wallets.contracts import (
 )
 from ee.src.core.wallets.interfaces import WalletCheckPort
 from ee.src.core.wallets.streaming import MeasurementPublisher
+
+log = get_module_logger(__name__)
 
 # The runner reports every minute, so an interval this long is a bug, not a sandbox.
 MAX_INTERVAL = timedelta(hours=1)
@@ -134,18 +149,97 @@ def sandbox_measurement(
 
 
 class SandboxUsageService:
-    def __init__(self, *, wallet: WalletCheckPort, publisher: MeasurementPublisher):
+    def __init__(
+        self,
+        *,
+        wallet: WalletCheckPort,
+        publisher: MeasurementPublisher,
+        turn_slots: TurnSlotsInterface,
+        plan_for: Callable[[UUID], Awaitable[Optional[str]]],
+    ):
         self.wallet = wallet
         self.publisher = publisher
+        self.turn_slots = turn_slots
+        self.plan_for = plan_for
 
-    async def admit(self, *, scope: AuthScope) -> bool:
-        """Whether a turn that runs a platform sandbox may start. The same spendable
-        check as a `builtin` gateway call; nothing is reserved, and a turn already
-        running is never stopped by it."""
-        return await admit_in_mode(
-            organization_id=scope.organization_id,
+    async def admit(
+        self, *, scope: AuthScope, turn_id: Optional[str] = None
+    ) -> TurnAdmission:
+        """Whether a turn that runs a platform sandbox may start, and the limits it runs
+        under. The same spendable check as a `builtin` gateway call; nothing is reserved,
+        and a turn already running is never stopped for its balance. Its plan caps how
+        many such turns the organization runs at once and how long each runs.
+
+        Nothing is capped for an organization whose wallet is `off`. A plan or slot store
+        that cannot answer admits uncapped: a metering outage must not stop agents.
+        """
+        organization_id = scope.organization_id
+        # Caps apply exactly where usage is measured: `shadow` and `enforce`.
+        if not await measured(organization_id):
+            return TurnAdmission(allowed=True)
+        try:
+            plan = await self.plan_for(organization_id)
+        except Exception:  # noqa: BLE001 - an unknown plan admits uncapped
+            log.warning(
+                "[wallets] plan unavailable; turn admitted uncapped",
+                organization_id=str(organization_id),
+                exc_info=True,
+            )
+            plan = None
+        if not await admit_in_mode(
+            organization_id=organization_id,
             point="sandbox",
-            check=lambda: self.wallet.check(organization_id=scope.organization_id),
+            check=lambda: self.wallet.check(organization_id=organization_id),
+        ):
+            return TurnAdmission(
+                allowed=False,
+                code=WALLET_BALANCE_EXHAUSTED_CODE,
+                message=credit_exhausted_message(plan),
+            )
+        caps = turn_caps_for(plan)
+        if caps is None:
+            return TurnAdmission(allowed=True)
+        slot_held = False
+        if turn_id:
+            try:
+                slot_held = await self.turn_slots.acquire(
+                    organization_id=organization_id,
+                    turn_id=turn_id,
+                    limit=caps.concurrent_turns,
+                    ttl_seconds=TURN_SLOT_TTL_SECONDS,
+                )
+            except Exception:  # noqa: BLE001 - the count is a cap, not a ledger
+                log.warning(
+                    "[wallets] running turns unavailable; turn admitted uncounted",
+                    organization_id=str(organization_id),
+                    exc_info=True,
+                )
+            else:
+                if not slot_held:
+                    return TurnAdmission(
+                        allowed=False,
+                        code=CONCURRENT_TURNS_LIMIT_CODE,
+                        message=concurrent_turns_message(plan, caps),
+                    )
+        return TurnAdmission(
+            allowed=True,
+            turn_limit=TurnLimit(
+                seconds=caps.max_turn_seconds,
+                message=turn_length_message(plan, caps),
+            ),
+            slot_held=slot_held,
+        )
+
+    async def renew_turn(self, *, scope: AuthScope, turn_id: str) -> None:
+        await self.turn_slots.renew(
+            organization_id=scope.organization_id,
+            turn_id=turn_id,
+            ttl_seconds=TURN_SLOT_TTL_SECONDS,
+        )
+
+    async def release_turn(self, *, scope: AuthScope, turn_id: str) -> None:
+        await self.turn_slots.release(
+            organization_id=scope.organization_id, turn_id=turn_id
         )
 
     async def record(

@@ -430,7 +430,8 @@ export interface SessionEnvironment {
   releaseSubscriptionHome?: () => void;
   /**
    * Reports this environment's Daytona sandbox seconds to the wallet, from acquire until the
-   * sandbox is parked or deleted. Warm time between turns is running time, so it is metered too.
+   * sandbox is parked or deleted, while one of its session's turns runs: warm time between turns
+   * is not billed (`beginMeteredTurn`).
    */
   sandboxMeter?: import("../../metering/sandbox-usage.ts").SandboxMeter;
   mountCreds: MountCredentials | null;

@@ -202,4 +202,21 @@ describe("RunFailureCallout", () => {
 
         expect(rendered).not.toContain("Try again")
     })
+
+    it("titles a plan limit by its class and offers the plans when the host has them", () => {
+        const rendered = text(
+            <RunFailureCallout
+                text="This turn stopped after 30 minutes, the longest turn the Hobby plan allows."
+                stateKey="turn-limit"
+                code="turn_time_limit_reached"
+                onOpenBilling={noop}
+            />,
+        )
+
+        expect(rendered).toContain("Turn time limit reached")
+        expect(rendered).toContain("the longest turn the Hobby plan allows")
+        expect(rendered).toContain("Plans and billing")
+        expect(rendered).not.toContain("The agent run failed")
+        expect(rendered).not.toContain("turn_time_limit_reached")
+    })
 })

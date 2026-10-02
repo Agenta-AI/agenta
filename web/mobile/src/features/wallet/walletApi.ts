@@ -12,7 +12,11 @@ export interface WalletCredit {
     created_at: string | null
 }
 
+/** The organization's `wallets-rollout` mode. Only `enforce` shows the credits view. */
+export type WalletMode = "off" | "shadow" | "enforce"
+
 export interface WalletSummary {
+    mode: WalletMode
     spendable_musd: number | null
     general_balance_musd: number | null
     floor_musd: number | null
@@ -75,7 +79,7 @@ export const fetchWalletSummary = async (projectId: string): Promise<WalletSumma
     const {data} = await axios.get(`${getAgentaApiUrl()}/wallets/summary`, {
         params: {project_id: projectId},
     })
-    return data.summary
+    return {...data.summary, mode: data.mode}
 }
 
 export const fetchWalletUsage = async (

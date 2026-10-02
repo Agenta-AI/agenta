@@ -24,7 +24,19 @@ from ee.src.core.measurements.sandboxes import (
     SandboxUsageInterval,
     SandboxUsageService,
 )
-from ee.tests.pytest.utils.measurements.fakes import InMemoryMeasurementPublisher
+from ee.src.apis.fastapi.wallets.models import (
+    SandboxAdmissionRequest,
+    SandboxTurnRequest,
+)
+from ee.src.core.access.entitlements.types import (
+    BUSINESS_AGENT_TURN_CAPS,
+    HOBBY_AGENT_TURN_CAPS,
+    PRO_AGENT_TURN_CAPS,
+)
+from ee.tests.pytest.utils.measurements.fakes import (
+    InMemoryMeasurementPublisher,
+    InMemoryTurnSlots,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -56,12 +68,17 @@ def _caller():
         reset_auth_context(token)
 
 
-def _router(*, allowed=True, publisher=None):
+def _router(*, allowed=True, publisher=None, slots=None, plan=None):
+    async def plan_for(organization_id):
+        return plan
+
     return WalletsRouter(
         wallet_usage_service=None,
         sandbox_usage_service=SandboxUsageService(
             wallet=_Wallet(allowed),
             publisher=publisher or InMemoryMeasurementPublisher(),
+            turn_slots=slots if slots is not None else InMemoryTurnSlots(),
+            plan_for=plan_for,
         ),
     )
 
@@ -89,6 +106,148 @@ async def test_admission_answers_the_wallet_check(allowed):
         response = await _router(allowed=allowed).admit_sandbox(_request())
 
     assert response.allowed is allowed
+
+
+HOBBY = "cloud_v0_hobby"
+PRO = "cloud_v0_pro"
+BUSINESS = "cloud_v0_business"
+
+
+def _turn(turn_id):
+    return SandboxAdmissionRequest(turn_id=turn_id)
+
+
+@pytest.mark.parametrize(
+    "plan,caps",
+    [
+        (HOBBY, HOBBY_AGENT_TURN_CAPS),
+        (PRO, PRO_AGENT_TURN_CAPS),
+        (BUSINESS, BUSINESS_AGENT_TURN_CAPS),
+    ],
+)
+async def test_each_plan_runs_its_number_of_turns_at_once_and_refuses_the_next(
+    plan, caps
+):
+    router = _router(plan=plan)
+    with _caller():
+        for i in range(caps.concurrent_turns):
+            admitted = await router.admit_sandbox(_request(), _turn(f"t-{i}"))
+            assert admitted.allowed is True and admitted.slot_held is True
+            assert admitted.turn_limit.seconds == caps.max_turn_seconds
+        refused = await router.admit_sandbox(_request(), _turn("one-too-many"))
+
+    assert refused.allowed is False
+    assert refused.code == "concurrent_turns_limit"
+    assert f"already has {caps.concurrent_turns} agents running" in refused.message
+    assert refused.turn_limit is None and refused.slot_held is False
+
+
+def test_the_decided_caps():
+    assert (
+        HOBBY_AGENT_TURN_CAPS.concurrent_turns,
+        HOBBY_AGENT_TURN_CAPS.max_turn_seconds,
+    ) == (2, 1800)
+    assert (
+        PRO_AGENT_TURN_CAPS.concurrent_turns,
+        PRO_AGENT_TURN_CAPS.max_turn_seconds,
+    ) == (10, 14400)
+    assert (
+        BUSINESS_AGENT_TURN_CAPS.concurrent_turns,
+        BUSINESS_AGENT_TURN_CAPS.max_turn_seconds,
+    ) == (25, 39600)
+
+
+async def test_a_released_turn_frees_its_slot_and_a_retried_turn_keeps_its_own():
+    router = _router(plan=HOBBY)
+    with _caller():
+        assert (await router.admit_sandbox(_request(), _turn("a"))).allowed
+        assert (await router.admit_sandbox(_request(), _turn("b"))).allowed
+        # The same turn asking again (a retried dispatch) is not a third turn.
+        assert (await router.admit_sandbox(_request(), _turn("a"))).allowed
+        assert not (await router.admit_sandbox(_request(), _turn("c"))).allowed
+        response = await router.release_sandbox_turn(
+            _request(), SandboxTurnRequest(turn_id="a")
+        )
+        assert response.status_code == 204
+        assert (await router.admit_sandbox(_request(), _turn("c"))).allowed
+
+
+async def test_running_turns_are_counted_per_organization():
+    slots = InMemoryTurnSlots()
+    router = _router(plan=HOBBY, slots=slots)
+    with _caller():
+        for turn in ("a", "b"):
+            assert (await router.admit_sandbox(_request(), _turn(turn))).allowed
+    with _caller():
+        assert (await router.admit_sandbox(_request(), _turn("a"))).allowed
+
+
+async def test_out_of_credit_is_refused_before_a_slot_is_taken_and_names_the_plan():
+    slots = InMemoryTurnSlots()
+    with _caller():
+        refused = await _router(allowed=False, plan=PRO, slots=slots).admit_sandbox(
+            _request(), _turn("a")
+        )
+
+    assert refused.allowed is False
+    assert refused.code == "wallet_balance_exhausted"
+    assert "Buy credits from $10" in refused.message
+    assert "upgrade to Business" in refused.message
+    assert all(not held for held in slots.held.values())
+
+
+async def test_a_plan_without_caps_and_a_turn_without_an_id_are_not_capped():
+    with _caller():
+        internal = await _router(plan="cloud_v0_agenta_ai").admit_sandbox(
+            _request(), _turn("a")
+        )
+        no_id = await _router(plan=HOBBY).admit_sandbox(_request(), None)
+
+    assert internal.allowed and internal.turn_limit is None and not internal.slot_held
+    assert no_id.allowed and no_id.turn_limit.seconds == 1800 and not no_id.slot_held
+
+
+async def test_a_slot_store_that_cannot_answer_admits_uncounted():
+    slots = InMemoryTurnSlots()
+    slots.fail = True
+    with _caller():
+        admitted = await _router(plan=HOBBY, slots=slots).admit_sandbox(
+            _request(), _turn("a")
+        )
+
+    assert admitted.allowed is True and admitted.slot_held is False
+    assert admitted.turn_limit.seconds == 1800
+
+
+async def test_an_organization_whose_wallet_is_off_is_never_capped(monkeypatch):
+    from ee.src.core.wallets import admission
+    from oss.src.core.rollout.switches import WalletMode
+
+    async def _off(organization_id, *, wait=True):
+        return WalletMode.OFF
+
+    monkeypatch.setattr(admission, "wallet_mode_for", _off)
+    slots = InMemoryTurnSlots()
+    router = _router(allowed=False, plan=HOBBY, slots=slots)
+    with _caller():
+        answers = [
+            await router.admit_sandbox(_request(), _turn(f"t-{i}")) for i in range(5)
+        ]
+
+    assert all(a.allowed and a.turn_limit is None and not a.slot_held for a in answers)
+    assert slots.held == {}
+
+
+async def test_a_heartbeat_takes_back_an_expired_hold():
+    slots = InMemoryTurnSlots()
+    router = _router(plan=HOBBY, slots=slots)
+    with _caller() as scope:
+        response = await router.renew_sandbox_turn(
+            _request(), SandboxTurnRequest(turn_id="a")
+        )
+
+    assert response.status_code == 204
+    assert slots.held[scope.organization_id] == {"a"}
 
 
 async def test_a_recorded_interval_answers_its_measurement_id():
@@ -156,7 +315,13 @@ _REPORT = {
 
 
 @pytest.mark.parametrize(
-    "path", ["/wallets/sandboxes/admit", "/wallets/sandboxes/usage"]
+    "path",
+    [
+        "/wallets/sandboxes/admit",
+        "/wallets/sandboxes/usage",
+        "/wallets/sandboxes/turns/heartbeat",
+        "/wallets/sandboxes/turns/release",
+    ],
 )
 @pytest.mark.parametrize(
     "headers",

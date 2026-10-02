@@ -8,6 +8,8 @@ export {
     // The failure classes the callout recognises, so a host can enumerate what it must offer an
     // escape for rather than keeping a second list that drifts.
     NOT_SENT_CODES,
+    PLAN_LIMIT_TITLES,
+    planLimitTitle,
     RETRYABLE_CODES,
     STARTER_CREDIT_CODES,
     SUBSCRIPTION_LOGIN_CODES,

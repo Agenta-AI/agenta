@@ -10,6 +10,8 @@
  * legitimate, human-timescale wait, not a wedge, and must never be reaped by these deadlines.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { clampTimerMs, envTimerMs } from "../../env.ts";
 
 export interface Clock {
@@ -43,14 +45,35 @@ export const DEFAULT_TTFB_TIMEOUT_MS = 2 * 60_000; // 2 min
 // 30 minutes; override with AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS.
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000;
 
-/** Every field is a usable timer delay (integer ms, at least 1, within Node's timer range) —
+/**
+ * The longest turn the caller's plan allows, as the platform's turn admission states it, with the
+ * line the person reads when a turn is stopped at it. Absent on a deployment that does not meter
+ * sandboxes, where the env deadline above is the only one.
+ */
+export interface TurnLimit {
+  ms: number;
+  message: string;
+}
+
+const turnLimitStorage = new AsyncLocalStorage<TurnLimit | undefined>();
+
+/** Run `fn` with the plan's turn limit in scope for every turn it starts. */
+export function runWithTurnLimit<T>(limit: TurnLimit | undefined, fn: () => T): T {
+  return turnLimitStorage.run(limit, fn);
+}
+
+/** Every timer field is a usable timer delay (integer ms, at least 1, within Node's timer range) —
  *  `resolveRunLimits` guarantees it, so callers can arm any of them without re-checking. */
 export interface ResolvedRunLimits {
   totalMs: number;
   idleMs: number;
   ttfbMs: number;
   toolCallMs: number;
+  /** Set when the plan's turn limit, not the env deadline, is what `totalMs` enforces. */
+  turnLimitMessage?: string;
 }
+
+export type RunLimitKind = "total" | "idle" | "ttfb" | "tool_call";
 
 /**
  * Read every limit from its env var (wide default otherwise). `idle` must stay below `total` or
@@ -59,14 +82,20 @@ export interface ResolvedRunLimits {
  */
 export function resolveRunLimits(
   log: (message: string) => void = () => {},
+  turnLimit: TurnLimit | undefined = turnLimitStorage.getStore(),
 ): ResolvedRunLimits {
   const envMs = (name: string, defaultMs: number): number =>
     envTimerMs(name, defaultMs, { log });
-  const totalMs = envMs(TOTAL_DEADLINE_ENV, DEFAULT_TOTAL_DEADLINE_MS);
+  const envTotalMs = envMs(TOTAL_DEADLINE_ENV, DEFAULT_TOTAL_DEADLINE_MS);
+  // The plan can only shorten a turn: an operator's lower env deadline still wins.
+  const planBinds = turnLimit !== undefined && turnLimit.ms > 0 && turnLimit.ms <= envTotalMs;
+  const totalMs = planBinds ? turnLimit.ms : envTotalMs;
   let idleMs = envMs(IDLE_TIMEOUT_ENV, DEFAULT_IDLE_TIMEOUT_MS);
   const ttfbMs = envMs(TTFB_TIMEOUT_ENV, DEFAULT_TTFB_TIMEOUT_MS);
   const toolCallMs = envMs(TOOL_CALL_TIMEOUT_ENV, DEFAULT_TOOL_CALL_TIMEOUT_MS);
-  if (idleMs >= totalMs) {
+  // A plan's short turn limit is not a misconfigured idle timeout: the total deadline simply
+  // fires first, so only an operator's own env pair is clamped.
+  if (idleMs >= totalMs && !planBinds) {
     log(
       `[run-limits] idle timeout (${idleMs}ms) >= total deadline (${totalMs}ms); clamping idle to half the total`,
     );
@@ -81,12 +110,13 @@ export function resolveRunLimits(
     idleMs: clampTimerMs(idleMs),
     ttfbMs: clampTimerMs(ttfbMs),
     toolCallMs: clampTimerMs(toolCallMs),
+    ...(planBinds ? { turnLimitMessage: turnLimit.message } : {}),
   };
 }
 
 export interface RunLimitsHandle {
   /** Fires (once) the moment any limit trips; the caller wires this to its own `abort()`. */
-  onTrip(handler: (reason: string) => void): void;
+  onTrip(handler: (reason: string, kind: RunLimitKind) => void): void;
   /** Call on every tool call announcement; the per-tool-call timer keys off this id. */
   noteToolCallStart(id: string): void;
   /** Call once the tool call's result lands; clears its per-call timer. */
@@ -117,7 +147,7 @@ export function createRunLimits(
 ): RunLimitsHandle {
   let tripped = false;
   let paused = false;
-  let tripHandler: ((reason: string) => void) | undefined;
+  let tripHandler: ((reason: string, kind: RunLimitKind) => void) | undefined;
   let sawFirstProgress = false;
 
   let totalTimer: NodeJS.Timeout | undefined;
@@ -136,29 +166,29 @@ export function createRunLimits(
     toolCallTimers.clear();
   };
 
-  const trip = (reason: string): void => {
+  const trip = (reason: string, kind: RunLimitKind): void => {
     if (tripped || paused) return;
     tripped = true;
     clearAll();
     log(`[run-limits] ${reason}`);
-    tripHandler?.(reason);
+    tripHandler?.(reason, kind);
   };
 
   const armIdle = (): void => {
     if (tripped || paused) return;
     if (idleTimer) clock.clearTimeout(idleTimer);
     idleTimer = clock.setTimeout(
-      () => trip(`idle timeout after ${limits.idleMs}ms with no progress`),
+      () => trip(`idle timeout after ${limits.idleMs}ms with no progress`, "idle"),
       limits.idleMs,
     );
   };
 
   totalTimer = clock.setTimeout(
-    () => trip(`total run deadline of ${limits.totalMs}ms exceeded`),
+    () => trip(`total run deadline of ${limits.totalMs}ms exceeded`, "total"),
     limits.totalMs,
   );
   ttfbTimer = clock.setTimeout(
-    () => trip(`no first response within ${limits.ttfbMs}ms of run start`),
+    () => trip(`no first response within ${limits.ttfbMs}ms of run start`, "ttfb"),
     limits.ttfbMs,
   );
 
@@ -185,7 +215,7 @@ export function createRunLimits(
         id,
         clock.setTimeout(() => {
           toolCallTimers.delete(id);
-          trip(`tool call ${id} exceeded ${limits.toolCallMs}ms`);
+          trip(`tool call ${id} exceeded ${limits.toolCallMs}ms`, "tool_call");
         }, limits.toolCallMs),
       );
     },

@@ -12,6 +12,8 @@ Status: draft OpenSpec package, written 2026-09-22, moved into the repository 20
 6. Read [the rollout switches](rollout-switches.md) for the per-organization PostHog flags.
 7. Read [the credit sources](credit-sources.md) for signup, daily, monthly, purchased and transferred credit.
 8. Read [the funded models](funded-models.md) for Gemini on our Vertex account through `builtin/agenta`.
+9. Read [the plan caps](caps.md) for turns at once, turn length, turn-scoped sandbox billing and
+   the limit messages.
 
 ## Changes
 

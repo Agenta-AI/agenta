@@ -42,7 +42,7 @@ import {cn} from "@/lib/utils"
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
-import {useProviderRecovery} from "./providerRecovery"
+import {useBillingRoute, useProviderRecovery} from "./providerRecovery"
 import {RunErrorCallout} from "./RunErrorCallout"
 import {runRetryAction} from "./runRetry"
 import {mobileTurnRowClass} from "./turnRowClass"
@@ -107,6 +107,7 @@ const TurnRowInner = ({
     )
     const usage = getMessageUsage(turn.message)
     const openProviders = useProviderRecovery()
+    const openBilling = useBillingRoute()
 
     /**
      * Notices about a server that did not join the run, above the timeline rather than in it.
@@ -246,6 +247,7 @@ const TurnRowInner = ({
                     // as they do on the desktop.
                     onAddKey={openProviders}
                     onSignIn={openProviders}
+                    onOpenBilling={openBilling}
                 />
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">

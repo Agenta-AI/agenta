@@ -177,7 +177,7 @@ async def test_a_refused_admission_never_contacts_the_upstream():
     [FakeBilling(admit_raises=RuntimeError("wallet down")), FakeBilling(admit_delay=1)],
     ids=["raises", "stalls"],
 )
-async def test_a_wallet_that_cannot_answer_refuses(billing, monkeypatch):
+async def test_a_wallet_that_cannot_answer_refuses_as_an_outage(billing, monkeypatch):
     monkeypatch.setattr(service_module, "ADMISSION_TIMEOUT_SECONDS", 0.05)
     service, rest, _, _ = _service(billing=billing)
 
@@ -185,7 +185,11 @@ async def test_a_wallet_that_cannot_answer_refuses(billing, monkeypatch):
         context=context(), tool="mock_enrich_person", arguments={"email": "a@b.co"}
     )
 
-    assert result.error.code == "wallet_balance_exhausted"
+    # An outage is not "not enough credit": the agent must not tell the user to add any.
+    assert result.error.code == "billing_unavailable"
+    assert result.error.retryable is True
+    assert "credit" not in result.error.message.lower()
+    assert "not charged" in result.error.message
     assert rest.calls == []
 
 

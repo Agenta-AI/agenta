@@ -19,6 +19,7 @@
 import {act} from "react"
 
 import {
+    PLAN_LIMIT_TITLES,
     RETRYABLE_CODES,
     STARTER_CREDIT_CODES,
     SUBSCRIPTION_LOGIN_CODES,
@@ -169,6 +170,43 @@ describe("mobile TurnRow: a run that failed", () => {
         press("Sign in again")
 
         expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=llms")
+    })
+
+    describe("a plan limit", () => {
+        const runtime = globalThis as typeof globalThis & {__env?: Record<string, string>}
+        afterEach(() => {
+            delete runtime.__env
+        })
+        const sentence =
+            "Your organization already has 2 agents running, the most the Hobby plan allows at once. This turn did not start, and you were not charged. Your running agents keep working. Send your message again when one finishes, or upgrade to Pro to run 10 at once."
+
+        it.each(Object.entries(PLAN_LIMIT_TITLES))(
+            "%s shows its title and the platform's whole sentence, never the code",
+            (code, title) => {
+                const shown = renderTurn(failedTurn(sentence, code))
+
+                expect(shown).toContain(title)
+                expect(shown).toContain(sentence)
+                expect(shown).not.toContain(code)
+                expect(shown).not.toContain("The run stopped")
+                expect(shown).not.toContain("Try again")
+            },
+        )
+
+        it("offers the plans where billing is on, and takes the reader there", () => {
+            runtime.__env = {NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "true"}
+            renderTurn(failedTurn(sentence, "concurrent_turns_limit"))
+
+            press("Plans and billing")
+
+            expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=billing")
+        })
+
+        it("draws no plans button where billing is off", () => {
+            expect(renderTurn(failedTurn(sentence, "turn_time_limit_reached"))).not.toContain(
+                "Plans and billing",
+            )
+        })
     })
 
     it("draws no escape off a project route, where there is no page to send anyone to", () => {
