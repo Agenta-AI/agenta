@@ -294,8 +294,7 @@ export const DriveHtmlApp = ({
 }: {
     mount: Mount | null
     path: string
-    /** Presented path of THIS file (with any `agent-files/` prefix): links outside the app resolve
-     * against its folder so drive navigation lands on the right node. */
+    /** Presented path of this file; links outside the app resolve against its folder. */
     displayPath?: string
     /** Open another drive file (a link outside the app resolves to its path). */
     onNavigate?: (path: string) => void

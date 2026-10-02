@@ -1,16 +1,4 @@
-/**
- * Agent HTML apps — grant store (lane A).
- *
- * Remembers, per signed-in user and per `${mountId}|${dir}`, what the user answered about an
- * app's file access, so reopening it (in any tab, after a reload) does not ask again. The map
- * lives in localStorage under the user's settings key ({@link grantsStorageKey}), so another
- * person signing in on this browser starts from nothing. With no signed-in user, or no usable
- * storage, answers live in memory for the page only. Every storage access is wrapped: a private
- * window, blocked storage or a quota error must never break the drive.
- *
- * A record keeps the read answer (`level`, null until the read question was answered) and
- * whether the user refused a write upgrade, so an app that keeps writing is not asked again.
- */
+/** Agent HTML apps — per-user file-access answers, kept in localStorage per mount and folder. */
 
 import {ACTIVE_USER_ID_KEY, userSettingsKey} from "@agenta/shared/state"
 

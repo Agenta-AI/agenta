@@ -1,13 +1,10 @@
-/**
- * The ⋯ "File access…" setting for an HTML app, for the Files pane toolbar: the stored level as a
- * label, and the dialog that changes it. A change is stored and reaches a running app at once.
- */
+/** The ⋯ "File access…" setting: the stored level and the dialog that changes it. */
 import {useCallback, useState, useSyncExternalStore, type ReactNode} from "react"
 
 import {type AppAccess} from "@agenta/entities/drive"
 
 import {accessLabel, GrantSheet} from "./GrantSheet"
-import {defaultGrants, type HtmlAppEnv} from "./HtmlAppBody"
+import {defaultGrants, effectiveAccess, type HtmlAppEnv} from "./HtmlAppBody"
 
 export interface AppAccessMenu {
     /** The stored level as shown in the menu ("Read", "Not set", …). */
@@ -41,7 +38,8 @@ export function useAppAccessMenu({
         () => (mountId ? (grants.get(mountId, dir)?.level ?? "unset") : "unset"),
         () => "unset",
     )
-    const level: AppAccess | null = stored === "unset" ? null : (stored as AppAccess)
+    const level: AppAccess | null =
+        stored === "unset" ? null : effectiveAccess(stored as AppAccess, canEditMounts)
     const [isOpen, setIsOpen] = useState(false)
 
     const save = useCallback(
@@ -55,7 +53,7 @@ export function useAppAccessMenu({
     )
 
     return {
-        label: accessLabel(level === "read-write" && !canEditMounts ? "read" : level),
+        label: accessLabel(level),
         open: useCallback(() => setIsOpen(true), []),
         dialog:
             isOpen && mountId ? (

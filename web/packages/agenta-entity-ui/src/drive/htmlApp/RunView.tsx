@@ -1,20 +1,5 @@
-/**
- * The Run tab: the app in a sandboxed iframe.
- *
- * Controls: a "‹ back" control once the app navigated to a sibling page, a "Files changed" pill
- * when the drive moved underneath the app, Refresh (re-assemble + re-attach) and an error badge
- * that opens the list (with Copy) above the app. They portal into the host's toolbar when it gives
- * one (`controlsContainer`), else sit in a row above the app. The host is attached on the frame's
- * first load and detached on unmount; theme changes
- * (`.dark` / `data-theme` on the root, or the OS preference) re-resolve the kit tokens and reach
- * the app through `host.setTheme`.
- *
- * Navigation: the host reports `nav` hrefs. A target inside the app dir is fetched, assembled and
- * shown here (with the previous page pushed on the back stack); anything else goes to `onNavigate`,
- * which opens that file in the drive.
- */
+/** The running app in a sandboxed iframe; its controls portal into the host's toolbar slot. */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
-import {createPortal} from "react-dom"
 
 import {
     SANDBOX_FLAGS,
@@ -25,6 +10,9 @@ import {
 } from "@agenta/entities/drive"
 import {Button, Skeleton, cn} from "@agenta/ui/ui"
 import {ArrowsClockwise, CaretLeft, Copy, Warning} from "@phosphor-icons/react"
+import {createPortal} from "react-dom"
+
+import {ROW_ICON_BTN} from "../DriveHeader"
 
 import {
     assembleRunDocument,
@@ -34,8 +22,6 @@ import {
     withinDir,
     type AssembleIo,
 } from "./assemble"
-import {ROW_ICON_BTN} from "../DriveHeader"
-
 import {resolveKitTokens} from "./kit"
 
 /** Kit tokens read off the host document's root (lane E's resolver); `{}` without a DOM. */

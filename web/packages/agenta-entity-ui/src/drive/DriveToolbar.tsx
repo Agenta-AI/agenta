@@ -1,7 +1,6 @@
 /**
  * Row 2 of the Files pane, following the selection: a folder (grid / list · sort · ⋯), a markdown
- * file (formatting bar · save status · mode · ⋯) or any other file (name · save status · ⋯; an
- * HTML app's ⋯ also switches between the app and its code).
+ * file (formatting bar · save status · mode · ⋯) or any other file (name · save status · ⋯).
  */
 import {type ReactNode} from "react"
 

@@ -6,8 +6,8 @@
  * {@link createFsClient}. Nothing arriving on `window` is ever read: the port is the only channel.
  *
  * Per request, in this order: validate the shape → resolve scope (before any network) → ask
- * through `requestAccess` when the call needs more access than the app has → refuse every call
- * without access → enforce the grant on write methods → body checks → the API call with the implicit `If-Match` from the
+ * through `requestAccess` when the call needs more access → refuse without access → enforce the
+ * grant on write methods → body checks → the API call with the implicit `If-Match` from the
  * etag cache (skipped on `force`). Every result refreshes the cache; a successful write/remove
  * calls `onWrite` so the drive can revalidate. `notifyChanged` leaves the cache alone: a write the
  * app has not merged must conflict, not overwrite the agent's edit. Behaviour matches `createMockHtmlAppHost` rule for

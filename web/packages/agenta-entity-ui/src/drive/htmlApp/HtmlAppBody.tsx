@@ -1,16 +1,4 @@
-/**
- * The HTML app viewer: the app running in its folder. What `DriveHtmlApp` in `renderers.tsx`
- * renders once the source text has landed (loading and the failure card stay with the query there).
- * The source view belongs to the host (the Files pane's code editor or code block).
- *
- * The entry's folder is the app dir. The app runs at once with the access stored for that folder,
- * or none. A call that needs more opens an {@link AccessQuestion} about what it tried (reading,
- * or changing files); the answer is stored per user, mount and folder and applies to the running
- * host, as does a change made from the ⋯ "File access…" setting.
- * Everything a host needs — the bridge host factory, mount io, the kit CSS, the token resolver,
- * the grant store — arrives through {@link HtmlAppEnvContext}, with defaults that are the real
- * drive: mount io, `createHtmlAppHost`, `BRIDGE_STUB` and `KIT_CSS`.
- */
+/** The HTML app viewer: runs the app in its folder and asks for file access on demand. */
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
 import {
@@ -72,7 +60,11 @@ export const createGrantStore = (): GrantStore => {
 }
 
 /** Per-user grants in localStorage: they hold across tabs and reloads, never across users. */
-export const defaultGrants: GrantStore = {get: getGrant, set: storeGrant, subscribe: subscribeGrants}
+export const defaultGrants: GrantStore = {
+    get: getGrant,
+    set: storeGrant,
+    subscribe: subscribeGrants,
+}
 
 /** What a stored level lets the app do here; write is capped to read where edits are off. */
 export const effectiveAccess = (level: AppAccess | null, canEditMounts: boolean): AppAccess =>
@@ -146,8 +138,7 @@ export interface HtmlAppBodyProps {
     path: string
     /** Its source text (the caller owns the query). */
     content: string
-    /** Presented path of THIS file (with any `agent-files/` prefix): links outside the app resolve
-     * against its folder so drive navigation lands on the right node. */
+    /** Presented path of this file; links outside the app resolve against its folder. */
     displayPath?: string
     /** Open another drive file (a link outside the app resolves to its path). */
     onNavigate?: (path: string) => void
@@ -238,7 +229,9 @@ export function HtmlAppBody({
             grants.set(
                 mountId,
                 dir,
-                allow ? {level: "read-write", writeRefused: false} : {...record, writeRefused: true},
+                allow
+                    ? {level: "read-write", writeRefused: false}
+                    : {...record, writeRefused: true},
             )
             return allow ? "read-write" : current
         }
@@ -300,13 +293,7 @@ export function HtmlAppBody({
         <>
             {host ? (
                 <RunView
-                    // Keyed by the entry file: a different entry is a different run, and every
-                    // piece of state the view holds — the page it is on, the back stack, the
-                    // iframe itself — belongs to the one it was opened with. Without this the
-                    // view kept the previous file's path and re-rendered THAT page under the new
-                    // app's name. The host is in the key too: RunView attaches a host on its
-                    // frame's first load only, so a new host (folder or project change) needs a
-                    // new frame.
+                    // A new entry or host is a new run: fresh frame, page and back stack.
                     key={`${path}:${hostKey(host)}`}
                     host={host}
                     dir={dir}

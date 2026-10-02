@@ -1,8 +1,4 @@
-/**
- * The two file-access dialogs of an HTML app. {@link AccessQuestion} asks about what the app just
- * tried (reading, or changing files); {@link GrantSheet} is the ⋯ "File access…" setting with the
- * full choice. Both can be confined to the Files pane through `container`.
- */
+/** The access question an app's file call raises, and the ⋯ "File access…" setting. */
 import {useState, type ReactNode} from "react"
 
 import {type AppAccess} from "@agenta/entities/drive"
@@ -51,7 +47,11 @@ const AccessDialog = ({
     showCloseButton: boolean
     children: ReactNode
 }) => (
-    <Dialog open={open} modal={!container} onOpenChange={(next) => (next ? undefined : onDismiss())}>
+    <Dialog
+        open={open}
+        modal={!container}
+        onOpenChange={(next) => (next ? undefined : onDismiss())}
+    >
         <DialogContent
             container={container}
             contained={!!container}
@@ -93,7 +93,8 @@ export function AccessQuestion({
         <AccessDialog open={open} container={container} onDismiss={onCancel} showCloseButton>
             <DialogHeader className="gap-1">
                 <DialogTitle className="pr-6 text-sm">
-                    Let {appName} {need === "read" ? "read" : "change"} files in <FolderCode dir={dir} />?
+                    Let {appName} {need === "read" ? "read" : "change"} files in{" "}
+                    <FolderCode dir={dir} />?
                 </DialogTitle>
                 <DialogDescription className="text-xs text-colorTextSecondary">
                     {need === "read"
@@ -143,8 +144,7 @@ export function GrantSheet({
     onCancel,
     onSave,
 }: GrantSheetProps) {
-    const initial = current === "read-write" && !canWrite ? "read" : current
-    const [level, setLevel] = useState<AppAccess | null>(initial)
+    const [level, setLevel] = useState<AppAccess | null>(current)
 
     return (
         <AccessDialog

@@ -1,11 +1,4 @@
-/**
- * Agent HTML apps — `app.json` manifest (lane 0 contract).
- *
- * The manifest marks a drive folder as an app and tells the host what to render. File access is
- * asked at run time; an `access` field is kept in `extra` like any other. Parsing is tolerant on purpose: agents write these files, so a stray field must not
- * hide the app. Only the four things the host cannot guess are strict (`agenta_app`, `name`, a
- * flat `entry`, valid JSON).
- */
+/** Agent HTML apps — tolerant `app.json` parser; `agenta_app`, `name`, flat `entry` are strict. */
 
 export interface AppManifest {
     agenta_app: 1

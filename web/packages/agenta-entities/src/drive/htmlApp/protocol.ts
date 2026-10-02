@@ -49,7 +49,7 @@ export type FsMethod =
     | "stat"
     | "remove"
 
-/** Access the manifest asks for; the host may narrow it (never widen). */
+/** A file-access grant: read, or read and write. */
 export type GrantLevel = "read" | "read-write"
 
 /** What an app may touch right now: a grant, or nothing (not asked yet, or refused). */
@@ -235,7 +235,6 @@ export const SANDBOX_FLAGS = "allow-scripts allow-forms"
 export const RUN_CSP =
     "default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; connect-src https:; form-action 'none'"
 
-
 /** Theme tokens the kit CSS consumes; the host fills them from its palette. */
 export const KIT_TOKENS = [
     "--ag-bg",
@@ -310,7 +309,7 @@ export interface HtmlAppHostOptions {
     /** App dir relative to the mount root. */
     dir: string
     grant: AppAccess
-    /** Asked when a call needs more than `grant` (one question at a time); resolves the new level. */
+    /** Asked when a call needs more than `grant`; resolves the new level. */
     requestAccess?: (need: GrantLevel) => Promise<AppAccess>
     tokens: Record<string, string>
     visible?: boolean

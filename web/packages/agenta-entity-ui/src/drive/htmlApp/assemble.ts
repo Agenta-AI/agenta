@@ -1,14 +1,4 @@
-/**
- * Assembles the document the HTML app's iframe runs.
- *
- * `assembleRunDocument` folds a multi-file app into one document: linked stylesheets become inline
- * `<style>` and images become data URIs, all fetched from the SAME mount and resolved against the
- * app's folder. The author's scripts are KEPT (same-folder `<script src>` is inlined, `https:` ones
- * load as-is), and the head gains the CSP, the kit tokens + CSS, and the bridge stub that gives the
- * app `window.agenta`.
- *
- * Pure: mount access arrives through {@link AssembleIo}.
- */
+/** Assembles the self-contained document an HTML app's iframe runs (pure; io via `AssembleIo`). */
 import {BRIDGE_STUB, RUN_CSP} from "@agenta/entities/drive"
 
 import {tokensToCss} from "./kit"
@@ -65,15 +55,7 @@ export const blobToDataUri = (blob: Blob | null): Promise<string | null> => {
     })
 }
 
-/**
- * Options for {@link inlineAssets}.
- *
- * `confine` keeps every reference inside the app folder. Run happens under a grant the person gave
- * for ONE folder, so a reference that climbs out of it is refused: `resolveRel` pops `..` with no
- * floor, and without this an app could pull any text file in the mount into a `<style>` (or
- * execute it as a script) and then write what it read back into its own folder. The `fs` bridge has always refused those
- * paths; markup went around it.
- */
+/** `confine`: a grant covers one folder, so a reference that climbs out of it is refused. */
 interface InlineOptions {
     /** App dir every reference must stay inside. */
     confine: string

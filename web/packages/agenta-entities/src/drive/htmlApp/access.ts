@@ -1,11 +1,8 @@
-/**
- * Agent HTML apps — the access gate both hosts share: what the app may touch now, and the one
- * question at a time that raises it when a call needs more.
- */
+/** Agent HTML apps — the access gate both hosts share; one question at a time raises it. */
 import type {AppAccess, GrantLevel} from "./protocol"
 
 /** True when `have` lets a call that needs `need` through. */
-export const coversAccess = (have: AppAccess, need: GrantLevel): boolean =>
+const coversAccess = (have: AppAccess, need: GrantLevel): boolean =>
     have === "read-write" || (have === "read" && need === "read")
 
 export interface AccessGate {
