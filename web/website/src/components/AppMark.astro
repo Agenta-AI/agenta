@@ -1,5 +1,5 @@
 ---
-// One app's logo on its --brand-<slug> tile (initial on a neutral tile if no logo).
+// One app's official logo on a white tile in both themes (its initial on a neutral tile if none).
 import type { TemplateApp } from "../lib/marketplace";
 
 interface Props {
@@ -7,27 +7,24 @@ interface Props {
   size?: number;
 }
 const { app, size } = Astro.props;
-const vars = [
-  size && `--appmark:${size}px;`,
-  app.logo &&
-    `--tile-bg:var(--brand-${app.slug});--tile-fg:var(--brand-${app.slug}-ink,var(--paper-0));`,
-]
-  .filter(Boolean)
-  .join("");
+const logoSize = Math.round((size ?? 34) * 0.5);
 ---
 
 <span
-  class:list={["ag-appmark", app.logo && "ag-appmark--brand"]}
+  class:list={["ag-appmark", app.logo && "ag-appmark--logo"]}
   title={app.name}
-  style={vars || undefined}
+  style={size ? `--appmark:${size}px;` : undefined}
 >
   {
     app.logo ? (
-      <span
+      <img
         class="ag-appmark__logo"
-        role="img"
-        aria-label={app.name}
-        style={`--logo:url(${app.logo});`}
+        src={app.logo}
+        alt={app.name}
+        width={logoSize}
+        height={logoSize}
+        loading="lazy"
+        decoding="async"
       />
     ) : (
       <span class="ag-appmark__initial" role="img" aria-label={app.name}>
@@ -49,19 +46,13 @@ const vars = [
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--tile-bg, var(--th-ctl-bg));
+    background: var(--th-ctl-bg);
     box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
   }
   .ag-appmark__logo {
-    width: calc(var(--appmark) * 0.47);
-    height: calc(var(--appmark) * 0.47);
-    background: var(--tile-fg, var(--th-text-hi));
-    opacity: 0.85;
-    -webkit-mask: var(--logo) center / contain no-repeat;
-    mask: var(--logo) center / contain no-repeat;
-  }
-  .ag-appmark--brand .ag-appmark__logo {
-    opacity: 1;
+    width: calc(var(--appmark) * 0.5);
+    height: calc(var(--appmark) * 0.5);
+    object-fit: contain;
   }
   .ag-appmark__initial {
     font: 600 calc(var(--appmark) * 0.36) / 1 var(--font-sans);
@@ -79,7 +70,7 @@ const vars = [
     position: relative;
     z-index: 1;
     margin-left: calc(var(--appmark) * -0.28);
-    background: var(--tile-bg, var(--th-bg-2));
+    background: var(--th-bg-2);
     box-shadow:
       0 0 0 2px var(--stack-ring, var(--th-bg-1)),
       inset 0 0 0 1px var(--th-ctl-ring);
@@ -118,5 +109,9 @@ const vars = [
       --lift: -4px;
       z-index: 6;
     }
+  }
+  /* Brand logos are drawn for a light ground, so a logo tile stays white in dark mode too. */
+  .ag-appmark.ag-appmark--logo {
+    background: var(--paper-0);
   }
 </style>

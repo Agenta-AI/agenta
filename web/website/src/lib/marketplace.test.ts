@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -156,10 +159,15 @@ describe("author profiles", () => {
 describe("template page sections", () => {
   const codeQa = templateByKey("code-qa")!;
 
-  it("lists each connection's primary app once, with a logo when one is hosted", () => {
+  it("lists each connection's primary app once, with a logo when one was fetched", () => {
+    // Logos are fetched at build time, so a bare test run may have none.
+    const logo = (slug: string) =>
+      existsSync(join(process.cwd(), "public", "logos", "apps", `${slug}.svg`))
+        ? `/logos/apps/${slug}.svg`
+        : undefined;
     expect(appsOf(codeQa)).toEqual([
-      { slug: "github", name: "GitHub", logo: "/logos/tools/github.svg" },
-      { slug: "slack", name: "Slack", logo: "/logos/tools/slack.svg" },
+      { slug: "github", name: "GitHub", logo: logo("github") },
+      { slug: "slack", name: "Slack", logo: logo("slack") },
     ]);
     for (const template of templates) {
       const slugs = appsOf(template).map((app) => app.slug);
