@@ -127,9 +127,50 @@ class _ResolvedLlmTarget:
 STREAM_DRAIN_AFTER_DISCONNECT_SECONDS = 120.0
 
 
-async def _discard(body: AsyncIterator[bytes]) -> None:
-    async for _chunk in body:
-        pass
+_END = object()
+
+
+class _UpstreamReader:
+    """Reads an upstream body in a task of its own and hands its chunks over a queue.
+
+    Cancelling the consumer, which is what a client disconnect does, does not reach the
+    task, so the upstream is read to its end and the adapter fills the call's usage. Once
+    the consumer has left, chunks are discarded instead of queued.
+    """
+
+    def __init__(self, body: AsyncIterator[bytes]) -> None:
+        self._queue: "asyncio.Queue[Any]" = asyncio.Queue()
+        self._abandoned = False
+        self._task = asyncio.ensure_future(self._read(body))
+
+    async def _read(self, body: AsyncIterator[bytes]) -> None:
+        try:
+            async for chunk in body:
+                if not self._abandoned:
+                    self._queue.put_nowait(chunk)
+        finally:
+            self._queue.put_nowait(_END)
+
+    async def chunks(self) -> AsyncIterator[bytes]:
+        while True:
+            chunk = await self._queue.get()
+            if chunk is _END:
+                break
+            yield chunk
+        # The read is over; this raises what the upstream raised, as a direct read would.
+        await self._task
+
+    async def finish(self, *, timeout: float) -> None:
+        """Wait for the read to end, at most `timeout`, then stop it. Never raises: a
+        failed or overlong upstream is recorded with whatever usage it reached."""
+        self._abandoned = True
+        if not self._task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(self._task), timeout=timeout)
+            except Exception:  # pylint: disable=broad-except
+                self._task.cancel()
+        if self._task.done() and not self._task.cancelled():
+            self._task.exception()  # retrieved, so asyncio does not log it as unhandled
 
 
 async def _replay_body(payload: bytes) -> AsyncIterator[bytes]:
@@ -895,11 +936,22 @@ class LLMGatewayService:
         run_id: Optional[str],
         run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
-        exhausted = False
+        # A platform-funded stream is read by a task of its own (`_UpstreamReader`), so a
+        # client disconnect cancels only this generator and never the upstream read: the
+        # usage on the stream's last frame still arrives. Any other stream is read here and
+        # closes with its caller, as before.
+        reader = (
+            _UpstreamReader(body)
+            if target.namespace == GatewayEndpointNamespace.BUILTIN
+            else None
+        )
         try:
-            async for chunk in body:
-                yield chunk
-            exhausted = True
+            if reader is None:
+                async for chunk in body:
+                    yield chunk
+            else:
+                async for chunk in reader.chunks():
+                    yield chunk
         finally:
             # Fires on natural exhaustion and on a mid-stream break alike — usage is
             # whatever the adapter had populated by then, None if the crash pre-dated it.
@@ -911,7 +963,7 @@ class LLMGatewayService:
             # cancellation and nothing after it in this `finally` would run.
             await run_shielded(
                 self._finish_and_record(
-                    body=None if exhausted else body,
+                    reader=reader,
                     scope=scope,
                     target=target,
                     decision=decision,
@@ -925,7 +977,7 @@ class LLMGatewayService:
     async def _finish_and_record(
         self,
         *,
-        body: Optional[AsyncIterator[bytes]],
+        reader: Optional["_UpstreamReader"],
         scope: AuthScope,
         target: GatewayTarget,
         decision: PolicyDecision,
@@ -934,22 +986,15 @@ class LLMGatewayService:
         run_id: Optional[str],
         run_labels: Optional[Dict[str, str]],
     ) -> None:
-        """Record the call; first read the rest of a platform-funded stream the caller left.
+        """Record the call; first let a platform-funded stream the caller left run out.
 
         Usage rides a stream's last frame. A caller that disconnects before it would
         otherwise receive the model's output and leave no usage behind, so a `builtin`
-        call nobody pays for. The rest of the stream is read and discarded, up to
-        `STREAM_DRAIN_AFTER_DISCONNECT_SECONDS`, so its usage is measured. A stream on the
-        customer's own credential is closed at once, as before.
+        call nobody pays for. The reader keeps reading and discards what it reads, up to
+        `STREAM_DRAIN_AFTER_DISCONNECT_SECONDS`, so the usage is measured.
         """
-        if body is not None and target.namespace == GatewayEndpointNamespace.BUILTIN:
-            try:
-                await asyncio.wait_for(
-                    _discard(body), timeout=STREAM_DRAIN_AFTER_DISCONNECT_SECONDS
-                )
-            except Exception:  # pylint: disable=broad-except
-                # The upstream failed or ran past the bound: record what was read.
-                pass
+        if reader is not None:
+            await reader.finish(timeout=STREAM_DRAIN_AFTER_DISCONNECT_SECONDS)
         await self.policy.record(
             scope=scope,
             target=target,

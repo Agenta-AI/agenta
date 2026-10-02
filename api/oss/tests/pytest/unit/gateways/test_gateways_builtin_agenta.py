@@ -498,3 +498,70 @@ async def test_function_tools_still_reach_vertex(vertex):
     )
 
     assert json.loads(requests[0].content)["tools"] == tools
+
+
+@pytest.mark.asyncio
+async def test_a_disconnect_during_a_pending_upstream_read_is_still_charged(vertex):
+    """The realistic disconnect: the client goes while the gateway waits for the
+    upstream's next chunk. The cancellation reaches the caller's task, not the upstream
+    read, so the usage on the last frame still arrives and is recorded."""
+    import asyncio
+
+    last_frame = {
+        "choices": [{"delta": {}, "finish_reason": "stop", "index": 0}],
+        "usage": _GEMINI_CACHED_USAGE,
+    }
+
+    async def slow_stream():
+        yield b'data: {"choices": [{"delta": {"content": "Hi"}, "index": 0}]}\n\n'
+        await asyncio.sleep(0.3)
+        yield f"data: {json.dumps(last_frame)}\n\ndata: [DONE]\n\n".encode()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=slow_stream(), headers={"content-type": "text/event-stream"}
+        )
+
+    policy = _Policy()
+    service = LLMGatewayService(
+        llm_endpoints_dao=_NoRows(),
+        policy=policy,
+        resolver=_NoVault(),
+        upstream_registry=LLMUpstreamRegistry(
+            adapters={
+                "relay": RelayLLMAdapter(
+                    client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+                )
+            }
+        ),
+    )
+    result = await service.relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.BUILTIN,
+        name="agenta",
+        body=json.dumps(
+            {"model": "google/gemini-3.7-flash", "stream": True, "messages": []}
+        ).encode(),
+        headers={},
+    )
+    first_chunk = asyncio.Event()
+
+    async def client():
+        async for _chunk in result.body:
+            first_chunk.set()
+
+    consumer = asyncio.ensure_future(client())
+    await asyncio.wait_for(first_chunk.wait(), timeout=2)
+    await asyncio.sleep(0.05)  # the consumer now waits on the upstream's next chunk
+    consumer.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await consumer
+
+    for _ in range(100):
+        if policy.records:
+            break
+        await asyncio.sleep(0.02)
+    ((_target, outcome),) = policy.records
+    assert outcome.usage == GatewayUsage(
+        input_tokens=2457, cache_read_tokens=12256, output_tokens=68
+    )
