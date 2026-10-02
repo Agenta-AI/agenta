@@ -330,8 +330,8 @@ own `/run`, and that contract moved in v0.117.0:
   conversation from the durable record log and fails with "record log is unreadable". Send a short
   multi-turn history instead. This bites direct callers only; the product endpoint carries the
   transcript itself.
-- `gpt-5.4-mini` is refused by ChatGPT accounts ("not supported when using Codex with a ChatGPT
-  account"). Use `gpt-5.5` or `gpt-5.3-codex-spark` for subscription cells.
+- `gpt-5.4-mini` and `gpt-5.3-codex-spark` are refused by ChatGPT accounts ("not supported when
+  using Codex with a ChatGPT account"). Use `gpt-5.5` for subscription cells.
 - The runner's health endpoint advertises `pi_core` and `claude` only. `codex` dispatches and
   answers normally; the list is a stale hardcoded constant. No cell should gate on it.
 
