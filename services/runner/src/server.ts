@@ -146,7 +146,7 @@ import type { InProcessProvider } from "./engines/inprocess/index.ts";
 import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
-import { runAdmittedTurn } from "./metering/turn-admission.ts";
+import { endAbandonedTurn, runAdmittedTurn } from "./metering/turn-admission.ts";
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
 const SHUTDOWN_TURN_END_BUDGET_MS = 5_000;
@@ -1096,6 +1096,7 @@ async function runAndStreamWithApiBaseResolved(
       // owes it, and let the abandoned run keep its own teardown if it ever unwinds.
       turnClosed = true;
       teardownCompleted = false;
+      endAbandonedTurn(turnId);
       const message = `${ABANDONED_TURN_MARKER}: ${outcome.reason}`;
       process.stderr.write(
         `[sessions] ABANDONED session=${sessionId ?? "-"} turn=${turnId ?? "-"}: ${outcome.reason}\n`,

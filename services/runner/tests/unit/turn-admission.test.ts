@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resolveRunLimits } from "../../src/engines/sandbox_agent/run-limits.ts";
 import type { SandboxTurnAdmission } from "../../src/metering/sandbox-usage.ts";
-import { runAdmittedTurn } from "../../src/metering/turn-admission.ts";
+import { endAbandonedTurn, runAdmittedTurn } from "../../src/metering/turn-admission.ts";
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
 
 const RUN = {
@@ -89,5 +89,21 @@ describe("runAdmittedTurn", () => {
       holdSlot,
     });
     expect(holdSlot).not.toHaveBeenCalled();
+  });
+
+  it("a turn the runner abandons gives its slot back although its run never settles", async () => {
+    const release = vi.fn();
+    const holdSlot = vi.fn(() => ({ release }));
+    void runAdmittedTurn(RUN, "t-stuck", undefined, () => new Promise(() => {}), {
+      admit: admitting({ admitted: true, slotHeld: true }),
+      holdSlot,
+    });
+    await vi.waitFor(() => expect(holdSlot).toHaveBeenCalled());
+    expect(release).not.toHaveBeenCalled();
+
+    endAbandonedTurn("t-stuck");
+    endAbandonedTurn("t-stuck");
+
+    expect(release).toHaveBeenCalledTimes(1);
   });
 });

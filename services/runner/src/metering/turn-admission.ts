@@ -31,10 +31,27 @@ export async function runAdmittedTurn(
   }
   const slot = admission.slotHeld ? (deps.holdSlot ?? holdTurnSlot)(authorization, turnId) : undefined;
   const endMeteredTurn = beginMeteredTurn(meteredTurnKey(request));
+  const end = (): void => {
+    if (openTurns.get(turnId) === end) openTurns.delete(turnId);
+    endMeteredTurn();
+    slot?.release();
+  };
+  openTurns.set(turnId, end);
   try {
     return await runWithTurnLimit(admission.turnLimit, run);
   } finally {
-    endMeteredTurn();
-    slot?.release();
+    end();
   }
+}
+
+/** Each admitted turn's ending, until it runs; both endings below are idempotent. */
+const openTurns = new Map<string, () => void>();
+
+/**
+ * End an admitted turn whose run never settled: the runner closed it without its result
+ * (`awaitTurnOrAbandon`). Its billing window closes and its slot goes back now; whatever the
+ * abandoned run still does is not this turn's any more.
+ */
+export function endAbandonedTurn(turnId: string | undefined): void {
+  if (turnId) openTurns.get(turnId)?.();
 }
