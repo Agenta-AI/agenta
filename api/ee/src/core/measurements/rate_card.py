@@ -4,10 +4,9 @@ managed tool actions.
 Integer micro-dollars throughout, per million tokens, per request, or per resource-hour. A price change is a
 change to this file, reviewed and approved by product; nothing else sets a price.
 
-Every token and request rate here is SYNTHETIC and is not an approved price: the only
-models `builtin` serves today are the mock provider's, behind `env.mock_gateways.enabled`.
-A real `builtin` provider brings its own rows, with their source and date, as the sandbox
-rows below do.
+The mock provider's token rates and the request rates are SYNTHETIC and are not approved
+prices: the mock serves only behind `env.mock_gateways.enabled`. A real `builtin` provider
+brings its own rows, with their source and date, as the `agenta` and sandbox rows do.
 """
 
 from hashlib import sha256
@@ -66,12 +65,29 @@ _MOCK_RATES = TokenRates(
     output_musd_per_million=4_000_000,  # $4.00 / M
 )
 
+# Our models: Gemini on Agenta's Vertex AI account, at the CURRENT list price x 1.75.
+# Source: cloud.google.com/vertex-ai/generative-ai/pricing, read 2026-10-02. Both models,
+# global endpoint, "through December 31, 2026": $0.75 input, $0.075 cached input, $3.75
+# output (response and reasoning) per million tokens; from January 1, 2027 Google doubles
+# both, and these rows change with it. Vertex's implicit cache has no per-token write
+# charge, so a write is priced as fresh input. The gateway calls the `global` location; a
+# non-global location lists 10% higher and is not priced here.
+_GEMINI_FLASH_RATES = TokenRates(
+    input_musd_per_million=1_312_500,  # 750_000 x 1.75
+    cache_read_musd_per_million=131_250,  # 75_000 x 1.75
+    cache_write_musd_per_million=1_312_500,  # priced as input
+    output_musd_per_million=6_562_500,  # 3_750_000 x 1.75
+)
+
 # Keyed by the gateway's own vocabulary: (provider, model) as the producer writes them
 # into `resource_locator`.
 TOKEN_RATES: Dict[Tuple[str, str], TokenRates] = {
-    (provider, model): _MOCK_RATES
-    for provider in ("agenta", "mock")
-    for model in ("mock/echo", "gpt-5.5", "claude-sonnet-5")
+    ("agenta", "google/gemini-3.7-flash"): _GEMINI_FLASH_RATES,
+    ("agenta", "google/gemini-3.8-flash"): _GEMINI_FLASH_RATES,
+    **{
+        ("mock", model): _MOCK_RATES
+        for model in ("mock/echo", "gpt-5.5", "claude-sonnet-5")
+    },
 }
 
 # Keyed by MCP server, the key the MCP plane writes into `resource_locator`. Carried over

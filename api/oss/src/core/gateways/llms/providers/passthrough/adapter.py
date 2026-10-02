@@ -131,6 +131,17 @@ def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[Gateway
         details = usage.get("input_tokens_details")
         output = usage.get("output_tokens")
     cached = details.get("cached_tokens") if isinstance(details, dict) else None
+    # OpenAI counts reasoning inside the output total; Vertex's OpenAI-compatible endpoint
+    # leaves Gemini's reasoning out of it and counts it only in `total_tokens`. Reasoning is
+    # billed as output, so the output is whatever of the total is not prompt.
+    total = usage.get("total_tokens")
+    if (
+        isinstance(total, int)
+        and isinstance(prompt, int)
+        and isinstance(output, int)
+        and total - prompt > output
+    ):
+        output = total - prompt
     if isinstance(prompt, int) and isinstance(cached, int):
         prompt -= cached
     return GatewayUsage(

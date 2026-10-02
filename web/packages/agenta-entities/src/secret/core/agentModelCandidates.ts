@@ -48,12 +48,17 @@ export interface AgentModelCandidate extends AgentModelSelection {
 }
 
 /**
- * A platform-funded (`builtin`) gateway endpoint and the models it serves. The API lists these
- * only under its development mock switch, so a deployment without it never offers one.
+ * A platform-funded (`builtin`) gateway endpoint and the models it serves. The API lists one only
+ * where the deployment serves it and only to an organization the gateway serves.
+ *
+ * `deploymentKind` "mock" is the development stand-in, which answers in each model's own vendor
+ * protocol. Every other built-in endpoint (`agenta`, Gemini on Agenta's Vertex account) answers on
+ * one OpenAI-compatible chat-completions surface.
  */
 export interface BuiltinModelEndpoint {
     slug: string
     models: string[]
+    deploymentKind?: string | null
 }
 
 export interface BuildAgentModelCandidatesArgs {
@@ -429,11 +434,19 @@ const liveSubscriptionCandidates = ({
 }
 
 /**
- * The routes a built-in endpoint offers. The gateway answers a built-in model in Anthropic's
- * protocol for a `claude-` id and in OpenAI's otherwise, so that is the family the harness must
- * drive. Only harnesses that name models by id, and whose catalog knows the model, are offered
- * it: an alias harness would send a model the endpoint's allowlist refuses.
+ * The routes a built-in endpoint offers.
+ *
+ * The mock answers a `claude-` id in Anthropic's protocol and any other in OpenAI's, so that is
+ * the family the harness must drive, and only harnesses that name models by id and whose catalog
+ * knows the model are offered it: an alias harness would send a model the allowlist refuses.
+ *
+ * A real built-in endpoint answers every model on one OpenAI-compatible chat-completions route.
+ * It is offered only to the harnesses in `BUILTIN_CHAT_COMPLETIONS_HARNESSES`: Codex drives an
+ * OpenAI-compatible route with the Responses API, which the Vertex endpoint behind it does not
+ * serve. The starter-credits connection pins the same harness for the same reason.
  */
+const BUILTIN_CHAT_COMPLETIONS_HARNESSES: ReadonlySet<string> = new Set(["pi_core"])
+
 const builtinCandidates = ({
     builtinEndpoints,
     capabilities,
@@ -441,11 +454,27 @@ const builtinCandidates = ({
 }: BuildAgentModelCandidatesArgs): AgentModelCandidate[] => {
     const candidates: AgentModelCandidate[] = []
     for (const endpoint of builtinEndpoints ?? []) {
+        const mock = endpoint.deploymentKind === "mock"
         for (const harness of harnessIds) {
-            if (agentModelSelectionMode(capabilities, harness) !== "provider/id") continue
+            if (mock && agentModelSelectionMode(capabilities, harness) !== "provider/id") continue
+            if (
+                !mock &&
+                (!BUILTIN_CHAT_COMPLETIONS_HARNESSES.has(harness) ||
+                    !harnessSupportsProviderKind(
+                        capabilities,
+                        harness,
+                        CUSTOM_KIND,
+                        LlmEndpointProtocol.Openai,
+                    ))
+            ) {
+                continue
+            }
             for (const modelId of endpoint.models) {
-                const family = modelId.startsWith("claude-") ? "anthropic" : "openai"
-                if (!harnessSpellings(capabilities, harness, family).has(modelId.toLowerCase())) {
+                const family = mock && modelId.startsWith("claude-") ? "anthropic" : "openai"
+                if (
+                    mock &&
+                    !harnessSpellings(capabilities, harness, family).has(modelId.toLowerCase())
+                ) {
                     continue
                 }
                 candidates.push({

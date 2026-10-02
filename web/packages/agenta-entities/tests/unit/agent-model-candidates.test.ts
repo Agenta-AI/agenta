@@ -247,7 +247,7 @@ describe("built-in model candidates", () => {
             capabilities,
             harnessIds: ["pi_core", "claude"],
             showSubscriptions: false,
-            builtinEndpoints: [{slug: "agenta", models}],
+            builtinEndpoints: [{slug: "agenta", models, deploymentKind: "mock"}],
         })
 
     it("offers each catalogued model to the id-naming harnesses, routed by the endpoint slug", () => {
@@ -279,6 +279,40 @@ describe("built-in model candidates", () => {
 
         expect(agentModelSelectionIsRunnable([builtin], builtin)).toBe(true)
         expect(agentModelSelectionIsRunnable([builtin], customPick)).toBe(false)
+    })
+
+    it("offers a real built-in endpoint's models to the OpenAI-compatible custom-route harnesses", () => {
+        const gemini = ["google/gemini-3.7-flash", "google/gemini-3.8-flash"]
+        const candidates = buildAgentModelCandidates({
+            connections: [],
+            capabilities: {
+                ...capabilities,
+                pi_core: {...capabilities.pi_core, deployments: ["direct", "custom"]},
+                // Drives an OpenAI-compatible route with the Responses API, which Vertex lacks.
+                codex: {
+                    providers: ["openai"],
+                    deployments: ["direct", "custom"],
+                    model_selection: "provider/id",
+                    connection_modes: ["agenta"],
+                    models: {openai: ["gpt-5.5"]},
+                },
+            },
+            harnessIds: ["pi_core", "claude", "codex"],
+            showSubscriptions: false,
+            builtinEndpoints: [{slug: "agenta", models: gemini, deploymentKind: "vertex_ai"}],
+        })
+
+        // Uncatalogued ids are offered: the endpoint's allowlist, not a harness catalog, decides.
+        expect(candidates.map((c) => [c.harness, c.modelId, c.provider])).toEqual([
+            ["pi_core", "google/gemini-3.7-flash", "openai"],
+            ["pi_core", "google/gemini-3.8-flash", "openai"],
+        ])
+        expect(candidates[0]).toMatchObject({
+            mode: "agenta",
+            slug: "agenta",
+            namespace: "builtin",
+            connectionKey: "builtin:agenta",
+        })
     })
 
     it("offers nothing when the deployment lists no built-in endpoint", () => {

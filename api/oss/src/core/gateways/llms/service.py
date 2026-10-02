@@ -12,6 +12,7 @@ from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
     BUILTIN_LLM_PROVIDERS,
     builtin_llm_endpoint,
+    builtin_llm_secret,
     standard_llm_endpoint,
     standard_llm_endpoints,
 )
@@ -274,8 +275,9 @@ class LLMGatewayService:
     async def list_endpoints(self, *, scope: AuthScope) -> List[LLMEndpoint]:
         """List generated standard and builtin endpoints and persisted custom endpoints.
 
-        Builtin endpoints exist only under the development mock switch, so this lists them
-        only there; that is what lets an agent picker offer a platform-funded model.
+        A builtin endpoint is listed only where this deployment serves it (its credential
+        is configured, or, for the mock, the development switch is on); that is what lets an
+        agent picker offer a platform-funded model.
 
         Takes the scope rather than a bare project_id (R14): existence is a per-owner fact
         the moment user-owned secrets ship, and fabricating an AuthScope to satisfy the port
@@ -331,14 +333,21 @@ class LLMGatewayService:
             raise LLMEndpointProviderMissingError(
                 namespace=target.namespace, name=target.name
             )
-        if target.deployment_kind == LLMDeploymentKind.MOCK:
+        deployment_kind = target.deployment_kind
+        if deployment_kind == LLMDeploymentKind.MOCK:
             resolved_provider = "anthropic" if model.startswith("claude-") else "openai"
+        elif target.namespace == GatewayEndpointNamespace.BUILTIN:
+            # A real `builtin` endpoint answers the harness on one OpenAI-compatible
+            # chat-completions surface, whatever upstream serves it behind the gateway. The
+            # harness drives that surface as it drives any OpenAI-compatible custom route.
+            resolved_provider = "openai"
+            deployment_kind = LLMDeploymentKind.CUSTOM
 
         return LLMGatewayConnectionResolution(
             namespace=target.namespace,
             name=target.name,
             provider_key=resolved_provider,
-            deployment_kind=target.deployment_kind,
+            deployment_kind=deployment_kind,
             model=model,
         )
 
@@ -400,6 +409,7 @@ class LLMGatewayService:
         body = self._enforce_ceilings(
             target=target, context=context, body=body, payload=payload
         )
+        body = self._request_stream_usage(target=target, context=context, body=body)
 
         policy_target = target.as_policy_target(model=context.model)
         decision = await self.policy.authorize(
@@ -444,14 +454,19 @@ class LLMGatewayService:
                     key="wallet_balance", target=target.target_path()
                 )
 
-        ref = target.secret_ref()
-        secret = (
-            await self.resolver.resolve(
-                scope=scope, ref=ref, mode=SecretMode.PROJECT_ONLY
+        # A `builtin` endpoint authenticates with the platform's own credential, never one
+        # from the project's vault.
+        if target.namespace == GatewayEndpointNamespace.BUILTIN:
+            secret = builtin_llm_secret(provider_key=target.name)
+        else:
+            ref = target.secret_ref()
+            secret = (
+                await self.resolver.resolve(
+                    scope=scope, ref=ref, mode=SecretMode.PROJECT_ONLY
+                )
+                if ref is not None
+                else None
             )
-            if ref is not None
-            else None
-        )
 
         adapter = self.upstream_registry.get(
             select_upstream(target.provider_key, target.deployment_kind)
@@ -729,6 +744,33 @@ class LLMGatewayService:
         }
         rewritten[aliases[0]] = ceiling
         return json.dumps(rewritten).encode()
+
+    @staticmethod
+    def _request_stream_usage(
+        *, target: _ResolvedLlmTarget, context: LLMCallContext, body: bytes
+    ) -> bytes:
+        """Ask a streamed `builtin` chat completion to report its usage.
+
+        A `builtin` call is charged from the usage the upstream reports, and an OpenAI-style
+        stream reports none unless asked. Asked here, the usage rides the stream's last
+        frame, so a stream cut off before that frame still reports nothing; the gateway
+        cannot measure what the upstream never sent. Every other request relays unchanged.
+        """
+        if (
+            target.namespace != GatewayEndpointNamespace.BUILTIN
+            or not context.stream
+            or context.protocol != LLMProtocol.CHAT_COMPLETIONS
+        ):
+            return body
+        payload = _json_object(body)
+        options = payload.get("stream_options")
+        if isinstance(options, dict) and options.get("include_usage") is True:
+            return body
+        payload["stream_options"] = {
+            **(options if isinstance(options, dict) else {}),
+            "include_usage": True,
+        }
+        return json.dumps(payload).encode()
 
     def _outcome_from(
         self,

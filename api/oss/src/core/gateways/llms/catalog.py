@@ -1,5 +1,8 @@
 """Generate standard LLM endpoints from the provider catalogue."""
 
+import base64
+import binascii
+import json
 from typing import List, Optional
 
 from agenta.sdk.utils.assets import litellm_provider_prefixes, supported_llm_models
@@ -13,14 +16,30 @@ from oss.src.core.gateways.llms.dtos import (
     LLMModelFilter,
 )
 from oss.src.core.gateways.llms.providers.passthrough.routing import DIRECT_BASE_URLS
+from oss.src.core.gateways.llms.types import LLMUpstreamError
+from oss.src.core.gateways.policy.dtos import ResolvedSecret, SecretOrigin
+from oss.src.core.secrets.dtos import (
+    CustomModelSettingsDTO,
+    CustomProviderDTO,
+    CustomProviderSettingsDTO,
+    SecretResponseDTO,
+)
+from oss.src.core.secrets.enums import CustomProviderKind, SecretKind
 from oss.src.core.shared.dtos import Header
 from oss.src.utils.env import env
 
 _MOCK_MODELS = ["mock/echo", "gpt-5.5", "claude-sonnet-5"]
 
+# The platform's own provider: Agenta's Vertex AI account.
+AGENTA_PROVIDER = "agenta"
+
+# The models `builtin/agenta` serves, spelled as Vertex's OpenAI-compatible endpoint names
+# them, so a request body relays to Vertex unchanged.
+AGENTA_MODELS = ("google/gemini-3.7-flash", "google/gemini-3.8-flash")
+
 # Every provider the `builtin` namespace can serve. A `builtin` call runs on the platform's
 # account, so the wallet's rate card must price each model these serve.
-BUILTIN_LLM_PROVIDERS = ("agenta", "mock")
+BUILTIN_LLM_PROVIDERS = (AGENTA_PROVIDER, "mock")
 
 
 def _bare_model_id(*, provider_key: str, model_id: str) -> str:
@@ -89,19 +108,76 @@ def standard_llm_endpoints() -> List[LLMEndpoint]:
 
 
 def builtin_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
-    """Platform-owned development models.  These are generated only under the
-    explicit switch; their static upstream credential is never project-owned."""
-    if not env.mock_gateways.enabled or provider_key not in BUILTIN_LLM_PROVIDERS:
-        return None
+    """A platform-funded endpoint, or None when this deployment does not serve it.
 
+    `agenta` is the platform's own Vertex AI account, served only when its credential is
+    configured. `mock` is the development stand-in, served only under the mock switch. The
+    upstream credential of either is never project-owned."""
+    if provider_key == AGENTA_PROVIDER:
+        return _agenta_endpoint()
+    if provider_key == "mock" and env.mock_gateways.enabled:
+        return LLMEndpoint(
+            slug="mock",
+            header=Header(name="mock"),
+            provider_key="mock",
+            deployment_kind=LLMDeploymentKind.MOCK,
+            namespace=GatewayEndpointNamespace.BUILTIN,
+            data=LLMEndpointData(
+                route=LLMEndpointRoute(),
+                models=LLMModelFilter(allowlist=_MOCK_MODELS),
+            ),
+        )
+    return None
+
+
+def _agenta_endpoint() -> Optional[LLMEndpoint]:
+    config = env.llm_gateway
+    if not config.vertex_configured:
+        return None
     return LLMEndpoint(
-        slug=provider_key,
-        header=Header(name=provider_key),
-        provider_key=provider_key,
-        deployment_kind=LLMDeploymentKind.MOCK,
+        slug=AGENTA_PROVIDER,
+        header=Header(name="Agenta"),
+        provider_key=AGENTA_PROVIDER,
+        deployment_kind=LLMDeploymentKind.VERTEX,
         namespace=GatewayEndpointNamespace.BUILTIN,
         data=LLMEndpointData(
-            route=LLMEndpointRoute(),
-            models=LLMModelFilter(allowlist=_MOCK_MODELS),
+            route=LLMEndpointRoute(
+                region=config.vertex_location,
+                extras={"vertex_project": config.vertex_project},
+            ),
+            models=LLMModelFilter(allowlist=list(AGENTA_MODELS)),
         ),
+    )
+
+
+def builtin_llm_secret(*, provider_key: str) -> Optional[ResolvedSecret]:
+    """The platform credential a `builtin` endpoint authenticates with, or None when the
+    endpoint needs none (the mock).
+
+    Built from configuration on every call rather than read from any vault: no project owns
+    it, so it has no owner, and its origin is `local`, the platform's own money."""
+    if provider_key != AGENTA_PROVIDER or not env.llm_gateway.vertex_configured:
+        return None
+    try:
+        document = json.loads(base64.b64decode(env.llm_gateway.vertex_sa_json_b64))
+    except (binascii.Error, ValueError) as exc:
+        raise LLMUpstreamError(
+            provider_key=provider_key,
+            status_code=None,
+            detail="AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64 is not base64 of a JSON document",
+        ) from exc
+    return ResolvedSecret(
+        secret=SecretResponseDTO(
+            kind=SecretKind.CUSTOM_PROVIDER,
+            header=Header(name="Agenta"),
+            data=CustomProviderDTO(
+                kind=CustomProviderKind.VERTEX,
+                provider=CustomProviderSettingsDTO(
+                    extras={"vertex_ai_credentials": document}
+                ),
+                models=[CustomModelSettingsDTO(slug=model) for model in AGENTA_MODELS],
+            ),
+        ),
+        owner=None,
+        origin=SecretOrigin.LOCAL,
     )
