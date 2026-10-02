@@ -2,7 +2,6 @@ import type {CSSProperties} from "react"
 
 import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {
-    Badge,
     Button,
     LoadingButton,
     Sheet,
@@ -22,7 +21,6 @@ import {howItWorks, templateProviders, templateTools} from "./marketplaceView"
 import {SectionLabel} from "./SectionLabel"
 import {TemplateConnectList} from "./TemplateConnectList"
 import {TemplateToolList} from "./TemplateToolList"
-import {TriggerBadge} from "./TriggerBadge"
 
 const SHEET_WIDTH = {"--ag-sheet-responsive-width": "560px"} as CSSProperties
 
@@ -30,7 +28,6 @@ const SHEET_WIDTH = {"--ag-sheet-responsive-width": "560px"} as CSSProperties
 export const TemplatePreviewSheet = ({
     open,
     template,
-    version,
     fullPageHref,
     busy,
     onUse,
@@ -40,7 +37,6 @@ export const TemplatePreviewSheet = ({
     /** Separate from `template`, so the last one stays drawn while the sheet closes. */
     open: boolean
     template: AgentStarterTemplate | undefined
-    version?: string
     fullPageHref: string
     busy: boolean
     onUse: (template: AgentStarterTemplate) => void
@@ -88,13 +84,6 @@ export const TemplatePreviewSheet = ({
                                 <SheetDescription className="text-sm leading-relaxed">
                                     {template.overview || template.description}
                                 </SheetDescription>
-                                <div className="flex flex-wrap gap-1.5">
-                                    <TriggerBadge trigger={template.trigger} />
-                                    <Badge className="font-mono">{template.model}</Badge>
-                                    {version ? (
-                                        <Badge className="font-mono">v{version}</Badge>
-                                    ) : null}
-                                </div>
                             </div>
 
                             {template.example ? (

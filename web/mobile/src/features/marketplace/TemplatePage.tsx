@@ -27,7 +27,6 @@ import {TemplateInstructions} from "./TemplateInstructions"
 import {TemplateSection} from "./TemplateSection"
 import {TemplateToolList} from "./TemplateToolList"
 import {TemplateUseCard} from "./TemplateUseCard"
-import {TriggerBadge} from "./TriggerBadge"
 import {useCopyLink} from "./useCopyLink"
 
 /** One template in full: identity, numbered sections, and the card that uses it. */
@@ -101,7 +100,6 @@ export const TemplatePage = ({
                         {template.description}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-1.5">
-                        <TriggerBadge trigger={template.trigger} />
                         <Badge>{template.category}</Badge>
                         {template.toolsSummary ? <Badge>{template.toolsSummary}</Badge> : null}
                     </div>

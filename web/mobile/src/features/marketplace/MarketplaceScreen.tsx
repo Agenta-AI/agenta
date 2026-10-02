@@ -2,7 +2,6 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     ALL_TEMPLATES_CATEGORY,
-    agentTemplateProvenanceAtom,
     agentTemplatesAtom,
     agentTemplatesStatusAtom,
     categorySlug,
@@ -61,7 +60,6 @@ export const MarketplaceScreen = ({
     const newAgent = useNewAgentAction(base)
     const templates = useAtomValue(agentTemplatesAtom)
     const status = useAtomValue(agentTemplatesStatusAtom)
-    const provenance = useAtomValue(agentTemplateProvenanceAtom)
     const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
     const searchRef = useRef<HTMLInputElement>(null)
     const fade = useScrollFade<HTMLDivElement>()
@@ -270,7 +268,6 @@ export const MarketplaceScreen = ({
             <TemplatePreviewSheet
                 open={previewOpen}
                 template={preview}
-                version={preview ? provenance[preview.key]?.version : undefined}
                 fullPageHref={preview ? `${base}/templates/${preview.key}` : base}
                 busy={newAgent.creating}
                 onUse={startFromTemplate}
