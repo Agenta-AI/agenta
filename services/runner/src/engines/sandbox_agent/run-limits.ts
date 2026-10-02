@@ -84,16 +84,24 @@ export function resolveRunLimits(
   };
 }
 
+/**
+ * Which limit ended the run. `ttfb` is the one the caller can act on: the TTFB timer is cancelled
+ * by the first progress event of any kind, so a `ttfb` trip PROVES the turn emitted nothing at all
+ * — no token, no tool call, no side effect — which is what makes re-prompting it safe. Every other
+ * kind fires mid-turn, where work has already landed and a replay could repeat it.
+ */
+export type RunLimitKind = "total" | "idle" | "ttfb" | "tool-call";
+
 export interface RunLimitsHandle {
   /** Fires (once) the moment any limit trips; the caller wires this to its own `abort()`. */
-  onTrip(handler: (reason: string) => void): void;
+  onTrip(handler: (reason: string, kind: RunLimitKind) => void): void;
   /** Call on every tool call announcement; the per-tool-call timer keys off this id. */
   noteToolCallStart(id: string): void;
   /** Call once the tool call's result lands; clears its per-call timer. */
   noteToolCallEnd(id: string): void;
-  /** Wrap an `EmitEvent` sink so every event it sees also resets idle/TTFB — the one
-   *  observation point every harness's progress already flows through. */
-  wrapEmit(emit: (event: any) => void): (event: any) => void;
+  /** Call on every sign of turn progress (the tracer's `onProgress`): cancels TTFB on the first
+   *  call and resets idle on each one. Works the same whether or not the turn streams. */
+  noteProgress(): void;
   /** The turn parked for human input: freeze every timer for good (the pause path owns the
    *  turn's end from here; these deadlines must never re-fire on top of it). */
   notePaused(): void;
@@ -103,10 +111,10 @@ export interface RunLimitsHandle {
 
 /**
  * Build the run-limit enforcement for one run. Arms the total deadline and the TTFB timer
- * immediately; the first progress event (via `wrapEmit`) cancels TTFB and arms the recurring idle
- * timer. Any of total/idle/ttfb/tool-call tripping calls the `onTrip` handler exactly once — after
- * that (or after `dispose`) the instance is inert, so a caller can always safely `dispose()` in its
- * own `finally` without double-firing or re-arming on a late event.
+ * immediately; the first progress event (via `noteProgress`) cancels TTFB and arms the recurring
+ * idle timer. Any of total/idle/ttfb/tool-call tripping calls the `onTrip` handler exactly once —
+ * after that (or after `dispose`) the instance is inert, so a caller can always safely `dispose()`
+ * in its own `finally` without double-firing or re-arming on a late event.
  */
 export function createRunLimits(
   limits: ResolvedRunLimits,
@@ -117,7 +125,7 @@ export function createRunLimits(
 ): RunLimitsHandle {
   let tripped = false;
   let paused = false;
-  let tripHandler: ((reason: string) => void) | undefined;
+  let tripHandler: ((reason: string, kind: RunLimitKind) => void) | undefined;
   let sawFirstProgress = false;
 
   let totalTimer: NodeJS.Timeout | undefined;
@@ -136,29 +144,31 @@ export function createRunLimits(
     toolCallTimers.clear();
   };
 
-  const trip = (reason: string): void => {
+  const trip = (reason: string, kind: RunLimitKind): void => {
     if (tripped || paused) return;
     tripped = true;
     clearAll();
     log(`[run-limits] ${reason}`);
-    tripHandler?.(reason);
+    tripHandler?.(reason, kind);
   };
 
   const armIdle = (): void => {
     if (tripped || paused) return;
     if (idleTimer) clock.clearTimeout(idleTimer);
     idleTimer = clock.setTimeout(
-      () => trip(`idle timeout after ${limits.idleMs}ms with no progress`),
+      () =>
+        trip(`idle timeout after ${limits.idleMs}ms with no progress`, "idle"),
       limits.idleMs,
     );
   };
 
   totalTimer = clock.setTimeout(
-    () => trip(`total run deadline of ${limits.totalMs}ms exceeded`),
+    () => trip(`total run deadline of ${limits.totalMs}ms exceeded`, "total"),
     limits.totalMs,
   );
   ttfbTimer = clock.setTimeout(
-    () => trip(`no first response within ${limits.ttfbMs}ms of run start`),
+    () =>
+      trip(`no first response within ${limits.ttfbMs}ms of run start`, "ttfb"),
     limits.ttfbMs,
   );
 
@@ -185,7 +195,7 @@ export function createRunLimits(
         id,
         clock.setTimeout(() => {
           toolCallTimers.delete(id);
-          trip(`tool call ${id} exceeded ${limits.toolCallMs}ms`);
+          trip(`tool call ${id} exceeded ${limits.toolCallMs}ms`, "tool-call");
         }, limits.toolCallMs),
       );
     },
@@ -197,15 +207,10 @@ export function createRunLimits(
       }
       noteProgress();
     },
-    wrapEmit(emit) {
-      // Every event is progress for idle/TTFB purposes; per-tool-call timers are driven
-      // separately by noteToolCallStart/End (called from the raw ACP update handler, which
-      // knows the harness's tool-call id before this typed event is even built).
-      return (event: any) => {
-        noteProgress();
-        emit(event);
-      };
-    },
+    // Every recorded event is progress for idle/TTFB purposes; per-tool-call timers are driven
+    // separately by noteToolCallStart/End (called from the raw ACP update handler, which knows
+    // the harness's tool-call id before this typed event is even built).
+    noteProgress,
     notePaused() {
       paused = true;
       clearAll();

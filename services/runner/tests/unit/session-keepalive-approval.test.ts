@@ -2877,7 +2877,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       onTrip() {},
       noteToolCallStart() {},
       noteToolCallEnd() {},
-      wrapEmit: (emit: (event: any) => void) => emit,
+      noteProgress() {},
       notePaused() {},
       dispose() {},
     });
@@ -3521,7 +3521,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       onTrip() {},
       noteToolCallStart() {},
       noteToolCallEnd() {},
-      wrapEmit: (emit: (event: any) => void) => emit,
+      noteProgress() {},
       notePaused() {},
       dispose() {},
     });
@@ -3712,7 +3712,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       onTrip() {},
       noteToolCallStart() {},
       noteToolCallEnd() {},
-      wrapEmit: (emit: (event: any) => void) => emit,
+      noteProgress() {},
       notePaused() {},
       dispose() {},
     });

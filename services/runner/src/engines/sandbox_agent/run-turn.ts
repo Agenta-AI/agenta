@@ -103,7 +103,11 @@ import {
   buildApprovedContentWiring,
   createCommitAuthorizationState,
 } from "./approved-content.ts";
-import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
+import {
+  createRunLimits,
+  resolveRunLimits,
+  type RunLimitKind,
+} from "./run-limits.ts";
 import {
   httpLivenessProbe,
   resolveSandboxLivenessLimits,
@@ -432,11 +436,16 @@ export async function runTurn(
   let runLimitTrip: (() => void) | undefined;
   let runLimitReason: string | undefined;
   let outputLimitReason: string | undefined;
+  // Which limit fired, when it was one of the run limits. Left undefined by the sandbox-liveness
+  // probe below, which shares this trip path but is not a run limit: a dead sandbox is a real
+  // failure of the machine, not a turn that never started, so it must not read as re-promptable.
+  let runLimitKind: RunLimitKind | undefined;
   const runLimitTripped = new Promise<void>((resolve) => {
     runLimitTrip = resolve;
   });
-  runLimits.onTrip((reason) => {
+  runLimits.onTrip((reason, kind) => {
     runLimitReason = reason;
+    runLimitKind = kind;
     runLimitTrip?.();
   });
 
@@ -467,6 +476,9 @@ export async function runTurn(
     );
   }
 
+  // Declared outside the `try` so the failure path can see it: an approval reply is never
+  // re-prompted after a stall (see `stalledBeforeFirstResponse` below).
+  let approvalReplyOnly = false;
   try {
     // Server-side history reconstruction rebuilds prior turns from the durable record log.
     // The server already persisted this turn, so reconstruction filters its turn id.
@@ -474,7 +486,7 @@ export async function runTurn(
     // An out-of-band approval reply carries no user text of its own, so this must be decided from
     // the INBOUND request: reconstruction prepends the original user turn, after which
     // `resolvePromptText` would hand back that stale command and the model would restart the task.
-    const approvalReplyOnly = carriesApprovalReplyOnly(request);
+    approvalReplyOnly = carriesApprovalReplyOnly(request);
     const inboundRequest = request;
     // On a LIVE approval resume the rebuilt history is never sent to the harness: the resume
     // continues the ORIGINAL prompt promise (`opts.resume` below), so `turnText` is discarded and
@@ -573,10 +585,13 @@ export async function runTurn(
       // sidecar's process env.
       redactor: runRedactor,
       emitSpans: harnessTrace.runnerEmitsSpans,
-      // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
+      emit,
+      // Every recorded event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
-      // through. Per-tool-call timers are driven separately from `handleUpdate` below.
-      emit: emit && runLimits.wrapEmit(emit),
+      // through. It fires with or without a live `emit`, so a non-streaming turn that is
+      // answering is never cut (or re-prompted) as a stall. Per-tool-call timers are driven
+      // separately from `handleUpdate` below.
+      onProgress: () => runLimits.noteProgress(),
       onOutputLimit: (reason) => {
         outputLimitReason = reason;
         runLimitReason = reason;
@@ -2018,7 +2033,28 @@ export async function runTurn(
       otel?.finish("error");
     } catch {}
     await otel?.flush().catch(() => {});
-    return { ok: false, error };
+    // A TTFB trip is the one failure the dispatch can retry: that timer is cancelled by the first
+    // progress event of any kind, so reaching it proves the turn emitted nothing and therefore did
+    // nothing — re-prompting cannot repeat work that never happened. Restricted to a FRESH prompt:
+    // a resume or continuation carries earlier work, and the catch above has already settled this
+    // turn's interaction rows and transcript continuity, so replaying one is not idempotent. An
+    // approval reply is excluded for the same reason: the settle above already spent the decision
+    // it carries, so a second run could act on it twice. A cancelled turn is the user's own Stop
+    // and is never retried.
+    const stalledBeforeFirstResponse =
+      runLimitKind === "ttfb" &&
+      !opts.resume &&
+      !opts.continuation &&
+      !opts.settleApprovalsThenPrompt &&
+      !approvalReplyOnly &&
+      !signal?.aborted;
+    return {
+      ok: false,
+      error,
+      ...(stalledBeforeFirstResponse
+        ? { stalledBeforeFirstResponse: true }
+        : {}),
+    };
   } finally {
     platformCredentialLease?.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
