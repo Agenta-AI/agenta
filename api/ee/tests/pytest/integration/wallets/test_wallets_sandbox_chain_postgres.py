@@ -145,11 +145,11 @@ async def test_each_running_interval_is_charged_once_at_its_resource_price(
         "vcpu_seconds": 120,
         "memory_gib_seconds": 240,
     }
-    # 60 s: 4140 musd. 17 s: (34 x 75_600 + 68 x 24_300) / 3600 = 1173 musd.
+    # 60 s: 8280 musd. 17 s: (34 x 151_200 + 68 x 48_600) / 3600 = 2346 musd.
     debits = await _debits(organization_id)
-    assert sorted(d.amount_musd for d in debits) == [1173, 4140]
+    assert sorted(d.amount_musd for d in debits) == [2346, 8280]
     assert {d.idempotency_key for d in debits} >= {f"measurement:{first}"}
-    assert await _general_balance(organization_id) == before - 4140 - 1173
+    assert await _general_balance(organization_id) == before - 8280 - 2346
 
     usage = await WalletUsageService(
         wallets_dao=WalletsDAO(engine=get_transactions_engine()),
@@ -161,7 +161,7 @@ async def test_each_running_interval_is_charged_once_at_its_resource_price(
     assert sorted(
         (c.category, c.sandbox_seconds, c.vcpu, c.memory_gib, c.amount_musd)
         for c in session.charges
-    ) == [("Sandbox", 17, 2, 4, 1173), ("Sandbox", 60, 2, 4, 4140)]
+    ) == [("Sandbox", 17, 2, 4, 2346), ("Sandbox", 60, 2, 4, 8280)]
 
     await _cleanup(organization_id)
 

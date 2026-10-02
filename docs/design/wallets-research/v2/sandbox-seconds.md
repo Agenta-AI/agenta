@@ -15,7 +15,9 @@ These were made by the owner before the work started.
    [include-sandbox-usage](openspec/changes/include-sandbox-usage/), which puts included
    seconds first. That change stays the follow-up. See
    [spec-divergences.md](spec-divergences.md) row 23.
-2. **Price is Daytona's list price times 1.5**, by resource, not by named size.
+2. **Price is Daytona's list price times 3, or times 2.5 on Business**, by resource, not by
+   named size. **Changed 2026-10-03 (pricing option E, decided):** it was times 1.5 for every
+   plan. The plan's rate tier is stamped on the measurement when the interval is recorded.
 3. **Only running seconds are billed.** A stopped or parked sandbox is not billed, although
    Daytona bills its disk.
    **Changed 2026-10-02 (release plan step 1.5, decided):** only the seconds a turn runs are
@@ -28,11 +30,11 @@ These were made by the owner before the work started.
 
 Daytona list price, read from daytona.io/pricing on 2026-09-26, billed per second:
 
-| Resource | Daytona | Ours (x 1.5) |
-| --- | --- | --- |
-| vCPU | $0.0504 per hour | 75,600 musd per vCPU-hour |
-| Memory | $0.0162 per GiB-hour | 24,300 musd per GiB-hour |
-| Disk | $0.000108 per GiB-hour past 5 free GiB | not charged |
+| Resource | Daytona | Ours (x 3) | Ours on Business (x 2.5) |
+| --- | --- | --- | --- |
+| vCPU | $0.0504 per hour | 151,200 musd per vCPU-hour | 126,000 musd per vCPU-hour |
+| Memory | $0.0162 per GiB-hour | 48,600 musd per GiB-hour | 40,500 musd per GiB-hour |
+| Disk | $0.000108 per GiB-hour past 5 free GiB | not charged | not charged |
 
 Disk is not charged: our sandboxes use 5 GiB, which is inside Daytona's free 5 GiB.
 
@@ -46,10 +48,11 @@ One minute of that sandbox:
 ```text
 vcpu_seconds       = 60 x 2 = 120
 memory_gib_seconds = 60 x 4 = 240
-charge = ceil((120 x 75,600 + 240 x 24,300) / 3600) = 4,140 musd
+charge = ceil((120 x 151,200 + 240 x 48,600) / 3600) = 8,280 musd
 ```
 
-That is $0.2484 an hour: Daytona's $0.1656 for 2 vCPU and 4 GiB, times 1.5. The rates live in
+That is $0.4968 an hour: Daytona's $0.1656 for 2 vCPU and 4 GiB, times 3 (on Business,
+6,900 musd a minute, $0.414 an hour). The rates live in
 `api/ee/src/core/measurements/rate_card.py` with their source and date, and they are part of
 the rate card's version hash, so every debit names the prices it was charged at.
 

@@ -20,7 +20,11 @@ from ee.src.core.measurements.components import (
     SANDBOX_SECONDS,
     VCPU_SECONDS,
 )
-from ee.src.core.measurements.rate_card import sandbox_rates_for
+from ee.src.core.measurements.rate_card import (
+    SANDBOX_STANDARD,
+    sandbox_rate_tier,
+    sandbox_rates_for,
+)
 from ee.src.core.wallets.admission import admit_in_mode, measured
 from ee.src.core.wallets.caps import (
     CONCURRENT_TURNS_LIMIT_CODE,
@@ -99,14 +103,16 @@ def sandbox_measurement(
     *,
     scope: AuthScope,
     interval: SandboxUsageInterval,
+    rate_tier: str = SANDBOX_STANDARD,
 ) -> MeasurementCommandV1:
     """The measurement for one reported interval. Deterministic in its inputs, so a
-    retried report is the same measurement and is priced once.
+    retried report is the same measurement and is priced once. The rate tier is the
+    plan's when the interval is recorded, so later processing cannot change its price.
 
     The organization and project come from the caller's credential, never the report,
     and the project is part of the id, so one tenant cannot claim another's interval.
     """
-    if sandbox_rates_for(provider=interval.provider) is None:
+    if sandbox_rates_for(provider=interval.provider, tier=rate_tier) is None:
         raise SandboxIntervalInvalidError(
             f"Sandbox provider {interval.provider!r} is not metered."
         )
@@ -132,6 +138,7 @@ def sandbox_measurement(
             "sandbox_id": interval.sandbox_id,
             "vcpu": interval.vcpu,
             "memory_gib": interval.memory_gib,
+            "rate_tier": rate_tier,
         },
         endpoint_kind=SANDBOX_ENDPOINT_KIND,
         start_time=interval.start_time,
@@ -250,9 +257,17 @@ class SandboxUsageService:
     ) -> Optional[str]:
         """The measurement id, or None for an organization whose wallet is `off`: its
         interval is acknowledged and dropped, so the runner does not report it again."""
-        command = sandbox_measurement(scope=scope, interval=interval)
+        # Validated first, so a report for an unmetered provider is refused in any mode.
+        sandbox_measurement(scope=scope, interval=interval)
         if not await measured(scope.organization_id):
             return None
+        try:
+            plan = await self.plan_for(scope.organization_id)
+        except Exception as exc:  # noqa: BLE001 - the runner reports the interval again
+            raise SandboxUsageNotRecordedError() from exc
+        command = sandbox_measurement(
+            scope=scope, interval=interval, rate_tier=sandbox_rate_tier(plan)
+        )
         if not await self.publisher.publish(command):
             raise SandboxUsageNotRecordedError()
         return command.measurement_id

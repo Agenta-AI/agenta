@@ -331,7 +331,7 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
   only for overage, with a configurable hard stop.
 - **Code does now.** Every running second of a sandbox on the platform's Daytona account is
   charged to the wallet, priced per vCPU-second and GiB-second at Daytona's list price
-  times 1.5. There is no included allowance. At the floor, a new turn is refused and a
+  times 3 (times 2.5 on Business). There is no included allowance. At the floor, a new turn is refused and a
   running one finishes. Design: [sandbox-seconds.md](sandbox-seconds.md).
 - **Which side moves, and why.** Neither yet. The owner chose wallet-only billing for this
   first slice (2026-09-26), so paid sandbox time is billed before the allowance exists.

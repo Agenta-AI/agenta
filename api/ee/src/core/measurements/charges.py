@@ -71,7 +71,13 @@ def calculate_charge(*, command: MeasurementCommandV1) -> Optional[Tuple[int, st
         total = values.get(REQUEST_COUNT, 0) * rates.musd_per_request
         divisor = 1
     elif command.gateway_kind == GatewayKind.SBX:
-        rates = sandbox_rates_for(provider=locator.get("provider"))
+        # No default tier: an interval recorded without one is not priced at a guess.
+        tier = locator.get("rate_tier")
+        rates = (
+            sandbox_rates_for(provider=locator.get("provider"), tier=tier)
+            if tier
+            else None
+        )
         if rates is None:
             raise UnpricedMeasurementError(resource_key=command.resource_key)
         total = (
