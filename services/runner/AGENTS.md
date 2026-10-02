@@ -85,6 +85,16 @@ When you bump `@earendil-works/pi-coding-agent` or `pi-ai`, re-check
 chunk (`cli.bundlePath`) and both anchors. Then update `piVersion`, and rebuild the runner image
 and the Daytona snapshot. `tests/unit/pi-provider-cost-patch-pi-version.test.ts` fails until you do.
 
+## Changing the Daytona snapshot recipe
+
+Any change to a pinned harness version (Pi, Pi ACP, Codex ACP, Claude ACP) or to any snapshot build
+input (`images/sandbox/daytona/build_snapshot.py`, the shared tool recipe it embeds) needs, in the
+same commit, a bump of `config/sandbox-recipe.json` `version` and a regenerated
+`images/sandbox/daytona/sandbox-recipe-fingerprint.json`. Then run the fingerprint test. The
+steps are in `images/sandbox/daytona/README.md` ("Recipe version"). A new version means a new
+snapshot name (`agenta-agent-sandbox-v<N>`), and it must be built in every Daytona account before
+the runner that asks for it deploys.
+
 ## Before committing
 
 There is no eslint here yet (deferred); `tsc --strict` + the repo-wide prettier hook are the

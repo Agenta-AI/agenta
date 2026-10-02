@@ -93,6 +93,23 @@ runs the agent; the adapter translates Pi events and dialogs onto ACP. In partic
 adapter version must not be inherited implicitly from the base image because older versions
 do not forward Pi extension dialogs as ACP permission requests.
 
+## Recipe version
+
+The snapshot name is `agenta-agent-sandbox-v<N>`, where `<N>` is the `version` in
+`services/runner/config/sandbox-recipe.json`. The runner asks for that name by default.
+
+Any change to a pinned harness version or to any build input of this recipe needs, in the same
+commit, a bump of that `version` and a regenerated `sandbox-recipe-fingerprint.json`:
+
+```bash
+uv run --with pytest --with daytona python -c "import json, test_recipe_fingerprint as t; open('sandbox-recipe-fingerprint.json', 'w').write(json.dumps({'fingerprint': t.recipe_fingerprint()}, indent=2) + '\n')"
+uv run --with pytest --with daytona python -m pytest -q test_recipe_fingerprint.py
+```
+
+The fingerprint test fails when the inputs change and the fingerprint does not. CI runs it. A new
+version is a new snapshot name: build it in every Daytona account before the runner that asks for
+it deploys.
+
 ## Refreshing an existing snapshot
 
 Daytona keeps serving whatever you built under a name. When this recipe changes, rebuild it in each
