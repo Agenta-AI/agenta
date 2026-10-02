@@ -29,13 +29,13 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 | 5 | Measurement replay with different content | Design | Applied (item 20) |
 | 6 | What admission reads | Design | Applied (item 21) |
 | 7 | Which clock decides expiry at settlement | Design | Applied (item 21) |
-| 8 | What identifies one plan change | Design | Applied (item 22) |
-| 9 | Which allowance a plan change claws back | Design | Applied (item 22) |
-| 10 | When proration starts, and over which period | Design | Applied (item 22) |
-| 11 | Provenance on plan-allowance credits | Code | Applied (item 22) |
+| 8 | What identifies one plan change | Design | Removed (2026-10-02, items 22 and 23) |
+| 9 | Which allowance a plan change claws back | Design | Removed (2026-10-02, items 22 and 23) |
+| 10 | When proration starts, and over which period | Design | Removed (2026-10-02, items 22 and 23) |
+| 11 | Provenance on plan-allowance credits | Code | Removed (2026-10-02, items 22 and 23) |
 | 12 | Missed signup grants | Design | Applied (item 15) |
 | 13 | Organizations created by the admin route | Design | Applied (item 14) |
-| 14 | Plan-change key text in entities and Wave 1 | Design | Applied (item 22) |
+| 14 | Plan-change key text in entities and Wave 1 | Design | Removed (2026-10-02, items 22 and 23) |
 | 15 | `check` described as synchronous | Design | Suggestion |
 | 16 | `check` described as write-free | Design | Suggestion |
 | 17 | Deficit bounded by the floor | Design | Suggestion |
@@ -144,6 +144,10 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 
 ### 8. What identifies one plan change
 
+- **Superseded (2026-10-02).** Mid-period plan-change proration and clawback were removed
+  (open-designs items 22 and 23). A plan change writes nothing to the wallet, so this row
+  describes code that no longer exists. Kept as history.
+
 - **Design says.** `v1/entities.md`, `v1/wave-1.md` and the `grants.py` docstring: the key
   is `plan_change:{subscription_id}:{period_start}`. Two changes in one period then share one
   key, and the second is dropped as a replay.
@@ -161,6 +165,10 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 
 ### 9. Which allowance a plan change claws back
 
+- **Superseded (2026-10-02).** Mid-period plan-change proration and clawback were removed
+  (open-designs items 22 and 23). A plan change writes nothing to the wallet, so this row
+  describes code that no longer exists. Kept as history.
+
 - **Design says.** The outgoing allowance is the active plan-allowance credit, and at most
   one is active (`types.py` docstring). The code found it by latest `end_time`, outside the
   lock.
@@ -177,6 +185,10 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 
 ### 10. When proration starts, and over which period
 
+- **Superseded (2026-10-02).** Mid-period plan-change proration and clawback were removed
+  (open-designs items 22 and 23). A plan change writes nothing to the wallet, so this row
+  describes code that no longer exists. Kept as history.
+
 - **Design says.** Wave 1: proration runs over a window built from the billing anchor day,
   aligned to midnight, at the time the change is processed.
 - **Code does now.** The incoming allowance is prorated from the moment the change took
@@ -189,6 +201,10 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
   updated.
 
 ### 11. Provenance on plan-allowance credits
+
+- **Superseded (2026-10-02).** Mid-period plan-change proration and clawback were removed
+  (open-designs items 22 and 23). A plan change writes nothing to the wallet, so this row
+  describes code that no longer exists. Kept as history.
 
 - **Design says.** The `wallet_credits` example in `v1/entities.md` stores
   `data.references.subscription`.
@@ -227,6 +243,10 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
   Postgres and Redis test. Decision in open-designs item 14. Acceptance section 2 corrected.
 
 ### 14. Plan-change key text in entities and Wave 1
+
+- **Superseded (2026-10-02).** Mid-period plan-change proration and clawback were removed
+  (open-designs items 22 and 23). A plan change writes nothing to the wallet, so this row
+  describes code that no longer exists. Kept as history.
 
 - **Design says.** `v1/entities.md`, `v1/wave-1.md` and the `grants.py` docstring give the
   old key shape.
@@ -280,12 +300,13 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 
 - **Design says.** `v1/entities.md`: each subscription period creates a plan-allowance
   credit.
-- **Code does.** Only a plan change mints a `plan_allowance` credit. A Pro organization that
-  never changes plan gets none, and an upgraded organization gets one prorated credit and
-  nothing at renewal. `WalletsService` states this in its docstring.
+- **Code does.** Nothing mints a `plan_allowance` credit. Until 2026-10-02 a plan change
+  minted a prorated one; that path was removed (open-designs items 22 and 23). `v1/entities.md`
+  now says the recurring allowance is not delivered.
 - **Suggestion.** The foundation proposal already lists recurring renewal issuance as outside
   the baseline. Add the same sentence to `v1/entities.md`, so nobody reads "plan allowance"
-  as delivered. Building it belongs to open-designs item 3.
+  as delivered. Building it is release plan step 1.3: a grant per organization and billing
+  period from the Stripe renewal event, expiring at period end.
 
 ### 21. Debit kinds the stream accepts
 
