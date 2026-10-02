@@ -1484,18 +1484,20 @@ export async function fetchHarnessCapabilities(opts?: {
 
 /**
  * The platform-funded (`builtin`) LLM gateway endpoints this deployment serves, with their models.
- * The API lists them only under its development mock switch. A failure rejects rather than
- * reading as none, so the query cache does not keep an empty list for its stale window.
+ * An organization outside the LLM gateway rollout is refused the whole listing, so it is offered
+ * none. A failure rejects rather than reading as none, so the query cache does not keep an empty
+ * list for its stale window.
  */
 export async function fetchBuiltinModelEndpoints(
     projectId: string,
-): Promise<{slug: string; models: string[]}[]> {
+): Promise<{slug: string; models: string[]; deploymentKind: string | null}[]> {
     const response = await axios.get(`${getAgentaApiUrl()}/gateways/llms/endpoints/`, {
         params: {project_id: projectId},
     })
     const endpoints = (response.data?.endpoints ?? []) as {
         namespace?: string
         slug?: string
+        deployment_kind?: string | null
         data?: {models?: {allowlist?: string[] | null}}
     }[]
     return endpoints
@@ -1503,6 +1505,7 @@ export async function fetchBuiltinModelEndpoints(
         .map((endpoint) => ({
             slug: endpoint.slug as string,
             models: endpoint.data?.models?.allowlist ?? [],
+            deploymentKind: endpoint.deployment_kind ?? null,
         }))
 }
 

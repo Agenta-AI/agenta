@@ -207,6 +207,43 @@ async def test_a_builtin_pick_sends_its_namespace_with_the_slug(fake_http, conne
     _assert_routed_through_gateway(resolved, namespace="builtin", name="agenta")
 
 
+async def test_a_builtin_gemini_pick_routes_as_an_openai_compatible_custom_route(
+    fake_http, connection
+):
+    # `builtin/agenta` serves Gemini from the platform's Vertex account. The gateway answers
+    # it as an OpenAI-compatible custom route, which is the shape a Pi harness drives with
+    # `openai-completions`; no provider secret reaches the sandbox.
+    fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "custom",
+                "model": "google/gemini-3.8-flash",
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="google/gemini-3.8-flash",
+            connection={"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+        ),
+        context=_context(),
+    )
+
+    _assert_routed_through_gateway(resolved, namespace="builtin", name="agenta")
+    assert (resolved.provider, resolved.deployment, resolved.model) == (
+        "openai",
+        "custom",
+        "google/gemini-3.8-flash",
+    )
+    assert not resolved.custom_connection
+
+
 @pytest.mark.parametrize(
     "connection",
     [

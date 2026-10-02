@@ -163,3 +163,76 @@ def test_apply_static_fields_signature_cannot_see_request_semantics():
     view of the request's content, so there is nothing for a future edit to read."""
     params = list(inspect.signature(apply_static_fields).parameters)
     assert params == ["deployment_kind", "protocol", "body"]
+
+
+def _chat_with_tool_calls(*calls) -> bytes:
+    return json.dumps(
+        {
+            "model": "google/gemini-3.8-flash",
+            "messages": [
+                {"role": "user", "content": "run echo hi"},
+                {"role": "assistant", "content": None, "tool_calls": list(calls)},
+                {"role": "tool", "tool_call_id": "call_1", "content": "hi"},
+            ],
+        }
+    ).encode()
+
+
+def _call(call_id: str, **extra) -> dict:
+    return {
+        "id": call_id,
+        "type": "function",
+        "function": {"name": "bash", "arguments": "{}"},
+        **extra,
+    }
+
+
+def test_vertex_chat_gives_an_unsigned_tool_call_the_skip_signature():
+    """Gemini refuses a history whose tool call lost its thought signature (HTTP 400)."""
+    signed = _call(
+        "call_2", extra_content={"google": {"thought_signature": "real-signature"}}
+    )
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        protocol=LLMProtocol.CHAT_COMPLETIONS,
+        body=_chat_with_tool_calls(_call("call_1"), signed),
+    )
+
+    calls = json.loads(result)["messages"][1]["tool_calls"]
+    assert calls[0]["extra_content"] == {
+        "google": {"thought_signature": "skip_thought_signature_validator"}
+    }
+    assert calls[1]["extra_content"] == {
+        "google": {"thought_signature": "real-signature"}
+    }
+
+
+def test_a_vertex_chat_without_tool_calls_relays_byte_for_byte():
+    body = json.dumps(
+        {
+            "model": "google/gemini-3.8-flash",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+    ).encode()
+
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.VERTEX,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=body,
+        )
+        is body
+    )
+
+
+def test_other_deployments_keep_unsigned_tool_calls_as_they_are():
+    body = _chat_with_tool_calls(_call("call_1"))
+
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.DIRECT,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=body,
+        )
+        is body
+    )

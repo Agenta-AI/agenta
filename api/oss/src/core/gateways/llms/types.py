@@ -52,6 +52,24 @@ class LLMRoutingFieldNotAllowedError(GatewaysError):
         )
 
 
+class LLMCapabilityNotAllowedError(GatewaysError):
+    """The body asks a platform-funded endpoint for a capability the wallet cannot price.
+
+    A `builtin` call is charged from the tokens it reports. A provider-side tool such as
+    Google Search grounding is billed by the provider on top of the tokens and reported
+    nowhere the gateway reads, so it would run on the platform's account uncharged.
+    """
+
+    def __init__(self, *, field: str, namespace: GatewayEndpointNamespace, name: str):
+        self.field = field
+        self.namespace = namespace
+        self.name = name
+        super().__init__(
+            f"Request field {field!r} asks for a capability {namespace.value}/{name} "
+            "does not offer: only function tools are available on it"
+        )
+
+
 class LLMModelIdentifierInvalidError(GatewaysError):
     """The model identifier is not admissible where a route interpolates it (OR60).
 

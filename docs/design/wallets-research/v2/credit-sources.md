@@ -120,8 +120,11 @@ new requests but not running ones, and the proxy writes their spend afterwards:
 1. `--block` blocks every bridge key (`/key/block` with the hashed token).
 2. Wait for running requests and the proxy's batched spend writes. 10 minutes is ample.
 3. `--apply` reads each blocked key's final spend (`/key/info`) and grants
-   `max_budget - spend`, rounded down to the musd, as a `starter_credits` credit. A key that
-   is not blocked is counted as `not_blocked` and left alone.
+   `max_budget - spend`, rounded down to the musd, as a `starter_credits` credit. Then it
+   deletes the organization's seeded vault connection ("Agenta", slug `starter-credits`)
+   from each of its projects: its key is blocked, so an agent that picked it would only
+   fail. Only the row the bridge manages is deleted; a user's own connection under the same
+   slug stays. A key that is not blocked is counted as `not_blocked` and left alone.
 
 A key whose organization is deleted or missing is granted nothing. A key spent to zero or
 past its budget is granted nothing. A key with a missing or non-numeric budget or spend is
@@ -146,10 +149,15 @@ uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet --apply
 ```
 
 The last line prints the counts: `keys`, `skipped`, `no_organization`, `not_blocked`,
-`blocked`, `zero_remaining`, `granted`, `granted_musd`, `remaining_musd`, `failed`. A
+`blocked`, `zero_remaining`, `granted`, `granted_musd`, `remaining_musd`,
+`connections_removed`, `failed`. A
 non-zero `failed` gives a non-zero exit status; rerun to retry. Turn seeding off
 (`AGENTA_STARTER_CREDITS_BRIDGE_ENABLED=false`) before stage 1, or a key minted after it is
 not transferred.
 
-Left for the funded-models step: the seeded vault connection ("Agenta") stays in each
-project after its key is blocked, and calls through it then fail.
+The funded models replace the deleted connection: the model picker offers the gateway's
+built-in models ("Built-in: agenta", [funded-models.md](funded-models.md)) to an
+organization on the LLM gateway rollout. An agent whose saved model still names the deleted
+connection is no longer runnable, so the picker selects another model, and a run that still
+names it fails with a missing-connection error instead of a proxy refusal. Agent
+configurations are not rewritten.

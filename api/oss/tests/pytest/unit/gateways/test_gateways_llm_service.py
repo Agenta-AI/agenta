@@ -343,19 +343,29 @@ async def test_list_endpoints_with_no_keys_yields_custom_rows_only(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_list_endpoints_offers_builtin_models_only_under_the_mock_switch(
+async def test_list_endpoints_offers_builtin_models_only_where_they_are_served(
     monkeypatch,
 ):
+    """The mock under its development switch; `agenta` once its Vertex credential is set,
+    whatever the switch says."""
     resolver = _MockResolver(provider_keys=set())
-
-    monkeypatch.setattr(env.mock_gateways, "enabled", False)
-    off = await _service(resolver=resolver).list_endpoints(scope=_scope())
-    monkeypatch.setattr(env.mock_gateways, "enabled", True)
-    on = await _service(resolver=resolver).list_endpoints(scope=_scope())
-
     builtin = GatewayEndpointNamespace.BUILTIN
-    assert [e for e in off if e.namespace == builtin] == []
-    assert {e.slug for e in on if e.namespace == builtin} == {"agenta", "mock"}
+
+    async def builtin_slugs():
+        listed = await _service(resolver=resolver).list_endpoints(scope=_scope())
+        return {e.slug for e in listed if e.namespace == builtin}
+
+    monkeypatch.setattr(env.llm_gateway, "vertex_sa_json_b64", None)
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    assert await builtin_slugs() == set()
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    assert await builtin_slugs() == {"mock"}
+
+    monkeypatch.setattr(env.llm_gateway, "vertex_sa_json_b64", "e30=")
+    monkeypatch.setattr(env.llm_gateway, "vertex_project", "agenta-test")
+    assert await builtin_slugs() == {"agenta", "mock"}
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    assert await builtin_slugs() == {"agenta"}
 
 
 # --- list_models (R3) ------------------------------------------------------- #

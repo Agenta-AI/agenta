@@ -1104,7 +1104,20 @@ class LLMGatewayConfig(BaseModel):
 
     enabled: bool = _parse_bool_env("AGENTA_LLM_GATEWAY_ENABLED", default=False)
 
+    # The platform's own Vertex AI account, which the `builtin/agenta` endpoint serves its
+    # models from. The endpoint exists only when the service-account document and the project
+    # are both set. Gateway names rather than the starter-credits proxy's `LITELLM_VERTEX_*`
+    # inputs: the API does not run LiteLLM's proxy, and the cloud sets both from one secret.
+    vertex_sa_json_b64: str | None = (
+        os.getenv("AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64") or None
+    )
+    vertex_project: str | None = os.getenv("AGENTA_LLM_GATEWAY_VERTEX_PROJECT") or None
+
     model_config = ConfigDict(extra="ignore")
+
+    @property
+    def vertex_configured(self) -> bool:
+        return bool(self.vertex_sa_json_b64 and self.vertex_project)
 
 
 class MCPGatewayConfig(BaseModel):

@@ -96,6 +96,12 @@ class WalletSpendAdmission(SpendAdmissionInterface):
         self.wallet = wallet
 
     async def admit(self, *, scope: AuthScope, target: GatewayTarget) -> SpendAdmission:
+        # A `builtin` model call spends the platform's own provider account, and an
+        # organization whose wallet is `off` is not measured, so admitting it would serve
+        # the call free. Refused instead, without reading the wallet: such an organization
+        # keeps its own provider keys through the `standard` and `custom` namespaces.
+        if not await measured(scope.organization_id):
+            return SpendAdmission(allowed=False, reason="wallet_off")
         allowed = await admit_in_mode(
             organization_id=scope.organization_id,
             point="gateway",
