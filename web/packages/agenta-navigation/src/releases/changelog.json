@@ -1,27 +1,63 @@
 [
     {
-        "id": "changelog-2026-09-20-docs-on-wide-screens",
-        "title": "Docs on wide screens",
-        "description": "The docs sidebar, page and outline now stay together on large monitors.",
-        "link": "https://agenta.ai/docs/changelog/docs-on-wide-screens"
-    },
-    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",
         "link": "https://agenta.ai/docs/changelog/new-models-and-cost-tracking"
     },
     {
-        "id": "changelog-2026-09-09-agent-permission-policies",
-        "title": "Choose when agents ask",
-        "description": "Set a default permission policy for an agent and review the tool-specific rules that can override it.",
-        "link": "https://agenta.ai/docs/changelog/agent-permission-policies"
+        "id": "changelog-2026-09-30-let-the-agent-set-itself-up",
+        "title": "Create with AI",
+        "description": "Ask the agent to add its own integrations, skills and automations, and connect accounts before the first task.",
+        "link": "https://agenta.ai/docs/changelog/let-the-agent-set-itself-up"
     },
     {
-        "id": "changelog-2026-09-07-session-control-and-queued-work",
-        "title": "Edit queued instructions",
-        "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
-        "link": "https://agenta.ai/docs/changelog/session-control-and-queued-work"
+        "id": "changelog-2026-09-28-agent-templates-and-marketplace",
+        "title": "Agent templates",
+        "description": "Start from a ready-made agent in the marketplace, or save your own agent as a template.",
+        "link": "https://agenta.ai/docs/changelog/agent-templates-and-marketplace"
+    },
+    {
+        "id": "changelog-2026-09-26-agents-work-with-your-channels",
+        "title": "Agents post to your channels",
+        "description": "Connected agents can post, read and search Slack and Telegram from any run, and link back to their chat.",
+        "link": "https://agenta.ai/docs/changelog/agents-work-with-your-channels"
+    },
+    {
+        "id": "changelog-2026-09-25-whatsapp-channel",
+        "title": "Agents on WhatsApp",
+        "description": "Connect your WhatsApp Business number to an agent so it answers your customers there.",
+        "link": "https://agenta.ai/docs/changelog/whatsapp-channel"
+    },
+    {
+        "id": "changelog-2026-09-25-talk-to-your-agent-in-slack",
+        "title": "Agents in Slack",
+        "description": "Connect an agent to Slack from Publish and mention it in any channel or thread.",
+        "link": "https://agenta.ai/docs/changelog/talk-to-your-agent-in-slack"
+    },
+    {
+        "id": "changelog-2026-09-25-talk-to-your-agent-in-telegram",
+        "title": "Agents in Telegram",
+        "description": "Scan a QR code to chat with your agent in Telegram, or connect your own bot.",
+        "link": "https://agenta.ai/docs/changelog/talk-to-your-agent-in-telegram"
+    },
+    {
+        "id": "changelog-2026-09-24-clearer-agent-chat",
+        "title": "A clearer chat",
+        "description": "Follow a turn in one activity timeline, answer questions in one click, or just type to move on.",
+        "link": "https://agenta.ai/docs/changelog/clearer-agent-chat"
+    },
+    {
+        "id": "changelog-2026-09-20-docs-on-wide-screens",
+        "title": "Docs on wide screens",
+        "description": "The docs sidebar, page and outline now stay together on large monitors.",
+        "link": "https://agenta.ai/docs/changelog/docs-on-wide-screens"
+    },
+    {
+        "id": "changelog-2026-09-17-edit-files-with-your-agent",
+        "title": "Edit files with your agent",
+        "description": "Open and edit Markdown, text and code files in the Files pane while your agent works on the same files.",
+        "link": "https://agenta.ai/docs/changelog/edit-files-with-your-agent"
     },
     {
         "id": "changelog-2026-09-11-chatgpt-subscription-for-agents",
@@ -30,10 +66,58 @@
         "link": "https://agenta.ai/docs/changelog/chatgpt-subscription-for-agents"
     },
     {
+        "id": "changelog-2026-09-11-create-and-test-automations",
+        "title": "Test your automations",
+        "description": "Create an automation, run a test, and follow every run in its own session.",
+        "link": "https://agenta.ai/docs/changelog/create-and-test-automations"
+    },
+    {
+        "id": "changelog-2026-09-11-find-the-conversation-you-need",
+        "title": "A sidebar for busy workspaces",
+        "description": "Group, filter, pin and reorder sessions, and start a new one from any agent.",
+        "link": "https://agenta.ai/docs/changelog/find-the-conversation-you-need"
+    },
+    {
+        "id": "changelog-2026-09-10-reuse-skills-across-agents",
+        "title": "Reuse skills across agents",
+        "description": "Publish a skill once, install it in any agent, and apply updates when you choose.",
+        "link": "https://agenta.ai/docs/changelog/reuse-skills-across-agents"
+    },
+    {
+        "id": "changelog-2026-09-09-agent-permission-policies",
+        "title": "Choose when agents ask",
+        "description": "Set a default permission policy for an agent and review the tool-specific rules that can override it.",
+        "link": "https://agenta.ai/docs/changelog/agent-permission-policies"
+    },
+    {
+        "id": "changelog-2026-09-09-custom-secrets-for-agent-runs",
+        "title": "Custom secrets for agents",
+        "description": "Store a credential as a project secret and attach it to an agent as a named environment variable instead of pasting it into chat.",
+        "link": "https://agenta.ai/docs/changelog/custom-secrets-for-agent-runs"
+    },
+    {
+        "id": "changelog-2026-09-09-mention-workspace-files-in-prompts",
+        "title": "Mention files with @",
+        "description": "Search the session's files from the message box and insert the exact file reference into your instructions.",
+        "link": "https://agenta.ai/docs/changelog/mention-workspace-files-in-prompts"
+    },
+    {
+        "id": "changelog-2026-09-07-session-control-and-queued-work",
+        "title": "Edit queued instructions",
+        "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
+        "link": "https://agenta.ai/docs/changelog/session-control-and-queued-work"
+    },
+    {
         "id": "changelog-2026-09-05-agent-configuration-history",
         "title": "Agent version history",
         "description": "Compare an earlier agent configuration with the current one and restore it as a new version without deleting history.",
         "link": "https://agenta.ai/docs/changelog/agent-configuration-history"
+    },
+    {
+        "id": "changelog-2026-09-01-playground-keyboard-shortcuts",
+        "title": "Keyboard shortcuts",
+        "description": "Press ? to see every shortcut for sessions, panels, runs and approvals.",
+        "link": "https://agenta.ai/docs/changelog/playground-keyboard-shortcuts"
     },
     {
         "id": "changelog-2026-08-28-recognize-agents-at-a-glance",
