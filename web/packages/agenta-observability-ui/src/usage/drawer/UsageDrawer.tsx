@@ -118,10 +118,6 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
             ? sum(present) / values.length
             : 0
         : (tileValue(metric) ?? 0)
-    const peakIndex = values.reduce<number>(
-        (best, v, i) => (v !== null && (best < 0 || v > (values[best] ?? -Infinity)) ? i : best),
-        -1,
-    )
 
     const title =
         bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : USAGE_RANGE[range].label
@@ -327,14 +323,6 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                             )
                         }}
                     />
-                    {peakIndex >= 0 ? (
-                        <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
-                            <span>
-                                Highest: {fullLabels[peakIndex]} ·{" "}
-                                {formatMetric(metric, values[peakIndex])}
-                            </span>
-                        </div>
-                    ) : null}
                 </section>
 
                 <DrawerBreakdown

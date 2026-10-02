@@ -87,7 +87,7 @@ export const FailureRateCard = ({
                                 key={row.id}
                                 type="button"
                                 onClick={() => onSelectAgent(row.id)}
-                                className="-mx-2 grid h-9 cursor-pointer grid-cols-[minmax(0,200px)_minmax(0,1fr)_54px_92px] items-center gap-3.5 rounded-md border-0 bg-transparent px-2 text-left text-sm hover:bg-accent"
+                                className="-mx-2 grid h-9 cursor-pointer grid-cols-[minmax(0,1fr)_minmax(64px,1fr)_48px_64px] sm:grid-cols-[minmax(0,200px)_minmax(0,1fr)_54px_92px] items-center gap-3.5 rounded-md border-0 bg-transparent px-2 text-left text-sm hover:bg-accent"
                             >
                                 <span className="truncate">{row.label}</span>
                                 <span className="relative h-2.5 rounded-full bg-background">
@@ -122,7 +122,7 @@ export const FailureRateCard = ({
                 </div>
                 <div
                     className={cn(
-                        "mt-1 grid grid-cols-[minmax(0,200px)_minmax(0,1fr)_54px_92px] gap-3.5 text-[11px] text-muted-foreground",
+                        "mt-1 grid grid-cols-[minmax(0,1fr)_minmax(64px,1fr)_48px_64px] sm:grid-cols-[minmax(0,200px)_minmax(0,1fr)_54px_92px] gap-3.5 text-[11px] text-muted-foreground",
                         rows.ranked.length === 0 && "hidden",
                     )}
                 >
@@ -130,7 +130,7 @@ export const FailureRateCard = ({
                     <span className="relative flex justify-between">
                         <span>0%</span>
                         <span
-                            className="absolute -translate-x-1/2"
+                            className="absolute hidden -translate-x-1/2 sm:inline"
                             style={{left: `${(overall / scale) * 100}%`}}
                         >
                             avg {formatMetric("failrate", overall * 100, true)}

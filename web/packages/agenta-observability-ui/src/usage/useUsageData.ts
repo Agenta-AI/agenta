@@ -49,7 +49,6 @@ export const useUsageWindowData = (
 ) => {
     const overviewQ = useUsageBuckets("overview", window, filters, focus)
     const failedQ = useUsageBuckets("failed", window, filters, focus)
-    const subscriptionQ = useUsageBuckets("subscription", window, filters, focus)
     const agentsQ = useUsageBuckets("agents", window, filters, focus)
     const agentsFailedQ = useUsageBuckets("agentsFailed", window, filters, focus)
     const modelsQ = useUsageBuckets("models", window, filters, focus)
@@ -69,7 +68,6 @@ export const useUsageWindowData = (
         return {
             starts: bucketStarts(window),
             overview: toOverview(window, overviewQ.data ?? [], failedQ.data ?? []),
-            subscriptionCost: numberSeries(window, subscriptionQ.data ?? [], PATH.cost),
             agentRuns,
             agentFailed: keyed(agentsFailedQ.data, AGENT_PATHS),
             agentOrder: rankKeys(agentRuns),
@@ -84,25 +82,13 @@ export const useUsageWindowData = (
             toolOrder: rankKeys(toolCalls),
             status: {
                 overview: statusOf(overviewQ, failedQ),
-                subscription: statusOf(subscriptionQ),
                 agents: statusOf(agentsQ, agentsFailedQ),
                 models: statusOf(modelsQ, modelsFailedQ),
                 calls: statusOf(callsQ),
                 tools: statusOf(toolsQ),
             },
         }
-    }, [
-        window,
-        overviewQ,
-        failedQ,
-        subscriptionQ,
-        agentsQ,
-        agentsFailedQ,
-        modelsQ,
-        modelsFailedQ,
-        callsQ,
-        toolsQ,
-    ])
+    }, [window, overviewQ, failedQ, agentsQ, agentsFailedQ, modelsQ, modelsFailedQ, callsQ, toolsQ])
 }
 
 export type UsageWindowData = ReturnType<typeof useUsageWindowData>

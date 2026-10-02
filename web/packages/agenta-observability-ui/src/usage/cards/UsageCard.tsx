@@ -61,9 +61,11 @@ export const UsageCard = ({
                 <SkeletonBlock className="h-7 w-28" />
             ) : (
                 <>
-                    <span className="truncate text-2xl font-semibold tracking-tight text-foreground">
-                        {value}
-                    </span>
+                    {value != null ? (
+                        <span className="truncate text-2xl font-semibold tracking-tight text-foreground">
+                            {value}
+                        </span>
+                    ) : null}
                     {caption ? (
                         <span className="truncate text-xs text-muted-foreground">{caption}</span>
                     ) : null}

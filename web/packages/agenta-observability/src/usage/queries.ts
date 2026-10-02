@@ -28,7 +28,6 @@ export const PATH = {
 
 const MODEL_KEY = "ag.data.parameters.agent.llm.model"
 const CALL_MODEL_KEY = "ag.meta.request.model"
-const SUBSCRIPTION_KEY = "ag.data.parameters.agent.llm.connection.mode"
 
 export type Condition = Record<string, unknown>
 
@@ -69,14 +68,6 @@ const RUN_TOTALS = [
 export const USAGE_QUERIES = {
     overview: {focus: "trace", runLevel: true, where: [], specs: RUN_TOTALS},
     failed: {focus: "trace", runLevel: true, where: [FAILED], specs: [cat(PATH.trace)]},
-    subscription: {
-        focus: "trace",
-        runLevel: true,
-        where: [
-            {field: "attributes", key: SUBSCRIPTION_KEY, operator: "is", value: "self_managed"},
-        ],
-        specs: [num(PATH.cost)],
-    },
     agents: {
         focus: "trace",
         runLevel: true,
