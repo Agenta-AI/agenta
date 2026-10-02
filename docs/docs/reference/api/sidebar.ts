@@ -526,9 +526,27 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/validate-agent-template",
+          label: "Validate Template",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-agent-templates",
+          label: "Query Templates",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/load-agent-template",
           label: "Load Template",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-agent-template",
+          label: "Fetch Template",
+          className: "api-method get",
         },
         {
           type: "doc",
