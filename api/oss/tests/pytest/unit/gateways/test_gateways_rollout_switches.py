@@ -42,7 +42,7 @@ def caller(monkeypatch):
     monkeypatch.setattr(
         llm_proxy, "llm_gateway_serves_caller", llm_gateway_serves_caller
     )
-    monkeypatch.setattr(env.posthog, "api_key_configured", True)
+    monkeypatch.setattr(env.rollout, "enabled", True)
 
     async def _payload(flag):
         assert flag == switches.LLM_GATEWAY_ROLLOUT_FLAG

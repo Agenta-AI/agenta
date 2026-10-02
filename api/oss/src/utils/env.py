@@ -1098,8 +1098,8 @@ class LLMGatewayConfig(BaseModel):
     plane is off from the refusal this flag produces (`llm_gateway_disabled`), so one
     deployment cannot end up with a runtime routing through a gateway the API has closed.
 
-    With it on, the `llm-gateway-rollout` PostHog flag narrows it to listed organizations
-    (`core/rollout/switches.py`).
+    With it and `AGENTA_ROLLOUT_FLAGS_ENABLED` on, the `llm-gateway-rollout` PostHog flag
+    narrows it to listed organizations (`core/rollout/switches.py`).
     """
 
     enabled: bool = _parse_bool_env("AGENTA_LLM_GATEWAY_ENABLED", default=False)
@@ -2161,11 +2161,27 @@ class WalletsConfig(BaseModel):
     first use; their missed signup grant comes only from the one-off
     `entrypoints.backfill_wallet_signup_grants` job, run before turning it on.
 
-    With it on, the `wallets-rollout` PostHog flag sets each organization's mode: `off`,
-    `shadow` or `enforce` (`core/rollout/switches.py`).
+    With it and `AGENTA_ROLLOUT_FLAGS_ENABLED` on, the `wallets-rollout` PostHog flag sets
+    each organization's mode: `off`, `shadow` or `enforce` (`core/rollout/switches.py`).
     """
 
     enabled: bool = _parse_bool_env("AGENTA_WALLETS_ENABLED", default=False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class RolloutConfig(BaseModel):
+    """Whether this deployment narrows the gateway and wallet switches per organization.
+
+    On, the `llm-gateway-rollout` and `wallets-rollout` PostHog flags decide which
+    organizations get the LLM gateway and which wallet mode each one runs in
+    (`core/rollout/switches.py`). Off, the default, the master switches apply to every
+    organization. An explicit switch rather than "a PostHog key is set": the example env
+    files ship a shared PostHog key, so a self-hosted deployment would otherwise read Agenta's
+    own payload and lose the gateway for every organization.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_ROLLOUT_FLAGS_ENABLED", default=False)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -2265,6 +2281,7 @@ class EnvironSettings(BaseModel):
     supertokens: SuperTokensConfig = SuperTokensConfig()
     triggers: TriggersConfig = TriggersConfig()
     wallets: WalletsConfig = WalletsConfig()
+    rollout: RolloutConfig = RolloutConfig()
 
     model_config = ConfigDict(extra="ignore")
 

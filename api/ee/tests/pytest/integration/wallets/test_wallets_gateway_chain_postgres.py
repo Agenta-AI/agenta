@@ -690,7 +690,7 @@ def rollout(monkeypatch):
     """Publish both rollout payloads as PostHog would, past the real switch module."""
 
     def _set(*, gateway, wallets):
-        monkeypatch.setattr(env.posthog, "api_key_configured", True)
+        monkeypatch.setattr(env.rollout, "enabled", True)
         payloads = {
             switches.LLM_GATEWAY_ROLLOUT_FLAG: [str(o) for o in gateway],
             switches.WALLETS_ROLLOUT_FLAG: {str(o): m for o, m in wallets.items()},

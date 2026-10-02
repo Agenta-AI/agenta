@@ -3,8 +3,9 @@
 Status: implemented on `wallets/rollout-switches` (step 1.1 of the wallet release plan).
 
 Two PostHog feature flags turn the LLM gateway and the wallet on one organization at a time.
-The environment variables stay the master switches. With a master switch off, its flag is
-not read and nothing changes.
+They are read only when `AGENTA_ROLLOUT_FLAGS_ENABLED=true`. The environment variables
+`AGENTA_LLM_GATEWAY_ENABLED` and `AGENTA_WALLETS_ENABLED` stay the master switches. With a
+master switch off, its flag is not read and nothing changes.
 
 The code is one module: `api/oss/src/core/rollout/switches.py`. It answers two questions:
 `llm_gateway_enabled_for(organization_id)` and `wallet_mode_for(organization_id)`.
@@ -64,11 +65,13 @@ In `shadow`, a wallet that is slow (more than 1 second) or cannot answer also ad
   admission point.
 - **A malformed entry.** An entry that is not an organization id, or a mode that is not
   `off`, `shadow` or `enforce`, is dropped and logged. The other entries still apply.
-- **A deployment without its own PostHog key** (`POSTHOG_API_KEY` not set). The flags cannot
-  be published there, so the environment switches decide alone: the gateway serves every
-  organization and the wallet enforces for every organization. The same rule is used by
-  the starter-credits bridge (`env.posthog.api_key_configured`). This keeps self-hosted
-  deployments working as before.
+- **`AGENTA_ROLLOUT_FLAGS_ENABLED`** (default `false`). The flags are read only when it is
+  `true`. When it is `false`, the environment switches decide alone: the gateway serves
+  every organization and the wallet enforces for every organization, as before this
+  change. It is an explicit switch, not "a PostHog key is set", because the example env
+  files ship a shared PostHog key. A self-hosted deployment would otherwise read Agenta's own
+  payload and lose the gateway for every organization. Set it to `true` only on a deployment
+  that publishes the two flags in its own PostHog project.
 - **Targeting.** The flags are evaluated for one fixed distinct id. Roll each flag out to
   100% of users in PostHog. The payload, not the targeting, carries the rollout.
 
@@ -87,8 +90,10 @@ a real managed provider ships, decide whether `off` must refuse managed actions 
 
 - One organization: remove it from `llm-gateway-rollout` (it goes back to the vault path), or
   set its wallet mode to `off` or `shadow`. The change applies within about a minute.
-- Everyone at once: empty the payload, or set `AGENTA_LLM_GATEWAY_ENABLED=false` or
-  `AGENTA_WALLETS_ENABLED=false` and restart the API.
+- Everyone at once: empty the payload (everyone goes to the vault path and wallet `off`),
+  or set `AGENTA_LLM_GATEWAY_ENABLED=false` or `AGENTA_WALLETS_ENABLED=false` and restart
+  the API. Setting `AGENTA_ROLLOUT_FLAGS_ENABLED=false` instead turns the gateway and the
+  wallet `enforce` on for every organization, so it is not a way back.
 
 Charges that are already measured stay in the ledger. Turning an organization `off` does not
 undo them.

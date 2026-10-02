@@ -1,5 +1,5 @@
-"""The per-organization rollout switches: the master env switches, the deployment without a
-PostHog key of its own, payload parsing, the shared cache, and PostHog failing."""
+"""The per-organization rollout switches: the master env switches, `AGENTA_ROLLOUT_FLAGS_ENABLED`
+off, payload parsing, the shared cache, and PostHog failing."""
 
 import asyncio
 import json
@@ -56,10 +56,10 @@ def cache(monkeypatch):
 
 @pytest.fixture
 def posthog(monkeypatch, cache):
-    """Turn both master switches on, as a deployment with its own PostHog key."""
+    """Turn both master switches and the rollout flags on."""
     monkeypatch.setattr(env.llm_gateway, "enabled", True)
     monkeypatch.setattr(env.wallets, "enabled", True)
-    monkeypatch.setattr(env.posthog, "api_key_configured", True)
+    monkeypatch.setattr(env.rollout, "enabled", True)
 
     def _install(client):
         monkeypatch.setattr(switches, "_load_posthog", lambda: client)
@@ -88,11 +88,11 @@ async def test_the_env_switches_off_mean_off_whatever_the_payload(monkeypatch, p
     assert client.calls == []
 
 
-async def test_without_a_posthog_key_of_its_own_the_env_switches_decide_alone(
+async def test_with_rollout_flags_off_the_env_switches_decide_alone(
     monkeypatch, posthog
 ):
     client = posthog(_PostHog())
-    monkeypatch.setattr(env.posthog, "api_key_configured", False)
+    monkeypatch.setattr(env.rollout, "enabled", False)
 
     assert await llm_gateway_enabled_for(ORG) is True
     assert await wallet_mode_for(ORG) is WalletMode.ENFORCE

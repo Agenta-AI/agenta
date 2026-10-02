@@ -8,9 +8,9 @@ Two PostHog flags carry the rollout, and each environment switch stays the maste
 - `wallets-rollout`: a JSON object mapping organization id to `off`, `shadow` or `enforce`.
   With `AGENTA_WALLETS_ENABLED` on, an organization absent from it is `off`.
 
-A deployment that supplied no PostHog key of its own (`env.posthog.api_key_configured`) has
-no way to publish either flag, so there the environment switches alone decide: the gateway
-serves every organization and the wallet enforces for every organization.
+The flags are read only with `AGENTA_ROLLOUT_FLAGS_ENABLED` on. Off, the default and what a
+self-hosted deployment runs, the environment switches alone decide: the gateway serves every
+organization and the wallet enforces for every organization.
 
 PostHog unreachable, slow, or a malformed payload is fail-safe, not fail-closed: the gateway
 is off and the wallet is off for everyone, logged, until a later lookup succeeds. The client
@@ -55,7 +55,7 @@ class WalletMode(str, Enum):
 async def llm_gateway_enabled_for(organization_id: UUID) -> bool:
     if not env.llm_gateway.enabled:
         return False
-    if not env.posthog.api_key_configured:
+    if not env.rollout.enabled:
         return True
     payload = await _flag_payload(LLM_GATEWAY_ROLLOUT_FLAG)
     return str(organization_id) in _parse_organization_ids(payload)
@@ -64,7 +64,7 @@ async def llm_gateway_enabled_for(organization_id: UUID) -> bool:
 async def wallet_mode_for(organization_id: UUID) -> WalletMode:
     if not env.wallets.enabled:
         return WalletMode.OFF
-    if not env.posthog.api_key_configured:
+    if not env.rollout.enabled:
         return WalletMode.ENFORCE
     payload = await _flag_payload(WALLETS_ROLLOUT_FLAG)
     return _parse_wallet_modes(payload).get(str(organization_id), WalletMode.OFF)
