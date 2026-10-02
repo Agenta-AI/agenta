@@ -2,12 +2,11 @@
 import {useEffect, useLayoutEffect, useRef, useState} from "react"
 
 import {truncateQuoteText, type Quote} from "@agenta/shared/quotes"
-import {shortcutFaces} from "@agenta/shared/utils"
 import {ArrowUp} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
-import {useIsMacPlatform} from "../shortcuts/ShortcutKeys"
+import {ShortcutKeys} from "../shortcuts/ShortcutKeys"
 
 const GAP = 8
 const WIDTH = 320
@@ -31,7 +30,6 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onSend, onCancel}: Qu
     const [note, setNote] = useState("")
     const [height, setHeight] = useState(0)
 
-    const sendFaces = shortcutFaces({modifiers: ["mod"], key: "↵"}, useIsMacPlatform())
     const cancelRef = useRef(onCancel)
     cancelRef.current = onCancel
 
@@ -99,14 +97,25 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onSend, onCancel}: Qu
                             <Button
                                 size="icon-xs"
                                 className="shrink-0"
-                                aria-label="Send now"
-                                aria-keyshortcuts="Meta+Enter Control+Enter"
-                                onClick={() => onSend(note)}
+                                aria-label="Add to message"
+                                aria-keyshortcuts="Enter"
+                                onClick={() => onStage(note)}
                             >
                                 <ArrowUp weight="bold" />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent shortcut={sendFaces}>Send now</TooltipContent>
+                        <TooltipContent>
+                            <span className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
+                                Add to message
+                                <ShortcutKeys chord={{key: "↵"}} tone="inverse" aria-hidden />
+                                Send now
+                                <ShortcutKeys
+                                    chord={{modifiers: ["mod"], key: "↵"}}
+                                    tone="inverse"
+                                    aria-hidden
+                                />
+                            </span>
+                        </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             </div>
