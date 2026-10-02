@@ -1,3 +1,6 @@
+from typing import Optional
+from uuid import UUID
+
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
@@ -101,8 +104,15 @@ records_retention_service = RecordsRetentionService(
     records_retention_dao=records_retention_dao,
 )
 
+
+async def _read_plan(organization_id: UUID) -> Optional[str]:
+    subscription = await subscriptions_dao.read(organization_id=str(organization_id))
+    return subscription.plan if subscription else None
+
+
 wallets_service = WalletsService(
     wallets_dao=wallets_dao,
+    plan_reader=_read_plan,
 )
 
 wallet_usage_service = WalletUsageService(
@@ -133,6 +143,7 @@ access_router = AccessRouter()
 billing_router = BillingRouter(
     subscription_service=subscription_service,
     meters_service=meters_service,
+    wallets_service=wallets_service,
 )
 
 wallets_router = WalletsRouter(

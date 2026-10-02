@@ -350,11 +350,12 @@ organizations that predate this change. A plan change (upgrade, downgrade or can
 writes nothing to the wallet: it grants no prorated allowance and claws nothing back, and
 credit already given stays valid until its `end_time`. The plan only decides which
 `plan_allowance` the organization gets from the next billing period on (open-designs items 22
-and 23, decided 2026-10-02). Nothing mints a `plan_allowance` credit yet; the recurring period
-allowance is release plan step 1.3.
+and 23, decided 2026-10-02). The `invoice.payment_succeeded` webhook mints one `plan_allowance`
+credit per paid billing period, expiring at the period end (release plan step 1.3,
+[`v2/credit-sources.md`](../v2/credit-sources.md)).
 
-`ee.src.core.wallets.plans` carries real, PRODUCT-DECIDED (2026-08-14) per-plan allowance and floor
-amounts — see `nodes/im-1-02-pipeline/acceptance.md` §"2b" for the table. Every floor is 0 at
+`ee.src.core.wallets.plans` carries real, product-decided per-plan allowance amounts (2026-10-02,
+monthly credits = plan price: Pro $29, Business $299) and floor amounts (2026-08-14). Every floor is 0 at
 launch (a hard stop everywhere once the general balance is spent); individual customers get an
 overdraft by hand later.
 
@@ -375,22 +376,24 @@ general-row lock already serializes awards; the index is the final guard. Organi
 signed up while the flag was off are granted by the one-off job
 `entrypoints.backfill_wallet_signup_grants` (`open-designs.md` item 15).
 
-**`credit_kind` (delivered set, `WP-1-04`).** `GENERAL_CREDIT_KINDS` in `ee.src.core.wallets.types`
-carries eight of `mechanics.md` §4's thirteen inbound kinds — enough to distinguish a signup grant
-from a contribution award from the row alone, which a single catch-all `"award"` value could not
-do. Only `signup_grant` is wired to a real code path today; `plan_allowance` waits for the
-recurring period allowance (release plan step 1.3), and the rest are
-valid, validated values with no producer yet.
+**`credit_kind` (delivered set, `WP-1-04`, extended by release plan step 1.3).**
+`GENERAL_CREDIT_KINDS` in `ee.src.core.wallets.types` carries ten kinds — enough to
+distinguish a signup grant from a contribution award from the row alone, which a single
+catch-all `"award"` value could not do. Five have a producer; see
+[`v2/credit-sources.md`](../v2/credit-sources.md). The rest are valid, validated values with no
+producer yet.
 
 | `credit_kind` | Spend priority | Wired? |
 | --- | --- | --- |
-| `plan_allowance` | 10 | not yet — amounts in `ee.src.core.wallets.plans`; the period grant is release plan step 1.3 |
+| `daily_free` | 5 | yes — `GRANT_CATALOG["daily_free"]`, on the first admission of the UTC day, free plan |
+| `plan_allowance` | 10 | yes — `WalletsService.grant_period_allowance`, from `invoice.payment_succeeded` |
 | `signup_grant` | 20 | yes — `ee.src.core.wallets.grants.GRANT_CATALOG["signup"]` |
+| `starter_credits` | 20 | yes — `entrypoints.migrate_starter_credits_to_wallet`, one-off |
 | `promotion` | 30 | no — catalog row not yet added |
 | `referral_bonus` | 40 | no — catalog row not yet added |
 | `contribution_award` | 50 | no — catalog row not yet added |
 | `goodwill` | 60 | no — catalog row not yet added |
-| `purchase` | 70 | no — checkout path not yet built |
+| `purchase` | 70 | yes — `WalletsService.grant_purchase`, from `checkout.session.completed` |
 | `correction` | 80 | no — operator tooling not yet built |
 
 `credit_kind` is a `sa.String()` column with no CHECK constraint (`ee0000000004_add_wallet_tables`

@@ -127,9 +127,11 @@ class CreditCandidateDTO(BaseModel):
 GENERAL_CREDIT_KINDS = frozenset(
     {
         "signup_grant",
+        "daily_free",
         "plan_allowance",
         "purchase",
         "promotion",
+        "starter_credits",
         "contribution_award",
         "referral_bonus",
         "goodwill",

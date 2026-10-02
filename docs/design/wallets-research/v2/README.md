@@ -10,6 +10,7 @@ Status: draft OpenSpec package, written 2026-09-22, moved into the repository 20
 4. Open each proposal, then its design, requirements and unchecked tasks.
 5. Use [the next-step plan](next-steps.md) to choose one implementation slice.
 6. Read [the rollout switches](rollout-switches.md) for the per-organization PostHog flags.
+7. Read [the credit sources](credit-sources.md) for signup, daily, monthly, purchased and transferred credit.
 
 ## Changes
 
@@ -18,7 +19,7 @@ Status: draft OpenSpec package, written 2026-09-22, moved into the repository 20
 | [Document wallet foundation](openspec/changes/document-wallet-foundation/proposal.md) | Describes implemented code on unmerged #6050; no production acceptance claimed | 2 |
 | [Connect model gateway and wallet](openspec/changes/connect-model-gateway-wallet/proposal.md) | Implemented on `wallets/wave-2` (#7162) for the mock `builtin` provider; tasks checked with evidence; a real funded provider remains separate | 4, 9 |
 | [Harden production billing](openspec/changes/harden-wallet-production-billing/proposal.md) | Original open questions plus explicitly identified safety refinements | 1, 3, 4, 8 |
-| [Independent credit funding](openspec/changes/add-independent-credit-funding/proposal.md) | Confirmed lifetime purchase requirement; implementation pending | 1, 5 |
+| [Independent credit funding](openspec/changes/add-independent-credit-funding/proposal.md) | Confirmed lifetime purchase requirement. Paid-plan top-ups (12-month expiry) and monthly grants are built ([credit sources](credit-sources.md)); purchases without a subscription are not | 1, 5 |
 | [Include sandbox usage](openspec/changes/include-sandbox-usage/proposal.md) | Agreed approach; implementation pending; quantities and overage policy unselected | 10 (new) |
 | [Managed tool actions](openspec/changes/add-managed-tool-actions/proposal.md) | Agreed structure; implementation pending; first provider/action unselected | 6 |
 | [Usage visibility and release scope](openspec/changes/explain-usage-and-release-scope/proposal.md) | Proposed implementation and acceptance requirements | 7, 8 |

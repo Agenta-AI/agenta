@@ -106,15 +106,17 @@ def test_is_resource_eligible_unconfigured_kind_fails_closed():
     )
 
 
-def test_general_credit_kinds_is_exactly_the_eight_delivered_kinds():
-    """The catch-all `"award"` kind is gone; these eight (mechanics.md §4) are the whole
-    delivered set — a signup grant and a contribution award are now distinct values."""
+def test_general_credit_kinds_is_exactly_the_delivered_kinds():
+    """The catch-all `"award"` kind is gone; these are the whole delivered set — a signup
+    grant and a contribution award are distinct values."""
     assert GENERAL_CREDIT_KINDS == frozenset(
         {
             "signup_grant",
+            "daily_free",
             "plan_allowance",
             "purchase",
             "promotion",
+            "starter_credits",
             "contribution_award",
             "referral_bonus",
             "goodwill",
@@ -124,7 +126,7 @@ def test_general_credit_kinds_is_exactly_the_eight_delivered_kinds():
     assert "award" not in GENERAL_CREDIT_KINDS
 
 
-def test_each_of_the_eight_general_credit_kinds_validates():
+def test_each_general_credit_kind_validates():
     for kind in GENERAL_CREDIT_KINDS:
         assert is_resource_eligible(credit_kind=kind, resource_key="llm:openai:gpt-4")
         assert is_resource_eligible(credit_kind=kind, resource_key="mcp:anything")

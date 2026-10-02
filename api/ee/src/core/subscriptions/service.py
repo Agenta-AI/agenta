@@ -1,5 +1,5 @@
 from typing import Optional
-from uuid import getnode
+from uuid import UUID, getnode
 from datetime import datetime, timezone, timedelta
 
 from oss.src.utils.logging import get_module_logger
@@ -47,6 +47,34 @@ class SubscriptionsService:
         # webhook. A plan change writes nothing to the wallet: it changes which plan
         # allowance the next billing period grants (open-designs items 22 and 23).
         self.wallets_service = wallets_service
+
+    async def grant_period_credits(
+        self,
+        *,
+        organization_id: str,
+        plan: str,
+        period_start: datetime,
+        period_end: datetime,
+    ) -> None:
+        """Grant the monthly credits of a paid billing period. Idempotent per
+        organization and period (see `WalletsService.grant_period_allowance`)."""
+        if not env.wallets.enabled or self.wallets_service is None:
+            return
+
+        credit = await self.wallets_service.grant_period_allowance(
+            organization_id=UUID(organization_id),
+            plan=plan,
+            period_start=period_start,
+            period_end=period_end,
+        )
+
+        log.info(
+            "[billing] [wallets] period credits %s | %s | %s | %s",
+            organization_id,
+            plan,
+            period_start.isoformat(),
+            credit.amount_musd if credit else 0,
+        )
 
     async def create(
         self,
@@ -368,6 +396,9 @@ class SubscriptionsService:
                     ).data
                 ]
                 + get_stripe_line_items(plan),
+                # Invoices snapshot this metadata, and the renewal's monthly credits
+                # follow the plan it names (see BillingRouter._grant_period_credits).
+                metadata={"plan": plan},
             )
 
             subscription = await self.update(subscription=subscription)

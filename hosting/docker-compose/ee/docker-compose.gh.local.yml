@@ -595,7 +595,7 @@ services:
                 --forward-to,
                 http://api:8000/billing/stripe/events/,
                 --events,
-                "customer.subscription.created,customer.subscription.deleted,invoice.updated,invoice.upcoming,invoice.payment_failed,invoice.payment_succeeded",
+                "customer.subscription.created,customer.subscription.deleted,invoice.updated,invoice.upcoming,invoice.payment_failed,invoice.payment_succeeded,checkout.session.completed",
             ]
         # === CONFIGURATION ======================================== #
         env_file:

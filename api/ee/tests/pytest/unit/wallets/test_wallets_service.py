@@ -54,7 +54,8 @@ def test_check_never_spawns_a_thread_pool():
     assert not hasattr(wallets_service_module, "_run_blocking")
     source = inspect.getsource(wallets_service_module)
     assert "ThreadPoolExecutor" not in source
-    assert "asyncio" not in source
+    assert "new_event_loop" not in source
+    assert "run_until_complete" not in source
 
 
 @pytest.mark.asyncio
