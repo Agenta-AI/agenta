@@ -13,16 +13,20 @@ the organization owner holds by default.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.rollout.switches import wallet_mode_for
 from oss.src.core.access.permissions.types import Permission
 from oss.src.utils.context import get_auth_scope
 from oss.src.utils.exceptions import BadRequestException, intercept_exceptions
 
 from ee.src.apis.fastapi.wallets.models import (
+    SandboxAdmissionRequest,
     SandboxAdmissionResponse,
+    SandboxTurnLimit,
+    SandboxTurnRequest,
     SandboxUsageRecordResponse,
     WalletSummaryResponse,
     WalletUsageQueryRequest,
@@ -82,6 +86,24 @@ class WalletsRouter:
             dependencies=[Depends(assert_runner_token)],
         )
         self.router.add_api_route(
+            "/sandboxes/turns/heartbeat",
+            self.renew_sandbox_turn,
+            methods=["POST"],
+            operation_id="renew_wallet_sandbox_turn",
+            status_code=204,
+            include_in_schema=False,
+            dependencies=[Depends(assert_runner_token)],
+        )
+        self.router.add_api_route(
+            "/sandboxes/turns/release",
+            self.release_sandbox_turn,
+            methods=["POST"],
+            operation_id="release_wallet_sandbox_turn",
+            status_code=204,
+            include_in_schema=False,
+            dependencies=[Depends(assert_runner_token)],
+        )
+        self.router.add_api_route(
             "/sandboxes/usage",
             self.record_sandbox_usage,
             methods=["POST"],
@@ -102,10 +124,10 @@ class WalletsRouter:
     async def fetch_summary(self, request: Request):
         if not await self._allowed(request, Permission.VIEW_BILLING):
             return FORBIDDEN_RESPONSE
-        summary = await self.service.summary(
-            organization_id=get_auth_scope().organization_id
-        )
-        return WalletSummaryResponse(summary=summary)
+        organization_id = get_auth_scope().organization_id
+        summary = await self.service.summary(organization_id=organization_id)
+        mode = await wallet_mode_for(organization_id)
+        return WalletSummaryResponse(summary=summary, mode=mode.value)
 
     @intercept_exceptions()
     async def query_usage(
@@ -127,9 +149,42 @@ class WalletsRouter:
         return WalletUsageResponse(usage=usage)
 
     @intercept_exceptions()
-    async def admit_sandbox(self, request: Request):
-        allowed = await self.sandbox_usage_service.admit(scope=get_auth_scope())
-        return SandboxAdmissionResponse(allowed=allowed)
+    async def admit_sandbox(
+        self,
+        request: Request,
+        body: Optional[SandboxAdmissionRequest] = None,
+    ):
+        admission = await self.sandbox_usage_service.admit(
+            scope=get_auth_scope(), turn_id=body.turn_id if body else None
+        )
+        return SandboxAdmissionResponse(
+            allowed=admission.allowed,
+            code=admission.code,
+            message=admission.message,
+            turn_limit=(
+                SandboxTurnLimit(
+                    seconds=admission.turn_limit.seconds,
+                    message=admission.turn_limit.message,
+                )
+                if admission.turn_limit
+                else None
+            ),
+            slot_held=admission.slot_held,
+        )
+
+    @intercept_exceptions()
+    async def renew_sandbox_turn(self, request: Request, body: SandboxTurnRequest):
+        await self.sandbox_usage_service.renew_turn(
+            scope=get_auth_scope(), turn_id=body.turn_id
+        )
+        return Response(status_code=204)
+
+    @intercept_exceptions()
+    async def release_sandbox_turn(self, request: Request, body: SandboxTurnRequest):
+        await self.sandbox_usage_service.release_turn(
+            scope=get_auth_scope(), turn_id=body.turn_id
+        )
+        return Response(status_code=204)
 
     @intercept_exceptions()
     async def record_sandbox_usage(

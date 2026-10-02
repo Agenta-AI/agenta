@@ -118,3 +118,30 @@ class InMemoryMeasurementPublisher:
             return False
         self.published.append(command)
         return True
+
+
+class InMemoryTurnSlots:
+    """`RedisTurnSlots` without expiry: holds stay until released."""
+
+    def __init__(self) -> None:
+        self.held: dict = {}
+        self.fail = False
+
+    async def acquire(self, *, organization_id, turn_id, limit, ttl_seconds) -> bool:
+        if self.fail:
+            raise ConnectionError("turn slots unavailable")
+        held = self.held.setdefault(organization_id, set())
+        if turn_id not in held and len(held) >= limit:
+            return False
+        held.add(turn_id)
+        return True
+
+    async def renew(self, *, organization_id, turn_id, ttl_seconds) -> None:
+        self.held.setdefault(organization_id, set()).add(turn_id)
+
+    async def release(self, *, organization_id, turn_id) -> None:
+        self.held.get(organization_id, set()).discard(turn_id)
+
+
+async def no_plan(organization_id):
+    return None

@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   admitSandboxTurn,
+  beginMeteredTurn,
   DEFAULT_SANDBOX_RESOURCES,
+  holdTurnSlot,
   meteringCredentialForRequest,
   sandboxMeteringEnabled,
   sandboxUsageContext,
@@ -44,35 +46,140 @@ function platform(statuses: number[] = []) {
 describe("admitSandboxTurn", () => {
   const answer = (status: number, body: unknown = {}) =>
     (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+  const deps = { baseUrl: BASE, log: () => {} };
 
-  it("refuses only on an explicit no from the wallet", async () => {
-    const deps = { baseUrl: BASE, log: () => {} };
-    expect(await admitSandboxTurn("ApiKey k", { ...deps, fetch: answer(200, { allowed: false }) })).toBe("refused");
-    expect(await admitSandboxTurn("ApiKey k", { ...deps, fetch: answer(200, { allowed: true }) })).toBe("admitted");
+  it("refuses only on an explicit no, with the platform's own code and message", async () => {
+    expect(
+      await admitSandboxTurn("ApiKey k", "t-1", {
+        ...deps,
+        fetch: answer(200, {
+          allowed: false,
+          code: "concurrent_turns_limit",
+          message: "Your organization already has 2 agents running.",
+        }),
+      }),
+    ).toEqual({
+      admitted: false,
+      code: "concurrent_turns_limit",
+      message: "Your organization already has 2 agents running.",
+    });
+    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: answer(200, { allowed: false }) })).toEqual({
+      admitted: false,
+      code: "wallet_balance_exhausted",
+      message: "Your Agenta credits are used up, so this turn did not start. Add credits to keep going.",
+    });
+    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: answer(200, { allowed: true }) })).toEqual({
+      admitted: true,
+    });
+  });
+
+  it("an unknown refusal code is still a refusal, never a raw code in the chat", async () => {
+    const admission = await admitSandboxTurn("ApiKey k", "t-1", {
+      ...deps,
+      fetch: answer(200, { allowed: false, code: "something_new", message: "Not now." }),
+    });
+    expect(admission).toEqual({ admitted: false, code: "wallet_balance_exhausted", message: "Not now." });
+  });
+
+  it("reads the plan's turn limit and whether the platform counts the turn", async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const fetch = (async (_url: string, init?: RequestInit) => {
+      seen.push(JSON.parse(String(init?.body)));
+      return new Response(
+        JSON.stringify({ allowed: true, turn_limit: { seconds: 1800, message: "Stopped at 30 minutes." }, slot_held: true }),
+        { status: 200 },
+      );
+    }) as unknown as typeof globalThis.fetch;
+
+    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch })).toEqual({
+      admitted: true,
+      turnLimit: { ms: 1_800_000, message: "Stopped at 30 minutes." },
+      slotHeld: true,
+    });
+    expect(seen).toEqual([{ turn_id: "t-1" }]);
   });
 
   it("admits when the platform does not meter sandboxes, fails, or cannot be asked", async () => {
-    const deps = { baseUrl: BASE, log: () => {} };
-    expect(await admitSandboxTurn("ApiKey k", { ...deps, fetch: answer(404) })).toBe("admitted");
-    expect(await admitSandboxTurn("ApiKey k", { ...deps, fetch: answer(500) })).toBe("admitted");
+    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: answer(404) })).toEqual({ admitted: true });
+    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: answer(500) })).toEqual({ admitted: true });
     const down = (async () => {
       throw new Error("ECONNREFUSED");
     }) as unknown as typeof fetch;
-    expect(await admitSandboxTurn("ApiKey k", { ...deps, fetch: down })).toBe("admitted");
+    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: down })).toEqual({ admitted: true });
     const never = vi.fn();
-    expect(await admitSandboxTurn("", { ...deps, fetch: never as unknown as typeof fetch })).toBe("admitted");
+    expect(await admitSandboxTurn("", "t-1", { ...deps, fetch: never as unknown as typeof fetch })).toEqual({
+      admitted: true,
+    });
     expect(never).not.toHaveBeenCalled();
+  });
+});
+
+describe("holdTurnSlot", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("beats every interval with the fresh credential and releases once at the end", async () => {
+    const { calls, fetch } = platform();
+    let credential = "Secret run-1";
+    const released = vi.fn();
+    const slot = holdTurnSlot("Secret run-1", "t-1", {
+      fetch,
+      baseUrl: BASE,
+      log: () => {},
+      intervalMs: 60_000,
+      startLease: () => ({ credential: () => credential, release: released }),
+    });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    credential = "Secret run-2";
+    await vi.advanceTimersByTimeAsync(60_000);
+    slot.release();
+    slot.release();
+    await vi.waitFor(() => expect(released).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(180_000);
+
+    expect(calls.map((c) => [c.url.replace(BASE, ""), c.authorization, c.body.turn_id])).toEqual([
+      ["/wallets/sandboxes/turns/heartbeat", "Secret run-1", "t-1"],
+      ["/wallets/sandboxes/turns/heartbeat", "Secret run-2", "t-1"],
+      ["/wallets/sandboxes/turns/release", "Secret run-2", "t-1"],
+    ]);
+  });
+
+  it("a failed beat is logged and never thrown", async () => {
+    const lines: string[] = [];
+    const down = (async () => {
+      throw new Error("ECONNREFUSED");
+    }) as unknown as typeof fetch;
+    const slot = holdTurnSlot("Secret run-1", "t-1", {
+      fetch: down,
+      baseUrl: BASE,
+      log: (line) => lines.push(line),
+      intervalMs: 60_000,
+      startLease: () => ({ credential: () => "Secret run-1", release: () => {} }),
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    slot.release();
+    await vi.waitFor(() => expect(lines).toHaveLength(2));
+    expect(lines[0]).toContain("turn heartbeat failed");
   });
 });
 
 describe("startSandboxMeter", () => {
   let clock = START_MS;
+  let endTurn: () => void = () => {};
 
   beforeEach(() => {
     clock = START_MS;
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
+    // The meters below belong to "session-1", whose turn runs for the whole test unless it ends.
+    endTurn = beginMeteredTurn("session-1");
   });
   afterEach(() => {
+    endTurn();
     vi.useRealTimers();
   });
 
@@ -124,6 +231,65 @@ describe("startSandboxMeter", () => {
       agent_id: AGENT,
     });
     expect(calls[0]!.authorization).toBe("Secret run-1");
+  });
+
+  it("bills only while a turn of its session runs, not the warm time between turns", async () => {
+    const { calls, fetch } = platform();
+    const m = meter({ fetch });
+
+    await advance(30_000);
+    endTurn(); // the turn ends; the sandbox stays warm
+    await advance(120_000);
+    endTurn = beginMeteredTurn("session-1"); // the next turn reuses it
+    await advance(20_000);
+    await m.stop();
+
+    expect(calls.map((c) => [c.body.start_time, c.body.end_time])).toEqual([
+      [iso(START_S), iso(START_S + 30)],
+      [iso(START_S + 150), iso(START_S + 170)],
+    ]);
+  });
+
+  it("a sandbox stopped while its session is between turns reports nothing more", async () => {
+    const { calls, fetch } = platform();
+    const m = meter({ fetch });
+
+    await advance(10_000);
+    endTurn();
+    await advance(600_000);
+    await m.stop();
+
+    expect(calls.map((c) => [c.body.start_time, c.body.end_time])).toEqual([[iso(START_S), iso(START_S + 10)]]);
+  });
+
+  it("a sandbox that comes up between its session's turns is billed from the next turn", async () => {
+    endTurn();
+    const { calls, fetch } = platform();
+    const m = meter({ fetch });
+
+    await advance(90_000);
+    endTurn = beginMeteredTurn("session-1");
+    await advance(15_000);
+    await m.stop();
+
+    expect(calls.map((c) => [c.body.start_time, c.body.end_time])).toEqual([
+      [iso(START_S + 90), iso(START_S + 105)],
+    ]);
+  });
+
+  it("a run without a session has no warm window: it is billed until its sandbox stops", async () => {
+    endTurn();
+    const { calls, fetch } = platform();
+    const m = meter({ fetch, sessionId: undefined });
+
+    await advance(60_000);
+    await advance(5_000);
+    await m.stop();
+
+    expect(calls.map((c) => [c.body.start_time, c.body.end_time])).toEqual([
+      [iso(START_S), iso(START_S + 60)],
+      [iso(START_S + 60), iso(START_S + 65)],
+    ]);
   });
 
   it("keeps an interval the platform did not take and sends the same one again", async () => {
@@ -288,14 +454,14 @@ describe("the wallet switch", () => {
     const fetch = vi.fn();
 
     // The same calls server.ts and environment.ts make.
-    const admission = await admitSandboxTurn(meteringCredentialForRequest(RUN), {
+    const admission = await admitSandboxTurn(meteringCredentialForRequest(RUN), "t-1", {
       fetch: fetch as unknown as typeof globalThis.fetch,
       baseUrl: BASE,
       log: () => {},
     });
     const usage = sandboxUsageContext(RUN, "conv-1");
 
-    expect(admission).toBe("admitted");
+    expect(admission).toEqual({ admitted: true });
     expect(fetch).not.toHaveBeenCalled();
     // No usage context: environment.ts starts no leased meter, and a command sandbox is never
     // handed one, so it starts no lease or meter either.
@@ -327,7 +493,7 @@ describe("the runner proves it is the runner", () => {
     }) as unknown as typeof globalThis.fetch;
     let t = START_MS;
 
-    await admitSandboxTurn("Access run-token", { fetch, baseUrl: BASE, log: () => {} });
+    await admitSandboxTurn("Access run-token", "t-1", { fetch, baseUrl: BASE, log: () => {} });
     const meter = startSandboxMeter({
       provider: "daytona",
       sandboxId: "sb-1",

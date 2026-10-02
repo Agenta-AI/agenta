@@ -23,7 +23,11 @@ from ee.src.core.measurements.sandboxes import (
 )
 from ee.src.core.wallets.contracts import GatewayKind
 from ee.src.dbs.postgres.measurements.mappings import measurement_fingerprint
-from ee.tests.pytest.utils.measurements.fakes import InMemoryMeasurementPublisher
+from ee.tests.pytest.utils.measurements.fakes import (
+    InMemoryMeasurementPublisher,
+    InMemoryTurnSlots,
+    no_plan,
+)
 
 START = datetime(2026, 9, 26, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -177,17 +181,25 @@ async def test_admission_is_the_wallet_check_for_the_callers_organization(allowe
     wallet = _Wallet(allowed)
     scope = _scope()
     service = SandboxUsageService(
-        wallet=wallet, publisher=InMemoryMeasurementPublisher()
+        wallet=wallet,
+        publisher=InMemoryMeasurementPublisher(),
+        turn_slots=InMemoryTurnSlots(),
+        plan_for=no_plan,
     )
 
-    assert await service.admit(scope=scope) is allowed
+    assert (await service.admit(scope=scope)).allowed is allowed
     assert wallet.checked == [scope.organization_id]
 
 
 @pytest.mark.asyncio
 async def test_a_recorded_interval_is_published_once():
     publisher = InMemoryMeasurementPublisher()
-    service = SandboxUsageService(wallet=_Wallet(True), publisher=publisher)
+    service = SandboxUsageService(
+        wallet=_Wallet(True),
+        publisher=publisher,
+        turn_slots=InMemoryTurnSlots(),
+        plan_for=no_plan,
+    )
 
     measurement_id = await service.record(scope=_scope(), interval=_interval())
 
@@ -201,7 +213,12 @@ async def test_an_unpublished_interval_is_reported_so_the_runner_retries_it():
         async def publish(self, command):
             return False
 
-    service = SandboxUsageService(wallet=_Wallet(True), publisher=_Refusing())
+    service = SandboxUsageService(
+        wallet=_Wallet(True),
+        publisher=_Refusing(),
+        turn_slots=InMemoryTurnSlots(),
+        plan_for=no_plan,
+    )
 
     with pytest.raises(SandboxUsageNotRecordedError):
         await service.record(scope=_scope(), interval=_interval())

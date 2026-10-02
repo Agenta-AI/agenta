@@ -100,7 +100,20 @@ class ManagedToolsService:
                 )
             )
 
-        if not await self._admit(action=action, context=context):
+        admitted = await self._admit(action=action, context=context)
+        if admitted is None:
+            return _refused(
+                AgentError(
+                    code="billing_unavailable",
+                    message=(
+                        "Billing is unavailable right now, so this tool call did not run. "
+                        f"{_NOT_CHARGED}"
+                    ),
+                    retryable=True,
+                    next_step="Try again in a minute.",
+                )
+            )
+        if not admitted:
             return _refused(
                 AgentError(
                     code="wallet_balance_exhausted",
@@ -220,8 +233,10 @@ class ManagedToolsService:
 
     async def _admit(
         self, *, action: ManagedAction, context: ManagedActionContext
-    ) -> bool:
-        # Fails closed: a wallet that cannot answer has not said the organization may pay.
+    ) -> Optional[bool]:
+        """The wallet's answer, or None when it could not answer. Either refusal fails
+        closed: a wallet that cannot answer has not said the organization may pay, but
+        the caller must not read the outage as "not enough credit"."""
         try:
             return await asyncio.wait_for(
                 self.billing.admit(
@@ -236,7 +251,7 @@ class ManagedToolsService:
                 action=action.key,
                 exc_info=True,
             )
-            return False
+            return None
 
     async def _record(self, measurement: ManagedActionMeasurement) -> None:
         # One measurement per execution, published by a task a cancelled caller cannot

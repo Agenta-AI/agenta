@@ -146,12 +146,7 @@ import type { InProcessProvider } from "./engines/inprocess/index.ts";
 import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
-import {
-  admitSandboxTurn,
-  meteringCredentialForRequest,
-  WALLET_BALANCE_EXHAUSTED_CODE,
-  WALLET_BALANCE_EXHAUSTED_MESSAGE,
-} from "./metering/sandbox-usage.ts";
+import { runAdmittedTurn } from "./metering/turn-admission.ts";
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
 const SHUTDOWN_TURN_END_BUDGET_MS = 5_000;
@@ -442,20 +437,16 @@ const keepaliveEngines: Record<KeepaliveProviderName, KeepaliveEngine> = {
 
 const runAgent: RunAgent = async (request, emit, signal, options) => {
   const traits = sandboxProviderTraits(resolveSandboxProviderId(request));
-  const inProcess = traits.harnessInRunner;
+  if (!traits.commandsInRemoteSandbox) return dispatchRun(request, emit, signal, options);
   // A turn that may run a sandbox on the platform's provider account starts only while the
-  // caller's wallet can spend. A turn already running is never stopped for its balance.
-  if (
-    traits.commandsInRemoteSandbox &&
-    (await admitSandboxTurn(meteringCredentialForRequest(request))) === "refused"
-  ) {
-    emit?.({
-      type: "error",
-      message: WALLET_BALANCE_EXHAUSTED_MESSAGE,
-      code: WALLET_BALANCE_EXHAUSTED_CODE,
-    });
-    return { ok: false, error: WALLET_BALANCE_EXHAUSTED_MESSAGE };
-  }
+  // caller's wallet can spend and its organization runs fewer turns than its plan allows.
+  return runAdmittedTurn(request, resolveTurnId(request), emit, () =>
+    dispatchRun(request, emit, signal, options),
+  );
+};
+
+const dispatchRun: RunAgent = async (request, emit, signal, options) => {
+  const inProcess = sandboxProviderTraits(resolveSandboxProviderId(request)).harnessInRunner;
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
   if (!provider) {
     return runSandboxAgent(

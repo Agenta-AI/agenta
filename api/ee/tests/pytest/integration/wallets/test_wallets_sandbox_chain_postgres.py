@@ -31,6 +31,8 @@ from ee.src.dbs.postgres.wallets.dbes import WalletBalanceDBE
 from ee.src.dbs.postgres.wallets.usage import WalletUsageDAO
 from ee.src.core.wallets.usage.service import WalletUsageService
 from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
+from ee.src.dbs.redis.wallets.turns import RedisTurnSlots
+from ee.tests.pytest.utils.measurements.fakes import no_plan
 from ee.tests.pytest.integration.wallets.test_wallets_gateway_chain_postgres import (
     DOWN_REVISION,
     SCHEMA_REVISION,
@@ -110,6 +112,8 @@ def _service(client, chain) -> SandboxUsageService:
     return SandboxUsageService(
         wallet=chain.wallets,
         publisher=RedisMeasurementPublisher(redis_client=client),
+        turn_slots=RedisTurnSlots(redis_client=client),
+        plan_for=no_plan,
     )
 
 

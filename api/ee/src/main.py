@@ -8,7 +8,7 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
 )
-from oss.src.dbs.redis.shared.engine import get_streams_engine
+from oss.src.dbs.redis.shared.engine import get_lock_engine, get_streams_engine
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.core.events.service import EventsService
@@ -33,6 +33,7 @@ from ee.src.core.wallets.service import WalletsService
 from ee.src.core.wallets.usage.service import WalletUsageService
 from ee.src.core.measurements.sandboxes import SandboxUsageService
 from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
+from ee.src.dbs.redis.wallets.turns import RedisTurnSlots
 from ee.src.core.organizations.service import register_wallets_service
 
 from ee.src.apis.fastapi.access.router import AccessRouter
@@ -42,7 +43,10 @@ from ee.src.apis.fastapi.spans.router import SpansRetentionRouter
 from ee.src.apis.fastapi.events.router import EventsRouter, EventsRetentionRouter
 from ee.src.apis.fastapi.sessions.records.router import RecordsRetentionRouter
 from ee.src.apis.fastapi.organizations.router import router as organization_router
-from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
+from ee.src.core.access.entitlements.service import (
+    bootstrap_entitlements_services,
+    plan_for,
+)
 
 # DBS --------------------------------------------------------------------------
 
@@ -142,6 +146,8 @@ wallets_router = WalletsRouter(
         publisher=RedisMeasurementPublisher(
             redis_client=get_streams_engine().get_redis()
         ),
+        turn_slots=RedisTurnSlots(redis_client=get_lock_engine()),
+        plan_for=plan_for,
     ),
 )
 

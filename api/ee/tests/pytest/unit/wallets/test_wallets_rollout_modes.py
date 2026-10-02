@@ -45,7 +45,11 @@ from ee.src.core.measurements.sink import MeasurementUsageSink
 from ee.src.core.measurements.tools import WalletManagedActionBilling
 from ee.src.core.wallets import admission
 from ee.src.core.wallets.admission import WalletSpendAdmission
-from ee.tests.pytest.utils.measurements.fakes import InMemoryMeasurementPublisher
+from ee.tests.pytest.utils.measurements.fakes import (
+    InMemoryMeasurementPublisher,
+    InMemoryTurnSlots,
+    no_plan,
+)
 
 START = datetime(2026, 10, 1, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -110,9 +114,12 @@ async def _gateway(wallet, scope):
 
 async def _sandbox(wallet, scope):
     service = SandboxUsageService(
-        wallet=wallet, publisher=InMemoryMeasurementPublisher()
+        wallet=wallet,
+        publisher=InMemoryMeasurementPublisher(),
+        turn_slots=InMemoryTurnSlots(),
+        plan_for=no_plan,
     )
-    return await service.admit(scope=scope)
+    return (await service.admit(scope=scope)).allowed
 
 
 async def _tool(wallet, scope):
@@ -214,7 +221,10 @@ async def _sink_published(scope):
 async def _sandbox_published(scope):
     publisher = InMemoryMeasurementPublisher()
     measurement_id = await SandboxUsageService(
-        wallet=_Wallet(), publisher=publisher
+        wallet=_Wallet(),
+        publisher=publisher,
+        turn_slots=InMemoryTurnSlots(),
+        plan_for=no_plan,
     ).record(
         scope=scope,
         interval=SandboxUsageInterval(

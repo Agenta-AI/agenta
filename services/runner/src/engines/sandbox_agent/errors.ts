@@ -68,6 +68,8 @@ function keyHintFor(
 export const SANDBOX_GONE_MARKER = "sandbox is gone";
 export const ABANDONED_TURN_MARKER = "execution abandoned";
 
+export const TURN_TIME_LIMIT_CODE: RunErrorCode = "turn_time_limit_reached";
+
 /** The line the user reads when the machine running their turn disappeared. */
 export const SANDBOX_GONE_MESSAGE =
   "The sandbox running this session stopped responding, so the run was ended. " +
@@ -96,6 +98,12 @@ export type RunErrorCode =
   // The caller's wallet is at its floor, so a turn that would run a platform sandbox was refused
   // before it started. See `metering/sandbox-usage.ts`.
   | "wallet_balance_exhausted"
+  // The caller's organization already runs as many turns at once as its plan allows, so this turn
+  // was refused before it started. The platform's turn admission writes the message.
+  | "concurrent_turns_limit"
+  // The turn ran for the longest time the caller's plan allows and was stopped. What it did so
+  // far is kept; the platform's turn admission writes the message.
+  | "turn_time_limit_reached"
   | "credential_delivery_failed"
   | "rate_limited"
   // Not a failure: the turn was REFUSED before it started because another turn already owns
