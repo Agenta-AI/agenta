@@ -32,7 +32,7 @@ def test_signup_grant_catalog_entry_shape():
 
     assert rule is not None
     assert rule.code == "signup"
-    assert rule.amount_musd == 1_000_000  # $1
+    assert rule.amount_musd == 5_000_000  # $5 = 500 credits
     assert rule.credit_kind == "signup_grant"
     assert rule.lifetime_days == 365  # twelve months, report.md 9.5/9.6
     assert rule.repeatable is False
@@ -42,10 +42,8 @@ def test_unknown_grant_activity_returns_none_from_lookup():
     assert get_grant_rule(activity_code="does-not-exist") is None
 
 
-def test_grant_catalog_has_exactly_one_entry_today():
-    """Seeded with exactly ONE entry (signup) — see the module docstring for the
-    intended next entries (activation milestone, referral, contribution)."""
-    assert list(GRANT_CATALOG.keys()) == ["signup"]
+def test_grant_catalog_holds_signup_and_daily_free():
+    assert list(GRANT_CATALOG.keys()) == ["signup", "daily_free"]
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +91,7 @@ async def test_award_unknown_activity_raises():
 
 
 @pytest.mark.asyncio
-async def test_award_signup_grants_one_musd_and_updates_general_balance():
+async def test_award_signup_grants_five_dollars_and_updates_general_balance():
     dao = FakeWalletsDAO(
         general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
     )
@@ -105,9 +103,9 @@ async def test_award_signup_grants_one_musd_and_updates_general_balance():
         now=NOW,
     )
 
-    assert credit.amount_musd == 1_000_000
+    assert credit.amount_musd == 5_000_000
     assert credit.credit_kind == "signup_grant"
-    assert dao.general_balance.balance_musd == 1_000_000
+    assert dao.general_balance.balance_musd == 5_000_000
 
 
 @pytest.mark.asyncio
@@ -149,7 +147,7 @@ async def test_award_signup_awarded_once_and_only_once_per_organization():
     assert dao.award_calls == 2
     assert len(dao._credits) == 1  # only one credit was ever minted
     # Balance moved exactly once, not twice.
-    assert dao.general_balance.balance_musd == 1_000_000
+    assert dao.general_balance.balance_musd == 5_000_000
 
 
 @pytest.mark.asyncio
@@ -171,13 +169,13 @@ async def test_award_repeat_call_returns_the_existing_credit_not_a_new_one():
     )
 
     assert second == first
-    assert dao.general_balance.balance_musd == 500_000 + 1_000_000
+    assert dao.general_balance.balance_musd == 500_000 + 5_000_000
 
 
 @pytest.mark.asyncio
 async def test_award_repeatable_rule_without_reference_raises(monkeypatch):
-    """No catalog entry is repeatable today, so this exercises the guard against a
-    hand-built repeatable rule injected via monkeypatch — the guard itself is what
+    """Exercises the guard against a hand-built repeatable rule injected via
+    monkeypatch — the guard itself is what
     matters: `GrantReferenceRequiredError` is raised before any DAO call, regardless of
     which catalog entry triggers it."""
     dao = FakeWalletsDAO(

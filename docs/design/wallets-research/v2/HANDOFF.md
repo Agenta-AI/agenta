@@ -137,15 +137,14 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
    organization gets from the next billing period on. The proration, the clawback, the
    subscription advisory lock and the unique index `uq_wallet_credits_org_plan_change_key`
    are deleted (branch `wallets/next-period-plan-changes`). Known limits that remain:
-   - No recurring period-start allowance exists yet, so no `plan_allowance` credit is minted
-     at all. Release plan step 1.3 builds it from the Stripe renewal event
-     (`invoice.payment_succeeded`), idempotent per organization and period, expiring at
-     period end. `SubscriptionsService` keeps the injected `wallets_service` for it.
+   - The monthly credits come from the Stripe renewal event (`invoice.payment_succeeded`),
+     idempotent per organization and period, expiring at period end (release plan step 1.3,
+     [credit-sources.md](credit-sources.md)).
    - A delayed `customer.subscription.deleted` for an old subscription can cancel its
      replacement, because the webhook does not compare subscription ids. This is
      pre-existing billing behaviour, and it no longer touches the wallet.
-   - The reverse trial writes the trial plan directly. Step 1.3 decides whether a trial
-     period gets an allowance.
+   - The reverse trial writes the trial plan directly. A trial period's invoice totals 0,
+     so it gets no monthly credits; the first paid period does (step 1.3).
 7. **Accepted P2 findings to revisit** ([review-findings.md](review-findings.md)):
    - The measurement worker trusts a producer-supplied `organization_id` (LY-2). Both
      producers set it from the authenticated scope, and the worker now requires it and
@@ -170,6 +169,12 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
   commit message. Put new decisions in `v1/open-designs.md` under the item they close.
 - Run `openspec validate --all --strict --no-interactive` from this folder (OpenSpec 1.13.1)
   after editing any spec.
+
+## Credit sources
+
+Signup, daily free, monthly, purchased and transferred starter credits are described in
+[credit-sources.md](credit-sources.md), with the operator steps: subscribe the Stripe webhook
+to `checkout.session.completed`, and run the one-off starter-credits transfer job.
 
 ## Before turning the flag on: the signup-grant backfill
 
