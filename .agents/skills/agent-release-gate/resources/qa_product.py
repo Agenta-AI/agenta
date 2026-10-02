@@ -144,22 +144,28 @@ HUNG_AT_DEADLINE = "abandoned by the client at its absolute deadline"
 # remaining came back 50ms late.
 DEADLINE_FLOOR_SECONDS = 0.05
 
-# Anything key-shaped, masked before it reaches a result file. The gate writes results to disk and
-# commits them as evidence, and an error body from a provider can quote the credential it refused.
-# Keep the shape visible (the prefix and the length) and drop the value.
+# Anything key-shaped, masked before it reaches stdout or a result file. The gate writes results
+# to disk and commits them as evidence, and an error body from a provider can quote the credential
+# it refused. The hosted cells handle ChatGPT logins, whose access and refresh tokens are JWTs.
+# Keep the shape visible (the prefix) and drop the value.
 _SECRET_PATTERNS = (
     re.compile(r"\bsk-[A-Za-z0-9_-]{8,}"),
     re.compile(r"\bdtn_[A-Za-z0-9_]{8,}"),
     re.compile(r"\b(ApiKey|Bearer)\s+[A-Za-z0-9._-]{8,}"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),
 )
 
 
 def redact(text: object) -> str:
-    """Mask key-shaped runs. No truncation, so it is safe to apply to anything."""
+    """Mask key-shaped runs and the gate's own API key. No truncation, so it is safe to apply to
+    anything."""
     out = str(text or "")
+    if KEY:
+        out = out.replace(KEY, "<redacted>")
     out = _SECRET_PATTERNS[0].sub("sk-<redacted>", out)
     out = _SECRET_PATTERNS[1].sub("dtn_<redacted>", out)
     out = _SECRET_PATTERNS[2].sub(lambda m: f"{m.group(1)} <redacted>", out)
+    out = _SECRET_PATTERNS[3].sub("eyJ<redacted>", out)
     return out
 
 
@@ -4328,7 +4334,7 @@ def main() -> int:
                 r = {"pass": False, "why": f"driver exception: {type(e).__name__}: {e}"}
             results[cid]["journeys"][jname] = r
             verdict = "SKIP" if r.get("skip") else ("PASS" if r.get("pass") else "FAIL")
-            print(verdict, f"— {r.get('why', '')[:90]}")
+            print(verdict, f"— {redact(r.get('why', ''))[:90]}")
             # Redact at the boundary, never only at the source: a journey's own fields are
             # already masked, but the turn summaries it embeds are copied straight off the wire.
             (outdir / "results.json").write_text(
@@ -4357,7 +4363,9 @@ def main() -> int:
         # A separate file, never a key inside results.json: that file is a flat cell -> result map
         # that the seeds and the failure scan both walk, and a non-cell entry in it would break
         # them.
-        (outdir / "mandatory.json").write_text(json.dumps(triggered, indent=2))
+        (outdir / "mandatory.json").write_text(
+            json.dumps(redact_tree(triggered), indent=2)
+        )
         table += "\n\nMandatory for this release, by path rule:\n\n"
         table += "| cell | run here | because this release changed |\n|---|---|---|\n"
         for cell, why in triggered.items():
@@ -4382,12 +4390,14 @@ def main() -> int:
         # Its own file, never a key in mandatory.json: that file is a flat cell -> reasons map
         # the seeds and the failure scan walk, and a journey entry in it would break them.
         (outdir / "mandatory-journeys.json").write_text(
-            json.dumps(triggered_journeys, indent=2)
+            json.dumps(redact_tree(triggered_journeys), indent=2)
         )
         table += "\n\nMandatory journeys for this release, by path rule:\n\n"
         table += "| journey | because this release changed |\n|---|---|\n"
         for journey, why in triggered_journeys.items():
             table += f"| {journey} | {', '.join(why)} |\n"
+    # Everything this run prints or writes goes through `redact`, the summary included.
+    table = redact(table)
     (outdir / "summary.md").write_text(table + "\n")
     print("\n" + table)
     print(f"\nresults: {outdir}")

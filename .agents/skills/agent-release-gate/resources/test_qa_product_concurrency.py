@@ -1013,3 +1013,52 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def test_a_key_planted_in_a_frame_never_reaches_any_output(
+    monkeypatch, tmp_path, capsys
+):
+    """Keys planted in the WIRE (reply, coded error, error frame) and in a driver exception:
+    none of them may reach stdout, results.json, summary.md or any other file the run writes."""
+    _reset()
+    provider_key = "sk-proj-3M1PW0OPU17zAxPi4wTT33ec5L3Tqfq"  # gitleaks:allow
+    login_token = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJxYS11c2VyIn0.c2lnbmF0dXJlLXZhbHVl"  # gitleaks:allow
+    frames = [
+        {"type": "text-delta", "delta": f"PONG {provider_key}"},
+        {
+            "type": "data-agent-error",
+            "data": {
+                "code": "credential_delivery_failed",
+                "errorText": f"refused {provider_key} and {login_token}",
+            },
+        },
+        {"type": "error", "errorText": f"401 Bearer {login_token}"},
+        {"type": "finish", "finishReason": "stop"},
+    ]
+    stream = b"".join(f"data: {json.dumps(f)}\n".encode() for f in frames)
+    monkeypatch.setattr(
+        qa.httpx, "Client", _fake_httpx(_RawResponse([stream], repeat=False))
+    )
+
+    def crashes(cell):
+        raise RuntimeError(f"provider said: Incorrect API key {provider_key}")
+
+    monkeypatch.setitem(qa.JOURNEYS, "crash_probe", crashes)
+    monkeypatch.setattr(qa, "RUNS", tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["qa_product.py", "--cell", "C3", "--only", "chat", "--only", "crash_probe"],
+    )
+    qa.main()
+
+    written = {p.name: p.read_text() for p in tmp_path.glob("*/*")}
+    assert {"results.json", "summary.md"} <= set(written), sorted(written)
+    outputs = dict(written, stdout=capsys.readouterr().out)
+    for name, text in outputs.items():
+        # A prefix, not the whole value: a truncated print still leaks most of a key.
+        assert provider_key[:14] not in text, f"the provider key reached {name}"
+        assert login_token[:24] not in text, f"the login token reached {name}"
+    results = written["results.json"]
+    assert "sk-<redacted>" in results and "eyJ<redacted>" in results, results[:600]
+    assert "credential_delivery_failed" in results
