@@ -1,6 +1,5 @@
 import {
     agentaChannelSurfaceEnabledAtom,
-    agentAppsEnabledAtom,
     channelDebugEnabledAtom,
     classicModeEnabledAtom,
     inprocessSandboxEnabledAtom,
@@ -14,7 +13,6 @@ import {ThemePicker, type ThemePickerProps} from "./ThemePicker"
 /** One switch on the Preferences page. The key names the row, not its storage. */
 export type PreferenceKey =
     | "classic-mode"
-    | "agent-apps"
     | "inprocess-sandbox"
     | "playground-inspector"
     | "channel-debug"
@@ -46,11 +44,6 @@ export const PREFERENCE_SECTIONS: PreferenceSection[] = [
                 key: "classic-mode",
                 title: "Developer Mode",
                 description: "Show Evaluation, Prompt Management, and Tracing in the navigation.",
-            },
-            {
-                key: "agent-apps",
-                title: "Agent apps",
-                description: "Offer Run on HTML files in an agent's drive.",
             },
             {
                 key: "inprocess-sandbox",
@@ -97,7 +90,6 @@ export type PreferenceBindings = Partial<Record<PreferenceKey, PreferenceBinding
  */
 export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding> => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
-    const [agentApps, setAgentApps] = useAtom(agentAppsEnabledAtom)
     const [inprocessSandbox, setInprocessSandbox] = useAtom(inprocessSandboxEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
     const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
@@ -105,7 +97,6 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
 
     return {
         "classic-mode": {enabled: classicMode, onChange: setClassicMode},
-        "agent-apps": {enabled: agentApps, onChange: setAgentApps},
         "inprocess-sandbox": {enabled: inprocessSandbox, onChange: setInprocessSandbox},
         "playground-inspector": {enabled: inspector, onChange: setInspector},
         "channel-debug": {enabled: channelDebug, onChange: setChannelDebug},

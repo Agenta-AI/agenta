@@ -22,7 +22,7 @@ import {type Mount} from "@agenta/entities/session"
  *
  * `createStoryHost` is the mock seeded in the story app dir; its `emitNav` / `emitError` raise what
  * only the iframe normally sends over the port. `fixtureIo` serves the host's live `files` map to
- * the assembler, so an `externalWrite` shows up on "Reload files".
+ * the assembler, so an `externalWrite` shows up on Refresh.
  */
 
 export const STORY_MOUNT: Mount = {id: "mount-story", name: "agent drive", slug: "agent-drive"}
