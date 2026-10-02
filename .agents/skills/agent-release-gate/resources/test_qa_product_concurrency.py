@@ -372,16 +372,22 @@ def test_local_cells_skip_unless_asked():
     assert not qa.j_burst(local).get("skip")
 
 
-def test_a_runner_path_change_makes_the_daytona_cells_mandatory():
-    """The sandbox engine and Daytona provider rules demand cells, and force no journey."""
+def test_a_runner_path_change_makes_the_journeys_mandatory():
+    """Trigger + --only: naming the cell is not enough, the journey has to be forced too."""
     sys.path.insert(0, str(HERE))
     triggers = importlib.import_module("path_triggers")
-    for paths in (
-        ["services/runner/src/engines/sandbox_agent/daytona-secrets.ts"],
-        ["services/runner/src/providers/daytona-credential-delivery.ts"],
-    ):
-        assert set(triggers.mandatory_cells(paths)) >= {"C2", "C4", "X2"}, paths
-        assert triggers.mandatory_journeys(paths) == {}, paths
+    paths = ["services/runner/src/engines/sandbox_agent/daytona-secrets.ts"]
+    cells = triggers.mandatory_cells(paths)
+    journeys = triggers.mandatory_journeys(paths)
+    assert set(cells) >= {"C2", "C4", "X2"}, cells
+    assert set(journeys) == {"burst", "crosstalk"}, journeys
+    assert journeys["burst"] == paths
+    # The provider path fires the same rule.
+    assert set(
+        triggers.mandatory_journeys(
+            ["services/runner/src/providers/daytona-credential-delivery.ts"]
+        )
+    ) == {"burst", "crosstalk"}
     # An unrelated change forces nothing.
     assert triggers.mandatory_journeys(["web/oss/src/app/page.tsx"]) == {}
 
