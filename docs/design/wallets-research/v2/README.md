@@ -10,6 +10,8 @@ Status: draft OpenSpec package, written 2026-09-22, moved into the repository 20
 4. Open each proposal, then its design, requirements and unchecked tasks.
 5. Use [the next-step plan](next-steps.md) to choose one implementation slice.
 6. Read [the rollout switches](rollout-switches.md) for the per-organization PostHog flags.
+7. Read [the plan caps](caps.md) for turns at once, turn length, turn-scoped sandbox billing and
+   the limit messages.
 
 ## Changes
 

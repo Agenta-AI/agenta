@@ -18,6 +18,9 @@ These were made by the owner before the work started.
 2. **Price is Daytona's list price times 1.5**, by resource, not by named size.
 3. **Only running seconds are billed.** A stopped or parked sandbox is not billed, although
    Daytona bills its disk.
+   **Changed 2026-10-02 (release plan step 1.5, decided):** only the seconds a turn runs are
+   billed. The warm window after a turn, and a sandbox waiting for a person to answer an
+   approval, keep running on Daytona's account but are not charged. See [caps.md](caps.md).
 4. **At the floor, a new turn is refused before it starts; a running turn is never stopped.**
 5. **Never measured:** the `local` provider, self-hosted deployments, and OSS.
 
@@ -65,9 +68,10 @@ The runner measures the sandbox from outside it. The sandbox is never asked anyt
 are two kinds of sandbox on our account, and both are metered:
 
 - The `daytona` provider's agent sandbox. It is metered from the moment it is up until it is
-  parked or deleted. Warm time between turns is running time, so it is billed.
+  parked or deleted, but only while a turn of its session runs: the meter pauses when the turn
+  ends (warm time between turns is not billed) and resumes when the next turn starts.
 - The `inprocess` provider's command sandbox. It is metered from each bring-up until it
-  stops, is retired, or is deleted. A sandbox whose state became unknown stays metered until
+  stops, is retired, or is deleted, with the same pause between its session's turns. A sandbox whose state became unknown stays metered until
   Daytona confirms it stopped or gone. The meter reports with the credential of the newest
   run that holds the sandbox, kept fresh for as long as any environment holds it.
 
@@ -119,9 +123,10 @@ separate one-minute timer per sandbox is simpler to reason about.
 
 Before a turn on `daytona` or `inprocess` starts, the runner asks `POST
 /wallets/sandboxes/admit`, which answers the same spendable check the gateway uses for a
-`builtin` call. Only an explicit `allowed: false` refuses the turn. The runner then emits an
-error with the code `wallet_balance_exhausted` and the message "Your Agenta credits are used
-up, so this turn did not start. Add credits to keep going." No sandbox is acquired. A 404, an
+`builtin` call, and since 2026-10-02 also the plan caps ([caps.md](caps.md)). Only an explicit
+`allowed: false` refuses the turn. The runner then emits an error with the refusal's code
+(`wallet_balance_exhausted` or `concurrent_turns_limit`) and the API's own message, which names
+the plan. No sandbox is acquired. A 404, an
 error, or no answer admits the turn: a metering outage must not stop agents. A turn that is already running is never stopped for its balance, so a turn admitted
 near the floor can settle below it, as a gateway call can (open-designs items 2 and 17).
 
