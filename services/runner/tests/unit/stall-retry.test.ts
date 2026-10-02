@@ -10,7 +10,11 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import type { AgentRunResult } from "../../src/protocol.ts";
+import type {
+  AgentEvent,
+  AgentRunResult,
+  EmitEvent,
+} from "../../src/protocol.ts";
 import {
   DEFAULT_TTFB_RETRIES,
   TTFB_RETRIES_ENV,
@@ -138,5 +142,185 @@ describe("stall retry", () => {
     withEnv("nonsense", () =>
       assert.equal(resolveStallRetries(), DEFAULT_TTFB_RETRIES),
     );
+  });
+});
+
+const status: AgentEvent = {
+  type: "data",
+  name: "agent-status",
+  data: { phase: "environment_ready" },
+  transient: true,
+};
+const stallError: AgentEvent = { type: "error", message: "no first response" };
+const failedDone: AgentEvent = { type: "done", stopReason: "error" };
+const delta: AgentEvent = { type: "message_delta", id: "m1", delta: "hi" };
+const done: AgentEvent = { type: "done" };
+
+/** One scripted attempt: the frames it sends, then the result it returns. */
+interface Script {
+  frames: AgentEvent[];
+  result: AgentRunResult;
+}
+
+/** Plays each script on its own attempt and records every frame the caller receives. */
+function scripted(...scripts: Script[]) {
+  const caller: AgentEvent[] = [];
+  let calls = 0;
+  const attempt = async (emit: EmitEvent | undefined) => {
+    const script = scripts[Math.min(calls, scripts.length - 1)];
+    calls++;
+    for (const frame of script.frames) emit?.(frame);
+    return script.result;
+  };
+  return {
+    attempt,
+    emit: (event: AgentEvent) => caller.push(event),
+    caller,
+    calls: () => calls,
+  };
+}
+
+const stalledAttempt: Script = {
+  frames: [status, stallError, failedDone],
+  result: stalled,
+};
+const answeredAttempt: Script = {
+  frames: [status, delta, done],
+  result: answered,
+};
+
+describe("stall retry: what the caller sees", () => {
+  it("drops a retried attempt's error and done, and keeps its setup status", async () => {
+    const run = scripted(stalledAttempt, answeredAttempt);
+
+    const result = await runWithStallRetry(run.attempt, {
+      emit: run.emit,
+      retries: 1,
+    });
+
+    assert.deepEqual(result, answered);
+    // Setup status went out live for both attempts; only the answered attempt's ending did.
+    assert.deepEqual(run.caller, [status, status, delta, done]);
+  });
+
+  it("delivers the error and done of a stall that is not retried", async () => {
+    const run = scripted(stalledAttempt);
+
+    await runWithStallRetry(run.attempt, { emit: run.emit, retries: 1 });
+
+    assert.equal(run.calls(), 2);
+    // The first attempt's ending is dropped; the last one's reaches the caller, in order.
+    assert.deepEqual(run.caller, [status, status, stallError, failedDone]);
+  });
+
+  it("delivers the ending at once when there is no budget to retry", async () => {
+    const seen: AgentEvent[] = [];
+    let seenBeforeReturn: AgentEvent[] = [];
+    await runWithStallRetry(
+      async (emit) => {
+        for (const frame of stalledAttempt.frames) emit?.(frame);
+        seenBeforeReturn = [...seen];
+        return stalled;
+      },
+      { emit: (event) => seen.push(event), retries: 0 },
+    );
+
+    assert.deepEqual(seenBeforeReturn, stalledAttempt.frames);
+  });
+
+  it("delivers a turn's done live once it has sent any conversation", async () => {
+    // A cold attempt tears its sandbox down before it returns. Holding `done` until then would
+    // make every answered turn end late, so `done` must go out as soon as it is emitted.
+    const seen: AgentEvent[] = [];
+    let seenBeforeReturn: AgentEvent[] = [];
+    await runWithStallRetry(
+      async (emit) => {
+        for (const frame of answeredAttempt.frames) emit?.(frame);
+        seenBeforeReturn = [...seen];
+        return answered;
+      },
+      { emit: (event) => seen.push(event), retries: 1 },
+    );
+
+    assert.deepEqual(seenBeforeReturn, answeredAttempt.frames);
+  });
+
+  it("delivers the ending live for a turn the user stopped", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const seen: AgentEvent[] = [];
+    let seenBeforeReturn: AgentEvent[] = [];
+    const cancelledDone: AgentEvent = { type: "done", stopReason: "cancelled" };
+    await runWithStallRetry(
+      async (emit) => {
+        emit?.(cancelledDone);
+        seenBeforeReturn = [...seen];
+        return { ok: true, output: "", stopReason: "cancelled" };
+      },
+      { emit: (event) => seen.push(event), retries: 1, signal: controller.signal },
+    );
+
+    assert.deepEqual(seenBeforeReturn, [cancelledDone]);
+  });
+
+  it("releases a held error, in order, when the attempt keeps going", async () => {
+    const run = scripted({
+      frames: [status, stallError, delta, done],
+      result: answered,
+    });
+
+    await runWithStallRetry(run.attempt, { emit: run.emit, retries: 1 });
+
+    assert.deepEqual(run.caller, [status, stallError, delta, done]);
+  });
+
+  it("releases held frames when the attempt throws", async () => {
+    const seen: AgentEvent[] = [];
+
+    await assert.rejects(
+      runWithStallRetry(
+        async (emit) => {
+          emit?.(stallError);
+          emit?.(failedDone);
+          throw new Error("boom");
+        },
+        { emit: (event) => seen.push(event), retries: 1 },
+      ),
+      /boom/,
+    );
+
+    assert.deepEqual(seen, [stallError, failedDone]);
+  });
+
+  it("never retries an attempt whose ending already reached the caller", async () => {
+    // Defensive: a result flagged as a stall after it streamed must not be replayed, because the
+    // caller has already seen this turn end.
+    const run = scripted(
+      { frames: [delta, stallError, failedDone], result: stalled },
+      answeredAttempt,
+    );
+
+    const result = await runWithStallRetry(run.attempt, {
+      emit: run.emit,
+      retries: 1,
+    });
+
+    assert.equal(run.calls(), 1);
+    assert.equal(result.ok, false);
+    assert.ok(!("stalledBeforeFirstResponse" in result));
+    assert.deepEqual(run.caller, [delta, stallError, failedDone]);
+  });
+
+  it("passes no sink to an attempt when the caller does not stream", async () => {
+    const sinks: Array<EmitEvent | undefined> = [];
+    await runWithStallRetry(
+      async (emit) => {
+        sinks.push(emit);
+        return sinks.length === 1 ? stalled : answered;
+      },
+      { retries: 1 },
+    );
+
+    assert.deepEqual(sinks, [undefined, undefined]);
   });
 });

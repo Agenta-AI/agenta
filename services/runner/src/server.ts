@@ -436,7 +436,9 @@ const keepaliveEngines: Record<KeepaliveProviderName, KeepaliveEngine> = {
 };
 
 const runAgent: RunAgent = async (request, emit, signal, options) => {
-  const attempt = async (): Promise<AgentRunResult> => {
+  const attempt = async (
+    emit: EmitEvent | undefined,
+  ): Promise<AgentRunResult> => {
     const inProcess = sandboxProviderTraits(resolveSandboxProviderId(request)).harnessInRunner;
     const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
     if (!provider) {
@@ -470,8 +472,10 @@ const runAgent: RunAgent = async (request, emit, signal, options) => {
   };
 
   // A turn that stalled before emitting anything is re-prompted once: nothing ran, so nothing can
-  // be repeated. See `stall-retry.ts`.
+  // be repeated. Each attempt streams through its own gate, which keeps a retried attempt's
+  // `error` and `done` from reaching the caller. See `stall-retry.ts`.
   return runWithStallRetry(attempt, {
+    emit,
     signal,
     log: (message) => process.stderr.write(`${message}\n`),
     sessionId: request.sessionId,

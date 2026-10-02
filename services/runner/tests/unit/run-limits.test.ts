@@ -157,11 +157,10 @@ describe("createRunLimits", () => {
     const limits = createRunLimits(resolved, { clock });
     const trips: string[] = [];
     limits.onTrip((reason) => trips.push(reason));
-    const emit = limits.wrapEmit(() => {});
 
     for (let elapsed = 0; elapsed <= 45 * 60_000; elapsed += 60_000) {
       advance(60_000);
-      emit({ type: "message_delta", id: "m1", delta: "x" });
+      limits.noteProgress();
     }
 
     assert.deepEqual(trips, []);
@@ -195,12 +194,11 @@ describe("createRunLimits", () => {
     );
     const trips: string[] = [];
     limits.onTrip((reason) => trips.push(reason));
-    const emit = limits.wrapEmit(() => {});
 
     // Progress every 900ms keeps pushing the idle deadline out, so it never fires.
     for (let i = 0; i < 5; i++) {
       advance(900);
-      emit({ type: "message_delta", id: "m1", delta: "x" });
+      limits.noteProgress();
     }
     assert.equal(trips.length, 0, "idle must reset on each progress signal");
 
@@ -232,10 +230,9 @@ describe("createRunLimits", () => {
     );
     const trips: string[] = [];
     limits.onTrip((reason) => trips.push(reason));
-    const emit = limits.wrapEmit(() => {});
 
     advance(500);
-    emit({ type: "message_delta", id: "m1", delta: "x" });
+    limits.noteProgress();
     advance(600); // would have tripped TTFB at 1000ms if not cancelled by the event above
     assert.equal(trips.length, 0);
   });
@@ -344,7 +341,7 @@ describe("createRunLimits", () => {
     );
     assert.equal(
       kindOf({ totalMs: 100000, idleMs: 1000, ttfbMs: 100000, toolCallMs: 100000 }, (h, advance) => {
-        h.wrapEmit(() => {})({ type: "message_delta", id: "m1", delta: "x" });
+        h.noteProgress();
         advance(1001);
       }),
       "idle",
@@ -372,13 +369,12 @@ describe("createRunLimits", () => {
     );
     const kinds: (RunLimitKind | undefined)[] = [];
     limits.onTrip((_reason, kind) => kinds.push(kind));
-    const emit = limits.wrapEmit(() => {});
 
     // One event lands, then the run goes quiet for longer than BOTH windows. The idle limit is
     // what may fire; reporting `ttfb` here would tell the dispatch nothing ran when something did,
     // and the retry would replay work the harness had already begun.
     advance(500);
-    emit({ type: "message_delta", id: "m1", delta: "partial answer" });
+    limits.noteProgress();
     advance(5000);
 
     assert.deepEqual(kinds, ["idle"]);

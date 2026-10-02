@@ -99,9 +99,9 @@ export interface RunLimitsHandle {
   noteToolCallStart(id: string): void;
   /** Call once the tool call's result lands; clears its per-call timer. */
   noteToolCallEnd(id: string): void;
-  /** Wrap an `EmitEvent` sink so every event it sees also resets idle/TTFB — the one
-   *  observation point every harness's progress already flows through. */
-  wrapEmit(emit: (event: any) => void): (event: any) => void;
+  /** Call on every sign of turn progress (the tracer's `onProgress`): cancels TTFB on the first
+   *  call and resets idle on each one. Works the same whether or not the turn streams. */
+  noteProgress(): void;
   /** The turn parked for human input: freeze every timer for good (the pause path owns the
    *  turn's end from here; these deadlines must never re-fire on top of it). */
   notePaused(): void;
@@ -111,10 +111,10 @@ export interface RunLimitsHandle {
 
 /**
  * Build the run-limit enforcement for one run. Arms the total deadline and the TTFB timer
- * immediately; the first progress event (via `wrapEmit`) cancels TTFB and arms the recurring idle
- * timer. Any of total/idle/ttfb/tool-call tripping calls the `onTrip` handler exactly once — after
- * that (or after `dispose`) the instance is inert, so a caller can always safely `dispose()` in its
- * own `finally` without double-firing or re-arming on a late event.
+ * immediately; the first progress event (via `noteProgress`) cancels TTFB and arms the recurring
+ * idle timer. Any of total/idle/ttfb/tool-call tripping calls the `onTrip` handler exactly once —
+ * after that (or after `dispose`) the instance is inert, so a caller can always safely `dispose()`
+ * in its own `finally` without double-firing or re-arming on a late event.
  */
 export function createRunLimits(
   limits: ResolvedRunLimits,
@@ -207,15 +207,10 @@ export function createRunLimits(
       }
       noteProgress();
     },
-    wrapEmit(emit) {
-      // Every event is progress for idle/TTFB purposes; per-tool-call timers are driven
-      // separately by noteToolCallStart/End (called from the raw ACP update handler, which
-      // knows the harness's tool-call id before this typed event is even built).
-      return (event: any) => {
-        noteProgress();
-        emit(event);
-      };
-    },
+    // Every recorded event is progress for idle/TTFB purposes; per-tool-call timers are driven
+    // separately by noteToolCallStart/End (called from the raw ACP update handler, which knows
+    // the harness's tool-call id before this typed event is even built).
+    noteProgress,
     notePaused() {
       paused = true;
       clearAll();
