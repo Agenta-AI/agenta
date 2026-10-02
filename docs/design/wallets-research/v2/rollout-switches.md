@@ -20,10 +20,16 @@ The payload is a JSON list of organization ids:
 
 With `AGENTA_LLM_GATEWAY_ENABLED=true`, only the listed organizations use the LLM gateway.
 The API refuses every other organization with `llm_gateway_disabled` on each LLM gateway
-surface: the `/gateways/llms/*` routes (`/resolve` included), the relay and model listing,
-and the LLM credential exchange. The agent SDK already reads that code as "resolve the model
+surface: the `/gateways/llms/*` routes (`/resolve` included), the relay and the model
+listing. The agent SDK already reads that code as "resolve the model
 from the vault", so an organization outside the list keeps the direct path it had before
 the gateway. The SDK and the runner need no new setting.
+
+The LLM credential exchange (`POST /gateways/credentials`, plane `llm`) checks only the
+master switch. The SDK asks for a credential only after `/resolve` admitted the
+organization, and two API processes can briefly hold different payloads. A refusal there
+would fail the run instead of falling back to the vault. The relay still checks the list on
+every call.
 
 One exception: a built-in model (the `builtin` namespace, paid by the platform) has no vault
 key. The SDK refuses it rather than silently switch who pays, so an agent that picked a
@@ -56,17 +62,21 @@ each measurement producer: the gateway usage sink, the sandbox usage route and t
 managed-tools record. For an `off` organization, the sandbox usage route answers 200 with
 `measurement_id: null`, so the runner does not report the interval again.
 
-In `shadow`, a wallet that is slow (more than 1 second) or cannot answer also admits.
+In `shadow`, a wallet that is slow (more than 1 second) or cannot answer also admits. The
+1-second wait does not include the cancellation of the abandoned check, so a slow database
+cleanup cannot push the answer past the 2-second admission bound.
 
 ## Shared behaviour
 
 - **Cache.** Each API process keeps each payload for 30 seconds. When it is older, the
   process still answers from it at once and refreshes it in the background, one refresh per
   flag at a time. The refresh reads the shared `posthog:flags` Redis cache (also 30 seconds)
-  and asks PostHog only on a miss. A payload edit applies within about a minute. No request
-  waits for PostHog, except the first lookup of a flag in a new process, which waits at most
-  0.5 seconds and reads "off" if PostHog has not answered by then. This keeps the lookup out
-  of the 0.5-second measurement hand-off and inside the 2-second admission bounds.
+  and asks PostHog only on a miss. A payload edit applies within about a minute. A payload
+  older than 5 minutes (a process with no traffic) is not served; the caller waits for the
+  refresh as a new process does. Only those callers wait: at most 0.5 seconds, then they
+  read "off", and that "off" is kept until the refresh lands, so the measurement after a
+  cold admission does not wait again. This keeps the lookup out of the 0.5-second
+  measurement hand-off and inside the 2-second admission bounds.
 - **PostHog unreachable or malformed.** The answer is "off": the gateway is off and the
   wallet is off, and a warning or error is logged. The PostHog client returns "no payload"
   when it cannot reach PostHog, so "unreachable" and "no payload" give the same answer. A
@@ -120,7 +130,9 @@ undo them.
   the request, bounded at 1.5 seconds. A review found that this could cancel a measurement
   inside its 0.5-second hand-off bound (a lost charge), and could make a `shadow` admission
   time out inside its 2-second bound (a refusal). Serving the last payload while one refresh
-  runs removes both. The shared Redis cache stays, under the in-process copy, so several API
+  runs removes both. A second review added the 5-minute stale limit, the kept "off" after a
+  cold timeout, and the shadow wait that does not wait for cancellation. The shared Redis
+  cache stays, under the in-process copy, so several API
   processes ask PostHog once between them.
 - **Fail-safe "off", no last-known-good.** The PostHog client gives the same answer for "no
   flag" and "unreachable", so a last-known-good fallback could not tell an outage from a

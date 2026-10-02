@@ -256,6 +256,34 @@ async def test_concurrent_first_callers_share_one_lookup(posthog):
     assert client.calls == [LLM_GATEWAY_ROLLOUT_FLAG]
 
 
+async def test_a_payload_older_than_the_stale_limit_is_not_served(posthog, cache):
+    # An idle process must not apply a payload edited long ago: it waits for the refresh.
+    client = posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "off"}}))
+    switches._payloads[WALLETS_ROLLOUT_FLAG] = (
+        time.monotonic() - switches.ROLLOUT_MAX_STALE_SECONDS - 1,
+        {str(ORG): "enforce"},
+    )
+
+    assert await wallet_mode_for(ORG) is WalletMode.OFF
+    assert client.calls == [WALLETS_ROLLOUT_FLAG]
+
+
+async def test_after_a_slow_first_lookup_the_next_caller_reads_off_without_waiting(
+    posthog, monkeypatch
+):
+    # The measurement that follows a cold admission must not wait inside its own bound.
+    monkeypatch.setattr(switches, "ROLLOUT_LOOKUP_TIMEOUT_SECONDS", 0.05)
+    posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "enforce"}}, delay=0.5))
+
+    assert await wallet_mode_for(ORG) is WalletMode.OFF
+    started = time.monotonic()
+    assert await wallet_mode_for(ORG) is WalletMode.OFF
+    assert time.monotonic() - started < 0.04
+
+    await _settle()
+    assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
+
+
 # PostHog failing
 
 

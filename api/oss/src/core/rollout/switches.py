@@ -39,6 +39,11 @@ WALLETS_ROLLOUT_FLAG = "wallets-rollout"
 # `posthog:flags` cache. A payload edit applies within about two of these.
 ROLLOUT_CACHE_TTL_SECONDS = 30
 
+# The oldest payload still served while a refresh runs. A process that saw no traffic for
+# longer waits for the refresh like a new process does, so an idle process does not apply
+# a payload edited long ago.
+ROLLOUT_MAX_STALE_SECONDS = 300
+
 # How long a caller waits when this process holds no payload yet (its first lookup per
 # flag). Short enough that the lookup plus a 1s shadow wallet check stays inside the 2s
 # bound each wallet admission point puts around its answer.
@@ -82,11 +87,12 @@ async def _flag_payload(flag: str) -> Optional[Any]:
 
     A fresh payload is returned as is. A stale one is returned too, while one shared
     refresh runs in the background; the request path waits only when this process has no
-    payload at all, and then at most `ROLLOUT_LOOKUP_TIMEOUT_SECONDS`. The admission that
-    precedes a measurement therefore leaves a payload behind for the measurement to read.
+    usable payload, and then at most `ROLLOUT_LOOKUP_TIMEOUT_SECONDS`. The admission that
+    precedes a measurement therefore always leaves a payload behind for it to read.
     """
     cached = _payloads.get(flag)
-    if cached and time.monotonic() - cached[0] < ROLLOUT_CACHE_TTL_SECONDS:
+    age = time.monotonic() - cached[0] if cached else None
+    if cached and age < ROLLOUT_CACHE_TTL_SECONDS:
         return cached[1]
 
     refresh = _refreshes.get(flag)
@@ -95,7 +101,7 @@ async def _flag_payload(flag: str) -> Optional[Any]:
         _refreshes[flag] = refresh
         refresh.add_done_callback(lambda _: _refreshes.pop(flag, None))
 
-    if cached:
+    if cached and age < ROLLOUT_MAX_STALE_SECONDS:
         return cached[1]
     try:
         # Shielded: a caller that gives up must not cancel the refresh other callers share.
@@ -108,6 +114,10 @@ async def _flag_payload(flag: str) -> Optional[Any]:
             feature_flag=flag,
             reason=repr(exc),
         )
+        # Keep that "off" as a stale answer until the refresh lands, so the measurement
+        # after this admission reads it at once instead of waiting inside its own bound.
+        if _payloads.get(flag) is cached:
+            _payloads[flag] = (time.monotonic() - ROLLOUT_CACHE_TTL_SECONDS, None)
         return None
 
 

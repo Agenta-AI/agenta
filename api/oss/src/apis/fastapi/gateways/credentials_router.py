@@ -16,11 +16,10 @@ from typing import Optional
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-from oss.src.apis.fastapi.gateways.flags import (
-    require_llm_gateway_enabled,
-    require_mcp_gateway_enabled,
-)
+from oss.src.apis.fastapi.gateways.exceptions import plane_disabled_http_exception
+from oss.src.apis.fastapi.gateways.flags import require_mcp_gateway_enabled
 from oss.src.core.gateways.policy.dtos import GatewayPlane
+from oss.src.core.gateways.types import LLMGatewayDisabledError
 from oss.src.core.gateways.run_claims import (
     gateway_run_id,
     gateway_run_labels,
@@ -86,10 +85,17 @@ class GatewayCredentialsRouter:
         It does check the switch for the plane the caller named, because minting a credential
         for a plane that will refuse every request is worse than refusing here: the caller
         still has a pre-gateway path at this point and none once the run is under way.
+
+        The LLM plane checks the master switch only, not the per-organization rollout. The
+        SDK exchanges a credential only after `/resolve` admitted the organization, and two
+        API processes may briefly hold different rollout payloads: refusing here then would
+        fail the run instead of falling back to the vault. The relay still checks the
+        rollout on every call.
         """
         plane = body.plane if body else None
         if plane is GatewayPlane.LLM:
-            await require_llm_gateway_enabled()
+            if not env.llm_gateway.enabled:
+                raise plane_disabled_http_exception(LLMGatewayDisabledError())
         elif plane is GatewayPlane.MCP:
             require_mcp_gateway_enabled()
 

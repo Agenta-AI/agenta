@@ -7,6 +7,7 @@ the runner needs a setting of its own.
 
 import json
 from typing import Any, Dict
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -138,15 +139,19 @@ async def test_the_model_listing_refuses_an_organization_outside_the_rollout(cal
     assert response.status_code == 403
 
 
-def test_no_llm_gateway_credential_is_minted_outside_the_rollout(caller):
+def test_the_credential_exchange_follows_the_master_switch_only(caller, monkeypatch):
+    # `/resolve` already decided for this run; a process holding a newer payload must not
+    # fail the exchange that follows it. The relay checks the rollout on every call.
     caller(OUTSIDE)
+    monkeypatch.setattr(
+        credentials_router, "sign_secret_token", AsyncMock(return_value="signed")
+    )
     app = FastAPI()
     app.include_router(GatewayCredentialsRouter().router)
 
     response = TestClient(app).post("/credentials", json={"plane": "llm"})
 
-    assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "llm_gateway_disabled"
+    assert response.status_code == 200
 
 
 def test_the_master_switch_off_refuses_even_a_listed_organization(caller, monkeypatch):

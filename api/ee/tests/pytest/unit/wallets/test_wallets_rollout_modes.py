@@ -335,6 +335,36 @@ async def test_shadow_admits_inside_the_gateways_bound_even_with_a_stuck_wallet(
     assert time.monotonic() - started < SPEND_ADMISSION_TIMEOUT_SECONDS
 
 
+class _SlowToCancelWallet:
+    """A check whose cancellation cleanup is itself slow, as a closing DB session can be."""
+
+    async def check(self, *, organization_id):
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            await asyncio.sleep(1.5)
+            raise
+        return False
+
+
+async def test_shadow_admits_even_when_the_checks_cancellation_is_slow(real_rollout):
+    scope = _scope()
+    switches._payloads[switches.WALLETS_ROLLOUT_FLAG] = (
+        time.monotonic(),
+        {str(scope.organization_id): "shadow"},
+    )
+    policy = GatewayPolicyService(
+        resolver=None,
+        spend_admission=WalletSpendAdmission(wallet=_SlowToCancelWallet()),
+    )
+
+    started = time.monotonic()
+    result = await policy.admit(scope=scope, target=_TARGET)
+
+    assert result.allowed is True
+    assert time.monotonic() - started < SPEND_ADMISSION_TIMEOUT_SECONDS
+
+
 async def test_a_slow_first_lookup_admits_inside_the_gateways_bound(
     real_rollout, monkeypatch
 ):

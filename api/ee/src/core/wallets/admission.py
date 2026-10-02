@@ -38,23 +38,40 @@ async def admit_in_mode(
     if mode is WalletMode.ENFORCE:
         return await check()
 
-    try:
-        allowed = await asyncio.wait_for(check(), timeout=SHADOW_CHECK_TIMEOUT_SECONDS)
-    except Exception as exc:  # noqa: BLE001 - shadow never refuses
+    # `asyncio.wait`, not `wait_for`: `wait_for` also waits out the check's cancellation
+    # cleanup (a DB session closing), which could outlast the caller's bound and refuse.
+    check_task = asyncio.ensure_future(check())
+    done, _ = await asyncio.wait({check_task}, timeout=SHADOW_CHECK_TIMEOUT_SECONDS)
+    if not done:
+        check_task.cancel()
+        check_task.add_done_callback(_discard_result)
+        log.warning(
+            "[wallets] shadow: admission check timed out; admitting",
+            organization_id=str(organization_id),
+            point=point,
+        )
+        return True
+    if check_task.exception() is not None:
         log.warning(
             "[wallets] shadow: admission check failed; admitting",
             organization_id=str(organization_id),
             point=point,
-            reason=repr(exc),
+            reason=repr(check_task.exception()),
         )
         return True
-    if not allowed:
+    if not check_task.result():
         log.warning(
             "[wallets] shadow: would have refused; admitting",
             organization_id=str(organization_id),
             point=point,
         )
     return True
+
+
+def _discard_result(task: "asyncio.Future[bool]") -> None:
+    # Retrieve the outcome of an abandoned check so asyncio does not log it as unhandled.
+    if not task.cancelled():
+        task.exception()
 
 
 async def measured(organization_id: UUID) -> bool:
