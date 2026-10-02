@@ -557,12 +557,11 @@ async def test_a_direct_call_carries_no_run_reference(
     await _cleanup(organization_id)
 
 
-async def test_a_stream_the_client_abandons_is_not_charged(
+async def test_a_stream_the_client_abandons_is_still_charged(
     wallet_schema, redis_client, analytics_engine
 ):
-    """The accepted Wave 2 loss, recorded: an adapter learns a call's usage when its body
-    ends, so a client that disconnects first leaves no usage and the call is free. A real
-    `builtin` provider must close this before it launches."""
+    """An adapter learns a call's usage when its body ends. The gateway reads the rest of
+    a platform-funded stream its client left, so the call is measured and charged once."""
     organization_id = uuid4()
     await _fund(organization_id)
     chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
@@ -577,9 +576,10 @@ async def test_a_stream_the_client_abandons_is_not_charged(
         await response.body_iterator.aclose()
 
     assert chain.adapter.calls == 1
-    assert await chain.run_workers() == []
-    assert await _debits(organization_id) == []
-    assert await _general_balance(organization_id) == before
+    [measurement] = await chain.run_workers()
+    [debit] = await _debits(organization_id)
+    assert debit.idempotency_key == f"measurement:{measurement.measurement_id}"
+    assert await _general_balance(organization_id) == before - debit.amount_musd
 
     await _cleanup(organization_id)
 
@@ -725,18 +725,22 @@ async def test_a_shadow_organization_at_its_floor_is_served_and_still_charged(
     await _cleanup(organization_id)
 
 
-async def test_an_organization_absent_from_the_wallet_rollout_is_neither_checked_nor_charged(
+async def test_an_organization_absent_from_the_wallet_rollout_is_refused_a_builtin_call(
     wallet_schema, redis_client, analytics_engine, rollout
 ):
+    """Its wallet is `off`, so the call would not be measured: a platform-funded model is
+    refused rather than served free, and the wallet is never read."""
     organization_id = uuid4()
     rollout(gateway=[organization_id], wallets={})
     chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
     await chain.start_workers()
 
-    response, _ = await _call(chain, organization_id)
+    response, body = await _call(chain, organization_id)
 
-    assert response.status_code == 200
+    assert response.status_code == 403
+    assert json.loads(body)["error"]["code"] == "policy_denied"
     assert chain.checks == 0
+    assert chain.adapter.calls == 0
     assert await chain.run_workers() == []
     assert await _debits(organization_id) == []
 

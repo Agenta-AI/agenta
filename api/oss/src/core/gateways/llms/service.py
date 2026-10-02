@@ -36,6 +36,7 @@ from oss.src.core.gateways.llms.interfaces import (
 )
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
 from oss.src.core.gateways.llms.types import (
+    LLMCapabilityNotAllowedError,
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
@@ -121,6 +122,16 @@ class _ResolvedLlmTarget:
         )
 
 
+# How long the gateway keeps reading a platform-funded stream after its caller disconnected,
+# to reach the usage on its last frame.
+STREAM_DRAIN_AFTER_DISCONNECT_SECONDS = 120.0
+
+
+async def _discard(body: AsyncIterator[bytes]) -> None:
+    async for _chunk in body:
+        pass
+
+
 async def _replay_body(payload: bytes) -> AsyncIterator[bytes]:
     """An already-consumed body, handed back as the iterator the caller expects."""
     yield payload
@@ -161,6 +172,14 @@ _UNSUPPORTED_ROUTING_FIELDS: Tuple[str, ...] = (
     "provider",  # OpenRouter provider preferences: order / only / ignore / allow_fallbacks
     "preset",  # OpenRouter preset: a stored model-and-provider routing configuration
     "fallbacks",  # proxy-style fallback lists (LiteLLM and the gateways modelled on it)
+)
+
+
+# Fields that turn on what a provider bills beyond the reported tokens. A `builtin` call is
+# charged from its tokens alone, so these are refused there (`_check_builtin_capabilities`).
+_UNPRICED_BUILTIN_FIELDS: Tuple[str, ...] = (
+    "web_search_options",  # OpenAI's web search; Vertex maps it to Google Search grounding
+    "extra_body",  # Vertex's `google` extensions, cached content and grounding among them
 )
 
 
@@ -406,6 +425,7 @@ class LLMGatewayService:
         # vault read, and the refusal reason must be the allowlist, never a coincidental
         # secret gap.
         self._check_allowlist(target=target, context=context, payload=payload)
+        self._check_builtin_capabilities(target=target, payload=payload)
         body = self._enforce_ceilings(
             target=target, context=context, body=body, payload=payload
         )
@@ -694,6 +714,35 @@ class LLMGatewayService:
                     field=field, namespace=target.namespace, name=target.name
                 )
 
+    @staticmethod
+    def _check_builtin_capabilities(
+        *, target: _ResolvedLlmTarget, payload: Dict[str, Any]
+    ) -> None:
+        """Refuse what a `builtin` endpoint's provider bills beyond the reported tokens.
+
+        Only function tools pass. A provider-side tool (Google Search grounding through
+        `web_search_options` or a non-function `tools` entry) and the provider extension
+        object `extra_body` are refused, so nothing runs on the platform's account that the
+        rate card does not price.
+        """
+        if target.namespace != GatewayEndpointNamespace.BUILTIN:
+            return
+        for field in _UNPRICED_BUILTIN_FIELDS:
+            if payload.get(field) is not None:
+                raise LLMCapabilityNotAllowedError(
+                    field=field, namespace=target.namespace, name=target.name
+                )
+        tools = payload.get("tools")
+        if tools is None:
+            return
+        if not isinstance(tools, list) or any(
+            not isinstance(tool, dict) or tool.get("type") != "function"
+            for tool in tools
+        ):
+            raise LLMCapabilityNotAllowedError(
+                field="tools", namespace=target.namespace, name=target.name
+            )
+
     def _enforce_ceilings(
         self,
         *,
@@ -846,9 +895,11 @@ class LLMGatewayService:
         run_id: Optional[str],
         run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
+        exhausted = False
         try:
             async for chunk in body:
                 yield chunk
+            exhausted = True
         finally:
             # Fires on natural exhaustion and on a mid-stream break alike — usage is
             # whatever the adapter had populated by then, None if the crash pre-dated it.
@@ -856,15 +907,54 @@ class LLMGatewayService:
             # `finally` as a cancellation of the whole task: a bare `await` here would
             # raise before the record was made and the call would leave no trace at all
             # (OR48). Shielded, the record completes and the cancellation still propagates.
+            # One shielded step, because the first shielded await re-raises the
+            # cancellation and nothing after it in this `finally` would run.
             await run_shielded(
-                self.policy.record(
+                self._finish_and_record(
+                    body=None if exhausted else body,
                     scope=scope,
                     target=target,
                     decision=decision,
-                    outcome=self._outcome_from(
-                        result=result, secret=secret, target=target
-                    ),
+                    result=result,
+                    secret=secret,
                     run_id=run_id,
                     run_labels=run_labels,
                 )
             )
+
+    async def _finish_and_record(
+        self,
+        *,
+        body: Optional[AsyncIterator[bytes]],
+        scope: AuthScope,
+        target: GatewayTarget,
+        decision: PolicyDecision,
+        result: LLMRelayResult,
+        secret: Optional[ResolvedSecret],
+        run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]],
+    ) -> None:
+        """Record the call; first read the rest of a platform-funded stream the caller left.
+
+        Usage rides a stream's last frame. A caller that disconnects before it would
+        otherwise receive the model's output and leave no usage behind, so a `builtin`
+        call nobody pays for. The rest of the stream is read and discarded, up to
+        `STREAM_DRAIN_AFTER_DISCONNECT_SECONDS`, so its usage is measured. A stream on the
+        customer's own credential is closed at once, as before.
+        """
+        if body is not None and target.namespace == GatewayEndpointNamespace.BUILTIN:
+            try:
+                await asyncio.wait_for(
+                    _discard(body), timeout=STREAM_DRAIN_AFTER_DISCONNECT_SECONDS
+                )
+            except Exception:  # pylint: disable=broad-except
+                # The upstream failed or ran past the bound: record what was read.
+                pass
+        await self.policy.record(
+            scope=scope,
+            target=target,
+            decision=decision,
+            outcome=self._outcome_from(result=result, secret=secret, target=target),
+            run_id=run_id,
+            run_labels=run_labels,
+        )

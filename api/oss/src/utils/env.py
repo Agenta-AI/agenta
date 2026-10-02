@@ -1108,12 +1108,10 @@ class LLMGatewayConfig(BaseModel):
     # models from. The endpoint exists only when the service-account document and the project
     # are both set. Gateway names rather than the starter-credits proxy's `LITELLM_VERTEX_*`
     # inputs: the API does not run LiteLLM's proxy, and the cloud sets both from one secret.
-    # The location defaults to `global`, the region the rate card prices.
     vertex_sa_json_b64: str | None = (
         os.getenv("AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64") or None
     )
     vertex_project: str | None = os.getenv("AGENTA_LLM_GATEWAY_VERTEX_PROJECT") or None
-    vertex_location: str = os.getenv("AGENTA_LLM_GATEWAY_VERTEX_LOCATION") or "global"
 
     model_config = ConfigDict(extra="ignore")
 

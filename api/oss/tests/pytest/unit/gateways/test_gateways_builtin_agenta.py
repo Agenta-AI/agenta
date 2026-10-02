@@ -73,7 +73,6 @@ def vertex(monkeypatch):
     encoded = base64.b64encode(json.dumps(_DOCUMENT).encode()).decode()
     monkeypatch.setattr(env.llm_gateway, "vertex_sa_json_b64", encoded)
     monkeypatch.setattr(env.llm_gateway, "vertex_project", _PROJECT)
-    monkeypatch.setattr(env.llm_gateway, "vertex_location", "global")
     monkeypatch.setattr(env.mock_gateways, "enabled", False)
 
     minted: List[dict] = []
@@ -381,9 +380,46 @@ async def test_a_stream_that_declines_usage_is_still_asked_for_it(vertex):
     assert json.loads(requests[0].content)["stream_options"] == {"include_usage": True}
 
 
+@pytest.mark.asyncio
+async def test_a_caller_that_disconnects_mid_stream_is_still_charged(vertex):
+    """The caller reads one frame and leaves. The gateway reads the rest of the
+    platform-funded stream, so the usage on its last frame is still recorded."""
+    requests: List[httpx.Request] = []
+    policy = _Policy()
+    service = LLMGatewayService(
+        llm_endpoints_dao=_NoRows(),
+        policy=policy,
+        resolver=_NoVault(),
+        upstream_registry=LLMUpstreamRegistry(
+            adapters={
+                "relay": RelayLLMAdapter(client=_vertex_upstream(requests, stream=True))
+            }
+        ),
+    )
+    result = await service.relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.BUILTIN,
+        name="agenta",
+        body=json.dumps(
+            {"model": "google/gemini-3.7-flash", "stream": True, "messages": []}
+        ).encode(),
+        headers={},
+    )
+
+    first = await result.body.__anext__()
+    await result.body.aclose()
+
+    assert first
+    ((_target, outcome),) = policy.records
+    assert outcome.usage == GatewayUsage(
+        input_tokens=2457, cache_read_tokens=12256, output_tokens=68
+    )
+
+
 def test_a_stream_cut_before_its_last_frame_reports_no_usage():
-    """The remaining gap: Vertex sends usage only on the final frame, so a stream cut off
-    before it measures nothing. Recorded as None (unknown), never as zero."""
+    """The remaining gap: Vertex sends usage only on the final frame, so a stream the
+    upstream itself cuts off before it (or one still running past the drain bound) measures
+    nothing. Recorded as None (unknown), never as zero."""
     reader = _StreamUsageReader(LLMProtocol.CHAT_COMPLETIONS)
     reader.feed(b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n\n')
     reader.flush()
@@ -426,3 +462,39 @@ def test_every_agenta_model_is_in_the_allowlist(vertex):
     endpoint = builtin_llm_endpoint(provider_key="agenta")
 
     assert tuple(endpoint.data.models.allowlist) == AGENTA_MODELS
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra, field",
+    [
+        ({"web_search_options": {}}, "web_search_options"),
+        ({"extra_body": {"google": {"cached_content": "x"}}}, "extra_body"),
+        ({"tools": [{"type": "google_search"}]}, "tools"),
+        ({"tools": "not a list"}, "tools"),
+    ],
+)
+async def test_a_capability_the_provider_bills_apart_is_refused(vertex, extra, field):
+    """Google Search grounding and Vertex's extensions are billed beyond the tokens the
+    wallet prices, so they never reach the platform's account."""
+    from oss.src.core.gateways.llms.types import LLMCapabilityNotAllowedError
+
+    with pytest.raises(LLMCapabilityNotAllowedError) as refused:
+        await _relay(
+            stream=False,
+            body={"model": "google/gemini-3.8-flash", "messages": [], **extra},
+        )
+
+    assert refused.value.field == field
+
+
+@pytest.mark.asyncio
+async def test_function_tools_still_reach_vertex(vertex):
+    tools = [{"type": "function", "function": {"name": "bash", "parameters": {}}}]
+
+    requests, _records, _received = await _relay(
+        stream=False,
+        body={"model": "google/gemini-3.8-flash", "messages": [], "tools": tools},
+    )
+
+    assert json.loads(requests[0].content)["tools"] == tools

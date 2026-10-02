@@ -37,6 +37,10 @@ AGENTA_PROVIDER = "agenta"
 # them, so a request body relays to Vertex unchanged.
 AGENTA_MODELS = ("google/gemini-3.7-flash", "google/gemini-3.8-flash")
 
+# Fixed, not configurable: the rate card prices the `global` endpoint, and a regional one
+# lists 10% higher, so another location would be charged below its cost basis.
+AGENTA_VERTEX_LOCATION = "global"
+
 # Every provider the `builtin` namespace can serve. A `builtin` call runs on the platform's
 # account, so the wallet's rate card must price each model these serve.
 BUILTIN_LLM_PROVIDERS = (AGENTA_PROVIDER, "mock")
@@ -142,7 +146,7 @@ def _agenta_endpoint() -> Optional[LLMEndpoint]:
         namespace=GatewayEndpointNamespace.BUILTIN,
         data=LLMEndpointData(
             route=LLMEndpointRoute(
-                region=config.vertex_location,
+                region=AGENTA_VERTEX_LOCATION,
                 extras={"vertex_project": config.vertex_project},
             ),
             models=LLMModelFilter(allowlist=list(AGENTA_MODELS)),

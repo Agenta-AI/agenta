@@ -360,13 +360,12 @@ async def test_a_standard_call_keeps_the_vault_origin_and_is_not_handed_off(
 
 
 @pytest.mark.asyncio
-async def test_a_stream_the_client_abandons_before_its_end_hands_off_nothing(
+async def test_a_stream_the_client_abandons_before_its_end_is_still_measured(
     mocks_on, permitted, audit_events
 ):
-    """The accepted loss: the mock, like every adapter, learns its usage when its body is
-    exhausted. A client that disconnects first leaves no usage, so the call is audited
-    and not measured, and it is free. A real `builtin` provider needs this closed before
-    it launches (`v2/wave-2-status.md`, launch blockers)."""
+    """Every adapter learns its usage when its body is exhausted. A client that
+    disconnects first used to leave no usage, so a `builtin` call was free; the gateway now
+    reads the rest of a platform-funded stream before it records the call."""
     sink = _Sink()
     service, adapter, _ = _gateway(admission=_Admission(), sink=sink)
     result = await service.relay_chat_completion(
@@ -382,8 +381,8 @@ async def test_a_stream_the_client_abandons_before_its_end_hands_off_nothing(
 
     assert adapter.calls == 1
     [event] = audit_events
-    assert event["outcome"].usage is None
-    assert sink.calls == []
+    assert event["outcome"].usage is not None
+    assert len(sink.calls) == 1
 
 
 @pytest.mark.asyncio
