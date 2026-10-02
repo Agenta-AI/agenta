@@ -1,7 +1,6 @@
 import {useMemo, useState} from "react"
 
 import {
-    AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
     templateCategories,
     type AgentStarterTemplate,
@@ -18,6 +17,8 @@ import {STRIP_COPY} from "./assets/constants"
 import {PAGE_SIZE} from "./assets/pagerMath"
 import StripCard from "./components/StripCard"
 import StripRow from "./components/StripRow"
+import TemplateCatalogStatus from "./components/TemplateCatalogStatus"
+import {useAgentTemplateCatalog} from "./hooks/useAgentTemplateCatalog"
 import {useStripPager} from "./hooks/useStripPager"
 import {stripHiddenAtom} from "./state"
 
@@ -25,7 +26,7 @@ import {stripHiddenAtom} from "./state"
 const LIST_SIZE = 5
 
 export interface TemplateStripProps {
-    /** Template registry (defaults to AGENT_TEMPLATES). */
+    /** Template list (defaults to the API catalog, with its loading and error states). */
     templates?: AgentStarterTemplate[]
     /** Controlled provenance selection (highlights the picked card). */
     selectedTemplateKey: string | null
@@ -72,7 +73,7 @@ const HeaderButton = ({label, className, ...rest}: {label: string} & ButtonProps
  * (shared localStorage atom); home always shows it.
  */
 const TemplateStrip = ({
-    templates = AGENT_TEMPLATES,
+    templates: templatesProp,
     selectedTemplateKey,
     surface,
     onPick,
@@ -82,6 +83,10 @@ const TemplateStrip = ({
     pendingTemplateKey = null,
     className,
 }: TemplateStripProps) => {
+    const catalog = useAgentTemplateCatalog()
+    const templates = templatesProp ?? catalog.templates
+    // A caller-supplied list is already loaded; the catalog is not until its read succeeds.
+    const catalogReady = templatesProp !== undefined || catalog.status === "success"
     const hideable = surface !== "home"
     const [hidden, setHidden] = useAtom(stripHiddenAtom)
     const [activeCategory, setActiveCategory] = useState<string>(ALL_TEMPLATES_CATEGORY)
@@ -89,9 +94,8 @@ const TemplateStrip = ({
     const [showAllRows, setShowAllRows] = useState(false)
 
     const categories = useMemo(
-        () => [ALL_TEMPLATES_CATEGORY, ...templateCategories()],
-        // templateCategories reads the static registry; recompute only for a custom list.
-        [],
+        () => [ALL_TEMPLATES_CATEGORY, ...templateCategories(templates)],
+        [templates],
     )
     const countFor = (category: string) =>
         category === ALL_TEMPLATES_CATEGORY
@@ -141,6 +145,23 @@ const TemplateStrip = ({
                 >
                     {STRIP_COPY.showAgain}
                 </button>
+            </div>
+        )
+    }
+
+    if (!catalogReady) {
+        // Loading or failed: keep the section's label so the surface does not jump, and show why
+        // there are no cards rather than an empty row that reads as "no templates".
+        return isList ? (
+            <PanelSection sticky title={STRIP_COPY.label} bodyClassName="px-2 pb-3">
+                <TemplateCatalogStatus rows={3} />
+            </PanelSection>
+        ) : (
+            <div className={className}>
+                <span className="font-semibold text-base text-[var(--ag-colorText)]">
+                    {STRIP_COPY.label}
+                </span>
+                <TemplateCatalogStatus rows={3} className="mt-3" />
             </div>
         )
     }

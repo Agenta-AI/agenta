@@ -5,6 +5,7 @@ import Site from "../layouts/Site.astro";
 import SectionTitle from "../components/SectionTitle.astro";
 import HostingToggle from "../components/HostingToggle.tsx";
 import PlanCard from "../components/PlanCard.astro";
+import FaqItem from "../components/FaqItem.astro";
 import { linkify, type PricingLink } from "../lib/pricingLinks";
 
 // Single source of truth for ALL pricing-page content. No content literals below.
@@ -204,28 +205,9 @@ const linkStyle =
         <div class="faq-col">
           {
             faqs.map((f, i) => (
-              <details class="faq-item" open={i === 0}>
-                <summary>
-                  <span class="faq-q">{f.question}</span>
-                  <svg
-                    class="faq-icon"
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <path
-                      d="M12 5v14M5 12h14"
-                      stroke="var(--pp-faq-icon)"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                    />
-                  </svg>
-                </summary>
-                <p class="faq-a">
-                  {linkify(f.answer, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
-                </p>
-              </details>
+              <FaqItem question={f.question} open={i === 0}>
+                {linkify(f.answer, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
+              </FaqItem>
             ))
           }
         </div>
@@ -355,42 +337,6 @@ const linkStyle =
     padding: 0 24px;
     box-sizing: border-box;
   }
-  .faq-item {
-    border-top: 1px solid var(--th-border);
-    padding: 24px 0;
-  }
-  .faq-item summary {
-    list-style: none;
-    cursor: pointer;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 24px;
-  }
-  .faq-item summary::-webkit-details-marker {
-    display: none;
-  }
-  .faq-q {
-    font: 300 20px/1.3 var(--font-display, "GT Alpina", serif);
-    color: var(--th-text-hi);
-  }
-  .faq-icon {
-    flex: 0 0 auto;
-    margin-top: 2px;
-    transition: transform 0.16s ease;
-  }
-  .faq-item[open] .faq-icon {
-    transform: rotate(45deg);
-  }
-  .faq-a {
-    margin: 12px 0 0;
-    max-width: 680px;
-    font: var(--text-body-md);
-    color: var(--th-text-body);
-  }
-  .faq-item[open] .faq-a {
-    animation: accordion-in 0.2s ease both;
-  }
 
   /* ── responsive: mirror agenta.ai/pricing — 4-across on desktop, halving to a
      two-up tablet grid, then a single column on phones (self-hosted keeps two). ── */
@@ -478,6 +424,7 @@ const linkStyle =
     --pp-check-fill: var(--ink-900);
     --pp-check-stroke: #ffffff;
     --pp-faq-icon: #676770;
+    --faq-icon: var(--pp-faq-icon);
     --pp-cover: #ffffff;
     --pp-cover-t: rgba(255, 255, 255, 0);
     --pp-edge: rgba(36, 36, 36, 0.18);

@@ -29,6 +29,8 @@ export interface PendingSendEcho {
      * send is the opposite: the dock row is what retires its echo.
      */
     policy?: "queue" | "steer"
+    /** Sent while a run was busy, so it is shown as a dock row, not a transcript bubble. */
+    docked?: boolean
     /** The send is known to have failed. The row STAYS, so the text is never silently lost. */
     failed?: boolean
     /** Fallback user-row count, used only while this send has no identity of its own yet. */
@@ -155,6 +157,10 @@ export const retirePendingSendEchoes = (
  */
 export const pendingSendsInFlight = (pending: readonly PendingSendEcho[]): boolean =>
     pending.some((echo) => !echo.failed && !echo.parkedInputId)
+
+/** A docked echo stays in the dock until the server starts it or refuses it. */
+export const showsInDock = (item: PendingSendEcho): boolean =>
+    !!item.docked && !item.failed && !item.executionId
 
 export const pendingSendEchoMessages = (pending: readonly PendingSendEcho[]): UIMessage[] =>
     pending.map(

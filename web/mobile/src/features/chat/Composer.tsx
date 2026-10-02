@@ -27,6 +27,8 @@ import {AnimatePresence, motion} from "motion/react"
 import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
 
+import {useComposerPrefill} from "./useComposerPrefill"
+
 /**
  * The mobile composer shell — the SAME `ChatComposer` the desktop dock renders (lazy rich
  * input, paperclip, attachments tray, queue-aware placeholder), pinned in the screen footer.
@@ -92,6 +94,8 @@ export const Composer = ({
     // A tab switch is a route change here, so the whole composer unmounts — the per-session
     // draft is what carries unsent text across it.
     const draft = useComposerDraft({sessionId, richInputRef})
+    // The config panel's "Create with AI" writes its starter prompt here.
+    useComposerPrefill(richInputRef)
 
     // The `/` palette and its pickers, anchored to the composer box so they open where the
     // palette was. /new mirrors the session rail's `+`, exactly as it does on the desktop.

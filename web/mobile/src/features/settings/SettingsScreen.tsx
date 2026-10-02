@@ -50,6 +50,7 @@ import {WalletUsageTab} from "../wallet/WalletUsageTab"
 import {AccountTab} from "./AccountTab"
 import {ApiKeysTab} from "./ApiKeysTab"
 import {BillingTab} from "./BillingTab"
+import {ChannelsTab} from "./ChannelsTab"
 import {LlmProvidersTab} from "./LlmProvidersTab"
 import {MembersTab} from "./MembersTab"
 import {isNestedSettingsNavEnabled} from "./nestedNav"
@@ -219,6 +220,8 @@ const TabBody = ({
                     {confirmModal}
                 </>
             )
+        case "channels":
+            return <ChannelsTab />
         case "projects":
             return (
                 <ProjectsTab

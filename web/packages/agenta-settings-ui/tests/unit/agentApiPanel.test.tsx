@@ -10,6 +10,9 @@ vi.mock("@agenta/ui/components/presentational", () => ({
     CopyButton: ({text}: {text: string}) => <button data-copy={text}>copy</button>,
 }))
 vi.mock("@agenta/ui/ui", () => ({
+    Button: ({children, onClick}: React.ComponentProps<"button">) => (
+        <button onClick={onClick}>{children}</button>
+    ),
     Input: (props: React.ComponentProps<"input">) => <input {...props} />,
     LoadingButton: ({children, onClick}: React.ComponentProps<"button">) => (
         <button onClick={onClick}>{children}</button>

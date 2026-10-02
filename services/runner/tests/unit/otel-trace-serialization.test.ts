@@ -297,8 +297,17 @@ describe("Pi recovery tracing", () => {
     expect(spans.filter((s) => s.name === "invoke_agent")).toHaveLength(1);
     const root = spans.find((s) => s.name === "invoke_agent")!;
     expect(root.status.code).not.toBe(2);
-    expect(root.attributes["gen_ai.usage.total_tokens"]).toBe(9);
-    expect(spans.filter((s) => s.name === "chat test")).toHaveLength(2);
+    // The chat spans own the tokens; the platform rolls them up into the root.
+    expect(root.attributes["gen_ai.usage.total_tokens"]).toBeUndefined();
+    const chats = spans.filter((s) => s.name === "chat test");
+    expect(chats).toHaveLength(2);
+    expect(
+      chats.reduce(
+        (sum, s) =>
+          sum + Number(s.attributes["gen_ai.usage.total_tokens"] ?? 0),
+        0,
+      ),
+    ).toBe(9);
     const diagnostic = spans
       .flatMap((s) => s.events)
       .find((e) => e.name === "provider_transport_failure");

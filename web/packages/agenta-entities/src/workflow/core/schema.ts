@@ -49,8 +49,6 @@ export const jsonSchemasSchema = z
     .nullable()
     .optional()
 
-export type JsonSchemas = z.infer<typeof jsonSchemasSchema>
-
 // ============================================================================
 // WORKFLOW FLAGS
 // ============================================================================
@@ -386,10 +384,6 @@ export const workflowSchemas = createEntitySchemaSet({
     },
 })
 
-export type CreateWorkflow = typeof workflowSchemas.types.Create
-export type UpdateWorkflow = typeof workflowSchemas.types.Update
-export type LocalWorkflow = typeof workflowSchemas.types.Local
-
 // ============================================================================
 // WORKFLOW VARIANT SCHEMA (for 3-level selection hierarchy)
 // ============================================================================
@@ -459,8 +453,6 @@ export const windowingResponseSchema = z
     })
     .nullable()
     .optional()
-
-export type WindowingResponse = z.infer<typeof windowingResponseSchema>
 
 /**
  * Multiple workflows response wrapper.
@@ -755,11 +747,6 @@ export function getWorkflowTypeLabel(typeKey: string | null | undefined): string
  * @deprecated Use `parseWorkflowKeyFromUri` instead.
  */
 export const parseEvaluatorKeyFromUri = parseWorkflowKeyFromUri
-
-/**
- * @deprecated Use `buildWorkflowUri` instead.
- */
-export const buildEvaluatorUri = buildWorkflowUri
 
 // ============================================================================
 // EVALUATOR KEY NORMALIZATION

@@ -40,37 +40,33 @@ describe("Sheet side=responsive", () => {
         expect(c).toContain("data-[state=open]:animate-sheet-in-bottom")
     })
 
-    it("is a right-edge drawer from the large breakpoint up", () => {
+    it("is a floating right-edge drawer from the large breakpoint up", () => {
         openSheet("responsive")
         const c = panel().className
-        expect(c).toContain("lg:inset-y-0")
-        expect(c).toContain("lg:right-0")
-        expect(c).toContain("lg:h-full")
-        expect(c).toContain("lg:border-l")
+        expect(c).toContain("lg:inset-y-2")
+        expect(c).toContain("lg:right-2")
+        expect(c).toContain("lg:rounded-xl")
+        expect(c).toContain("lg:border-0")
         expect(c).toContain("lg:data-[state=open]:animate-sheet-in-right")
     })
 
     it("unsets every bottom-sheet property at lg, or the narrower rule would win", () => {
         openSheet("responsive")
         const c = panel().className
-        for (const unset of [
-            "lg:inset-x-auto",
-            "lg:mx-0",
-            "lg:max-h-none",
-            "lg:rounded-none",
-            "lg:border-t-0",
-        ]) {
+        for (const unset of ["lg:inset-x-auto", "lg:mx-0", "lg:max-h-none"]) {
             expect(c).toContain(unset)
         }
     })
 
-    it("leaves the literal edges literal", () => {
+    it("floats the literal right edge at every width", () => {
         openSheet("right")
         const c = panel().className
-        expect(c).toContain("inset-y-0")
-        expect(c).toContain("right-0")
+        expect(c).toContain("inset-y-2")
+        expect(c).toContain("right-2")
+        expect(c).toContain("rounded-xl")
         expect(c).not.toContain("rounded-t-2xl")
         expect(c).not.toContain("lg:")
+        expect(c).not.toContain("animate-sheet-in-bottom")
     })
 
     it("marks the side on the panel, so a consumer can style off it", () => {
@@ -113,6 +109,6 @@ describe("EnhancedDrawer placement=responsive", () => {
     it("still clamps a right-edge drawer inline, as antd does", () => {
         render(<EnhancedDrawer {...open} placement="right" width={520} />)
         expect(panel().style.width).toBe("520px")
-        expect(panel().style.maxWidth).toBe("100%")
+        expect(panel().style.maxWidth).toBe("calc(100% - 1rem)")
     })
 })

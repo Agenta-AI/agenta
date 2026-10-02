@@ -11,8 +11,6 @@
  */
 
 export const BRIDGE_VERSION = 1 as const
-/** Name of the stub global inside the iframe: `window.agenta`. */
-export const BRIDGE_GLOBAL = "agenta" as const
 /** Largest file the bridge will serve, in bytes. Larger reads fail with `too_large`. */
 export const READ_CAP = 4 * 1024 * 1024
 /** Largest body the bridge will accept, in bytes. Larger writes fail with `too_large`. */
@@ -276,7 +274,6 @@ export const KIT_CLASSES = [
 ] as const
 
 export type KitToken = (typeof KIT_TOKENS)[number]
-export type KitClass = (typeof KIT_CLASSES)[number]
 
 /** `userScopedFlagAtom` key that gates the whole feature. */
 export const AGENT_APPS_FLAG = "agent-apps" as const
@@ -362,25 +359,6 @@ export function isIframeToParent(x: unknown): x is IframeToParent {
             return typeof x.href === "string"
         case "error":
             return typeof x.message === "string"
-        default:
-            return false
-    }
-}
-
-export function isParentToIframe(x: unknown): x is ParentToIframe {
-    if (!isV1(x)) return false
-    if (typeof x.id === "number" && typeof x.ok === "boolean") {
-        return x.ok ? "result" in x : isRecord(x.error) && typeof x.error.code === "string"
-    }
-    switch (x.type) {
-        case "hello":
-            return typeof x.dir === "string" && typeof x.canWrite === "boolean"
-        case "visibility":
-            return typeof x.visible === "boolean"
-        case "changed":
-            return Array.isArray(x.paths)
-        case "theme":
-            return isRecord(x.tokens)
         default:
             return false
     }

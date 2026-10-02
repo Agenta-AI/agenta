@@ -79,6 +79,7 @@ def test_catalog_ships_platform_builder_ops():
         "send_channel_message",
         "read_channel_messages",
         "search_channel_messages",
+        "validate_template",
     }
 
 
@@ -311,6 +312,53 @@ async def test_rename_session_emits_a_bound_direct_call(connection):
     wire = spec.to_wire()
     assert wire["call"]["path"] == spec.call.path
     assert wire["call"]["context"] == {"session_id": "$ctx.session.id"}
+
+
+async def test_validate_template_is_a_read_only_call_bound_to_this_session(connection):
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="validate_template")]
+    )
+    spec = resolution.tool_specs[0]
+
+    assert spec.call_ref is None
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/agent-templates/validate"
+    # The model's args land in `source`; the kind is fixed in code and the session comes from
+    # run context, so the model names only a path inside its own session.
+    assert spec.call.args_into == "source"
+    assert spec.call.body == {"source": {"kind": "session_file"}}
+    assert spec.call.context == {"source.session_id": "$ctx.session.id"}
+    assert spec.read_only is True
+    assert spec.effective_permission() is None
+
+    schema = spec.input_schema
+    assert schema == get_platform_op("validate_template").resolved_input_schema()
+    assert set(schema["properties"]) == {"path"}
+    assert schema["required"] == ["path"]
+    assert schema["additionalProperties"] is False
+    jsonschema.validate({"path": "templates/seo-assistant-1.0.0.zip"}, schema)
+    for smuggled in (
+        {"path": "a.zip", "session_id": "another-session"},
+        {"path": "a.zip", "kind": "internal"},
+        {},
+    ):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(smuggled, schema)
+
+    wire = spec.to_wire()
+    assert wire["call"]["body"] == {"source": {"kind": "session_file"}}
+    assert wire["call"]["context"] == {"source.session_id": "$ctx.session.id"}
+    assert wire["call"]["args_into"] == "source"
+
+
+def test_validate_template_description_teaches_the_repair_loop():
+    description = get_platform_op("validate_template").description
+
+    for phrase in ("`path`", "`issues`", "`next_step`", "`version`", "`digest`"):
+        assert phrase in description
+    assert "rebuild the zip" in description
+    assert "creates no agent, session, skill or automation" in description
+    assert "Never tell the user the template is ready" in description
 
 
 def test_rename_session_takes_the_name_it_replaces():

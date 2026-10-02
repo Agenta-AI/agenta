@@ -35,10 +35,6 @@ export type PendingTaskDecision =
 /** How long the parked task waits for the project vault before it gives up. */
 export const MODEL_KEY_WAIT_LIMIT_MS = 10_000
 
-/** Shown when the vault never answered — the desktop's "not sent, try again" wording family. */
-export const PENDING_TASK_NOT_SENT_MESSAGE =
-    "Couldn't check this project's provider keys — the message was not sent. Please try again."
-
 export interface PendingTaskGate {
     /** The session the chat screen is mounted for. */
     sessionId: string

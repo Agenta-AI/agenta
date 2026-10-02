@@ -18,8 +18,3 @@ export type ConfirmDestructive = (args: {
     danger?: boolean
     onOk: () => void | Promise<void>
 }) => void
-
-export interface DestructiveConfirmProps {
-    /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
-    confirm?: ConfirmDestructive
-}

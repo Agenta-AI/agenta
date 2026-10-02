@@ -14,7 +14,7 @@ const buttonVariants = cva(
     [
         // CONTROL_RESET: preflight is disabled app-wide (antd ships its own reset), so the
         // resets preflight would normally provide are applied per-control. Delete these once
-        // antd is gone and preflight is switched back on — see antd-inventory/GOTCHAS.md.
+        // antd is gone and preflight is switched back on — see docs/design/antd-migration/GOTCHAS.md.
         "box-border border-solid font-[inherit] py-0",
         "group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap",
         // Weight 400, not shadcn's 500 — a house choice.

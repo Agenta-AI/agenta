@@ -164,7 +164,7 @@ export function detectAccountsFromText(description: string): DetectedAccount[] {
 
 /** A template's declared integrations — exact, and the only accounts allowed to gate create. */
 const toAccount = (
-    integration: {slug: string; scope: string},
+    integration: {slug: string; scope?: string},
     required: boolean,
 ): DetectedAccount => {
     const provider = PROVIDERS[integration.slug]
@@ -172,7 +172,7 @@ const toAccount = (
         slug: integration.slug,
         label: provider?.label ?? integration.slug,
         logo: provider?.logo,
-        why: integration.scope,
+        why: integration.scope ?? NO_SCOPE_LINE,
         origin: "template" as const,
         required,
     }

@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {useIntegrationIdentity} from "@agenta/entity-ui/clientTools"
+import {isDeferredByRunner, useIntegrationIdentity} from "@agenta/entity-ui/clientTools"
 import type {ToolUIPart} from "ai"
 
 import {partToolName} from "../../model"
@@ -33,13 +33,15 @@ export const ActivityClientStep = ({
 }) => {
     const name = partToolName(part)
     const display = resolveToolDisplay(name, (part as {input?: unknown}).input)
-    const failed = (part.state as string) === "output-error"
+    // A runner-deferred ask is waiting for next turn, not failed: keep the app's mark on the node.
+    const failed = (part.state as string) === "output-error" && !isDeferredByRunner(part)
     const settled = (part.state as string).startsWith("output-")
     // A question's form lives in the dock; the step only says so.
     if (canonicalToolName(name) === "request_input") return <ActivityAnswersStep part={part} />
     const widget = render?.(part)
+    // min-h-9: the height of a StepRow step, so a widget row (24px, or 32px with Retry) keeps the rail's rhythm.
     return (
-        <div className="flex min-w-0 items-center gap-3.5">
+        <div className="flex min-h-9 min-w-0 items-center gap-3.5">
             <AppNode
                 sourceKey={display.sourceKey}
                 icon={display.icon}

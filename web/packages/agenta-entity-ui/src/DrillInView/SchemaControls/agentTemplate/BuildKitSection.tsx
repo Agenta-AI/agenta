@@ -35,7 +35,7 @@ const presets: PermissionPresetOption[] = [
         separatorBefore: true,
     },
 ]
-const toolOptions: PermissionPolicyOption[] = [
+export const buildKitToolOptions: PermissionPolicyOption[] = [
     {
         value: "allow",
         title: "Allow",
@@ -84,8 +84,9 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
             <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">Playground build kit</span>
                 <span className="text-xs text-colorTextDescription">
-                    Tools the assistant uses here. Choices stay with this agent across commits, in
-                    this browser. They do not change the published agent.
+                    Tools the assistant uses only while you build in the playground. They are not
+                    available in Slack, Telegram, WhatsApp, automations or the API. Saved in this
+                    browser.
                 </span>
             </div>
             <PermissionDrawerBody
@@ -142,7 +143,7 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                 }}
                 disabled={disabled}
                 lockedTool={() => (state.enabled ? null : "The build kit is deactivated.")}
-                toolOptions={toolOptions}
+                toolOptions={buildKitToolOptions}
                 writeLabel="Write"
                 readOnlyLabel="Read-only"
                 banner={

@@ -194,7 +194,11 @@ export const ChatComposer = ({
                             analyserRef={dictationAnalyserRef}
                             className="h-5 flex-1 text-colorPrimary"
                         />
-                    ) : null
+                    ) : (
+                        <span role="status" className="text-xs text-colorTextSecondary">
+                            Listening…
+                        </span>
+                    )
                 }
                 className={className}
                 maxHeightClassName={maxHeightClassName}
