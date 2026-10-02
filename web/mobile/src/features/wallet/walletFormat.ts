@@ -32,3 +32,13 @@ export const formatSandbox = (
     seconds === null || seconds === undefined
         ? "—"
         : `${seconds.toLocaleString()} s · ${vcpu ?? "?"} vCPU · ${memoryGib ?? "?"} GiB`
+
+/** A tool action's billable count: "3 results", "1 call". */
+export const formatUnits = (
+    quantity: number | null | undefined,
+    unit: string | null | undefined,
+): string => {
+    if (quantity === null || quantity === undefined || !unit) return "—"
+    const singular = unit.endsWith("s") ? unit.slice(0, -1) : unit
+    return `${quantity.toLocaleString()} ${quantity === 1 ? singular : unit}`
+}

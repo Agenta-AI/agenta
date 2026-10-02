@@ -490,6 +490,11 @@ The delivered SBX producer (the runner's sandbox meter, 2026-09-26) uses a small
 component costs; the rate card prices the resource-seconds. See
 [v2/sandbox-seconds.md](../v2/sandbox-seconds.md).
 
+A managed tool action (2026-09-27) is a fourth kind, `gateway_kind: tool`, with one component per
+execution: `action_calls` or `action_results`, the billable units counted from the action's
+output. `resource_key` is `tool:<action key>`; the execution id is both `measurement_id` and
+`request_id`. See [v2/managed-tools.md](../v2/managed-tools.md).
+
 Every measurement belongs to a project, so it carries `project_id`, optional `user_id` and `agent_id`,
 plus `gateway_kind`, `resource_key`, optional `endpoint_id`, `endpoint_kind`, the gateway-minted
 `request_id`, and a gateway-minted `measurement_id`. `measurement_id` is an opaque identity that the

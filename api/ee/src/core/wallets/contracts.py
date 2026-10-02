@@ -20,6 +20,7 @@ class GatewayKind(str, Enum):
     LLM = "llm"
     MCP = "mcp"
     SBX = "sbx"
+    TOOL = "tool"
 
 
 class DebitKind(str, Enum):
