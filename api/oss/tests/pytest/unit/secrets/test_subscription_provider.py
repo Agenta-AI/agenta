@@ -10,6 +10,7 @@ import json
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
@@ -107,6 +108,21 @@ class TestDefaultsAndValidation:
                     "secret": {"kind": "subscription_provider", "data": "nope"},
                 }
             )
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            {"models": [{"id": "gpt-6.1-sol"}]},
+            {"models": 5},
+            {"models": "gpt-6.1-sol"},
+            {"harnesses": [{"id": "pi_core"}]},
+            {"harnesses": 5},
+        ],
+    )
+    def test_a_malformed_list_is_a_validation_error(self, data):
+        # A ValidationError becomes a 422; a TypeError from hashing the list was a 500.
+        with pytest.raises(ValidationError):
+            _create(data)
 
     def test_the_slug_is_derived_from_the_name(self):
         assert subscription_provider_slug("ChatGPT") == "chatgpt"

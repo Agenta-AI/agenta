@@ -506,19 +506,20 @@ def _validate_secret_data_based_on_kind(
         # written back — is normalized to None for the same reason: rows created while
         # the create path snapshotted the defaults would otherwise stay pinned to the
         # lineup of their creation day. An explicit empty list stays an explicit "none".
-        models = data.get("models")
+        # Validate first, so a malformed list is refused as a validation error.
+        subscription = SubscriptionProviderDTO.model_validate(data)
         if (
-            models is not None
-            and set(models) in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS[provider_kind]
+            subscription.models is not None
+            and set(subscription.models)
+            in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS[provider_kind]
         ):
-            data["models"] = None
-        harnesses = data.get("harnesses")
-        if harnesses is not None and set(harnesses) == set(
+            subscription.models = None
+        if subscription.harnesses is not None and set(subscription.harnesses) == set(
             SUBSCRIPTION_PROVIDER_HARNESSES[provider_kind]
         ):
-            data["harnesses"] = None
+            subscription.harnesses = None
 
-        values["data"] = SubscriptionProviderDTO.model_validate(data)
+        values["data"] = subscription
     elif kind == SecretKind.OAUTH_PROVIDER.value:
         if not isinstance(data, dict):
             raise ValueError(
