@@ -7,7 +7,7 @@ import {useLiveChatEnabled} from "./useLiveChatEnabled"
 export const LiveChat = () => {
     const enabled = useLiveChatEnabled()
     useEffect(() => {
-        if (enabled) void loadLiveChat()
+        if (enabled) void loadLiveChat().catch(() => undefined)
     }, [enabled])
 
     return null
