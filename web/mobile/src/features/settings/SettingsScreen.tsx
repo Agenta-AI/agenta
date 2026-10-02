@@ -60,6 +60,7 @@ import {useSettingsNavScope} from "./settingsNavScope"
 import {SettingsTabRail} from "./SettingsTabRail"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
 import {OrganizationLoading, OrganizationNoFlags} from "./states/OrganizationStates"
+import {UsageTab} from "./UsageTab"
 import {useConfirmModal} from "./useConfirmModal"
 import {WebhooksTab} from "./WebhooksTab"
 
@@ -162,6 +163,8 @@ const TabBody = ({
     }
 
     switch (tab) {
+        case "usage":
+            return <UsageTab workspaceId={workspaceId} projectId={projectId} />
         case "preferences":
             return <PreferencesTab theme={theme} />
         case "account":

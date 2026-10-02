@@ -6,6 +6,7 @@ import {useRouter} from "next/router"
 
 /** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
 export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
+    "usage",
     "apiKeys",
     "llms",
     "secrets",

@@ -4,6 +4,7 @@ import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/na
 import {
     Broadcast,
     Buildings,
+    ChartLineUp,
     ClockCounterClockwise,
     FolderSimple,
     Key,
@@ -24,6 +25,8 @@ import {SETTINGS_SCOPES, type SettingsScopeKey, type SettingsTabKey} from "./nav
 /** The one tab→icon map. A new tab fails the exhaustive check here until it has an icon. */
 export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
     switch (key) {
+        case "usage":
+            return <ChartLineUp size={14} />
         case "apiKeys":
             return <Key size={14} />
         case "secrets":

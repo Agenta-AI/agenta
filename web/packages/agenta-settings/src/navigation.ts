@@ -1,6 +1,7 @@
 export const DEFAULT_SETTINGS_TAB = "workspace"
 
 export type SettingsTabKey =
+    | "usage"
     | "apiKeys"
     | "secrets"
     | "llms"
@@ -54,6 +55,11 @@ export interface SettingsTabDefinition {
 const DOCS_BASE = "https://docs.agenta.ai"
 
 export const SETTINGS_TABS: SettingsTabDefinition[] = [
+    {
+        key: "usage",
+        scope: "project",
+        description: "See what your agents cost, how often they run, and how reliably they finish.",
+    },
     {
         key: "apiKeys",
         scope: "project",
@@ -165,6 +171,7 @@ export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
 ]
 
 const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
+    usage: "Usage",
     apiKeys: "API Keys",
     secrets: "Secrets",
     // The tab key stays `llms` so existing `?tab=llms` links keep working.
