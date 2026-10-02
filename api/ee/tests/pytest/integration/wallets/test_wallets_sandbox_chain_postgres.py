@@ -175,7 +175,7 @@ async def test_a_turn_is_admitted_until_the_balance_reaches_its_floor(
     service = _service(redis_client, chain)
     scope = _scope(organization_id)
 
-    assert await service.admit(scope=scope) is True
+    assert (await service.admit(scope=scope)).allowed is True
 
     async with get_transactions_engine().session() as session:
         await session.execute(
@@ -185,6 +185,40 @@ async def test_a_turn_is_admitted_until_the_balance_reaches_its_floor(
         )
         await session.commit()
 
-    assert await service.admit(scope=scope) is False
+    assert (await service.admit(scope=scope)).allowed is False
 
+    await _cleanup(organization_id)
+
+
+async def test_a_hobby_organization_runs_two_turns_at_once_against_real_redis(
+    wallet_schema, redis_client, analytics_engine
+):
+    organization_id = uuid4()
+    await _fund(organization_id)
+    chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
+
+    async def hobby(_):
+        return "cloud_v0_hobby"
+
+    service = SandboxUsageService(
+        wallet=chain.wallets,
+        publisher=RedisMeasurementPublisher(redis_client=redis_client),
+        turn_slots=RedisTurnSlots(redis_client=redis_client),
+        plan_for=hobby,
+    )
+    scope = _scope(organization_id)
+
+    first = await service.admit(scope=scope, turn_id="turn-1")
+    second = await service.admit(scope=scope, turn_id="turn-2")
+    third = await service.admit(scope=scope, turn_id="turn-3")
+
+    assert first.allowed and first.slot_held and first.turn_limit.seconds == 1800
+    assert second.allowed and second.slot_held
+    assert not third.allowed and third.code == "concurrent_turns_limit"
+
+    await service.release_turn(scope=scope, turn_id="turn-1")
+    assert (await service.admit(scope=scope, turn_id="turn-3")).allowed
+
+    for turn in ("turn-2", "turn-3"):
+        await service.release_turn(scope=scope, turn_id=turn)
     await _cleanup(organization_id)
