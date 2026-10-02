@@ -267,8 +267,8 @@ const FilterPanel = ({
                         <button
                             key={d.key}
                             type="button"
+                            aria-pressed={dim === d.key}
                             onClick={() => onDim(d.key)}
-                            onMouseEnter={() => onDim(d.key)}
                             className={cn(
                                 "flex h-9 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-sm",
                                 dim === d.key && "bg-accent",
@@ -309,6 +309,7 @@ const FilterPanel = ({
                     <MagnifyingGlass size={14} className="text-muted-foreground" />
                     <input
                         autoFocus
+                        aria-label={`Search ${DIMS.find((d) => d.key === dim)?.plural}`}
                         value={query}
                         onChange={(event) => onQuery(event.target.value)}
                         placeholder={`Search ${DIMS.find((d) => d.key === dim)?.plural}…`}

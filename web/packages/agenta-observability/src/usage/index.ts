@@ -2,8 +2,6 @@ export * from "./types"
 export {
     PATH,
     USAGE_QUERIES,
-    DIMENSION_QUERIES,
-    isRunLevel,
     filterConditions,
     focusCondition,
     fetchUsageBuckets,
@@ -11,7 +9,6 @@ export {
     type UsageQueryName,
 } from "./queries"
 export {
-    RANGE_DAYS,
     OTHER_KEY,
     rangeWindow,
     bucketWindow,
@@ -46,6 +43,7 @@ export {
 } from "./ranges"
 export {
     usageRangeAtom,
+    usageNowAtom,
     usageWindowAtom,
     usageFiltersAtom,
     EMPTY_FILTERS,

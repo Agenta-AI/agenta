@@ -159,7 +159,13 @@ const RunTable = ({
         onTable({
             name: `by-${dim}`,
             rows: [
-                [dim === "agent" ? "Agent" : "Model", "Runs", "Failed", "Tokens", "Cost"],
+                [
+                    dim === "agent" ? "Agent" : "Configured model",
+                    "Runs",
+                    "Failed",
+                    "Tokens",
+                    "Cost",
+                ],
                 ...sorted.map((r) => [
                     r.label,
                     String(r.runs),
@@ -184,7 +190,7 @@ const RunTable = ({
         <div className="-mx-1 overflow-x-auto">
             <div className="min-w-[480px] px-1">
                 <div className={cn(grid, "h-7 items-center text-[11px] text-muted-foreground")}>
-                    <span>{dim === "agent" ? "Agent" : "Model"}</span>
+                    <span>{dim === "agent" ? "Agent" : "Configured model"}</span>
                     {RUN_COLUMNS.map((c) => (
                         <span
                             key={c.key}

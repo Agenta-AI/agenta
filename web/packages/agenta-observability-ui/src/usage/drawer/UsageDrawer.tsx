@@ -121,10 +121,9 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
 
     const title =
         bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : USAGE_RANGE[range].label
-    const sub = `${bucket === null ? "Day by day" : unit === "hour" ? "Hour by hour" : "5-minute view"} · ${formatCount(totals.runs)} runs`
-    const focusLabel = focus
-        ? `${focus.dim === "agent" ? "Agent" : "Model"}: ${focus.dim === "agent" ? agentName(focus.key) : focus.key}`
-        : null
+    const sub = `${unit === "day" ? "Day by day" : unit === "hour" ? "Hour by hour" : "5-minute view"} · ${formatCount(totals.runs)} runs`
+    const focusName = focus ? (focus.dim === "agent" ? agentName(focus.key) : focus.key) : null
+    const focusLabel = focus ? `${focus.dim === "agent" ? "Agent" : "Model"}: ${focusName}` : null
     const pageChips = [
         filters.agent.length ? `Agent: ${filters.agent.map(agentName).join(", ")}` : null,
         filters.model.length ? `Model: ${filters.model.join(", ")}` : null,
@@ -159,7 +158,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                 ) : null}
                 <div className="flex min-w-0 flex-1 flex-col">
                     <SheetTitle className="truncate text-lg font-semibold">
-                        {focus && bucket === null ? (focusLabel?.split(": ")[1] ?? title) : title}
+                        {focus && bucket === null ? focusName : title}
                     </SheetTitle>
                     <SheetDescription className="text-xs text-muted-foreground">
                         {sub}
@@ -313,7 +312,14 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                                               }
                                             : {label: "Cost", value: formatMoney(p.cost)},
                                         {label: "Failed runs", value: formatCount(p.failed)},
-                                        {label: "Top model", value: topModel?.n ? topModel.k : "—"},
+                                        ...(narrowed
+                                            ? []
+                                            : [
+                                                  {
+                                                      label: "Top model",
+                                                      value: topModel?.n ? topModel.k : "—",
+                                                  },
+                                              ]),
                                         {
                                             label: "Busiest agent",
                                             value: busiest?.n ? agentName(busiest.k) : "—",
@@ -340,6 +346,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                 />
 
                 <DrawerRuns
+                    key={`${window.oldest}-${focus?.dim ?? ""}-${focus?.key ?? ""}`}
                     window={window}
                     filters={filters}
                     focus={focus}

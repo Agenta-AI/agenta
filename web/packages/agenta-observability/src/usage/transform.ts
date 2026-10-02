@@ -1,6 +1,7 @@
 import type {MetricsBucket, TraceSpan} from "@agenta/entities/trace"
 
 import {PATH} from "./queries"
+import {USAGE_RANGE} from "./ranges"
 import type {
     KeyedSeries,
     UsageOverview,
@@ -17,8 +18,6 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-export const RANGE_DAYS: Record<UsageRangeKey, number> = {"24h": 1, "7d": 7, "30d": 30, "90d": 90}
-
 /** Hourly buckets ending at the next full hour for 24h; local-midnight days otherwise. */
 export const rangeWindow = (range: UsageRangeKey, now: number): UsageWindow => {
     if (range === "24h") {
@@ -28,7 +27,7 @@ export const rangeWindow = (range: UsageRangeKey, now: number): UsageWindow => {
     const today = new Date(now)
     today.setHours(0, 0, 0, 0)
     const end = today.getTime() + DAY
-    return {oldest: end - RANGE_DAYS[range] * DAY, newest: end, interval: 24 * 60}
+    return {oldest: end - USAGE_RANGE[range].days * DAY, newest: end, interval: 24 * 60}
 }
 
 /** The window one bucket covers, split finer: a day by hour, an hour by five minutes. */

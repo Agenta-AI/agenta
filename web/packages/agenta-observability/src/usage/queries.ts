@@ -6,7 +6,7 @@ import {
     type TraceSpan,
 } from "@agenta/entities/trace"
 
-import type {UsageDimension, UsageFilters, UsageWindow} from "./types"
+import type {UsageFilters, UsageWindow} from "./types"
 
 export const PATH = {
     cost: "attributes.ag.metrics.costs.cumulative.total",
@@ -36,6 +36,8 @@ const cat = (path: string): AnalyticsMetricSpec => ({type: "categorical/single",
 
 // The API validates span types against its lowercase enum; anything else fails the query.
 const FAILED: Condition = {field: "status_code", operator: "is", value: "STATUS_CODE_ERROR"}
+// A run is an invocation trace; annotation traces (evaluator feedback) are not runs.
+const INVOCATION: Condition = {field: "trace_type", operator: "is", value: "invocation"}
 const spanType = (value: "chat" | "tool" | "workflow"): Condition => ({
     field: "span_type",
     operator: "is",
@@ -89,12 +91,6 @@ export const USAGE_QUERIES = {
         specs: [cat(PATH.callModel), num(PATH.callCost), num(PATH.callTokens)],
     },
     tools: {focus: "span", runLevel: false, where: [spanType("tool")], specs: [cat(PATH.tool)]},
-    toolsFailed: {
-        focus: "span",
-        runLevel: false,
-        where: [spanType("tool"), FAILED],
-        specs: [cat(PATH.tool)],
-    },
 } satisfies Record<string, QueryDef>
 
 export type UsageQueryName = keyof typeof USAGE_QUERIES
@@ -122,8 +118,6 @@ export const focusCondition = (focus: UsageFocus): Condition =>
         ? {field: "references", operator: "in", value: [{id: focus.key}]}
         : anyOf(focus.dim === "model" ? MODEL_KEY : CALL_MODEL_KEY, [focus.key])
 
-export const isRunLevel = (name: UsageQueryName) => USAGE_QUERIES[name].runLevel
-
 export interface UsageQueryParams {
     projectId: string
     name: UsageQueryName
@@ -147,7 +141,7 @@ export const fetchUsageBuckets = async ({
     const def: QueryDef = USAGE_QUERIES[name]
     const conditions = [
         ...def.where,
-        ...(def.runLevel ? filterConditions(filters) : []),
+        ...(def.runLevel ? [INVOCATION, ...filterConditions(filters)] : []),
         ...[focus, scope].filter((f): f is UsageFocus => Boolean(f)).map(focusCondition),
     ]
     const res = await fetchSpansAnalytics({
@@ -192,6 +186,7 @@ export const fetchUsageRunSpans = async ({
 }: UsageRunsParams): Promise<TraceSpan[]> => {
     const conditions = [
         spanType("workflow"),
+        INVOCATION,
         ...filterConditions(filters),
         ...(focus ? [focusCondition(focus)] : []),
         ...(failedOnly ? [FAILED] : []),
@@ -232,13 +227,4 @@ export const fetchUsageToolSpans = async (
         projectId,
     )
     return spansOf(throwIfNull(res, "[usage tool spans]"))
-}
-
-export const DIMENSION_QUERIES: Record<
-    UsageDimension,
-    {runs: UsageQueryName; failed: UsageQueryName}
-> = {
-    agent: {runs: "agents", failed: "agentsFailed"},
-    model: {runs: "models", failed: "modelsFailed"},
-    tool: {runs: "tools", failed: "toolsFailed"},
 }

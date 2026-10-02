@@ -50,7 +50,7 @@ export const TimeChart = ({
     tooltip,
     className,
 }: TimeChartProps) => {
-    const visible = series.filter((s) => !s.hidden)
+    const visible = useMemo(() => series.filter((s) => !s.hidden), [series])
     const data = useMemo<Row[]>(
         () =>
             labels.map((label, i) => {

@@ -75,9 +75,14 @@ export const DrawerRuns = ({
             .sort((a, b) => b.count - a.count)
     }, [failedOnly, runs])
 
-    const listed = (
-        reason ? runs.filter((run) => categorizeFailure(run.reason).label === reason) : runs
-    ).slice(0, SHOWN)
+    const listed = useMemo(
+        () =>
+            (reason
+                ? runs.filter((run) => categorizeFailure(run.reason).label === reason)
+                : runs
+            ).slice(0, SHOWN),
+        [runs, reason],
+    )
     const traceIds = useMemo(() => listed.map((run) => run.traceId), [listed])
     const toolsQuery = useAtomValue(usageRunToolsAtomFamily(traceIds))
     const tools = toolsQuery.data

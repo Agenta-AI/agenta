@@ -25,9 +25,12 @@ import type {
 
 export const usageRangeAtom = atom<UsageRangeKey>("30d")
 
+/** The page's clock; the host ticks it so the window follows real time. */
+export const usageNowAtom = atom(Date.now())
+
 // Rounded to the hour or day, so the query keys only move at a boundary.
 export const usageWindowAtom = atom<UsageWindow>((get) =>
-    rangeWindow(get(usageRangeAtom), Date.now()),
+    rangeWindow(get(usageRangeAtom), get(usageNowAtom)),
 )
 
 export const EMPTY_FILTERS: UsageFilters = {agent: [], model: []}
@@ -164,7 +167,7 @@ export const usageAgentNamesAtomFamily = atomFamily(
 
 export const usageHasAgentsAtom = atom((get) => {
     const state = get(agentWorkflowsListQueryStateAtom)
-    return {pending: state.isPending, hasAgents: state.data.length > 0}
+    return {pending: state.isPending, failed: state.isError, hasAgents: state.data.length > 0}
 })
 
 export interface UsageDrawerState {

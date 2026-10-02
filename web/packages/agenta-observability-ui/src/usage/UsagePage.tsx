@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     EMPTY_FILTERS,
@@ -8,6 +8,7 @@ import {
     usageDrawerAtom,
     usageFiltersAtom,
     usageHasAgentsAtom,
+    usageNowAtom,
     usageRangeAtom,
     usageWindowAtom,
     type UsageDimension,
@@ -15,6 +16,7 @@ import {
     type UsageMetric,
     type UsageRetention,
 } from "@agenta/observability/usage"
+import {projectIdAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
 import {FunnelSimple} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -58,6 +60,23 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
     const [agentMetric, setAgentMetric] = useState<BreakdownMetric>("runs")
     const [modelMetric, setModelMetric] = useState<BreakdownMetric>("runs")
     const [rangeOpen, setRangeOpen] = useState(false)
+
+    // Without a tick the window freezes at first read: runs after `newest` would never show.
+    const setNow = useSetAtom(usageNowAtom)
+    useEffect(() => {
+        setNow(Date.now())
+        const timer = setInterval(() => setNow(Date.now()), 60_000)
+        return () => clearInterval(timer)
+    }, [setNow])
+
+    // Agent ids and an open drawer belong to one project and one visit to the tab.
+    const projectId = useAtomValue(projectIdAtom)
+    const lastProject = useRef(projectId)
+    useEffect(() => {
+        if (lastProject.current !== projectId) setFilters(EMPTY_FILTERS)
+        lastProject.current = projectId
+    }, [projectId, setFilters])
+    useEffect(() => () => openDrawer(null), [openDrawer])
 
     // A plan that keeps less history than the open range moves the page to what it keeps.
     useEffect(() => {
@@ -113,12 +132,22 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
         rangeLabel,
         agentName,
         agentCost: agentSplit.cost,
+        filtered,
         emptyText,
         onExplore,
     }
 
     const overviewStatus = data.status.overview
-    if (!agents.pending && !agents.hasAgents) {
+    // Archived agents keep their history, so "no agents" alone does not mean "no usage".
+    const noUsageYet =
+        !agents.pending &&
+        !agents.failed &&
+        !agents.hasAgents &&
+        !overviewStatus.pending &&
+        !overviewStatus.error &&
+        data.overview.totals.runs === 0 &&
+        !filtered
+    if (noUsageYet) {
         return (
             <>
                 <style>{USAGE_COLOR_CSS}</style>

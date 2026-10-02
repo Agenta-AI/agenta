@@ -1,6 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {
+    EMPTY_FILTERS,
     PATH,
     bucketStarts,
     keyedSeries,
@@ -26,8 +27,16 @@ export interface QueryStatus {
     refetch: () => void
 }
 
-const statusOf = (...queries: {isPending: boolean; error: unknown; refetch: () => unknown}[]) => ({
-    pending: queries.some((q) => q.isPending),
+interface QueryLike {
+    isPending: boolean
+    fetchStatus: string
+    error: unknown
+    refetch: () => unknown
+}
+
+// A disabled query (nothing to fetch) stays `isPending` forever; idle means settled.
+const statusOf = (...queries: QueryLike[]) => ({
+    pending: queries.some((q) => q.isPending && q.fetchStatus !== "idle"),
     error: queries.find((q) => q.error)?.error ?? null,
     refetch: () => queries.forEach((q) => void q.refetch()),
 })
@@ -53,10 +62,9 @@ export const useUsageWindowData = (
     const agentsFailedQ = useUsageBuckets("agentsFailed", window, filters, focus)
     const modelsQ = useUsageBuckets("models", window, filters, focus)
     const modelsFailedQ = useUsageBuckets("modelsFailed", window, filters, focus)
-    // Call-level spans carry no agent reference, so only a called-model focus narrows them.
-    const callFocus = focus?.dim === "callModel" ? focus : null
-    const callsQ = useUsageBuckets("calls", window, filters, callFocus)
-    const toolsQ = useUsageBuckets("tools", window, filters, callFocus)
+    // Call-level spans carry no agent reference, so neither filters nor focus narrow them.
+    const callsQ = useUsageBuckets("calls", window, EMPTY_FILTERS)
+    const toolsQ = useUsageBuckets("tools", window, EMPTY_FILTERS)
 
     return useMemo(() => {
         const keyed = (data: typeof overviewQ.data, paths: string[]): KeyedSeries =>

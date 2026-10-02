@@ -26,6 +26,8 @@ export interface OverviewContext {
     rangeLabel: string
     agentName: (id: string) => string
     agentCost: KeyedSeries
+    /** Model and tool calls cannot be narrowed, so call-level facts hide under a filter. */
+    filtered: boolean
     emptyText: (what: string) => {text: string; onClear?: () => void}
     onExplore: (metric: UsageMetric, bucket: number | null) => void
 }
@@ -298,7 +300,7 @@ export const TokensCard = ({ctx}: {ctx: OverviewContext}) => {
                                 value: formatMetric("tokens", s.values[i]),
                                 share: sharePercent(s.values[i] ?? 0, shown(i)),
                             }))}
-                        facts={[{label: "Top model", value: topCallModel(i)}]}
+                        facts={ctx.filtered ? [] : [{label: "Top model", value: topCallModel(i)}]}
                     />
                 )}
             />

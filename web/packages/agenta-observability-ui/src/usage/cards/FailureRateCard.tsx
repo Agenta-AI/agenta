@@ -70,6 +70,7 @@ export const FailureRateCard = ({
                     <Input
                         className="mb-2 mt-2 max-w-[260px]"
                         placeholder="Search agents…"
+                        aria-label="Search agents"
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                     />
