@@ -81,6 +81,8 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 22 | Decided (option 2; option 3 deferred) | What identifies one plan change, so two in a billing period are not treated as one. |
 | 23 | Open | Whether a plan-change clawback depends on usage still queued in the streams. |
 | 24 | Open | Whether settlement funds usage from the credits alive when it happened or when it settled. |
+| 25 | Decided | How sandbox time is billed. |
+| 26 | Decided (mock slice) | How managed tool actions are admitted and billed. |
 
 Items 2, 4, 7, 14, 15, 16, 17, 18, 19, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
@@ -2330,3 +2332,86 @@ order-independent reconciliation needs the same field. Option 2 is rejected: it 
 charge for another and still fails replay. The debit envelope and the settlement port are frozen
 while the coverage contract is designed, so this branch records the gap and changes nothing. The
 flag is off everywhere, so no customer is charged under the current rule.
+
+## 25. How sandbox time is billed
+
+**Status:** Decided (2026-09-26): wallet only, per running second; included allowance deferred
+
+### Context
+
+Agent turns run in Daytona sandboxes on the platform's own account, and nothing measured that
+time. `GatewayKind.SBX` existed in the stream contract, but no producer used it and the rate card
+priced only tokens and requests.
+
+### Decision
+
+Designed in [v2/sandbox-seconds.md](../v2/sandbox-seconds.md). In short:
+
+- **Wallet only.** Every running second is charged; there is no included allowance yet. The
+  option of an allowance first (the
+  [include-sandbox-usage](../v2/openspec/changes/include-sandbox-usage/) change) was set aside
+  for this slice by the owner, and stays the follow-up.
+- **Price by resource.** Daytona's list price times 1.5: 75,600 musd per vCPU-hour and 24,300
+  musd per GiB-hour of memory, charged per second, in the rate card and its version hash. Disk
+  is not charged (5 GiB, inside Daytona's free tier). Pricing by named size was rejected: the
+  runner reads the real size from Daytona, and a size change would otherwise need a card edit.
+- **Measured by the runner, from outside the sandbox**, as one-minute whole-second intervals
+  plus a final partial interval, each with a deterministic measurement id so retries are
+  charged once. Options considered: riding the session heartbeat (rejected: OSS and
+  turn-scoped, while sandboxes outlive turns), or one measurement per sandbox lifetime
+  (rejected: a crash would lose the whole lifetime).
+- **Only running seconds.** Stopped and parked sandboxes are not billed, although Daytona bills
+  their disk. Known gap.
+- **Admission before acquire.** A turn on `daytona` or `inprocess` asks the wallet first; an
+  explicit refusal ends it with `wallet_balance_exhausted` before any sandbox exists. Any other
+  answer admits it, so a metering outage never stops agents. A running turn is never stopped
+  for its balance, so a turn near the floor can settle below it (items 2 and 17).
+- **Never measured:** `local`, self-hosted, and OSS. The runner reads the API's own switch,
+  `AGENTA_WALLETS_ENABLED`, and with it off makes no admission call and starts no meter or
+  credential lease (whole-stack review finding 6, 2026-09-27). Options: the API telling the
+  runner per turn (rejected: a new run-request field through the SDK for a deployment-level
+  switch), or reading the 404 after the first call (the original design; rejected: every turn
+  still paid an admission call, up to five seconds with the API down, and a lease per sandbox).
+- **Runner-authenticated reports** (whole-stack review finding 1, P0, 2026-09-27). Both routes
+  require the shared runner token beside the run's credential; the credential alone let any
+  tenant member debit the organization wallet with invented intervals. Binding a report to a
+  session turn that recorded the sandbox was rejected: sessionless runs and the in-process
+  command sandbox write no such row, so real usage would be refused.
+
+
+## 26. How managed tool actions are admitted and billed
+
+**Status:** Decided (2026-09-27) for the mock slice; a real provider reopens the prices and
+reconciliation
+
+### Context
+
+Paid integration actions (enrichment, company search) run on provider accounts Agenta holds and
+must be charged to the wallet. Unlike a model call, an action's maximum price is known before
+dispatch.
+
+### Decision
+
+Designed in [v2/managed-tools.md](../v2/managed-tools.md). In short:
+
+- **The shared pipeline, a new kind.** One `MeasurementCommandV1` per dispatched execution,
+  `gateway_kind: tool`, priced by the measurement worker from `ACTION_RATES` in the rate card
+  (part of its version hash) and settled by the debit worker. No new ledger, stream, worker or
+  table. Reusing the `mcp` kind was rejected: that branch prices per MCP server, and an action's
+  price does not depend on the transport it arrived on.
+- **Price shapes.** A price per billable unit, with a cap per call: per successful call
+  (`action_calls`) or per result (`action_results`, cap required). Units are counted by the
+  executor from the validated output, never reported by a provider.
+- **Admission against the worst-case price.** `WalletsService.covers(organization_id,
+  amount_musd)` answers `spendable - amount >= floor` on the same spendable read as `check`,
+  with the worst case from the rate card. A threshold, not a hold (items 2 and 17 still apply
+  to concurrent calls). `WalletCheckPort` does not change: its contract keeps an amount out
+  until a reserving check exists, and `covers` is a separate read on the service.
+- **Not charged:** upstream failures, unreadable output, unknown outcomes (timeouts,
+  cancellation). All are recorded with their execution id (`outcome` in the measurement
+  references) for reconciliation. Settling an unknown later is a separate adjustment, not a
+  replay: a stored measurement is immutable.
+- **Idempotency:** charge once per execution (the execution id is the measurement id). A
+  repeated request is a new purchase; see spec-divergences row 24 (item 26).
+- **Price drift** between admission (API) and pricing (worker) is accepted, as for models, with
+  the same deploy order (worker first).

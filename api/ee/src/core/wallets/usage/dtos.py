@@ -78,6 +78,14 @@ class WalletUsageCharge(BaseModel):
     cache_read_tokens: Optional[int] = None
     cache_write_tokens: Optional[int] = None
     request_count: Optional[int] = None
+    # A sandbox interval: how long it ran, and the resources it had while it did.
+    sandbox_seconds: Optional[int] = None
+    vcpu: Optional[int] = None
+    memory_gib: Optional[int] = None
+    # A managed tool action: which one, and how many of its billable unit it counted.
+    action: Optional[str] = None
+    unit: Optional[str] = None
+    quantity: Optional[int] = None
 
 
 class WalletUsageDay(BaseModel):

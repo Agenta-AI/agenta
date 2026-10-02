@@ -46,7 +46,9 @@ def client_granting(monkeypatch):
             return await call_next(request)
 
         app.include_router(
-            router_module.WalletsRouter(wallet_usage_service=_Service()).router,
+            router_module.WalletsRouter(
+                wallet_usage_service=_Service(), sandbox_usage_service=None
+            ).router,
             prefix="/wallets",
         )
         return TestClient(app), asked

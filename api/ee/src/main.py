@@ -8,6 +8,7 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
 )
+from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.core.events.service import EventsService
@@ -30,6 +31,8 @@ from ee.src.core.events.service import EventsRetentionService
 from ee.src.core.sessions.records.service import RecordsRetentionService
 from ee.src.core.wallets.service import WalletsService
 from ee.src.core.wallets.usage.service import WalletUsageService
+from ee.src.core.measurements.sandboxes import SandboxUsageService
+from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
 from ee.src.core.organizations.service import register_wallets_service
 
 from ee.src.apis.fastapi.access.router import AccessRouter
@@ -132,7 +135,15 @@ billing_router = BillingRouter(
     meters_service=meters_service,
 )
 
-wallets_router = WalletsRouter(wallet_usage_service=wallet_usage_service)
+wallets_router = WalletsRouter(
+    wallet_usage_service=wallet_usage_service,
+    sandbox_usage_service=SandboxUsageService(
+        wallet=wallets_service,
+        publisher=RedisMeasurementPublisher(
+            redis_client=get_streams_engine().get_redis()
+        ),
+    ),
+)
 
 spans_retention_router = SpansRetentionRouter(
     tracing_retention_service=tracing_retention_service,

@@ -12,7 +12,9 @@ from ee.src.core.measurements.components import (
     INPUT_TOKENS,
     OUTPUT_TOKENS,
     REQUEST_COUNT,
+    SANDBOX_SECONDS,
 )
+from ee.src.core.measurements.tools import unit_of_component
 from ee.src.core.wallets.errors import InvalidUsageWindowError
 from ee.src.core.wallets.types import WalletsDAOInterface
 from ee.src.core.wallets.usage.dtos import (
@@ -33,7 +35,7 @@ MEASUREMENT_KEY_PREFIX = "measurement:"
 DEFAULT_WINDOW = timedelta(days=30)
 MAX_DEBITS = 5000
 
-_CATEGORIES = {"llm": "Model calls", "mcp": "Tools", "sbx": "Sandbox"}
+_CATEGORIES = {"llm": "Model calls", "mcp": "Tools", "tool": "Tools", "sbx": "Sandbox"}
 
 
 def category_of(resource_key: str) -> str:
@@ -48,6 +50,7 @@ def _charge(
     debit: WalletUsageDebit, measurement: Optional[MeasurementUsage]
 ) -> WalletUsageCharge:
     components = measurement.components if measurement else {}
+    unit_key = debit.resource_locator.get("unit")
     return WalletUsageCharge(
         created_at=debit.created_at,
         category=category_of(debit.resource_key),
@@ -63,6 +66,12 @@ def _charge(
         cache_read_tokens=components.get(CACHE_READ_TOKENS),
         cache_write_tokens=components.get(CACHE_WRITE_TOKENS),
         request_count=components.get(REQUEST_COUNT),
+        sandbox_seconds=components.get(SANDBOX_SECONDS),
+        vcpu=debit.resource_locator.get("vcpu"),
+        memory_gib=debit.resource_locator.get("memory_gib"),
+        action=debit.resource_locator.get("action"),
+        unit=unit_of_component(unit_key) if unit_key else None,
+        quantity=components.get(unit_key) if unit_key else None,
     )
 
 

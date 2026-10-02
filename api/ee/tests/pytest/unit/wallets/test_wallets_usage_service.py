@@ -262,6 +262,84 @@ async def test_summary_totals_only_the_credits_active_now():
     assert len(summary.credits) == 3
 
 
+async def test_a_sandbox_interval_shows_under_sandbox_with_its_seconds_and_resources():
+    debit = WalletUsageDebit(
+        idempotency_key="measurement:sbx:p:daytona:sb-1:1790000000",
+        amount_musd=4140,
+        resource_key="sbx:daytona",
+        resource_locator={
+            "provider": "daytona",
+            "sandbox_id": "sb-1",
+            "vcpu": 2,
+            "memory_gib": 4,
+        },
+        pricing_version="rc-1",
+        created_at=NOW,
+    )
+    measurement = MeasurementUsage(
+        measurement_id="sbx:p:daytona:sb-1:1790000000",
+        project_id=PROJECT,
+        user_id=USER,
+        agent_id=AGENT,
+        references={"session": {"id": "s-1"}},
+        components={
+            "sandbox_seconds": 60,
+            "vcpu_seconds": 120,
+            "memory_gib_seconds": 240,
+        },
+    )
+    service = _service(debits=[debit], measurements=[measurement])
+
+    usage = await service.usage(organization_id=ORG, end=NOW + timedelta(seconds=1))
+
+    [session] = usage.sessions
+    assert (session.session_id, session.agent_name) == ("s-1", "Support agent")
+    [charge] = session.charges
+    assert charge.category == "Sandbox"
+    assert (charge.sandbox_seconds, charge.vcpu, charge.memory_gib) == (60, 2, 4)
+    assert (charge.provider, charge.model, charge.input_tokens) == (
+        "daytona",
+        None,
+        None,
+    )
+    assert [(d.category, d.amount_musd) for d in usage.days] == [("Sandbox", 4140)]
+
+
+async def test_a_managed_action_shows_under_tools_with_its_action_and_count():
+    debit = WalletUsageDebit(
+        idempotency_key="measurement:tool_1",
+        amount_musd=6000,
+        resource_key="tool:mock.search_companies",
+        resource_locator={
+            "action": "mock.search_companies",
+            "provider": "mock_mcp",
+            "unit": "action_results",
+        },
+        pricing_version="rc-1",
+        created_at=NOW,
+    )
+    measurement = MeasurementUsage(
+        measurement_id="tool_1",
+        project_id=PROJECT,
+        user_id=USER,
+        references={"session": {"id": "s-2"}, "execution": {"id": "tool_1"}},
+        components={"action_results": 3},
+    )
+    service = _service(debits=[debit], measurements=[measurement])
+
+    usage = await service.usage(organization_id=ORG, end=NOW + timedelta(seconds=1))
+
+    [charge] = usage.sessions[0].charges
+    assert charge.category == "Tools"
+    assert (charge.action, charge.unit, charge.quantity) == (
+        "mock.search_companies",
+        "results",
+        3,
+    )
+    assert charge.input_tokens is None and charge.sandbox_seconds is None
+    assert [day.category for day in usage.days] == ["Tools"]
+
+
 @pytest.mark.parametrize("start", [NOW, NOW + timedelta(hours=1)])
 async def test_a_window_whose_start_is_not_before_its_end_is_refused(start):
     with pytest.raises(InvalidUsageWindowError):
