@@ -1,6 +1,6 @@
 """Measurement worker — consumes `streams:measurements`, persists the
-measurement, prices it with the Wave 1 fixture, and publishes `DebitCommandV1`
-to `streams:debits` for every charge the gateway decides to make.
+measurement with its charge from the rate card, and publishes `DebitCommandV1`
+to `streams:debits` for every charge it decides to make.
 
 Imports NO core wallet table, DAO, or service — its only outbound edge is the
 debit stream, published through `DebitPublisher` (a structural protocol; see
@@ -15,13 +15,19 @@ from redis.asyncio import Redis
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.measurements.interfaces import (
-    MeasurementsDAOInterface,
-    OrganizationResolverInterface,
+from ee.src.core.measurements.dtos import ChargeDecision
+from ee.src.core.measurements.interfaces import MeasurementsDAOInterface
+from ee.src.core.measurements.charges import calculate_charge
+from ee.src.core.wallets.contracts import (
+    STREAM_MEASUREMENTS,
+    DebitCommandV1,
+    DebitKind,
+    MeasurementCommandV1,
 )
-from ee.src.core.measurements.pricing import calculate_fake_charge
-from ee.src.core.wallets.contracts import STREAM_MEASUREMENTS, DebitCommandV1, DebitKind
-from ee.src.core.wallets.errors import WalletTerminalError
+from ee.src.core.wallets.errors import (
+    MeasurementWithoutOrganizationError,
+    WalletTerminalError,
+)
 from ee.src.core.wallets.streaming import (
     DebitPublisher,
     deserialize_measurement_command,
@@ -38,17 +44,23 @@ class MeasurementWorker(StreamConsumer):
 
     Per message:
     1. Deserialize/validate — malformed or unsupported-version envelopes are
-       terminal: logged and ACKed, since retry cannot help.
-    2. Resolve the optional `organization_id` from project scope.
-    3. Idempotently insert the measurement and its component values (one
-       tracing transaction).
-    4. Price the measurement with the Wave 1 fixture; a result the gateway
-       does not charge (e.g. non-managed endpoint) publishes nothing.
-    5. Publish `DebitCommandV1` to `streams:debits`.
-    6. ACK + DEL only after both the tracing write and the debit publish (if
+       terminal: dead-lettered, since retry cannot help.
+    2. Require the producer-stamped `organization_id`, the payer the producer
+       authenticated. A measurement without one is terminal: dead-lettered
+       before anything is persisted or charged.
+    3. Look the measurement up. A measurement id already stored with different
+       content is terminal: the stored measurement stands and is not re-priced.
+    4. An unseen measurement is priced and inserted with its values and that charge decision in one
+       tracing transaction. A seen one keeps the decision it was stored with.
+       A platform-funded measurement the rate card cannot price is not stored:
+       it stays pending and is retried, and dead-lettered if it never prices.
+    5. A measurement with no charge publishes nothing.
+    6. Publish `DebitCommandV1`, built from the stored decision, to
+       `streams:debits`.
+    7. ACK + DEL only after both the tracing write and the debit publish (if
        any) succeed. A tracing or Redis failure leaves the message pending,
        and the consumer's reclaim pass (`reclaim_pending=True` below) brings
-       it back.
+       it back, until `max_deliveries` moves it to `streams:measurements:dead`.
     """
 
     log_prefix = "[MEASUREMENTS]"
@@ -56,7 +68,6 @@ class MeasurementWorker(StreamConsumer):
     def __init__(
         self,
         measurements_dao: MeasurementsDAOInterface,
-        organization_resolver: OrganizationResolverInterface,
         debit_publisher: DebitPublisher,
         redis_client: Redis,
         stream_name: str = STREAM_MEASUREMENTS,
@@ -67,7 +78,9 @@ class MeasurementWorker(StreamConsumer):
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
         reclaim_min_idle_ms: int = 30_000,
-        max_deliveries: int = 5,
+        # About ten minutes of retries at the default idle window before a measurement
+        # that keeps failing leaves the pending list for `streams:measurements:dead`.
+        max_deliveries: int = 20,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -88,79 +101,71 @@ class MeasurementWorker(StreamConsumer):
             reclaim_pending=True,
             reclaim_min_idle_ms=reclaim_min_idle_ms,
             max_deliveries=max_deliveries,
+            dead_letter=True,
         )
         self.measurements_dao = measurements_dao
-        self.organization_resolver = organization_resolver
         self.debit_publisher = debit_publisher
 
     def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
-        """`measurement_id` for the dropped-message log, so a loss is traceable."""
+        """`measurement_id` for a dead letter, so it is traceable."""
         try:
             command = deserialize_measurement_command(payload=data[b"data"])
         except Exception:
             return None
         return command.measurement_id
 
-    def is_permanent_failure(
-        self,
-        msg_id: bytes,
-        data: Dict[bytes, bytes],
-    ) -> bool:
-        """Only an entry this worker cannot even read is known not to succeed on retry.
-
-        A decodable envelope that keeps failing is failing in the tracing write or the
-        debit publish — both outages that end — and a measurement is a billing fact, so
-        it keeps its place in the pending list. An entry carrying no `data` field, or one
-        whose payload no longer parses, will never gain one and is dropped instead.
-        """
-        try:
-            deserialize_measurement_command(payload=data[b"data"])
-        except Exception:
-            return True
-        return False
-
-    async def _process_one(self, command) -> bool:
+    async def _process_one(self, command: MeasurementCommandV1) -> bool:
         """Persist + (maybe) charge one already-deserialized command.
 
         Returns True when the message is safe to ACK (tracing write, and any
-        debit publish, both succeeded).
+        debit publish, both succeeded). Raises `WalletTerminalError` when it never
+        will be.
+
+        A measurement already stored is replayed from its stored decision alone: the
+        pricer is not consulted again, so a redelivery after a failed debit publish
+        recovers even when the rate card has changed.
         """
-        organization_id = command.organization_id
-        if organization_id is None:
-            organization_id = await self.organization_resolver.resolve_organization_id(
-                project_id=command.project_id
+        if command.organization_id is None:
+            raise MeasurementWithoutOrganizationError(
+                measurement_id=command.measurement_id
             )
 
-        await self.measurements_dao.insert_measurement(command=command)
+        persisted = await self.measurements_dao.fetch_measurement(command=command)
+        if persisted is None:
+            persisted = await self.measurements_dao.insert_measurement(
+                command=command, charge=await self._decide_charge(command)
+            )
 
-        charge = calculate_fake_charge(command=command)
+        charge = persisted.charge
         if charge is None:
-            return True
-
-        amount_musd, pricing_version = charge
-
-        if organization_id is None:
-            # Can't safely bill without an organization. The measurement is
-            # already persisted; log and ACK rather than retry forever on a
-            # project that will never resolve to an org.
-            log.error(
-                "[MEASUREMENTS] Chargeable measurement has no resolvable organization",
-                measurement_id=command.measurement_id,
-                project_id=str(command.project_id),
-            )
             return True
 
         debit = DebitCommandV1(
             idempotency_key=f"measurement:{command.measurement_id}",
-            organization_id=organization_id,
+            organization_id=charge.organization_id,
             debit_kind=DebitKind.GATEWAY_USAGE,
-            amount_musd=amount_musd,
-            pricing_version=pricing_version,
+            amount_musd=charge.amount_musd,
+            pricing_version=charge.pricing_version,
             resource_key=command.resource_key,
             resource_locator=command.resource_locator,
-            created_at=datetime.now(timezone.utc),
+            created_at=charge.created_at,
         )
         return await self.debit_publisher.publish(debit)
+
+    async def _decide_charge(
+        self, command: MeasurementCommandV1
+    ) -> Optional[ChargeDecision]:
+        priced = calculate_charge(command=command)
+        if priced is None:
+            return None
+        amount_musd, pricing_version = priced
+
+        return ChargeDecision(
+            amount_musd=amount_musd,
+            pricing_version=pricing_version,
+            organization_id=command.organization_id,
+            created_at=datetime.now(timezone.utc),
+        )
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
@@ -171,12 +176,7 @@ class MeasurementWorker(StreamConsumer):
             try:
                 command = deserialize_measurement_command(payload=data[b"data"])
             except WalletTerminalError as e:
-                log.error(
-                    "[MEASUREMENTS] Terminal envelope error, ACKing without retry",
-                    msg_id=repr(msg_id),
-                    error=str(e),
-                )
-                processed_ids.append(msg_id)
+                await self.dead_letter([(msg_id, data)], reason=f"terminal: {e}")
                 continue
             except Exception:
                 log.error(
@@ -188,6 +188,9 @@ class MeasurementWorker(StreamConsumer):
 
             try:
                 ok = await self._process_one(command)
+            except WalletTerminalError as e:
+                await self.dead_letter([(msg_id, data)], reason=f"terminal: {e}")
+                continue
             except Exception:
                 log.error(
                     "[MEASUREMENTS] Failed to process measurement, leaving pending",

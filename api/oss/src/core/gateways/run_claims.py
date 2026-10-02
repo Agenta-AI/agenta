@@ -12,9 +12,11 @@ Reading them through one pair of accessors is what keeps the four call sites agr
 what counts as present — an empty string is not a run, and a non-list is not a tool set.
 """
 
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import Request
+
+GATEWAY_RUN_LABEL_KEYS = ("session_id", "agent_id")
 
 
 def gateway_run_id(request: Optional[Request]) -> Optional[str]:
@@ -23,6 +25,25 @@ def gateway_run_id(request: Optional[Request]) -> Optional[str]:
         return None
     value = getattr(request.state, "gateway_run_id", None)
     return value if isinstance(value, str) and value else None
+
+
+def gateway_run_labels(request: Optional[Request]) -> Optional[Dict[str, str]]:
+    """The session and agent the presenting credential names, for the usage record only.
+
+    Supplied by the runtime that exchanged the credential, so they label a call and never
+    authorize one: a caller can only name them on its own tenant's usage.
+    """
+    if request is None:
+        return None
+    value = getattr(request.state, "gateway_run_labels", None)
+    if not isinstance(value, dict):
+        return None
+    labels = {
+        key: value[key]
+        for key in GATEWAY_RUN_LABEL_KEYS
+        if isinstance(value.get(key), str) and value[key]
+    }
+    return labels or None
 
 
 def gateway_tools(request: Optional[Request]) -> Optional[List[Any]]:

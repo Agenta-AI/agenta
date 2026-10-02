@@ -1037,7 +1037,7 @@ class VaultConnectionResolver:
     def __init__(self, connection: Optional[PlatformConnection] = None) -> None:
         self._connection = connection or PlatformConnection()
 
-    async def _gateway_credentials(self) -> Optional[str]:
+    async def _gateway_credentials(self, context: RuntimeAuthContext) -> Optional[str]:
         """The gateway-confined credential this resolution hands to the sandbox.
 
         A refusal surfaces as a resolution error rather than as a missing credential: the
@@ -1045,7 +1045,11 @@ class VaultConnectionResolver:
         operator from hunting a phantom "no backend configured" misconfiguration.
         """
         try:
-            return await self._connection.gateway_authorization(plane="llm")
+            return await self._connection.gateway_authorization(
+                plane="llm",
+                session_id=context.session_id,
+                agent_id=context.agent_id,
+            )
         except GatewayCredentialsError as exc:
             raise ConnectionResolutionError(str(exc)) from exc
 
@@ -1150,6 +1154,7 @@ class VaultConnectionResolver:
                         "model": model.model,
                         "provider_key": model.provider,
                         "connection_slug": model.connection.slug,
+                        "connection_namespace": model.connection.namespace,
                     },
                 )
         except Exception as exc:  # pylint: disable=broad-except
@@ -1177,6 +1182,10 @@ class VaultConnectionResolver:
                 body=body,
             )
             if _llm_gateway_is_unavailable(body=body, refusal=refusal):
+                # A built-in model has no vault record, and the vault may hold a custom
+                # connection of the same slug that the customer pays for instead.
+                if model.connection.namespace == "builtin":
+                    raise refusal
                 return await self._resolve_from_vault(
                     api_base=api_base,
                     authorization=authorization,
@@ -1192,7 +1201,7 @@ class VaultConnectionResolver:
         # NOT `authorization`. That value reads the vault in plaintext, and this one crosses
         # into the sandbox, where the gateway's whole premise is that nothing able to reach a
         # provider key lives there. Exchanged for a gateway-audience credential instead.
-        gateway_credentials_value = await self._gateway_credentials()
+        gateway_credentials_value = await self._gateway_credentials(context)
 
         # Keep the in-memory/static resolver's list shape as a test/replay compatibility
         # path. A live API always returns the non-secret ``connection`` object above.

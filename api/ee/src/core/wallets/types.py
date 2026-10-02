@@ -21,18 +21,29 @@ DEFICIT_SOURCE = "deficit"
 
 class WalletGeneralBalanceNotFoundError(WalletError):
     """The organization has no general (`wallet_credit_id IS NULL`) balance row, and one
-    could not be provisioned on the spot.
-
-    Every wallet write path now provisions the row lazily before locking it, so this is a
-    defensive invariant rather than a routine outcome: reaching it means the row is
-    neither present nor insertable. It is terminal for a stream consumer — redelivering
-    the same posting cannot make an uninsertable row appear — so `DebitWorker` logs and
-    ACKs instead of leaving the message pending forever."""
+    could not be provisioned on the spot. Every write path provisions the row before
+    locking it, so this is a broken invariant; `DebitWorker` dead-letters it, since
+    redelivery cannot make an uninsertable row appear."""
 
     def __init__(self, organization_id: UUID):
         self.organization_id = organization_id
         super().__init__(
             f"No general wallet balance row for organization {organization_id}"
+        )
+
+
+class WalletCreditBalanceNotFoundError(WalletError):
+    """A credit of this organization has no per-credit balance row. Every credit is
+    minted together with its balance row in one transaction, so this is a broken
+    invariant, never a routine outcome — and it is raised rather than skipped, because
+    skipping would silently leave that credit's value unaccounted for."""
+
+    def __init__(self, *, organization_id: UUID, wallet_credit_id: UUID):
+        self.organization_id = organization_id
+        self.wallet_credit_id = wallet_credit_id
+        super().__init__(
+            f"No balance row for wallet credit {wallet_credit_id} "
+            f"of organization {organization_id}"
         )
 
 
@@ -95,6 +106,17 @@ class WalletBalanceDTO(BaseModel):
     deleted_at: Optional[datetime] = None
 
 
+class WalletSpendableBalanceDTO(BaseModel):
+    """What admission may spend: the general balance minus the value still sitting on
+    expired credits. Derived in one read rather than stored, because nothing posts an
+    expired credit's remainder out of the general row (open-designs item 21)."""
+
+    organization_id: UUID
+
+    spendable_musd: int
+    floor_musd: Optional[int] = None
+
+
 class PlanChangeResultDTO(BaseModel):
     """Result of `WalletsDAOInterface.apply_plan_change`. `replayed=True` means this exact
     `idempotency_key` had already been applied — the returned ids/amounts are the
@@ -134,12 +156,7 @@ class CreditCandidateDTO(BaseModel):
 # kind funds only resource keys starting with that prefix.
 # ---------------------------------------------------------------------------
 
-# Eight inbound kinds delivered here (mechanics.md §4 is the naming source). Each answers
-# "where did this value come from" from the row alone — no more catch-all "award".
-# Deliberately NOT included yet (mechanics.md §4 names these too; add them as their own
-# rows here when their code paths land, never re-use one of the eight above for them):
-#   auto_recharge, charge_refund, chargeback_reversal, opening_balance,
-#   partner_allocation
+# Named in mechanics.md §4. Add a new kind as its own row rather than reusing one of these.
 GENERAL_CREDIT_KINDS = frozenset(
     {
         "signup_grant",
@@ -156,16 +173,8 @@ RESTRICTED_CREDIT_KIND_PREFIX = "restricted:"
 
 
 def is_wellformed_credit_kind(credit_kind: str) -> bool:
-    """Whether `credit_kind` names something this module can act on: a general kind, or a
-    restricted kind carrying an actual prefix after `restricted:`.
-
-    A restricted kind with nothing after the colon is malformed, not universal. It is
-    called out separately because the naive reading runs the wrong way: every string
-    starts with the empty string, so an empty allowed prefix would make the one credit
-    kind whose entire job is to narrow what may be funded match every resource key
-    instead of none. Whitespace after the colon is left alone — `" llm:"` is a prefix that
-    happens to match nothing real, which is already the closed answer.
-    """
+    """A general kind, or a restricted kind with a non-empty prefix after `restricted:`.
+    An empty prefix is malformed, not universal: every string starts with ""."""
     if credit_kind in GENERAL_CREDIT_KINDS:
         return True
 
@@ -176,19 +185,14 @@ def is_wellformed_credit_kind(credit_kind: str) -> bool:
 
 
 def is_resource_eligible(*, credit_kind: str, resource_key: str) -> bool:
+    # Fail closed: an unconfigured or malformed kind funds nothing.
+    if not is_wellformed_credit_kind(credit_kind):
+        return False
+
     if credit_kind in GENERAL_CREDIT_KINDS:
         return True
 
-    if credit_kind.startswith(RESTRICTED_CREDIT_KIND_PREFIX):
-        allowed_prefix = credit_kind[len(RESTRICTED_CREDIT_KIND_PREFIX) :]
-        if allowed_prefix == "":
-            # Fail closed: a restricted kind with an empty prefix funds nothing. Without
-            # this, `"".startswith` is vacuously true and the credit funds everything.
-            return False
-        return resource_key.startswith(allowed_prefix)
-
-    # Unconfigured credit_kind: fail closed rather than silently fund a posting.
-    return False
+    return resource_key.startswith(credit_kind[len(RESTRICTED_CREDIT_KIND_PREFIX) :])
 
 
 def compose_debit_key(*, idempotency_key: str, source: str) -> str:
@@ -264,8 +268,6 @@ def plan_settlement(
             continue
 
         funded = min(remaining, candidate.balance_musd)
-        if funded <= 0:
-            continue
 
         debit_writes.append(
             DebitWriteDTO(
@@ -312,7 +314,22 @@ class WalletsDAOInterface(ABC):
         organization_id: UUID,
     ) -> Optional[WalletBalanceDTO]:
         """Read-only, unlocked: the organization's general balance row, or `None` if not
-        provisioned. Used by the write-free `check()` path."""
+        provisioned. The raw projection, which still counts expired credit value;
+        admission reads `get_spendable_balance` instead."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_spendable_balance(
+        self,
+        *,
+        organization_id: UUID,
+    ) -> Optional[WalletSpendableBalanceDTO]:
+        """Read-only, unlocked: the general balance minus the remaining value of every
+        credit whose `end_time` has passed, with the general row's floor, or `None` if
+        the general row is not provisioned. "Expired" must be the exact complement of
+        settlement's eligibility predicate (`end_time > now()` on the database clock), and
+        both terms must come from one snapshot, so a settlement committing between two
+        separate reads cannot skew the answer."""
         raise NotImplementedError
 
     @abstractmethod
@@ -343,35 +360,19 @@ class WalletsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_active_plan_allowance_credit(
-        self,
-        *,
-        organization_id: UUID,
-        now: Optional[datetime] = None,
-    ) -> Optional[WalletCreditDTO]:
-        """The organization's current, unexpired `plan_allowance`-kind credit, if any —
-        the "outgoing" credit a plan change prorates a remainder out of. Wave 1 assumes
-        at most one such credit is active at a time. `now` is the instant expiry is
-        judged against, so a plan change reads this and prorates against one clock;
-        implementations fall back to their own clock when it is omitted."""
-        raise NotImplementedError
-
-    @abstractmethod
     async def apply_plan_change(
         self,
         *,
         organization_id: UUID,
         idempotency_key: str,
-        outgoing_credit_id: Optional[UUID],
-        outgoing_debit_amount_musd: int,
-        incoming_credit_kind: str,
+        subscription_id: Optional[str],
         incoming_credit_amount_musd: int,
-        incoming_priority: int,
-        incoming_end_time: datetime,
+        incoming_end_time: Optional[datetime],
         floor_musd: int,
-        now: Optional[datetime] = None,
+        now: datetime,
     ) -> "PlanChangeResultDTO":
-        """Apply (or replay) one plan-change proration in a single transaction:
+        """Apply (or replay) one plan change in a single transaction, under the general
+        balance lock:
 
         1. Replay guard, keyed on `(organization_id, idempotency_key)` — a redelivered
            webhook must produce no second financial effect. There is no dedicated ledger
@@ -380,12 +381,16 @@ class WalletsDAOInterface(ABC):
            `plan_change_idempotency_key` reference already stored on the minted
            `wallet_credits` row (step 3) — reading the actual financial rows a prior
            application wrote, not a second guard.
-        2. If `outgoing_debit_amount_musd > 0` and `outgoing_credit_id` is set: write an
-           IMMUTABLE `wallet_debits` row (`debit_kind="adjustment"`) against that credit,
-           capped at the credit's current balance (a per-credit balance must never go
-           negative), and decrement that credit's balance row by the same amount.
-        3. If `incoming_credit_amount_musd > 0`: mint a NEW immutable `wallet_credits` row
-           (never mutate an existing one) plus its balance row.
+        2. Select the outgoing allowance: the newest `plan_allowance` credit of this
+           organization, unless a plan change already clawed it back. Claw back the
+           unused share of its own lifetime at `now`
+           (`ee.src.core.wallets.proration.prorate_outgoing_allowance`), capped at its
+           balance, as an IMMUTABLE `wallet_debits` row (`debit_kind="adjustment"`), and
+           decrement its balance row by the same amount. Selecting here, after the lock,
+           is what keeps two overlapping changes from clawing the same credit.
+        3. If `incoming_credit_amount_musd > 0`: mint a NEW immutable `plan_allowance`
+           credit (never mutate an existing one) plus its balance row, valid from `now`
+           to `incoming_end_time`, recording `subscription_id` as its provenance.
         4. Update the general balance projection by `(applied incoming - applied
            outgoing)`, and set its `floor_musd` to the incoming plan's floor.
 

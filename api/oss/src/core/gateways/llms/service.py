@@ -10,6 +10,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
+    BUILTIN_LLM_PROVIDERS,
     builtin_llm_endpoint,
     standard_llm_endpoint,
     standard_llm_endpoints,
@@ -51,10 +52,15 @@ from oss.src.core.gateways.policy.dtos import (
     PolicyDecision,
     ProviderKeyRef,
     ResolvedSecret,
+    SecretOrigin,
 )
 from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.service import GatewayPolicyService
-from oss.src.core.gateways.policy.types import CeilingExceededError, PolicyDeniedError
+from oss.src.core.gateways.policy.types import (
+    CeilingExceededError,
+    EntitlementDeniedError,
+    PolicyDeniedError,
+)
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
@@ -83,6 +89,7 @@ class _ResolvedLlmTarget:
             plane=GatewayPlane.LLM,
             namespace=self.namespace,
             name=self.name,
+            provider=self.provider_key,
             endpoint_id=self.endpoint_id,
             model=model,
         )
@@ -265,7 +272,10 @@ class LLMGatewayService:
         )
 
     async def list_endpoints(self, *, scope: AuthScope) -> List[LLMEndpoint]:
-        """List generated standard endpoints and persisted custom endpoints.
+        """List generated standard and builtin endpoints and persisted custom endpoints.
+
+        Builtin endpoints exist only under the development mock switch, so this lists them
+        only there; that is what lets an agent picker offer a platform-funded model.
 
         Takes the scope rather than a bare project_id (R14): existence is a per-owner fact
         the moment user-owned secrets ship, and fabricating an AuthScope to satisfy the port
@@ -278,8 +288,13 @@ class LLMGatewayService:
             for endpoint in standard_llm_endpoints()
             if endpoint.provider_key in provider_keys
         ]
+        builtin = [
+            endpoint
+            for provider_key in BUILTIN_LLM_PROVIDERS
+            if (endpoint := builtin_llm_endpoint(provider_key=provider_key)) is not None
+        ]
         custom = await self.llm_endpoints_dao.query_endpoints(project_id=project_id)
-        return generated + custom
+        return generated + builtin + custom
 
     async def resolve_agent_connection(
         self,
@@ -288,6 +303,7 @@ class LLMGatewayService:
         model: str,
         provider_key: Optional[str],
         connection_slug: Optional[str],
+        connection_namespace: Optional[GatewayEndpointNamespace] = None,
     ) -> LLMGatewayConnectionResolution:
         """Resolve an agent connection to public gateway route metadata.
 
@@ -296,7 +312,10 @@ class LLMGatewayService:
         with nothing to act on. `LLMGatewayConnectionResolution.provider_key` stays a required
         field, so the invariant no construction path can dodge is still enforced underneath.
         """
-        if connection_slug:
+        if connection_slug and connection_namespace:
+            namespace = connection_namespace
+            name = connection_slug
+        elif connection_slug:
             namespace = await self._namespace_of_slug(scope=scope, slug=connection_slug)
             name = connection_slug
         elif provider_key:
@@ -365,6 +384,8 @@ class LLMGatewayService:
         body: bytes,
         headers: Dict[str, str],
         protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
+        run_id: Optional[str] = None,
+        run_labels: Optional[Dict[str, str]] = None,
     ) -> LLMRelayResult:
         """Relay one request for the specified protocol."""
         target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
@@ -394,10 +415,34 @@ class LLMGatewayService:
                 target=policy_target,
                 decision=decision,
                 outcome=GatewayOutcome(status_code=403),
+                run_id=run_id,
             )
             raise PolicyDeniedError(
                 permission=Permission.USE_LLM_ENDPOINTS, target=target.target_path()
             )
+
+        # Spend admission, only where we pay: a `builtin` call runs on the platform's
+        # account, while `standard` and `custom` spend the customer's own credential and
+        # are never refused for our balance. After permission, so a caller who may not call
+        # at all never has a balance consulted; before the secret and the dispatch, so a
+        # refused call costs nothing.
+        if target.namespace == GatewayEndpointNamespace.BUILTIN:
+            admission = await self.policy.admit(scope=scope, target=policy_target)
+            if not admission.allowed:
+                await self.policy.record(
+                    scope=scope,
+                    target=policy_target,
+                    decision=PolicyDecision(
+                        allowed=False,
+                        permission=decision.permission,
+                        reason="entitlement_denied",
+                    ),
+                    outcome=GatewayOutcome(status_code=403),
+                    run_id=run_id,
+                )
+                raise EntitlementDeniedError(
+                    key="wallet_balance", target=target.target_path()
+                )
 
         ref = target.secret_ref()
         secret = (
@@ -448,6 +493,8 @@ class LLMGatewayService:
                 decision=decision,
                 result=result,
                 secret=secret,
+                run_id=run_id,
+                run_labels=run_labels,
             )
             return result
 
@@ -465,6 +512,8 @@ class LLMGatewayService:
             decision=decision,
             result=result,
             secret=secret,
+            run_id=run_id,
+            run_labels=run_labels,
         )
         return result
 
@@ -682,13 +731,24 @@ class LLMGatewayService:
         return json.dumps(rewritten).encode()
 
     def _outcome_from(
-        self, *, result: LLMRelayResult, secret: Optional[ResolvedSecret]
+        self,
+        *,
+        result: LLMRelayResult,
+        secret: Optional[ResolvedSecret],
+        target: GatewayTarget,
     ) -> GatewayOutcome:
+        # The payer follows the namespace (D30): a `builtin` call runs on the platform's
+        # account whatever credential, if any, answered it. A `builtin` target resolves no
+        # customer secret, so without this stamp its payer would read as unknown.
+        if target.namespace == GatewayEndpointNamespace.BUILTIN:
+            origin: Optional[SecretOrigin] = SecretOrigin.LOCAL
+        else:
+            origin = secret.origin if secret is not None else None
         return GatewayOutcome(
             status_code=result.status_code,
             usage=result.usage,
             owner=secret.owner if secret is not None else None,
-            origin=secret.origin if secret is not None else None,
+            origin=origin,
         )
 
     async def _drain_now_and_record(
@@ -700,6 +760,8 @@ class LLMGatewayService:
         decision: PolicyDecision,
         result: LLMRelayResult,
         secret: Optional[ResolvedSecret],
+        run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
         """Consume a non-streaming body now, record the call, and hand back the bytes.
 
@@ -721,7 +783,11 @@ class LLMGatewayService:
                     scope=scope,
                     target=target,
                     decision=decision,
-                    outcome=self._outcome_from(result=result, secret=secret),
+                    outcome=self._outcome_from(
+                        result=result, secret=secret, target=target
+                    ),
+                    run_id=run_id,
+                    run_labels=run_labels,
                 )
             )
         return _replay_body(b"".join(chunks))
@@ -735,6 +801,8 @@ class LLMGatewayService:
         decision: PolicyDecision,
         result: LLMRelayResult,
         secret: Optional[ResolvedSecret],
+        run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
         try:
             async for chunk in body:
@@ -751,6 +819,10 @@ class LLMGatewayService:
                     scope=scope,
                     target=target,
                     decision=decision,
-                    outcome=self._outcome_from(result=result, secret=secret),
+                    outcome=self._outcome_from(
+                        result=result, secret=secret, target=target
+                    ),
+                    run_id=run_id,
+                    run_labels=run_labels,
                 )
             )

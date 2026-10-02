@@ -1,10 +1,22 @@
-from typing import Optional
+from typing import AsyncContextManager, Optional
 
 from ee.src.core.subscriptions.types import SubscriptionDTO
 
 
 class SubscriptionsDAOInterface:
     def __init__(self):
+        raise NotImplementedError
+
+    def lock(
+        self,
+        *,
+        organization_id: str,
+    ) -> AsyncContextManager[None]:
+        """
+        Serialize subscription changes for one organization: hold the returned context
+        while reading, changing, and acting on the subscription. A second holder for the
+        same organization waits until the first exits.
+        """
         raise NotImplementedError
 
     async def create(

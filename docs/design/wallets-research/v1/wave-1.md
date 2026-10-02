@@ -110,7 +110,8 @@ migration beyond `ee0000000005` (`core_ee` head remains `ee0000000005`):
   mid-period plan change: it debits the outgoing plan's unused allowance remainder out of
   the active `plan_allowance` credit and mints a new one for the incoming plan's prorated
   share, both idempotent on the subscription's own `plan_change:{subscription_id}:{period_start}`
-  key. `WalletCheckPort.check` also lost its unused `amount_musd` parameter this wave.
+  key (superseded: the key and the outgoing-credit selection changed with open-designs item 22;
+  `entities.md` has the current shape). `WalletCheckPort.check` also lost its unused `amount_musd` parameter this wave.
 - **`WP-1-05` (real plan allowances + the grant catalog).** `ee.src.core.wallets.plans`
   carries real, product-decided per-plan allowance and floor amounts (see
   `nodes/im-1-02-pipeline/acceptance.md` §"2b" for the table and the date) — proration

@@ -6,7 +6,7 @@ so `WalletsService.check()`/`settle()` and the runtime factory wiring are testab
 isolation from `ee.src.dbs.postgres.wallets.dao.WalletsDAO`.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -14,12 +14,19 @@ import uuid_utils.compat as uuid_utils
 
 from ee.src.core.wallets.contracts import DebitCommandV1
 from ee.src.core.wallets.interfaces import WalletSettlementPort
+from ee.src.core.wallets.plans import (
+    PLAN_ALLOWANCE_CREDIT_KIND,
+    PLAN_ALLOWANCE_PRIORITY,
+    PLAN_CHANGE_RESOURCE_KEY,
+)
+from ee.src.core.wallets.proration import prorate_outgoing_allowance
 from ee.src.core.wallets.types import (
     CreditCandidateDTO,
     PlanChangeResultDTO,
     WalletBalanceDTO,
     WalletCreditDTO,
     WalletDebitDTO,
+    WalletSpendableBalanceDTO,
     WalletsDAOInterface,
     compose_debit_key,
     plan_settlement,
@@ -44,6 +51,9 @@ class FakeWalletsDAO(WalletsDAOInterface):
             for candidate, balance in (credits or [])
         }
         self.debits: List[WalletDebitDTO] = []
+        # wallet_credit_id -> (start_time, amount_musd): the immutable credit facts a
+        # `CreditCandidateDTO` does not carry, recorded for the credits this fake mints.
+        self._credit_lifetimes: Dict[UUID, Tuple[datetime, int]] = {}
         self.get_general_balance_calls = 0
         self.settle_calls = 0
         self.provision_calls = 0
@@ -104,6 +114,29 @@ class FakeWalletsDAO(WalletsDAOInterface):
         if self.general_balance.organization_id != organization_id:
             return None
         return self.general_balance
+
+    async def get_spendable_balance(
+        self,
+        *,
+        organization_id: UUID,
+    ) -> Optional[WalletSpendableBalanceDTO]:
+        general = await self.get_general_balance(organization_id=organization_id)
+        if general is None:
+            return None
+
+        now = datetime.now(timezone.utc)
+        expired_remaining = sum(
+            balance.balance_musd
+            for candidate, balance in self._owned_credits(
+                organization_id=organization_id
+            )
+            if candidate.end_time is not None and candidate.end_time <= now
+        )
+        return WalletSpendableBalanceDTO(
+            organization_id=organization_id,
+            spendable_musd=general.balance_musd - expired_remaining,
+            floor_musd=general.floor_musd,
+        )
 
     async def settle(
         self,
@@ -197,43 +230,16 @@ class FakeWalletsDAO(WalletsDAOInterface):
 
         return self.general_balance
 
-    async def get_active_plan_allowance_credit(
-        self,
-        *,
-        organization_id: UUID,
-        now: Optional[datetime] = None,
-    ) -> Optional[WalletCreditDTO]:
-        for candidate, balance in self._owned_credits(organization_id=organization_id):
-            if candidate.credit_kind == "plan_allowance":
-                if (
-                    now is not None
-                    and candidate.end_time is not None
-                    and candidate.end_time <= now
-                ):
-                    continue  # expired at the caller's clock — mirrors the real DAO
-                return WalletCreditDTO(
-                    id=candidate.wallet_credit_id,
-                    organization_id=balance.organization_id,
-                    credit_kind=candidate.credit_kind,
-                    amount_musd=candidate.balance_musd,
-                    priority=candidate.priority,
-                    end_time=candidate.end_time,
-                )
-        return None
-
     async def apply_plan_change(
         self,
         *,
         organization_id: UUID,
         idempotency_key: str,
-        outgoing_credit_id: Optional[UUID],
-        outgoing_debit_amount_musd: int,
-        incoming_credit_kind: str,
+        subscription_id: Optional[str],
         incoming_credit_amount_musd: int,
-        incoming_priority: int,
-        incoming_end_time,
+        incoming_end_time: Optional[datetime],
         floor_musd: int,
-        now: Optional[datetime] = None,
+        now: datetime,
     ) -> PlanChangeResultDTO:
         key = (organization_id, idempotency_key)
         if key in self.plan_changes:
@@ -241,45 +247,64 @@ class FakeWalletsDAO(WalletsDAOInterface):
 
         await self._lock_general_balance(organization_id=organization_id)
 
+        # Mirrors the real DAO: the outgoing allowance is this organization's newest
+        # `plan_allowance` credit (insertion order here, database-clock `created_at` there), unless a
+        # plan change already clawed it back.
+        outgoing_credit_id = None
+        for candidate, _ in self._owned_credits(organization_id=organization_id):
+            if candidate.credit_kind == PLAN_ALLOWANCE_CREDIT_KIND:
+                outgoing_credit_id = candidate.wallet_credit_id
+        if outgoing_credit_id is not None and any(
+            debit.wallet_credit_id == outgoing_credit_id
+            and debit.resource_key == PLAN_CHANGE_RESOURCE_KEY
+            for debit in self.debits
+        ):
+            outgoing_credit_id = None
+
         applied_outgoing = 0
         outgoing_debit_id = None
-        if outgoing_credit_id is not None and outgoing_debit_amount_musd > 0:
-            candidate, balance = self._credits.get(outgoing_credit_id, (None, None))
-            # Owner check, not just existence: the real DAO's outgoing-credit select is
-            # `WHERE id = :outgoing AND organization_id = :organization_id`, so a credit
-            # id belonging to somebody else finds nothing and debits nothing.
-            if balance is not None and balance.organization_id == organization_id:
-                applied_outgoing = min(outgoing_debit_amount_musd, balance.balance_musd)
-                if applied_outgoing > 0:
-                    outgoing_debit_id = uuid_utils.uuid7()
-                    updated_candidate = candidate.model_copy(
+        if outgoing_credit_id is not None:
+            candidate, balance = self._credits[outgoing_credit_id]
+            start_time, amount_musd = self._credit_lifetimes.get(
+                outgoing_credit_id, (None, candidate.balance_musd)
+            )
+            applied_outgoing = min(
+                prorate_outgoing_allowance(
+                    credit_amount_musd=amount_musd,
+                    credit_start_time=start_time,
+                    credit_end_time=candidate.end_time,
+                    now=now,
+                ),
+                balance.balance_musd,
+            )
+            if applied_outgoing > 0:
+                outgoing_debit_id = uuid_utils.uuid7()
+                self._credits[outgoing_credit_id] = (
+                    candidate.model_copy(
                         update={
                             "balance_musd": candidate.balance_musd - applied_outgoing
                         }
-                    )
-                    updated_balance = balance.model_copy(
+                    ),
+                    balance.model_copy(
                         update={"balance_musd": balance.balance_musd - applied_outgoing}
-                    )
-                    self._credits[outgoing_credit_id] = (
-                        updated_candidate,
-                        updated_balance,
-                    )
-                    self.debits.append(
-                        WalletDebitDTO(
-                            id=outgoing_debit_id,
-                            organization_id=organization_id,
-                            debit_kind="adjustment",
-                            amount_musd=applied_outgoing,
-                            wallet_credit_id=outgoing_credit_id,
+                    ),
+                )
+                self.debits.append(
+                    WalletDebitDTO(
+                        id=outgoing_debit_id,
+                        organization_id=organization_id,
+                        debit_kind="adjustment",
+                        amount_musd=applied_outgoing,
+                        wallet_credit_id=outgoing_credit_id,
+                        idempotency_key=idempotency_key,
+                        debit_key=compose_debit_key(
                             idempotency_key=idempotency_key,
-                            debit_key=compose_debit_key(
-                                idempotency_key=idempotency_key,
-                                source=str(outgoing_credit_id),
-                            ),
-                            resource_key="wallet:plan_change",
-                            pricing_version="plan-change-proration-v1",
-                        )
+                            source=str(outgoing_credit_id),
+                        ),
+                        resource_key=PLAN_CHANGE_RESOURCE_KEY,
+                        pricing_version="plan-change-proration-v1",
                     )
+                )
 
         applied_incoming = 0
         incoming_credit_id = None
@@ -288,8 +313,8 @@ class FakeWalletsDAO(WalletsDAOInterface):
             incoming_credit_id = uuid_utils.uuid7()
             new_candidate = CreditCandidateDTO(
                 wallet_credit_id=incoming_credit_id,
-                credit_kind=incoming_credit_kind,
-                priority=incoming_priority,
+                credit_kind=PLAN_ALLOWANCE_CREDIT_KIND,
+                priority=PLAN_ALLOWANCE_PRIORITY,
                 end_time=incoming_end_time,
                 balance_musd=applied_incoming,
             )
@@ -300,6 +325,7 @@ class FakeWalletsDAO(WalletsDAOInterface):
                 balance_musd=applied_incoming,
             )
             self._credits[incoming_credit_id] = (new_candidate, new_balance)
+            self._credit_lifetimes[incoming_credit_id] = (now, applied_incoming)
 
         self.general_balance = self.general_balance.model_copy(
             update={

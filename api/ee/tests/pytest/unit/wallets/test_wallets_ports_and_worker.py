@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from ee.src.core.wallets.interfaces import WalletCheckPort, WalletSettlementPort
-from ee.src.core.wallets.runtime import get_wallet_settlement_port
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 from ee.tests.pytest.utils.wallets.builders import build_debit_command
 
@@ -20,13 +19,6 @@ async def test_wallet_settlement_port_body_raises_not_implemented():
     port = WalletSettlementPort()
     with pytest.raises(NotImplementedError):
         await port.settle(build_debit_command())
-
-
-def test_settlement_port_factory_returns_a_settlement_port():
-    # WP-1-01 implements this factory; WP-1-00 only seeded it as unimplemented.
-    port = get_wallet_settlement_port()
-    assert isinstance(port, WalletSettlementPort)
-    assert get_wallet_settlement_port() is port  # process-wide singleton
 
 
 def test_debit_worker_is_constructible():

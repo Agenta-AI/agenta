@@ -5,6 +5,7 @@ from uuid import UUID
 import uuid_utils.compat as uuid_utils
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import aliased
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -13,13 +14,21 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.wallets.contracts import DebitCommandV1
-from ee.src.core.wallets.plans import LAZY_PROVISION_FLOOR_MUSD
+from ee.src.core.wallets.plans import (
+    LAZY_PROVISION_FLOOR_MUSD,
+    PLAN_ALLOWANCE_CREDIT_KIND,
+    PLAN_ALLOWANCE_PRIORITY,
+    PLAN_CHANGE_RESOURCE_KEY,
+)
+from ee.src.core.wallets.proration import prorate_outgoing_allowance
 from ee.src.core.wallets.types import (
     PlanChangeResultDTO,
     WalletBalanceDTO,
+    WalletCreditBalanceNotFoundError,
     WalletCreditDTO,
     WalletDebitDTO,
     WalletGeneralBalanceNotFoundError,
+    WalletSpendableBalanceDTO,
     WalletsDAOInterface,
     compose_debit_key,
     plan_settlement,
@@ -38,6 +47,56 @@ from ee.src.dbs.postgres.wallets.mappings import (
 )
 
 log = get_module_logger(__name__)
+
+
+def _general_balance_filter(organization_id: UUID):
+    return (
+        WalletBalanceDBE.organization_id == organization_id,
+        WalletBalanceDBE.wallet_credit_id.is_(None),
+    )
+
+
+async def _mint_credit(
+    session,
+    *,
+    organization_id: UUID,
+    credit_kind: str,
+    amount_musd: int,
+    priority: int,
+    start_time: Optional[datetime],
+    end_time: Optional[datetime],
+    data: dict,
+    created_at=None,
+) -> WalletCreditDBE:
+    """Add a credit and its balance row, funded with the full amount."""
+    credit = WalletCreditDBE(
+        id=uuid_utils.uuid7(),
+        organization_id=organization_id,
+        credit_kind=credit_kind,
+        amount_musd=amount_musd,
+        priority=priority,
+        start_time=start_time,
+        end_time=end_time,
+        data=data,
+    )
+    if created_at is not None:
+        credit.created_at = created_at
+    session.add(credit)
+    # `wallet_balances.wallet_credit_id` is a table-level FK with no ORM relationship
+    # behind it, so the unit of work has nothing to order these two INSERTs by. Flush the
+    # credit first or Postgres rejects the balance row.
+    await session.flush()
+
+    session.add(
+        WalletBalanceDBE(
+            id=uuid_utils.uuid7(),
+            organization_id=organization_id,
+            wallet_credit_id=credit.id,
+            balance_musd=amount_musd,
+            floor_musd=None,
+        )
+    )
+    return credit
 
 
 def _general_balance_insert(*, organization_id: UUID, floor_musd: int):
@@ -77,26 +136,15 @@ class WalletsDAO(WalletsDAOInterface):
         absent. Every write path below opens with this call, so each of them serializes
         on the same row for the same organization.
 
-        Lazy provisioning is what closes the `AGENTA_WALLETS_ENABLED` gap recorded as
-        item 14 of `docs/design/wallets-research/v1/open-designs.md`: an organization
-        created while the flag was off was skipped by `provision_signup_subscription`,
-        and the `ee0000000005` backfill has already run and will not run again, so
-        nothing else would ever give it a row. Provisioning here needs no plan lookup —
-        `LAZY_PROVISION_FLOOR_MUSD` is every known plan's floor today, and a plan change
-        rewrites the floor anyway.
-
-        The insert is idempotent (partial unique index) and rides this transaction, so a
-        rolled-back settlement leaves no row behind and the next delivery provisions
-        again. `WalletGeneralBalanceNotFoundError` is therefore no longer a routine
-        outcome; it survives as a defensive invariant for the case where the row is
-        neither present nor insertable.
+        Some organizations have no row: created while the flag was off, or by a path
+        that skips provisioning (open-designs item 14). No plan lookup is needed:
+        `LAZY_PROVISION_FLOOR_MUSD` is every plan's floor, and a plan change rewrites it.
+        The insert is idempotent (partial unique index) and rides this transaction, so
+        a rolled-back settlement leaves no row behind.
         """
         general_stmt = (
             select(WalletBalanceDBE)
-            .where(
-                WalletBalanceDBE.organization_id == organization_id,
-                WalletBalanceDBE.wallet_credit_id.is_(None),
-            )
+            .where(*_general_balance_filter(organization_id))
             .with_for_update()
         )
 
@@ -135,13 +183,54 @@ class WalletsDAO(WalletsDAOInterface):
     ) -> Optional[WalletBalanceDTO]:
         async with self.engine.session() as session:
             stmt = select(WalletBalanceDBE).where(
-                WalletBalanceDBE.organization_id == organization_id,
-                WalletBalanceDBE.wallet_credit_id.is_(None),
+                *_general_balance_filter(organization_id)
             )
             result = await session.execute(stmt)
             balance = result.scalar_one_or_none()
 
             return balance_dbe_to_dto(balance) if balance is not None else None
+
+    async def get_spendable_balance(
+        self,
+        *,
+        organization_id: UUID,
+    ) -> Optional[WalletSpendableBalanceDTO]:
+        # The complement of settlement's `end_time > now()` candidate filter, on the
+        # same database clock, so admission and settlement agree on what has expired.
+        # Aliased so the subquery does not auto-correlate to the outer general row.
+        credit_balance = aliased(WalletBalanceDBE)
+        expired_remaining = (
+            select(func.coalesce(func.sum(credit_balance.balance_musd), 0))
+            .join(
+                WalletCreditDBE,
+                WalletCreditDBE.id == credit_balance.wallet_credit_id,
+            )
+            .where(
+                WalletCreditDBE.organization_id == organization_id,
+                WalletCreditDBE.end_time <= func.now(),
+            )
+            .scalar_subquery()
+        )
+
+        # One statement, one snapshot: a settlement committing between two separate
+        # reads could move value between the two terms and skew the difference.
+        stmt = select(
+            WalletBalanceDBE.balance_musd - expired_remaining,
+            WalletBalanceDBE.floor_musd,
+        ).where(*_general_balance_filter(organization_id))
+
+        async with self.engine.session() as session:
+            row = (await session.execute(stmt)).one_or_none()
+
+        if row is None:
+            return None
+
+        spendable_musd, floor_musd = row
+        return WalletSpendableBalanceDTO(
+            organization_id=organization_id,
+            spendable_musd=spendable_musd,
+            floor_musd=floor_musd,
+        )
 
     async def settle(
         self,
@@ -177,6 +266,13 @@ class WalletsDAO(WalletsDAOInterface):
             # 3. First delivery: select+lock unexpired, funded candidate credit balances
             #    in priority, end_time, credit_id order. Already serialized by the general
             #    balance lock above, so this snapshot cannot go stale under our feet.
+            #    Expiry is judged on the database clock, the one admission reads too;
+            #    `plan_settlement` re-filters, so it gets the same instant. The wall
+            #    clock after the lock, not `now()`: that is the transaction start, which
+            #    precedes any wait above, and a credit may have expired during it.
+            db_now = (
+                await session.execute(select(func.clock_timestamp()))
+            ).scalar_one()
             candidates_stmt = (
                 select(WalletCreditDBE, WalletBalanceDBE)
                 .join(
@@ -187,7 +283,7 @@ class WalletsDAO(WalletsDAOInterface):
                     WalletCreditDBE.organization_id == command.organization_id,
                     or_(
                         WalletCreditDBE.end_time.is_(None),
-                        WalletCreditDBE.end_time > func.now(),
+                        WalletCreditDBE.end_time > db_now,
                     ),
                     WalletBalanceDBE.balance_musd > 0,
                 )
@@ -210,7 +306,7 @@ class WalletsDAO(WalletsDAOInterface):
 
             # 4. Plan the split: which credits fund how much, plus any deficit remainder.
             #    Pure function — no I/O, no locking decisions of its own.
-            plan = plan_settlement(command=command, candidates=candidates)
+            plan = plan_settlement(command=command, candidates=candidates, now=db_now)
 
             # 5. Insert one debit per actual funding source.
             created: List[WalletDebitDBE] = []
@@ -251,8 +347,7 @@ class WalletsDAO(WalletsDAOInterface):
             # Read back rather than returning what was inserted: on the conflict path
             # nothing was inserted, and the caller wants the row that actually exists.
             stmt = select(WalletBalanceDBE).where(
-                WalletBalanceDBE.organization_id == organization_id,
-                WalletBalanceDBE.wallet_credit_id.is_(None),
+                *_general_balance_filter(organization_id)
             )
             balance = (await session.execute(stmt)).scalar_one_or_none()
 
@@ -261,53 +356,23 @@ class WalletsDAO(WalletsDAOInterface):
 
             return balance_dbe_to_dto(balance)
 
-    async def get_active_plan_allowance_credit(
-        self,
-        *,
-        organization_id: UUID,
-        now: Optional[datetime] = None,
-    ) -> Optional[WalletCreditDTO]:
-        # "Unexpired" is relative to the caller's logical clock when it has one — the
-        # same `now` `apply_plan_change` prorates against, so one plan change reads a
-        # single instant. Falling back to the database clock keeps the pre-existing
-        # behavior for callers that pass nothing.
-        cutoff = now if now is not None else func.now()
-
-        stmt = (
-            select(WalletCreditDBE)
-            .where(
-                WalletCreditDBE.organization_id == organization_id,
-                WalletCreditDBE.credit_kind == "plan_allowance",
-                or_(
-                    WalletCreditDBE.end_time.is_(None),
-                    WalletCreditDBE.end_time > cutoff,
-                ),
-            )
-            .order_by(WalletCreditDBE.end_time.desc().nulls_last())
-            .limit(1)
-        )
-        async with self.engine.session() as session:
-            credit = (await session.execute(stmt)).scalars().first()
-            return credit_dbe_to_dto(credit) if credit is not None else None
-
     async def apply_plan_change(
         self,
         *,
         organization_id: UUID,
         idempotency_key: str,
-        outgoing_credit_id: Optional[UUID],
-        outgoing_debit_amount_musd: int,
-        incoming_credit_kind: str,
+        subscription_id: Optional[str],
         incoming_credit_amount_musd: int,
-        incoming_priority: int,
-        incoming_end_time: datetime,
+        incoming_end_time: Optional[datetime],
         floor_musd: int,
-        now: Optional[datetime] = None,
+        now: datetime,
     ) -> PlanChangeResultDTO:
         async with self.engine.session() as session:
             # 1. Lock the general balance first, provisioning it when missing — every
             #    write below touches it, and this also serializes concurrent plan changes
-            #    for the same organization.
+            #    for the same organization. The outgoing credit is selected AFTER this
+            #    lock, in this transaction, so two overlapping changes cannot both read
+            #    the same outgoing credit and each mint a replacement for it.
             general = await self._lock_general_balance(
                 session=session,
                 organization_id=organization_id,
@@ -321,8 +386,7 @@ class WalletsDAO(WalletsDAOInterface):
             #    (below) — no second guard, just reading the actual financial rows a prior
             #    application would have written. A redelivered webhook (even one that
             #    would now compute a different amount, since proration is a function of
-            #    wall-clock `now`) returns the ORIGINAL application's result and writes
-            #    nothing new.
+            #    `now`) returns the ORIGINAL application's result and writes nothing new.
             existing_debit_stmt = (
                 select(WalletDebitDBE)
                 .where(
@@ -362,24 +426,80 @@ class WalletsDAO(WalletsDAOInterface):
                     floor_musd=general.floor_musd,
                 )
 
+            # 3. The outgoing allowance is the plan-allowance credit the most recent plan
+            #    change minted: the newest by `created_at`, which the mint below sets from
+            #    the database's `clock_timestamp()` after taking the lock above, so it
+            #    follows the order the changes were applied in. Neither expiry nor a
+            #    uuid7 id is that order: after two changes in one period both credits
+            #    end at the same instant, and a uuid7 carries the clock of whichever API
+            #    process minted it. Only the newest is ever a candidate. Every earlier
+            #    one was superseded, and so clawed down to its earned share, by the
+            #    change that minted a newer one; and when a plan change already clawed
+            #    the newest one (Pro to Hobby mints nothing), what is left on it is
+            #    earned too, so there is no outgoing allowance to prorate. An expired
+            #    newest credit prorates to zero.
+            outgoing_credit_stmt = (
+                select(WalletCreditDBE)
+                .where(
+                    WalletCreditDBE.organization_id == organization_id,
+                    WalletCreditDBE.credit_kind == PLAN_ALLOWANCE_CREDIT_KIND,
+                )
+                .order_by(
+                    WalletCreditDBE.created_at.desc(),
+                    WalletCreditDBE.id.desc(),
+                )
+                .limit(1)
+            )
+            outgoing_credit = (
+                (await session.execute(outgoing_credit_stmt)).scalars().first()
+            )
+
+            if outgoing_credit is not None:
+                clawed_stmt = (
+                    select(WalletDebitDBE.id)
+                    .where(
+                        WalletDebitDBE.organization_id == organization_id,
+                        WalletDebitDBE.wallet_credit_id == outgoing_credit.id,
+                        WalletDebitDBE.resource_key == PLAN_CHANGE_RESOURCE_KEY,
+                    )
+                    .limit(1)
+                )
+                if (await session.execute(clawed_stmt)).first() is not None:
+                    outgoing_credit = None
+
+            outgoing_credit_id = None
             outgoing_debit = None
             applied_outgoing_amount = 0
-            if outgoing_credit_id is not None and outgoing_debit_amount_musd > 0:
+            if outgoing_credit is not None:
+                outgoing_credit_id = outgoing_credit.id
                 outgoing_balance_stmt = (
                     select(WalletBalanceDBE)
-                    .where(WalletBalanceDBE.wallet_credit_id == outgoing_credit_id)
+                    .where(
+                        WalletBalanceDBE.organization_id == organization_id,
+                        WalletBalanceDBE.wallet_credit_id == outgoing_credit_id,
+                    )
                     .with_for_update()
                 )
                 outgoing_balance = (
                     await session.execute(outgoing_balance_stmt)
                 ).scalar_one_or_none()
-
-                if outgoing_balance is not None:
-                    # A per-credit balance must never go negative — cap the removed
-                    # remainder at whatever is actually still on the credit.
-                    applied_outgoing_amount = min(
-                        outgoing_debit_amount_musd, outgoing_balance.balance_musd
+                if outgoing_balance is None:
+                    raise WalletCreditBalanceNotFoundError(
+                        organization_id=organization_id,
+                        wallet_credit_id=outgoing_credit_id,
                     )
+
+                # A per-credit balance must never go negative — cap the removed
+                # remainder at whatever is actually still on the credit.
+                applied_outgoing_amount = min(
+                    prorate_outgoing_allowance(
+                        credit_amount_musd=outgoing_credit.amount_musd,
+                        credit_start_time=outgoing_credit.start_time,
+                        credit_end_time=outgoing_credit.end_time,
+                        now=now,
+                    ),
+                    outgoing_balance.balance_musd,
+                )
 
                 if applied_outgoing_amount > 0:
                     outgoing_debit = WalletDebitDBE(
@@ -393,7 +513,7 @@ class WalletsDAO(WalletsDAOInterface):
                             idempotency_key=idempotency_key,
                             source=str(outgoing_credit_id),
                         ),
-                        resource_key="wallet:plan_change",
+                        resource_key=PLAN_CHANGE_RESOURCE_KEY,
                         resource_locator={},
                         pricing_version="plan-change-proration-v1",
                         data={},
@@ -402,39 +522,30 @@ class WalletsDAO(WalletsDAOInterface):
                     outgoing_balance.balance_musd -= applied_outgoing_amount
 
             incoming_credit = None
-            applied_incoming_amount = 0
             if incoming_credit_amount_musd > 0:
-                applied_incoming_amount = incoming_credit_amount_musd
-                incoming_credit = WalletCreditDBE(
-                    id=uuid_utils.uuid7(),
+                incoming_credit = await _mint_credit(
+                    session,
                     organization_id=organization_id,
-                    credit_kind=incoming_credit_kind,
-                    amount_musd=applied_incoming_amount,
-                    priority=incoming_priority,
+                    credit_kind=PLAN_ALLOWANCE_CREDIT_KIND,
+                    amount_musd=incoming_credit_amount_musd,
+                    priority=PLAN_ALLOWANCE_PRIORITY,
                     start_time=now,
                     end_time=incoming_end_time,
                     data={
-                        "references": {"plan_change_idempotency_key": idempotency_key}
+                        "references": {
+                            "plan_change_idempotency_key": idempotency_key,
+                            "subscription": {"id": subscription_id},
+                        }
                     },
+                    # Orders allowance credits for step 3; see there.
+                    created_at=func.clock_timestamp(),
                 )
-                session.add(incoming_credit)
-                # `wallet_balances.wallet_credit_id` is a table-level FK with no ORM
-                # relationship behind it, so the unit of work has nothing to order these
-                # two INSERTs by. Flush the credit first or Postgres rejects the balance
-                # row on `wallet_balances_wallet_credit_id_fkey`.
-                await session.flush()
 
-                incoming_balance = WalletBalanceDBE(
-                    id=uuid_utils.uuid7(),
-                    organization_id=organization_id,
-                    wallet_credit_id=incoming_credit.id,
-                    balance_musd=applied_incoming_amount,
-                    floor_musd=None,
-                )
-                session.add(incoming_balance)
-
-            # 3. General balance: net of what actually moved, plus the incoming plan's
+            # 4. General balance: net of what actually moved, plus the incoming plan's
             #    floor — always applied, even when this change moved zero value.
+            applied_incoming_amount = (
+                incoming_credit.amount_musd if incoming_credit else 0
+            )
             general.balance_musd += applied_incoming_amount - applied_outgoing_amount
             general.floor_musd = floor_musd
 
@@ -488,8 +599,8 @@ class WalletsDAO(WalletsDAOInterface):
 
             # 3. First delivery: mint the credit and its balance row, and fund the
             #    general balance projection by the full amount.
-            credit = WalletCreditDBE(
-                id=uuid_utils.uuid7(),
+            credit = await _mint_credit(
+                session,
                 organization_id=organization_id,
                 credit_kind=credit_kind,
                 amount_musd=amount_musd,
@@ -497,21 +608,6 @@ class WalletsDAO(WalletsDAOInterface):
                 start_time=now,
                 end_time=end_time,
                 data={"references": {"award_idempotency_key": idempotency_key}},
-            )
-            session.add(credit)
-            # Same FK-ordering constraint as `apply_plan_change`: no ORM relationship
-            # ties `wallet_balances.wallet_credit_id` to `wallet_credits.id`, so the
-            # credit INSERT has to be flushed before the balance row can reference it.
-            await session.flush()
-
-            session.add(
-                WalletBalanceDBE(
-                    id=uuid_utils.uuid7(),
-                    organization_id=organization_id,
-                    wallet_credit_id=credit.id,
-                    balance_musd=amount_musd,
-                    floor_musd=None,
-                )
             )
             general.balance_musd += amount_musd
 

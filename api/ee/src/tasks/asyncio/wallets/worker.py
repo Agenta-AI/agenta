@@ -43,7 +43,9 @@ class DebitWorker(StreamConsumer):
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
         reclaim_min_idle_ms: int = 30_000,
-        max_deliveries: int = 5,
+        # About ten minutes of retries at the default idle window before a debit that
+        # keeps failing leaves the pending list for `streams:debits:dead`.
+        max_deliveries: int = 20,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -62,48 +64,33 @@ class DebitWorker(StreamConsumer):
             reclaim_pending=True,
             reclaim_min_idle_ms=reclaim_min_idle_ms,
             max_deliveries=max_deliveries,
+            # A debit this worker cannot settle is a charge: it is kept, with its reason,
+            # in `streams:debits:dead` for inspection and replay, never ACKed away.
+            dead_letter=True,
         )
         self.settlement_port = settlement_port
 
     def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
-        """`organization:idempotency_key` for the dropped-message log, so a lost debit is
-        traceable back to the posting the gateway intended to charge."""
+        """`organization:idempotency_key` for a dead letter, so it is traceable back to
+        the posting the gateway intended to charge."""
         try:
             command = deserialize_debit_command(payload=data[b"data"])
         except Exception:
             return None
         return f"{command.organization_id}:{command.idempotency_key}"
 
-    def is_permanent_failure(
-        self,
-        msg_id: bytes,
-        data: Dict[bytes, bytes],
-    ) -> bool:
-        """Only an entry this worker cannot even read is known not to succeed on retry.
-
-        A decodable envelope that keeps failing is failing in the settlement path — a
-        database or transaction outage — and money must not be dropped because the write
-        path was down for longer than `max_deliveries` attempts. An entry carrying no
-        `data` field, or one whose payload no longer parses, will never gain one, so it
-        is dropped instead of pinned in the pending list forever.
-        """
-        try:
-            deserialize_debit_command(payload=data[b"data"])
-        except Exception:
-            return True
-        return False
-
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
     ) -> Tuple[int, List[bytes]]:
         """Per message: deserialize, settle, ACK only after settlement succeeds.
 
-        A malformed or unsupported-version envelope is terminal — logged and ACKed, since
+        A malformed or unsupported-version envelope is terminal — dead-lettered, since
         retry cannot help. So is a missing, unprovisionable general balance row. A
         duplicate delivery is a normal successful settlement replay (the settlement port
         itself is idempotent on `idempotency_key`): no error, ACK. A core transaction,
         database, or Redis error while settling is retryable — the message is left pending
-        and comes back through the consumer's reclaim pass (`reclaim_pending=True` above).
+        and comes back through the consumer's reclaim pass (`reclaim_pending=True` above),
+        until `max_deliveries` moves it to the dead letters.
         """
         processed_ids: List[bytes] = []
 
@@ -111,12 +98,7 @@ class DebitWorker(StreamConsumer):
             try:
                 command = deserialize_debit_command(payload=data[b"data"])
             except WalletTerminalError as e:
-                log.error(
-                    "[WALLETS] Terminal envelope error, ACKing without retry",
-                    msg_id=repr(msg_id),
-                    error=str(e),
-                )
-                processed_ids.append(msg_id)
+                await self.dead_letter([(msg_id, data)], reason=f"terminal: {e}")
                 continue
             except Exception:
                 log.error(
@@ -129,20 +111,11 @@ class DebitWorker(StreamConsumer):
             try:
                 await self.settlement_port.settle(command)
             except WalletGeneralBalanceNotFoundError:
-                # Terminal, not retryable. The settlement path provisions a missing
-                # general balance row itself, so this means the row is neither present
-                # nor insertable — redelivering the same posting cannot change that, and
-                # treating it as retryable wedges this message in the pending list
-                # forever (open-designs item 14). ACK and drop the charge, loudly: there
-                # is no dead-letter stream here, so this log line is the record.
-                log.error(
-                    "[WALLETS] No general balance for organization and none could be "
-                    "provisioned, ACKing without retry — this debit is dropped",
-                    msg_id=repr(msg_id),
-                    organization_id=str(command.organization_id),
-                    idempotency_key=command.idempotency_key,
+                # The settlement path provisions a missing general balance row itself,
+                # so this row is neither present nor insertable: redelivery cannot help.
+                await self.dead_letter(
+                    [(msg_id, data)], reason="terminal: no general balance"
                 )
-                processed_ids.append(msg_id)
                 continue
             except Exception:
                 log.error(

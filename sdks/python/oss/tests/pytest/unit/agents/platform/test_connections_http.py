@@ -174,7 +174,80 @@ async def test_resolve_uses_the_core_gateway_resolver(fake_http, connection):
         "model": "gpt-5.5",
         "provider_key": "openai",
         "connection_slug": "openai",
+        "connection_namespace": None,
     }
+
+
+async def test_a_builtin_pick_sends_its_namespace_with_the_slug(fake_http, connection):
+    # A custom endpoint may share the builtin's slug; only the namespace says which was picked.
+    capture = fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "mock",
+                "model": "gpt-5.5",
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="gpt-5.5",
+            connection={"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+        ),
+        context=_context(),
+    )
+
+    assert capture["json"]["connection_slug"] == "agenta"
+    assert capture["json"]["connection_namespace"] == "builtin"
+    _assert_routed_through_gateway(resolved, namespace="builtin", name="agenta")
+
+
+@pytest.mark.parametrize(
+    "connection",
+    [
+        {"mode": "agenta", "namespace": "builtin"},
+        {"mode": "self_managed", "slug": "agenta", "namespace": "builtin"},
+    ],
+    ids=["no-slug", "self-managed"],
+)
+def test_a_connection_namespace_only_qualifies_an_agenta_slug(connection):
+    with pytest.raises(ValueError):
+        ModelRef(provider="openai", model="gpt-5.5", connection=connection)
+
+
+async def test_gateway_credentials_carry_the_session_and_agent_labels(
+    fake_http, connection
+):
+    # The gateway stamps a platform-funded call's measurement with the session and agent
+    # the credential names, so the exchange must carry them from the run context.
+    capture = fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "mock",
+                "model": "gpt-5.5",
+            }
+        },
+    )
+
+    await VaultConnectionResolver(connection).resolve(
+        model=_model("openai"),
+        context=RuntimeAuthContext(
+            harness="pi_core", session_id="session-1", agent_id="agent-1"
+        ),
+    )
+
+    assert [call["json"] for call in capture["gateway_credentials_requests"]] == [
+        {"plane": "llm", "session_id": "session-1", "agent_id": "agent-1"}
+    ]
 
 
 async def test_self_managed_short_circuits_without_api_base(fake_http):

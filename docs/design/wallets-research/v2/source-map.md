@@ -1,0 +1,16 @@
+# Source and implementation map
+
+Checked 2026-09-22, re-checked 2026-09-25. PR [#6050](https://github.com/Agenta-AI/agenta/pull/6050) is OPEN, unmerged, at `b0b7fe08ee2a7dbda8558504bd29b0bef994f7d3`. Current main at the 2026-09-25 check is `2f9cf635ca2ddda65dbd3702d98df88a4ea2a93f`. The PR head did not move between the two checks. No runtime suite was rerun. Older design text calling #6050 a draft stacked on an unmerged #6049 is stale: the gateway PR merged earlier.
+
+| Evidence | What it supports | What it does not support |
+| --- | --- | --- |
+| [Wave 1](../v1/wave-1.md), [entities](../v1/entities.md), [wallet service](https://github.com/Agenta-AI/agenta/blob/b0b7fe08ee2a7dbda8558504bd29b0bef994f7d3/api/ee/src/core/wallets/service.py), wallet DAO and worker implementations | Branch ledger, split/deficit settlement, replay protection, signup grants, plan adjustment, lazy provisioning and flag gates | Live paid provider use, deployment acceptance, checkout or reservations |
+| [Wave 2](../v1/wave-2.md), [work packages](../v1/wps-2.md), [integration checks](../v1/ims-2.md), [cleanup](../v1/cus-2.md) | Planned contracts, usage producer, rates, admission, wiring and mock acceptance | Implemented model billing, production pricing or real funded endpoints |
+| [Open designs](../v1/open-designs.md), [deferred scope](../v1/out-of-scope.md) | All 22 original decisions/questions and deliberate deferrals | Blanket launch scope or selected commercial terms |
+| [Gateway cleanup design](https://github.com/Agenta-AI/agenta/blob/b0b7fe08ee2a7dbda8558504bd29b0bef994f7d3/docs/design/gateways-research/v1/cleanups.md#cu5-move-the-eligible-slice-of-the-runners-tool-loopback-to-the-gateway) | MCP can remove intermediate tool relays for a narrow eligible subset | Necessity of converting all upstream Composio calls to MCP |
+| [Tool service](https://github.com/Agenta-AI/agenta/blob/b0b7fe08ee2a7dbda8558504bd29b0bef994f7d3/api/oss/src/core/tools/service.py), [Composio REST adapter](https://github.com/Agenta-AI/agenta/blob/b0b7fe08ee2a7dbda8558504bd29b0bef994f7d3/api/oss/src/core/tools/providers/composio/adapter.py), [MCP adapter](https://github.com/Agenta-AI/agenta/blob/b0b7fe08ee2a7dbda8558504bd29b0bef994f7d3/api/oss/src/core/gateways/mcps/providers/composio/adapter.py) | Separate existing execution routes | Shared wallet enforcement already wired across them |
+| [Subscription checkout](https://github.com/Agenta-AI/agenta/blob/b0b7fe08ee2a7dbda8558504bd29b0bef994f7d3/api/ee/src/apis/fastapi/billing/router.py), existing access/entitlements | Existing recurring checkout and platform limit concepts | Independent credit checkout or included sandbox counters |
+
+Original work-package mapping: contract/vocabulary seed -> shared ports requirement; producer -> actual usage requirement; rate card -> asynchronous pricing requirement; admission -> funding boundary; composition/run dimension -> wiring tasks; integration merges and fake cleanup -> acceptance and retirement tasks. Original branch sequencing must be refreshed because the gateway is already on main.
+
+The remaining safety spec deliberately adds proposed protections beyond JP's limited second phase. The source register is preserved rather than relabelled as a completed design. The standalone folder avoids overwriting the repository's unrelated OpenSpec feature configuration.

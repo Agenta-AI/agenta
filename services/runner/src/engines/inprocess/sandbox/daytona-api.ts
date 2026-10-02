@@ -101,6 +101,8 @@ export interface DaytonaSandbox {
   /** Daytona's state as of the last refresh. */
   readonly state: string | undefined;
   readonly labels: Readonly<Record<string, string>>;
+  /** The vCPUs and GiB of memory the provider reports; undefined when it does not say. */
+  readonly resources?: { vcpu: number; memoryGib: number };
   refresh(signal?: AbortSignal): Promise<void>;
   start(signal?: AbortSignal): Promise<void>;
   stop(signal?: AbortSignal): Promise<void>;
@@ -153,6 +155,10 @@ class BoundedSandbox implements DaytonaSandbox {
 
   get labels(): Readonly<Record<string, string>> {
     return this.inner.labels;
+  }
+
+  get resources(): { vcpu: number; memoryGib: number } | undefined {
+    return this.inner.resources;
   }
 
   private control<T>(operation: string, signal: AbortSignal | undefined, call: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -211,6 +217,12 @@ class SdkSandbox implements DaytonaSandbox {
 
   get labels(): Readonly<Record<string, string>> {
     return this.sandbox.labels ?? {};
+  }
+
+  get resources(): { vcpu: number; memoryGib: number } | undefined {
+    const vcpu = Number(this.sandbox.cpu);
+    const memoryGib = Number(this.sandbox.memory);
+    return vcpu > 0 && memoryGib > 0 ? { vcpu, memoryGib } : undefined;
   }
 
   refresh(): Promise<void> {

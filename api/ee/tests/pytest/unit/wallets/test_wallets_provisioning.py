@@ -9,11 +9,7 @@ from uuid import uuid4
 import pytest
 
 from ee.src.core.wallets.service import WalletsService
-from ee.tests.pytest.utils.wallets.builders import (
-    build_credit_candidate,
-    build_credit_wallet_balance,
-    build_general_wallet_balance,
-)
+from ee.tests.pytest.utils.wallets.builders import build_general_wallet_balance
 from ee.tests.pytest.utils.wallets.fakes import FakeWalletsDAO
 
 PERIOD_START = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -58,26 +54,36 @@ async def test_provision_general_balance_uses_the_plan_floor_mapping(monkeypatch
     assert dao.general_balance.floor_musd == -2_500
 
 
-@pytest.mark.asyncio
-async def test_apply_plan_change_mints_no_value_on_the_zero_allowance_self_hosted_hobby_path():
-    """Both `self_hosted_enterprise` and `cloud_v0_hobby` map to a 0 allowance (see
-    `plans.py`) — this exercises the actual production mapping, unpatched, and proves the
-    zero-allowance path still no-ops even though other plans now move real value."""
-    dao = FakeWalletsDAO(
-        general_balance=build_general_wallet_balance(balance_musd=1_000, floor_musd=0)
-    )
-    service = WalletsService(wallets_dao=dao)
-
-    result = await service.apply_plan_change(
+async def _change(service, dao, *, key, incoming_plan, now, period=None):
+    period_start, period_end = period or (PERIOD_START, PERIOD_END)
+    return await service.apply_plan_change(
         organization_id=dao.general_balance.organization_id,
-        idempotency_key="pc-zero-mapping",
-        outgoing_plan="self_hosted_enterprise",
-        incoming_plan="cloud_v0_hobby",
-        outgoing_period_start=PERIOD_START,
-        outgoing_period_end=PERIOD_END,
-        incoming_period_start=PERIOD_START,
-        incoming_period_end=PERIOD_END,
-        now=MID_PERIOD,
+        idempotency_key=key,
+        subscription_id="sub_123",
+        incoming_plan=incoming_plan,
+        period_start=period_start,
+        period_end=period_end,
+        now=now,
+    )
+
+
+def _service_with_empty_wallet(balance_musd: int = 0):
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(
+            balance_musd=balance_musd, floor_musd=0
+        )
+    )
+    return WalletsService(wallets_dao=dao), dao
+
+
+@pytest.mark.asyncio
+async def test_apply_plan_change_mints_no_value_on_the_zero_allowance_hobby_path():
+    """`cloud_v0_hobby` maps to a 0 allowance (see `plans.py`) — the real mapping,
+    unpatched: nothing is minted and nothing is clawed, but the floor is still set."""
+    service, dao = _service_with_empty_wallet(balance_musd=1_000)
+
+    result = await _change(
+        service, dao, key="pc-zero", incoming_plan="cloud_v0_hobby", now=MID_PERIOD
     )
 
     assert result.outgoing_debit_amount_musd == 0
@@ -86,87 +92,82 @@ async def test_apply_plan_change_mints_no_value_on_the_zero_allowance_self_hoste
     assert result.incoming_credit_id is None
     assert dao.debits == []
     assert dao._credits == {}
-    # general balance itself is untouched (net zero move); floor is still applied.
     assert dao.general_balance.balance_musd == 1_000
     assert dao.general_balance.floor_musd == 0
 
 
 @pytest.mark.asyncio
-async def test_apply_plan_change_upgrade_hobby_to_pro_moves_real_value():
-    """Real, unpatched `allowance_musd_for_plan` mapping (`plans.py`):
-    `cloud_v0_hobby` -> `cloud_v0_pro` is an upgrade from $0 to $5/period. No outgoing
-    credit exists yet (a fresh hobby organization never minted one), so only the incoming
-    share is prorated: 16 of the remaining 31 days -> $5,000,000 * 16/31, floored."""
-    dao = FakeWalletsDAO(
-        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
-    )
-    service = WalletsService(wallets_dao=dao)
+async def test_apply_plan_change_to_a_free_plan_needs_no_period():
+    """A cancellation lands on the free plan, which has no Stripe subscription and so no
+    billing period. It carries no allowance, so it needs none."""
+    service, dao = _service_with_empty_wallet()
 
     result = await service.apply_plan_change(
         organization_id=dao.general_balance.organization_id,
-        idempotency_key="pc-upgrade-hobby-to-pro",
-        outgoing_plan="cloud_v0_hobby",
-        incoming_plan="cloud_v0_pro",
-        outgoing_period_start=PERIOD_START,
-        outgoing_period_end=PERIOD_END,
-        incoming_period_start=PERIOD_START,
-        incoming_period_end=PERIOD_END,
+        idempotency_key="pc-cancel",
+        subscription_id=None,
+        incoming_plan="cloud_v0_hobby",
+        period_start=None,
+        period_end=None,
         now=MID_PERIOD,
     )
 
-    assert result.outgoing_debit_amount_musd == 0  # hobby's own allowance is $0
-    assert (
-        result.incoming_credit_amount_musd == 2_580_645
-    )  # 5_000_000 * 1382400 // 2678400
-    assert result.incoming_credit_id is not None
+    assert result.incoming_credit_id is None
+
+
+@pytest.mark.asyncio
+async def test_apply_plan_change_refuses_a_paid_plan_without_a_period():
+    service, dao = _service_with_empty_wallet()
+
+    with pytest.raises(ValueError):
+        await service.apply_plan_change(
+            organization_id=dao.general_balance.organization_id,
+            idempotency_key="pc-no-period",
+            subscription_id="sub_123",
+            incoming_plan="cloud_v0_pro",
+            period_start=None,
+            period_end=None,
+            now=MID_PERIOD,
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_plan_change_upgrade_hobby_to_pro_moves_real_value():
+    """Real, unpatched `allowance_musd_for_plan` mapping (`plans.py`): an upgrade to
+    `cloud_v0_pro` ($5/period) with no allowance credit yet. Only the incoming share is
+    prorated: 16 of the remaining 31 days -> $5,000,000 * 16/31, floored."""
+    service, dao = _service_with_empty_wallet()
+
+    result = await _change(
+        service, dao, key="pc-up", incoming_plan="cloud_v0_pro", now=MID_PERIOD
+    )
+
+    assert result.outgoing_debit_amount_musd == 0
+    assert result.incoming_credit_amount_musd == 2_580_645  # 5e6 * 1382400 // 2678400
     incoming_candidate, _ = dao._credits[result.incoming_credit_id]
     assert incoming_candidate.credit_kind == "plan_allowance"
+    assert incoming_candidate.end_time == PERIOD_END
     assert dao.general_balance.balance_musd == 2_580_645
 
 
 @pytest.mark.asyncio
 async def test_apply_plan_change_downgrade_business_to_pro_moves_real_value():
-    """Real, unpatched mapping: `cloud_v0_business` ($50/period) -> `cloud_v0_pro`
-    ($5/period) is a downgrade. An active business-tier `plan_allowance` credit is
-    seeded as the outgoing side, so both the outgoing remainder debit and the incoming
-    share are nonzero, and the net general-balance delta is negative (a downgrade moves
-    less value in than it removes)."""
-    outgoing_credit_id = uuid4()
-    outgoing_candidate = build_credit_candidate(
-        wallet_credit_id=outgoing_credit_id, balance_musd=50_000_000
+    """Business from the period start, then Pro on the 16th: half-ish of the $50 is
+    clawed back from the Business credit and a prorated $5 share is minted."""
+    service, dao = _service_with_empty_wallet()
+    business = await _change(
+        service, dao, key="pc-biz", incoming_plan="cloud_v0_business", now=PERIOD_START
     )
-    outgoing_balance = build_credit_wallet_balance(
-        wallet_credit_id=outgoing_credit_id, balance_musd=50_000_000
-    )
-    dao = FakeWalletsDAO(
-        general_balance=build_general_wallet_balance(
-            balance_musd=10_000_000, floor_musd=0
-        ),
-        credits=[(outgoing_candidate, outgoing_balance)],
-    )
-    service = WalletsService(wallets_dao=dao)
+    assert business.incoming_credit_amount_musd == 50_000_000
 
-    result = await service.apply_plan_change(
-        organization_id=dao.general_balance.organization_id,
-        idempotency_key="pc-downgrade-business-to-pro",
-        outgoing_plan="cloud_v0_business",
-        incoming_plan="cloud_v0_pro",
-        outgoing_period_start=PERIOD_START,
-        outgoing_period_end=PERIOD_END,
-        incoming_period_start=PERIOD_START,
-        incoming_period_end=PERIOD_END,
-        now=MID_PERIOD,
+    result = await _change(
+        service, dao, key="pc-down", incoming_plan="cloud_v0_pro", now=MID_PERIOD
     )
 
-    assert (
-        result.outgoing_debit_amount_musd == 25_806_451
-    )  # 50_000_000 * 1382400 // 2678400
-    assert (
-        result.incoming_credit_amount_musd == 2_580_645
-    )  # 5_000_000 * 1382400 // 2678400
-    net_delta = 2_580_645 - 25_806_451
-    assert net_delta < 0  # a downgrade removes more than it grants
-    assert dao.general_balance.balance_musd == 10_000_000 + net_delta
+    assert result.outgoing_credit_id == business.incoming_credit_id
+    assert result.outgoing_debit_amount_musd == 25_806_451  # 5e7 * 1382400 // 2678400
+    assert result.incoming_credit_amount_musd == 2_580_645
+    assert dao.general_balance.balance_musd == 50_000_000 - 25_806_451 + 2_580_645
 
 
 @pytest.mark.asyncio
@@ -174,22 +175,9 @@ async def test_apply_plan_change_updates_general_balance_floor(monkeypatch):
     monkeypatch.setattr(
         "ee.src.core.wallets.service.floor_musd_for_plan", lambda *, plan: -5_000
     )
-    dao = FakeWalletsDAO(
-        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
-    )
-    service = WalletsService(wallets_dao=dao)
+    service, dao = _service_with_empty_wallet()
 
-    await service.apply_plan_change(
-        organization_id=dao.general_balance.organization_id,
-        idempotency_key="pc-floor",
-        outgoing_plan="a",
-        incoming_plan="b",
-        outgoing_period_start=PERIOD_START,
-        outgoing_period_end=PERIOD_END,
-        incoming_period_start=PERIOD_START,
-        incoming_period_end=PERIOD_END,
-        now=PERIOD_START,
-    )
+    await _change(service, dao, key="pc-floor", incoming_plan="b", now=PERIOD_START)
 
     assert dao.general_balance.floor_musd == -5_000
 
@@ -202,30 +190,17 @@ async def test_apply_plan_change_moves_prorated_value_and_never_mutates_existing
         "ee.src.core.wallets.service.allowance_musd_for_plan",
         lambda *, plan: {"outgoing": 310_000, "incoming": 620_000}[plan],
     )
-    outgoing_credit_id = uuid4()
-    outgoing_candidate = build_credit_candidate(
-        wallet_credit_id=outgoing_credit_id, balance_musd=310_000
+    service, dao = _service_with_empty_wallet()
+    outgoing = await _change(
+        service, dao, key="pc-first", incoming_plan="outgoing", now=PERIOD_START
     )
-    outgoing_balance = build_credit_wallet_balance(
-        wallet_credit_id=outgoing_credit_id, balance_musd=310_000
-    )
-    dao = FakeWalletsDAO(
-        general_balance=build_general_wallet_balance(
-            balance_musd=100_000, floor_musd=0
-        ),
-        credits=[(outgoing_candidate, outgoing_balance)],
-    )
-    service = WalletsService(wallets_dao=dao)
+    outgoing_candidate, _ = dao._credits[outgoing.incoming_credit_id]
 
-    result = await service.apply_plan_change(
-        organization_id=dao.general_balance.organization_id,
-        idempotency_key="pc-move-value",
-        outgoing_plan="outgoing",
+    result = await _change(
+        service,
+        dao,
+        key="pc-move-value",
         incoming_plan="incoming",
-        outgoing_period_start=PERIOD_START,
-        outgoing_period_end=PERIOD_END,
-        incoming_period_start=PERIOD_START,
-        incoming_period_end=PERIOD_END,
         now=datetime(2026, 1, 22, tzinfo=timezone.utc),  # 10 days remaining of 31
     )
 
@@ -233,23 +208,18 @@ async def test_apply_plan_change_moves_prorated_value_and_never_mutates_existing
     # 620_000/31 * 10 == 200_000 minted.
     assert result.outgoing_debit_amount_musd == 100_000
     assert result.incoming_credit_amount_musd == 200_000
-    assert result.outgoing_credit_id == outgoing_credit_id
-    assert result.incoming_credit_id is not None
-    assert result.incoming_credit_id != outgoing_credit_id  # a NEW credit, not a reuse
+    assert result.outgoing_credit_id == outgoing.incoming_credit_id
+    assert result.incoming_credit_id != outgoing.incoming_credit_id
+    assert dao.general_balance.balance_musd == 310_000 - 100_000 + 200_000
 
-    # The general balance moved by exactly (incoming - outgoing).
-    assert dao.general_balance.balance_musd == 100_000 + (200_000 - 100_000)
-
-    # The outgoing credit's OWN immutable record (kind/priority) is untouched — only its
-    # balance projection changed, and it changed by exactly the applied amount.
-    new_candidate, new_balance = dao._credits[outgoing_credit_id]
+    # The outgoing credit's own record is untouched; only its balance moved.
+    new_candidate, new_balance = dao._credits[outgoing.incoming_credit_id]
     assert new_candidate.credit_kind == outgoing_candidate.credit_kind
     assert new_candidate.priority == outgoing_candidate.priority
+    assert new_candidate.end_time == outgoing_candidate.end_time
     assert new_balance.balance_musd == 310_000 - 100_000
 
-    # A brand-new credit was minted for the incoming share — the old one was never
-    # reused or rewritten.
-    new_credit_candidate, new_credit_balance = dao._credits[result.incoming_credit_id]
+    _, new_credit_balance = dao._credits[result.incoming_credit_id]
     assert new_credit_balance.balance_musd == 200_000
 
 
@@ -260,19 +230,16 @@ def test_apply_plan_change_never_updates_an_existing_wallet_credit_row():
     mutated afterward. Only `WalletBalanceDBE.balance_musd` (the mutable projection) is
     ever decremented in place."""
     import inspect
+    import re
 
     import ee.src.dbs.postgres.wallets.dao as dao_module
 
     source = inspect.getsource(dao_module.WalletsDAO.apply_plan_change)
 
     assert "update(WalletCreditDBE)" not in source
-    assert ".credit_kind =" not in source
-    assert ".priority =" not in source
-    assert ".end_time =" not in source
-    # amount_musd is only ever set as a constructor kwarg on a NEW WalletCreditDBE(...),
-    # never assigned onto an existing object.
-    assert "credit.amount_musd =" not in source
-    assert "outgoing_credit.amount_musd =" not in source
+    # An assignment, not a `==` comparison in a WHERE clause.
+    for field in ("credit_kind", "priority", "end_time", "start_time", "amount_musd"):
+        assert not re.search(rf"credit\w*\.{field}\s*=(?!=)", source), field
 
 
 @pytest.mark.asyncio
@@ -280,72 +247,104 @@ async def test_apply_plan_change_replayed_webhook_applies_exactly_once(monkeypat
     monkeypatch.setattr(
         "ee.src.core.wallets.service.allowance_musd_for_plan", lambda *, plan: 620_000
     )
-    dao = FakeWalletsDAO(
-        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
-    )
-    service = WalletsService(wallets_dao=dao)
+    service, dao = _service_with_empty_wallet()
 
-    kwargs = dict(
-        organization_id=dao.general_balance.organization_id,
-        idempotency_key="pc-replay-once",
-        outgoing_plan="a",
-        incoming_plan="b",
-        outgoing_period_start=PERIOD_START,
-        outgoing_period_end=PERIOD_END,
-        incoming_period_start=PERIOD_START,
-        incoming_period_end=PERIOD_END,
-        now=PERIOD_START,
+    first = await _change(
+        service, dao, key="pc-replay-once", incoming_plan="b", now=PERIOD_START
     )
-
-    first = await service.apply_plan_change(**kwargs)
     balance_after_first = dao.general_balance.balance_musd
     credits_after_first = dict(dao._credits)
 
-    second = await service.apply_plan_change(**kwargs)  # same idempotency_key, replayed
+    second = await _change(
+        service, dao, key="pc-replay-once", incoming_plan="b", now=MID_PERIOD
+    )
 
     assert first.replayed is False
     assert second.replayed is True
     assert second.incoming_credit_id == first.incoming_credit_id
     assert second.incoming_credit_amount_musd == first.incoming_credit_amount_musd
-    # No second financial effect: same balance, same credit set.
     assert dao.general_balance.balance_musd == balance_after_first
     assert dao._credits == credits_after_first
-    assert len(dao._credits) == 1  # only ONE credit was ever minted, not two
+    assert len(dao._credits) == 1
 
 
 @pytest.mark.asyncio
-async def test_apply_plan_change_sizes_and_expires_the_new_credit_by_the_incoming_window():
-    """An upgrade that also MOVES the billing anchor: the old subscription billed on the
-    15th, the new one bills on the 14th. The minted credit must be worth the full $5 of
-    the period it covers and expire at that period's end (14 April) — not be worth
-    178_571 musd and expire the next day, which is what sizing it against the outgoing
-    window produced. Real, unpatched `plans.py` mapping."""
-    dao = FakeWalletsDAO(
-        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
-    )
-    service = WalletsService(wallets_dao=dao)
-    incoming_period_end = datetime(2026, 4, 14, tzinfo=timezone.utc)
+async def test_apply_plan_change_sizes_and_expires_the_new_credit_by_its_period():
+    """The minted credit is worth the share of the period it covers and expires at
+    that period's end."""
+    service, dao = _service_with_empty_wallet()
+    period_end = datetime(2026, 4, 14, 15, 0, tzinfo=timezone.utc)
 
-    result = await service.apply_plan_change(
-        organization_id=dao.general_balance.organization_id,
-        idempotency_key="pc-anchor-moved",
-        outgoing_plan="cloud_v0_hobby",
+    result = await _change(
+        service,
+        dao,
+        key="pc-period",
         incoming_plan="cloud_v0_pro",
-        outgoing_period_start=datetime(2026, 2, 15, tzinfo=timezone.utc),
-        outgoing_period_end=datetime(2026, 3, 15, tzinfo=timezone.utc),
-        incoming_period_start=datetime(2026, 3, 14, tzinfo=timezone.utc),
-        incoming_period_end=incoming_period_end,
-        now=datetime(
-            2026, 3, 14, tzinfo=timezone.utc
-        ),  # the whole incoming period left
+        now=datetime(2026, 3, 14, 15, 0, tzinfo=timezone.utc),
+        period=(datetime(2026, 3, 14, 15, 0, tzinfo=timezone.utc), period_end),
     )
 
-    assert result.incoming_credit_amount_musd == 5_000_000  # the full $5, not 178_571
-    assert (
-        result.outgoing_debit_amount_musd == 0
-    )  # hobby minted no allowance to claw back
-    assert result.incoming_credit_id is not None
+    assert result.incoming_credit_amount_musd == 5_000_000
     incoming_candidate, incoming_balance = dao._credits[result.incoming_credit_id]
-    assert incoming_candidate.end_time == incoming_period_end
+    assert incoming_candidate.end_time == period_end
     assert incoming_balance.balance_musd == 5_000_000
-    assert dao.general_balance.balance_musd == 5_000_000
+
+
+@pytest.mark.asyncio
+async def test_successive_changes_claw_back_the_newest_allowance():
+    """Pro on the 1st, Business on the 11th, Hobby on the 22nd, one 31-day period.
+    The Hobby change must claw the Business credit, not the Pro one: both end at the
+    same instant, so choosing by expiry could pick either."""
+    service, dao = _service_with_empty_wallet()
+    await _change(
+        service, dao, key="pc-pro", incoming_plan="cloud_v0_pro", now=PERIOD_START
+    )
+    business = await _change(
+        service,
+        dao,
+        key="pc-biz",
+        incoming_plan="cloud_v0_business",
+        now=datetime(2026, 1, 11, tzinfo=timezone.utc),
+    )
+
+    hobby = await _change(
+        service,
+        dao,
+        key="pc-hobby",
+        incoming_plan="cloud_v0_hobby",
+        now=datetime(2026, 1, 22, tzinfo=timezone.utc),
+    )
+
+    assert hobby.outgoing_credit_id == business.incoming_credit_id
+    # The Business credit holds 21/31 of $50 (33_870_967); 10 of its 21 days remain.
+    assert hobby.outgoing_debit_amount_musd == 33_870_967 * 10 // 21
+
+
+@pytest.mark.asyncio
+async def test_a_change_after_a_clawback_does_not_claw_the_same_credit_again():
+    """Pro on the 1st, Hobby on the 11th (clawed, nothing minted), Pro again on the
+    22nd. The Pro credit's remainder after the first clawback was earned; the third
+    change must not treat it as an outgoing allowance a second time."""
+    service, dao = _service_with_empty_wallet()
+    pro = await _change(
+        service, dao, key="pc-pro", incoming_plan="cloud_v0_pro", now=PERIOD_START
+    )
+    await _change(
+        service,
+        dao,
+        key="pc-hobby",
+        incoming_plan="cloud_v0_hobby",
+        now=datetime(2026, 1, 11, tzinfo=timezone.utc),
+    )
+    _, earned = dao._credits[pro.incoming_credit_id]
+
+    again = await _change(
+        service,
+        dao,
+        key="pc-pro-again",
+        incoming_plan="cloud_v0_pro",
+        now=datetime(2026, 1, 22, tzinfo=timezone.utc),
+    )
+
+    assert again.outgoing_debit_amount_musd == 0
+    assert dao._credits[pro.incoming_credit_id][1].balance_musd == earned.balance_musd

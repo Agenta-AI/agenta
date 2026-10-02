@@ -7,19 +7,10 @@ key, never cascaded — per `docs/design/wallets-research/v1/entities.md`.
 from sqlalchemy import BigInteger, Column, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 
-from oss.src.dbs.postgres.shared.dbas import LifecycleDBA
+from oss.src.dbs.postgres.shared.dbas import LifecycleDBA, OrganizationScopeDBA
 
 
-class WalletOrgScopeDBA:
-    __abstract__ = True
-
-    organization_id = Column(
-        UUID(as_uuid=True),
-        nullable=False,
-    )
-
-
-class WalletCreditDBA(WalletOrgScopeDBA, LifecycleDBA):
+class WalletCreditDBA(OrganizationScopeDBA, LifecycleDBA):
     __abstract__ = True
 
     id = Column(UUID(as_uuid=True), nullable=False)
@@ -34,7 +25,7 @@ class WalletCreditDBA(WalletOrgScopeDBA, LifecycleDBA):
     data = Column(JSONB(none_as_null=True), nullable=True)
 
 
-class WalletDebitDBA(WalletOrgScopeDBA, LifecycleDBA):
+class WalletDebitDBA(OrganizationScopeDBA, LifecycleDBA):
     __abstract__ = True
 
     id = Column(UUID(as_uuid=True), nullable=False)
@@ -54,7 +45,7 @@ class WalletDebitDBA(WalletOrgScopeDBA, LifecycleDBA):
     data = Column(JSONB(none_as_null=True), nullable=True)
 
 
-class WalletBalanceDBA(WalletOrgScopeDBA, LifecycleDBA):
+class WalletBalanceDBA(OrganizationScopeDBA, LifecycleDBA):
     __abstract__ = True
 
     id = Column(UUID(as_uuid=True), nullable=False)

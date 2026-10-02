@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from json import loads
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -92,11 +93,20 @@ async def test_handle_events_reads_subscription_created_metadata_from_stripe_obj
             Event=SimpleNamespace(
                 construct_from=lambda payload, api_key: SimpleNamespace(
                     id="evt_created_1",
+                    created=1710000030,
                     type="customer.subscription.created",
                     data=SimpleNamespace(
                         object=SimpleNamespace(
                             id="sub_123",
                             billing_cycle_anchor=1710000000,
+                            items=SimpleNamespace(
+                                data=[
+                                    SimpleNamespace(
+                                        current_period_start=1710000000,
+                                        current_period_end=1712678400,
+                                    )
+                                ]
+                            ),
                             metadata=SimpleNamespace(
                                 target=billing_router_module.env.stripe.webhook_target,
                                 organization_id="org_123",
@@ -122,6 +132,12 @@ async def test_handle_events_reads_subscription_created_metadata_from_stripe_obj
         # The verified event's OWN id, not the subscription's: it identifies this
         # delivery, and the wallet proration keys its idempotency on it.
         event_id="evt_created_1",
+        # When Stripe says the change happened, and the real billing period — the
+        # wallet prorates the new allowance over these, not over a midnight-aligned
+        # window at processing time.
+        effective_at=datetime.fromtimestamp(1710000030, tz=timezone.utc),
+        period_start=datetime.fromtimestamp(1710000000, tz=timezone.utc),
+        period_end=datetime.fromtimestamp(1712678400, tz=timezone.utc),
     )
 
 
@@ -146,6 +162,7 @@ async def test_handle_events_reads_invoice_metadata_from_stripe_objects(monkeypa
             Event=SimpleNamespace(
                 construct_from=lambda payload, api_key: SimpleNamespace(
                     id="evt_invoice_1",
+                    created=1710000030,
                     type="invoice.payment_succeeded",
                     data=SimpleNamespace(
                         object=SimpleNamespace(
@@ -173,6 +190,9 @@ async def test_handle_events_reads_invoice_metadata_from_stripe_objects(monkeypa
         plan=None,
         anchor=None,
         event_id="evt_invoice_1",
+        effective_at=datetime.fromtimestamp(1710000030, tz=timezone.utc),
+        period_start=None,
+        period_end=None,
     )
 
 

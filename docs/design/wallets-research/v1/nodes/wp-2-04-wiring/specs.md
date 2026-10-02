@@ -20,7 +20,7 @@ owns that seam.
 | Leave the null implementations as the defaults, so the construction is an override and reads like one. | Make the gateway's constructor require an adapter. A missing binding must degrade to today's behaviour, not to a crash. |
 | Follow `worker_streams.py`'s existing EE branch as the precedent for how this repository does conditional EE construction. | Invent a second registry or a plugin mechanism for two objects. |
 | Prove the flag-off path with a test that constructs the app and asserts both ports are null. | Assert it in a comment. This is the property the whole wave's safety rests on. |
-| Reuse the process-wide singletons the wallet already exposes through `ee/src/core/wallets/runtime.py`. | Construct a second `WalletsService` or a second Redis client for the gateway's use. |
+| Reuse the `WalletsService` the EE composition root builds (`wallets_service` in `ee/src/main.py`), and build the `RedisMeasurementPublisher` (`ee/src/dbs/redis/wallets/streams.py`) at the entrypoint with the durable Redis client injected. | Construct a second `WalletsService` or a second Redis client for the gateway's use. |
 
 ## Files
 
@@ -35,7 +35,7 @@ On `feat/add-wallets`:
 
 | File | New or edited |
 | --- | --- |
-| `api/ee/src/core/measurements/runtime.py` | new — the sink and publisher singletons, mirroring `wallets/runtime.py` |
+| `api/ee/src/core/measurements/runtime.py` | new — the sink and publisher singletons. Note: `wallets/runtime.py` no longer exists (CU-2 layering fix); core must not build them itself, so the entrypoint registers them here, as `register_wallets_service` does for the organization hooks. |
 | `api/ee/tests/pytest/acceptance/gateways/test_gateway_wallet_chain.py` | new — one real relay, one measurement, one posting, one moved balance |
 | `api/ee/tests/pytest/integration/measurements/test_measurements_integration.py` | edited — the gateway-produced command end to end, after `WP-2-02`'s vocabulary change has merged |
 

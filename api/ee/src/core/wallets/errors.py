@@ -7,14 +7,7 @@ the stream entry pending for normal consumer-group redelivery).
 
 
 class WalletError(Exception):
-    """Base class for all wallet-domain errors, stream-level and core alike.
-
-    Exactly one class carries this name, and every wallet-domain exception inherits from
-    it, directly or through the terminal/retryable split below. A second base of the same
-    name elsewhere in the package would make `except WalletError` catch only half the
-    taxonomy, and the half it missed would be the core errors that mean a charge did not
-    settle.
-    """
+    """Base class for all wallet-domain errors, stream-level and core alike."""
 
 
 class WalletTerminalError(WalletError):
@@ -31,9 +24,9 @@ class UnsupportedVersionError(WalletTerminalError):
     """Terminal: the envelope's `version` is not one this worker understands. There is no
     way to safely price or settle an envelope shape the worker cannot interpret."""
 
-    def __init__(self, *, version, message: str = None):
+    def __init__(self, *, version):
         self.version = version
-        super().__init__(message or f"Unsupported envelope version: {version!r}")
+        super().__init__(f"Unsupported envelope version: {version!r}")
 
 
 class WalletRetryableError(WalletError):
@@ -44,3 +37,38 @@ class WalletRetryableError(WalletError):
 class SettlementUnavailableError(WalletRetryableError):
     """Retryable: the settlement backend (database, distributed lock, …) was unavailable
     or timed out."""
+
+
+class UnpricedMeasurementError(WalletRetryableError):
+    """Retryable: a platform-funded measurement names a resource the rate card does not
+    price. An unknown price is not a zero price, so nothing is stored and the message is
+    retried, which covers a worker older than the API that emitted it, and dead-lettered
+    if the card never learns the price."""
+
+    def __init__(self, *, resource_key: str):
+        self.resource_key = resource_key
+        super().__init__(f"No rate for {resource_key!r}")
+
+
+class MeasurementConflictError(WalletTerminalError):
+    """Terminal: a measurement id arrived again with different content from the stored
+    measurement. The stored fact stays as it is and the new payload is not charged."""
+
+    def __init__(self, *, measurement_id: str):
+        self.measurement_id = measurement_id
+        super().__init__(
+            f"Measurement {measurement_id!r} replayed with a different payload"
+        )
+
+
+class MeasurementWithoutOrganizationError(WalletTerminalError):
+    """Terminal: a measurement arrived without the organization its producer
+    authenticated. The payer is never inferred later, so there is no one to charge."""
+
+    def __init__(self, *, measurement_id: str):
+        self.measurement_id = measurement_id
+        super().__init__(f"Measurement {measurement_id!r} carries no organization")
+
+
+class InvalidUsageWindowError(WalletError):
+    """The usage window's start is not before its end."""

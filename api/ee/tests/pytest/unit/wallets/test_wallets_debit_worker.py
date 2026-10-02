@@ -1,11 +1,11 @@
 """DebitWorker.process_batch — valid dispatch, duplicate delivery, malformed/
-unsupported-version terminal ACK, retryable settlement failure, and per-message
-ACK ordering. No Redis/Postgres: settlement is an in-memory fake port."""
+unsupported-version terminal dead letter, retryable settlement failure, and per-message
+ACK ordering. No Postgres: settlement is an in-memory fake port, Redis is fakeredis."""
 
 import zlib
-from unittest.mock import MagicMock
 from uuid import uuid4
 
+import fakeredis.aioredis as fakeredis
 import pytest
 from orjson import dumps
 
@@ -20,8 +20,12 @@ from ee.tests.pytest.utils.wallets.fakes import FakeWalletSettlementPort
 def _make_worker(*, settlement_port=None) -> DebitWorker:
     return DebitWorker(
         settlement_port=settlement_port or FakeWalletSettlementPort(),
-        redis_client=MagicMock(),
+        redis_client=fakeredis.FakeRedis(),
     )
+
+
+async def _dead_letters(worker: DebitWorker):
+    return await worker.redis.xrange(worker.dead_letter_stream)
 
 
 def _entry(command, msg_id: bytes = b"1-0"):
@@ -65,20 +69,24 @@ async def test_duplicate_delivery_leaves_effects_unchanged_and_still_acks():
 
 
 @pytest.mark.asyncio
-async def test_malformed_envelope_acks_without_calling_settle():
+async def test_malformed_envelope_is_dead_lettered_without_calling_settle():
     port = FakeWalletSettlementPort()
     worker = _make_worker(settlement_port=port)
     entry = (b"1-0", {b"data": b"this is not a valid compressed envelope"})
 
     count, processed_ids = await worker.process_batch([entry])
 
-    assert count == 1
-    assert processed_ids == [b"1-0"]
+    assert count == 0
+    assert processed_ids == []  # moved by dead_letter, not ACKed by the caller
     assert port.calls == []
+    [(_, dead)] = await _dead_letters(worker)
+    assert dead[b"data"] == b"this is not a valid compressed envelope"
+    assert dead[b"dead_letter_source_id"] == b"1-0"
+    assert dead[b"dead_letter_reason"].startswith(b"terminal: ")
 
 
 @pytest.mark.asyncio
-async def test_unknown_version_acks_without_calling_settle():
+async def test_unknown_version_is_dead_lettered_without_calling_settle():
     port = FakeWalletSettlementPort()
     worker = _make_worker(settlement_port=port)
     raw = build_debit_command().model_dump(mode="json")
@@ -88,9 +96,12 @@ async def test_unknown_version_acks_without_calling_settle():
 
     count, processed_ids = await worker.process_batch([entry])
 
-    assert count == 1
-    assert processed_ids == [b"1-0"]
+    assert count == 0
+    assert processed_ids == []
     assert port.calls == []
+    [(_, dead)] = await _dead_letters(worker)
+    assert dead[b"data"] == payload  # replayable once a worker understands it
+    assert b"Unsupported envelope version" in dead[b"dead_letter_reason"]
 
 
 @pytest.mark.asyncio
@@ -164,11 +175,12 @@ async def test_ack_ordering_strictly_follows_committed_transaction():
 
 
 @pytest.mark.asyncio
-async def test_missing_general_balance_is_terminal_and_acks():
+async def test_missing_general_balance_is_terminal_and_dead_lettered():
     """Open-designs item 14: settlement provisions a missing general balance row itself,
     so this error means the row is neither present nor insertable. Retrying the same
     posting cannot change that, and treating it as retryable wedged the message in the
-    pending list forever. Terminal: logged and ACKed, charge dropped."""
+    pending list forever. Terminal: dead-lettered with the posting it would have charged
+    (open-designs item 20)."""
     org_id = uuid4()
     port = FakeWalletSettlementPort()
     port.raise_next = WalletGeneralBalanceNotFoundError(org_id)
@@ -179,9 +191,12 @@ async def test_missing_general_balance_is_terminal_and_acks():
 
     count, processed_ids = await worker.process_batch([_entry(command)])
 
-    assert count == 1
-    assert processed_ids == [b"1-0"]  # ACKed, not left pending for infinite redelivery
+    assert count == 0
+    assert processed_ids == []
     assert len(port.calls) == 1
+    [(_, dead)] = await _dead_letters(worker)
+    assert dead[b"dead_letter_reason"] == b"terminal: no general balance"
+    assert dead[b"dead_letter_description"] == f"{org_id}:gw_unprovisioned_org".encode()
 
 
 @pytest.mark.asyncio
@@ -199,9 +214,10 @@ async def test_missing_general_balance_does_not_block_the_rest_of_the_batch():
         [_entry(poison, msg_id=b"1-0"), _entry(healthy, msg_id=b"1-1")]
     )
 
-    assert count == 2
-    assert processed_ids == [b"1-0", b"1-1"]
+    assert count == 1
+    assert processed_ids == [b"1-1"]
     assert port.effects[(healthy.organization_id, "gw_healthy")] == 1
+    assert len(await _dead_letters(worker)) == 1
 
 
 @pytest.mark.asyncio

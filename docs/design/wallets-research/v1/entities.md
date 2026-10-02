@@ -331,6 +331,7 @@ A credit is the credit-side record; it is not duplicated in `measurements`.
   "end_time": "2026-09-01T00:00:00Z",
   "data": {
     "references": {
+      "plan_change_idempotency_key": "plan_change:evt_...",
       "subscription": {"id": "sub_..."}
     }
   },
@@ -347,11 +348,22 @@ not silently rewrite this arrival row.
 provisions each organization's general `wallet_balances` row (`wallet_credit_id IS NULL`)
 idempotently; migration `ee0000000005_backfill_wallet_general_balances.py` backfills it for
 organizations that predate this change. A mid-period plan change prorates a `plan_allowance`
-credit: `ee.src.core.wallets.proration.compute_plan_change_proration` computes the outgoing
-remainder debit and the incoming share (pure, DB-free arithmetic), and
-`WalletsDAO.apply_plan_change` applies both — debiting the outgoing credit's balance and minting a
-NEW `wallet_credits` row for the incoming share, never mutating an existing row — idempotent on
-the subscription's `plan_change:{subscription_id}:{period_start}` key.
+credit. `WalletsDAO.apply_plan_change` does it in one transaction under the general-balance lock:
+it selects the outgoing allowance (the organization's newest `plan_allowance` credit, by a
+`created_at` taken from the database clock after the lock, unless a plan change already clawed it
+back), claws back the unused share of that credit's own
+lifetime (`start_time` to `end_time`), and mints a NEW `wallet_credits` row for the incoming
+plan's share of the Stripe billing period, never mutating an existing row. The arithmetic is the
+pure `ee.src.core.wallets.proration` functions. The minted credit starts at the instant the change
+took effect, ends at the period end, and records `data.references.subscription.id` and
+`data.references.plan_change_idempotency_key`. The key is `plan_change:{stripe_event_id}` on the
+webhook path and `plan_change:{uuid7}` on the direct routes, which are serialized per organization
+by the subscription lock (open-designs item 22). The partial unique index
+`uq_wallet_credits_org_plan_change_key` on `(organization_id,
+data->'references'->>'plan_change_idempotency_key')` (`ee0000000004`) makes a second incoming
+credit for one plan change impossible at the database, as `uq_wallet_credits_org_award_key` does
+for grant awards. The general-row lock already serializes plan changes; the index is the final
+guard.
 
 `ee.src.core.wallets.plans` carries real, PRODUCT-DECIDED (2026-08-14) per-plan allowance and floor
 amounts — see `nodes/im-1-02-pipeline/acceptance.md` §"2b" for the table. Every floor is 0 at
@@ -367,6 +379,13 @@ name exactly), awarded once per organization on every plan including free, twelv
 (`report.md` §9.5/§9.6), wired into the signup organization-creation path only
 (`provision_signup_subscription`, never `provision_user_subscription`/explicit `POST
 /organizations/`, per `report.md` §9.2), after the general balance row already exists.
+The award key is stored at `data.references.award_idempotency_key` on the minted credit, and the
+partial unique index `uq_wallet_credits_org_award_key` on `(organization_id,
+data->'references'->>'award_idempotency_key')` (`ee0000000004`) makes a second credit for one
+award impossible at the database, as `uq_wallet_debits_org_debit_key` does for debits. The
+general-row lock already serializes awards; the index is the final guard. Organizations that
+signed up while the flag was off are granted by the one-off job
+`entrypoints.backfill_wallet_signup_grants` (`open-designs.md` item 15).
 
 **`credit_kind` (delivered set, `WP-1-04`).** `GENERAL_CREDIT_KINDS` in `ee.src.core.wallets.types`
 carries eight of `mechanics.md` §4's thirteen inbound kinds — enough to distinguish a signup grant
@@ -466,6 +485,16 @@ For SBX, the same child collection holds `vcpu_core_time_msec`, `vcpu_core_cost_
 `disk_gibi_cost_musd`, `vgpu_core_time_msec`, `vgpu_core_cost_musd`,
 `blob_gibi_time_msec`, and `blob_gibi_cost_musd` when the collector has them.
 
+The delivered SBX producer (the runner's sandbox meter, 2026-09-26) uses a smaller set instead:
+`sandbox_seconds`, `vcpu_seconds` and `memory_gib_seconds` per whole-second interval, with no
+component costs; the rate card prices the resource-seconds. See
+[v2/sandbox-seconds.md](../v2/sandbox-seconds.md).
+
+A managed tool action (2026-09-27) is a fourth kind, `gateway_kind: tool`, with one component per
+execution: `action_calls` or `action_results`, the billable units counted from the action's
+output. `resource_key` is `tool:<action key>`; the execution id is both `measurement_id` and
+`request_id`. See [v2/managed-tools.md](../v2/managed-tools.md).
+
 Every measurement belongs to a project, so it carries `project_id`, optional `user_id` and `agent_id`,
 plus `gateway_kind`, `resource_key`, optional `endpoint_id`, `endpoint_kind`, the gateway-minted
 `request_id`, and a gateway-minted `measurement_id`. `measurement_id` is an opaque identity that the
@@ -500,10 +529,11 @@ not invent a second serialization protocol. It needs two dedicated streams becau
 worker consumes the first and produces the second; the generic shared consumer deletes successfully
 processed stream entries and therefore cannot safely fan out one entry to both workers.
 
-Like the existing `streams:spans`, `streams:events`, and `streams:records` producers, both new streams
-use bounded approximate `MAXLEN` trimming and successful consumers ACK plus delete messages. Their
-configured maximum lengths may differ by workload, but the transport/retention mechanism is the same
-for all streams.
+Successful consumers ACK plus delete messages, so a stream's length is its unprocessed backlog.
+Unlike the existing `streams:spans`, `streams:events`, and `streams:records` producers, the two
+wallet streams are not trimmed with `MAXLEN`, since a trim could only delete unprocessed charges.
+The publishers refuse a publish past a backlog limit instead, and each stream has a dead-letter
+stream, `<stream>:dead`, for entries the pipeline cannot accept (open-designs item 20).
 
 #### `streams:measurements`
 
@@ -512,9 +542,10 @@ publishes it on this branch: the only producers are the Wave 1 fakes under
 `api/ee/tests/pytest/acceptance/wallets/fakes/`, and wiring the real one is a gateway-wave deliverable,
 so no managed request is billed yet. It is the only producer-side loss boundary: if its `XADD` fails,
 no measurement and no charge are created.
-`organization_id` follows the existing events/records convention: it is optional on this envelope.
-When absent, the measurement worker resolves organization from `project_id` before it emits the debit
-message. The persisted measurement does not duplicate organization; project remains the analytics
+`organization_id` is the payer the producer authenticated. The envelope field is optional in shape,
+but the measurement worker requires it: an entry without it is dead-lettered before anything is
+persisted or charged, and the organization is never looked up from `project_id` (open-designs
+item 20). The persisted measurement does not duplicate organization; project remains the analytics
 hierarchy anchor.
 
 ```json
@@ -554,15 +585,50 @@ an SBX observation can provide `vcpu_core_time_msec`, `vmem_gibi_time_msec`, and
 component cost. Their metric-specific unit is encoded by the stable key. `resource_locator` and
 `references` are structured objects; neither is an unbounded raw provider payload or secret store.
 
-The measurement worker validates the envelope, inserts exactly one immutable `measurements` row and its
-`measurement_values` under the gateway-supplied `measurement_id`, calculates the final charge, and
-publishes the second message. It ACKs the measurement message only after those actions complete, with
-one deliberate exception: a chargeable measurement whose `project_id` resolves to no organization is
-persisted and then ACKed with no debit published. The worker cannot bill what it cannot attribute, and
-redelivering a project that will never resolve stalls the stream behind it, so the charge is dropped
-and logged—the same family of terminal drops as open-designs item 20. A malformed/unsupported version
-is logged and terminally ACKed—there is no way to safely price an envelope the worker cannot
-interpret.
+The measurement worker validates the envelope, requires its `organization_id`, and first looks the
+measurement up. An unseen one is priced and inserted as exactly one immutable
+`measurements` row with its `measurement_values` and its charge decision in one tracing
+transaction; the second message is then published from that decision. A measurement already
+stored is replayed from its stored decision alone, without the pricer.
+It ACKs the measurement message only after those actions complete.
+Envelope validation rejects repeated component keys. Entries the worker can never accept go to
+`streams:measurements:dead` with their reason (open-designs item 20): a malformed or unsupported
+version, which there is no way to safely price; a measurement without the organization its producer
+authenticated, which is not stored; and a `measurement_id` seen again with different content, which leaves the stored
+measurement unchanged and is not priced. A `builtin` measurement the rate card cannot price is not
+stored either: it is retried and, after `max_deliveries`, dead-lettered (item 19). An identical
+replay is a no-op, detected by the content fingerprint in `measurements.data.fingerprint`.
+
+**Wave 2: `measurements.data`.** Three keys, no migration (the column is already JSONB):
+
+```json
+{
+  "references": {"workflow": {"gateway_run_id": "..."}},
+  "fingerprint": "<sha256 of the measurement, envelope fields excluded>",
+  "charge": {
+    "amount_musd": 1883,
+    "pricing_version": "rc-0123456789ab",
+    "organization_id": "org_7a...",
+    "created_at": "2026-09-25T20:56:11.334512Z"
+  }
+}
+```
+
+`charge` is null when the measurement is not charged (`endpoint_kind` other than `builtin`, or
+nothing priced was used). The fingerprint covers the measurement only, never the decision derived
+from it. `charge.created_at` is the debit envelope's `created_at`, stored so a replayed debit is
+byte-identical to the first. When two workers race on one unseen measurement, the insert that
+loses answers with the committed winner's decision.
+
+**Wave 2: the gateway producer.** `MeasurementUsageSink` (`ee/src/core/measurements/sink.py`)
+emits one measurement per dispatched `builtin` LLM call: `measurement_id = request_id =
+"msr_<uuid7>"`, `endpoint_kind` is the gateway namespace (`builtin`; the Wave 1 fixture value
+`managed` is gone), `resource_key = "llm:<provider>:<model>"`, `resource_locator =
+{"provider", "model", "endpoint_id"}`, and `references.workflow.gateway_run_id` only when the
+caller was on a run. Components use the keys in `ee/src/core/measurements/components.py`:
+`request_count`, `input_tokens` (fresh input only), `cache_read_tokens`, `cache_write_tokens`,
+`output_tokens`. The Wave 1 key `cached_tokens` is replaced by `cache_read_tokens`, and no
+component carries `cost_musd` (item 18).
 
 #### `streams:debits`
 
@@ -686,18 +752,24 @@ row for pre-existing organizations and is the current `core_ee` head. It adds no
 column, so nothing in this document's schema changes with it.
 
 The delivered streams are `streams:measurements` (consumer group `worker-measurements`) and
-`streams:debits` (consumer group `worker-debits`), both `MAXLEN 100_000` (approximate trimming),
+`streams:debits` (consumer group `worker-debits`), both with a 100,000-entry backlog limit that
+refuses new publishes rather than trimming, and each with a `<stream>:dead` dead-letter stream,
 registered in `api/entrypoints/worker_streams.py` and gated into `ALL_STREAMS` only when `is_ee()`
 is true and `AGENTA_WALLETS_ENABLED` is on (see `wave-1.md`, Feature flag).
-The debit idempotency key the measurement worker mints is `"measurement:{measurement_id}"`. Wave 1
-pricing is an explicit fixture (`PRICING_VERSION = "wallet-v1-fake-1"` in
-`ee/src/core/measurements/pricing.py`), chargeable only when `endpoint_kind == "managed"` — it is
-not the versioned production pricing configuration this document describes elsewhere.
+The debit idempotency key the measurement worker mints is `"measurement:{measurement_id}"`. Wave 2
+replaced the Wave 1 fixture pricer (`pricing.py`, `"wallet-v1-fake-1"`, `endpoint_kind ==
+"managed"`) with the rate card in `ee/src/core/measurements/rate_card.py`: integer micro-dollars
+per million tokens keyed by `(provider, model)`, per request keyed by MCP `server`, and a
+`pricing_version` of `"rc-"` plus a hash of the table. Only `endpoint_kind == "builtin"` is
+charged (open-designs items 16 and 19). Its rates are synthetic: `builtin` serves only the mock.
 
 The `check(delta)` this document names throughout is the design operation, not the delivered
 signature. Wave 1 has no admission control and no hold, so what shipped is
-`check(*, organization_id) -> bool`: an `async` read of the committed general balance against its
-floor, with no amount argument at all. The `amount_musd` parameter the first implementation carried
+`check(*, organization_id) -> bool`: an `async` read of the committed spendable balance against the
+general row's floor, with no amount argument at all. Spendable is the general balance minus the
+remaining value of expired credits, derived in one statement by
+`WalletsDAO.get_spendable_balance`, because nothing posts expired value out of the general row
+(`open-designs.md` item 21). The `amount_musd` parameter the first implementation carried
 and never read was removed in `WP-1-04`. An amount returns to that signature only when an L1
 exposure estimate gives it meaning, with reservation semantics behind it — see `open-designs.md`
 items 10 and 11.

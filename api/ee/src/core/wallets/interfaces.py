@@ -1,6 +1,4 @@
-"""Wallet check/settlement ports. Both are contracts only in WP-1-00 — every body raises
-`NotImplementedError`; a later package supplies the concrete Postgres-backed adapters.
-"""
+"""Wallet check/settlement ports. `WalletsService` implements both."""
 
 from uuid import UUID
 

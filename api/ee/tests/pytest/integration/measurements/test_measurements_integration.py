@@ -6,22 +6,46 @@ Requires a reachable tracing Postgres (`AGENTA_POSTGRES_URI_TRACING` or
 equivalent) and durable Redis; `conftest.py` skips this module otherwise.
 """
 
+import asyncio
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
 from redis.asyncio import Redis
 from sqlalchemy import select
 
+from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import LLMProtocol
+from oss.src.core.gateways.llms.providers.passthrough.adapter import (
+    _StreamUsageReader,
+)
+from oss.src.core.gateways.policy.dtos import (
+    GatewayOutcome,
+    GatewayPlane,
+    GatewayTarget,
+)
 from oss.src.dbs.postgres.shared.engine import AnalyticsEngine
+from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
 
+from ee.src.core.measurements.dtos import ChargeDecision
+from ee.src.core.measurements.sink import measurement_from_call
 from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
-from ee.src.core.wallets.streaming import RedisDebitPublisher, RedisMeasurementPublisher
+from ee.src.core.wallets.streaming import serialize_debit_command
+from ee.src.dbs.redis.wallets.streams import (
+    RedisDebitPublisher,
+    RedisMeasurementPublisher,
+)
 from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
 from ee.src.dbs.postgres.measurements.dbes import MeasurementDBE, MeasurementValueDBE
+from ee.src.tasks.asyncio.measurements import worker as worker_module
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
-from ee.tests.pytest.utils.measurements.fakes import InMemoryOrganizationResolver
+from ee.src.tasks.asyncio.wallets.worker import DebitWorker
+from ee.tests.pytest.utils.measurements.fakes import (
+    InMemoryDebitPublisher,
+)
 from ee.tests.pytest.utils.wallets.builders import build_measurement_command
+
 
 # Same xdist group as the wallet integration modules: this worker publishes to the same
 # `STREAM_MEASUREMENTS`/`STREAM_DEBITS` Redis streams they consume, so it must not run
@@ -124,7 +148,7 @@ async def test_full_consume_persist_publish(redis_client, analytics_engine):
     command = build_measurement_command(
         organization_id=org_id,
         project_id=uuid4(),
-        endpoint_kind="managed",
+        endpoint_kind="builtin",
     )
 
     measurements_group = await _make_group(redis_client, stream=STREAM_MEASUREMENTS)
@@ -135,14 +159,15 @@ async def test_full_consume_persist_publish(redis_client, analytics_engine):
 
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
-        organization_resolver=InMemoryOrganizationResolver(),
-        debit_publisher=RedisDebitPublisher(),
+        debit_publisher=RedisDebitPublisher(redis_client=redis_client),
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
         consumer_group=measurements_group,
     )
 
-    published = await RedisMeasurementPublisher().publish(command)
+    published = await RedisMeasurementPublisher(redis_client=redis_client).publish(
+        command
+    )
     assert published is True
 
     batch = await worker.read_batch()
@@ -172,7 +197,7 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
     command = build_measurement_command(
         organization_id=org_id,
         project_id=uuid4(),
-        endpoint_kind="managed",
+        endpoint_kind="builtin",
     )
 
     measurements_group = await _make_group(redis_client, stream=STREAM_MEASUREMENTS)
@@ -181,17 +206,18 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
     ]
     last_debit_id = last_debit_id[0][0]
 
-    failing_publisher = _OnceFailingDebitPublisher(RedisDebitPublisher())
+    failing_publisher = _OnceFailingDebitPublisher(
+        RedisDebitPublisher(redis_client=redis_client)
+    )
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
-        organization_resolver=InMemoryOrganizationResolver(),
         debit_publisher=failing_publisher,
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
         consumer_group=measurements_group,
     )
 
-    await RedisMeasurementPublisher().publish(command)
+    await RedisMeasurementPublisher(redis_client=redis_client).publish(command)
 
     # First attempt: tracing write succeeds, debit publish fails -> pending.
     batch = await worker.read_batch()
@@ -230,3 +256,258 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
 
     new_debits = await _debits_since(redis_client, last_id=last_debit_id)
     assert len(new_debits) == 1  # exactly one debit command, not zero, not two
+
+
+@pytest.mark.asyncio
+async def test_conflicting_replay_keeps_the_stored_measurement_and_is_dead_lettered(
+    redis_client, analytics_engine
+):
+    """Codex #5, against the real DAO: a measurement id seen again with different
+    content used to keep the old header, add the new component keys to it, and charge
+    the new payload. The stored measurement must stay exactly as first written, the
+    second payload must not be charged, and it must be kept as a dead letter."""
+    original = build_measurement_command(
+        organization_id=uuid4(), project_id=uuid4(), endpoint_kind="builtin"
+    )
+    conflicting = original.model_copy(
+        update={
+            "components": [
+                *original.components,
+                original.components[0].model_copy(
+                    update={"key": "cached_input_tokens"}
+                ),
+            ]
+        }
+    )
+
+    measurements_group = await _make_group(redis_client, stream=STREAM_MEASUREMENTS)
+    last_debit_id = (await redis_client.xrevrange(STREAM_DEBITS, count=1)) or [
+        (b"0-0", {})
+    ]
+    last_debit_id = last_debit_id[0][0]
+    worker = MeasurementWorker(
+        measurements_dao=MeasurementsDAO(engine=analytics_engine),
+        debit_publisher=RedisDebitPublisher(redis_client=redis_client),
+        redis_client=redis_client,
+        stream_name=STREAM_MEASUREMENTS,
+        consumer_group=measurements_group,
+    )
+
+    for command in (original, conflicting):
+        await RedisMeasurementPublisher(redis_client=redis_client).publish(command)
+        _, processed_ids = await worker.process_batch(await worker.read_batch())
+        await worker.ack_and_delete(processed_ids)
+
+    row = await _fetch_one_measurement(
+        analytics_engine, measurement_id=original.measurement_id
+    )
+    values = await _fetch_values(analytics_engine, measurement_row_id=row.id)
+    assert {v.key for v in values} == {c.key for c in original.components}
+
+    assert len(await _debits_since(redis_client, last_id=last_debit_id)) == 1
+
+    dead_letters = [
+        fields
+        for _, fields in await redis_client.xrange(worker.dead_letter_stream)
+        if fields[b"dead_letter_description"] == original.measurement_id.encode()
+    ]
+    assert len(dead_letters) == 1
+    assert b"different payload" in dead_letters[0][b"dead_letter_reason"]
+
+
+@pytest.mark.asyncio
+async def test_identical_replay_is_confirmed_without_a_write(analytics_engine):
+    dao = MeasurementsDAO(engine=analytics_engine)
+    command = build_measurement_command(project_id=uuid4())
+
+    first = await dao.insert_measurement(command=command, charge=None)
+    # `created_at` describes the envelope, not the measurement: a republish is the
+    # same measurement.
+    again = await dao.insert_measurement(
+        command=command.model_copy(update={"created_at": command.created_at.now()}),
+        charge=None,
+    )
+
+    assert first.created is True
+    assert again.created is False
+    assert again.id == first.id
+
+
+@pytest.mark.asyncio
+async def test_a_failed_dead_letter_write_leaves_the_entry_pending(redis_client):
+    """Codex round 1 (P1), on real Redis: a MULTI runs its remaining commands when one
+    fails, so XADD-to-dead, XACK and XDEL in one transaction deleted the entry when the
+    XADD failed. The dead letter must be written before anything is acknowledged."""
+    stream = f"streams:debits-test-{uuid4().hex}"
+    group = "worker-debits"
+    await redis_client.xgroup_create(
+        name=stream, groupname=group, id="0", mkstream=True
+    )
+    await redis_client.xadd(stream, {"data": b"not an envelope"})
+    # A key of the wrong type makes every XADD to the dead stream fail.
+    await redis_client.set(f"{stream}:dead", "not a stream")
+    worker = DebitWorker(
+        settlement_port=None,
+        redis_client=redis_client,
+        stream_name=stream,
+        consumer_group=group,
+        consumer_name="test-consumer",
+    )
+    try:
+        _, acked_ids = await worker.process_batch(await worker.read_batch())
+
+        assert acked_ids == []
+        assert worker.dead_lettered_messages == 0
+        assert await redis_client.xlen(stream) == 1
+        pending = await redis_client.xpending_range(
+            name=stream, groupname=group, min="-", max="+", count=10
+        )
+        assert len(pending) == 1
+    finally:
+        await redis_client.delete(stream, f"{stream}:dead")
+
+
+def _decision(amount_musd: int) -> ChargeDecision:
+    return ChargeDecision(
+        amount_musd=amount_musd,
+        pricing_version=f"test-{amount_musd}",
+        organization_id=uuid4(),
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_inserts_both_answer_with_the_committed_decision(
+    analytics_engine,
+):
+    """Codex #2: two workers racing on one unseen measurement price it independently.
+    Exactly one decision is stored, and both inserts answer with it, so both publish the
+    same debit whichever lost."""
+    command = build_measurement_command(project_id=uuid4())
+    dao = MeasurementsDAO(engine=analytics_engine)
+
+    first, second = await asyncio.gather(
+        dao.insert_measurement(command=command, charge=_decision(100)),
+        dao.insert_measurement(command=command, charge=_decision(200)),
+    )
+
+    assert {first.created, second.created} == {True, False}
+    assert first.charge == second.charge
+    stored = await dao.fetch_measurement(command=command)
+    assert stored.charge == first.charge
+
+
+class _AlwaysUnseen(MeasurementsDAO):
+    """Forces the insert path, as a worker that lost the race to a concurrent one sees
+    it: its lookup ran before the winner committed."""
+
+    async def fetch_measurement(self, *, command):
+        return None
+
+
+@pytest.mark.asyncio
+async def test_a_worker_that_loses_the_insert_race_publishes_the_winners_debit(
+    redis_client, analytics_engine, monkeypatch
+):
+    command = build_measurement_command(
+        organization_id=uuid4(), project_id=uuid4(), endpoint_kind="builtin"
+    )
+    publishers = [InMemoryDebitPublisher(), InMemoryDebitPublisher()]
+
+    for publisher, amount in zip(publishers, (100, 200)):
+        monkeypatch.setattr(
+            worker_module,
+            "calculate_charge",
+            lambda amount=amount, **_kwargs: (amount, f"test-{amount}"),
+        )
+        worker = MeasurementWorker(
+            measurements_dao=_AlwaysUnseen(engine=analytics_engine),
+            debit_publisher=publisher,
+            redis_client=redis_client,
+        )
+        await worker._process_one(command)
+
+    [winner], [loser] = (publisher.published for publisher in publishers)
+    assert serialize_debit_command(loser) == serialize_debit_command(winner)
+    assert winner.amount_musd == 100
+
+
+@pytest.mark.asyncio
+async def test_a_stored_decision_survives_the_round_trip_through_postgres(
+    analytics_engine,
+):
+    """The replayed debit is built from what Postgres hands back, so the decision,
+    `created_at` to the microsecond, must come back exactly as it went in."""
+    command = build_measurement_command(project_id=uuid4())
+    decision = _decision(1234)
+    dao = MeasurementsDAO(engine=analytics_engine)
+
+    await dao.insert_measurement(command=command, charge=decision)
+
+    assert (await dao.fetch_measurement(command=command)).charge == decision
+
+
+@pytest.mark.asyncio
+async def test_a_cached_messages_stream_is_stored_and_priced_with_its_cache_split(
+    redis_client, analytics_engine
+):
+    """Codex #1, end to end: a Messages stream reports input and both cached slices in its
+    first frame and the output in its last. The relayed usage, the stored measurement and
+    the charge must all keep the split, not only the frame parser."""
+    head = (
+        b'event: message_start\ndata: {"type":"message_start","message":{"id":"m",'
+        b'"usage":{"input_tokens":200,"cache_read_input_tokens":1000,'
+        b'"cache_creation_input_tokens":50,"output_tokens":1}}}\n\n'
+    )
+    tail = (
+        b'event: message_delta\ndata: {"type":"message_delta",'
+        b'"usage":{"output_tokens":380}}\n\n'
+    )
+    # The reader the relay adapter runs over every streamed frame, fed as the relay
+    # would feed it (the relay itself is covered in the gateway suite).
+    reader = _StreamUsageReader(LLMProtocol.MESSAGES)
+    for chunk in (head, tail):
+        reader.feed(chunk)
+    reader.flush()
+    scope = AuthScope(
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=uuid4(),
+        user_id=uuid4(),
+    )
+    command = measurement_from_call(
+        scope=scope,
+        target=GatewayTarget(
+            plane=GatewayPlane.LLM,
+            namespace=GatewayEndpointNamespace.BUILTIN,
+            name="mock",
+            provider="mock",
+            model="gpt-5.5",
+        ),
+        outcome=GatewayOutcome(status_code=200, usage=reader.usage),
+        run_id=None,
+    )
+    publisher = InMemoryDebitPublisher()
+    worker = MeasurementWorker(
+        measurements_dao=MeasurementsDAO(engine=analytics_engine),
+        debit_publisher=publisher,
+        redis_client=redis_client,
+    )
+
+    assert await worker._process_one(command) is True
+
+    row = await _fetch_one_measurement(
+        analytics_engine, measurement_id=command.measurement_id
+    )
+    values = await _fetch_values(analytics_engine, measurement_row_id=row.id)
+    assert {v.key: v.value for v in values} == {
+        "request_count": 1,
+        "input_tokens": 200,
+        "cache_read_tokens": 1000,
+        "cache_write_tokens": 50,
+        "output_tokens": 380,
+    }
+    # 200 x 1.00 + 1000 x 0.10 + 50 x 1.25 + 380 x 4.00 dollars per million tokens
+    # = 1_882.5 musd, rounded up.
+    [debit] = publisher.published
+    assert debit.amount_musd == 1883

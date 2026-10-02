@@ -104,7 +104,7 @@ done. Three environment variables have to point at them: `POSTGRES_URI_CORE`,
 `POSTGRES_URI_TRACING`, and `REDIS_URI`. The test fixtures probe those addresses and skip when
 they are unreachable, so a skipped test means a misconfigured environment, never a pass.
 
-Four things in that setup are easy to get wrong.
+Five things in that setup are easy to get wrong.
 
 1. **The databases must exist before the migrations run.** Mount
    `api/ee/databases/postgres/init-db-ee.sql` as the Postgres image's init script rather than
@@ -123,6 +123,16 @@ Four things in that setup are easy to get wrong.
    `--dist=loadgroup` and every wallet and measurement integration module carries the
    `wallets-integration` xdist group marker, which lands them all on one worker. Any new
    module here that holds database state must follow the same precedent.
+5. **Do not run `oss/tests/pytest/unit` with the infrastructure addresses pointed at the
+   wallet test database.** Some OSS unit tests use a real database when one is reachable and
+   do not clean up. One run left 44 organizations in `agenta_ee_core`. The wallet
+   integration fixtures then refuse to run, because their downgrade guard finds wallet rows.
+   Run the OSS unit suite without the addresses (only `AGENTA_LICENSE=ee` set), or drop and
+   recreate the three databases and rerun the migrations before the wallet integration
+   suites. With the addresses set, one OSS test,
+   `oss/tests/pytest/unit/utils/test_integration_postgres_address.py::test_an_unreachable_database_fails_the_run`,
+   also fails, because it reads the exported address. That is a test-isolation defect on
+   `main`, not a wallet failure.
 
 Run each command with `AGENTA_LICENSE=ee AGENTA_WALLETS_ENABLED=true` and the three addresses
 set. The exact commands, in the order that matters, are in section 9 of
@@ -153,18 +163,23 @@ credit, and it alone is enough to catch a broken locking strategy.
 
 ## Next step
 
+**Historical: the paragraphs below described the plan before Wave 2 forked.** Wave 2 is now
+implemented on `wallets/wave-2`, its preflight review is done (`open-designs.md` items 16-19
+are Decided), and the current status — what shipped, what is deferred, and the launch
+blockers for a real `builtin` provider — is [../v2/wave-2-status.md](../v2/wave-2-status.md).
+Read that file for where things stand; the plan below is kept for context only.
+
 **Wave 2 is written.** [wave-2.md](wave-2.md) has the checkpoint boundary, the fixed inputs,
 the invariants and the completion evidence; the graph is in [wps-2.md](wps-2.md),
 [ims-2.md](ims-2.md) and [cus-2.md](cus-2.md), with a specification and a task list per node
-under [nodes/](nodes/). Nothing in it is implemented.
+under [nodes/](nodes/).
 
-What has not happened is the preflight review `waves.md` requires before any worktree forks.
-Wave 1's is in [preflight.md](preflight.md) and is the shape this one must take: read the graph
+The preflight review `waves.md` requires before any worktree forks has since happened.
+Wave 1's is in [preflight.md](preflight.md) and was the shape this one took: read the graph
 and every specification cold, and write down every blocker and every gap with its disposition.
-Four questions are the ones most likely to come back as blockers, and all four are already in
-`open-designs.md` as items 16 to 19: who owns the rate card, what the admission ceiling
-enforces, what unit a provider-declared cost is stored in, and what keeps the card in step with
-the model catalogue.
+The four questions that came back as blockers are recorded in `open-designs.md` as items 16 to
+19: who owns the rate card, what the admission ceiling enforces, what unit a provider-declared
+cost is stored in, and what keeps the card in step with the model catalogue.
 
 One fact about scope, before anyone estimates this wave's value. Charging follows the
 namespace, per the gateway's D30: only `builtin` is a target whose account we own, and
