@@ -127,6 +127,8 @@ def test_every_model_the_builtin_namespace_serves_has_a_rate(monkeypatch):
     """Open-design item 19. The `builtin` catalogue is code, so a model added to it
     without a rate fails here rather than as a dead-lettered measurement in production."""
     monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    monkeypatch.setattr(env.llm_gateway, "vertex_sa_json_b64", "e30=")
+    monkeypatch.setattr(env.llm_gateway, "vertex_project", "agenta-test")
     served = [
         (provider, model)
         for provider in BUILTIN_LLM_PROVIDERS
@@ -139,3 +141,24 @@ def test_every_model_the_builtin_namespace_serves_has_a_rate(monkeypatch):
         for provider, model in served
         if token_rates_for(provider=provider, model=model) is None
     ] == []
+
+
+@pytest.mark.parametrize(
+    "model", ["google/gemini-3.7-flash", "google/gemini-3.8-flash"]
+)
+def test_gemini_flash_is_priced_at_the_list_price_times_one_point_seven_five(model):
+    """List price read 2026-10-02 (global, through 2026-12-31): $0.75 input, $0.075
+    cached input, $3.75 output per million tokens. Ours is x 1.75."""
+    command = build_measurement_command(
+        resource_key=f"llm:agenta:{model}",
+        resource_locator={"provider": "agenta", "model": model},
+        components=[
+            MeasurementComponentV1(key="input_tokens", value=2457),
+            MeasurementComponentV1(key="cache_read_tokens", value=12256),
+            MeasurementComponentV1(key="output_tokens", value=68),
+        ],
+    )
+
+    # 2457 x 1_312_500 + 12256 x 131_250 + 68 x 6_562_500
+    # = 3_224_812_500 + 1_608_600_000 + 446_250_000 = 5_279_662_500; / 1e6 up = 5280
+    assert calculate_charge(command=command) == (5280, RATE_CARD_VERSION)

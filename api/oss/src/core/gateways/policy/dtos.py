@@ -75,7 +75,9 @@ class ResolvedSecret(BaseModel):
     wire model embeds it."""
 
     secret: SecretResponseDTO  # decrypted, from VaultService
-    owner: SecretOwner
+    owner: Optional[
+        SecretOwner
+    ]  # None for the platform's own credential, which no one owns
     origin: SecretOrigin
 
 

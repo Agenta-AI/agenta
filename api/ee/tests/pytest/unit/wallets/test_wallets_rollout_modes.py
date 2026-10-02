@@ -132,12 +132,24 @@ ADMISSION_POINTS = pytest.mark.parametrize(
 # Admission
 
 
-@ADMISSION_POINTS
+@pytest.mark.parametrize("admit", [_sandbox, _tool], ids=["sandbox", "managed_tool"])
 async def test_off_admits_without_reading_the_wallet(admit, mode):
     mode(WalletMode.OFF)
     wallet = _Wallet(allowed=False)
 
     assert await admit(wallet, _scope()) is True
+    assert wallet.reads == 0
+
+
+async def test_off_refuses_a_platform_funded_model_call_without_reading_the_wallet(
+    mode,
+):
+    """A `builtin` model runs on Agenta's own provider account, and `off` is not measured,
+    so admitting it would serve the call free."""
+    mode(WalletMode.OFF)
+    wallet = _Wallet(allowed=True)
+
+    assert await _gateway(wallet, _scope()) is False
     assert wallet.reads == 0
 
 
@@ -365,9 +377,11 @@ async def test_shadow_admits_even_when_the_checks_cancellation_is_slow(real_roll
     assert time.monotonic() - started < SPEND_ADMISSION_TIMEOUT_SECONDS
 
 
-async def test_a_slow_first_lookup_admits_inside_the_gateways_bound(
+async def test_a_slow_first_lookup_answers_inside_the_gateways_bound(
     real_rollout, monkeypatch
 ):
+    # A cold lookup that runs out of time reads as `off`, and `off` refuses a
+    # platform-funded model call: one refused call, never a free one.
     scope = _scope()
     monkeypatch.setattr(
         switches,
@@ -378,7 +392,7 @@ async def test_a_slow_first_lookup_admits_inside_the_gateways_bound(
     started = time.monotonic()
     result = await _policy().admit(scope=scope, target=_TARGET)
 
-    assert result.allowed is True
+    assert (result.allowed, result.reason) == (False, "wallet_off")
     assert time.monotonic() - started < SPEND_ADMISSION_TIMEOUT_SECONDS
 
 

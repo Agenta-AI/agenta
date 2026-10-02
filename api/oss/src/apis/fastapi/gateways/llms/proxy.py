@@ -30,6 +30,7 @@ from oss.src.core.gateways.llms.types import (
     LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
     LLMRoutingFieldNotAllowedError,
+    LLMCapabilityNotAllowedError,
     LLMUpstreamError,
 )
 from oss.src.core.gateways.policy.types import (
@@ -59,6 +60,7 @@ _DOMAIN_EXCEPTIONS = (
     EntitlementDeniedError,
     LLMModelNotAllowedError,
     LLMRoutingFieldNotAllowedError,
+    LLMCapabilityNotAllowedError,
     LLMModelIdentifierInvalidError,
     CeilingExceededError,
     SecretNotFoundError,
@@ -145,6 +147,14 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             message=exc.message,
             error_type="invalid_request_error",
             code="routing_field_not_allowed",
+            field=exc.field,
+        )
+    if isinstance(exc, LLMCapabilityNotAllowedError):
+        return _openai_error(
+            status_code=400,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code="capability_not_allowed",
             field=exc.field,
         )
     if isinstance(exc, LLMModelIdentifierInvalidError):

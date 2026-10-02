@@ -95,12 +95,14 @@ Suite counts at the final commit are in the Wave 2 completion evidence in
 
 These are gateway-wave deliverables, not code in this wave.
 
-1. **Usage lost on a cut stream.** An adapter learns a call's usage when its body ends. A
+1. **Usage lost on a cut stream.** Closed by step 1.4 for a client disconnect and for
+   `include_usage` ([funded-models.md](funded-models.md)); an upstream that cuts its own
+   stream remains. An adapter learns a call's usage when its body ends. A
    client that disconnects first leaves no usage, so the call is not charged. The chain test
    records this. A Chat Completions stream without `stream_options.include_usage` reports no
    usage either. Before launch: force `include_usage` on `builtin` streams, and bill or refuse
    a stream that ends without usage.
-2. **Real rates with provenance.** Replace the synthetic rows with the provider's price plus
+2. **Real rates with provenance.** Done for Gemini 3.7 Flash and 3.8 Flash in step 1.4. Replace the synthetic rows with the provider's price plus
    our margin, with source and date, approved by product.
 3. **Activation order.** Deploy the measurement worker with the new card before the API that
    routes a new model. The retry and dead-letter path covers an overlap; it is not a plan.

@@ -341,3 +341,140 @@ async def test_migration_counts_a_key_with_unreadable_spend_as_failed(wallet_sch
             await session.execute(
                 text("DELETE FROM users WHERE id = :id"), {"id": user_id}
             )
+
+
+def _provider_connection(*, slug: str):
+    from oss.src.core.secrets.dtos import (
+        CreateSecretDTO,
+        CustomModelSettingsDTO,
+        CustomProviderDTO,
+        CustomProviderSettingsDTO,
+        SecretDTO,
+    )
+    from oss.src.core.secrets.enums import CustomProviderKind, SecretKind
+    from oss.src.core.shared.dtos import Header
+
+    return CreateSecretDTO(
+        slug=slug,
+        header=Header(name="Agenta"),
+        secret=SecretDTO(
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data=CustomProviderDTO(
+                kind=CustomProviderKind.CUSTOM,
+                provider=CustomProviderSettingsDTO(
+                    url="https://proxy.example.com", key="sk-blocked"
+                ),
+                models=[CustomModelSettingsDTO(slug="vertex_ai/gemini-3.7-flash")],
+                provider_slug="Agenta",
+            ).model_dump(),
+        ),
+    )
+
+
+async def test_apply_removes_the_seeded_connection_and_keeps_a_users_own(
+    wallet_schema,
+):
+    """The seeded "Agenta" connection holds a blocked key after the transfer, so an agent
+    that picked it would only fail. The job deletes the row the bridge manages; a user's own
+    connection under the same slug, in another project, stays."""
+    from oss.src.core.secrets.managed import (
+        SecretManagementDTO,
+        SecretManagementPolicy,
+        SecretManager,
+    )
+    from oss.src.core.secrets.services import VaultService
+    from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+    from ee.src.core.starter_credits_bridge.service import STARTER_CREDITS_SLUG
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        user_id, organization_id = await _organization(session)
+        workspace_id, seeded_project, user_project = (
+            uuid.uuid4(),
+            uuid.uuid4(),
+            uuid.uuid4(),
+        )
+        await session.execute(
+            text(
+                "INSERT INTO workspaces (id, organization_id, name)"
+                " VALUES (:id, :organization_id, 'w')"
+            ),
+            {"id": workspace_id, "organization_id": organization_id},
+        )
+        for project_id in (seeded_project, user_project):
+            await session.execute(
+                text(
+                    "INSERT INTO projects (id, project_name, workspace_id, organization_id)"
+                    " VALUES (:id, 'p', :workspace_id, :organization_id)"
+                ),
+                {
+                    "id": project_id,
+                    "workspace_id": workspace_id,
+                    "organization_id": organization_id,
+                },
+            )
+
+    vault = VaultService(SecretsDAO())
+    await vault.create_managed_secret(
+        project_id=seeded_project,
+        create_secret_dto=_provider_connection(slug=STARTER_CREDITS_SLUG),
+        management=SecretManagementDTO(
+            manager=SecretManager.STARTER_CREDITS_BRIDGE,
+            policy=SecretManagementPolicy.MANAGER_ONLY,
+        ),
+    )
+    await vault.create_secret(
+        project_id=user_project,
+        create_secret_dto=_provider_connection(slug=STARTER_CREDITS_SLUG),
+    )
+    client = FakeProxyClient([_key("a-seeded", organization_id, spend=1.0)])
+    run = dict(client=client, team_id="team-1")
+
+    try:
+        await migrate_starter_credits(stage="block", **run)
+        first = await migrate_starter_credits(stage="apply", **run)
+        rerun = await migrate_starter_credits(stage="apply", **run)
+
+        assert (first.connections_removed, first.failed) == (1, 0)
+        assert (rerun.connections_removed, rerun.failed) == (0, 0)
+        assert (
+            await vault.get_secret_by_slug(
+                STARTER_CREDITS_SLUG, project_id=seeded_project
+            )
+            is None
+        )
+        kept = await vault.get_secret_by_slug(
+            STARTER_CREDITS_SLUG, project_id=user_project
+        )
+        assert kept is not None and kept.management is None
+
+        # The vault refuses the manager's delete on a row it does not manage.
+        from oss.src.core.secrets.managed import ManagedSecretReadOnlyError
+
+        with pytest.raises(ManagedSecretReadOnlyError):
+            await vault.delete_managed_secret(
+                secret_id=kept.id,
+                manager=SecretManager.STARTER_CREDITS_BRIDGE,
+                project_id=user_project,
+            )
+    finally:
+        await _cleanup(organization_id)
+        async with engine.session() as session:
+            for project_id in (seeded_project, user_project):
+                await session.execute(
+                    text("DELETE FROM secrets WHERE project_id = :id"),
+                    {"id": project_id},
+                )
+                await session.execute(
+                    text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
+                )
+            await session.execute(
+                text("DELETE FROM workspaces WHERE id = :id"), {"id": workspace_id}
+            )
+            await session.execute(
+                text("DELETE FROM organizations WHERE id = :id"),
+                {"id": organization_id},
+            )
+            await session.execute(
+                text("DELETE FROM users WHERE id = :id"), {"id": user_id}
+            )
