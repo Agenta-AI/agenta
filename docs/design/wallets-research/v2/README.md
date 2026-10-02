@@ -9,6 +9,7 @@ Status: draft OpenSpec package, written 2026-09-22, moved into the repository 20
 3. Read [the decision register](decision-register.md) for all 22 original questions and newer refinements.
 4. Open each proposal, then its design, requirements and unchecked tasks.
 5. Use [the next-step plan](next-steps.md) to choose one implementation slice.
+6. Read [the rollout switches](rollout-switches.md) for the per-organization PostHog flags.
 
 ## Changes
 

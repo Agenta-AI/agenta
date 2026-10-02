@@ -20,6 +20,7 @@ from ee.src.core.measurements.components import (
     VCPU_SECONDS,
 )
 from ee.src.core.measurements.rate_card import sandbox_rates_for
+from ee.src.core.wallets.admission import admit_in_mode, measured
 from ee.src.core.wallets.contracts import (
     GatewayKind,
     MeasurementCommandV1,
@@ -141,15 +142,23 @@ class SandboxUsageService:
         """Whether a turn that runs a platform sandbox may start. The same spendable
         check as a `builtin` gateway call; nothing is reserved, and a turn already
         running is never stopped by it."""
-        return await self.wallet.check(organization_id=scope.organization_id)
+        return await admit_in_mode(
+            organization_id=scope.organization_id,
+            point="sandbox",
+            check=lambda: self.wallet.check(organization_id=scope.organization_id),
+        )
 
     async def record(
         self,
         *,
         scope: AuthScope,
         interval: SandboxUsageInterval,
-    ) -> str:
+    ) -> Optional[str]:
+        """The measurement id, or None for an organization whose wallet is `off`: its
+        interval is acknowledged and dropped, so the runner does not report it again."""
         command = sandbox_measurement(scope=scope, interval=interval)
+        if not await measured(scope.organization_id):
+            return None
         if not await self.publisher.publish(command):
             raise SandboxUsageNotRecordedError()
         return command.measurement_id
