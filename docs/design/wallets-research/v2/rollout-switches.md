@@ -83,7 +83,8 @@ cleanup cannot push the answer past the 2-second admission bound.
   wallet is off, and a warning or error is logged. The PostHog client returns "no payload"
   when it cannot reach PostHog, so "unreachable" and "no payload" give the same answer. A
   failed lookup is kept for the same 30 seconds, so an outage costs one request per process
-  per flag every 30 seconds.
+  per flag every 30 seconds. A process that already read a payload keeps it through failed
+  refreshes for up to 5 minutes (the stale limit), and only then reads "off".
 - **A malformed entry.** An entry that is not an organization id, or a mode that is not
   `off`, `shadow` or `enforce`, is dropped and logged. The other entries still apply.
 - **`AGENTA_ROLLOUT_FLAGS_ENABLED`** (default `false`). The flags are read only when it is
@@ -137,6 +138,13 @@ undo them.
   never-waiting read for the two measurement producers that follow their own admission. The shared Redis
   cache stays, under the in-process copy, so several API
   processes ask PostHog once between them.
-- **Fail-safe "off", no last-known-good.** The PostHog client gives the same answer for "no
-  flag" and "unreachable", so a last-known-good fallback could not tell an outage from a
-  deleted flag.
+- **Fail-safe "off", with a 5-minute last-known-good.** The PostHog client gives the same
+  answer for "no flag" and "unreachable", so a last-known-good fallback cannot tell an outage
+  from a deleted flag. **Changed 2026-10-03 (release review, finding W04):** this was "no
+  last-known-good". Without one, a failed refresh between a call's admission (`enforce`) and
+  its measurement turned the wallet `off` and dropped a charge already spent on our provider
+  account. Options: carry the admission's mode through every call (gateway, managed tools,
+  and the runner's per-minute sandbox reports, which are separate requests), or keep the last
+  payload for a bounded time. Chosen: keep it for the existing 5-minute stale limit, one
+  place for every producer. Cost: deleting a flag's payload takes up to 5 minutes to apply;
+  editing it to `{}` or `[]` still applies within the TTL.

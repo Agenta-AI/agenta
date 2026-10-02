@@ -15,7 +15,9 @@ organization and the wallet enforces for every organization.
 PostHog unreachable, slow, or a malformed payload is fail-safe, not fail-closed: the gateway
 is off and the wallet is off for everyone, logged, until a later lookup succeeds. The client
 answers an unreachable PostHog with no payload rather than an error, so "no payload" and
-"unreachable" are the same answer here.
+"unreachable" are the same answer here. A process that read a payload keeps it through a
+failed refresh for up to `ROLLOUT_MAX_STALE_SECONDS`, so a short outage does not turn the
+wallet off between a call's admission and its measurement and drop a charge already spent.
 """
 
 import asyncio
@@ -81,6 +83,8 @@ async def wallet_mode_for(organization_id: UUID, *, wait: bool = True) -> Wallet
 
 # flag -> (monotonic time fetched, payload), and the one refresh in flight per flag.
 _payloads: Dict[str, Tuple[float, Any]] = {}
+# flag -> (monotonic time fetched, payload) of the last refresh that returned a payload.
+_last_payloads: Dict[str, Tuple[float, Any]] = {}
 _refreshes: Dict[str, "asyncio.Future[Any]"] = {}
 
 
@@ -128,8 +132,8 @@ async def _flag_payload(flag: str, *, wait: bool = True) -> Optional[Any]:
 async def _refresh(flag: str) -> Optional[Any]:
     """Read the payload from the shared cache, else from PostHog, and keep it here.
 
-    Any failure keeps "no payload", so an unreachable PostHog is asked once per TTL per
-    process, not once per call.
+    Any failure keeps the last payload while it is younger than the stale limit, else "no
+    payload", so an unreachable PostHog is asked once per TTL per process, not once per call.
     """
     payload: Optional[Any] = None
     try:
@@ -140,7 +144,18 @@ async def _refresh(flag: str) -> Optional[Any]:
             feature_flag=flag,
             reason=repr(exc),
         )
-    _payloads[flag] = (time.monotonic(), payload)
+    now = time.monotonic()
+    if payload is not None:
+        _last_payloads[flag] = (now, payload)
+    else:
+        last = _last_payloads.get(flag)
+        if last is not None and now - last[0] < ROLLOUT_MAX_STALE_SECONDS:
+            log.warning(
+                "[rollout] refresh returned no payload; keeping the last one",
+                feature_flag=flag,
+            )
+            payload = last[1]
+    _payloads[flag] = (now, payload)
     return payload
 
 

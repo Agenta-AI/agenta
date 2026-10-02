@@ -42,9 +42,11 @@ class _PostHog:
 def _fresh_process_state():
     """Each test starts as a process that has read no payload yet."""
     switches._payloads.clear()
+    switches._last_payloads.clear()
     switches._refreshes.clear()
     yield
     switches._payloads.clear()
+    switches._last_payloads.clear()
     switches._refreshes.clear()
 
 
@@ -328,3 +330,55 @@ async def test_a_slow_first_lookup_reads_as_off_and_its_answer_lands_later(
 
     await _settle()
     assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
+
+
+def _expire(flag):
+    """Age this process's payload past the TTL, as if a call came in after it."""
+    fetched_at, payload = switches._payloads[flag]
+    switches._payloads[flag] = (
+        fetched_at - switches.ROLLOUT_CACHE_TTL_SECONDS - 1,
+        payload,
+    )
+
+
+@pytest.mark.parametrize(
+    "failure", ["raises", "no-payload"], ids=["raises", "no-payload"]
+)
+async def test_a_failed_refresh_between_admission_and_measurement_keeps_the_charge(
+    posthog, cache, failure
+):
+    client = posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "enforce"}}))
+    assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
+
+    # PostHog goes away; the admission after the TTL starts a refresh that fails.
+    if failure == "raises":
+        client.raises = True
+    else:
+        client.payloads = {}
+    cache.clear()
+    _expire(WALLETS_ROLLOUT_FLAG)
+    assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
+    await _settle()
+
+    # The measurement after the call still reads the mode its admission read.
+    assert await wallet_mode_for(ORG, wait=False) is WalletMode.ENFORCE
+
+
+async def test_an_outage_longer_than_the_stale_limit_turns_the_switch_off(
+    posthog, cache
+):
+    client = posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "enforce"}}))
+    assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
+
+    client.raises = True
+    cache.clear()
+    fetched_at, payload = switches._last_payloads[WALLETS_ROLLOUT_FLAG]
+    switches._last_payloads[WALLETS_ROLLOUT_FLAG] = (
+        fetched_at - switches.ROLLOUT_MAX_STALE_SECONDS - 1,
+        payload,
+    )
+    _expire(WALLETS_ROLLOUT_FLAG)
+    await wallet_mode_for(ORG)
+    await _settle()
+
+    assert await wallet_mode_for(ORG) is WalletMode.OFF
