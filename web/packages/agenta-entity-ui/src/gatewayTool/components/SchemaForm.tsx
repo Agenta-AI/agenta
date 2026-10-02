@@ -30,11 +30,11 @@ import {
     Plus,
     SlidersHorizontal,
 } from "@phosphor-icons/react"
-// DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
+// DELIBERATE RESIDUE — rc-form stays as the state engine (registration, rules,
 // validateFields, useWatch). The `form: FormInstance` prop is cross-package public API:
-// web/oss ElicitationWidget drives it with `useWatch`/`validateFields`/`setFieldsValue`,
-// and gatewayTrigger's SubscriptionForm prefills it via `setFieldsValue`. Removing the engine
-// here would break those hosts; it needs its own coordinated chunk that owns them.
+// hosts create it via gatewayTrigger's `useSchemaFormInstance` (automation-ui's
+// EventPickerPanel). Removing the engine here would break those hosts; it needs its own
+// coordinated chunk that owns them.
 import Form, {List, useForm, useWatch} from "@rc-component/form"
 import type {FormInstance} from "@rc-component/form"
 

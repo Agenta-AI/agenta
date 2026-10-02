@@ -22,7 +22,7 @@ Branches (a linear stack; each PR's base is the branch below it):
 Running stack: `agenta-ee-dev-channels` (this worktree,
 /home/mahmoud/code/agenta-2-worktrees/channels). Public URL
 https://subangular-groundlessly-bryn.ngrok-free.dev ; direct origin on the box
-http://144.76.237.122:8180 ; local curl http://127.0.0.1:8180. Postgres port 5437.
+http://<dev-host>:8180 ; local curl http://127.0.0.1:8180. Postgres port 5437.
 The hosted Telegram bot is enabled on the stack via a LOCAL gitignored override
 (test bot @newagentabot, id 8950712471). QA project 01a080e0-77ee-7c50-be4c-04a2b0ce1af8,
 workspace 01a080e0-77d0-7893-937a-8317bd847299.

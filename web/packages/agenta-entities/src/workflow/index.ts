@@ -93,6 +93,7 @@ export {
 export {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitUiStateAtomFamily,
+    agentaToolsAccessAtom,
     workflowBuildKitScopeAtomFamily,
     migrateBuildKitStateAtom,
     workflowBuildKitEnabledAtomFamily,
@@ -109,7 +110,6 @@ export {
 export {
     // Sub-schemas
     jsonSchemasSchema,
-    type JsonSchemas,
     workflowFlagsSchema,
     type WorkflowFlags,
     workflowDataSchema,
@@ -118,9 +118,6 @@ export {
     workflowSchema,
     workflowSchemas,
     type Workflow,
-    type CreateWorkflow,
-    type UpdateWorkflow,
-    type LocalWorkflow,
     // Variant schema (for 3-level hierarchy)
     workflowVariantSchema,
     type WorkflowVariant,
@@ -147,7 +144,6 @@ export {
     type WorkflowTypeColor,
     // Evaluator-specific utilities (for evaluator-type workflows)
     parseEvaluatorKeyFromUri,
-    buildEvaluatorUri,
     isOnlineCapableEvaluator,
     hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
@@ -345,6 +341,13 @@ export {
     abandonAgentTemplateLoad,
     templateConnectionChoices,
     type LoadAgentTemplateFromEphemeralParams,
+    agentTemplatesQueryAtom,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+    agentTemplateLookupAtomFamily,
+    type AgentTemplatesStatus,
+    type AgentTemplateLookup,
     buildCreatePayloadFromEphemeral,
     type EphemeralCreatePayload,
     archiveWorkflowRevisionAtom,
@@ -376,9 +379,6 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
-    llmEvaluatorsAtom,
-    fullPagePlaygroundEvaluatorsAtom,
-    nonHumanEvaluatorsAtom,
     nonDeterministicEvaluatorsAtom,
     // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
     evaluatorEnrichmentActivatedAtom,
@@ -450,9 +450,12 @@ export {
     type EvaluatorCatalogPreset,
     type EvaluatorCatalogPresetsResponse,
     /** @deprecated Use EvaluatorCatalogTemplate */
-    type EvaluatorTemplate,
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
-    type EvaluatorTemplatesResponse,
+    validateAgentTemplate,
+    type AgentTemplateSource,
+    type AgentTemplateSourcePin,
+    type AgentTemplateValidationIssue,
+    type AgentTemplateValidationResult,
 } from "./api"
 
 // ============================================================================
@@ -495,11 +498,13 @@ export {workflowSnapshotAdapter} from "./snapshotAdapter"
 // ============================================================================
 
 export {
-    AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
     PROVIDERS,
+    SAVE_AS_TEMPLATE_MESSAGE,
+    SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
     TEMPLATE_CATEGORY_ORDER,
     agentTemplateByKey,
+    agentStarterTemplateFromEntry,
     agentTemplateSeed,
     categoryFromSlug,
     categorySlug,
@@ -510,6 +515,7 @@ export {
     templatePrimaryProvider,
     templateProviderSlugs,
     templateToolCount,
+    UNAVAILABLE_TEMPLATE_MESSAGE,
 } from "./agentTemplates"
 export type {
     AgentStarterTemplate,
@@ -535,6 +541,7 @@ export {
     isAccountSatisfied,
     outstandingRequired,
     setupStatus,
+    setupStepNeeded,
 } from "./agentSetup"
 export type {AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
 
@@ -546,3 +553,4 @@ export {
 } from "./state/agentCredentials"
 
 export {buildKitDefaultPermission, resolveBuildKitPermissions} from "./buildKitPolicy"
+export {readAgentaTools, writeAgentaTools, type AgentaToolsMap} from "./agentaTools"

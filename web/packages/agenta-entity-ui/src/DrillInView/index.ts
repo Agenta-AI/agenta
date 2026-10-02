@@ -202,19 +202,13 @@ export {
     TextField,
     // Field utilities
     getNestedValue,
-    getArrayItemValue,
     canExpandValue,
     canExpandAsArray,
-    canExpand,
     isChatMessageObject,
     isMessagesArray,
     parseMessages,
-    canShowTextMode,
     getTextModeValue,
     textModeToStorageValue,
-    formatForJsonDisplay,
-    parseFromJsonDisplay,
-    MAX_NESTED_DEPTH,
 } from "@agenta/ui/drill-in"
 
 // NOTE: For tryParseAsObject, tryParseAsArray, SimpleChatMessage, import from @agenta/shared
@@ -473,6 +467,9 @@ export type {
 } from "./SchemaControls/agentTemplate/AgentTemplateSectionList"
 export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
+// Writes the composer-prefill request atom from @agenta/shared/state: its one atom dependency.
+export {CreateWithAIAddMenu} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
+export type {CreateWithAIAddMenuProps} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
 export {SectionTitleBadge} from "./SchemaControls/agentTemplate/SectionTitleBadge"
 export type {
     SectionTitleBadgeProps,

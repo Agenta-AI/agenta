@@ -29,6 +29,11 @@ import {
   materializeSubscriptionLoginForRun,
   type SubscriptionSandboxFs,
 } from "./subscription-login/files.ts";
+import {
+  applyPiProviderCostPatch,
+  PI_CLI_ANCHOR,
+  PI_CLI_PROVIDER_COST_BUNDLE_PATH,
+} from "../../tools/pi-provider-cost-patch.ts";
 
 type Log = (message: string) => void;
 
@@ -40,7 +45,7 @@ export const DAYTONA_PI_DIR =
 // runner pins the Pi version, probes the expected executable in the sandbox, and installs the
 // pinned version when a custom image or snapshot lacks it. There is no "installed" env flag.
 export const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
-export const PINNED_PI_VERSION = "0.85.1";
+export const PINNED_PI_VERSION = "0.87.1";
 /** The expected Pi executable path the runner probes and points `PI_ACP_PI_COMMAND` at. */
 export const DAYTONA_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`;
 
@@ -75,7 +80,8 @@ export function configureDaytonaSubscriptionEnv(
   plan: DaytonaSubscriptionPlan,
   daytonaEnv: Record<string, string>,
 ): void {
-  if (!plan.isDaytona || !plan.isPi || !plan.credentials.subscriptionHome) return;
+  if (!plan.isDaytona || !plan.isPi || !plan.credentials.subscriptionHome)
+    return;
   daytonaEnv.PI_CODING_AGENT_DIR = plan.credentials.subscriptionHome;
 }
 
@@ -100,15 +106,24 @@ export function daytonaEnvVars(
   };
 }
 
-/** True when the pinned Pi executable is already present at the expected path in the sandbox. */
-async function probePiInstalled(sandbox: any): Promise<boolean> {
+/**
+ * True when the pinned Pi version answers at the expected path in the sandbox. A reused sandbox or
+ * snapshot can hold an older Pi, whose model catalog and prices the runner no longer matches.
+ */
+async function probePinnedPi(sandbox: any): Promise<boolean> {
   try {
     const res = await sandbox.runProcess({
-      command: "test",
-      args: ["-x", DAYTONA_PI_COMMAND],
+      command: DAYTONA_PI_COMMAND,
+      args: ["--version"],
       timeoutMs: 15_000,
     });
-    return res?.exitCode === 0;
+    return (
+      res?.exitCode === 0 &&
+      String(res?.stdout ?? "")
+        .trim()
+        .split(/\s+/)
+        .includes(PINNED_PI_VERSION)
+    );
   } catch {
     return false;
   }
@@ -162,11 +177,12 @@ async function installPiInSandbox(
 }
 
 /**
- * Probe for the pinned Pi executable and repair when a custom image or snapshot lacks it
- * (interface.md section 7). Repair ladder, cheapest first:
- *  1. the pinned path already exists (baked or repaired earlier) — done;
- *  2. a `pi` is on PATH (the snapshot recipe installs it globally) — link it to the pinned path;
- *  3. install the pinned version.
+ * Probe for the pinned Pi version and repair when a custom image or snapshot lacks it or holds
+ * another version (interface.md section 7). Repair ladder, cheapest first:
+ *  1. the pinned path runs the pinned version (baked or repaired earlier) — done;
+ *  2. a `pi` of the pinned version is on PATH (the snapshot recipe installs it globally) — link it
+ *     to the pinned path;
+ *  3. install the pinned version, replacing whatever the pinned path held.
  * If Pi is still missing after that, the run fails with the missing executable and the attempted
  * version — harness availability is an image/runtime contract, never a silent skip.
  */
@@ -174,15 +190,34 @@ export async function ensurePiInSandbox(
   sandbox: any,
   log: Log = () => {},
 ): Promise<void> {
-  if (await probePiInstalled(sandbox)) return;
-  if ((await linkGlobalPi(sandbox)) && (await probePiInstalled(sandbox))) {
+  // The patch is idempotent, so a reused Pi (a custom image's stock install, or one an earlier
+  // session installed) gets it too. A Pi this runner did not install may be laid out differently;
+  // failing to patch it costs the billed cost figure, not the run.
+  const patchReusedPi = () =>
+    patchInstalledPiProviderCost(sandbox, log).catch((err) =>
+      log(
+        `[pi-repair] ${(err as Error).message}; Pi keeps its own cost estimate`,
+      ),
+    );
+  if (await probePinnedPi(sandbox)) {
+    await patchReusedPi();
+    return;
+  }
+  if ((await linkGlobalPi(sandbox)) && (await probePinnedPi(sandbox))) {
     log(`[pi-repair] linked snapshot-baked pi to ${DAYTONA_PI_COMMAND}`);
+    await patchReusedPi();
     return;
   }
   log(
     `[pi-repair] pinned pi ${PINNED_PI_VERSION} missing at ${DAYTONA_PI_COMMAND}; installing`,
   );
   try {
+    // A link to another Pi version would block npm from writing its own bin link.
+    await sandbox.runProcess({
+      command: "rm",
+      args: ["-f", DAYTONA_PI_COMMAND],
+      timeoutMs: 15_000,
+    });
     await installPiInSandbox(sandbox, log);
   } catch (err) {
     throw new Error(
@@ -190,11 +225,66 @@ export async function ensurePiInSandbox(
         `${(err as Error).message}`,
     );
   }
-  if (!(await probePiInstalled(sandbox))) {
+  if (!(await probePinnedPi(sandbox))) {
     throw new Error(
       `pi ${PINNED_PI_VERSION} is not available at ${DAYTONA_PI_COMMAND} after install.`,
     );
   }
+  await patchInstalledPiProviderCost(sandbox, log);
+}
+
+/**
+ * Apply the pi-ai provider-cost patch to the Pi the pinned path runs, from the same spec the
+ * runner image and the snapshot build use, so a custom image's Pi keeps OpenRouter's billed cost.
+ * The pi CLI runs its own bundled copy of pi-ai, inside the harness package.
+ */
+async function patchInstalledPiProviderCost(
+  sandbox: any,
+  log: Log,
+): Promise<void> {
+  const path = `${await resolvePiPackageDir(sandbox)}/${PI_CLI_PROVIDER_COST_BUNDLE_PATH}`;
+  let source: string;
+  try {
+    const bytes = await sandbox.readFsFile({ path });
+    source =
+      typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+  } catch {
+    throw new Error(`pi-ai provider-cost patch: no ${path}`);
+  }
+  const outcome = applyPiProviderCostPatch(source, PI_CLI_ANCHOR);
+  if (outcome.kind === "anchor-missing") {
+    throw new Error(
+      `pi-ai provider-cost patch: the parseChunkUsage anchor is missing in ${path}`,
+    );
+  }
+  if (outcome.kind === "patched") {
+    await sandbox.writeFsFile({ path }, outcome.source);
+  }
+  log(`[pi-repair] pi-ai provider-cost patch ${outcome.kind} in ${path}`);
+}
+
+/**
+ * The pi-coding-agent package directory behind the pinned path: this runner's npm install, or the
+ * global install a snapshot's link points to.
+ */
+async function resolvePiPackageDir(sandbox: any): Promise<string> {
+  const res = await sandbox.runProcess({
+    command: "sh",
+    args: [
+      "-c",
+      `p=$(readlink -f ${DAYTONA_PI_COMMAND}) && ` +
+        `while [ -n "$p" ] && [ "\${p##*/}" != pi-coding-agent ]; do p="\${p%/*}"; done && ` +
+        `[ -n "$p" ] && echo "$p"`,
+    ],
+    timeoutMs: 15_000,
+  });
+  const dir = String(res?.stdout ?? "").trim();
+  if (res?.exitCode !== 0 || !dir) {
+    throw new Error(
+      `pi-ai provider-cost patch: cannot resolve the pi-coding-agent package behind ${DAYTONA_PI_COMMAND}`,
+    );
+  }
+  return dir;
 }
 
 /**
@@ -313,12 +403,7 @@ export async function prepareDaytonaPiAssets({
   // file so a reused sandbox keeps no earlier configuration. Upload failure THROWS here and is
   // terminal in the engine's acquire try.
   if (piModelConfig) {
-    await uploadPiModelsConfigToSandbox(
-      sandbox,
-      agentDir,
-      piModelConfig,
-      log,
-    );
+    await uploadPiModelsConfigToSandbox(sandbox, agentDir, piModelConfig, log);
   } else {
     await removePiModelsConfigFromSandbox(sandbox, agentDir, log);
   }

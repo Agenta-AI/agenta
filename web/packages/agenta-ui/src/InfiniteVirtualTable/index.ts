@@ -5,14 +5,7 @@ export type {InfiniteDatasetStore, InfiniteDatasetStoreConfig} from "./createInf
 export {createTableColumns} from "./columns/createTableColumns"
 export {buildEntityColumns} from "./columns/buildEntityColumns"
 export type {BuildEntityColumnsOptions} from "./columns/buildEntityColumns"
-export {
-    createTextCell,
-    createComponentCell,
-    createStatusCell,
-    createActionsCell,
-    createViewportAwareCell,
-    createColumnVisibilityAwareCell,
-} from "./columns/cells"
+export {createComponentCell, createColumnVisibilityAwareCell} from "./columns/cells"
 export * from "./columns/types"
 export {default as useInfiniteTablePagination} from "./hooks/useInfiniteTablePagination"
 export {useTableManager, shouldIgnoreRowClick} from "./hooks/useTableManager"
@@ -95,14 +88,7 @@ export type {
     EditableTableState,
     EditableTableActions,
 } from "./hooks/useEditableTable"
-export {
-    useRowHeight,
-    useRowHeightValue,
-    createRowHeightAtom,
-    createRowHeightPxAtom,
-    createRowHeightMaxLinesAtom,
-    DEFAULT_ROW_HEIGHT_CONFIG,
-} from "./hooks/useRowHeight"
+export {useRowHeight, createRowHeightAtom, DEFAULT_ROW_HEIGHT_CONFIG} from "./hooks/useRowHeight"
 export type {
     RowHeightSize,
     RowHeightOption,

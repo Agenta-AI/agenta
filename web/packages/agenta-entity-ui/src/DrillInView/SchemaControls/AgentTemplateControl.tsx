@@ -72,6 +72,7 @@ import {
 } from "./agentTemplate/AgentTemplateSectionList"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
+import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
 import {
     embedRevisionVersion,
@@ -387,9 +388,39 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+    // A secret attach/edit/remove commits a new revision from inside the open drawer. Keep the
+    // drawer open on it: re-snapshot the (clean) draft from the adopted revision instead of closing.
+    const credentialRebaseTarget = useRef<string | null>(null)
+    const rebaseSectionOnCredentialCommit = useCallback((nextRevisionId: string) => {
+        credentialRebaseTarget.current = nextRevisionId
+    }, [])
     useEffect(() => {
-        if (openSection && sectionRevision !== (revisionId ?? "")) closeSectionDraft()
-    }, [revisionId, sectionRevision, openSection, closeSectionDraft])
+        if (!openSection || sectionRevision === (revisionId ?? "")) return
+        const rebase =
+            revisionId !== null &&
+            credentialRebaseTarget.current === revisionId &&
+            !isCurrentSectionDirty()
+        credentialRebaseTarget.current = null
+        if (!rebase) {
+            closeSectionDraft()
+            return
+        }
+        const snapshotConfig = (value ?? {}) as Record<string, unknown>
+        store.set(migrateBuildKitStateAtom, revisionId)
+        const snapshotBuildKit = store.get(workflowBuildKitUiStateAtomFamily(revisionId))
+        setDraftConfig(snapshotConfig)
+        setDraftBuildKit(snapshotBuildKit)
+        setSectionRevision(revisionId)
+        sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
+    }, [
+        revisionId,
+        sectionRevision,
+        openSection,
+        closeSectionDraft,
+        isCurrentSectionDirty,
+        value,
+        store,
+    ])
 
     // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
     // the sibling AgentOperationsSections; this shares the same deduped query).
@@ -1115,11 +1146,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 title: "Integrations",
                 summary: countSummary(integrationCount, "integration"),
                 indicator: sectionIndicator("tools"),
-                // One action, so the header plus opens the drawer directly instead of a menu.
+                // "Create with AI" beside the drawer that adds one by hand.
                 extra:
-                    !disabled && openIntegrationDrawer
-                        ? headerAddButton("Add integration", openIntegrationDrawer)
-                        : undefined,
+                    !disabled && openIntegrationDrawer ? (
+                        <CreateWithAIAddMenu
+                            label="Add integration"
+                            starterPrompt="I want to connect"
+                            onManual={openIntegrationDrawer}
+                            manualTitle="Browse integrations"
+                            manualHint="Pick an app and choose what the agent can do with it."
+                            manualIcon={<PuzzlePiece size={16} />}
+                        />
+                    ) : undefined,
                 defaultOpen: integrationCount > 0,
                 content: (
                     <ToolManagementList
@@ -1196,7 +1234,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
             indicator: sectionIndicator("skills"),
-            extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
+            extra: !disabled ? (
+                <CreateWithAIAddMenu
+                    label="Add skill"
+                    starterPrompt="I want a skill that"
+                    onManual={handleAddSkill}
+                    manualTitle="Add manually"
+                    manualHint="Pick a skill from your library or write one."
+                    manualIcon={<GraduationCap size={16} />}
+                />
+            ) : undefined,
             defaultOpen: skills.length > 0,
             content: (
                 <>
@@ -1486,7 +1533,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         revisionId={sectionRevision ?? revisionId}
                         buildKitOverride={draftBuildKitOverride}
                         credentialOperationsBlocked={sectionDirty}
-                        onCredentialRevisionCommitted={closeSectionDraft}
+                        onCredentialRevisionCommitted={rebaseSectionOnCredentialCommit}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>

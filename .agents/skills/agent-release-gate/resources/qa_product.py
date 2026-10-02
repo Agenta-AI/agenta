@@ -379,12 +379,72 @@ CELLS = {
 # `echo "QA-BASH-$((6*7+1))"` — and the model simply computed 43 and reported it WITHOUT running
 # bash, so a DENIED tool call still produced a "passing" reply. The wire said denied; the prose
 # lied. Lesson, and the rule for this whole driver: assert on FRAMES, and only ever use a token
-# the model cannot compute. The container hostname is random per container.
+# the model cannot compute. The sandbox hostname is random per sandbox.
 BASH_PROMPT = (
     'Use the bash tool to run exactly: echo "QA-BASH-$(hostname)-$(uname -m)" '
     "and reply with only its stdout."
 )
-BASH_TOKEN_RE = re.compile(r"QA-BASH-[0-9a-f]{6,}-\w+")
+# The hostname shape depends on where the sandbox runs: a Docker container id is hex, but a
+# Kubernetes pod name carries letters beyond hex and dashes ("agenta-runner-7bccbff75-g9lmw").
+# An older hex-only pattern failed the journey on every Kubernetes stage even though the tool
+# had run and its output reached the reply. Accept any hostname, and keep the minimum length,
+# which is what stops a model from passing with a short value it invented instead of running
+# the tool.
+BASH_TOKEN_RE = re.compile(r"QA-BASH-[A-Za-z0-9][A-Za-z0-9.-]{5,}-\w+")
+
+# Extraction from the tool's OWN output runs the match on to the end of the token, because
+# `\w` stops at a dot and would hand back a truncated value for an architecture like
+# "x86_64.v2". The reply would then only have to carry that shorter string. The pattern above
+# stays unanchored and is what scans REPLY prose, where the deny journey has to find a
+# fabricated token wherever the model put it.
+BASH_TOKEN_FULL_RE = re.compile(BASH_TOKEN_RE.pattern + r"[A-Za-z0-9._-]*")
+
+
+def reply_carries_token(reply: str, token: str) -> bool:
+    """Does ``reply`` carry exactly ``token``, and not a longer run of token characters?
+
+    A plain ``in`` test also accepts the token with more hostname or architecture characters
+    glued to it, so a mangled value would pass. Boundaries reject that. The boundary classes
+    leave punctuation out on purpose: a reply that ends the sentence with a full stop, or wraps
+    the token in backticks, is still reporting the right value.
+    """
+    return (
+        re.search(
+            # A dot is rejected only when another hostname label follows it, so `token.extra`
+            # fails while a reply that ends the sentence with `token.` still passes. The
+            # pattern is built from re.escape(token), so it carries no user-supplied syntax.
+            rf"(?<![A-Za-z0-9_-]){re.escape(token)}(?![A-Za-z0-9_-]|\.(?=[A-Za-z0-9]))",
+            reply,
+        )
+        is not None
+    )
+
+
+def bash_token_from_output(t: "Turn", tool_call_id: str) -> str | None:
+    """The QA-BASH token as the SHELL printed it, read off THIS call's output frame.
+
+    A token found only in the reply proves nothing on its own: the model writes the reply, so it
+    can write a plausible token without running anything. That is the failure this journey was
+    built around. Reading the token off the tool's own output and then requiring the REPLY to
+    carry that exact string ties the two together, so a fabricated value cannot pass however
+    well shaped it is.
+
+    Scoped to one ``toolCallId`` on purpose. A turn often carries several calls, and scanning
+    all of them would accept a token another tool happened to print while the bash call
+    produced none.
+    """
+    if t.tool_outcomes.get(tool_call_id) != "available":
+        return None
+    payload = t.tool_payloads.get(tool_call_id)
+    if not isinstance(payload, dict):
+        return None
+    output = payload.get("output")
+    if output is None:
+        return None
+    text = output if isinstance(output, str) else json.dumps(output, default=str)
+    found = BASH_TOKEN_FULL_RE.search(text)
+    return found.group(0) if found else None
+
 
 # For the APPROVAL journeys the command must MUTATE. Claude Code classifies bash commands and
 # auto-approves read-only ones (a bare `echo`) no matter what the permission policy says, so
@@ -738,7 +798,16 @@ def j3_tool(cell: dict) -> dict:
             permission_default="allow",
         ),
     )
-    ok = tool_ran(t) and bool(BASH_TOKEN_RE.search(t.reply)) and not t.errors
+    bash_call, _ = _bash_call_outcome(t)
+    shell_token = (
+        bash_token_from_output(t, bash_call["toolCallId"]) if bash_call else None
+    )
+    ok = (
+        tool_ran(t)
+        and shell_token is not None
+        and reply_carries_token(t.reply, shell_token)
+        and not t.errors
+    )
     return {
         "pass": ok,
         "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit, with no wire errors",
@@ -2067,6 +2136,9 @@ def j_rule_deny(cell: dict) -> dict:
     # outcome at all, and reading that as a refusal would pass this journey on a broken run.
     refused = outcome is not None and outcome != "available"
     no_card = t.approval is None
+    # Absence is asserted on the REPLY here, not on a tool output: a denied call produces no
+    # output to match against, and the point of this journey is that the model did not invent a
+    # token to cover the refusal. Any shaped token in the reply is a failure.
     no_token = not BASH_TOKEN_RE.search(t.reply)
     ok = attempted and refused and no_card and no_token and not t.errors
     return {
@@ -2094,11 +2166,15 @@ def _allow_rule_flow(cell: dict, rule: str) -> dict:
             harness_permissions={"allow": [rule]},
         ),
     )
-    _, outcome = _bash_call_outcome(t)
+    bash_call, outcome = _bash_call_outcome(t)
+    shell_token = (
+        bash_token_from_output(t, bash_call["toolCallId"]) if bash_call else None
+    )
     ok = (
         t.approval is None
         and outcome == "available"
-        and bool(BASH_TOKEN_RE.search(t.reply))
+        and shell_token is not None
+        and reply_carries_token(t.reply, shell_token)
         and not t.errors
     )
     return {

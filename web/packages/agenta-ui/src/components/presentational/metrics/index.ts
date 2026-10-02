@@ -19,6 +19,7 @@
 export {
     ExecutionMetricsDisplay,
     MetaSeparator,
+    TokenBreakdownList,
     type ExecutionMetricsDisplayProps,
     type ExecutionMetricsData,
 } from "./ExecutionMetricsDisplay"

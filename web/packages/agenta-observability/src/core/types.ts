@@ -41,6 +41,11 @@ export interface DashboardData {
     failure_rate: number
     total_cost: number
     avg_cost: number
+    /**
+     * Traces whose root span has no cost. Either the trace made no priced model call, or the
+     * API could not add the child costs to the root. `total_cost` does not include them.
+     */
+    without_cost_count: number
     avg_latency: number
     total_tokens: number
     avg_tokens: number

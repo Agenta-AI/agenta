@@ -72,7 +72,14 @@ export type AcpPromptBlock =
   | { type: "image"; data: string; mimeType: string }
   | { type: "text"; text: string };
 
+/** The filesystem the model's tools see, when it differs from the harness host. */
+export interface AttachmentFiles {
+  exists(path: AttachmentPath): Promise<boolean>;
+  materialize(path: AttachmentPath, bytes: Uint8Array): Promise<"written" | "exists">;
+}
+
 export interface AttachmentSandbox {
+  attachmentFiles?: AttachmentFiles;
   statFs?: (query: { path: string }) => Promise<unknown>;
   mkdirFs?: (query: { path: string }) => Promise<unknown>;
   writeFsFile?: (query: { path: string }, body: Uint8Array) => Promise<unknown>;
@@ -401,6 +408,7 @@ export async function materializeWorkingCopy(
   bytes: Uint8Array,
 ): Promise<"written" | "exists"> {
   const path = attachmentWorkingPath(plan.workspace.cwd, ref);
+  if (sandbox.attachmentFiles) return sandbox.attachmentFiles.materialize(path, bytes);
   return plan.isDaytona
     ? daytonaMaterialize(sandbox, path, bytes)
     : localMaterialize(path, bytes);
@@ -640,6 +648,7 @@ async function workingCopyExists(
   ref: AttachmentRef,
 ): Promise<boolean> {
   const path = attachmentWorkingPath(plan.workspace.cwd, ref);
+  if (sandbox.attachmentFiles) return sandbox.attachmentFiles.exists(path);
   if (plan.isDaytona) {
     if (typeof sandbox.statFs !== "function") return false;
     await rejectDaytonaSymlinks(sandbox, [

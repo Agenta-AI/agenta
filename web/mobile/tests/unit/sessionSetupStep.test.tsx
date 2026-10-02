@@ -19,11 +19,23 @@ const fixture = vi.hoisted(() => ({
     opensWith: true,
     openCalls: [] as {seedMessage: string; templateKey?: string}[],
     draft: null as null | {seedMessage: string},
+    /** The template catalogue's read state. */
+    catalogueStatus: "success" as "pending" | "error" | "success",
 }))
 
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
-    useAtomValue: () => (fixture.task ? {"session-1": fixture.task} : {}),
+    useAtomValue: (atom: unknown) => {
+        // The catalogue lookup, as `agentTemplateLookupAtomFamily` answers it.
+        if (atom && typeof atom === "object" && "lookupKey" in atom) {
+            const key = (atom as {lookupKey: string}).lookupKey
+            if (fixture.catalogueStatus !== "success") return {status: fixture.catalogueStatus}
+            return key === "pr-reviewer"
+                ? {status: "found", template: {key, name: "PR reviewer"}}
+                : {status: "missing"}
+        }
+        return fixture.task ? {"session-1": fixture.task} : {}
+    },
 }))
 
 vi.mock("@agenta/entities/gatewayTool", () => ({
@@ -31,8 +43,7 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
 }))
 
 vi.mock("@agenta/entities/workflow", () => ({
-    agentTemplateByKey: (key: string) =>
-        key === "pr-reviewer" ? {key, name: "PR reviewer"} : undefined,
+    agentTemplateLookupAtomFamily: (key: string) => ({lookupKey: key}),
 }))
 
 vi.mock("@agenta/entity-ui/onboarding", () => ({
@@ -83,6 +94,7 @@ beforeEach(() => {
     fixture.opensWith = true
     fixture.openCalls = []
     fixture.draft = null
+    fixture.catalogueStatus = "success"
     seen = null
 })
 
@@ -150,6 +162,17 @@ describe("useSessionSetupStep", () => {
     it("holds while the connections query is still loading, and decides nothing yet", async () => {
         fixture.task = {agentId: "a1", text: "Build a PR reviewer", templateKey: "pr-reviewer"}
         fixture.connectionsLoading = true
+        await mount()
+
+        expect(fixture.openCalls).toHaveLength(0)
+        expect(seen?.blocking).toBe(true)
+        expect(seen?.open).toBe(false)
+    })
+
+    // A key must not read as "names no template" before the catalogue has answered.
+    it("holds while the template catalogue is still loading, and decides nothing yet", async () => {
+        fixture.task = {agentId: "a1", text: "Build a PR reviewer", templateKey: "pr-reviewer"}
+        fixture.catalogueStatus = "pending"
         await mount()
 
         expect(fixture.openCalls).toHaveLength(0)

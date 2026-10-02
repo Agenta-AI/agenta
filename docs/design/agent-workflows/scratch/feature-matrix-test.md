@@ -1,6 +1,6 @@
 # Agent feature matrix — live end-to-end test
 
-Date: 2026-06-20. Target: the live EE-dev deployment at `http://144.76.237.122:8280`
+Date: 2026-06-20. Target: the live EE-dev deployment at `http://<dev-host>:8280`
 (compose project `agenta-ee-dev-wp-b2-rendering`). Method: real HTTP calls to the agent
 service, real LLM turns. No mocks.
 
@@ -86,7 +86,7 @@ KEY=$(grep '^AGENTA_API_KEY=' examples/python/hotel_agent/draft/.env | cut -d= -
 PROJ=019e8df5-2a58-7501-8fe2-56f7b332bd00
 curl -s -X POST \
   -H "Authorization: ApiKey $KEY" -H "content-type: application/json" \
-  "http://144.76.237.122:8280/services/agent/v0/invoke?project_id=$PROJ" \
+  "http://<dev-host>:8280/services/agent/v0/invoke?project_id=$PROJ" \
   -d '{"data":{"inputs":{"messages":[{"role":"user","content":"Reply with exactly: PONG"}]},
        "parameters":{"agent":{"agents_md":"Reply with exactly the requested word.",
        "model":"gpt-5.5","harness":"pi","sandbox":"local"}}}}'

@@ -9,10 +9,9 @@ import {
 } from "@agenta/entity-ui/agent"
 import {InlineRenameInput, useDeferredMenuSelect, useInlineRename} from "@agenta/sessions-ui"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {Button} from "@agenta/ui/ui"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {ChatCircleDots} from "@phosphor-icons/react"
 
-import {Skeleton} from "@/components/ui/skeleton"
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
 
@@ -30,6 +29,7 @@ export const AgentOverviewTitle = ({
     pending,
     onOpenChat,
     onEditConfig,
+    onPublish,
 }: {
     agentId: string
     name: string
@@ -39,6 +39,8 @@ export const AgentOverviewTitle = ({
     onOpenChat: () => void
     /** Opens this agent's configuration in the session workspace — the rail card's Edit verb. */
     onEditConfig: () => void
+    /** Opens the Publish panel; the kebab offers it below `lg`, where the Channels card is hidden. */
+    onPublish?: () => void
 }) => {
     const renameAgent = useRenameAgent()
     const onCommit = useCallback(
@@ -84,7 +86,7 @@ export const AgentOverviewTitle = ({
             </AgentIconPopover>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5 pt-1 lg:pt-0">
                 {pending ? (
-                    <Skeleton className="h-7 w-40" />
+                    <SkeletonBlock className="h-7 w-40" />
                 ) : rename.renaming ? (
                     <InlineRenameInput
                         rename={rename}
@@ -152,6 +154,7 @@ export const AgentOverviewTitle = ({
                     // and with it the MCP servers section, which lives in the agent's
                     // configuration rather than in settings.
                     onOpen={wide ? undefined : onEditConfig}
+                    onPublish={wide ? undefined : onPublish}
                     onRename={() => handleSelect("rename")}
                     onEditDescription={wide ? () => handleSelect("describe") : undefined}
                     onCloseAutoFocus={handleCloseAutoFocus}

@@ -557,6 +557,7 @@ function registerAgentaExtension(
       turnId: control.turnId,
       skills: control.skills,
       skillsDropped: control.skillsDropped,
+      customConnection: control.customConnection,
       redactor,
       serializedBatchTransport: createPiFileSpanExporter({
         directory: dirname(traceControlPath),

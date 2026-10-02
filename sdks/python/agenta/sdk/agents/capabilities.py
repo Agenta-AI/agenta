@@ -76,13 +76,13 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
     # ``openai-codex``, served via ``chatgpt.com/backend-api``); keep it in sync when the pinned
     # Pi version changes its codex model list.
     "openai-codex": [
+        "gpt-6-sol",
         "gpt-6-astra",
+        "gpt-6-luna",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
         "gpt-5.5",
-        "gpt-5.4",
-        "gpt-5.4-mini",
         "gpt-5.3-codex-spark",
     ],
 }
@@ -105,17 +105,19 @@ CLAUDE_MODEL_ALIASES: List[str] = [
     "claude-fable-5-1",
 ]
 
-# The curated Codex model set the harness advertises under the ``openai`` family. The
-# ``gpt-5.1-codex`` family is API-listed but backend-deprecated, so it is excluded. Keep this in
-# sync with ``data/codex_models.curated.json`` and the ``sync-model-catalog`` skill. See decision
-# D-006.
+# The curated Codex model set the harness advertises under the ``openai`` family: the models the
+# pinned Codex CLI (0.156.1, via codex-acp 1.13.1) lists for both an API key and a ChatGPT login.
+# The ChatGPT backend hides GPT-6 models from older Codex clients, so a new model can need a Codex
+# bump, not just an entry here. Keep this in sync with ``data/codex_models.curated.json`` and the
+# ``sync-model-catalog`` skill. See decision D-006.
 CODEX_MODELS: List[str] = [
     "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
     "gpt-5.5",
-    "gpt-5.2",
 ]
 
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
@@ -151,6 +153,8 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
 PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     "openai": [
         "openai/gpt-6-astra",
+        "openai/gpt-6-sol",
+        "openai/gpt-6-luna",
         "openai/gpt-5.6-luna",
         "openai/gpt-5.6-terra",
         "openai/gpt-5.6-sol",
@@ -159,6 +163,7 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "anthropic/claude-opus-5-5",
         "anthropic/claude-opus-5",
         "anthropic/claude-fable-5-1",
+        "anthropic/claude-sonnet-5-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
     ],
@@ -188,6 +193,8 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     ],
     "openrouter": [
         "openrouter/tencent/hy4-preview",
+        "openrouter/openai/gpt-6-sol",
+        "openrouter/openai/gpt-6-luna",
         "openrouter/openai/gpt-5.6-luna",
         "openrouter/deepseek/deepseek-v4-flash-0731",
         "openrouter/z-ai/glm-5.3-flash",
@@ -242,24 +249,39 @@ def _model_catalog(harness: str) -> List[Dict[str, object]]:
 
 
 def _pi_models() -> Dict[str, List[str]]:
-    """The per-provider model ids Pi reaches: the catalog entry for each vault provider, plus the
-    explicit ids for the subscription/OAuth providers (``openai-codex``) that the shared catalog
-    does not list.
+    """The per-provider model ids Pi reaches: the shared catalog's ids for each vault provider,
+    plus the explicit ids for the subscription/OAuth providers (``openai-codex``) that the shared
+    catalog does not list.
 
-    Defensive against a provider missing from ``supported_llm_models`` (skip it) so a catalog
-    edit never breaks the capability document. The ids match the shared catalog's shape (mostly
-    provider-prefixed like ``anthropic/...``; some, e.g. ``openai``, are bare like ``gpt-5.5``),
-    the same shape the playground model picker already renders.
+    Pi can only select a model its pinned pi-ai catalog carries, so every list is narrowed to the
+    ids in the Pi model catalog (``data/pi_models.*.json``); an id the playground's litellm catalog
+    knows but Pi does not would only fail at run time. The ids keep the shared catalog's shape
+    (mostly provider-prefixed like ``anthropic/...``; some, e.g. ``openai``, are bare like
+    ``gpt-5.5``), the same shape the playground model picker already renders.
     """
+    accepted = {str(entry.get("id")) for entry in _model_catalog("pi_core")}
+
+    def runnable(provider: str, ids: Iterable[str]) -> List[str]:
+        return [
+            model_id
+            for model_id in ids
+            if (
+                model_id
+                if model_id.startswith(f"{provider}/")
+                else f"{provider}/{model_id}"
+            )
+            in accepted
+        ]
+
     models = {
-        provider: list(supported_llm_models[provider])
+        provider: runnable(provider, supported_llm_models[provider])
         for provider in PI_VAULT_PROVIDERS
         if provider in supported_llm_models
     }
     # The subscription/OAuth providers are not in the litellm-derived catalog, so carry their ids
     # explicitly (like the Claude alias set).
     for provider, ids in PI_SUBSCRIPTION_MODELS.items():
-        models[provider] = list(ids)
+        models[provider] = runnable(provider, ids)
     return models
 
 

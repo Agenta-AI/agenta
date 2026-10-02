@@ -46,6 +46,7 @@ class FakeRecognition {
     interimResults = false
     lang = ""
     onstart: (() => void) | null = null
+    onspeechstart: (() => void) | null = null
     onresult: ((e: FakeResultEvent) => void) | null = null
     onerror: ((e: {error: string}) => void) | null = null
     onend: (() => void) | null = null
@@ -250,6 +251,64 @@ describe("useVoiceInput", () => {
         expect(result.current.recording).toBe(false)
         expect(result.current.active).toBe(false)
         expect(live()).toHaveLength(0)
+    })
+
+    it.each(["", "already spoken"])("finishes during a pending relaunch (words: %s)", (words) => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => FakeRecognition.instances[0].onspeechstart?.())
+        if (words) act(() => void live()[0].say(words, true))
+        act(() => FakeRecognition.instances[0].endOnSilence())
+        act(() => result.current.stop())
+        expect(result.current.active).toBe(false)
+        expect(result.current.recording).toBe(false)
+        if (words) expect(result.current.error).toBeNull()
+        else expect(result.current.error).toContain("No speech was recognized")
+        act(() => vi.advanceTimersByTime(1000))
+        expect(FakeRecognition.instances).toHaveLength(1)
+        expect(result.current.finalText).toBe(words)
+    })
+
+    it("explains unrecognized speech after the browser finishes stopping", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => FakeRecognition.instances[0].onspeechstart?.())
+        act(() => result.current.stop())
+        expect(result.current.error).toBeNull()
+        act(() => vi.advanceTimersByTime(TEARDOWN_MS))
+        expect(result.current.error).toContain("No speech was recognized")
+    })
+
+    it("stays quiet when the mic is stopped before anything was said", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => result.current.stop())
+        act(() => vi.advanceTimersByTime(TEARDOWN_MS))
+        expect(result.current.recording).toBe(false)
+        expect(result.current.error).toBeNull()
+    })
+
+    it("accepts words that arrive only after stop without reporting empty dictation", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => result.current.stop())
+        act(() =>
+            FakeRecognition.instances[0].onresult?.({
+                resultIndex: 0,
+                results: {length: 1, 0: {isFinal: true, 0: {transcript: "mobile message"}}},
+            }),
+        )
+        act(() => vi.advanceTimersByTime(TEARDOWN_MS))
+        expect(result.current.finalText).toBe("mobile message")
+        expect(result.current.error).toBeNull()
+    })
+
+    it("preserves the permission error when the empty session ends", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => FakeRecognition.instances[0].onerror?.({error: "not-allowed"}))
+        act(() => FakeRecognition.instances[0].endOnSilence())
+        expect(result.current.error).toBe("Microphone access denied")
     })
 
     it("reports unsupported where the API is absent, and start is inert", () => {

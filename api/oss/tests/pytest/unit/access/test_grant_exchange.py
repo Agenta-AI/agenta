@@ -65,7 +65,14 @@ def _exchange(monkeypatch):
 
     router = AccessRouter()
 
-    async def run(action, resource_type="service", carried_grants=(), runtime_key=None):
+    async def run(
+        action,
+        resource_type="service",
+        carried_grants=(),
+        runtime_key=None,
+        scope_type=None,
+        scope_id=None,
+    ):
         """Run the exchange as a principal whose credential carries ``carried_grants``.
 
         A session or ApiKey principal never has any: `verify_secret_token` is the only
@@ -105,8 +112,8 @@ def _exchange(monkeypatch):
             return await router.check_permissions(
                 request,
                 action=action,
-                scope_type=None,
-                scope_id=None,
+                scope_type=scope_type,
+                scope_id=scope_id,
                 resource_type=resource_type,
                 resource_id=None,
             )
@@ -279,3 +286,22 @@ async def test_missing_action_is_denied(exchange):
         await run(None)
 
     assert raised.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_a_project_scope_must_match_the_authenticated_project(exchange):
+    # The scope check ASSERTS the requested scope is the authenticated one; it never
+    # selects it. A caller asking about another project than the one its request was
+    # authenticated for (for a session with no explicit project_id, the DEFAULT
+    # project) is denied, whatever its role there. Clients must pin the request's
+    # auth scope to the project they ask about (see useProjectPermission.ts).
+    run, _ = exchange
+
+    body = _body(await run("edit_secret", scope_type="project", scope_id=PROJECT_ID))
+    assert body["effect"] == "allow"
+
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as denied:
+        await run("edit_secret", scope_type="project", scope_id=uuid4())
+    assert denied.value.status_code == 403
