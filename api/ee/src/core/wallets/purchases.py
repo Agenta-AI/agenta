@@ -12,7 +12,7 @@ MUSD_PER_CREDIT = 10_000
 
 PURCHASE_CREDIT_KIND = "purchase"
 # Spent last: it is paid for and lasts the longest.
-PURCHASE_PRIORITY = 30
+PURCHASE_PRIORITY = 70
 PURCHASE_LIFETIME_DAYS = TWELVE_MONTHS_DAYS
 
 # The remaining budget of an organization's starter-credits proxy key, moved into the
