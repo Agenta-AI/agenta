@@ -609,3 +609,28 @@ async def test_a_stream_past_the_drain_bound_is_stopped_and_cleaned_up_before_th
     await reader.finish(timeout=0.1)
 
     assert closed.is_set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra", [0, 1, 5])
+async def test_a_stream_that_fills_the_buffer_still_ends_for_a_connected_consumer(
+    extra,
+):
+    import asyncio
+
+    from oss.src.core.gateways.llms.service import _UpstreamReader
+
+    count = _UpstreamReader._BUFFERED_CHUNKS + extra
+
+    async def body():
+        for _ in range(count):
+            yield b"x"
+
+    reader = _UpstreamReader(body())
+    await asyncio.sleep(0.05)  # the read finishes while the buffer is full
+
+    async def consume():
+        return [chunk async for chunk in reader.chunks()]
+
+    received = await asyncio.wait_for(consume(), timeout=2)
+    assert len(received) == count

@@ -152,10 +152,10 @@ class _UpstreamReader:
                 if not self._abandoned:
                     await self._queue.put(chunk)
         finally:
-            try:
-                self._queue.put_nowait(_END)
-            except asyncio.QueueFull:
-                pass  # only when the consumer has left, so nobody waits for the end
+            # A connected consumer must see the end even when the last chunk filled the
+            # queue; `finish` empties the queue on abandonment, which unblocks this put.
+            if not self._abandoned:
+                await self._queue.put(_END)
 
     async def chunks(self) -> AsyncIterator[bytes]:
         while True:
