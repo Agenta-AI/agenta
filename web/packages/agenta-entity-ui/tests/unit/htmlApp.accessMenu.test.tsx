@@ -43,7 +43,9 @@ const render = (grants: GrantStore, canEditMounts = true) => {
 }
 
 const radios = () =>
-    [...document.querySelectorAll("[role=dialog] [role=radio]")].map((el) => el.getAttribute("value"))
+    [...document.querySelectorAll("[role=dialog] [role=radio]")].map((el) =>
+        el.getAttribute("value"),
+    )
 
 const click = (el: Element | null | undefined) =>
     act(() => {

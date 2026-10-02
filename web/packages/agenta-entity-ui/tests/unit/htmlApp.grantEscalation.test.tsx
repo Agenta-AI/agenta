@@ -38,7 +38,9 @@ const stubHost = (): HtmlAppHost => ({
 
 const io: AssembleIo = {
     fetchText: (path: string) =>
-        Promise.resolve(path.endsWith("app.json") ? JSON.stringify({agenta_app: 1, name: "Board"}) : null),
+        Promise.resolve(
+            path.endsWith("app.json") ? JSON.stringify({agenta_app: 1, name: "Board"}) : null,
+        ),
     fetchDataUri: () => Promise.resolve(null),
 }
 

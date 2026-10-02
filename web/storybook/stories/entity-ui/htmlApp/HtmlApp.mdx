@@ -17,14 +17,14 @@ folder in localStorage, survive reloads and tabs, and apply to the running app.
 
 ## Pieces
 
-| Piece                 | What it does                                                                                                                                                                                                                              |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Piece                 | What it does                                                                                                                                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `assembleRunDocument` | Run: same-mount CSS + images inlined, author scripts kept (same-folder `<script src>` inlined, external dropped with a note), then CSP meta → `#agenta-tokens` → `#agenta-kit` → bridge stub prepended to `<head>`. No interceptor: nav rides the port. |
-| `HtmlAppBody`         | The running app. It starts with the stored answer or no access; a call that needs more asks about what it tried. The env context injects host factory, mount io, kit CSS, token resolver, grant store.                             |
-| `GrantSheet`          | `AccessQuestion` — "Let _name_ read / change files in _dir_?", Allow / Don't allow — and `GrantSheet`, the ⋯ "File access…" setting: Read / Read and write / None, write only where the drive's upload gate allows edits.             |
-| `RunView`             | The iframe; its controls (‹ back, "Files changed" pill, error badge → list → Copy, Refresh) portal into the file toolbar. Attaches the host on load, detaches on unmount, pushes theme tokens on theme change.                    |
-| `useAppManifest`      | Reads `<dir>/app.json` (absent → defaults: `read`, `index.html`, kit on).                                                                                                                                                                 |
-| `useChangedHint`      | Diffs the app dir's listing query (etag → mtime → size) on refetches not caused by the app's own write and calls `host.notifyChanged`; `onWrite` bumps the listing through `refreshMountListing`.                                         |
+| `HtmlAppBody`         | The running app. It starts with the stored answer or no access; a call that needs more asks about what it tried. The env context injects host factory, mount io, kit CSS, token resolver, grant store.                                                  |
+| `GrantSheet`          | `AccessQuestion` — "Let _name_ read / change files in _dir_?", Allow / Don't allow — and `GrantSheet`, the ⋯ "File access…" setting: Read / Read and write / None, write only where the drive's upload gate allows edits.                               |
+| `RunView`             | The iframe; its controls (‹ back, "Files changed" pill, error badge → list → Copy, Refresh) portal into the file toolbar. Attaches the host on load, detaches on unmount, pushes theme tokens on theme change.                                          |
+| `useAppManifest`      | Reads `<dir>/app.json` (absent → defaults: `read`, `index.html`, kit on).                                                                                                                                                                               |
+| `useChangedHint`      | Diffs the app dir's listing query (etag → mtime → size) on refetches not caused by the app's own write and calls `host.notifyChanged`; `onWrite` bumps the listing through `refreshMountListing`.                                                       |
 
 ## Stories ↔ acceptance steps
 
@@ -35,8 +35,8 @@ folder in localStorage, survive reloads and tabs, and apply to the running app.
 | **HtmlAppBody / Refused**             | A stored "Don't allow": no access, never asked again.                                                         |
 | **HtmlAppBody / ReadOnlyDrive**       | Upload gate off ⇒ asked about reading only; writes fail `read_only`.                                          |
 | **HtmlAppBody / Loading**             | Slow drive ⇒ starting skeleton, never a frozen pane.                                                          |
-| **GrantSheet / ReadQuestion**         | The first read: Allow gives read, Don't allow stores none, × / Esc is no access for this run only.           |
-| **GrantSheet / WriteQuestion**        | The first write: Allow gives read and write; Don't allow is remembered, so the app is not asked again.       |
+| **GrantSheet / ReadQuestion**         | The first read: Allow gives read, Don't allow stores none, × / Esc is no access for this run only.            |
+| **GrantSheet / WriteQuestion**        | The first write: Allow gives read and write; Don't allow is remembered, so the app is not asked again.        |
 | **GrantSheet / SettingRead**          | The ⋯ setting with read stored; downgrades and revokes apply to the running app at once.                      |
 | **GrantSheet / SettingNotSet**        | Never answered: nothing preselected.                                                                          |
 | **GrantSheet / SettingWriteHidden**   | Upload gate off ⇒ only Read and None.                                                                         |

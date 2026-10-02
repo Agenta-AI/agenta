@@ -132,7 +132,9 @@ describe("grant store", () => {
             },
         }
         vi.stubGlobal("localStorage", throwing)
-        expect(() => setGrant("m1", "apps/board", {level: "read", writeRefused: false})).not.toThrow()
+        expect(() =>
+            setGrant("m1", "apps/board", {level: "read", writeRefused: false}),
+        ).not.toThrow()
         expect(getGrant("m1", "apps/board")).toEqual({level: "read", writeRefused: false})
         expect(() => clearGrants()).not.toThrow()
         expect(getGrant("m1", "apps/board")).toBeNull()

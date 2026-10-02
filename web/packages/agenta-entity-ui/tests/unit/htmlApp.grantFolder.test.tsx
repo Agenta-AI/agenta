@@ -98,9 +98,10 @@ describe("switching folders while an app runs", () => {
 
         const b = hostsFor("apps/b")
         expect(b.length, "folder B runs too").toBeGreaterThan(0)
-        expect(b.every((o) => o.grant === "none" && o.requestAccess), "and asks for itself").toBe(
-            true,
-        )
+        expect(
+            b.every((o) => o.grant === "none" && o.requestAccess),
+            "and asks for itself",
+        ).toBe(true)
     })
 
     it("keeps the grant for another file in the same folder", async () => {

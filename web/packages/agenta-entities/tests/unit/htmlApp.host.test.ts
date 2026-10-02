@@ -648,7 +648,10 @@ describe("createHtmlAppHost access", () => {
         answer("read")
         expectOk(await first)
         expectOk(await second)
-        expect(requestAccess, "the second read was covered by the first answer").toHaveBeenCalledTimes(1)
+        expect(
+            requestAccess,
+            "the second read was covered by the first answer",
+        ).toHaveBeenCalledTimes(1)
 
         const write = host.handle(req({id: 3, method: "write", path: "a.txt", body: "a"}))
         await Promise.resolve()
@@ -669,7 +672,10 @@ describe("createHtmlAppHost access", () => {
         const {host, fake} = make(seed, {grant: "read-write"})
         expectOk(await host.handle(req({method: "write", path: "a.txt", body: "a"})))
         host.setAccess?.("read")
-        expectFailure(await host.handle(req({method: "write", path: "b.txt", body: "b"})), "read_only")
+        expectFailure(
+            await host.handle(req({method: "write", path: "b.txt", body: "b"})),
+            "read_only",
+        )
         host.setAccess?.("none")
         const before = fake.calls.length
         expectFailure(await host.handle(req({method: "read", path: "index.html"})), "unavailable")
