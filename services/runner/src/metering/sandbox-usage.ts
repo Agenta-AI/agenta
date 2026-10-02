@@ -78,6 +78,17 @@ export function meteringCredentialForRequest(request: AgentRunRequest): string {
   return sandboxMeteringEnabled() ? platformCredentialForRequest(request) : "";
 }
 
+/**
+ * The key a session's turns and its sandboxes' meters share: `<projectId>:<sessionId>`, the same
+ * scope the session pool keys on. A session id alone is a caller-chosen label that two projects
+ * may both use. Undefined without both, and then a meter is never paused between turns.
+ */
+export function meteredTurnKey(request: Pick<AgentRunRequest, "runContext" | "sessionId">): string | undefined {
+  const projectId = request.runContext?.project?.id?.trim();
+  const sessionId = request.sessionId?.trim();
+  return projectId && sessionId ? `${projectId}:${sessionId}` : undefined;
+}
+
 /** Who a run's command sandbox reports for, or undefined when nothing is metered. */
 export function sandboxUsageContext(
   request: AgentRunRequest,
@@ -86,10 +97,12 @@ export function sandboxUsageContext(
   const authorization = meteringCredentialForRequest(request);
   if (!authorization) return undefined;
   const agentId = request.runContext?.workflow?.artifact?.id;
+  const turnKey = meteredTurnKey(request);
   return {
     authorization,
     ...(sessionId ? { sessionId } : {}),
     ...(agentId ? { agentId } : {}),
+    ...(turnKey ? { turnKey } : {}),
   };
 }
 
@@ -218,7 +231,10 @@ export function holdTurnSlot(
       log(`turn ${action} failed: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`);
     }
   };
-  const timer = setInterval(() => void post("heartbeat"), deps.intervalMs ?? TURN_SLOT_HEARTBEAT_MS);
+  // One call at a time, in order: a beat still in flight must not land after the release.
+  let queue: Promise<void> = Promise.resolve();
+  const serial = (action: "heartbeat" | "release"): Promise<void> => (queue = queue.then(() => post(action)));
+  const timer = setInterval(() => void serial("heartbeat"), deps.intervalMs ?? TURN_SLOT_HEARTBEAT_MS);
   timer.unref?.();
   let released = false;
   return {
@@ -226,7 +242,7 @@ export function holdTurnSlot(
       if (released) return;
       released = true;
       clearInterval(timer);
-      void post("release").finally(() => lease.release());
+      void serial("release").finally(() => lease.release());
     },
   };
 }
@@ -236,6 +252,8 @@ export interface SandboxUsageContext {
   authorization: string;
   sessionId?: string;
   agentId?: string;
+  /** `meteredTurnKey` of the run: the sandbox is billed only while one of these turns runs. */
+  turnKey?: string;
 }
 
 export interface SandboxMeterOptions {
@@ -250,6 +268,8 @@ export interface SandboxMeterOptions {
   credential: () => string;
   sessionId?: string;
   agentId?: string;
+  /** `meteredTurnKey` of the session: billed only while one of its turns runs. Without one, always. */
+  turnKey?: string;
   /** Called once if the platform turns out not to meter sandboxes, so the credential is let go. */
   onUnmetered?: () => void;
   /** When the sandbox started running; defaults to now. */
@@ -279,40 +299,41 @@ const runningTurns = new Map<string, number>();
 const sessionMeters = new Map<string, Set<SessionMeter>>();
 
 /**
- * A turn of this session started: its sandboxes are billed until the returned function is called.
+ * A turn of this session (`meteredTurnKey`) started: its sandboxes are billed until the returned
+ * function is called.
  *
  * Only running turns are billed. A sandbox kept warm after a turn, or waiting for a person to
  * answer an approval, keeps running on the provider's account, but its time between turns is not
  * charged. A run without a session has no warm window: its meter runs until its sandbox stops.
  */
-export function beginMeteredTurn(sessionId: string | undefined): () => void {
-  if (!sessionId) return () => {};
-  runningTurns.set(sessionId, (runningTurns.get(sessionId) ?? 0) + 1);
-  for (const meter of sessionMeters.get(sessionId) ?? []) meter.resume();
+export function beginMeteredTurn(turnKey: string | undefined): () => void {
+  if (!turnKey) return () => {};
+  runningTurns.set(turnKey, (runningTurns.get(turnKey) ?? 0) + 1);
+  for (const meter of sessionMeters.get(turnKey) ?? []) meter.resume();
   let ended = false;
   return () => {
     if (ended) return;
     ended = true;
-    const left = (runningTurns.get(sessionId) ?? 1) - 1;
+    const left = (runningTurns.get(turnKey) ?? 1) - 1;
     if (left > 0) {
-      runningTurns.set(sessionId, left);
+      runningTurns.set(turnKey, left);
       return;
     }
-    runningTurns.delete(sessionId);
-    for (const meter of sessionMeters.get(sessionId) ?? []) meter.pause();
+    runningTurns.delete(turnKey);
+    for (const meter of sessionMeters.get(turnKey) ?? []) meter.pause();
   };
 }
 
-function watchSession(sessionId: string, meter: SessionMeter): () => void {
-  let meters = sessionMeters.get(sessionId);
+function watchSession(turnKey: string, meter: SessionMeter): () => void {
+  let meters = sessionMeters.get(turnKey);
   if (!meters) {
     meters = new Set();
-    sessionMeters.set(sessionId, meters);
+    sessionMeters.set(turnKey, meters);
   }
   meters.add(meter);
   return () => {
     meters.delete(meter);
-    if (meters.size === 0 && sessionMeters.get(sessionId) === meters) sessionMeters.delete(sessionId);
+    if (meters.size === 0 && sessionMeters.get(turnKey) === meters) sessionMeters.delete(turnKey);
   };
 }
 
@@ -353,7 +374,7 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
   let unmetered = false;
   let stopped = false;
   // A session's sandbox that comes up between its turns is not billed until the next one starts.
-  let paused = options.sessionId ? !runningTurns.has(options.sessionId) : false;
+  let paused = options.turnKey ? !runningTurns.has(options.turnKey) : false;
   // One report in flight at a time, in order.
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
@@ -432,8 +453,8 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
   }, options.intervalMs ?? SANDBOX_USAGE_INTERVAL_MS);
   timer.unref?.();
 
-  const unwatch = options.sessionId
-    ? watchSession(options.sessionId, {
+  const unwatch = options.turnKey
+    ? watchSession(options.turnKey, {
         pause() {
           if (paused || stopped) return;
           // Cut at the turn's end now; the report follows in order, like any interval.

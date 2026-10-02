@@ -8,7 +8,13 @@
  */
 import { runWithTurnLimit } from "../engines/sandbox_agent/run-limits.ts";
 import type { AgentRunRequest, AgentRunResult, EmitEvent } from "../protocol.ts";
-import { admitSandboxTurn, beginMeteredTurn, holdTurnSlot, meteringCredentialForRequest } from "./sandbox-usage.ts";
+import {
+  admitSandboxTurn,
+  beginMeteredTurn,
+  holdTurnSlot,
+  meteredTurnKey,
+  meteringCredentialForRequest,
+} from "./sandbox-usage.ts";
 
 export async function runAdmittedTurn(
   request: AgentRunRequest,
@@ -24,7 +30,7 @@ export async function runAdmittedTurn(
     return { ok: false, error: admission.message };
   }
   const slot = admission.slotHeld ? (deps.holdSlot ?? holdTurnSlot)(authorization, turnId) : undefined;
-  const endMeteredTurn = beginMeteredTurn(request.sessionId?.trim());
+  const endMeteredTurn = beginMeteredTurn(meteredTurnKey(request));
   try {
     return await runWithTurnLimit(admission.turnLimit, run);
   } finally {

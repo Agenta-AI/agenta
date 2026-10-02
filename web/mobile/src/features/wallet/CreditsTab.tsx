@@ -54,7 +54,8 @@ export const CreditsTab = ({projectId, billingURL}: {projectId: string; billingU
             fetchWalletUsage(projectId, {
                 start: new Date(Date.now() - USAGE_DAYS * 86_400_000).toISOString(),
             }),
-        enabled: Boolean(projectId),
+        // Only for an organization the wallet enforces; a deep link from any other reads nothing.
+        enabled: Boolean(projectId) && summary.data?.mode === "enforce",
         refetchInterval: 60_000,
         // The detail is owner-only; a 403 is an answer, not a failure to retry.
         retry: (count, error) => !isForbidden(error) && count < 2,
@@ -69,8 +70,21 @@ export const CreditsTab = ({projectId, billingURL}: {projectId: string; billingU
     if (summary.isError) return <WalletUsageError onRetry={() => void summary.refetch()} />
 
     const wallet = summary.data
+    if (wallet.mode !== "enforce")
+        return (
+            <p className="text-muted-foreground m-0 text-xs">
+                Credits are not in use for this organization.
+            </p>
+        )
     const remaining = Math.max(0, wallet.spendable_musd ?? 0)
-    const credits = wallet.credits.filter((credit) => credit.remaining_musd > 0)
+    const now = Date.now()
+    // The credits the headline counts: some left, and inside their active window.
+    const credits = wallet.credits.filter(
+        (credit) =>
+            credit.remaining_musd > 0 &&
+            (!credit.start_time || Date.parse(credit.start_time) <= now) &&
+            (!credit.end_time || Date.parse(credit.end_time) > now),
+    )
     const ownerOnly = isForbidden(usage.error)
 
     return (

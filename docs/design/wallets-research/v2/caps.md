@@ -84,7 +84,11 @@ the count. The runner releases the slot when the turn ends, however it ends, inc
 for a person's approval. A runner that dies stops beating, and its turns leave the count
 within three minutes.
 
-The same turn id asking again (a retried dispatch) keeps its own slot.
+The runner sends its beats and its release one at a time, in order. A release also writes a
+short-lived marker that a later beat for the same turn honors, so a beat that timed out at the
+runner but still reached Redis cannot hold the slot again. The same turn id asking again (a
+retried dispatch, a resume after an approval) keeps or retakes its own slot and clears the
+marker.
 
 ### Turn length
 
@@ -100,7 +104,9 @@ API's message. A pause for a person's approval stops every deadline, as before.
 
 The sandbox meter (`services/runner/src/metering/sandbox-usage.ts`) keeps its per-minute
 reports. Each meter of a session's sandbox now runs only while a turn of that session runs:
-`beginMeteredTurn(sessionId)` at admission resumes it, and the end of the turn pauses it. A
+`beginMeteredTurn(turnKey)` at admission resumes it, and the end of the turn pauses it. The key
+is `<projectId>:<sessionId>` (the session pool's scope), because a session id is a label two
+projects may share. A run without both has no pause, so it is billed until its sandbox stops. A
 pause cuts the open interval at the turn's end and reports it like any interval. A sandbox
 that comes up between turns starts paused. A run without a session has no warm window, so its
 meter runs until its sandbox stops.

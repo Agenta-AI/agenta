@@ -20,6 +20,7 @@ const BASE = "http://api.test/api";
 const AGENT = "0198f4e2-6a1b-7c3d-9e8f-0a1b2c3d4e5f";
 const START_MS = Date.UTC(2026, 8, 26, 12, 0, 0, 400);
 const START_S = Math.floor(START_MS / 1000);
+const TURN_KEY = "proj-1:session-1";
 
 interface Call {
   url: string;
@@ -149,6 +150,33 @@ describe("holdTurnSlot", () => {
     ]);
   });
 
+  it("a release waits for a beat still in flight, so the beat never lands after it", async () => {
+    const order: string[] = [];
+    let finishBeat: () => void = () => {};
+    const fetch = (async (url: string) => {
+      const action = String(url).split("/").pop()!;
+      order.push(`${action}:sent`);
+      if (action === "heartbeat") await new Promise<void>((resolve) => (finishBeat = resolve));
+      order.push(`${action}:done`);
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof globalThis.fetch;
+    const slot = holdTurnSlot("Secret run-1", "t-1", {
+      fetch,
+      baseUrl: BASE,
+      log: () => {},
+      intervalMs: 60_000,
+      startLease: () => ({ credential: () => "Secret run-1", release: () => {} }),
+    });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    slot.release();
+    await Promise.resolve();
+    expect(order).toEqual(["heartbeat:sent"]);
+    finishBeat();
+    await vi.waitFor(() => expect(order).toHaveLength(4));
+    expect(order).toEqual(["heartbeat:sent", "heartbeat:done", "release:sent", "release:done"]);
+  });
+
   it("a failed beat is logged and never thrown", async () => {
     const lines: string[] = [];
     const down = (async () => {
@@ -176,7 +204,7 @@ describe("startSandboxMeter", () => {
     clock = START_MS;
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
     // The meters below belong to "session-1", whose turn runs for the whole test unless it ends.
-    endTurn = beginMeteredTurn("session-1");
+    endTurn = beginMeteredTurn(TURN_KEY);
   });
   afterEach(() => {
     endTurn();
@@ -190,6 +218,7 @@ describe("startSandboxMeter", () => {
       resources: () => ({ vcpu: 2, memoryGib: 4 }),
       credential: () => "Secret run-1",
       sessionId: "session-1",
+      turnKey: TURN_KEY,
       agentId: AGENT,
       startedAtMs: START_MS,
       intervalMs: 60_000,
@@ -240,7 +269,7 @@ describe("startSandboxMeter", () => {
     await advance(30_000);
     endTurn(); // the turn ends; the sandbox stays warm
     await advance(120_000);
-    endTurn = beginMeteredTurn("session-1"); // the next turn reuses it
+    endTurn = beginMeteredTurn(TURN_KEY); // the next turn reuses it
     await advance(20_000);
     await m.stop();
 
@@ -268,7 +297,7 @@ describe("startSandboxMeter", () => {
     const m = meter({ fetch });
 
     await advance(90_000);
-    endTurn = beginMeteredTurn("session-1");
+    endTurn = beginMeteredTurn(TURN_KEY);
     await advance(15_000);
     await m.stop();
 
@@ -277,10 +306,24 @@ describe("startSandboxMeter", () => {
     ]);
   });
 
+  it("another project's turn of a session with the same id does not bill this sandbox", async () => {
+    const { calls, fetch } = platform();
+    const m = meter({ fetch });
+
+    await advance(10_000);
+    endTurn();
+    const other = beginMeteredTurn("proj-2:session-1");
+    await advance(60_000);
+    other();
+    await m.stop();
+
+    expect(calls.map((c) => [c.body.start_time, c.body.end_time])).toEqual([[iso(START_S), iso(START_S + 10)]]);
+  });
+
   it("a run without a session has no warm window: it is billed until its sandbox stops", async () => {
     endTurn();
     const { calls, fetch } = platform();
-    const m = meter({ fetch, sessionId: undefined });
+    const m = meter({ fetch, sessionId: undefined, turnKey: undefined });
 
     await advance(60_000);
     await advance(5_000);
@@ -476,6 +519,8 @@ describe("the wallet switch", () => {
       sessionId: "conv-1",
       agentId: AGENT,
     });
+    const scoped = { ...RUN, sessionId: "conv-1", runContext: { ...RUN.runContext, project: { id: "proj-1" } } };
+    expect(sandboxUsageContext(scoped as AgentRunRequest, "conv-1")?.turnKey).toBe("proj-1:conv-1");
   });
 });
 

@@ -7,6 +7,7 @@ import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
 
 const RUN = {
   sessionId: "conv-1",
+  runContext: { project: { id: "proj-1" } },
   telemetry: { exporters: { otlp: { headers: { authorization: "Access run-token" } } } },
 } as unknown as AgentRunRequest;
 

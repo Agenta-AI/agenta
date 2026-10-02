@@ -81,9 +81,12 @@ const render = async (node: React.ReactNode): Promise<string> => {
     await act(async () => {
         root!.render(<QueryClientProvider client={client}>{node}</QueryClientProvider>)
     })
-    await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 0))
-    })
+    // Two rounds: the usage query starts only once the summary has answered.
+    for (let round = 0; round < 2; round += 1) {
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0))
+        })
+    }
     return (host.textContent ?? "").replace(/\s+/g, " ").trim()
 }
 
@@ -121,6 +124,30 @@ describe("the Credits tab", () => {
         expect(shown).toContain("Oct 1, 2026")
         expect(shown).toContain("Model calls")
         expect(shown).toContain("125")
+    })
+
+    it("lists only credits inside their active window", async () => {
+        const wallet = summary("enforce")
+        wallet.credits.push({
+            ...wallet.credits[0],
+            id: "c-2",
+            credit_kind: "expired_grant",
+            end_time: "2020-01-01T00:00:00Z",
+        })
+        api.summary.mockResolvedValue(wallet)
+        api.usage.mockResolvedValue(usage)
+        const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
+
+        expect(shown).toContain("Welcome credits")
+        expect(shown).not.toContain("Expired grant")
+    })
+
+    it("reads nothing for an organization the wallet does not enforce", async () => {
+        api.summary.mockResolvedValue(summary("shadow"))
+        const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
+
+        expect(shown).toBe("Credits are not in use for this organization.")
+        expect(api.usage).not.toHaveBeenCalled()
     })
 
     it("tells a member who is not the owner that usage detail is the owner's", async () => {

@@ -656,6 +656,7 @@ export class CommandSandbox {
       onUnmetered: () => this.releaseUsage(),
       ...(this.usage.sessionId ? { sessionId: this.usage.sessionId } : {}),
       ...(this.usage.agentId ? { agentId: this.usage.agentId } : {}),
+      ...(this.usage.turnKey ? { turnKey: this.usage.turnKey } : {}),
       startedAtMs: this.runningSince,
     });
   }

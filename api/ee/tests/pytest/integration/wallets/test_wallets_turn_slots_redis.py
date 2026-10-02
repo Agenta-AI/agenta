@@ -79,3 +79,30 @@ async def test_concurrent_admissions_never_exceed_the_limit(slots):
         )
     )
     assert sum(results) == 3
+
+
+async def test_a_beat_that_lands_after_the_release_does_not_hold_the_slot_again(slots):
+    org = uuid4()
+    assert await slots.acquire(
+        organization_id=org, turn_id="a", limit=1, ttl_seconds=60
+    )
+    await slots.release(organization_id=org, turn_id="a")
+    await slots.renew(organization_id=org, turn_id="a", ttl_seconds=60)
+
+    assert await slots.acquire(
+        organization_id=org, turn_id="b", limit=1, ttl_seconds=60
+    )
+
+
+async def test_the_same_turn_id_admitted_again_is_held_by_its_beats(slots):
+    org = uuid4()
+    assert await slots.acquire(organization_id=org, turn_id="a", limit=1, ttl_seconds=1)
+    await slots.release(organization_id=org, turn_id="a")
+    assert await slots.acquire(organization_id=org, turn_id="a", limit=1, ttl_seconds=1)
+    await asyncio.sleep(0.6)
+    await slots.renew(organization_id=org, turn_id="a", ttl_seconds=60)
+    await asyncio.sleep(0.6)
+
+    assert not await slots.acquire(
+        organization_id=org, turn_id="b", limit=1, ttl_seconds=60
+    )
