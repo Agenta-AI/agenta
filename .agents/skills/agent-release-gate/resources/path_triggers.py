@@ -52,9 +52,7 @@ SESSION_CONTROL = ("session_control.py",)
 
 # The cells that run a REMOTE sandbox and need no extra flag. A release that touches the sandbox
 # engine or the Daytona provider changes how a cold sandbox gets built and how its credentials are
-# delivered, and the `burst` and `crosstalk` journeys are the only ones that see that path under
-# load (AGE-4249). Both run in every cell selected here, because a run without `--only` runs every
-# journey.
+# delivered (AGE-4249), so every journey runs on these cells.
 #
 # P3 is deliberately NOT in this list even though it is a Daytona cell. It needs --custom-slug and
 # --custom-name, and the driver exits when a selected custom cell has no slug, so naming it here
@@ -73,7 +71,6 @@ SESSION_CONTEXT = ("matrix_n1_session_context.py",)
 # `--release-base ... --only chat` would run `chat` on the mandatory Daytona cells and report a
 # green release while the coverage the rule exists for never ran. Journeys named here are FORCED
 # into the selection, even against an explicit --only.
-CONCURRENCY_JOURNEYS = ("burst", "crosstalk")
 HOSTED_SUBSCRIPTION_JOURNEYS = ("refresh",)
 
 # Glob -> cells. Matching is fnmatch over the whole repo-relative path, so `*` crosses directory
@@ -157,9 +154,8 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "services/runner/src/redaction.ts": CUSTOM_SECRETS,
     # The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the
     # credential preflight, and the one retry the runner does when a first model call is refused.
-    # A fault here shows up only when many sandboxes start at once, which is what `burst` and
-    # `crosstalk` do on these cells. Production hit it as one first message in five failing with
-    # a credential error (AGE-4249 / #6485) while the sequential gate stayed green.
+    # Production hit a fault here as one first message in five failing with a credential error
+    # (AGE-4249 / #6485).
     # A dict literal keeps only the last value for a repeated key, so a glob that already names
     # DAYTONA_CELLS lists SESSION_CONTROL alongside it in the SAME tuple rather than as a second
     # entry that would silently drop the Daytona rule.
@@ -195,11 +191,6 @@ PATH_TRIGGER_JOURNEYS: dict[str, tuple[str, ...]] = {
     "api/oss/src/core/secrets/subscription_*": HOSTED_SUBSCRIPTION_JOURNEYS,
     "api/oss/src/core/secrets/services.py": HOSTED_SUBSCRIPTION_JOURNEYS,
     "api/oss/src/dbs/postgres/secrets/**": HOSTED_SUBSCRIPTION_JOURNEYS,
-    # The concurrency journeys (`burst`, `crosstalk`) are journeys, not cells: listed under
-    # PATH_TRIGGERS they would be registered as cell names and never run. A change to the
-    # sandbox engine or the Daytona provider makes them mandatory on every applicable cell.
-    "services/runner/src/engines/sandbox_agent/**": CONCURRENCY_JOURNEYS,
-    "services/runner/src/providers/daytona*": CONCURRENCY_JOURNEYS,
 }
 
 
