@@ -12,6 +12,7 @@ from oss.src.apis.fastapi.gateways.llms.utils import (
     parse_messages_call_context,
     parse_responses_call_context,
 )
+from oss.src.apis.fastapi.gateways.flags import llm_gateway_serves_caller
 from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_marker
 from oss.src.core.gateways.dtos import (
     GatewayEndpointNamespace,
@@ -40,7 +41,6 @@ from oss.src.core.gateways.policy.types import (
 )
 from oss.src.core.gateways.run_claims import gateway_run_id, gateway_run_labels
 from oss.src.utils.context import get_auth_scope
-from oss.src.utils.env import env
 
 if TYPE_CHECKING:
     from oss.src.core.gateways.llms.service import LLMGatewayService
@@ -387,10 +387,11 @@ class LLMGatewayProxy:
     ) -> Response:
         # Checked before the body is read: with the plane off there is nothing to relay to,
         # and a harness that pointed at this base URL needs the refusal, not a parse error.
-        if not env.llm_gateway.enabled:
+        if not await llm_gateway_serves_caller():
             return _map_domain_exception(LLMGatewayDisabledError())
 
         scope = get_auth_scope()
+
         raw_body = await request.body()
 
         try:
@@ -458,7 +459,7 @@ class LLMGatewayProxy:
         # Any, not Dict[str, Any]: the success path returns the OpenAI list body,
         # the denial path returns a JSONResponse — FastAPI passes a Response
         # instance through unprocessed either way.
-        if not env.llm_gateway.enabled:
+        if not await llm_gateway_serves_caller():
             return _map_domain_exception(LLMGatewayDisabledError())
 
         scope = get_auth_scope()

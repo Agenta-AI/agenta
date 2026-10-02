@@ -15,6 +15,7 @@ from oss.src.core.managed_tools.interfaces import ManagedActionBillingInterface
 
 from ee.src.core.measurements.components import ACTION_CALLS, ACTION_RESULTS
 from ee.src.core.measurements.rate_card import ACTION_RATES, action_rates_for
+from ee.src.core.wallets.admission import admit_in_mode, measured
 from ee.src.core.wallets.contracts import (
     GatewayKind,
     MeasurementCommandV1,
@@ -70,11 +71,17 @@ class WalletManagedActionBilling(ManagedActionBillingInterface):
         # An unpriced action would be charged nothing, or dead-lettered: never run it.
         if price is None or price.unit != action.unit:
             raise ManagedActionUnpricedError(action.key)
-        return await self.wallet.covers(
-            organization_id=organization_id, amount_musd=price.worst_case_musd
+        return await admit_in_mode(
+            organization_id=organization_id,
+            point="managed_tool",
+            check=lambda: self.wallet.covers(
+                organization_id=organization_id, amount_musd=price.worst_case_musd
+            ),
         )
 
     async def record(self, *, measurement: ManagedActionMeasurement) -> None:
+        if not await measured(measurement.context.organization_id):
+            return
         # A refused publish is logged by the publisher; the executor contains the rest.
         await self.publisher.publish(action_measurement(measurement))
 

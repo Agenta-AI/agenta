@@ -18,6 +18,7 @@ from ee.src.core.measurements.components import (
     OUTPUT_TOKENS,
     REQUEST_COUNT,
 )
+from ee.src.core.wallets.admission import measured
 from ee.src.core.wallets.contracts import (
     GatewayKind,
     MeasurementCommandV1,
@@ -43,6 +44,8 @@ class MeasurementUsageSink(UsageSinkInterface):
         run_id: Optional[str],
         run_labels: Optional[Dict[str, str]] = None,
     ) -> None:
+        if not await measured(scope.organization_id):
+            return
         await self.publisher.publish(
             measurement_from_call(
                 scope=scope,

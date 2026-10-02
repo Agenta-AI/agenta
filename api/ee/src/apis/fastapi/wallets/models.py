@@ -24,4 +24,5 @@ class SandboxAdmissionResponse(BaseModel):
 
 
 class SandboxUsageRecordResponse(BaseModel):
-    measurement_id: str
+    # None when the organization's wallet is `off`: acknowledged, not measured.
+    measurement_id: Optional[str] = None

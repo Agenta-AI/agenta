@@ -89,7 +89,7 @@ class GatewayCredentialsRouter:
         """
         plane = body.plane if body else None
         if plane is GatewayPlane.LLM:
-            require_llm_gateway_enabled()
+            await require_llm_gateway_enabled()
         elif plane is GatewayPlane.MCP:
             require_mcp_gateway_enabled()
 
