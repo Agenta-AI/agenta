@@ -9,6 +9,7 @@ import {
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
+import {countUserMessages} from "../assets/pendingSendEchoes"
 import {getPendingConnectInteractions} from "../clientTools/connectInteractions"
 import {getPendingElicitationInteractions} from "../clientTools/elicitationInteractions"
 
@@ -25,6 +26,8 @@ export interface QueuedMessage {
     policy?: "queue" | "steer"
     source?: "local" | "server"
     editable?: boolean
+    /** The send this server row came from (its `Idempotency-Key`), so its echo can step aside. */
+    clientId?: string | null
 }
 
 export interface ServerQueueAdapter {
@@ -81,6 +84,8 @@ interface UseAgentChatQueueArgs {
     onSendFailed?: (message: QueuedMessage) => void
     /** The durable session queue. Every send is admitted through it. */
     server: ServerQueueAdapter
+    /** This tab's own run is going, which the server snapshot reports a poll late. */
+    runActive?: boolean
 }
 
 /**
@@ -94,6 +99,9 @@ interface UseAgentChatQueueArgs {
  * 8-to-11 seconds a local sandbox needs to write the continuation's first record.
  */
 export const CONTINUATION_HOLD_MAX_MS = 45_000
+
+/** Longest a started row stays in the dock while its user row is on its way. */
+const RELEASE_HOLD_MAX_MS = 2_000
 
 /**
  * Admits every composer send through the durable session queue, keeps an echo row for each send
@@ -110,9 +118,12 @@ export const useAgentChatQueue = ({
     onSendAccepted,
     onSendFailed,
     server,
+    runActive = false,
 }: UseAgentChatQueueArgs) => {
     const serverBusyRef = useRef(server.busy)
     serverBusyRef.current = server.busy
+    const runActiveRef = useRef(runActive)
+    runActiveRef.current = runActive
 
     // ── The durable-continuation hold ─────────────────────────────────────────────────────────
     // A server-owned continuation is a TURN. The tab that answered the approval owns it until
@@ -182,18 +193,77 @@ export const useAgentChatQueue = ({
     )
     const echoes = usePendingSendEchoes({messages, dockedInputIds})
 
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const stashRef = useRef("")
+    const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
+
+    // A row the server stops listing has started: hold it until its user row lands (set in render, so no frame lacks it).
+    const userCount = countUserMessages(messages)
+    const removedIdsRef = useRef(new Set<string>())
+    const [releasing, setReleasing] = useState<
+        {row: QueuedMessage; atUserCount: number; until: number}[]
+    >([])
+    const queuedKey = server.queued.map((item) => item.id).join("\n")
+    const [lastServerQueued, setLastServerQueued] = useState({key: queuedKey, rows: server.queued})
+    if (lastServerQueued.key !== queuedKey) {
+        setLastServerQueued({key: queuedKey, rows: server.queued})
+        const listed = new Set(server.queued.map((item) => item.id))
+        // A steer was never a dock row (its echo shows it), so only queued rows are held.
+        const started = lastServerQueued.rows.filter(
+            (item) =>
+                item.policy !== "steer" &&
+                item.id !== editingId &&
+                !listed.has(item.id) &&
+                !removedIdsRef.current.has(item.id),
+        )
+        if (started.length) {
+            const until = Date.now() + RELEASE_HOLD_MAX_MS
+            setReleasing((current) => [
+                ...current,
+                ...started.map((row) => ({
+                    row: {...row, source: "local" as const, editable: false},
+                    atUserCount: userCount,
+                    until,
+                })),
+            ])
+        }
+    }
+    const heldRows = useMemo(
+        () =>
+            releasing
+                .filter(
+                    (item) =>
+                        userCount <= item.atUserCount &&
+                        Date.now() < item.until &&
+                        !server.queued.some((row) => row.id === item.row.id),
+                )
+                .map((item) => item.row),
+        [releasing, userCount, server.queued],
+    )
+    // The time limit needs a render of its own once nothing else changes.
+    useEffect(() => {
+        if (!releasing.length) return
+        const next = Math.min(...releasing.map((item) => item.until)) - Date.now()
+        const timer = setTimeout(
+            () => setReleasing((current) => current.filter((item) => Date.now() < item.until)),
+            Math.max(next, 0),
+        )
+        return () => clearTimeout(timer)
+    }, [releasing])
+
     // A steer this tab sent is on its way INTO the running turn, not held behind it, so while its
     // echo is on screen the dock leaves the row out rather than showing the same message twice.
     // Derived from the live echoes, so the row comes back the moment the echo stops covering it —
     // an input the turn ended without consuming is visible again, and removable.
-    const dockedServerQueued = useMemo(
-        () => server.queued.filter((item) => !echoes.dockCoveredIds.has(item.id)),
-        [server.queued, echoes.dockCoveredIds],
-    )
-
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const stashRef = useRef("")
-    const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
+    // A docked echo steps aside the moment the server lists the input it became.
+    const dockedServerQueued = useMemo(() => {
+        const listedClientIds = new Set(server.queued.map((item) => item.clientId))
+        return [
+            ...heldRows,
+            ...server.queued.filter((item) => !echoes.dockCoveredIds.has(item.id)),
+            ...echoes.dockRows.filter((item) => !listedClientIds.has(item.id)),
+        ]
+    }, [heldRows, server.queued, echoes.dockCoveredIds, echoes.dockRows])
 
     // One durable admission for both policies, so a steer gets the same echo and refusal
     // recovery a queued send has.
@@ -202,7 +272,9 @@ export const useAgentChatQueue = ({
             // Show it before the request leaves. Every exit is driven by evidence about this
             // send: the turn it started, the dock row (queue) or parked input (steer) it
             // became, or its failure.
-            echoes.add({...message, policy})
+            // A queued send while a run is busy lands in the dock, so show it there from the start.
+            const busy = serverBusyRef.current || runActiveRef.current || echoes.inFlight
+            echoes.add({...message, policy, docked: policy === "queue" && busy})
             return server
                 .submit(message, policy, {
                     onAccepted: (executionId) => {
@@ -246,7 +318,9 @@ export const useAgentChatQueue = ({
                     onSettled: () => echoes.markFailed(message.id),
                 })
                 .then(
-                    () => undefined,
+                    (admission) => {
+                        if (admission === "running") echoes.markStarted(message.id)
+                    },
                     (error: unknown) => {
                         echoes.drop(message.id)
                         onSendFailedRef.current?.(message)
@@ -277,6 +351,7 @@ export const useAgentChatQueue = ({
     const removeQueued = useCallback(
         (id: string) => {
             if (server.queued.some((message) => message.id === id)) {
+                removedIdsRef.current.add(id)
                 void server.remove(id).catch(() => {})
             }
         },

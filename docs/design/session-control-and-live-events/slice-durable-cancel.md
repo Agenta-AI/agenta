@@ -172,7 +172,7 @@ makes the database decide, and the losing insert reads the winner back.
 
 ## Live verification
 
-Stack: `http://144.76.237.122:9180`, project `agenta-ee-dev-session-cancel`, EE, dev images,
+Stack: `http://<dev-host>:9180`, project `agenta-ee-dev-session-cancel`, EE, dev images,
 built from this worktree. The agent ran the `pi_core` harness on the local sandbox with an
 OpenAI model.
 

@@ -54,7 +54,7 @@ Unified system for selecting entities through multi-level hierarchies:
   - `cascading` - Dropdown cascade (App → Variant → Revision)
   - `breadcrumb` - Breadcrumb navigation with drill-down
   - `list-popover` - List with hover popovers (2-level)
-- Pre-built adapters for common entities (appRevision, evaluatorRevision, testset)
+- Pre-built adapters for common entities (workflowRevision, evaluator, testset)
 
 ### Entity Table
 
@@ -128,19 +128,19 @@ export const testsetAdapter = createAndRegisterEntityAdapter({
 
 ### Selection Adapters (Relation-Based)
 
-For hierarchical entity selection (EntityPicker), adapters are derived from `EntityRelation` definitions. The testset and appRevision adapters are pre-built and auto-configured from `@agenta/entities` - no runtime configuration required:
+For hierarchical entity selection (EntityPicker), adapters are derived from `EntityRelation` definitions. The testset and workflowRevision adapters are pre-built and auto-configured from `@agenta/entities` - no runtime configuration required:
 
 ```typescript
 // Pre-built adapters (auto-configured from entity relations)
-import { testsetAdapter, appRevisionAdapter } from '@agenta/entity-ui'
+import { testsetAdapter, workflowRevisionAdapter } from '@agenta/entity-ui'
 
 // These are registered during initializeSelectionSystem()
 ```
 
-To create custom selection adapters, use the relation-based factories:
+To create custom selection adapters inside this package, use the relation-based factories:
 
 ```typescript
-import { createAdapterFromRelations, createTwoLevelAdapter } from '@agenta/entity-ui'
+import { createTwoLevelAdapter } from './selection/adapters'
 
 // Simple 2-level hierarchy (testset -> revision)
 export const testsetAdapter = createTwoLevelAdapter({
@@ -150,36 +150,6 @@ export const testsetAdapter = createTwoLevelAdapter({
   childType: 'revision',
   childRelationKey: 'testset->revision',
   selectionType: 'revision',
-})
-
-// Complex 3-level hierarchy with overrides (app -> variant -> revision)
-export const appRevisionAdapter = createAdapterFromRelations({
-  name: 'appRevision',
-  rootLevel: {
-    type: 'app',
-    label: 'Application',
-    listAtom: appsListAtom,
-  },
-  childLevels: [
-    {
-      type: 'variant',
-      relationKey: 'app->variant',
-      overrides: { autoSelectSingle: true },
-    },
-    {
-      type: 'appRevision',
-      relationKey: 'variant->appRevision',
-      overrides: { autoSelectSingle: true },
-    },
-  ],
-  selectionType: 'appRevision',
-  extractMetadata: (path, leaf) => ({
-    appId: path[0]?.id,
-    appName: path[0]?.label,
-    variantId: path[1]?.id,
-    variantName: path[1]?.label,
-    revision: (leaf as any).revision ?? 0,
-  }),
 })
 ```
 
@@ -194,21 +164,21 @@ The factories reduce adapter code from ~200+ lines to ~20 lines by:
 ### Using Entity Selection
 
 ```typescript
-import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entity-ui'
+import { EntityPicker, type WorkflowRevisionSelectionResult } from '@agenta/entity-ui'
 
 // Cascading dropdowns for compact spaces
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
   variant="cascading"
-  adapter="appRevision"
+  adapter="workflowRevision"
   onSelect={(selection) => {
     console.log('Selected revision:', selection.id)
   }}
 />
 
 // Breadcrumb navigation for modals
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
   variant="breadcrumb"
-  adapter="appRevision"
+  adapter="workflowRevision"
   onSelect={handleSelect}
   showSearch
   showBreadcrumb
@@ -222,10 +192,10 @@ import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entity-ui
 import { useEntityDelete, EntityDeleteModal } from '@agenta/entity-ui'
 
 // Hook for programmatic deletion
-const { openDelete } = useEntityDelete()
+const { deleteEntities } = useEntityDelete()
 
 const handleDelete = () => {
-  openDelete([{ type: 'testset', id: testsetId }])
+  deleteEntities([{ type: 'testset', id: testsetId }])
 }
 
 // Modal component (render once in your app)
@@ -278,8 +248,6 @@ function MyProvider({children}) {
     )
 }
 ```
-
-See the [import-lazy rule](../../.claude/skills/agenta-package-practices/rules/import-lazy.md) for detailed guidelines.
 
 ## Dependencies
 

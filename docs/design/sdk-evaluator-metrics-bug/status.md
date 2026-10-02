@@ -97,7 +97,7 @@ See `plan.md` for full implementation details.
 
 ```
 Run ID: 019c08bf-95bf-7213-8ad3-534ed5b3e8c7
-URL: http://144.76.237.122:9000/.../evaluations/results/019c08bf-95bf-7213-8ad3-534ed5b3e8c7
+URL: http://<dev-host>:9000/.../evaluations/results/019c08bf-95bf-7213-8ad3-534ed5b3e8c7
 
 Metrics for scenario 019c08bf-9701-7c73-b494-5d4bd51fc4aa:
   evaluator-f6b2cf8d24ed:

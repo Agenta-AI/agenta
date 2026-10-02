@@ -98,7 +98,7 @@ export const ChatLoading = () => (
     </ContentRail>
 )
 
-/** Also covers history-unavailable — loadSessionMessages resolves null for both. */
+/** No durable history; a read that failed is `ChatUnreachable` instead. */
 export const ChatEmpty = () => (
     <p className="text-muted-foreground grow p-6 text-xs">
         No messages here — this session has no replayable history.

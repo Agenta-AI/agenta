@@ -1156,6 +1156,7 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
                 "inputs": {
                     "type": "object",
                     "properties": {"input": {"type": "string"}},
+                    "additionalProperties": False,
                 }
             },
             "parameters": {"temperature": 0.1},
@@ -1209,6 +1210,7 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
         "inputs": {
             "type": "object",
             "properties": {"input": {"type": "string"}},
+            "additionalProperties": False,
         }
     }
     assert workflow_request.data.parameters == {"temperature": 0.1}

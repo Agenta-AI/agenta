@@ -1,10 +1,20 @@
 // @vitest-environment jsdom
 import {act, renderHook} from "@testing-library/react"
-import {afterEach, describe, expect, it} from "vitest"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
+import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {DEFAULT_ATTACHMENT_LIMITS} from "../../../src/assets/attachmentRules"
+import {uploadAttachment} from "../../../src/assets/attachmentTransport"
 import {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
 import {attachmentsBySession} from "../../../src/state/sessionEphemera"
+
+// Real module except the network call: `uploadExtraFiles` must forward the project, and the
+// no-project guard must reject before the transport is ever reached.
+vi.mock("../../../src/assets/attachmentTransport", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("../../../src/assets/attachmentTransport")>()),
+    uploadAttachment: vi.fn(),
+}))
 
 const makeFile = (name: string, type = "text/plain", size = 16): File => {
     const blob = new Uint8Array(size).fill(97)
@@ -174,5 +184,46 @@ describe("useComposerAttachments", () => {
         })
         expect(result.current.files).toHaveLength(0)
         expect(result.current.rejections).toHaveLength(0)
+    })
+})
+
+describe("uploadExtraFiles project scoping", () => {
+    const store = getDefaultStore()
+
+    afterEach(() => {
+        store.set(projectIdAtom, null)
+        vi.mocked(uploadAttachment).mockReset()
+    })
+
+    it("forwards the session's project to the transport", async () => {
+        store.set(projectIdAtom, "project-ext")
+        vi.mocked(uploadAttachment).mockResolvedValue({
+            count: 1,
+            attachment: {id: "att-1"},
+        } as never)
+        const {result} = setup()
+        await act(async () => {
+            await expect(
+                result.current.uploadExtraFiles([makeFile("take.txt")]),
+            ).resolves.toHaveLength(1)
+        })
+        expect(vi.mocked(uploadAttachment)).toHaveBeenCalledWith(
+            expect.objectContaining({projectId: "project-ext"}),
+        )
+    })
+
+    it("refuses to upload without an active project", async () => {
+        store.set(projectIdAtom, null)
+        const {result} = setup()
+        await act(async () => {
+            await expect(
+                result.current.uploadExtraFiles([makeFile("take.txt")]),
+            ).resolves.toBeNull()
+        })
+        expect(vi.mocked(uploadAttachment)).not.toHaveBeenCalled()
+        // The failure is adopted into the tray as a visible, retryable error row.
+        expect(result.current.files.map((f) => [f.status, f.error])).toEqual([
+            ["error", "This upload needs an active project."],
+        ])
     })
 })

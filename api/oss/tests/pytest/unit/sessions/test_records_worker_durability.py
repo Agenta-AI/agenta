@@ -27,12 +27,18 @@ from uuid import uuid4
 import fakeredis.aioredis as fakeredis
 import pytest
 from orjson import dumps
-from sqlalchemy.exc import IntegrityError
+from asyncpg.exceptions import UntranslatableCharacterError
+from sqlalchemy.dialects.postgresql.asyncpg import AsyncAdapt_asyncpg_dbapi
+from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.tasks.asyncio.sessions import records_worker
-from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
+from oss.src.tasks.asyncio.sessions.records_worker import (
+    ROW_REJECTION_ERRORS,
+    RecordsWorker,
+    is_row_rejection,
+)
 
 STREAM = "streams:records"
 GROUP = "worker-records"
@@ -56,10 +62,13 @@ def _payload(*, project_id, session_id, record_id, record_type="message", turn_i
 class FakeRecordsDAO:
     """Records what committed, and fails the events the caller names."""
 
-    def __init__(self, *, poison_ids=(), fail_calls=0, transient_error=None):
+    def __init__(
+        self, *, poison_ids=(), fail_calls=0, transient_error=None, poison_error=None
+    ):
         self.poison_ids = {str(record_id) for record_id in poison_ids}
         self.fail_calls = fail_calls
         self.transient_error = transient_error or ConnectionError("postgres is down")
+        self.poison_error = poison_error
         self.calls = 0
         self.committed: list[str] = []
 
@@ -70,7 +79,9 @@ class FakeRecordsDAO:
         if any(str(event.record_id) in self.poison_ids for event in events):
             # `append_many` is one statement in one transaction: a rejected row takes the
             # whole call with it, and nothing in the call commits.
-            raise IntegrityError("INSERT records", {}, ValueError("record rejected"))
+            raise self.poison_error or IntegrityError(
+                "INSERT records", {}, ValueError("record rejected")
+            )
         for event in events:
             self.committed.append(str(event.record_id))
         return [
@@ -515,3 +526,63 @@ async def test_unreachable_quota_meter_leaves_the_record_pending(monkeypatch):
     assert acked_ids == []
     assert worker.dropped_messages == 0
     assert dao.committed == []
+
+
+def _nul_rejection() -> DBAPIError:
+    """The exact exception SQLAlchemy's asyncpg dialect raises for a NUL in a `jsonb` body.
+
+    The dialect wraps the driver error in its own generic `AsyncAdapt_asyncpg_dbapi.Error`, which
+    it then cannot map to a typed subclass, so this surfaces as a plain `DBAPIError` and NOT as
+    `DataError` — the whole reason the rejection went unrecognised. SQLSTATE 22P05 is reachable
+    only by unwrapping `orig.__cause__`.
+    """
+    driver_error = UntranslatableCharacterError("unsupported Unicode escape sequence")
+    wrapper = AsyncAdapt_asyncpg_dbapi.Error(
+        "<class 'asyncpg.exceptions.UntranslatableCharacterError'>: "
+        "unsupported Unicode escape sequence"
+    )
+    wrapper.__cause__ = driver_error
+    return DBAPIError("INSERT INTO records", {}, wrapper)
+
+
+def test_nul_rejection_is_classified_permanent_despite_arriving_untyped():
+    failure = _nul_rejection()
+    # Guard the premise: if SQLAlchemy ever starts classifying this as `DataError`, the unwrap
+    # below is redundant and this test should be the thing that says so.
+    assert not isinstance(failure, ROW_REJECTION_ERRORS)
+    assert is_row_rejection(failure)
+
+
+def test_connection_failures_are_never_classified_permanent():
+    """The unwrap must stay narrow. `OperationalError` and `InterfaceError` are `DBAPIError`
+    subclasses too, so a check on `DBAPIError` alone would turn every outage into permanent
+    record loss — the exact failure this worker exists to prevent."""
+    outage = OperationalError("SELECT 1", {}, ConnectionError("postgres is down"))
+    assert isinstance(outage, DBAPIError)
+    assert not is_row_rejection(outage)
+    assert not is_row_rejection(asyncio.TimeoutError())
+
+
+@pytest.mark.asyncio
+async def test_nul_record_is_isolated_instead_of_redelivered_forever():
+    """A NUL-bearing record used to hold its whole batch pending in a 30s redelivery loop.
+
+    Because the rejection read as "not known to be permanent", `_append_committed` returned
+    before the one-record isolation pass, so the good records in the batch never committed
+    either. One `tool_result` kept the stream looping for over a day.
+    """
+    project_id = uuid4()
+    good_a, poison, good_b = uuid4(), uuid4(), uuid4()
+    batch = _batch(project_id=project_id, record_ids=[good_a, poison, good_b])
+    dao = FakeRecordsDAO(poison_ids=[poison], poison_error=_nul_rejection())
+    worker = _worker(dao)
+
+    appended, acked_ids = await worker.process_batch(batch)
+
+    # The batch is isolated: the two good records commit and are acknowledged.
+    assert appended == 2
+    assert dao.committed == [str(good_a), str(good_b)]
+    assert acked_ids == [batch[0][0], batch[2][0]]
+    # And the offending record is marked permanent, so the consumer drops it on the next
+    # delivery instead of retrying the same bytes forever.
+    assert worker.is_permanent_failure(batch[1][0], batch[1][1])

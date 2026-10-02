@@ -63,7 +63,8 @@ async def test_changed_bytes_fail_a_stored_pin(tmp_path: Path):
     (package / "plugin.json").write_text('{"name":"sample"}', encoding="utf-8")
     catalog = tmp_path / "catalog.json"
     catalog.write_text(
-        '{"sample":{"latest":"1.0.0","versions":{"1.0.0":"packages/sample/1.0.0"}}}',
+        '{"schema_version":1,"templates":{"sample":{"latest":"1.0.0",'
+        '"versions":{"1.0.0":"packages/sample/1.0.0"},"listed":false}}}',
         encoding="utf-8",
     )
     resolver = InternalTemplateSourceResolver(catalog_path=catalog)
@@ -112,7 +113,8 @@ async def test_catalog_path_must_remain_below_catalog_directory(tmp_path: Path):
     (outside / "plugin.json").write_text("{}", encoding="utf-8")
     catalog = tmp_path / "catalog.json"
     catalog.write_text(
-        '{"sample":{"latest":"1.0.0","versions":{"1.0.0":"../outside-template"}}}',
+        '{"schema_version":1,"templates":{"sample":{"latest":"1.0.0",'
+        '"versions":{"1.0.0":"../outside-template"},"listed":false}}}',
         encoding="utf-8",
     )
     resolver = InternalTemplateSourceResolver(catalog_path=catalog)
@@ -121,3 +123,32 @@ async def test_catalog_path_must_remain_below_catalog_directory(tmp_path: Path):
         await resolver.resolve(source=InternalTemplateSource(key="sample"))
 
     assert error.value.code == "template_source_path_invalid"
+
+
+@pytest.mark.asyncio
+async def test_unwrapped_catalog_is_rejected_with_actionable_error(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(
+        '{"sample":{"latest":"1.0.0","versions":{"1.0.0":"packages/sample/1.0.0"}}}',
+        encoding="utf-8",
+    )
+    resolver = InternalTemplateSourceResolver(catalog_path=catalog)
+
+    with pytest.raises(TemplateSourceInvalid) as error:
+        await resolver.resolve(source=InternalTemplateSource(key="sample"))
+
+    assert error.value.code == "template_catalog_format_unsupported"
+    assert error.value.details == {"supported_schema_versions": [1]}
+    assert '"schema_version": 1' in error.value.message
+
+
+@pytest.mark.asyncio
+async def test_unsupported_catalog_schema_version_is_rejected(tmp_path: Path):
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text('{"schema_version":2,"templates":{}}', encoding="utf-8")
+    resolver = InternalTemplateSourceResolver(catalog_path=catalog)
+
+    with pytest.raises(TemplateSourceInvalid) as error:
+        await resolver.resolve(source=InternalTemplateSource(key="sample"))
+
+    assert error.value.code == "template_catalog_format_unsupported"

@@ -226,11 +226,14 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
             : {}
         : isHorizontal
           ? effWidth != null
-              ? {width: effWidth, maxWidth: "100%"}
+              ? // The panel floats 8px in from each edge, so the clamp leaves room for both.
+                {width: effWidth, maxWidth: "calc(100% - 1rem)"}
               : {}
           : effHeight != null
             ? {height: effHeight, maxHeight: "100%"}
             : {}
+
+    const hasHeader = title != null || extra != null || showClose
 
     return (
         <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -256,7 +259,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                     if (!dismissOnOutside) e.preventDefault()
                 }}
             >
-                {title != null || extra != null || showClose ? (
+                {hasHeader ? (
                     <SheetHeader
                         showCloseButton={showClose}
                         style={styles?.header}
@@ -274,11 +277,16 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                         </div>
                     </SheetHeader>
                 ) : null}
-                {/* Body scrolls internally with 16px padding. */}
+                {/* Body scrolls internally with 16px padding. Where it meets the panel's edge it
+                    takes the panel's corners, so a scrollbar or a pane inside it cannot paint a
+                    square corner on the floating panel. Not the panel itself: popups portal into
+                    it and would be clipped. */}
                 <div
                     data-slot="drawer-body"
                     className={cn(
                         "min-h-0 flex-1 overflow-y-auto p-4 text-field-md text-colorText",
+                        !hasHeader && "rounded-t-[inherit]",
+                        footer == null && "rounded-b-[inherit]",
                         slotClassNames?.body,
                     )}
                     style={styles?.body}

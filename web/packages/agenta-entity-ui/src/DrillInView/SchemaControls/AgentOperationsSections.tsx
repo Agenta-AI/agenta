@@ -16,12 +16,13 @@ import {useCallback, type ReactNode} from "react"
 
 import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
 import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {Plus} from "@phosphor-icons/react"
+import {SkeletonBlock} from "@agenta/ui/ui"
+import {Lightning} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
+import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
 import {
     TriggerManagementSection,
     useAgentTriggers,
@@ -142,14 +143,14 @@ export function AgentOperationsSections({
                             {countSummary(triggerCount, "automation")}
                         </span>
                         {disabled ? null : (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={onAdd}
-                                aria-label="Add automation"
-                            >
-                                <Plus size={16} />
-                            </Button>
+                            <CreateWithAIAddMenu
+                                label="Add automation"
+                                starterPrompt="I want an automation that"
+                                onManual={onAdd}
+                                manualTitle="Create manually"
+                                manualHint="Set a schedule or an event, then what the agent does."
+                                manualIcon={<Lightning size={16} />}
+                            />
                         )}
                     </ConfigRowTrailing>
                 </AgentRegionHeaderBar>

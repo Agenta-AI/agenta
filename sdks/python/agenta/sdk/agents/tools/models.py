@@ -255,6 +255,48 @@ class GatewayConnectionToolConfig(BaseModel):
     policy: GatewayConnectionPolicy = Field(default_factory=GatewayConnectionPolicy)
 
 
+# The Agenta tools an ``agenta_tools`` entry can turn on, in every run of the agent. Every one is
+# a platform op; ``search_skills`` stays in the playground build kit only.
+AGENTA_TOOLS: tuple = (
+    "get_current_session",
+    "rename_session",
+    "rename_agent",
+    "create_schedule",
+    "create_subscription",
+    "remove_schedule",
+    "remove_subscription",
+    "list_schedules",
+    "list_subscriptions",
+    "list_deliveries",
+    "test_subscription",
+    "discover_triggers",
+    "commit_revision",
+    "read_config",
+    "check_skill_updates",
+    "apply_skill_update",
+)
+# What a new agent's entry holds. The defaults live in the saved entry, never in the resolver.
+DEFAULT_AGENTA_TOOLS: Dict[str, Literal["allow", "ask"]] = {
+    "get_current_session": "allow",
+    "rename_session": "allow",
+}
+
+
+class AgentaToolsConfig(BaseModel):
+    """Which Agenta tools every run of this agent gets, and whether each one asks first.
+
+    A tool that is not in ``tools`` is off: the run leaves it out, so the model never sees it.
+    There is no ``deny``: an author who wants a visible, refused tool lists it as its own
+    platform entry, which wins. Like :class:`GatewayConnectionToolConfig`, it does not extend
+    :class:`ToolConfigBase`, so a top-level ``permission`` is refused.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["agenta_tools"] = "agenta_tools"
+    tools: Dict[str, Literal["allow", "ask"]] = Field(default_factory=dict)
+
+
 class CompiledTool(BaseModel):
     """One tool key after the compiler has applied the policy and the agent-wide mode.
 
@@ -472,6 +514,7 @@ ToolConfig = Annotated[
         ClientToolConfig,
         ReferenceToolConfig,
         PlatformToolConfig,
+        AgentaToolsConfig,
     ],
     Field(discriminator="type"),
 ]

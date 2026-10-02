@@ -19,6 +19,7 @@ export {
     type GatewayPlane,
 } from "./useGatewayConnectFlow"
 export {useConnectFlow} from "./useConnectFlow"
+export {isDeferredByRunner} from "./deferred"
 export {IntegrationTile, type IntegrationTileProps} from "./IntegrationTile"
 export {
     useIntegrationIdentity,

@@ -6,6 +6,8 @@ import {CopyButton} from "@agenta/ui/components/presentational"
 import {Input, LoadingButton, Segmented, Switch} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 
+import {CodeBlock} from "../channels/CodeBlock"
+
 import {AGENT_INVOKE_DOCS_URL, agentInvokeUrl} from "./snippets/request"
 import {buildAgentSnippets, type AgentSnippetLang} from "./snippets/snippets"
 
@@ -24,8 +26,14 @@ const LANGS: {value: AgentSnippetLang; label: string}[] = [
     {value: "bash", label: "cURL"},
 ]
 
+const SNIPPET_FILE: Record<AgentSnippetLang, string> = {
+    python: "request.py",
+    typescript: "request.ts",
+    bash: "request.sh",
+}
+
 const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: string}) => (
-    <label htmlFor={htmlFor} className="text-xs font-medium text-colorTextSecondary">
+    <label htmlFor={htmlFor} className="text-[13px] font-semibold text-foreground">
         {children}
     </label>
 )
@@ -67,15 +75,15 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
     }
 
     return (
-        <div className="flex min-w-0 flex-col gap-5" data-testid="agent-api-panel">
+        <div className="flex min-w-0 flex-col gap-[18px]" data-testid="agent-api-panel">
             <div className="flex flex-col gap-1.5">
                 <FieldLabel>Endpoint</FieldLabel>
-                <div className="flex min-w-0 items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 pl-2 pr-1">
-                    <span className="shrink-0 rounded bg-colorFillSecondary px-1.5 py-0.5 font-mono text-[11px] font-semibold text-colorText">
+                <div className="flex min-w-0 items-center gap-2 rounded-lg border border-solid border-border bg-muted py-1 pl-2 pr-1">
+                    <span className="shrink-0 rounded bg-background px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground">
                         POST
                     </span>
                     <span
-                        className="min-w-0 flex-1 truncate font-mono text-xs text-colorText"
+                        className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-foreground"
                         title={endpoint}
                         data-testid="agent-api-endpoint"
                     >
@@ -83,6 +91,9 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                     </span>
                     <CopyButton buttonText={null} text={endpoint} icon={true} />
                 </div>
+                <span className="text-[12.5px] text-muted-foreground">
+                    Authenticate with a project API key.
+                </span>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -110,7 +121,7 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                         onChange={(value) => setLang(value as AgentSnippetLang)}
                         data-testid="agent-api-lang"
                     />
-                    <label className="flex cursor-pointer items-center gap-2 text-xs text-colorText">
+                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
                         <Switch
                             size="sm"
                             checked={stream}
@@ -120,24 +131,19 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                         Streaming
                     </label>
                 </div>
-                <div className="relative min-w-0">
-                    <pre
-                        className="m-0 max-h-[420px] overflow-auto whitespace-pre rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3 pr-12 font-mono text-xs leading-relaxed text-colorText"
-                        data-testid="agent-api-snippet"
-                    >
-                        {code}
-                    </pre>
-                    <div className="absolute right-1.5 top-1.5">
-                        <CopyButton buttonText={null} text={code} icon={true} />
-                    </div>
-                </div>
+                <CodeBlock
+                    label={SNIPPET_FILE[lang]}
+                    code={code}
+                    maxHeightClass="max-h-[420px]"
+                    data-testid="agent-api-snippet"
+                />
             </div>
 
             <a
                 href={AGENT_INVOKE_DOCS_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex w-fit items-center gap-1 text-sm font-medium text-[var(--ag-c-1677FF)] no-underline hover:underline"
+                className="inline-flex w-fit items-center gap-1 text-[13px] font-medium text-foreground underline-offset-2 hover:underline"
             >
                 Read the docs
                 <ArrowSquareOut size={14} />

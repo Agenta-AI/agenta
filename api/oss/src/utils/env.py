@@ -374,6 +374,15 @@ class OTLPConfig(BaseModel):
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
 
+    # Traces with more spans than this keep their per-request totals.
+    totals_max_spans: int = Field(
+        default_factory=lambda: int(
+            os.getenv("AGENTA_OTLP_TOTALS_MAX_SPANS") or 10_000
+        ),
+        ge=1,
+        validate_default=True,
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 

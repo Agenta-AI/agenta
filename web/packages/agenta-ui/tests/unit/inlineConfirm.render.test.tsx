@@ -199,10 +199,10 @@ describe("SkeletonRows", () => {
         expect(screen.getByTestId("rows").getAttribute("aria-hidden")).toBe("true")
     })
 
-    it("shimmers by default and the row height is overridable", () => {
+    it("pulses by default and the row height is overridable", () => {
         render(<SkeletonRows data-testid="rows" rowClassName="h-16" />)
         const first = screen.getByTestId("rows").querySelector("[data-slot=skeleton-block]")
-        expect(first?.className).toContain("animate-skeleton")
+        expect(first?.className).toContain("animate-pulse")
         expect(first?.className).toContain("h-16")
     })
 })

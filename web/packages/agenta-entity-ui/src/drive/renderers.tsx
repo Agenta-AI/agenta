@@ -21,7 +21,7 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
-    Skeleton,
+    SkeletonBlock,
 } from "@agenta/ui/ui"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
 
@@ -147,7 +147,7 @@ const TextBody = ({
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -198,7 +198,7 @@ const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -234,7 +234,7 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -318,7 +318,7 @@ const HtmlBody = ({
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -374,7 +374,7 @@ const MediaLoading = () => (
     <Inset>
         <div className="flex flex-col gap-2">
             {Array.from({length: 5}).map((_, i) => (
-                <Skeleton key={i} className="h-4 w-full" />
+                <SkeletonBlock key={i} className="h-4 w-full" />
             ))}
         </div>
     </Inset>

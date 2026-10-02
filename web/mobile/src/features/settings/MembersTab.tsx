@@ -23,6 +23,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Input,
     Select,
     SelectContent,
     SelectItem,
@@ -30,8 +31,6 @@ import {
     SelectValue,
 } from "@agenta/ui/ui"
 import {useMutation, useQuery} from "@tanstack/react-query"
-
-import {Input} from "@/components/ui/input"
 
 interface Props {
     members: WorkspaceMember[]
@@ -68,9 +67,8 @@ export const MembersTab = ({
     const [error, setError] = useState<string | null>(null)
 
     // NOT a permission check: it only says we know which workspace to write to. Mobile's access
-    // model is deliberately optimistic (`useMobileSettingsAccess`) and the API authorizes — the
-    // desktop's RBAC rule lives in `useWorkspacePermissions`, which this app cannot import and
-    // has no packaged equivalent of yet.
+    // model is deliberately optimistic (`useMobileSettingsAccess`) and the API authorizes — there
+    // is no packaged RBAC rule yet.
     const scopeKnown = Boolean(organizationId && workspaceId)
 
     const roles = useQuery({

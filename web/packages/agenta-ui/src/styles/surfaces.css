@@ -136,6 +136,58 @@
     height: 0;
 }
 
+/* Fades content at an edge with more to scroll; the owner sets data-fade-top/-bottom. */
+@property --ag-fade-top {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+}
+
+@property --ag-fade-bottom {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+}
+
+.ag-scroll-fade {
+    --ag-fade-top: 0px;
+    --ag-fade-bottom: 0px;
+    /* --ag-fade-inset: height of a sticky heading the top fade starts below. */
+    mask-image: linear-gradient(
+        to bottom,
+        #000 0,
+        #000 var(--ag-fade-inset, 0px),
+        transparent var(--ag-fade-inset, 0px),
+        #000 calc(var(--ag-fade-inset, 0px) + var(--ag-fade-top)),
+        #000 calc(100% - var(--ag-fade-bottom)),
+        transparent 100%
+    );
+    transition:
+        --ag-fade-top 150ms ease,
+        --ag-fade-bottom 150ms ease;
+}
+
+.ag-scroll-fade[data-fade-top="true"] {
+    --ag-fade-top: 24px;
+}
+
+.ag-scroll-fade[data-fade-bottom="true"] {
+    --ag-fade-bottom: 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ag-scroll-fade {
+        transition: none;
+    }
+}
+
+/* Fades overflowing one-line text at the box's right edge; give the box its full width. */
+.ag-text-fade {
+    overflow: hidden;
+    white-space: nowrap;
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+}
+
 /* ── Overlay motion ────────────────────────────────────────────────────────────────────────────
    Enter/exit for portalled Radix surfaces (popover, and anything else that opts in). Radix keeps
    a closing element mounted until its animation ends, so this has to be a real, FINITE CSS
