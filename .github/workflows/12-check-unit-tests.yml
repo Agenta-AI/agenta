@@ -500,6 +500,23 @@ jobs:
         working-directory: services/runner
         run: pnpm run typecheck
 
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      # The fingerprint test fails when a snapshot build input (the recipe or a pinned harness)
+      # changes without a new sandbox recipe version in services/runner/config/sandbox-recipe.json.
+      - name: Run the Daytona snapshot recipe tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner/images/sandbox/daytona
+        run: uv run --with pytest --with daytona python -m pytest -q test_recipe_fingerprint.py test_build_snapshot.py
+
       # The gateway composition suite covers the Daytona placement, which uploads the in-sandbox
       # tool MCP shim from `dist/tools/tool-mcp-stdio.js`. That bundle is a build artifact, so
       # without this step those tests fail in CI while passing on any machine with a stale dist.
