@@ -1,20 +1,8 @@
 import {RELEASES, type ReleaseEntry} from "./index"
 
-/**
- * The what's-new seen state: which releases count as NEWS for this browser.
- *
- * Seeded at first visit: every release already in the list is stored as seen, because a
- * release that shipped before the user arrived is not news to them. Only releases added
- * after that surface, and each one surfaces once. Whether to push the modal at all
- * (existing user, not opted out) is the host's call; this module only answers "what is new".
- *
- * Seen ids are a SET, not a pointer: `changelog.json` is curated, not strictly
- * date-sorted, so "above the last seen entry" would not mean "newer". Storage is per
- * browser (localStorage).
- */
-
-export const WHATS_NEW_SEEN_KEY = "agenta-whats-new-seen-ids"
-export const WHATS_NEW_OPTED_OUT_KEY = "agenta-whats-new-opted-out"
+// Seen ids are a set, not a pointer: changelog.json is curated, not date-sorted.
+const WHATS_NEW_SEEN_KEY = "agenta-whats-new-seen-ids"
+const WHATS_NEW_OPTED_OUT_KEY = "agenta-whats-new-opted-out"
 
 /** The pure core: given the release list and the stored seen ids, which releases are new? */
 export const computeUnseenReleases = ({
@@ -72,10 +60,7 @@ export const getUnseenReleases = (): ReleaseEntry[] => {
     return computeUnseenReleases({releases: RELEASES, seenIds})
 }
 
-/**
- * Store every release currently in the list as seen. Keeping previously stored ids means an
- * entry that drops out of the capped list and returns does not resurface as news.
- */
+/** Store every listed release as seen, keeping older ids so a returning entry stays seen. */
 export const markAllReleasesSeen = () => {
     const previous = readSeenIds() ?? []
     const union = new Set([...previous, ...RELEASES.map((release) => release.id)])

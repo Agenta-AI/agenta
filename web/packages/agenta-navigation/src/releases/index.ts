@@ -22,11 +22,8 @@ export const ALL_RELEASES_LINK = "https://agenta.ai/docs/changelog"
 export const RELEASES: ReleaseEntry[] = changelogData as ReleaseEntry[]
 
 export {
-    computeUnseenReleases,
     getUnseenReleases,
     isWhatsNewOptedOut,
     markAllReleasesSeen,
     setWhatsNewOptedOut,
-    WHATS_NEW_OPTED_OUT_KEY,
-    WHATS_NEW_SEEN_KEY,
 } from "./seen"

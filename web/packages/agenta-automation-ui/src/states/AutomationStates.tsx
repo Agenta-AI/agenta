@@ -10,17 +10,7 @@ import {Funnel, MagnifyingGlass} from "@phosphor-icons/react"
  * None of these carries a top margin: each stands where the table would, so the search bar sits
  * the same distance above whatever is showing.
  */
-/**
- * The table has rows, but none the reader asked for.
- *
- * Distinct from the project having no automations at all, which the host app teaches with its own
- * onboarding rather than a state here: a project with automations that a filter has hidden must
- * not be told it has none, and the way out is the control that narrowed it — so the state
- * carries that action rather than leaving the reader to find which of five rows is set.
- *
- * It sits INSIDE the table, under the header row, because the columns are still true — what is
- * missing is rows, not the table.
- */
+/** The project has automations, but the search or filters hid them; sits under the header row. */
 export const AutomationListNoMatch = ({
     term,
     onClear,
