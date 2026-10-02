@@ -179,10 +179,10 @@ const RunTable = ({
         )
     }
 
-    const grid = "grid grid-cols-[minmax(0,1.3fr)_54px_62px_62px_70px_70px_110px_16px] gap-2.5"
+    const grid = "grid grid-cols-[minmax(96px,1fr)_40px_54px_48px_60px_56px_72px_12px] gap-2"
     return (
         <div className="-mx-1 overflow-x-auto">
-            <div className="min-w-[600px] px-1">
+            <div className="min-w-[480px] px-1">
                 <div className={cn(grid, "h-7 items-center text-[11px] text-muted-foreground")}>
                     <span>{dim === "agent" ? "Agent" : "Model"}</span>
                     {RUN_COLUMNS.map((c) => (
@@ -248,7 +248,7 @@ const RunTable = ({
                                 {formatMoney(row.runs ? row.cost / row.runs : null)}
                             </span>
                             <span className="flex items-center justify-end gap-2">
-                                <span className="h-1.5 w-14 rounded-full bg-background">
+                                <span className="h-1.5 w-8 rounded-full bg-background">
                                     <span
                                         className="block h-full rounded-full"
                                         style={{
@@ -335,7 +335,7 @@ const ToolTable = ({data, focus, filters, unit, onTable}: DrawerBreakdownProps) 
                         {(row.calls / buckets).toFixed(1)}
                     </span>
                     <span className="flex items-center justify-end gap-2">
-                        <span className="h-1.5 w-14 rounded-full bg-background">
+                        <span className="h-1.5 w-8 rounded-full bg-background">
                             <span
                                 className="block h-full rounded-full"
                                 style={{

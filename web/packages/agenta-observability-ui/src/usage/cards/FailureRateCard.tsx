@@ -74,6 +74,11 @@ export const FailureRateCard = ({
                         onChange={(event) => setQuery(event.target.value)}
                     />
                 ) : null}
+                {rows.ranked.length === 0 ? (
+                    <span className="py-3 text-sm text-muted-foreground">
+                        No agent has {minRuns} or more runs in this range to rank.
+                    </span>
+                ) : null}
                 <div className={cn("flex flex-col", showAll && "max-h-[360px] overflow-y-auto")}>
                     {shown.map((row) => {
                         const above = row.rate > overall
@@ -115,7 +120,12 @@ export const FailureRateCard = ({
                         )
                     })}
                 </div>
-                <div className="mt-1 grid grid-cols-[minmax(0,200px)_minmax(0,1fr)_54px_92px] gap-3.5 text-[11px] text-muted-foreground">
+                <div
+                    className={cn(
+                        "mt-1 grid grid-cols-[minmax(0,200px)_minmax(0,1fr)_54px_92px] gap-3.5 text-[11px] text-muted-foreground",
+                        rows.ranked.length === 0 && "hidden",
+                    )}
+                >
                     <span />
                     <span className="relative flex justify-between">
                         <span>0%</span>

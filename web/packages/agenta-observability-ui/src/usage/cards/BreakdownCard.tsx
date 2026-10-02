@@ -24,6 +24,8 @@ export type BreakdownMetric = "runs" | "cost" | "tokens"
 export interface BreakdownSource {
     /** Per-key values for the picked metric. */
     series: KeyedSeries
+    /** How many keys exist in the window, when `series` holds only some of them. */
+    keyCount?: number
     /** Per-bucket total, so "Other" also covers keys outside `series`. */
     total?: number[]
     status: QueryStatus
@@ -84,7 +86,7 @@ export const BreakdownCard = ({
         () => topSeries(source.series, order, TOP, source.total),
         [source.series, order, source.total],
     )
-    const restCount = Math.max(0, order.length - TOP)
+    const restCount = Math.max(0, (source.keyCount ?? order.length) - Math.min(TOP, order.length))
     const series: TimeSeries[] = top.map((s, i) => ({
         key: s.key,
         label: s.other ? (restCount ? `Other (${restCount})` : "Unattributed") : keyLabel(s.key),

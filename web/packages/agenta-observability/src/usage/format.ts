@@ -17,7 +17,7 @@ export const formatCompact = (value: number) => {
     if (abs >= 1e9) return short(value / 1e9, "B")
     if (abs >= 1e6) return short(value / 1e6, "M")
     if (abs >= 1e3) return short(value / 1e3, "k")
-    return String(Math.round(value))
+    return Number.isInteger(value) ? String(value) : short(value, "")
 }
 
 export const formatCount = (value: number) => grouped(Math.round(value))

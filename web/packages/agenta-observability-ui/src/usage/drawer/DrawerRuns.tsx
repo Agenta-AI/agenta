@@ -79,13 +79,22 @@ export const DrawerRuns = ({
         reason ? runs.filter((run) => categorizeFailure(run.reason).label === reason) : runs
     ).slice(0, SHOWN)
     const traceIds = useMemo(() => listed.map((run) => run.traceId), [listed])
-    const tools = useAtomValue(usageRunToolsAtomFamily(traceIds)).data ?? {}
+    const toolsQuery = useAtomValue(usageRunToolsAtomFamily(traceIds))
+    const tools = toolsQuery.data
     const matching = reason
         ? (reasons.find((r) => r.label === reason)?.count ?? 0)
         : failedOnly
           ? failed
           : total
     const maxReason = reasons[0]?.count ?? 1
+    // Segmented re-measures on every new options array, so it must stay stable.
+    const runFilterOptions = useMemo(
+        () => [
+            {value: "all", label: `All ${formatCount(total)}`},
+            {value: "failed", label: `Failed ${formatCount(failed)}`},
+        ],
+        [total, failed],
+    )
 
     return (
         <section className="rounded-xl bg-muted px-4 py-3">
@@ -93,10 +102,7 @@ export const DrawerRuns = ({
                 <span className="text-sm font-medium">Runs</span>
                 <Segmented
                     size="sm"
-                    options={[
-                        {value: "all", label: `All ${formatCount(total)}`},
-                        {value: "failed", label: `Failed ${formatCount(failed)}`},
-                    ]}
+                    options={runFilterOptions}
                     value={failedOnly ? "failed" : "all"}
                     onChange={(value) => {
                         setReason(null)
@@ -171,7 +177,7 @@ export const DrawerRuns = ({
                     <RunRow
                         key={run.traceId}
                         run={run}
-                        tools={tools[run.traceId]}
+                        tools={tools ? (tools[run.traceId] ?? {calls: 0, failed: []}) : undefined}
                         agentName={agentName}
                         showDate={showDate}
                         open={open === run.traceId}
@@ -215,7 +221,7 @@ const RunRow = ({
         : failedTools.length
           ? `${failedTools.length} tool call${failedTools.length > 1 ? "s" : ""} failed, run recovered`
           : tools
-            ? `${tools.calls} tool calls`
+            ? `${tools.calls} tool call${tools.calls === 1 ? "" : "s"}`
             : ""
     const subColor = category ? "textBad" : failedTools.length ? "textWarn" : null
     return (

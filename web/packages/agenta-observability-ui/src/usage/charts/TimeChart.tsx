@@ -151,7 +151,7 @@ export const TimeChart = ({
             style={{height}}
         >
             {kind === "bar" ? (
-                <BarChart {...common} barCategoryGap={labels.length > 24 ? 3 : 6}>
+                <BarChart {...common} barCategoryGap={labels.length > 24 ? "12%" : "18%"}>
                     {axes}
                     {visible.map((s, si) => (
                         <Bar

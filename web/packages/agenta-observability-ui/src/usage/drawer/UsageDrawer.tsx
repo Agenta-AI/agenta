@@ -90,12 +90,18 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
 
     const pageStarts = useMemo(() => bucketStarts(pageWindow), [pageWindow])
     const bucket = state?.bucket ?? null
-    const window = bucket === null ? pageWindow : bucketWindow(pageWindow, bucket)
+    // Stable identity: the window keys every query and the breakdown's table effect.
+    const window = useMemo(
+        () => (bucket === null ? pageWindow : bucketWindow(pageWindow, bucket)),
+        [pageWindow, bucket],
+    )
     const focus = state?.focus ?? null
     const data = useUsageWindowData(window, filters, focus)
     const toolsPerBucket = useToolsPerBucket(data)
     if (!state) return null
-    const metric = state.metric
+    // Tool spans carry no agent or model, so a narrowed drawer cannot count them.
+    const narrowed = Boolean(focus) || filters.agent.length > 0 || filters.model.length > 0
+    const metric = narrowed && state.metric === "tools" ? "runs" : state.metric
 
     const values = data.overview.points.map((p, i) => pointValue(metric, p, toolsPerBucket[i]))
     const totals = data.overview.totals
@@ -211,9 +217,15 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                         <button
                             key={m}
                             type="button"
+                            disabled={m === "tools" && narrowed}
+                            title={
+                                m === "tools" && narrowed
+                                    ? "Tool calls do not record their agent or model yet"
+                                    : undefined
+                            }
                             onClick={() => setState({...state, metric: m})}
                             className={cn(
-                                "flex cursor-pointer flex-col gap-0.5 rounded-lg border-0 px-3 py-2 text-left",
+                                "flex cursor-pointer flex-col gap-0.5 rounded-lg border-0 px-3 py-2 text-left disabled:cursor-default disabled:opacity-50",
                                 m === metric ? "bg-background shadow-sm" : "bg-transparent",
                             )}
                         >
@@ -226,7 +238,9 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                             </span>
                             <span className="text-base font-semibold tabular-nums">
                                 {m === "tools"
-                                    ? formatCount(totalTools)
+                                    ? narrowed
+                                        ? "—"
+                                        : formatCount(totalTools)
                                     : formatMetric(m, tileValue(m))}
                             </span>
                         </button>

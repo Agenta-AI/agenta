@@ -234,5 +234,6 @@ describe("filters, reasons, ranges, format", () => {
         expect(formatMetric("success", 94.2)).toBe("94.2%")
         expect(formatMetric("runs", 3060)).toBe("3,060")
         expect(niceMax(13)).toBe(20)
+        expect(formatMetric("runs", 2.5, true)).toBe("2.5")
     })
 })

@@ -44,6 +44,8 @@ export interface UsagePageProps {
     onOpenTrace?: (traceId: string) => void
 }
 
+const SPLIT_KEYS = 10
+
 const CALLS_NOTE =
     "Not narrowed by the filters: model and tool calls do not record their agent yet."
 
@@ -63,10 +65,11 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
     }, [range, retention, setRange])
 
     const data = useUsageWindowData(window, filters)
-    const agentSplit = useUsageSplit("agent", data.agentOrder.slice(0, 4), window, filters)
+    // Without a group-by, cost and tokens per agent cost one request each: the top 10 by runs.
+    const agentSplit = useUsageSplit("agent", data.agentOrder.slice(0, SPLIT_KEYS), window, filters)
     const callSplit = useUsageSplit(
         "callModel",
-        data.callModelOrder.slice(0, 4),
+        data.callModelOrder.slice(0, SPLIT_KEYS),
         window,
         EMPTY_FILTERS,
         modelMetric !== "runs",
@@ -133,19 +136,31 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
         },
         cost: {
             series: agentSplit.cost,
+            keyCount: data.agentOrder.length,
             total: data.overview.points.map((p) => p.cost),
             status: agentSplit.status,
         },
         tokens: {
             series: agentSplit.tokens,
+            keyCount: data.agentOrder.length,
             total: data.overview.points.map((p) => p.tokens),
             status: agentSplit.status,
         },
     }[agentMetric]
     const modelSource = {
         runs: {series: data.callModels, status: data.status.calls},
-        cost: {series: callSplit.cost, total: data.callCost, status: callSplit.status},
-        tokens: {series: callSplit.tokens, total: data.callTokens, status: callSplit.status},
+        cost: {
+            series: callSplit.cost,
+            keyCount: data.callModelOrder.length,
+            total: data.callCost,
+            status: callSplit.status,
+        },
+        tokens: {
+            series: callSplit.tokens,
+            keyCount: data.callModelOrder.length,
+            total: data.callTokens,
+            status: callSplit.status,
+        },
     }[modelMetric]
     const breakdownProps = {labels, fullLabels, rangeLabel}
 

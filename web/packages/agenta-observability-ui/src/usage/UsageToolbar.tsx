@@ -319,21 +319,30 @@ const FilterPanel = ({
                     {options.pending ? (
                         <span className="px-2 py-2 text-sm text-muted-foreground">Loading…</span>
                     ) : keys.length ? (
-                        keys.map((key) => (
-                            <label
-                                key={key}
-                                className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm hover:bg-accent"
-                            >
-                                <Checkbox
-                                    checked={filters[dim].includes(key)}
-                                    onCheckedChange={() => toggle(key)}
-                                />
-                                <span className="min-w-0 flex-1 truncate">{name(key)}</span>
-                                <span className="text-xs text-muted-foreground tabular-nums">
-                                    {formatCount(options.counts[key])} runs
-                                </span>
-                            </label>
-                        ))
+                        keys.map((key) => {
+                            const checked = filters[dim].includes(key)
+                            return (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    role="checkbox"
+                                    aria-checked={checked}
+                                    onClick={() => toggle(key)}
+                                    className="flex h-8 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-sm hover:bg-accent"
+                                >
+                                    <Checkbox
+                                        checked={checked}
+                                        tabIndex={-1}
+                                        aria-hidden
+                                        className="pointer-events-none"
+                                    />
+                                    <span className="min-w-0 flex-1 truncate">{name(key)}</span>
+                                    <span className="text-xs text-muted-foreground tabular-nums">
+                                        {formatCount(options.counts[key])} runs
+                                    </span>
+                                </button>
+                            )
+                        })
                     ) : (
                         <span className="px-2 py-2 text-sm text-muted-foreground">No matches</span>
                     )}
