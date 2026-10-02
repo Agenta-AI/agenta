@@ -554,6 +554,10 @@ Three rules govern how they interact:
 - The TTFB timer only covers the wait for the first response. The first progress event of any kind
   cancels it and arms the idle timer instead.
 
+`AGENTA_RUNNER_RUN_TTFB_RETRIES` sets how many times the runner runs a turn again when the model
+sends nothing before the TTFB timeout. The default is `1` and the range is `0` to `3`. Set it to `0`
+to turn the retry off. In Helm, set `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_RETRIES`.
+
 An invalid value (not a number, or negative) falls back to the default for that variable. These are
 the runner's own deadlines and are unrelated to `AGENTA_RUNNER_TIMEOUT_SECONDS`, which is the
 caller's idle timeout on the streaming transport.
