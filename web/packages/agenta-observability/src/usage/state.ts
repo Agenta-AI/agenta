@@ -1,4 +1,4 @@
-import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {agentWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import isEqual from "fast-deep-equal"
 import {atom} from "jotai"
@@ -64,6 +64,7 @@ export interface UsageSplitKey {
     keys: string[]
     window: UsageWindow
     filters: UsageFilters
+    scope?: UsageFocus | null
 }
 
 export const usageSplitAtomFamily = atomFamily(
@@ -85,6 +86,7 @@ export const usageSplitAtomFamily = atomFamily(
                                         window: key.window,
                                         filters: key.filters,
                                         focus: {dim: key.dim, key: k},
+                                        scope: key.scope,
                                         signal,
                                     }),
                                 ] as const,
@@ -107,26 +109,16 @@ export interface UsageRunsKey {
     limit: number
 }
 
-export interface UsageRunsResult {
-    runs: UsageRun[]
-    tools: Record<string, UsageRunTools>
-}
-
 export const usageRunsAtomFamily = atomFamily(
     (key: UsageRunsKey) =>
         atomWithQuery((get) => {
             const projectId = get(projectIdAtom)
             return {
                 queryKey: ["usage", "runs", projectId, key],
-                queryFn: async (): Promise<UsageRunsResult> => {
-                    const spans = await fetchUsageRunSpans({projectId: projectId as string, ...key})
-                    const runs = spans.map(toUsageRun)
-                    const toolSpans = await fetchUsageToolSpans(
-                        projectId as string,
-                        runs.map((run) => run.traceId),
-                    )
-                    return {runs, tools: toolsByRun(toolSpans)}
-                },
+                queryFn: async (): Promise<UsageRun[]> =>
+                    (await fetchUsageRunSpans({projectId: projectId as string, ...key})).map(
+                        toUsageRun,
+                    ),
                 enabled: Boolean(projectId),
                 ...QUERY_OPTIONS,
             }
@@ -134,14 +126,41 @@ export const usageRunsAtomFamily = atomFamily(
     isEqual,
 )
 
-/** Agent id to display name, from the agents list (artifact name, then slug). */
-export const usageAgentNamesAtom = atom((get) => {
-    const names: Record<string, string> = {}
-    for (const workflow of get(agentWorkflowsListQueryStateAtom).data) {
-        names[workflow.id] = workflow.name || workflow.slug || workflow.id
-    }
-    return names
-})
+/** Tool calls of the runs on screen, to show call counts and which calls failed. */
+export const usageRunToolsAtomFamily = atomFamily(
+    (traceIds: string[]) =>
+        atomWithQuery((get) => {
+            const projectId = get(projectIdAtom)
+            return {
+                queryKey: ["usage", "run-tools", projectId, traceIds],
+                queryFn: async (): Promise<Record<string, UsageRunTools>> =>
+                    toolsByRun(await fetchUsageToolSpans(projectId as string, traceIds)),
+                enabled: Boolean(projectId) && traceIds.length > 0,
+                ...QUERY_OPTIONS,
+            }
+        }),
+    isEqual,
+)
+
+/**
+ * Agent id to display name: the agents list first, then the workflow artifact, which also
+ * names agents that were archived since their runs. Null until known.
+ */
+export const usageAgentNamesAtomFamily = atomFamily(
+    (ids: string[]) =>
+        atom((get) => {
+            const listed = new Map(
+                get(agentWorkflowsListQueryStateAtom).data.map((w) => [w.id, w.name || w.slug]),
+            )
+            return Object.fromEntries(
+                ids.map((id) => [
+                    id,
+                    listed.get(id) ?? get(workflowMolecule.selectors.artifactName(id)) ?? null,
+                ]),
+            ) as Record<string, string | null>
+        }),
+    isEqual,
+)
 
 export const usageHasAgentsAtom = atom((get) => {
     const state = get(agentWorkflowsListQueryStateAtom)

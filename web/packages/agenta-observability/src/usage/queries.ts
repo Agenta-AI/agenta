@@ -35,9 +35,9 @@ export type Condition = Record<string, unknown>
 const num = (path: string): AnalyticsMetricSpec => ({type: "numeric/continuous", path})
 const cat = (path: string): AnalyticsMetricSpec => ({type: "categorical/single", path})
 
-// The backend matches enum values verbatim: a lowercase span type silently returns nothing.
+// The API validates span types against its lowercase enum; anything else fails the query.
 const FAILED: Condition = {field: "status_code", operator: "is", value: "STATUS_CODE_ERROR"}
-const spanType = (value: "CHAT" | "TOOL" | "WORKFLOW"): Condition => ({
+const spanType = (value: "chat" | "tool" | "workflow"): Condition => ({
     field: "span_type",
     operator: "is",
     value,
@@ -94,14 +94,14 @@ export const USAGE_QUERIES = {
     calls: {
         focus: "span",
         runLevel: false,
-        where: [spanType("CHAT")],
+        where: [spanType("chat")],
         specs: [cat(PATH.callModel), num(PATH.callCost), num(PATH.callTokens)],
     },
-    tools: {focus: "span", runLevel: false, where: [spanType("TOOL")], specs: [cat(PATH.tool)]},
+    tools: {focus: "span", runLevel: false, where: [spanType("tool")], specs: [cat(PATH.tool)]},
     toolsFailed: {
         focus: "span",
         runLevel: false,
-        where: [spanType("TOOL"), FAILED],
+        where: [spanType("tool"), FAILED],
         specs: [cat(PATH.tool)],
     },
 } satisfies Record<string, QueryDef>
@@ -139,6 +139,8 @@ export interface UsageQueryParams {
     window: UsageWindow
     filters: UsageFilters
     focus?: UsageFocus | null
+    /** A second narrowing, e.g. the agent a drawer drilled into while splitting by model. */
+    scope?: UsageFocus | null
     signal?: AbortSignal
 }
 
@@ -148,13 +150,14 @@ export const fetchUsageBuckets = async ({
     window,
     filters,
     focus,
+    scope,
     signal,
 }: UsageQueryParams): Promise<MetricsBucket[]> => {
     const def: QueryDef = USAGE_QUERIES[name]
     const conditions = [
         ...def.where,
         ...(def.runLevel ? filterConditions(filters) : []),
-        ...(focus ? [focusCondition(focus)] : []),
+        ...[focus, scope].filter((f): f is UsageFocus => Boolean(f)).map(focusCondition),
     ]
     const res = await fetchSpansAnalytics({
         projectId,
@@ -197,7 +200,7 @@ export const fetchUsageRunSpans = async ({
     limit,
 }: UsageRunsParams): Promise<TraceSpan[]> => {
     const conditions = [
-        spanType("WORKFLOW"),
+        spanType("workflow"),
         ...filterConditions(filters),
         ...(focus ? [focusCondition(focus)] : []),
         ...(failedOnly ? [FAILED] : []),
@@ -229,7 +232,7 @@ export const fetchUsageToolSpans = async (
             size: 1000,
             filter: {
                 conditions: [
-                    spanType("TOOL"),
+                    spanType("tool"),
                     {field: "trace_id", operator: "in", value: traceIds},
                 ],
             },
