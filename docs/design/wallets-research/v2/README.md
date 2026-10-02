@@ -10,6 +10,7 @@ Status: draft OpenSpec package, written 2026-09-22, moved into the repository 20
 4. Open each proposal, then its design, requirements and unchecked tasks.
 5. Use [the next-step plan](next-steps.md) to choose one implementation slice.
 6. Read [the rollout switches](rollout-switches.md) for the per-organization PostHog flags.
+7. Read [the funded models](funded-models.md) for Gemini on our Vertex account through `builtin/agenta`.
 
 ## Changes
 

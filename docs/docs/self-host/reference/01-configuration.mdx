@@ -909,7 +909,6 @@ it calls the server. In 0.119.0 only, that save-time check read
 | `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `gateway_credentials.ttl_seconds` (api) | `gatewayCredentials.ttlSeconds` |
 | `AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64` | `llm_gateway.vertex_sa_json_b64` (api) | not rendered by the chart |
 | `AGENTA_LLM_GATEWAY_VERTEX_PROJECT` | `llm_gateway.vertex_project` (api) | not rendered by the chart |
-| `AGENTA_LLM_GATEWAY_VERTEX_LOCATION` | `llm_gateway.vertex_location` (api) | not rendered by the chart |
 
 Two of these ship a value in the Docker Compose env templates that differs from the default
 the code applies when the variable is absent. An upgraded deployment keeps its existing env
@@ -969,9 +968,13 @@ To turn this on, set both of these on the API container:
   (`base64 -w0 key.json`). The service account needs the Vertex AI User role on the project.
 - `AGENTA_LLM_GATEWAY_VERTEX_PROJECT`: the Google Cloud project id.
 
-`AGENTA_LLM_GATEWAY_VERTEX_LOCATION` sets the Vertex AI location. It defaults to `global`,
-which is where both models are available. If either of the first two is not set, the models
-are not offered. The LLM gateway must also be on (`AGENTA_LLM_GATEWAY_ENABLED=true`).
+The models are called on the Vertex AI `global` location, where both are available. If
+either variable is not set, the models are not offered. The LLM gateway must also be on
+(`AGENTA_LLM_GATEWAY_ENABLED=true`).
+
+Only function tools are available on these models. A request that asks for a provider-side
+tool, such as Google Search grounding (`web_search_options`), is refused with
+`capability_not_allowed`, because the provider bills it apart from the tokens.
 
 In Agenta Cloud with the wallet on, each call is charged to the organization's credits.
 :::
