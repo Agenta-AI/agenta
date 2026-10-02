@@ -11,9 +11,9 @@
  * abstracting the underlying modal choice.
  */
 
-import {useCallback, useMemo} from "react"
+import {useCallback} from "react"
 
-import {useAtomValue, useSetAtom, Atom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {openCommitModalAtom, commitModalOpenAtom, commitModalLoadingAtom} from "./commit/state"
 import {
@@ -209,93 +209,4 @@ export function useSaveOrCommit(): UseSaveOrCommitReturn {
         isOpen,
         activeModal,
     }
-}
-
-// ============================================================================
-// CONVENIENCE FACTORY
-// ============================================================================
-
-/**
- * Create a saveOrCommit hook bound to a specific entity state atom
- *
- * This is useful when you have a controller that provides isDirty state.
- *
- * @param isDirtyAtom Atom that returns whether entity is dirty
- *
- * @example
- * ```tsx
- * // In entity state file
- * export const useBoundSaveOrCommit = createBoundSaveOrCommit(
- *   (id: string) => testcase.selectors.isDirty(id)
- * )
- *
- * // In component
- * function TestcaseActions({id}: {id: string}) {
- *   const {saveOrCommit, isSaving} = useBoundSaveOrCommit(id)
- *   // ...
- * }
- * ```
- */
-export function createBoundSaveOrCommit<TId = string>(
-    createIsDirtyAtom: (id: TId) => Atom<boolean>,
-    entityType: EntityType,
-) {
-    return function useBoundSaveOrCommit(id: TId, entityName?: string) {
-        const {saveOrCommit, createNew, isSaving, isOpen, activeModal} = useSaveOrCommit()
-
-        // Get isDirty from the provided atom factory
-        const isDirtyAtom = useMemo(() => createIsDirtyAtom(id), [id])
-        const isDirty = useAtomValue(isDirtyAtom)
-
-        const handleSaveOrCommit = useCallback(
-            (options?: SaveOrCommitOptions) => {
-                saveOrCommit(
-                    {type: entityType, id: id as string, name: entityName},
-                    {isDirty, isNew: false, hasName: !!entityName},
-                    options,
-                )
-            },
-            [saveOrCommit, id, entityName, isDirty],
-        )
-
-        return {
-            saveOrCommit: handleSaveOrCommit,
-            createNew,
-            isDirty,
-            isSaving,
-            isOpen,
-            activeModal,
-        }
-    }
-}
-
-// ============================================================================
-// HELPER: BUTTON LABEL
-// ============================================================================
-
-/**
- * Get appropriate button label based on entity state
- */
-export function getSaveOrCommitLabel(entityState: EntityState): string {
-    if (entityState.isNew) {
-        return "Save"
-    }
-    if (entityState.isDirty) {
-        return "Commit Changes"
-    }
-    return "Save As"
-}
-
-/**
- * Get appropriate button icon name based on entity state
- * (for use with lucide-react or similar)
- */
-export function getSaveOrCommitIconName(entityState: EntityState): "save" | "git-commit" | "copy" {
-    if (entityState.isNew) {
-        return "save"
-    }
-    if (entityState.isDirty) {
-        return "git-commit"
-    }
-    return "copy"
 }

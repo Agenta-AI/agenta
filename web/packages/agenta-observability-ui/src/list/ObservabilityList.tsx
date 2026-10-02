@@ -1,6 +1,6 @@
 import {useEffect, useRef, type ReactNode} from "react"
 
-import {Skeleton} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 export interface ObservabilityListProps<Item> {
     items: Item[]
@@ -22,7 +22,7 @@ export interface ObservabilityListProps<Item> {
 const SkeletonRows = ({count = 4}: {count?: number}) => (
     <div className="flex flex-col gap-2 px-2 py-2">
         {Array.from({length: count}, (_, i) => (
-            <Skeleton key={i} className="h-6 w-full" />
+            <SkeletonBlock key={i} className="h-6 w-full" />
         ))}
     </div>
 )

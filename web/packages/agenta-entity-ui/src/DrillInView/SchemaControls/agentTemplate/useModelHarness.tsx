@@ -23,7 +23,7 @@ import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cube, Key, Wrench} from "@phosphor-icons/react"
+import {Cube, Key, Toolbox, Wrench} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
@@ -59,6 +59,7 @@ import {
     permissionPolicyOptionsForEnum,
 } from "../permissionPolicy"
 
+import {useAgentaTools} from "./AgentaToolsSection"
 import {AgentSecretsSection} from "./AgentSecretsSection"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
@@ -105,8 +106,8 @@ export function useModelHarness({
     buildKitOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
     /** The owning section drawer has unsaved local state outside the workflow draft atom. */
     credentialOperationsBlocked?: boolean
-    /** Clear the owning section draft before the host adopts an immediate credential revision. */
-    onCredentialRevisionCommitted?: () => void
+    /** Tell the owning section drawer which revision a credential commit is about to adopt. */
+    onCredentialRevisionCommitted?: (nextRevisionId: string) => void
     /** Only the live panel owner normalizes; mounting a section body never does. */
     normalizeSandbox?: boolean
 }) {
@@ -263,7 +264,7 @@ export function useModelHarness({
     const {llmProviderConfig, permissions, onWorkflowRevisionCommitted} = useDrillInUI()
     const handleCredentialRevisionCommitted = useCallback(
         (nextRevisionId: string) => {
-            onCredentialRevisionCommitted?.()
+            onCredentialRevisionCommitted?.(nextRevisionId)
             onWorkflowRevisionCommitted?.(nextRevisionId)
         },
         [onCredentialRevisionCommitted, onWorkflowRevisionCommitted],
@@ -413,6 +414,12 @@ export function useModelHarness({
     // "Policy · Allow all" — the label lives here, so the body's select can run full width.
     const runnerPermissionSummary = `Policy · ${permissionPolicyLabel(currentRunnerPermission)}`
 
+    const agentaToolsSection = useAgentaTools({
+        config,
+        onChange,
+        revisionId: revisionId ?? null,
+        disabled,
+    })
     const {hasBuildKitOverlay, buildKitSection} = useBuildKit({
         revisionId: revisionId ?? null,
         disabled,
@@ -684,6 +691,7 @@ export function useModelHarness({
 
     const advancedControls = (
         <>
+            {focus.active ? null : agentaToolsSection}
             {/* Playground-only overlay — it owns no committed property, so a focus filter drops it. */}
             {focus.active ? null : buildKitSection}
 
@@ -755,6 +763,14 @@ export function useModelHarness({
                     extra: <span ref={setSecretsHeaderSlot} className="flex shrink-0" />,
                 },
                 body: secretsBody,
+            },
+            agentaToolsSection && {
+                item: {
+                    value: "agenta-tools",
+                    label: "Agenta tools",
+                    icon: <Toolbox size={14} />,
+                },
+                body: agentaToolsSection,
             },
             hasBuildKitOverlay && {
                 item: {

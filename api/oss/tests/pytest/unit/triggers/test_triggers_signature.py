@@ -8,6 +8,7 @@ signatures, an unresolvable secret, a stale timestamp, and a replayed
 is accepted.
 """
 
+import base64
 import hashlib
 import hmac
 import time
@@ -25,12 +26,14 @@ def _now_timestamp() -> str:
 
 
 def _sign(secret: str, webhook_id: str, timestamp: str, body: bytes) -> str:
+    """Sign the way Composio does (Standard Webhooks): ``v1,<base64 digest>``."""
     signed = f"{webhook_id}.{timestamp}.{body.decode('utf-8')}"
-    return hmac.new(
+    digest = hmac.new(
         secret.encode("utf-8"),
         signed.encode("utf-8"),
         hashlib.sha256,
-    ).hexdigest()
+    ).digest()
+    return "v1," + base64.b64encode(digest).decode("ascii")
 
 
 def _fake_cache_engine(*, claim_result=True):
@@ -77,16 +80,30 @@ class TestVerifySignature:
                 is True
             )
 
-    async def test_valid_signature_with_versioned_prefix_accepted(self):
-        # Composio sends "v1,<sig>"; only the last comma-part is the digest.
+    async def test_any_of_multiple_signatures_accepted(self):
+        # Standard Webhooks sends space-separated signatures during secret rotation.
         service, cache = _service(secret=_SECRET)
         timestamp = _now_timestamp()
         sig = _sign(_SECRET, _WEBHOOK_ID, timestamp, _BODY)
-        headers = _headers(f"v1,{sig}", timestamp=timestamp)
+        stale = _sign("old_secret", _WEBHOOK_ID, timestamp, _BODY)
+        headers = _headers(f"{stale} {sig}", timestamp=timestamp)
         with patch(
             "oss.src.core.triggers.service.get_cache_engine", return_value=cache
         ):
             assert await service.verify_signature(body=_BODY, headers=headers) is True
+
+    async def test_hex_digest_rejected(self):
+        service, cache = _service(secret=_SECRET)
+        timestamp = _now_timestamp()
+        signed = f"{_WEBHOOK_ID}.{timestamp}.{_BODY.decode('utf-8')}"
+        hex_sig = hmac.new(
+            _SECRET.encode("utf-8"), signed.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+        headers = _headers(f"v1,{hex_sig}", timestamp=timestamp)
+        with patch(
+            "oss.src.core.triggers.service.get_cache_engine", return_value=cache
+        ):
+            assert await service.verify_signature(body=_BODY, headers=headers) is False
 
     async def test_forged_signature_rejected(self):
         service, cache = _service(secret=_SECRET)

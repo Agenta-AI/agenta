@@ -6,12 +6,16 @@ export const fetchProjectPermission = async (
     action: string,
 ): Promise<boolean> => {
     try {
-        await getAccessClient().checkPermissions({
-            action,
-            scope_type: "project",
-            scope_id: projectId,
-            resource_type: "service",
-        })
+        await getAccessClient().checkPermissions(
+            {
+                action,
+                scope_type: "project",
+                scope_id: projectId,
+                resource_type: "service",
+            },
+            // Match auth scope to scope_id; session auth otherwise selects the default project.
+            {queryParams: {project_id: projectId}},
+        )
         return true
     } catch {
         return false

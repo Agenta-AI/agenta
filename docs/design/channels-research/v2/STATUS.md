@@ -11,7 +11,7 @@ Last updated: 2026-09-09 (evening: frontend finished, live-verified through the 
   fails, it is NOT ngrok's warning screen — look elsewhere (stale build, expired
   session, wrong path).
 - Public URL: https://subangular-groundlessly-bryn.ngrok-free.dev. Direct origin on
-  the box: http://144.76.237.122:8180 (traefik). Local curl: http://127.0.0.1:8180.
+  the box: http://<dev-host>:8180 (traefik). Local curl: http://127.0.0.1:8180.
 - Stack: agenta-ee-dev-channels (this worktree). Postgres port 5437. QA project
   01a080e0-77ee-7c50-be4c-04a2b0ce1af8, workspace 01a080e0-77d0-7893-937a-8317bd847299.
 - Hosted Telegram enabled on the stack (test bot @newagentabot, id 8950712471).
@@ -227,9 +227,9 @@ Two facts block the in-browser visual QA; neither is the channels code.
    abuse screen to browsers. curl works (not a browser), which is why health is 200
    server-side but the app renders blank. Injecting `ngrok-skip-browser-warning`
    got the app to RENDER (it reached /auth), but XHRs stay flaky.
-   Fix: do browser QA via the DIRECT server origin http://144.76.237.122:8180, not
+   Fix: do browser QA via the DIRECT server origin http://<dev-host>:8180, not
    ngrok. That needs the app's API URL to be the IP too (either a redeploy with
-   AGENTA_*_URL=http://144.76.237.122:8180, or a session-local __env override via an
+   AGENTA_*_URL=http://<dev-host>:8180, or a session-local __env override via an
    initScript) so calls are same-origin IP->IP and skip ngrok.
 2. Auth. The prior session redirected to /auth (session check could not reach the
    API over ngrok). Re-login needs a password, which I do not enter (policy). The

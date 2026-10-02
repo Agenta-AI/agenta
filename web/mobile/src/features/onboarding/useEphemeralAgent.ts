@@ -5,8 +5,7 @@ import {createEphemeralAppFromTemplate, fetchAgTypeSchema} from "@agenta/entitie
 import {queryClient} from "@/lib/queryClient"
 
 /**
- * Mint the local-only agent that first run configures BEFORE it exists — the mobile half of the
- * desktop's playground-native onboarding (`useAgentOnboarding`).
+ * Mint the local-only agent that first run configures BEFORE it exists.
  *
  * The ephemeral is a real entry in the workflow molecule, so every entity-id-driven surface (the
  * config pane, the model picker, the tools list) renders against it with no special casing. Only
@@ -30,8 +29,7 @@ export const useEphemeralAgent = (active: boolean) => {
      * the agent config IS such a ref. Its own query atom sits `pending` forever on this surface —
      * mounted, but no request and no error — so the ref stays a bare stub
      * (`type`, `x-ag-type-ref`, `title`, `description`, `default`) with no properties of its own.
-     * The config pane then has no fields to render and shows Advanced alone. The desktop
-     * playground never hits this because something there fetches the type first.
+     * The config pane then has no fields to render and shows Advanced alone.
      */
     useEffect(() => {
         const key = ["workflows", "schemas", "ag-types", AGENT_TEMPLATE_AG_TYPE]
@@ -53,9 +51,9 @@ export const useEphemeralAgent = (active: boolean) => {
             defaultName: "New agent",
             // NOT `deferInspect`. The config pane is the point of this surface, and its Model,
             // Instructions, Tools and Skills sections are schema-driven — deferring the inspect
-            // renders a pane with only Advanced and Triggers in it. The desktop can defer because
-            // its onboarding subscribes to the readiness atoms that drive the resolution anyway;
-            // nothing here does, so the mint waits for the schema it is about to display.
+            // renders a pane with only Advanced and Triggers in it. Nothing here subscribes to the
+            // readiness atoms that drive the resolution, so the mint waits for the schema it is
+            // about to display.
         })
             .then((id) => {
                 if (!id) throw new Error("mint returned no entity id")

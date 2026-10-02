@@ -107,7 +107,7 @@ describe("session records read under a slow API", () => {
         const pending = store.set(fetchSessionRecordsAtom, SESSION_ID)
         await vi.advanceTimersByTimeAsync(4 * CLIENT_TIMEOUT_MS + 20_000)
 
-        expect(await pending).toEqual({records: null})
+        expect(await pending).toEqual({records: null, failed: true})
         expect(querySessionRecordsMock).toHaveBeenCalledTimes(4)
     })
 })

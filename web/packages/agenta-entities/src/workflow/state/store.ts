@@ -25,9 +25,9 @@ import {nestEvaluatorConfiguration, nestEvaluatorSchema} from "../../runnable/ev
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
+import {withAgentaToolsEntry} from "../agentaTools"
 import type {
     InspectWorkflowResponse,
-    InterfaceSchemasResponse,
     AppOpenApiSchemas,
     SimpleApplicationFetchResponse,
     AgentBuildKitOverlay,
@@ -38,6 +38,7 @@ import {
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
     fetchAgentBuildKitOverlay,
+    fetchAgentaToolsAccess,
     fetchSimpleApplication,
     fetchWorkflowAppOpenApiSchema,
     fetchAgTypeSchema,
@@ -1332,6 +1333,8 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
             },
             initialData: detailCached ?? undefined,
+            // Every result of this query, cache hits and initialData included, passes through here.
+            select: withAgentaToolsEntry,
             // detailCached/enabled evaluate synchronously; the persister restores only inside a fetch they allowed, so no race.
             persister: immutablePersister.persisterFn,
             enabled:
@@ -1488,6 +1491,18 @@ export const agentBuildKitOverlayAtom = atomWithQuery<AgentBuildKitOverlay | nul
     }
 })
 
+export const agentaToolsAccessAtom = atomWithQuery<Record<string, "read" | "write">>((get) => {
+    const projectId = get(workflowProjectIdAtom)
+    return {
+        queryKey: ["agentaToolsAccess", projectId],
+        queryFn: async () => (projectId ? fetchAgentaToolsAccess(projectId) : {}),
+        enabled: get(sessionAtom) && !!projectId,
+        staleTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        persister: catalogPersister.persisterFn,
+    }
+})
+
 export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: string) =>
     atom<AgentTemplate | null>((get) => {
         const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
@@ -1637,8 +1652,11 @@ export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: str
  */
 export const workflowBuildKitOverlayReadyAtomFamily = atomFamily((revisionId: string) =>
     atom<boolean>((get) => {
-        const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
+        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
+        const revisionData = revisionQuery.data ?? null
         const baseEntity = get(workflowBaseEntityAtomFamily(revisionId))
+        // Agent-ness is unknown until the revision loads; without a local entity, keep waiting.
+        if (!baseEntity && revisionQuery.isLoading) return false
         const explicitIsAgent = revisionData?.flags?.is_agent ?? baseEntity?.flags?.is_agent
         const targetUri = revisionData?.data?.uri ?? baseEntity?.data?.uri
         const isAgent = explicitIsAgent ?? isAgentBuiltinUri(targetUri)
@@ -1742,40 +1760,6 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
             },
             enabled,
             staleTime: 60_000,
-        }
-    }),
-)
-
-// ============================================================================
-// INTERFACE SCHEMAS QUERY (builtin workflow fallback)
-// ============================================================================
-
-// NOTE: Disabled — re-enable when `/workflows/interfaces/schemas` is available.
-// function isBuiltinUri(uri: string | null | undefined): boolean {
-//     if (!uri) return false
-//     return uri.startsWith("agenta:builtin:")
-// }
-
-/**
- * Interface schemas query atom family.
- * For builtin workflows, fetches the interface schemas from the
- * `/workflows/interfaces/schemas` endpoint.
- *
- * This is a lightweight fallback that returns static schema definitions
- * for builtin evaluators without requiring the handler to be running.
- *
- * **Only fires for builtin workflows** (URI starts with "agenta:builtin:").
- *
- * NOTE: Currently disabled — the backend endpoint is not yet implemented.
- * Re-enable `enabled` when `/workflows/interfaces/schemas` is available.
- */
-export const workflowInterfaceSchemasAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery((_get) => {
-        return {
-            queryKey: ["workflows", "interfaceSchemas", revisionId],
-            queryFn: async (): Promise<InterfaceSchemasResponse | null> => null,
-            enabled: false,
-            staleTime: Infinity,
         }
     }),
 )

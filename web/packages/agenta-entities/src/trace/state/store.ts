@@ -624,10 +624,6 @@ const traceSpanDraftState = createEntityDraftState<TraceSpan, TraceSpanAttribute
 
 // Export draft atoms
 export const traceSpanDraftAtomFamily = traceSpanDraftState.draftAtomFamily
-export const traceSpanHasDraftAtomFamily = traceSpanDraftState.hasDraftAtomFamily
-export const traceSpanIsDirtyAtomFamily = traceSpanDraftState.isDirtyAtomFamily
-export const discardTraceSpanDraftAtom = traceSpanDraftState.discardDraftAtom
-export const updateTraceSpanAtom = traceSpanDraftState.updateAtom
 
 // ============================================================================
 // COMBINED ENTITY ATOM FAMILY

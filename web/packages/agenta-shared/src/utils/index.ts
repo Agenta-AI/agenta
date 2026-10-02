@@ -40,24 +40,17 @@ export {timeAgo} from "./timeAgo"
 
 // Path utilities for nested data navigation
 export {
-    buildTestcaseColumnPaths,
     collectPaths,
-    combineTypedPaths,
     deleteValueAtPath,
     // Typed path utilities for UI selection components
     extractTypedPaths,
     getChildCount,
     getItemsAtPath,
-    getLastSegment,
-    getParentPath,
     getValueAtPath,
     getValueAtStringPath,
-    getValueType,
     hasValueAtPath,
-    isChildPath,
     isExpandable,
     parsePath,
-    pathToString,
     setValueAtPath,
 } from "./pathUtils"
 export type {
@@ -90,13 +83,10 @@ export {
     deriveToolViewModelFromResult,
     extractDisplayTextFromMessage,
     extractTextFromContent,
-    getAttachmentInfo,
     getAttachments,
     hasAttachments,
     isChatMessageObject,
     isChatMessagesArray,
-    messageHasContent,
-    messageHasToolCalls,
     normalizeMessagesFromField,
     removeAttachmentFromContent,
     tryParseArrayFromString,
@@ -111,15 +101,9 @@ export type {LoggerOptions} from "./createLogger"
 // JSON parsing utilities
 export {safeJson5Parse, tryParsePartialJson} from "./jsonParsing"
 
-// Key path utilities
-export {keyToString, stringToKeyPath} from "./keyUtils"
-
 // JSON detection utilities
 export {
-    canExpandAsJson,
     inferLogicalType,
-    isJsonArray,
-    isJsonObject,
     isJsonString,
     isPlainObject,
     tryParseAsArray,
@@ -130,12 +114,7 @@ export {
 export type {JsonParseResult, LogicalType} from "./jsonDetection"
 
 // Editor language detection utilities
-export {
-    detectEditorLanguage,
-    getContentLanguage,
-    looksLikeJson,
-    type EditorLanguage,
-} from "./editorLanguage"
+export {detectEditorLanguage, getContentLanguage, type EditorLanguage} from "./editorLanguage"
 
 // OpenAPI schema utilities
 export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"
@@ -159,6 +138,10 @@ export {
     formatTokens,
 } from "./formatters/index"
 export type {Formatter, FormatterOptions} from "./formatters/index"
+
+// Token usage split into input, cache and output
+export {splitTokenUsage} from "./tokenBreakdown"
+export type {TokenBreakdown, TokenCounts} from "./tokenBreakdown"
 
 // Enum label utilities
 export {formatEnumLabel} from "./formatEnumLabel"
@@ -201,7 +184,6 @@ export {
 
 // Status inference utilities
 export {
-    getStatusColor,
     getStatusLabel,
     getStatusSeverity,
     inferStatusFromSummary,

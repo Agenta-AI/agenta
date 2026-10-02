@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from redis.asyncio import Redis
-from sqlalchemy.exc import DataError, IntegrityError
+from sqlalchemy.exc import DataError, DBAPIError, IntegrityError
 
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.dtos import SessionRecord, TERMINAL_RECORD_TYPE
@@ -30,6 +30,58 @@ if is_ee():
 # for a pause and omitted on every other stop reason).
 PAUSED_STOP_REASON = "paused"
 ROW_REJECTION_ERRORS = (DataError, IntegrityError)
+
+# Postgres SQLSTATE class 22, "data exception": the value itself cannot be represented — a NUL
+# (U+0000) inside a `jsonb` body, a bad UTF-8 sequence, a numeric overflow. It is always a
+# property of the row and never of the connection, so retrying the same bytes can only fail
+# again.
+DATA_EXCEPTION_SQLSTATE_CLASS = "22"
+
+# Bound on the `__cause__` walk below. The chain we unwrap is two links deep
+# (DBAPIError -> dialect Error -> driver error); anything longer is a surprise, not a row
+# rejection, and must not cost an unbounded loop on the ingest path.
+_MAX_CAUSE_DEPTH = 5
+
+
+def _sqlstate(exc: Optional[BaseException]) -> Optional[str]:
+    """The Postgres error code a driver exception carries, whichever name it uses for it."""
+    for attribute in ("sqlstate", "pgcode"):
+        code = getattr(exc, attribute, None)
+        if isinstance(code, str) and code:
+            return code
+    return None
+
+
+def is_row_rejection(failure: BaseException) -> bool:
+    """Whether Postgres rejected the ROW, as opposed to failing the call for any other reason.
+
+    A row rejection is permanent: it isolates and quarantines the offending record. Everything
+    else (connection loss, timeout, an unknown error) must stay pending for Redis reclaim,
+    because treating an outage as permanent is precisely the silent record loss this worker
+    exists to prevent.
+
+    SQLAlchemy's classification is not sufficient on its own. Its asyncpg dialect wraps some
+    driver errors in its own generic `AsyncAdapt_asyncpg_dbapi.Error`, which it then cannot map
+    to a typed subclass, so they surface as a bare `DBAPIError`: an
+    `asyncpg.exceptions.UntranslatableCharacterError` (SQLSTATE 22P05 — a NUL in a record body)
+    arrived as `DBAPIError` and not `DataError`, and so was read as "not known to be permanent"
+    and redelivered every 30s forever. Testing `DBAPIError` itself would be wrong, since
+    `OperationalError` and `InterfaceError` are subclasses of it too, so unwrap to the driver
+    exception and ask Postgres's own SQLSTATE class instead.
+    """
+    if isinstance(failure, ROW_REJECTION_ERRORS):
+        return True
+    if not isinstance(failure, DBAPIError):
+        return False
+    cause: Optional[BaseException] = getattr(failure, "orig", None)
+    for _ in range(_MAX_CAUSE_DEPTH):
+        if cause is None:
+            return False
+        code = _sqlstate(cause)
+        if code is not None:
+            return code.startswith(DATA_EXCEPTION_SQLSTATE_CLASS)
+        cause = cause.__cause__
+    return False
 
 
 def terminal_turns_in_batch(events: List[Any]) -> List[Tuple[str, str]]:
@@ -261,7 +313,7 @@ class RecordsWorker(StreamConsumer):
             )
             return results, [msg_id for msg_id, _ in entries]
 
-        if not isinstance(failure, ROW_REJECTION_ERRORS):
+        if not is_row_rejection(failure):
             return [], []
 
         if len(entries) == 1:
@@ -284,7 +336,7 @@ class RecordsWorker(StreamConsumer):
                 committed_records.extend(results)
                 committed_ids.append(entry[0])
                 self._permanent_failure_ids.discard(entry[0])
-            elif isinstance(failure, ROW_REJECTION_ERRORS):
+            elif is_row_rejection(failure):
                 self._permanent_failure_ids.add(entry[0])
 
         log.warning(

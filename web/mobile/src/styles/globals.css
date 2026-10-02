@@ -356,9 +356,10 @@
         transform: scale(0.9);
     }
 }
+/* The extra 1rem clears the kit Sheet's floating inset (lg:right-2 / lg:left-2). */
 @keyframes sheet-in-right {
     from {
-        transform: translateX(100%);
+        transform: translateX(calc(100% + 1rem));
     }
     to {
         transform: translateX(0);
@@ -369,12 +370,12 @@
         transform: translateX(0);
     }
     to {
-        transform: translateX(100%);
+        transform: translateX(calc(100% + 1rem));
     }
 }
 @keyframes sheet-in-left {
     from {
-        transform: translateX(-100%);
+        transform: translateX(calc(-100% - 1rem));
     }
     to {
         transform: translateX(0);
@@ -385,7 +386,7 @@
         transform: translateX(0);
     }
     to {
-        transform: translateX(-100%);
+        transform: translateX(calc(-100% - 1rem));
     }
 }
 @keyframes sheet-in-top {

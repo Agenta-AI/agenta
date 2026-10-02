@@ -16,7 +16,7 @@
  * with other playground controllers (playgroundController, outputConnectionController).
  *
  * ```typescript
- * import { useEntitySelector } from '@agenta/playground/entity-selector'
+ * import { useEntitySelector } from '@agenta/playground-ui/components'
  *
  * const { open } = useEntitySelector()
  * const selection = await open({ allowedTypes: ['workflow', 'evaluator'] })

@@ -11,6 +11,7 @@ vi.mock("@agenta/ui/ui", () => ({
             {description}
         </div>
     ),
+    SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
     Button: ({children, onClick, disabled, asChild, ...props}: any) =>
         asChild ? (
             children

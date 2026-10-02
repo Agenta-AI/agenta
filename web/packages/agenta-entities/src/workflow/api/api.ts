@@ -407,6 +407,21 @@ export async function fetchAgentBuildKitOverlay(
     return {...validated, op_access: access.success ? access.data : {}}
 }
 
+export const AGENTA_TOOLS_WORKFLOW_SLUG = "__ag__agenta_tools"
+
+/** Every Agenta tool an agent can turn on, each marked "read" or "write". */
+export async function fetchAgentaToolsAccess(
+    projectId: string,
+): Promise<Record<string, "read" | "write">> {
+    const revision = await retrieveWorkflowRevision({
+        projectId,
+        workflowRef: {slug: AGENTA_TOOLS_WORKFLOW_SLUG},
+        lowPriority: true,
+    })
+    // Unreadable data is an error, not an empty list, so the section says it failed to load.
+    return buildKitAccessSchema.parse(revision?.data?.parameters?.op_access)
+}
+
 /**
  * Query workflow revisions for a given variant.
  *
@@ -631,61 +646,6 @@ export async function fetchSimpleApplication(
         "[fetchSimpleApplication]",
     )
     return (validated ?? null) as SimpleApplicationFetchResponse | null
-}
-
-// ============================================================================
-// INTERFACE SCHEMAS FETCH (for builtin workflows)
-// ============================================================================
-
-/**
- * Response shape from the interface schemas endpoint.
- * Returns schemas for a builtin workflow URI.
- */
-export interface InterfaceSchemasResponse {
-    uri?: string | null
-    schemas?: {
-        parameters?: Record<string, unknown> | null
-        inputs?: Record<string, unknown> | null
-        outputs?: Record<string, unknown> | null
-    } | null
-}
-
-/**
- * Fetch interface schemas for a builtin workflow URI.
- *
- * This endpoint returns the parameters, inputs, and outputs schemas
- * for builtin workflow URIs (e.g., "agenta:builtin:auto_ai_critique:v0").
- *
- * This is useful as a fallback when revision data doesn't contain
- * the full schemas, allowing the frontend to dynamically render
- * configuration forms and validate inputs.
- *
- * Endpoint: `POST /workflows/interfaces/schemas`
- *
- * @param uri - The workflow URI (e.g., "agenta:builtin:auto_exact_match:v0")
- * @param projectId - Project ID
- * @returns Interface schemas response with parameters, inputs, outputs
- */
-export async function fetchInterfaceSchemas(
-    uri: string,
-    projectId: string,
-): Promise<InterfaceSchemasResponse | null> {
-    if (!projectId || !uri) {
-        return null
-    }
-
-    try {
-        const response = await axios.post(
-            `${getAgentaApiUrl()}/workflows/interfaces/schemas`,
-            {uri},
-            {params: {project_id: projectId}},
-        )
-
-        return response.data ?? null
-    } catch (error) {
-        console.error("[fetchInterfaceSchemas] Failed to fetch schemas", {uri, error})
-        return null
-    }
 }
 
 // ============================================================================

@@ -6,6 +6,7 @@
  */
 import {recordsPersister} from "@agenta/shared/api/persist"
 import {projectIdAtom} from "@agenta/shared/state"
+import {isCancelledError} from "@tanstack/react-query"
 import type {QueryFunctionContext, QueryKey, QueryPersister} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -23,6 +24,8 @@ const SESSION_RECORDS_STALE_MS = 15_000
 /** Retries after a failed read, on a 1s, 2s, 4s backoff. Each attempt can itself wait out the
  * client timeout, so the budget covers a slow or briefly unreachable API, not a dead one. */
 const SESSION_RECORDS_RETRIES = 3
+/** Re-reads after the shared flight was cancelled under us — see `fetchSessionRecordsAtom`. */
+const CANCELLED_READ_RETRIES = 3
 const sessionRecordsRetryDelay = (attempt: number): number => Math.min(1_000 * 2 ** attempt, 8_000)
 
 /** The read failed (timeout, network, 5xx). Thrown rather than resolved as `null`, so the cache
@@ -78,6 +81,8 @@ export const sessionRecordsQueryFamily = atomFamily((sessionId: string) =>
 
 export interface SessionRecordsFetchResult {
     records: SessionRecord[] | null
+    /** The read failed (retries exhausted), as opposed to a log that is empty. */
+    failed?: boolean
     /** Present when `records` came from a disk restore / stale cache: the guaranteed background
      * refetch is in flight; resolves with the fresh log (null when the refetch failed). */
     refreshed?: Promise<SessionRecord[] | null>
@@ -95,12 +100,20 @@ export const fetchSessionRecordsAtom = atom(
         if (!projectId || !sessionId) return {records: null}
         const client = get(queryClientAtom)
         const options = sessionRecordsQueryOptions(projectId, sessionId)
-        let records: SessionRecord[] | null
-        try {
-            records = await client.fetchQuery(options)
-        } catch {
-            // Retries exhausted. `null` is this atom's documented "the read failed" answer.
-            return {records: null}
+        let records: SessionRecord[] | null = null
+        for (let attempt = 0; ; attempt++) {
+            try {
+                records = await client.fetchQuery(options)
+                break
+            } catch (error) {
+                // A cancel is not a failed read: an atom subscriber that unmounts mid-flight (a
+                // pane toggling on first paint) cancels the shared fetch this call joined, and
+                // with nothing cached yet the cancel reaches here. Read again; that starts or
+                // joins the next flight. Bounded, so a cancel loop cannot spin.
+                if (isCancelledError(error) && attempt < CANCELLED_READ_RETRIES) continue
+                // Retries exhausted. `null` is this atom's documented "the read failed" answer.
+                return {records: null, failed: true}
+            }
         }
         // The persister's post-restore task (a macrotask queued before fetchQuery resolved)
         // rewrites dataUpdatedAt to the persisted timestamp and starts the always-revalidate

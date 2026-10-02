@@ -34,6 +34,22 @@ class TemplateSourceInvalid(AgentTemplateError):
         super().__init__(message, details=details)
 
 
+class TemplateSourceUnavailable(AgentTemplateError):
+    """A remote source is missing, private or temporarily unreachable."""
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        retryable: bool = False,
+        details: dict | None = None,
+    ) -> None:
+        self.code = code
+        self.retryable = retryable
+        super().__init__(message, details=details)
+
+
 class TemplatePackageInvalid(AgentTemplateError):
     def __init__(self, code: str, message: str, *, details: dict | None = None) -> None:
         self.code = code

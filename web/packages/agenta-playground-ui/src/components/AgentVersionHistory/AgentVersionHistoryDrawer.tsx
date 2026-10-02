@@ -39,11 +39,17 @@ export interface AgentVersionHistoryDrawerProps {
     workflowId: string
     /** The revision under edit — the side every diff compares against, and revert commits from. */
     revisionId: string
+    /** The version this view shows. A newer selected version offers Update. */
+    currentVersion?: number | null
+    /** Switch this view to a newer version. */
+    onUpdate?: (revisionId: string) => void
 }
 
 export const AgentVersionHistoryDrawer = ({
     workflowId,
     revisionId,
+    currentVersion,
+    onUpdate,
 }: AgentVersionHistoryDrawerProps) => {
     const open = useAtomValue(versionHistoryOpenAtomFamily(workflowId))
     const selectedId = useAtomValue(versionHistorySelectedAtomFamily(workflowId))
@@ -81,9 +87,25 @@ export const AgentVersionHistoryDrawer = ({
     // Opens on the newest version — "what just changed" is the question the drawer is opened with.
     const selectVersionId = useSetAtom(versionHistorySelectedAtomFamily(workflowId))
     const newestId = rows[0]?.id ?? null
+    // The list is cached, so a version committed since the last open is missing until it re-reads.
+    // Pick the newest only once that read lands; a row the user already picked stays picked.
+    const refetchRef = useRef(query.refetch)
+    refetchRef.current = query.refetch
+    const [listFresh, setListFresh] = useState(false)
     useEffect(() => {
-        if (open && !selectedId && newestId) selectVersionId(newestId)
-    }, [open, selectedId, newestId, selectVersionId])
+        setListFresh(false)
+        if (!open) return
+        let current = true
+        void refetchRef.current().finally(() => {
+            if (current) setListFresh(true)
+        })
+        return () => {
+            current = false
+        }
+    }, [open])
+    useEffect(() => {
+        if (open && listFresh && !selectedId && newestId) selectVersionId(newestId)
+    }, [open, listFresh, selectedId, newestId, selectVersionId])
 
     // Drawer-local: nothing outside reads either.
     const [phase, setPhase] = useState<RevertPhase>("idle")
@@ -177,6 +199,17 @@ export const AgentVersionHistoryDrawer = ({
                     onCancel={() => setPhase("idle")}
                     onConfirm={handleConfirm}
                     onClose={handleClose}
+                    onUpdate={
+                        onUpdate &&
+                        selectedRow &&
+                        currentVersion != null &&
+                        Number(selectedRow.version) > Number(currentVersion)
+                            ? () => {
+                                  onUpdate(selectedRow.id)
+                                  handleClose()
+                              }
+                            : undefined
+                    }
                 />
             }
         >

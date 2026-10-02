@@ -324,7 +324,7 @@ export const ActivityTimeline = ({
         title = (
             <>
                 <SwapLabel
-                    shimmer={!awaiting}
+                    shimmer
                     suffix={clock}
                     text={
                         awaiting

@@ -3,7 +3,7 @@ import {useEffect} from "react"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {fetchProjects} from "@/lib/context"
+import {fetchProjects, rememberTemplateKey} from "@/lib/context"
 
 import {authRedirectTarget, shouldCheckSession, type SessionVerdict} from "./authRoute"
 
@@ -45,6 +45,10 @@ export const AuthGate = () => {
               : "unknown"
     const target = authRedirectTarget(verdict, router.pathname)
     useEffect(() => {
+        // Sign-in drops the query; the root resolver picks the template key back up after it.
+        if (target === "/auth" && typeof router.query.template === "string") {
+            rememberTemplateKey(router.query.template)
+        }
         if (target) void router.replace(target)
         // The target string is the only trigger. The router object changes identity on every
         // navigation, so including it would re-fire the redirect.
