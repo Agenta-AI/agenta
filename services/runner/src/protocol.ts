@@ -1011,6 +1011,14 @@ export interface AgentRunResult {
    * `parseGatewayErrorDetail` in `gateway-error.ts`). Never present without `error`.
    */
   errorDetail?: AgentErrorDetail;
+  /**
+   * Set only when the turn was ended by the TTFB run-limit on a FRESH prompt, which means it
+   * produced no token, no tool call and no side effect before it was cut. Nothing ran, so the
+   * dispatch may re-prompt it once (`runAgent` in `server.ts`); the flag is cleared before the
+   * result leaves the runner, so no caller can loop on it. Never set for a resume or a
+   * continuation, where earlier work exists that a replay could repeat.
+   */
+  stalledBeforeFirstResponse?: boolean;
 }
 
 /**

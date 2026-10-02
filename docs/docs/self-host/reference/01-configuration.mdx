@@ -365,14 +365,14 @@ Read by the `runner` service. Required only when `daytona` is enabled.
 | `AGENTA_RUNNER_DAYTONA_API_KEY` | Provisioning credential | Unset | yes | `agentRunner.providers.daytona.apiKeySecretRef` |
 | `AGENTA_RUNNER_DAYTONA_API_URL` | Daytona API locator | Unset | no | `...daytona.apiUrl` |
 | `AGENTA_RUNNER_DAYTONA_TARGET` | Region or target | Unset | no | `...daytona.target` |
-| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v1` | no | `...daytona.snapshot` |
+| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v2` | no | `...daytona.snapshot` |
 | `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
 | `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
 | `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
 | `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS` | Set to `off` to stop hiding API keys from the sandbox | Unset (hiding is on) | no | `...daytona.opaqueSecrets` |
 
 When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
-starts from its pinned default snapshot `agenta-agent-sandbox-v1`. The two variables are mutually
+starts from its pinned default snapshot `agenta-agent-sandbox-v2`. The two variables are mutually
 exclusive. The autostop and autodelete values must be positive integers. See
 [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow,
 and [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) for the
@@ -554,6 +554,10 @@ Three rules govern how they interact:
 - The TTFB timer only covers the wait for the first response. The first progress event of any kind
   cancels it and arms the idle timer instead.
 
+`AGENTA_RUNNER_RUN_TTFB_RETRIES` sets how many times the runner runs a turn again when the model
+sends nothing before the TTFB timeout. The default is `1` and the range is `0` to `3`. Set it to `0`
+to turn the retry off. In Helm, set `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_RETRIES`.
+
 An invalid value (not a number, or negative) falls back to the default for that variable. These are
 the runner's own deadlines and are unrelated to `AGENTA_RUNNER_TIMEOUT_SECONDS`, which is the
 caller's idle timeout on the streaming transport.
@@ -630,15 +634,15 @@ logged.
 
 ```text
 runner providers enabled=[local,daytona,inprocess] default=local
-runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v1
-runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v1 max_running_sandboxes=40 max_sessions=200
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v2
+runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v2 max_running_sandboxes=40 max_sessions=200
 ```
 
 The first line always prints and shows the effective list: `local,daytona` in the variable prints as
 `local,daytona,inprocess`. The second line appears only when `daytona` is enabled. The third
 line appears only when `inprocess` is enabled. `target`
 reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
-`snapshot:agenta-agent-sandbox-v1` (the pinned default), `snapshot:<name>`, or `image:<name>`
+`snapshot:agenta-agent-sandbox-v2` (the pinned default), `snapshot:<name>`, or `image:<name>`
 depending on what is set.
 
 ### Troubleshooting

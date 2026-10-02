@@ -17,6 +17,7 @@ from oss.src.core.channels.adapters.slack.mapping import (
     MAX_CHARS,
     build_locator,
     classify_space_kind,
+    file_media_parts,
     is_bot_authored,
     mentions_user,
     parse_block_action,
@@ -64,6 +65,9 @@ _LISTING_PAGE_SIZE = 200
 # Default page size for backfill; clamped further to the install's own rate
 # tier at fetch time.
 _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
+
+# Downloading a file is one long GET, not a quick API call.
+_MEDIA_TIMEOUT_SECONDS = 30.0
 
 # Message subtypes that are still a person's message: a reply also sent to the
 # channel, and a file shared with a comment. Every other subtype is a notice.
@@ -387,7 +391,13 @@ class SlackAdapter(ChannelAdapterInterface):
                 _bot_handle(connection) if connection else "@Agenta",
                 text,
             )
-        content: List[Dict[str, Any]] = [{"type": "text", "text": text}]
+        # Text (or caption) first, then one media part per shared file. A
+        # file share with no comment carries no empty text part.
+        content: List[Dict[str, Any]] = []
+        media = file_media_parts(event)
+        if text or not media:
+            content.append({"type": "text", "text": text})
+        content.extend(media)
 
         return ChannelInboundEvent(
             external_id=event.get("client_msg_id") or f"{channel_id}:{event_ts}",
@@ -438,6 +448,48 @@ class SlackAdapter(ChannelAdapterInterface):
             fields = {}
             _SENDER_CACHE[key] = (now + _SENDER_MISS_TTL_SECONDS, fields)
         return {**sender, **fields}
+
+    # --- media --- #
+
+    async def fetch_media(
+        self,
+        *,
+        connection: ChannelConnection,
+        media: Dict[str, Any],
+        max_bytes: Optional[int] = None,
+    ) -> Optional[Tuple[bytes, Optional[str]]]:
+        """Download a shared file. Two calls: files.info resolves the file id
+        to its current size and private URL (the stored part carries only the
+        id, so a URL rotated since the event still resolves), then the URL is
+        fetched with the bot token. None when Slack reports the file larger
+        than `max_bytes`. An HTML response is Slack's login page, meaning the
+        token cannot read files."""
+
+        body = await self._call(
+            connection, "files.info", {"file": media["media_id"]}, as_query=True
+        )
+        entry = body.get("file") if isinstance(body.get("file"), dict) else {}
+        size = entry.get("size")
+        if max_bytes is not None and isinstance(size, int) and size > max_bytes:
+            return None
+        url = entry.get("url_private_download") or entry.get("url_private")
+        if not url:
+            # An external or tombstoned file has no downloadable copy.
+            raise _SlackApiError(error="file_not_downloadable", status_code=200)
+        response = await self._client.get(
+            url,
+            headers={"Authorization": f"Bearer {_bot_token(connection)}"},
+            follow_redirects=True,
+            timeout=_MEDIA_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        if response.headers.get("content-type", "").startswith("text/html"):
+            raise _SlackApiError(
+                error="file_download_denied", status_code=response.status_code
+            )
+        if max_bytes is not None and len(response.content) > max_bytes:
+            return None
+        return response.content, media.get("mime_type") or entry.get("mimetype")
 
     # --- egress --- #
 

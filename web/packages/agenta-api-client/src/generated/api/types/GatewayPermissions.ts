@@ -14,6 +14,7 @@ export namespace GatewayPermissions {
         Allow: "allow",
         Ask: "ask",
         Deny: "deny",
+        AllowReads: "allow_reads",
     } as const;
     export type Default = (typeof Default)[keyof typeof Default];
 
@@ -23,6 +24,7 @@ export namespace GatewayPermissions {
             Allow: "allow",
             Ask: "ask",
             Deny: "deny",
+            AllowReads: "allow_reads",
         } as const;
         export type Value = (typeof Value)[keyof typeof Value];
     }

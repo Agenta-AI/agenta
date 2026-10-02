@@ -849,6 +849,15 @@ imagePullSecrets:
 {{- $composio := default dict $values.composio -}}
 {{- $cf := default dict (default dict $values.cloudflare).turnstile -}}
 {{- $secrets := default dict .Values.secrets -}}
+{{- /* The web entrypoint turns AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS into the browser's
+       NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS. Without it the web falls back to "local",
+       new agents get sandbox.kind "local", and on a daytona-only install every send fails with
+       "sandbox 'local' is not enabled on this deployment". Same registry as agenta.commonEnv. */}}
+{{- $runnerProviders := default dict (default dict .Values.agentRunner).providers }}
+- name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
+  value: {{ join "," (default (list "local") $runnerProviders.enabled) | quote }}
+- name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
+  value: {{ default "local" $runnerProviders.default | quote }}
 - name: POSTHOG_API_KEY
   value: {{ $posthog.apiKey | default "" | quote }}
 {{- with $secrets.oauth }}

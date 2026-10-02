@@ -83,6 +83,14 @@ _TRUTH_TABLE = [
     ("C15", "inherit", "deny", ("allow_reads",), (None,), "ask"),
     ("C16", "inherit", "deny", ("deny",), _ALL_READ_ONLY, "deny"),
     ("C17", "inherit", "allow", ("ask",), _ALL_READ_ONLY, "ask"),
+    # `allow_reads` saved on the connection holds under every agent-wide mode. Under an
+    # `allow` agent it is what keeps "ask for write and delete" from running a write.
+    ("C27", None, "allow_reads", _ALL_MODES, (True,), "allow"),
+    ("C28", None, "allow_reads", _ALL_MODES, (False,), "ask"),
+    ("C29", None, "allow_reads", _ALL_MODES, (None,), "ask"),
+    ("C30", "allow_reads", "deny", _ALL_MODES, (True,), "allow"),
+    ("C31", "allow_reads", "allow", _ALL_MODES, (False,), "ask"),
+    ("C32", "deny", "allow_reads", _ALL_MODES, (True,), "deny"),
 ]
 
 
@@ -110,6 +118,21 @@ def test_permission_resolution_truth_table(entry, default, mode, read_only, expe
 
 
 # --- C18, C19, C25, C26 ------------------------------------------------------------
+
+
+def test_allow_reads_asks_for_a_write_under_an_allow_agent():
+    # The reported bug: "Ask for write and delete" on an agent whose mode is `allow` ran
+    # SEND_EMAIL with no prompt, because the preset saved `inherit`.
+    compiled = compile_gateway_permissions(
+        GatewayPermissions(default="allow_reads"),
+        [
+            CatalogToolInfo(key="FETCH_EMAILS", read_only=True),
+            CatalogToolInfo(key="SEND_EMAIL", read_only=False),
+        ],
+        "allow",
+    )
+    assert compiled.tools["FETCH_EMAILS"].permission == "allow"
+    assert compiled.tools["SEND_EMAIL"].permission == "ask"
 
 
 def test_compiled_values_are_never_inherit():

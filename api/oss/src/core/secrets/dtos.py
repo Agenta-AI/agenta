@@ -22,6 +22,7 @@ from oss.src.core.secrets.enums import (
     SubscriptionProviderKind,
     SUBSCRIPTION_PROVIDER_HARNESSES,
     SUBSCRIPTION_PROVIDER_MODELS,
+    SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS,
 )
 from oss.src.core.shared.dtos import (
     Identifier,
@@ -497,12 +498,28 @@ def _validate_secret_data_based_on_kind(
         provider_kind = SubscriptionProviderKind(provider)
         # A subscription carries no value on create: the login arrives later through the
         # device login routes, so `value_required` adds nothing to check here.
-        if data.get("harnesses") is None:
-            data["harnesses"] = list(SUBSCRIPTION_PROVIDER_HARNESSES[provider_kind])
-        if data.get("models") is None:
-            data["models"] = list(SUBSCRIPTION_PROVIDER_MODELS[provider_kind])
+        #
+        # Defaults are NOT written into the row. A None list means "follow the current
+        # provider defaults" and is resolved on the response DTO, so a catalog update
+        # reaches every connection that never narrowed its list. A list that matches a
+        # default snapshot — this release's, an older one, or a default-filled read
+        # written back — is normalized to None for the same reason: rows created while
+        # the create path snapshotted the defaults would otherwise stay pinned to the
+        # lineup of their creation day. An explicit empty list stays an explicit "none".
+        # Validate first, so a malformed list is refused as a validation error.
+        subscription = SubscriptionProviderDTO.model_validate(data)
+        if (
+            subscription.models is not None
+            and set(subscription.models)
+            in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS[provider_kind]
+        ):
+            subscription.models = None
+        if subscription.harnesses is not None and set(subscription.harnesses) == set(
+            SUBSCRIPTION_PROVIDER_HARNESSES[provider_kind]
+        ):
+            subscription.harnesses = None
 
-        values["data"] = SubscriptionProviderDTO.model_validate(data)
+        values["data"] = subscription
     elif kind == SecretKind.OAUTH_PROVIDER.value:
         if not isinstance(data, dict):
             raise ValueError(
@@ -698,6 +715,19 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
     @model_validator(mode="after")
     def build_up_model_keys(self):
         if self.kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            provider_kind = SubscriptionProviderKind(self.data.provider)  # type: ignore[union-attr]
+            # Resolved here rather than persisted: a row that never narrowed its lists
+            # (stored None) follows whatever the current defaults are, so every reader —
+            # the picker, the SDK, the registrar — sees today's lineup without a data
+            # migration. The write path normalizes default snapshots back to None.
+            if self.data.models is None:  # type: ignore[union-attr]
+                self.data.models = list(  # type: ignore[union-attr]
+                    SUBSCRIPTION_PROVIDER_MODELS[provider_kind]
+                )
+            if self.data.harnesses is None:  # type: ignore[union-attr]
+                self.data.harnesses = list(  # type: ignore[union-attr]
+                    SUBSCRIPTION_PROVIDER_HARNESSES[provider_kind]
+                )
             provider_slug = self.data.provider_slug or self.data.provider.value  # type: ignore[union-attr]
             self.data.provider_slug = provider_slug  # type: ignore[union-attr]
             self.data.model_keys = [  # type: ignore[union-attr]

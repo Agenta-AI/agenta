@@ -165,10 +165,12 @@ chromium --headless=new --no-sandbox --disable-gpu --dump-dom about:blank 2>/dev
 # venv. Everything else goes through uv at session time. -------------------------------------
 # The lock lives next to this script as agent-requirements.txt (COPY'd into the runner images,
 # embedded into the snapshot build alongside this file). It carries sha256 hashes for every
-# wheel, so a package that does not match its hash fails the build.
+# wheel, so a package that does not match its hash fails the build. The lock is complete, so
+# `--no-deps` installs it as written: it overrides moviepy 2.2.1's `pillow<12` cap, which would
+# block the patched Pillow 12. Compile with `--override` holding the same pillow pin.
 req="$(dirname "$0")/agent-requirements.txt"
 [ -f "$req" ] || { echo "missing $req next to $0" >&2; exit 1; }
-uv pip install --system --break-system-packages --no-cache --require-hashes -r "$req"
+uv pip install --system --break-system-packages --no-cache --require-hashes --no-deps -r "$req"
 python3 - <<'PY'
 import importlib
 for m in ["requests","httpx","bs4","lxml","pandas","numpy","matplotlib","PIL","scipy","sklearn",
