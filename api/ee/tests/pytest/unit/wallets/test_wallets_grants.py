@@ -252,8 +252,7 @@ async def test_award_repeatable_rule_with_reference_includes_it_in_the_key(monke
 @pytest.mark.asyncio
 async def test_award_never_mutates_an_existing_wallet_credit_row():
     """Source-level regression guard on the real Postgres DAO: `award_credit` must never
-    issue an UPDATE against `WalletCreditDBE` — only a NEW row is ever inserted, mirroring
-    `apply_plan_change`'s immutability guarantee."""
+    issue an UPDATE against `WalletCreditDBE` — only a NEW row is ever inserted."""
     import inspect
 
     import ee.src.dbs.postgres.wallets.dao as dao_module

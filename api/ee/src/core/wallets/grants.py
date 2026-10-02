@@ -1,5 +1,5 @@
-"""Grant catalog: named, product-decided ACTIVITIES that award wallet credit outside the
-plan-change proration path (`ee.src.core.wallets.plans`/`.proration`). Adding a new
+"""Grant catalog: named, product-decided ACTIVITIES that award wallet credit, apart from
+a plan's period allowance (`ee.src.core.wallets.plans`). Adding a new
 activity — an activation milestone, a referral bonus, a contribution award (see
 `docs/design/wallets-research/v1/mechanics.md` §4 for the full enumerated list) — is a
 new row in `GRANT_CATALOG`, never a new code path: `WalletsService.award()` and
@@ -82,8 +82,7 @@ def compose_award_idempotency_key(
     reference: Optional[str] = None,
 ) -> str:
     """One prefix (`award`), then identifiers, `organization` spelled out — mirrors the
-    `plan_change:{stripe_event_id}` / `measurement:{measurement_id}`
-    convention elsewhere in this package. A once-per-organization activity's key omits
+    `measurement:{measurement_id}` convention elsewhere in this package. A once-per-organization activity's key omits
     `reference` entirely (there is only ever one), so two calls with different
     `reference` values for a non-repeatable activity still collide onto the same key —
     by design, since `repeatable=False` means at most one award ever."""

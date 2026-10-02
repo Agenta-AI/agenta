@@ -78,19 +78,20 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 19 | Decided | How the rate card stays in step with the model catalogue. |
 | 20 | Decided | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
 | 21 | Decided | Whether expired credit value leaves the general balance, and what admission reads. |
-| 22 | Decided (option 2; option 3 deferred) | What identifies one plan change, so two in a billing period are not treated as one. |
-| 23 | Open | Whether a plan-change clawback depends on usage still queued in the streams. |
+| 22 | Resolved by removal (2026-10-02) | What identifies one plan change, so two in a billing period are not treated as one. |
+| 23 | Resolved by removal (2026-10-02) | Whether a plan-change clawback depends on usage still queued in the streams. |
 | 24 | Open | Whether settlement funds usage from the credits alive when it happened or when it settled. |
 | 25 | Decided | How sandbox time is billed. |
 | 26 | Decided (mock slice) | How managed tool actions are admitted and billed. |
 
-Items 2, 4, 7, 14, 15, 16, 17, 18, 19, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
+Items 2, 4, 7, 14, 15, 16, 17, 18, 19, 20, and 21 are decided. Items 22 and 23 are resolved by
+removing mid-period plan-change proration (2026-10-02). The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
 
 **What Wave 1 closed, and what it did not.** Wave 1 delivered the measurement and settlement
 mechanism, so item 6 closes for LLM and MCP. It did not decide a single policy question above it.
-Items 3, 5, 11 and 13 each now have working machinery underneath an unresolved rule — proration
-runs, restricted credits are selected, grants expire at twelve months — and a mechanism that works
+Items 3, 5, 11 and 13 each now have working machinery underneath an unresolved rule — restricted
+credits are selected, grants expire at twelve months — and a mechanism that works
 is not a policy that was chosen. Item 10's concurrency guarantee is proved by a passing test; its
 exposure, L1/L2 and recovery questions are untouched. Item 12 records a Wave 1 placement and
 nothing beyond it. Read each item's own Decision section rather than inferring from the code.
@@ -310,7 +311,12 @@ credit-line column from the first migration even if its launch value is zero.
 
 ### Decision
 
-_Unresolved._
+_Unresolved_, except for the mid-period plan change. **No mid-period clawbacks (Mahmoud, 2026-10-02).** A plan change (upgrade, downgrade or
+cancellation) no longer grants a prorated allowance and no longer claws back the unused part of
+the old one. Credit already given stays valid until its stated expiry. The plan change only
+decides which allowance the organization gets from the next billing period on, which the
+recurring period allowance grants from the Stripe renewal event (release plan step 1.3).
+See items 22 and 23._
 
 ---
 
@@ -1363,14 +1369,13 @@ response to any unprovisioned organization.
 and a terminal classification for the error that survives it.**
 
 `WalletsDAO._lock_general_balance` is now the single entry to the general balance row.
-`settle`, `apply_plan_change` and `award_credit` all open with it, and it inserts the row
+`settle` and `award_credit` both open with it, and it inserts the row
 under the same partial unique index before taking the lock. `WalletsService.check` does the
 same on the admission read. The insert rides the caller's transaction, so a settlement that
 fails afterwards leaves no row behind and the next delivery provisions again.
 
 The lazy row starts at `LAZY_PROVISION_FLOOR_MUSD`, which is 0. No plan lookup happens on
-these paths, for two reasons: 0 is every known plan's floor in `plans.py` today, and
-`apply_plan_change` rewrites the floor from the incoming plan anyway. A path that had to
+these paths: 0 is every known plan's floor in `plans.py` today. A path that had to
 reach the subscription to learn a number already fixed would be the wrong shape.
 
 `WalletGeneralBalanceNotFoundError` therefore stops being a routine outcome and becomes a
@@ -1395,8 +1400,7 @@ Evidence: `ee/tests/pytest/unit/wallets/test_wallets_service.py` and
 `test_wallets_debit_worker.py` cover the service and worker halves against the in-memory
 fake; `ee/tests/pytest/integration/wallets/test_wallets_lazy_provisioning_postgres.py`
 proves against a real Postgres that eight competing first deliveries leave exactly one row,
-that a rolled-back settlement leaves none, and that the award and plan-change paths heal
-themselves the same way.
+that a rolled-back settlement leaves none, and that the award path heals itself the same way.
 
 **The flag window is not the only source of row-less organizations (2026-09-25).** The admin
 account route (`POST /admin/simple/accounts/`, through `oss/src/core/accounts/service.py`)
@@ -2066,7 +2070,27 @@ now implements the same read.
 
 ## 22. What identifies one plan change
 
-**Status:** Decided (2026-09-25): option 2; option 3 deferred
+**Status:** Resolved by removal (2026-10-02). Was: decided 2026-09-25, option 2, option 3 deferred.
+
+### Resolution (2026-10-02)
+
+**No mid-period clawbacks (Mahmoud, 2026-10-02).** A plan change (upgrade, downgrade or
+cancellation) no longer grants a prorated allowance and no longer claws back the unused part of
+the old one. Credit already given stays valid until its stated expiry. The plan change only
+decides which allowance the organization gets from the next billing period on, which the
+recurring period allowance grants from the Stripe renewal event (release plan step 1.3).
+
+A plan change now writes nothing to the wallet, so there is no wallet call to identify, nothing
+to replay-guard and no failure to re-drive. Removed with it: `WalletsService.apply_plan_change`,
+`WalletsDAO.apply_plan_change`, `ee.src.core.wallets.proration`, `PlanChangeResultDTO`, the
+`SubscriptionsService._apply_wallet_plan_change` hook, the per-organization subscription lock
+(`SubscriptionsDAO.lock`, added only to serialize the wallet side), the event id, effective time
+and billing period the billing router threaded down for proration, and the unique index
+`uq_wallet_credits_org_plan_change_key`. Option 3's deferred pending record is no longer needed for
+plan changes. The recurring period allowance (step 1.3) is idempotent per organization and
+period, so a redelivered renewal event grants once.
+
+The sections below are the record of the design before the removal.
 
 ### Context
 
@@ -2221,8 +2245,22 @@ and the trial gets no allowance; that belongs with the recurring allowance in it
 
 ## 23. Whether a plan-change clawback depends on usage still queued in the streams
 
-**Status:** Open (recorded 2026-09-27 from the whole-stack review, finding 2; P1). Blocks enabling
-for paying customers.
+**Status:** Resolved by removal (2026-10-02). Was: open, recorded 2026-09-27 from the whole-stack
+review, finding 2; P1.
+
+### Resolution (2026-10-02)
+
+**No mid-period clawbacks (Mahmoud, 2026-10-02).** A plan change (upgrade, downgrade or
+cancellation) no longer grants a prorated allowance and no longer claws back the unused part of
+the old one. Credit already given stays valid until its stated expiry. The plan change only
+decides which allowance the organization gets from the next billing period on, which the
+recurring period allowance grants from the Stripe renewal event (release plan step 1.3).
+
+There is no clawback left, so there is no race between a clawback and usage still queued in the
+streams. Queued usage settles against whatever credits exist when it settles, the same as at any
+other moment. What remains is item 24's general question, which this item no longer adds to.
+
+The sections below are the record of the question before the removal.
 
 ### Context
 

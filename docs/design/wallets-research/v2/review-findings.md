@@ -28,6 +28,13 @@ behaviour, [spec-divergences.md](spec-divergences.md) has the row.
 
 The Codex reviews used `gpt-6-astra` at medium reasoning effort, in a read-only sandbox.
 
+**Plan-change findings after 2026-10-02.** Mahmoud decided that a plan change grants no prorated
+allowance and claws nothing back (open-designs items 22 and 23). The proration and clawback
+code, its subscription lock and its tests are deleted. Every row below about that code (SR-1,
+SR-5, SR-6, SR-11, SR-14, CG-1, CG-2, CG-4, CG-7, PC-1 to PC-8, LY-3, WS-2, WS-4, AC-7) is now
+history: a "Fixed" disposition names a commit and a test that no longer exist on the branch, and
+the open ones are resolved by the removal.
+
 ## Spec review
 
 | ID | Sev | Finding | Disposition |
@@ -36,7 +43,7 @@ The Codex reviews used `gpt-6-astra` at medium reasoning effort, in a read-only 
 | SR-2 | P2 | The reclaim pass read only the oldest 50 pending entries. Fifty permanent failures at the head hid every later pending debit. | **Fixed** in `9f8675313b`: a reclaim cursor walks the whole list, and entries past `max_deliveries` go to the dead letters. Test: `unit/wallets/test_wallets_stream_redelivery.py::test_failing_entries_at_the_head_do_not_hide_later_pending_entries`. Divergence row 2. The suggested upper bound on `DebitCommandV1.amount_musd` was **accepted as not needed**: an out-of-range amount now reaches the dead letters after 20 deliveries, and a bound would change the envelope contract, which is held steady for the coverage-contract design. |
 | SR-3 | P2 | `XADD MAXLEN ~` trimming deleted pending debits during a long core-database outage, with no log line. | **Fixed** in `9f8675313b`: no trim; publishers refuse past a 100,000-entry backlog and log. Test: `test_wallets_stream_redelivery.py::test_debit_publish_refuses_past_the_backlog_limit_and_never_trims`. Divergence row 3. |
 | SR-4 | P3 | The award replay guard is a JSONB lookup with no unique index. | **Fixed** in `0a891a45fe`: partial unique index `uq_wallet_credits_org_award_key` in the unreleased `ee0000000004`. Test: `integration/wallets/test_wallets_admission_postgres.py::test_a_second_credit_for_one_award_key_is_rejected`. |
-| SR-5 | P3 | The plan-change incoming-credit guard is also a JSONB lookup with no unique index. | **Accepted.** The guard runs under the general-balance lock, and with the flag on the whole plan change also runs under the per-organization advisory lock (item 22). A second index would guard a path that two locks already serialize. |
+| SR-5 | P3 | The plan-change incoming-credit guard is also a JSONB lookup with no unique index. | **Resolved by removal** (2026-10-02, open-designs items 22 and 23): plan changes no longer touch the wallet. The index `uq_wallet_credits_org_plan_change_key` is deleted with the path it guarded. |
 | SR-6 | P3 | `apply_plan_change` locked the outgoing balance by credit id without an organization filter. | **Fixed** in `d1cc58b029`. Same as CG-7. |
 | SR-7 | P3 | `measurement_values` keeps the first row per key, while pricing sums every component, so a repeated key makes evidence and charge disagree. | **Fixed** in `9f8675313b`. Same as CG-3. |
 | SR-8 | P3 | Debit rows take `created_at` from the debit command, which on a retry is the republish time. | **Deferred** to [connect-model-gateway-wallet](openspec/changes/connect-model-gateway-wallet/), task 1.4. The Wave 2 plan persists the pricing decision, including the debit's `created_at`, with the measurement. |
@@ -85,14 +92,14 @@ The Codex reviews used `gpt-6-astra` at medium reasoning effort, in a read-only 
 | PC-1 | P1 | The advisory lock ran on the task-scoped session, so the nested subscription read committed and released it. | **Fixed** in `fc37fe0718`: the lock holds its own connection (`TransactionsEngine.transaction()`). Test: `test_the_subscription_lock_serializes_one_organization_only`, with reads inside the lock. |
 | PC-2 | P1 | uuid7 order is not transaction order across processes. | **Fixed** in `fc37fe0718`: allowances are ordered by a `created_at` taken from `clock_timestamp()` after the lock. Test: `test_the_newest_allowance_is_found_even_when_uuid7_ids_run_backwards`. |
 | PC-3 | P1 | Suggested alternative to PC-1: try-lock and reject with a retryable error. | **Accepted, not taken.** Blocking is fine for a rare, per-organization, user-initiated change. See LY-3. |
-| PC-4 | Limit | A failed wallet adjustment after the subscription committed has no durable record. | **Deferred** to open-designs item 22, option 3, and to [harden-wallet-production-billing](openspec/changes/harden-wallet-production-billing/), task 1.3. **This blocks enabling the flag for paying customers.** |
-| PC-5 | Limit | A delayed `customer.subscription.deleted` for an old subscription cancels its replacement. | **Accepted as a known limit**, recorded in item 22. The webhook does not compare the deleted subscription's id with the stored one. This is pre-existing billing behaviour, not wallet code. |
-| PC-6 | Limit | The reverse trial writes the trial plan directly, so its creation webhook sees no change and the trial gets no allowance. | **Deferred** to open-designs item 3 (recurring allowance), recorded in item 22. |
+| PC-4 | Limit | A failed wallet adjustment after the subscription committed has no durable record. | **Resolved by removal** (2026-10-02, open-designs items 22 and 23): plan changes no longer touch the wallet. |
+| PC-5 | Limit | A delayed `customer.subscription.deleted` for an old subscription cancels its replacement. | **Accepted as a known limit** (pre-existing billing behaviour). Since 2026-10-02 it no longer affects the wallet, because a plan change writes nothing to it. |
+| PC-6 | Limit | The reverse trial writes the trial plan directly, so its creation webhook sees no change and the trial gets no allowance. | **Deferred** to release plan step 1.3 (the recurring period allowance). The plan-change path that would have minted it is removed (open-designs items 22 and 23). |
 | PC-7 | P2 | Round 2: separate whole-second truncation of the two durations could over-claw by up to 15 musd. | **Fixed** in `8720390427`: exact microsecond durations, one final floor. Regression test in `unit/wallets/test_wallets_proration.py`. |
 | PC-8 | Doc | Item 22's "Current direction" still said no option was chosen. | **Fixed** in the item 22 rewrite (`914117d3fd`). |
 | LY-1 | P3 | The admin-route pin test provisioned the row through `check()` before settling, so it did not prove settle-side provisioning. | **Fixed** in `6f4e567f9d`: separate organizations, and the test asserts no row before the debit. Test: `integration/wallets/test_wallets_debit_worker_integration.py::test_first_debit_for_an_organization_with_no_wallet_row_settles`. |
 | LY-2 | P2 | Final round: the measurement worker trusts a producer-supplied `organization_id` without checking that it owns the project. | **Deferred** to [connect-model-gateway-wallet](openspec/changes/connect-model-gateway-wallet/), task 1.2 (trusted credential-origin stamp). No producer exists on this branch. The Wave 2 producer must set the organization from the authenticated scope, or the worker must validate it. |
-| LY-3 | P2 | Final round: advisory-lock waiters each hold a pool connection and could starve the lock holder. | **Accepted.** It needs roughly 400 concurrent plan changes for one organization. The smallest fix, `pg_try_advisory_xact_lock` with a retryable busy error, changes the plan-change design. Revisit if plan changes are ever automated in bulk. |
+| LY-3 | P2 | Final round: advisory-lock waiters each hold a pool connection and could starve the lock holder. | **Resolved by removal** (2026-10-02, open-designs items 22 and 23): plan changes no longer touch the wallet. The subscription advisory lock is deleted. |
 
 ## Whole-stack review
 
@@ -101,9 +108,9 @@ handled there.
 
 | ID | Sev | Finding | Disposition |
 | --- | --- | --- | --- |
-| WS-2 | P1 | A plan-change clawback is computed from the settled credit balance and cannot see usage still queued in the streams, so the result depends on processing order: $50 allowance, $40 used, halfway cancel ends at $0 if usage settles first and -$15 if the cancel lands first. | **Deferred** to open-designs item 23. Recommended: accept and document the bound now, then reconcile late usage by occurrence time once item 24 adds it. Reason: the fix needs occurrence time on the debit, and the debit envelope is frozen for the coverage-contract design. **Blocks enabling for paying customers.** |
+| WS-2 | P1 | A plan-change clawback is computed from the settled credit balance and cannot see usage still queued in the streams, so the result depends on processing order: $50 allowance, $40 used, halfway cancel ends at $0 if usage settles first and -$15 if the cancel lands first. | **Resolved by removal** (2026-10-02, open-designs items 22 and 23): plan changes no longer touch the wallet. There is no clawback left to race with queued usage. |
 | WS-3 | P1 | Settlement picks funding credits by settlement time, so usage that happened before a credit expired but settles after it consumes other credit or creates a deficit; dead-letter replay makes it worse. The debit envelope carries no occurrence time. | **Deferred** to open-designs item 24. Recommended: add occurrence time to the debit envelope and judge eligibility by it, owned by the coverage-contract design. Reason: a contract change, and the envelope and settlement port are frozen while that design runs. **Blocks enabling for paying customers.** |
-| WS-4 | P1 | A failed wallet adjustment after a committed plan change is lost. | **Deferred**, same as PC-4 (open-designs item 22, option 3). The whole-stack review rates it P1. It stays the top launch blocker. |
+| WS-4 | P1 | A failed wallet adjustment after a committed plan change is lost. | **Resolved by removal** (2026-10-02, open-designs items 22 and 23): plan changes no longer touch the wallet. There is no wallet adjustment left to lose. |
 | WS-8 | P2 | The measurement worker keeps a second payer-resolution path (project to organization lookup) that no producer uses. | **Fixed** in `de376c525a`: every production producer stamps the authenticated organization (gateway sink on `wallets/wave-2`, sandbox report on `wallets/sandbox-seconds`). The lookup, its port and adapter are deleted, and a measurement without an organization is dead-lettered unpersisted. Test: `unit/measurements/test_measurements_worker.py::test_measurement_without_organization_is_dead_lettered_unpersisted`. Recorded in open-designs item 20. LY-2's condition holds: both producers set the organization from the authenticated scope. |
 
 ## Acceptance run

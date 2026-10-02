@@ -27,7 +27,7 @@ The baseline SHALL describe check as a spendable-balance-versus-floor comparison
 - **THEN** the check does not count that value, while the general balance row itself still includes it until an expiry debit exists
 
 ### Requirement: Funding and settlement rules
-The baseline SHALL preserve the branch signup award, plan-change adjustment, credit selection and deficit behavior without presenting code constants as newly approved commercial terms.
+The baseline SHALL preserve the branch signup award, credit selection and deficit behavior without presenting code constants as newly approved commercial terms.
 
 #### Scenario: Signup replay
 - **WHEN** a signup award is retried
@@ -46,16 +46,8 @@ The baseline SHALL preserve the branch signup award, plan-change adjustment, cre
 - **THEN** the branch records the unfunded remainder as deficit rather than dropping consumed usage
 
 #### Scenario: Plan change
-- **WHEN** a plan change is applied with wallets enabled
-- **THEN** one per-organization lock serializes it from reading the plan through the wallet adjustment, the newest plan-allowance credit not already clawed back loses the unused share of its own lifetime, and the incoming allowance is prorated from the change's effective time over the subscription's billing period
-
-#### Scenario: Repeated plan-change submission
-- **WHEN** the same plan switch is submitted twice
-- **THEN** the second submission reads the new plan and changes nothing, while the same transition made again later in the period is a new change that moves money again
-
-#### Scenario: Failed plan-change adjustment
-- **WHEN** the wallet adjustment fails after the subscription change committed
-- **THEN** the baseline records that the failure is logged and not retried, and that this gap blocks enabling wallets for paying customers
+- **WHEN** an organization upgrades, downgrades or cancels its plan
+- **THEN** the wallet writes no row: no prorated allowance is granted and nothing is clawed back, credit already given stays valid until its expiry, and the new plan only decides the allowance of the next billing period
 
 ### Requirement: Measurement delivery limits
 The baseline SHALL record that the initial stream publication is best-effort and subsequent measurement persistence and debit settlement are replay-safe.
@@ -85,7 +77,7 @@ The baseline SHALL distinguish flag-gated runtime paths from unconditional schem
 
 #### Scenario: Disabled runtime
 - **WHEN** AGENTA_WALLETS_ENABLED is false
-- **THEN** wallet hooks, wallet consumers and the plan-change lock are disabled while migrations and their backfill can still run
+- **THEN** wallet hooks and wallet consumers are disabled while migrations and their backfill can still run
 
 #### Scenario: Implemented versus released
 - **WHEN** the branch contains the foundation

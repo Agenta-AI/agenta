@@ -117,7 +117,7 @@ def test_categories_follow_the_resource_key_plane():
     assert category_of("llm:agenta:gpt-5.5") == "Model calls"
     assert category_of("mcp:agenta:search") == "Tools"
     assert category_of("sbx:daytona:cpu") == "Sandbox"
-    assert category_of("plan_change") == "Other"
+    assert category_of("adjustment") == "Other"
 
 
 async def test_charges_group_by_session_newest_first_with_names_and_tokens():

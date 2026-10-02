@@ -2151,8 +2151,7 @@ class WalletsConfig(BaseModel):
     """Master switch for the credit wallet (EE only).
 
     Off until the ledger works end to end. While off, an organization gets no
-    balance row and no signup grant, mid-period plan changes are not prorated,
-    and the `measurements`/`debits` stream consumers are not started — so no
+    balance row and no signup grant, and the `measurements`/`debits` stream consumers are not started — so no
     row is written that a later, corrected implementation would have to undo.
     Organizations created while it was off get their balance row lazily on
     first use; their missed signup grant comes only from the one-off

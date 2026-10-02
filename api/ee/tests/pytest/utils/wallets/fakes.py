@@ -14,21 +14,13 @@ import uuid_utils.compat as uuid_utils
 
 from ee.src.core.wallets.contracts import DebitCommandV1
 from ee.src.core.wallets.interfaces import WalletSettlementPort
-from ee.src.core.wallets.plans import (
-    PLAN_ALLOWANCE_CREDIT_KIND,
-    PLAN_ALLOWANCE_PRIORITY,
-    PLAN_CHANGE_RESOURCE_KEY,
-)
-from ee.src.core.wallets.proration import prorate_outgoing_allowance
 from ee.src.core.wallets.types import (
     CreditCandidateDTO,
-    PlanChangeResultDTO,
     WalletBalanceDTO,
     WalletCreditDTO,
     WalletDebitDTO,
     WalletSpendableBalanceDTO,
     WalletsDAOInterface,
-    compose_debit_key,
     plan_settlement,
 )
 
@@ -51,13 +43,9 @@ class FakeWalletsDAO(WalletsDAOInterface):
             for candidate, balance in (credits or [])
         }
         self.debits: List[WalletDebitDTO] = []
-        # wallet_credit_id -> (start_time, amount_musd): the immutable credit facts a
-        # `CreditCandidateDTO` does not carry, recorded for the credits this fake mints.
-        self._credit_lifetimes: Dict[UUID, Tuple[datetime, int]] = {}
         self.get_general_balance_calls = 0
         self.settle_calls = 0
         self.provision_calls = 0
-        self.plan_changes: Dict[Tuple[UUID, str], PlanChangeResultDTO] = {}
         # idempotency_key -> awarded credit, keyed same as the real DAO's
         # `data.references.award_idempotency_key` lookup.
         self.awards: Dict[str, WalletCreditDTO] = {}
@@ -229,125 +217,6 @@ class FakeWalletsDAO(WalletsDAOInterface):
         )
 
         return self.general_balance
-
-    async def apply_plan_change(
-        self,
-        *,
-        organization_id: UUID,
-        idempotency_key: str,
-        subscription_id: Optional[str],
-        incoming_credit_amount_musd: int,
-        incoming_end_time: Optional[datetime],
-        floor_musd: int,
-        now: datetime,
-    ) -> PlanChangeResultDTO:
-        key = (organization_id, idempotency_key)
-        if key in self.plan_changes:
-            return self.plan_changes[key].model_copy(update={"replayed": True})
-
-        await self._lock_general_balance(organization_id=organization_id)
-
-        # Mirrors the real DAO: the outgoing allowance is this organization's newest
-        # `plan_allowance` credit (insertion order here, database-clock `created_at` there), unless a
-        # plan change already clawed it back.
-        outgoing_credit_id = None
-        for candidate, _ in self._owned_credits(organization_id=organization_id):
-            if candidate.credit_kind == PLAN_ALLOWANCE_CREDIT_KIND:
-                outgoing_credit_id = candidate.wallet_credit_id
-        if outgoing_credit_id is not None and any(
-            debit.wallet_credit_id == outgoing_credit_id
-            and debit.resource_key == PLAN_CHANGE_RESOURCE_KEY
-            for debit in self.debits
-        ):
-            outgoing_credit_id = None
-
-        applied_outgoing = 0
-        outgoing_debit_id = None
-        if outgoing_credit_id is not None:
-            candidate, balance = self._credits[outgoing_credit_id]
-            start_time, amount_musd = self._credit_lifetimes.get(
-                outgoing_credit_id, (None, candidate.balance_musd)
-            )
-            applied_outgoing = min(
-                prorate_outgoing_allowance(
-                    credit_amount_musd=amount_musd,
-                    credit_start_time=start_time,
-                    credit_end_time=candidate.end_time,
-                    now=now,
-                ),
-                balance.balance_musd,
-            )
-            if applied_outgoing > 0:
-                outgoing_debit_id = uuid_utils.uuid7()
-                self._credits[outgoing_credit_id] = (
-                    candidate.model_copy(
-                        update={
-                            "balance_musd": candidate.balance_musd - applied_outgoing
-                        }
-                    ),
-                    balance.model_copy(
-                        update={"balance_musd": balance.balance_musd - applied_outgoing}
-                    ),
-                )
-                self.debits.append(
-                    WalletDebitDTO(
-                        id=outgoing_debit_id,
-                        organization_id=organization_id,
-                        debit_kind="adjustment",
-                        amount_musd=applied_outgoing,
-                        wallet_credit_id=outgoing_credit_id,
-                        idempotency_key=idempotency_key,
-                        debit_key=compose_debit_key(
-                            idempotency_key=idempotency_key,
-                            source=str(outgoing_credit_id),
-                        ),
-                        resource_key=PLAN_CHANGE_RESOURCE_KEY,
-                        pricing_version="plan-change-proration-v1",
-                    )
-                )
-
-        applied_incoming = 0
-        incoming_credit_id = None
-        if incoming_credit_amount_musd > 0:
-            applied_incoming = incoming_credit_amount_musd
-            incoming_credit_id = uuid_utils.uuid7()
-            new_candidate = CreditCandidateDTO(
-                wallet_credit_id=incoming_credit_id,
-                credit_kind=PLAN_ALLOWANCE_CREDIT_KIND,
-                priority=PLAN_ALLOWANCE_PRIORITY,
-                end_time=incoming_end_time,
-                balance_musd=applied_incoming,
-            )
-            new_balance = WalletBalanceDTO(
-                id=uuid_utils.uuid7(),
-                organization_id=organization_id,
-                wallet_credit_id=incoming_credit_id,
-                balance_musd=applied_incoming,
-            )
-            self._credits[incoming_credit_id] = (new_candidate, new_balance)
-            self._credit_lifetimes[incoming_credit_id] = (now, applied_incoming)
-
-        self.general_balance = self.general_balance.model_copy(
-            update={
-                "balance_musd": self.general_balance.balance_musd
-                + applied_incoming
-                - applied_outgoing,
-                "floor_musd": floor_musd,
-            }
-        )
-
-        result = PlanChangeResultDTO(
-            replayed=False,
-            outgoing_credit_id=outgoing_credit_id,
-            outgoing_debit_id=outgoing_debit_id,
-            outgoing_debit_amount_musd=applied_outgoing,
-            incoming_credit_id=incoming_credit_id,
-            incoming_credit_amount_musd=applied_incoming,
-            general_balance_musd=self.general_balance.balance_musd,
-            floor_musd=self.general_balance.floor_musd,
-        )
-        self.plan_changes[key] = result
-        return result
 
     async def award_credit(
         self,

@@ -32,21 +32,6 @@ class WalletGeneralBalanceNotFoundError(WalletError):
         )
 
 
-class WalletCreditBalanceNotFoundError(WalletError):
-    """A credit of this organization has no per-credit balance row. Every credit is
-    minted together with its balance row in one transaction, so this is a broken
-    invariant, never a routine outcome — and it is raised rather than skipped, because
-    skipping would silently leave that credit's value unaccounted for."""
-
-    def __init__(self, *, organization_id: UUID, wallet_credit_id: UUID):
-        self.organization_id = organization_id
-        self.wallet_credit_id = wallet_credit_id
-        super().__init__(
-            f"No balance row for wallet credit {wallet_credit_id} "
-            f"of organization {organization_id}"
-        )
-
-
 # ---------------------------------------------------------------------------
 # Domain DTOs
 # ---------------------------------------------------------------------------
@@ -114,24 +99,6 @@ class WalletSpendableBalanceDTO(BaseModel):
     organization_id: UUID
 
     spendable_musd: int
-    floor_musd: Optional[int] = None
-
-
-class PlanChangeResultDTO(BaseModel):
-    """Result of `WalletsDAOInterface.apply_plan_change`. `replayed=True` means this exact
-    `idempotency_key` had already been applied — the returned ids/amounts are the
-    ORIGINAL application's, and no new row was written on this call."""
-
-    replayed: bool
-
-    outgoing_credit_id: Optional[UUID] = None
-    outgoing_debit_id: Optional[UUID] = None
-    outgoing_debit_amount_musd: int = 0
-
-    incoming_credit_id: Optional[UUID] = None
-    incoming_credit_amount_musd: int = 0
-
-    general_balance_musd: int
     floor_musd: Optional[int] = None
 
 
@@ -360,50 +327,6 @@ class WalletsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def apply_plan_change(
-        self,
-        *,
-        organization_id: UUID,
-        idempotency_key: str,
-        subscription_id: Optional[str],
-        incoming_credit_amount_musd: int,
-        incoming_end_time: Optional[datetime],
-        floor_musd: int,
-        now: datetime,
-    ) -> "PlanChangeResultDTO":
-        """Apply (or replay) one plan change in a single transaction, under the general
-        balance lock:
-
-        1. Replay guard, keyed on `(organization_id, idempotency_key)` — a redelivered
-           webhook must produce no second financial effect. There is no dedicated ledger
-           table for this: the outgoing side is guarded by the same mechanism `settle()`
-           uses against `wallet_debits`, and the incoming side by the
-           `plan_change_idempotency_key` reference already stored on the minted
-           `wallet_credits` row (step 3) — reading the actual financial rows a prior
-           application wrote, not a second guard.
-        2. Select the outgoing allowance: the newest `plan_allowance` credit of this
-           organization, unless a plan change already clawed it back. Claw back the
-           unused share of its own lifetime at `now`
-           (`ee.src.core.wallets.proration.prorate_outgoing_allowance`), capped at its
-           balance, as an IMMUTABLE `wallet_debits` row (`debit_kind="adjustment"`), and
-           decrement its balance row by the same amount. Selecting here, after the lock,
-           is what keeps two overlapping changes from clawing the same credit.
-        3. If `incoming_credit_amount_musd > 0`: mint a NEW immutable `plan_allowance`
-           credit (never mutate an existing one) plus its balance row, valid from `now`
-           to `incoming_end_time`, recording `subscription_id` as its provenance.
-        4. Update the general balance projection by `(applied incoming - applied
-           outgoing)`, and set its `floor_musd` to the incoming plan's floor.
-
-        Amounts that round to zero are computed but not written — Postgres's
-        `amount_musd > 0` check constraint on both `wallet_credits` and `wallet_debits`
-        forbids a zero-amount row. When BOTH amounts round to zero, this call writes
-        nothing at all beyond the general balance's floor projection: a no-op is a
-        correct outcome for a zero-value change, and there is no financial effect to
-        replay-guard.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     async def award_credit(
         self,
         *,
@@ -417,7 +340,7 @@ class WalletsDAOInterface(ABC):
     ) -> WalletCreditDTO:
         """Apply (or replay) one catalog-driven grant award in a single transaction:
 
-        1. Lock the general balance row first, same as `apply_plan_change`.
+        1. Lock the general balance row first, same as `settle`.
         2. Replay guard: an existing `wallet_credits` row whose
            `data.references.award_idempotency_key` already equals `idempotency_key`
            means this exact award already happened — return THAT row unchanged, write

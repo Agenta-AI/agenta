@@ -1,9 +1,6 @@
-from contextlib import nullcontext
-from typing import Any, Optional, Tuple
-from uuid import UUID, getnode
+from typing import Optional
+from uuid import getnode
 from datetime import datetime, timezone, timedelta
-
-import uuid_utils.compat as uuid_utils
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
@@ -31,34 +28,6 @@ log = get_module_logger(__name__)
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
 
 
-def _stripe_field(value: Any, key: str) -> Any:
-    if value is None:
-        return None
-    if isinstance(value, dict):
-        return value.get(key)
-    return getattr(value, key, None)
-
-
-def current_billing_period(
-    stripe_subscription: Any,
-) -> Tuple[Optional[datetime], Optional[datetime]]:
-    """The Stripe subscription's current billing period, read from its first item
-    (where Stripe carries it), or `(None, None)` when it is not there."""
-    items = _stripe_field(_stripe_field(stripe_subscription, "items"), "data") or []
-    if not items:
-        return None, None
-
-    start = _stripe_field(items[0], "current_period_start")
-    end = _stripe_field(items[0], "current_period_end")
-    if start is None or end is None:
-        return None, None
-
-    return (
-        datetime.fromtimestamp(int(start), tz=timezone.utc),
-        datetime.fromtimestamp(int(end), tz=timezone.utc),
-    )
-
-
 class SwitchException(Exception):
     pass
 
@@ -74,7 +43,9 @@ class SubscriptionsService:
         wallets_service: Optional[WalletsService] = None,
     ):
         self.subscriptions_dao = subscriptions_dao
-        # Only the instance that handles plan changes (the billing router's) needs it.
+        # Wired only into the billing router's instance, which handles the Stripe
+        # webhook. A plan change writes nothing to the wallet: it changes which plan
+        # allowance the next billing period grants (open-designs items 22 and 23).
         self.wallets_service = wallets_service
 
     async def create(
@@ -312,54 +283,8 @@ class SubscriptionsService:
         subscription_id: Optional[str] = None,
         plan: Optional[str] = None,
         anchor: Optional[int] = None,
-        event_id: Optional[str] = None,
-        effective_at: Optional[datetime] = None,
-        period_start: Optional[datetime] = None,
-        period_end: Optional[datetime] = None,
         # force: Optional[bool] = True,
         **kwargs,
-    ) -> SubscriptionDTO:
-        """Apply one subscription lifecycle event.
-
-        `event_id` is Stripe's `stripe_event.id` on the webhook (stable across retries);
-        the direct routes have none. `effective_at` is when the change took effect, and
-        `period_start`/`period_end` the new subscription's billing period on a creation;
-        both feed the wallet proration.
-
-        With wallets enabled, the whole event runs under the organization's subscription
-        lock, so a second submission of the same switch sees the new plan and is refused,
-        and two changes cannot interleave their wallet adjustments. Open-designs item 22.
-        """
-        lock = (
-            self.subscriptions_dao.lock(organization_id=organization_id)
-            if env.wallets.enabled
-            else nullcontext()
-        )
-        async with lock:
-            return await self._process_event(
-                organization_id=organization_id,
-                event=event,
-                subscription_id=subscription_id,
-                plan=plan,
-                anchor=anchor,
-                event_id=event_id,
-                effective_at=effective_at,
-                period_start=period_start,
-                period_end=period_end,
-            )
-
-    async def _process_event(
-        self,
-        *,
-        organization_id: str,
-        event: Event,
-        subscription_id: Optional[str],
-        plan: Optional[str],
-        anchor: Optional[int],
-        event_id: Optional[str],
-        effective_at: Optional[datetime],
-        period_start: Optional[datetime],
-        period_end: Optional[datetime],
     ) -> SubscriptionDTO:
         log.info(
             "[billing] [internal] %s | %s | %s",
@@ -368,7 +293,7 @@ class SubscriptionsService:
             plan,
         )
 
-        now = effective_at or datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=timezone.utc)
 
         if not anchor:
             anchor = now.day
@@ -380,7 +305,6 @@ class SubscriptionsService:
                 "Subscription not found for organization ID: {organization_id}"
             )
 
-        previous_plan = subscription.plan
         free_plan = get_free_plan()
 
         if event == Event.SUBSCRIPTION_CREATED:
@@ -434,8 +358,6 @@ class SubscriptionsService:
 
             subscription.active = True
             subscription.plan = plan
-            # A switch keeps the subscription and its billing period.
-            period_start, period_end = current_billing_period(_subscription)
 
             stripe.Subscription.modify(
                 subscription.subscription_id,
@@ -477,69 +399,4 @@ class SubscriptionsService:
             key={"organization_id": organization_id},
         )
 
-        # `update` returns None when the row has gone; an AttributeError here would escape
-        # into the Stripe webhook boundary and make the event look unacknowledged.
-        if subscription is not None and subscription.plan != previous_plan:
-            await self._apply_wallet_plan_change(
-                organization_id=organization_id,
-                subscription_id=subscription.subscription_id,
-                outgoing_plan=previous_plan,
-                incoming_plan=subscription.plan,
-                period_start=period_start,
-                period_end=period_end,
-                event_id=event_id,
-                now=now,
-            )
-
         return subscription
-
-    async def _apply_wallet_plan_change(
-        self,
-        *,
-        organization_id: str,
-        subscription_id: Optional[str],
-        outgoing_plan: str,
-        incoming_plan: str,
-        period_start: Optional[datetime],
-        period_end: Optional[datetime],
-        event_id: Optional[str],
-        now: datetime,
-    ) -> None:
-        """Prorate the wallet's plan allowance for a mid-period plan change.
-
-        The key is `plan_change:{event_id}` on a webhook (Stripe reuses the id on
-        retries), otherwise fresh per call. A fresh key is safe only because
-        `process_event` holds the subscription lock: a repeated switch sees the new plan
-        and never gets here, and a transition repeated in one period is a new change.
-
-        Best-effort: logged and swallowed, so a wallet bug neither blocks Stripe's
-        acknowledgement nor rolls back a committed subscription change. A SWALLOWED
-        FAILURE IS NOT SELF-HEALING: a redelivery finds the plan already changed and
-        skips this hook, and nothing records the owed proration. Accepted as
-        open-designs item 22, option 3 (deferred).
-        """
-        if not env.wallets.enabled:
-            return
-
-        try:
-            if self.wallets_service is None:
-                raise RuntimeError("No wallets service was wired into this service")
-
-            await self.wallets_service.apply_plan_change(
-                organization_id=UUID(organization_id),
-                idempotency_key=f"plan_change:{event_id or uuid_utils.uuid7()}",
-                subscription_id=subscription_id,
-                incoming_plan=incoming_plan,
-                period_start=period_start,
-                period_end=period_end,
-                now=now,
-            )
-        except Exception as exc:
-            log.error(
-                "[wallets] Failed to apply plan-change proration for organization "
-                "[%s] (%s -> %s): %s",
-                organization_id,
-                outgoing_plan,
-                incoming_plan,
-                exc,
-            )

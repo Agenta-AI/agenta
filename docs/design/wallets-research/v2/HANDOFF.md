@@ -29,7 +29,7 @@ second-guess a decision.
 ## Your task
 
 Make the wallet foundation production-ready. That is the ledger, the measurement and debit
-pipeline, provisioning, plan-change proration, and the grant catalog, all already on the
+pipeline, provisioning, and the grant catalog, all already on the
 branch. It is **not** connecting real gateway traffic, pricing, checkout, sandbox allowances,
 managed tools, or reservation. Those are separate OpenSpec changes in this folder, and a
 separate owner is designing the shared coverage contract in parallel. If a fix you need would
@@ -54,7 +54,7 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
 | Tests at the final code | `ee/tests/pytest/unit` 573 passed; wallet and measurement integration 43 passed, 0 skipped; OSS unit the same as `main`. Commands and counts: [review-findings.md](review-findings.md#test-evidence-at-the-final-code) |
 | Review findings | Every finding from the spec review, the Codex reviews and the acceptance run has a disposition in [review-findings.md](review-findings.md) |
 | Design changes | Every place the code now differs from the original design, and which side should move: [spec-divergences.md](spec-divergences.md) |
-| Manual acceptance | At `0693b307c1`, the final head: sections 0 to 8 pass, lazy provisioning and the signup-grant backfill pass, and four plan changes through Stripe test mode (checkout, upgrade, downgrade, cancel) prorate exactly to the musd. An earlier run at `144c0dec91` found the procedure's stale facts, now corrected |
+| Manual acceptance | At `0693b307c1`, the final head: sections 0 to 8 pass, lazy provisioning and the signup-grant backfill pass, and four plan changes through Stripe test mode (checkout, upgrade, downgrade, cancel) prorated exactly to the musd (that proration was removed on 2026-10-02). An earlier run at `144c0dec91` found the procedure's stale facts, now corrected |
 | Wave 2 | Being built on the stacked branch `wallets/wave-2`, whose PR base is `wallets/takeover`. Nothing from it is on this branch |
 | Known unrelated failure | `api/oss/tests/pytest/integration/sessions/test_records_replay_postgres.py` fails on `main` too |
 
@@ -86,7 +86,7 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
    - **Item 21.** Admission reads a spendable balance: the general balance minus the
      remaining value of expired credits, in one statement. Settlement judges expiry on one
      database clock read after its lock.
-   - **Item 22, option 2.** A per-organization advisory lock serializes each plan change
+   - **Item 22, option 2** (removed 2026-10-02, see "Plan changes" below). A per-organization advisory lock serializes each plan change
      from reading the plan through the wallet adjustment. Direct routes key on a fresh id.
      The clawback targets the newest allowance not already clawed back. Proration starts at
      the Stripe event time and uses the subscription's real billing period.
@@ -122,36 +122,34 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
    deferred, and that merge leaves the flag off.
 4. **Decide the design suggestions** in [spec-divergences.md](spec-divergences.md), rows 15
    to 22. They change design text only.
-5. **Before the flag is turned on for paying customers**, build open-designs item 22,
-   option 3: a durable record and re-drive for a wallet adjustment that fails after the
-   subscription change committed. Today it is logged and not retried. **This blocks
-   enabling for paying customers.** It belongs with the recurring allowance (item 3) if that
-   comes first.
-   The whole-stack review (WS-4) rates it P1. It stays the top launch blocker.
-   Two more P1s from that review also block enabling for paying customers. Both are
-   open-design items with a recommendation, and neither changes this branch, because the
-   debit envelope and ports are frozen for the coverage-contract design:
-   - **Open-designs item 23 (WS-2).** A plan-change clawback reads the settled balance and
-     cannot see usage still queued in the streams, so the result depends on processing
-     order ($50 allowance, $40 used, halfway cancel: $0 or -$15). Recommended: document
-     the bound now, reconcile late usage by occurrence time once item 24 lands.
+5. **Before the flag is turned on for paying customers**, close open-designs item 24 (WS-3).
+   Items 22 (option 3, WS-4) and 23 (WS-2) were launch blockers until 2026-10-02 and are
+   resolved by removing mid-period plan-change proration (see "Plan changes" below). Item 24
+   is an open-design item with a recommendation, and it does not change this branch, because
+   the debit envelope and ports are frozen for the coverage-contract design:
    - **Open-designs item 24 (WS-3).** Settlement picks credits by settlement time, so
      usage that happened before an allowance expired but settles after it is charged to
      other credit or to deficit. Recommended: carry occurrence time on the debit and judge
      eligibility by it, in the coverage-contract design.
-6. **Known limits from the plan-change work, recorded in item 22:**
+6. **Plan changes (decided 2026-10-02).** No mid-period clawbacks. A plan change (upgrade,
+   downgrade, cancel) grants no prorated allowance and claws nothing back. Credit already
+   given stays valid until its expiry. The plan only decides which allowance the
+   organization gets from the next billing period on. The proration, the clawback, the
+   subscription advisory lock and the unique index `uq_wallet_credits_org_plan_change_key`
+   are deleted (branch `wallets/next-period-plan-changes`). Known limits that remain:
+   - No recurring period-start allowance exists yet, so no `plan_allowance` credit is minted
+     at all. Release plan step 1.3 builds it from the Stripe renewal event
+     (`invoice.payment_succeeded`), idempotent per organization and period, expiring at
+     period end. `SubscriptionsService` keeps the injected `wallets_service` for it.
    - A delayed `customer.subscription.deleted` for an old subscription can cancel its
      replacement, because the webhook does not compare subscription ids. This is
-     pre-existing billing behaviour.
-   - The reverse trial gets no allowance, because it writes the trial plan directly and its
-     creation webhook sees no change.
-   - No recurring period-start allowance exists. Only a plan change mints one.
+     pre-existing billing behaviour, and it no longer touches the wallet.
+   - The reverse trial writes the trial plan directly. Step 1.3 decides whether a trial
+     period gets an allowance.
 7. **Accepted P2 findings to revisit** ([review-findings.md](review-findings.md)):
    - The measurement worker trusts a producer-supplied `organization_id` (LY-2). Both
      producers set it from the authenticated scope, and the worker now requires it and
      never looks it up (WS-8). Keep that rule for any new producer.
-   - Plan-change lock waiters each hold a database connection (LY-3). Revisit if plan changes
-     are ever automated in bulk.
    - A retry after a pricing change re-prices a measurement (CG-6). Wave 2 persists the
      pricing decision.
 

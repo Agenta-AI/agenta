@@ -331,7 +331,6 @@ A credit is the credit-side record; it is not duplicated in `measurements`.
   "end_time": "2026-09-01T00:00:00Z",
   "data": {
     "references": {
-      "plan_change_idempotency_key": "plan_change:evt_...",
       "subscription": {"id": "sub_..."}
     }
   },
@@ -341,29 +340,18 @@ A credit is the credit-side record; it is not duplicated in `measurements`.
 }
 ```
 
-Expiry, cancellation, and clawback create new wallet debits against the affected credit. They must
+Expiry and other removals of value create new wallet debits against the affected credit. They must
 not silently rewrite this arrival row.
 
 **Delivered (`WP-1-04`, `WP-1-05`; no migration beyond `ee0000000005`).** Organization creation
 provisions each organization's general `wallet_balances` row (`wallet_credit_id IS NULL`)
 idempotently; migration `ee0000000005_backfill_wallet_general_balances.py` backfills it for
-organizations that predate this change. A mid-period plan change prorates a `plan_allowance`
-credit. `WalletsDAO.apply_plan_change` does it in one transaction under the general-balance lock:
-it selects the outgoing allowance (the organization's newest `plan_allowance` credit, by a
-`created_at` taken from the database clock after the lock, unless a plan change already clawed it
-back), claws back the unused share of that credit's own
-lifetime (`start_time` to `end_time`), and mints a NEW `wallet_credits` row for the incoming
-plan's share of the Stripe billing period, never mutating an existing row. The arithmetic is the
-pure `ee.src.core.wallets.proration` functions. The minted credit starts at the instant the change
-took effect, ends at the period end, and records `data.references.subscription.id` and
-`data.references.plan_change_idempotency_key`. The key is `plan_change:{stripe_event_id}` on the
-webhook path and `plan_change:{uuid7}` on the direct routes, which are serialized per organization
-by the subscription lock (open-designs item 22). The partial unique index
-`uq_wallet_credits_org_plan_change_key` on `(organization_id,
-data->'references'->>'plan_change_idempotency_key')` (`ee0000000004`) makes a second incoming
-credit for one plan change impossible at the database, as `uq_wallet_credits_org_award_key` does
-for grant awards. The general-row lock already serializes plan changes; the index is the final
-guard.
+organizations that predate this change. A plan change (upgrade, downgrade or cancellation)
+writes nothing to the wallet: it grants no prorated allowance and claws nothing back, and
+credit already given stays valid until its `end_time`. The plan only decides which
+`plan_allowance` the organization gets from the next billing period on (open-designs items 22
+and 23, decided 2026-10-02). Nothing mints a `plan_allowance` credit yet; the recurring period
+allowance is release plan step 1.3.
 
 `ee.src.core.wallets.plans` carries real, PRODUCT-DECIDED (2026-08-14) per-plan allowance and floor
 amounts — see `nodes/im-1-02-pipeline/acceptance.md` §"2b" for the table. Every floor is 0 at
@@ -371,7 +359,7 @@ launch (a hard stop everywhere once the general balance is spent); individual cu
 overdraft by hand later.
 
 `ee.src.core.wallets.grants` adds a catalog of named activities (a `GrantRule` per activity code)
-that award wallet credit outside the plan-change path — `WalletsService.award()` is the idempotent
+that award wallet credit apart from a plan's period allowance — `WalletsService.award()` is the idempotent
 entry point, keyed `award:{activity_code}:organization:{organization_id}` (once-per-organization)
 or `...:reference:{reference}` (repeatable). One entry exists today: `signup` — $1
 (`credit_kind="signup_grant"`, its own `GENERAL_CREDIT_KINDS` entry, matching `mechanics.md` §4's
@@ -390,12 +378,13 @@ signed up while the flag was off are granted by the one-off job
 **`credit_kind` (delivered set, `WP-1-04`).** `GENERAL_CREDIT_KINDS` in `ee.src.core.wallets.types`
 carries eight of `mechanics.md` §4's thirteen inbound kinds — enough to distinguish a signup grant
 from a contribution award from the row alone, which a single catch-all `"award"` value could not
-do. Only `signup_grant` and `plan_allowance` are wired to a real code path today; the rest are
+do. Only `signup_grant` is wired to a real code path today; `plan_allowance` waits for the
+recurring period allowance (release plan step 1.3), and the rest are
 valid, validated values with no producer yet.
 
 | `credit_kind` | Spend priority | Wired? |
 | --- | --- | --- |
-| `plan_allowance` | 10 | yes — `ee.src.core.wallets.plans` / plan-change proration |
+| `plan_allowance` | 10 | not yet — amounts in `ee.src.core.wallets.plans`; the period grant is release plan step 1.3 |
 | `signup_grant` | 20 | yes — `ee.src.core.wallets.grants.GRANT_CATALOG["signup"]` |
 | `promotion` | 30 | no — catalog row not yet added |
 | `referral_bonus` | 40 | no — catalog row not yet added |
