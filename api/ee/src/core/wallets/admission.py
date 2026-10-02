@@ -74,10 +74,16 @@ def _discard_result(task: "asyncio.Future[bool]") -> None:
         task.exception()
 
 
-async def measured(organization_id: UUID) -> bool:
+async def measured(organization_id: UUID, *, wait: bool = True) -> bool:
     """Whether usage for this organization is measured and charged: `shadow` and
-    `enforce` are, `off` is not."""
-    return await wallet_mode_for(organization_id) is not WalletMode.OFF
+    `enforce` are, `off` is not.
+
+    A producer that records after its own admission passes `wait=False`: it reads the
+    payload that admission left, however old, so a long call cannot spend the hand-off
+    bound waiting for a refresh and lose its charge.
+    """
+    mode = await wallet_mode_for(organization_id, wait=wait)
+    return mode is not WalletMode.OFF
 
 
 class WalletSpendAdmission(SpendAdmissionInterface):

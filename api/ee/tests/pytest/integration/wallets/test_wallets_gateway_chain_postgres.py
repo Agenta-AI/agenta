@@ -696,7 +696,7 @@ def rollout(monkeypatch):
             switches.WALLETS_ROLLOUT_FLAG: {str(o): m for o, m in wallets.items()},
         }
 
-        async def _payload(flag):
+        async def _payload(flag, **_kwargs):
             return payloads[flag]
 
         monkeypatch.setattr(switches, "_flag_payload", _payload)

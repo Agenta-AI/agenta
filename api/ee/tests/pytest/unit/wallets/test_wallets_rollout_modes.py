@@ -93,7 +93,7 @@ def mode(monkeypatch):
     """Set the mode `wallet_mode_for` answers, overriding the suite's `enforce`."""
 
     def _set(value: WalletMode) -> None:
-        async def _mode(organization_id):
+        async def _mode(organization_id, **_kwargs):
             return value
 
         monkeypatch.setattr(admission, "wallet_mode_for", _mode)
@@ -382,14 +382,19 @@ async def test_a_slow_first_lookup_admits_inside_the_gateways_bound(
     assert time.monotonic() - started < SPEND_ADMISSION_TIMEOUT_SECONDS
 
 
+@pytest.mark.parametrize(
+    "age",
+    [switches.ROLLOUT_CACHE_TTL_SECONDS + 1, switches.ROLLOUT_MAX_STALE_SECONDS + 1],
+    ids=["stale", "past-the-stale-limit"],
+)
 async def test_an_expired_payload_never_delays_the_measurement_past_its_bound(
-    real_rollout, monkeypatch
+    real_rollout, monkeypatch, age
 ):
-    # The payload expired during the provider call and PostHog is slow: the hand-off
-    # still publishes inside its 0.5s bound, on the stale payload.
+    # The payload expired during a long provider call and PostHog is slow: the hand-off
+    # still publishes inside its 0.5s bound, on the payload its admission read.
     scope = _scope()
     switches._payloads[switches.WALLETS_ROLLOUT_FLAG] = (
-        time.monotonic() - switches.ROLLOUT_CACHE_TTL_SECONDS - 1,
+        time.monotonic() - age,
         {str(scope.organization_id): "enforce"},
     )
     monkeypatch.setattr(

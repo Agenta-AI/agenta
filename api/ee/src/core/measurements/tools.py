@@ -80,7 +80,7 @@ class WalletManagedActionBilling(ManagedActionBillingInterface):
         )
 
     async def record(self, *, measurement: ManagedActionMeasurement) -> None:
-        if not await measured(measurement.context.organization_id):
+        if not await measured(measurement.context.organization_id, wait=False):
             return
         # A refused publish is logged by the publisher; the executor contains the rest.
         await self.publisher.publish(action_measurement(measurement))

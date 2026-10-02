@@ -82,7 +82,7 @@ def _wallet_enforces(monkeypatch):
     organization. The rollout modes themselves are tested in `test_wallets_rollout_modes.py`.
     """
 
-    async def _enforce(organization_id):
+    async def _enforce(organization_id, **_kwargs):
         return WalletMode.ENFORCE
 
     monkeypatch.setattr(admission, "wallet_mode_for", _enforce)

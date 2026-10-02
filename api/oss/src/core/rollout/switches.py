@@ -68,12 +68,14 @@ async def llm_gateway_enabled_for(organization_id: UUID) -> bool:
     return str(organization_id) in _parse_organization_ids(payload)
 
 
-async def wallet_mode_for(organization_id: UUID) -> WalletMode:
+async def wallet_mode_for(organization_id: UUID, *, wait: bool = True) -> WalletMode:
+    """`wait=False` never waits for a refresh and accepts a payload of any age: for a
+    measurement inside a tight bound, after an admission that already read the payload."""
     if not env.wallets.enabled:
         return WalletMode.OFF
     if not env.rollout.enabled:
         return WalletMode.ENFORCE
-    payload = await _flag_payload(WALLETS_ROLLOUT_FLAG)
+    payload = await _flag_payload(WALLETS_ROLLOUT_FLAG, wait=wait)
     return _parse_wallet_modes(payload).get(str(organization_id), WalletMode.OFF)
 
 
@@ -82,7 +84,7 @@ _payloads: Dict[str, Tuple[float, Any]] = {}
 _refreshes: Dict[str, "asyncio.Future[Any]"] = {}
 
 
-async def _flag_payload(flag: str) -> Optional[Any]:
+async def _flag_payload(flag: str, *, wait: bool = True) -> Optional[Any]:
     """The flag's raw payload, without a PostHog round trip on the request path.
 
     A fresh payload is returned as is. A stale one is returned too, while one shared
@@ -101,8 +103,10 @@ async def _flag_payload(flag: str) -> Optional[Any]:
         _refreshes[flag] = refresh
         refresh.add_done_callback(lambda _: _refreshes.pop(flag, None))
 
-    if cached and age < ROLLOUT_MAX_STALE_SECONDS:
+    if cached and (age < ROLLOUT_MAX_STALE_SECONDS or not wait):
         return cached[1]
+    if not wait:
+        return None
     try:
         # Shielded: a caller that gives up must not cancel the refresh other callers share.
         return await asyncio.wait_for(

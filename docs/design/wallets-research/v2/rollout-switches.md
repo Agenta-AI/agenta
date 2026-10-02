@@ -74,9 +74,11 @@ cleanup cannot push the answer past the 2-second admission bound.
   and asks PostHog only on a miss. A payload edit applies within about a minute. A payload
   older than 5 minutes (a process with no traffic) is not served; the caller waits for the
   refresh as a new process does. Only those callers wait: at most 0.5 seconds, then they
-  read "off", and that "off" is kept until the refresh lands, so the measurement after a
-  cold admission does not wait again. This keeps the lookup out of the 0.5-second
-  measurement hand-off and inside the 2-second admission bounds.
+  read "off", and that "off" is kept until the refresh lands. The gateway usage sink and
+  the managed-tools record never wait: they read the payload their admission left, however
+  old, so a call that streams for longer than 5 minutes is still measured. This keeps the
+  lookup out of the 0.5-second measurement hand-off and inside the 2-second admission
+  bounds.
 - **PostHog unreachable or malformed.** The answer is "off": the gateway is off and the
   wallet is off, and a warning or error is logged. The PostHog client returns "no payload"
   when it cannot reach PostHog, so "unreachable" and "no payload" give the same answer. A
@@ -130,8 +132,9 @@ undo them.
   the request, bounded at 1.5 seconds. A review found that this could cancel a measurement
   inside its 0.5-second hand-off bound (a lost charge), and could make a `shadow` admission
   time out inside its 2-second bound (a refusal). Serving the last payload while one refresh
-  runs removes both. A second review added the 5-minute stale limit, the kept "off" after a
-  cold timeout, and the shadow wait that does not wait for cancellation. The shared Redis
+  runs removes both. Later review rounds added the 5-minute stale limit, the kept "off" after
+  a cold timeout, the shadow wait that does not wait for cancellation, and the
+  never-waiting read for the two measurement producers that follow their own admission. The shared Redis
   cache stays, under the in-process copy, so several API
   processes ask PostHog once between them.
 - **Fail-safe "off", no last-known-good.** The PostHog client gives the same answer for "no

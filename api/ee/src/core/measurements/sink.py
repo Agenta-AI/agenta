@@ -44,7 +44,7 @@ class MeasurementUsageSink(UsageSinkInterface):
         run_id: Optional[str],
         run_labels: Optional[Dict[str, str]] = None,
     ) -> None:
-        if not await measured(scope.organization_id):
+        if not await measured(scope.organization_id, wait=False):
             return
         await self.publisher.publish(
             measurement_from_call(
