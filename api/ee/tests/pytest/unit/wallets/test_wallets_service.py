@@ -359,34 +359,3 @@ async def test_settle_never_funds_a_debit_from_another_organizations_credit():
     assert len(dao.debits) == 1
     assert dao.debits[0].wallet_credit_id is None
     assert dao.debits[0].amount_musd == 100
-
-
-@pytest.mark.asyncio
-async def test_a_plan_change_never_claws_another_organizations_allowance():
-    other_organization_id = uuid4()
-    foreign_candidate = build_credit_candidate(credit_kind="plan_allowance")
-    dao = FakeWalletsDAO(
-        general_balance=build_general_wallet_balance(),
-        credits=[
-            (
-                foreign_candidate,
-                build_credit_wallet_balance(
-                    organization_id=other_organization_id,
-                    wallet_credit_id=foreign_candidate.wallet_credit_id,
-                ),
-            )
-        ],
-    )
-
-    result = await dao.apply_plan_change(
-        organization_id=dao.general_balance.organization_id,
-        idempotency_key="pc-cross-org",
-        subscription_id=None,
-        incoming_credit_amount_musd=0,
-        incoming_end_time=None,
-        floor_musd=0,
-        now=datetime.now(timezone.utc),
-    )
-
-    assert result.outgoing_credit_id is None
-    assert dao.debits == []

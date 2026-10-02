@@ -220,35 +220,6 @@ async def test_award_credit_provisions_the_missing_general_balance(wallet_schema
         await _cleanup(organization_id)
 
 
-async def test_apply_plan_change_provisions_and_then_sets_the_plan_floor(wallet_schema):
-    """Lazy provisioning starts the row at `LAZY_PROVISION_FLOOR_MUSD` because the path
-    that provisions it does not know the plan. A plan change knows, and rewrites the
-    floor — which is why no plan lookup belongs on the settlement path."""
-    organization_id = uuid.uuid4()
-    dao = WalletsDAO()
-    period_start = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    period_end = datetime(2026, 2, 1, tzinfo=timezone.utc)
-
-    try:
-        result = await dao.apply_plan_change(
-            organization_id=organization_id,
-            idempotency_key="plan_change:lazy:2026-01-01",
-            subscription_id="sub_123",
-            incoming_credit_amount_musd=250_000,
-            incoming_end_time=period_end,
-            floor_musd=-5_000,
-            now=period_start + timedelta(days=10),
-        )
-
-        assert result.replayed is False
-        general = await dao.get_general_balance(organization_id=organization_id)
-        assert general.floor_musd == -5_000
-        assert general.balance_musd == 250_000
-        assert await _general_row_count(organization_id) == 1
-    finally:
-        await _cleanup(organization_id)
-
-
 async def test_a_rolled_back_settlement_leaves_no_general_balance_row(
     wallet_schema, monkeypatch
 ):

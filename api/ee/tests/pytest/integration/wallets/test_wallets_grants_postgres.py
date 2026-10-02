@@ -1,6 +1,5 @@
 """Real-Postgres coverage for the B2/B3 grant-award flow from WP-1-05:
-`WalletsDAO.award_credit`'s replay guard (keyed on `data.references.award_idempotency_key`,
-same JSONB-lookup shape as `apply_plan_change`'s `plan_change_idempotency_key`), and the
+`WalletsDAO.award_credit`'s replay guard (keyed on `data.references.award_idempotency_key`), and the
 `_award_signup_grant`/`_provision_wallet_general_balance` organizations-service hooks that
 wire the signup path (`provision_signup_subscription`) end to end against the real DAO.
 

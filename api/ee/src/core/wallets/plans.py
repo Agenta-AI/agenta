@@ -1,7 +1,8 @@
 """Plan -> wallet-value mappings: the single source of truth for both the general
 balance's `floor_musd` and a plan's period allowance credit amount, consumed by
-organization creation, subscription plan-change handling, and the migration backfill's
-SQL (which must derive the same constant, not invent its own).
+organization creation and the migration backfill's SQL (which must derive the same
+constant, not invent its own). A plan change writes nothing to the wallet: it only
+changes which allowance the next billing period grants (open-designs items 22 and 23).
 
 PRODUCT DECISION (2026-08-14, WP-1-05): the allowance and floor amounts below are product
 decisions, not derived numbers — see `docs/design/wallets-research/v1/wave-1.md` and
@@ -14,13 +15,10 @@ a signature change.
 
 from ee.src.core.access.entitlements.types import DefaultPlan
 
-# credit_kind and priority for the plan-allowance credit minted on a plan change. A
-# constant, not a per-plan choice, until credit priority itself becomes plan-dependent.
+# credit_kind and priority for a plan's period allowance credit. A constant, not a
+# per-plan choice, until credit priority itself becomes plan-dependent.
 PLAN_ALLOWANCE_CREDIT_KIND = "plan_allowance"
 PLAN_ALLOWANCE_PRIORITY = 10
-# `resource_key` of the adjustment debit a plan change posts against the outgoing
-# allowance credit. It also marks that credit as already clawed back.
-PLAN_CHANGE_RESOURCE_KEY = "wallet:plan_change"
 
 # musd; $1 = 1_000_000 musd. One recurring allowance amount per plan, per billing period.
 _HOBBY_ALLOWANCE_MUSD = 0  # $0 — the free tier draws no funded allowance
@@ -52,10 +50,9 @@ _FLOOR_MUSD_BY_PLAN: dict = {
 
 
 # The floor a general balance row starts at when it is provisioned on a path that does not
-# know the organization's plan — the settlement, award, plan-change and admission paths,
-# which provision lazily to close the flag gap (open-designs item 14). It equals every
-# known plan's floor above, so no plan lookup is worth dragging onto those paths; a later
-# `apply_plan_change` rewrites the floor from the incoming plan regardless.
+# know the organization's plan — the settlement, award and admission paths, which
+# provision lazily to close the flag gap (open-designs item 14). It equals every known
+# plan's floor above, so no plan lookup is worth dragging onto those paths.
 LAZY_PROVISION_FLOOR_MUSD = 0
 
 
