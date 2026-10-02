@@ -29,7 +29,7 @@ overrides:
   mermaid: '11.16.1'
   'ws@>=7 <7.5.11': '7.5.11'
   sharp: '0.35.4'
-  fast-uri: '3.1.7'
+  fast-uri: '3.1.8'
   image-size: '2.0.3'
   js-yaml: '4.3.2'
   'next@<15.5.18': '>=15.5.18 <16.0.0'
