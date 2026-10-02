@@ -6,6 +6,8 @@ export interface ReleaseEntry {
     title: string
     description: string
     link?: string
+    /** Cloudflare Stream demo clip for this release (same account as the docs embeds). */
+    streamVideoId?: string
 }
 
 /** Where "View all releases" goes. */
@@ -18,3 +20,10 @@ export const ALL_RELEASES_LINK = "https://agenta.ai/docs/changelog"
  * task: it belongs in a list you open, not in a card you have to clear.
  */
 export const RELEASES: ReleaseEntry[] = changelogData as ReleaseEntry[]
+
+export {
+    getUnseenReleases,
+    isWhatsNewOptedOut,
+    markAllReleasesSeen,
+    setWhatsNewOptedOut,
+} from "./seen"
