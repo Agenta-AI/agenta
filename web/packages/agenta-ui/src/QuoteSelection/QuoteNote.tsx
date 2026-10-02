@@ -6,11 +6,13 @@ import {shortcutFaces} from "@agenta/shared/utils"
 import {ArrowUp} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
-import {SimpleTooltip} from "../components/ui/tooltip-composed"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
 import {useIsMacPlatform} from "../shortcuts/ShortcutKeys"
 
 const GAP = 8
 const WIDTH = 320
+// Long enough that moving through to the button does not flash it.
+const TOOLTIP_DELAY_MS = 700
 
 export interface QuoteNoteProps {
     quote: Quote
@@ -21,18 +23,9 @@ export interface QuoteNoteProps {
     /** Send the reply now. */
     onSend: (note: string) => void
     onCancel: () => void
-    touch?: boolean
 }
 
-export const QuoteNote = ({
-    quote,
-    anchor,
-    bounds,
-    onStage,
-    onSend,
-    onCancel,
-    touch,
-}: QuoteNoteProps) => {
+export const QuoteNote = ({quote, anchor, bounds, onStage, onSend, onCancel}: QuoteNoteProps) => {
     const ref = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const [note, setNote] = useState("")
@@ -98,21 +91,24 @@ export const QuoteNote = ({
                     }}
                     rows={1}
                     placeholder="Reply to the agent"
-                    className={`max-h-24 min-h-0 flex-1 resize-none border-0 bg-transparent p-0 font-[inherit] leading-5 text-colorText outline-none [field-sizing:content] placeholder:text-colorTextPlaceholder ${
-                        touch ? "text-sm" : "text-xs"
-                    }`}
+                    className="max-h-24 min-h-0 flex-1 resize-none border-0 bg-transparent p-0 font-[inherit] text-xs leading-5 text-colorText outline-none [field-sizing:content] placeholder:text-colorTextPlaceholder"
                 />
-                <SimpleTooltip title="Send now" shortcut={sendFaces}>
-                    <Button
-                        size="icon-sm"
-                        className="shrink-0"
-                        aria-label="Send now"
-                        aria-keyshortcuts="Meta+Enter Control+Enter"
-                        onClick={() => onSend(note)}
-                    >
-                        <ArrowUp weight="bold" />
-                    </Button>
-                </SimpleTooltip>
+                <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                size="icon-sm"
+                                className="shrink-0"
+                                aria-label="Send now"
+                                aria-keyshortcuts="Meta+Enter Control+Enter"
+                                onClick={() => onSend(note)}
+                            >
+                                <ArrowUp weight="bold" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent shortcut={sendFaces}>Send now</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             </div>
         </div>
     )

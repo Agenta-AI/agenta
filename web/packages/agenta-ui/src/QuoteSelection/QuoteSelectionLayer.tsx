@@ -133,7 +133,6 @@ export const QuoteSelectionLayer = ({
                     quote={draft.quote}
                     anchor={draft.candidate.rect}
                     bounds={bounds}
-                    touch={isTouch}
                     onStage={stage}
                     // Staged first, so the composer's send carries it with everything else held.
                     onSend={(note) => {

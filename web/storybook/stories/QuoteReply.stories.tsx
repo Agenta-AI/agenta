@@ -114,7 +114,7 @@ export const Note: Story = {
                     onCancel={() => {}}
                 />
             </Stage>
-            <Stage label="Note box on a message quote (touch)" height={260}>
+            <Stage label="Note box on a message quote" height={260}>
                 <QuoteNote
                     quote={messageQuote}
                     anchor={{top: 8, left: 240, bottom: 24}}
@@ -122,7 +122,6 @@ export const Note: Story = {
                     onStage={() => {}}
                     onSend={() => {}}
                     onCancel={() => {}}
-                    touch
                 />
             </Stage>
         </>
