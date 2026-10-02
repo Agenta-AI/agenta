@@ -19,6 +19,7 @@
  */
 import { join } from "node:path";
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
+import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import {
   isUserStopAbort,
@@ -446,36 +447,51 @@ const runAgent: RunAgent = async (request, emit, signal, options) => {
 };
 
 const dispatchRun: RunAgent = async (request, emit, signal, options) => {
-  const inProcess = sandboxProviderTraits(resolveSandboxProviderId(request)).harnessInRunner;
-  const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
-  if (!provider) {
-    return runSandboxAgent(
-      request,
-      emit,
-      signal,
-      inProcess ? await inProcessDeps() : {},
-      {
-        ...(options?.credential ? { credential: options.credential } : {}),
+  const attempt = async (
+    emit: EmitEvent | undefined,
+  ): Promise<AgentRunResult> => {
+    const inProcess = sandboxProviderTraits(resolveSandboxProviderId(request)).harnessInRunner;
+    const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
+    if (!provider) {
+      return runSandboxAgent(
+        request,
+        emit,
+        signal,
+        inProcess ? await inProcessDeps() : {},
+        {
+          ...(options?.credential ? { credential: options.credential } : {}),
+        },
+      );
+    }
+    const config = keepaliveConfigs[provider];
+    return runWithKeepalive(request, emit, signal, {
+      engine: keepaliveEngines[provider],
+      pool: keepalivePools[provider],
+      config,
+      clientGone: options?.clientGone,
+      credential: options?.credential,
+      // The coordinator is the first place that knows this run's project, because the scope can
+      // come from the signed mount rather than the request. A control command needs it to tell
+      // one tenant's session from another's.
+      onScopeResolved: (projectId) => {
+        noteTurnScope(projectId);
+        const sessionId = request.sessionId?.trim();
+        const turnId = request.turnId?.trim();
+        if (sessionId && turnId)
+          noteExecutionProject(sessionId, turnId, projectId);
       },
-    );
-  }
-  const config = keepaliveConfigs[provider];
-  return runWithKeepalive(request, emit, signal, {
-    engine: keepaliveEngines[provider],
-    pool: keepalivePools[provider],
-    config,
-    clientGone: options?.clientGone,
-    credential: options?.credential,
-    // The coordinator is the first place that knows this run's project, because the scope can
-    // come from the signed mount rather than the request. A control command needs it to tell
-    // one tenant's session from another's.
-    onScopeResolved: (projectId) => {
-      noteTurnScope(projectId);
-      const sessionId = request.sessionId?.trim();
-      const turnId = request.turnId?.trim();
-      if (sessionId && turnId)
-        noteExecutionProject(sessionId, turnId, projectId);
-    },
+    });
+  };
+
+  // A turn that stalled before emitting anything is re-prompted once: nothing ran, so nothing can
+  // be repeated. Each attempt streams through its own gate, which keeps a retried attempt's
+  // `error` and `done` from reaching the caller. See `stall-retry.ts`.
+  return runWithStallRetry(attempt, {
+    emit,
+    signal,
+    log: (message) => process.stderr.write(`${message}\n`),
+    sessionId: request.sessionId,
+    turnId: request.turnId,
   });
 };
 

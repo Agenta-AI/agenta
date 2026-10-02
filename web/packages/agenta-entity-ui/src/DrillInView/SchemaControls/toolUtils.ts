@@ -108,6 +108,7 @@ const GATEWAY_PERMISSIONS = new Set<string>([
     "allow",
     "ask",
     "deny",
+    "allow_reads",
 ] satisfies GatewayPermission[])
 
 export function isGatewayPermission(value: unknown): value is GatewayPermission {

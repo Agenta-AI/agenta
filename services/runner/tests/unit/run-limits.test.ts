@@ -22,6 +22,7 @@ import {
   TTFB_TIMEOUT_ENV,
   TOOL_CALL_TIMEOUT_ENV,
   type Clock,
+  type RunLimitKind,
 } from "../../src/engines/sandbox_agent/run-limits.ts";
 
 /** A manually-advanced fake clock: `advance(ms)` fires every timer now due, in schedule order. */
@@ -188,11 +189,10 @@ describe("createRunLimits", () => {
     const limits = createRunLimits(resolved, { clock });
     const trips: string[] = [];
     limits.onTrip((reason) => trips.push(reason));
-    const emit = limits.wrapEmit(() => {});
 
     for (let elapsed = 0; elapsed <= 45 * 60_000; elapsed += 60_000) {
       advance(60_000);
-      emit({ type: "message_delta", id: "m1", delta: "x" });
+      limits.noteProgress();
     }
 
     assert.deepEqual(trips, []);
@@ -231,12 +231,11 @@ describe("createRunLimits", () => {
     );
     const trips: string[] = [];
     limits.onTrip((reason) => trips.push(reason));
-    const emit = limits.wrapEmit(() => {});
 
     // Progress every 900ms keeps pushing the idle deadline out, so it never fires.
     for (let i = 0; i < 5; i++) {
       advance(900);
-      emit({ type: "message_delta", id: "m1", delta: "x" });
+      limits.noteProgress();
     }
     assert.equal(trips.length, 0, "idle must reset on each progress signal");
 
@@ -268,10 +267,9 @@ describe("createRunLimits", () => {
     );
     const trips: string[] = [];
     limits.onTrip((reason) => trips.push(reason));
-    const emit = limits.wrapEmit(() => {});
 
     advance(500);
-    emit({ type: "message_delta", id: "m1", delta: "x" });
+    limits.noteProgress();
     advance(600); // would have tripped TTFB at 1000ms if not cancelled by the event above
     assert.equal(trips.length, 0);
   });
@@ -350,5 +348,72 @@ describe("createRunLimits", () => {
 
     // Calling dispose again (e.g. from a finally after an earlier explicit dispose) must not throw.
     assert.doesNotThrow(() => limits.dispose());
+  });
+
+  /*
+   * The trip KIND is what lets the dispatch re-prompt a stalled turn (`runAgent` in `server.ts`).
+   * Only `ttfb` may be retried, because only `ttfb` proves the turn emitted nothing, so these pin
+   * that each limit reports its own kind and that `ttfb` cannot be reported once work has landed.
+   */
+  it("reports which limit tripped", () => {
+    const kindOf = (
+      limits: Parameters<typeof createRunLimits>[0],
+      act: (handle: ReturnType<typeof createRunLimits>, advance: (ms: number) => void) => void,
+    ): RunLimitKind | undefined => {
+      const { clock, advance } = fakeClock();
+      const handle = createRunLimits(limits, { clock });
+      let kind: RunLimitKind | undefined;
+      handle.onTrip((_reason, tripped) => {
+        kind = tripped;
+      });
+      act(handle, advance);
+      return kind;
+    };
+
+    assert.equal(
+      kindOf({ totalMs: 1000, idleMs: 900, ttfbMs: 5000, toolCallMs: 5000 }, (_h, advance) =>
+        advance(1001),
+      ),
+      "total",
+    );
+    assert.equal(
+      kindOf({ totalMs: 100000, idleMs: 1000, ttfbMs: 100000, toolCallMs: 100000 }, (h, advance) => {
+        h.noteProgress();
+        advance(1001);
+      }),
+      "idle",
+    );
+    assert.equal(
+      kindOf({ totalMs: 100000, idleMs: 50000, ttfbMs: 1000, toolCallMs: 100000 }, (_h, advance) =>
+        advance(1001),
+      ),
+      "ttfb",
+    );
+    assert.equal(
+      kindOf({ totalMs: 100000, idleMs: 50000, ttfbMs: 50000, toolCallMs: 1000 }, (h, advance) => {
+        h.noteToolCallStart("call-1");
+        advance(1001);
+      }),
+      "tool-call",
+    );
+  });
+
+  it("never reports ttfb once the turn has emitted anything", () => {
+    const { clock, advance } = fakeClock();
+    const limits = createRunLimits(
+      { totalMs: 100000, idleMs: 1000, ttfbMs: 1200, toolCallMs: 100000 },
+      { clock },
+    );
+    const kinds: (RunLimitKind | undefined)[] = [];
+    limits.onTrip((_reason, kind) => kinds.push(kind));
+
+    // One event lands, then the run goes quiet for longer than BOTH windows. The idle limit is
+    // what may fire; reporting `ttfb` here would tell the dispatch nothing ran when something did,
+    // and the retry would replay work the harness had already begun.
+    advance(500);
+    limits.noteProgress();
+    advance(5000);
+
+    assert.deepEqual(kinds, ["idle"]);
   });
 });

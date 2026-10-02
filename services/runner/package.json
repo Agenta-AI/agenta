@@ -30,7 +30,7 @@
     "@aws-sdk/client-s3": "3.1070.0",
     "@daytonaio/sdk": "npm:@daytona/sdk@^0.198.0",
     "@earendil-works/pi-ai": "0.80.6",
-    "@earendil-works/pi-coding-agent": "0.87.1",
+    "@earendil-works/pi-coding-agent": "0.99.1",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/core": "2.8.0",
     "@opentelemetry/exporter-trace-otlp-proto": "0.220.0",
@@ -41,11 +41,11 @@
     "@opentelemetry/semantic-conventions": "1.37.0",
     "acp-http-client": "0.4.2",
     "pi-acp": "0.0.29",
-    "pi-coding-agent-pi-ai": "npm:@earendil-works/pi-ai@0.87.1",
+    "pi-coding-agent-pi-ai": "npm:@earendil-works/pi-ai@0.99.1",
     "proper-lockfile": "4.1.2",
     "sandbox-agent": "0.4.2",
     "tar": "7.5.21",
-    "undici": "8.10.0"
+    "undici": "8.10.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -74,9 +74,10 @@
     "overrides": {
       "@hono/node-server": "1.19.15",
       "@opentelemetry/propagator-jaeger": "2.9.0",
+      "axios": "1.20.0",
       "brace-expansion": "5.0.9",
-      "fast-uri": "3.1.6",
-      "hono": "4.12.34",
+      "fast-uri": "3.1.8",
+      "hono": "4.13.7",
       "ip-address": "10.3.1",
       "postcss": "8.5.23",
       "protobufjs": "7.6.5",

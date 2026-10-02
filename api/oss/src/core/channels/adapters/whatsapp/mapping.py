@@ -32,13 +32,11 @@ LIST_BUTTON_TEXT = "Choose"
 
 _SIGNATURE_HEADER = "x-hub-signature-256"
 
-# Message types we pass to the agent. Everything else a customer can send
-# (voice notes, video, stickers, locations, contact cards) gets one fixed
+# Message types we pass to the agent as media parts. Everything else a
+# customer can send (stickers, locations, contact cards) gets one fixed
 # reply instead of a turn; reactions and system notices are dropped.
-_MEDIA_TYPES = ("image", "document")
+_MEDIA_TYPES = ("image", "document", "audio", "video")
 _UNSUPPORTED_LABELS = {
-    "audio": "[voice note]",
-    "video": "[video]",
     "sticker": "[sticker]",
     "location": "[location]",
     "contacts": "[contact card]",

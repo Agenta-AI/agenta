@@ -25,9 +25,11 @@ const firstText = (r: { content: Array<{ type: string }> }) => {
   return first && "text" in first ? String(first.text) : "";
 };
 
-async function outcome(run: Promise<{ content: Array<{ type: string }> }>): Promise<Outcome> {
+async function outcome(run: Promise<{ content: Array<{ type: string }>; isError?: boolean }>): Promise<Outcome> {
   try {
-    return { text: firstText(await run), failed: false };
+    // Pi 0.99 reports a non-zero exit as an `isError` result rather than a thrown error.
+    const r = await run;
+    return { text: firstText(r), failed: r.isError === true };
   } catch (err) {
     return { text: (err as Error).message, failed: true };
   }

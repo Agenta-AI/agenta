@@ -1704,6 +1704,13 @@ export interface SandboxAgentOtelInit extends Omit<
    * `events[]`. This split is what keeps a delta'd block from being re-sent in full.
    */
   emit?: EmitEvent;
+  /**
+   * Called for every sign of progress the turn shows, with or without `emit`: each event the run
+   * records, plus, on the one-shot path where text and reasoning are coalesced instead of
+   * recorded, each text chunk past the startup banner and each reasoning chunk. The run limits
+   * read it, so a non-streaming turn that is answering never looks stalled.
+   */
+  onProgress?: () => void;
   /** Stop the turn through the engine's existing run-limit cancellation path. */
   onOutputLimit?: (reason: string) => void;
 }
@@ -1812,8 +1819,10 @@ export function createSandboxAgentOtel(
   // result log and, on the streaming path, flushes the event the moment it is built — so
   // the live order is byte-identical to `events[]`. A sink failure never aborts the run.
   const sink = init.emit;
+  const onProgress = init.onProgress ?? (() => {});
   function record(event: AgentEvent): void {
     events.push(event);
+    onProgress();
     if (sink) {
       try {
         sink(event);
@@ -1980,6 +1989,21 @@ export function createSandboxAgentOtel(
     if (body) streamText(body);
   }
 
+  /**
+   * The one-shot path's progress signal for assistant text, which it coalesces instead of
+   * recording. Matches the streaming path: the startup banner is not progress, so nothing counts
+   * until the banner region resolves and real text follows it. After that, every chunk counts.
+   */
+  let oneShotTextStarted = false;
+  function noteOneShotTextProgress(): void {
+    if (!oneShotTextStarted) {
+      const { body, settled } = splitLeadingBanner(accumulated);
+      if (!settled || !body) return;
+      oneShotTextStarted = true;
+    }
+    onProgress();
+  }
+
   /** Open (if needed) the reasoning block and emit the pure delta up to `target`. */
   function streamReasoning(target: string): void {
     closeText(); // a reasoning chunk ends any open text run
@@ -2099,6 +2123,7 @@ export function createSandboxAgentOtel(
       // text, so the pure delta is its tail past what we already sent — minus the leading
       // startup banner, which is held back until the body begins (see streamAssistantText).
       if (sink) streamAssistantText();
+      else noteOneShotTextProgress();
       return;
     }
 
@@ -2113,6 +2138,7 @@ export function createSandboxAgentOtel(
       if (thoughtSnapshot) reasoningAccumulated = t;
       else reasoningAccumulated += t;
       if (sink) streamReasoning(reasoningAccumulated);
+      else onProgress();
       return;
     }
 
