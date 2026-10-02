@@ -142,7 +142,9 @@ const TextBody = ({
     const content = contentQuery.data
     // A link to a neighbouring file opens it here; the host's renderer keeps web links.
     const onClickCapture = useDriveAnchorClickCapture(displayPath ?? path, onNavigate, linkExists)
-    const quotable = useQuotableFile(path, displayPath, content)
+    // Rendered markdown is not the file's lines; a quote from it gets a range only when its
+    // excerpt appears once, verbatim, in the source (see `locateQuote`).
+    const quotable = useQuotableFile(mount, path, displayPath, content)
 
     if (contentQuery.isPending)
         return (
@@ -199,7 +201,9 @@ const CodeBody = ({
 }) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
-    const quotable = useQuotableFile(path, displayPath, content)
+    // The raw file, not the pretty print: line numbers are the file's. A selection maps onto it
+    // only while the pretty print moved nothing but whitespace (see `locateQuote`).
+    const quotable = useQuotableFile(mount, path, displayPath, content)
 
     const value = useMemo(() => {
         if (typeof content !== "string") return null

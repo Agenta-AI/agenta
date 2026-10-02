@@ -1,12 +1,13 @@
 import {useDeferredValue, useEffect} from "react"
 
-import {findInSource} from "@agenta/shared/quotes"
+import {refreshFileQuote} from "@agenta/shared/quotes"
 
 import {getQuotes, updateQuote} from "./store"
 
-/** Flags a file quote `stale` once the file no longer contains its excerpt. */
+/** Keeps a file quote's line range on its excerpt as the file changes; `stale` once it is gone. */
 export const useFileQuoteFreshness = (
     sessionId: string | null,
+    mountId: string | undefined,
     path: string,
     content: string | undefined,
 ) => {
@@ -16,8 +17,10 @@ export const useFileQuoteFreshness = (
         if (!sessionId || typeof settled !== "string") return
         getQuotes(sessionId).forEach((quote) => {
             if (quote.source.kind !== "file" || quote.source.path !== path) return
-            const stale = findInSource(settled, quote.text) === null
-            if (stale !== quote.stale) updateQuote(sessionId, quote.id, {stale})
+            // Two mounts can hold the same relative path; only this file's quotes move with it.
+            if ((quote.source.mountId ?? "") !== (mountId ?? "")) return
+            const patch = refreshFileQuote(quote, settled)
+            if (patch) updateQuote(sessionId, quote.id, patch)
         })
-    }, [sessionId, path, settled])
+    }, [sessionId, mountId, path, settled])
 }

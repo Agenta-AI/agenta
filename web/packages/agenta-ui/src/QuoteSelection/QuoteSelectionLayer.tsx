@@ -1,7 +1,7 @@
 // Quote-to-reply over a `relative` pane: selection pill, note box, draft highlight.
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {findInSource, type Quote} from "@agenta/shared/quotes"
+import {locateQuote, type Quote} from "@agenta/shared/quotes"
 import {generateId} from "@agenta/shared/utils"
 
 import {hasCoarsePointer} from "../hooks/useVisualViewport"
@@ -10,13 +10,22 @@ import {QuoteNote} from "./QuoteNote"
 import {QuoteToolbar} from "./QuoteToolbar"
 import {addQuote, submitSessionMessage, useStagedQuotes} from "./store"
 import {useDraftHighlight} from "./useQuoteHighlights"
-import {rectIn, useQuoteSelection, type QuoteCandidate} from "./useQuoteSelection"
+import {
+    rectIn,
+    renderedSelection,
+    useQuoteSelection,
+    type QuoteCandidate,
+} from "./useQuoteSelection"
 
 const draftFrom = (candidate: QuoteCandidate): Quote => {
     const source = {...candidate.source}
-    // A file quote carries the line range its excerpt sits on.
+    // A file quote carries the line range of the occurrence the user selected, or none.
     if (source.kind === "file" && candidate.sourceText) {
-        const hit = findInSource(candidate.sourceText, candidate.text)
+        const hit = locateQuote(
+            candidate.sourceText,
+            candidate.text,
+            renderedSelection(candidate.target, candidate.range),
+        )
         if (hit) {
             source.startLine = hit.startLine
             source.endLine = hit.endLine
@@ -108,7 +117,8 @@ export const QuoteSelectionLayer = ({
 
     return (
         <>
-            <div aria-live="polite" className="sr-only">
+            {/* Ignored: it sits inside an editor's quotable body and is not file text. */}
+            <div aria-live="polite" className="sr-only" data-quote-ignore="true">
                 {announced}
             </div>
             {candidate && !draft ? (

@@ -1,7 +1,12 @@
 // Turns a selection inside a `[data-quotable]` body into a quote candidate, offered on release.
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {normalizeQuoteText, type QuoteSource} from "@agenta/shared/quotes"
+import {
+    stripQuoteWhitespace,
+    tidyQuoteText,
+    type QuoteSource,
+    type RenderedSelection,
+} from "@agenta/shared/quotes"
 
 import {hasCoarsePointer} from "../hooks/useVisualViewport"
 
@@ -12,6 +17,8 @@ export interface QuoteCandidate {
     source: QuoteSource
     /** Raw source text of the body the selection landed in, for line resolution. */
     sourceText?: string
+    /** The `[data-quotable]` body the selection landed in. */
+    target: HTMLElement
     /** Root-relative box of the selection, recomputed as the pane scrolls. */
     rect: {top: number; left: number; bottom: number; width: number}
     range: Range
@@ -30,6 +37,36 @@ const readTarget = (node: Node | null): HTMLElement | null =>
 const isOwnUi = (node: Node | null): boolean =>
     Boolean(elementOf(node)?.closest("[data-quote-ignore]"))
 
+/**
+ * The selection's place in the body's rendered text, whitespace dropped (see `locateQuote`).
+ * Read once, on Reply: it walks every text node of the body.
+ */
+export const renderedSelection = (target: HTMLElement, range: Range): RenderedSelection => {
+    const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => (isOwnUi(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    })
+    const before: string[] = []
+    const rendered: string[] = []
+    let reached = false
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const data = (node as Text).data
+        rendered.push(data)
+        if (reached) continue
+        if (node === range.startContainer) {
+            before.push(data.slice(0, range.startOffset))
+            reached = true
+        } else if (range.comparePoint(node, data.length) < 0) {
+            before.push(data)
+        } else {
+            reached = true
+        }
+    }
+    return {
+        before: stripQuoteWhitespace(before.join("")),
+        rendered: stripQuoteWhitespace(rendered.join("")),
+    }
+}
+
 const sourceFrom = (el: HTMLElement): QuoteSource | null => {
     const kind = el.dataset.quoteKind
     if (kind === "message") {
@@ -46,6 +83,7 @@ const sourceFrom = (el: HTMLElement): QuoteSource | null => {
             path,
             displayPath,
             fileName: displayPath.split("/").pop() || displayPath,
+            mountId: el.dataset.quoteMount || undefined,
         }
     }
     return null
@@ -101,7 +139,8 @@ export const useQuoteSelection = ({
                 setCandidate(null)
                 return
             }
-            const text = normalizeQuoteText(selection.toString())
+            // Line breaks stay: code, YAML and tables must reach the agent line by line.
+            const text = tidyQuoteText(selection.toString())
             const source = sourceFrom(target)
             if (!text || !source) {
                 setCandidate(null)
@@ -117,6 +156,7 @@ export const useQuoteSelection = ({
                 text,
                 source,
                 sourceText: key ? getQuoteSource(key) : undefined,
+                target,
                 rect,
                 range: range.cloneRange(),
             })

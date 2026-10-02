@@ -55,7 +55,7 @@ export function DriveCodeEditor({
     // Quote-to-reply reads the live draft, so a quote's line range matches what is on screen.
     const quoteRootRef = useRef<HTMLDivElement>(null)
     const quoteSessionId = useDriveSessionId()
-    const quotable = useQuotableFile(path, displayPath, value ?? seed ?? undefined)
+    const quotable = useQuotableFile(mount, path, displayPath, value ?? seed ?? undefined)
     if (failed || loading || seed === null)
         return <DriveEditorPlaceholder mount={mount} path={path} failed={failed} lines={8} />
     const language = editorLanguage(path)

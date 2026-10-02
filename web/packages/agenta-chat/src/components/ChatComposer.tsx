@@ -274,7 +274,7 @@ export const ChatComposer = ({
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
-                // A quote carries a reply on its own, so it can be sent with no text at all.
+                // A quote carries a reply on its own, so Send and Enter both send it with no text.
                 sendForceEnabled={files.length > 0 || quotes.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}

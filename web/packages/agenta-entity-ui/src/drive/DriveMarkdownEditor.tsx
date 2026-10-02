@@ -51,7 +51,7 @@ export function DriveMarkdownEditor({
     // Quote-to-reply reads the draft, so a quote's line range matches what is on screen.
     const quoteRootRef = useRef<HTMLDivElement>(null)
     const quoteSessionId = useDriveSessionId()
-    const quotable = useQuotableFile(path, displayPath, value ?? undefined)
+    const quotable = useQuotableFile(mount, path, displayPath, value ?? undefined)
     if (failed || loading || value === null)
         return <DriveEditorPlaceholder mount={mount} path={path} failed={failed} lines={7} />
     return (
