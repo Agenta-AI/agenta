@@ -200,6 +200,21 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         when: "text is selected in a settled reply or a file",
     },
     {
+        id: "quote.stage",
+        group: "quote",
+        label: "Add the quote to your message",
+        key: "↵",
+        when: "in the quote note",
+    },
+    {
+        id: "quote.send",
+        group: "quote",
+        label: "Send the quote reply now",
+        modifiers: ["mod"],
+        key: "↵",
+        when: "in the quote note",
+    },
+    {
         id: "quote.dismiss",
         group: "quote",
         label: "Dismiss the quote pill or note",

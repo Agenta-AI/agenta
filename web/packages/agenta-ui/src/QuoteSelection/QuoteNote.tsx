@@ -1,10 +1,13 @@
-// Note box under a quoted span. Enter sends, ⌘/Ctrl+Enter stages, Esc or an outside press cancels.
+// Note box under a quoted span. Enter stages, ⌘/Ctrl+Enter sends, Esc or an outside press cancels.
 import {useEffect, useLayoutEffect, useRef, useState} from "react"
 
 import {truncateQuoteText, type Quote} from "@agenta/shared/quotes"
+import {shortcutFaces} from "@agenta/shared/utils"
 import {ArrowUp} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
+import {SimpleTooltip} from "../components/ui/tooltip-composed"
+import {useIsMacPlatform} from "../shortcuts/ShortcutKeys"
 
 const GAP = 8
 const WIDTH = 320
@@ -35,6 +38,7 @@ export const QuoteNote = ({
     const [note, setNote] = useState("")
     const [height, setHeight] = useState(0)
 
+    const sendFaces = shortcutFaces({modifiers: ["mod"], key: "↵"}, useIsMacPlatform())
     const cancelRef = useRef(onCancel)
     cancelRef.current = onCancel
 
@@ -89,8 +93,8 @@ export const QuoteNote = ({
                     onKeyDown={(e) => {
                         if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return
                         e.preventDefault()
-                        if (e.metaKey || e.ctrlKey) onStage(note)
-                        else onSend(note)
+                        if (e.metaKey || e.ctrlKey) onSend(note)
+                        else onStage(note)
                     }}
                     rows={1}
                     placeholder="Reply to the agent"
@@ -98,15 +102,17 @@ export const QuoteNote = ({
                         touch ? "text-sm" : "text-xs"
                     }`}
                 />
-                <Button
-                    size="icon-sm"
-                    className="shrink-0"
-                    aria-label="Send"
-                    title="Send · ⌘/Ctrl+Enter adds it to your message instead"
-                    onClick={() => onSend(note)}
-                >
-                    <ArrowUp weight="bold" />
-                </Button>
+                <SimpleTooltip title="Send now" shortcut={sendFaces}>
+                    <Button
+                        size="icon-sm"
+                        className="shrink-0"
+                        aria-label="Send now"
+                        aria-keyshortcuts="Meta+Enter Control+Enter"
+                        onClick={() => onSend(note)}
+                    >
+                        <ArrowUp weight="bold" />
+                    </Button>
+                </SimpleTooltip>
             </div>
         </div>
     )
