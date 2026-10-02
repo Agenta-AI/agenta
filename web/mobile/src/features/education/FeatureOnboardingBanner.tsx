@@ -15,9 +15,7 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
     const watch = () => openGuide(guideKey)
 
     return (
-        <section
-            className={`relative grid items-center gap-5 overflow-hidden rounded-[14px] border border-solid border-colorBorderSecondary bg-muted px-7 py-6 @xl:gap-6 @3xl:gap-10 @xl:grid-cols-2 @3xl:grid-cols-[1fr_420px]`}
-        >
+        <section className="relative grid items-center gap-5 overflow-hidden rounded-[14px] border border-solid border-colorBorderSecondary bg-muted px-7 py-6 @xl:grid-cols-2 @xl:gap-6 @3xl:grid-cols-[1fr_420px] @3xl:gap-10">
             {/* Sized by the container, not the viewport: the sidebar takes its share first. */}
             {video ? (
                 <>

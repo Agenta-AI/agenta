@@ -26,7 +26,7 @@ export interface FeatureGuide {
     video?: {
         /** Cloudflare Stream id of the walkthrough. */
         id: string
-        /** The lightbox footer's name for the clip. */
+        /** The player's accessible name. */
         title: string
         /** Where the banner still is taken; playback always starts at 0. */
         stillSeconds: number

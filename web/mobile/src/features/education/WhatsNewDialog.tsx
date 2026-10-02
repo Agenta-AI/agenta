@@ -55,7 +55,7 @@ export const WhatsNewDialog = () => {
     const optOutId = useId()
 
     const selected =
-        NEWEST_RELEASES.find((release) => release.id === (selectedId ?? state?.releaseId)) ??
+        RELEASES.find((release) => release.id === (selectedId ?? state?.releaseId)) ??
         NEWEST_RELEASES[0]
     if (!selected) return null
     const playing = playingId === selected.id

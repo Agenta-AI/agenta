@@ -306,10 +306,7 @@ export const AutomationListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Automations
                                 </h1>
-                                {/* The populated-screen path: rows an agent created still leave
-                                    the manual flow undiscovered, so the guide stays one click
-                                    away. Hidden on a phone, where the title already fights the
-                                    New button for width. */}
+                                {/* Hidden on a phone, where the title needs the width. */}
                                 {projectEmpty ? null : (
                                     <HowThisWorksButton
                                         guide="automations"
