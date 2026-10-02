@@ -89,22 +89,6 @@ export function parseRevisionUri(uri: string | undefined | null): ParsedUriInfo 
     }
 }
 
-/**
- * Extract runtime prefix from URI
- */
-export function extractRuntimePrefix(uri: string | undefined | null): string | undefined {
-    const parsed = parseRevisionUri(uri)
-    return parsed?.runtimePrefix
-}
-
-/**
- * Extract route path from URI
- */
-export function extractRoutePath(uri: string | undefined | null): string | undefined {
-    const parsed = parseRevisionUri(uri)
-    return parsed?.routePath
-}
-
 // ============================================================================
 // REVISION PARAMETER EXTRACTION
 // ============================================================================
@@ -130,15 +114,6 @@ export function extractRevisionParameters(
         return parameters
     }
     return {}
-}
-
-/**
- * @deprecated Use extractRevisionParameters instead.
- */
-export function extractAgConfig(
-    parameters: Record<string, unknown> | undefined | null,
-): RawAgConfig {
-    return extractRevisionParameters(parameters)
 }
 
 /**
@@ -168,23 +143,6 @@ export function extractRevisionParametersFromApiRevision(
     const configParams = apiRevision.config?.parameters
 
     return directParams || configParams || {}
-}
-
-/**
- * @deprecated Use extractRevisionParametersFromApiRevision instead.
- */
-export function extractAgConfigFromApiRevision(
-    apiRevision:
-        | {
-              config?: {
-                  parameters?: Record<string, unknown>
-              }
-              parameters?: Record<string, unknown>
-          }
-        | null
-        | undefined,
-): RawAgConfig {
-    return extractRevisionParametersFromApiRevision(apiRevision)
 }
 
 // ============================================================================
@@ -268,97 +226,5 @@ export interface ApiRevisionListItem {
     config?: {
         config_name?: string
         parameters?: Record<string, unknown>
-    }
-}
-
-/**
- * Raw app response from API (snake_case)
- */
-export interface ApiApp {
-    app_id: string
-    app_name: string
-    app_type?: string
-    created_at?: string
-    updated_at?: string
-}
-
-// ============================================================================
-// TRANSFORM UTILITIES
-// ============================================================================
-
-/**
- * Transform raw app data (snake_case) to AppListItem (camelCase)
- */
-export function transformAppToListItem(app: {
-    app_id?: string
-    id?: string
-    app_name?: string
-    name?: string
-    app_type?: string
-}): AppListItem {
-    return {
-        id: app.app_id || app.id || "",
-        name: app.app_name || app.name || "",
-        appType: app.app_type,
-    }
-}
-
-/**
- * Transform raw variant data (snake_case) to VariantListItem (camelCase)
- */
-export function transformVariantToListItem(
-    variant: ApiVariant,
-    fallbackAppId?: string,
-): VariantListItem {
-    const createdAtTimestamp = safeTimestamp(variant.created_at)
-    const updatedAtTimestamp = safeTimestamp(variant.updated_at, createdAtTimestamp)
-    return {
-        id: variant.variant_id,
-        name: variant.variant_name || variant.variant_id,
-        appId: variant.app_id || fallbackAppId || "",
-        baseId: variant.base_id,
-        baseName: variant.base_name,
-        uri: variant.uri,
-        createdAt: variant.created_at,
-        updatedAt: variant.updated_at,
-        createdAtTimestamp,
-        updatedAtTimestamp,
-    }
-}
-
-/**
- * Safely parse an ISO date string to a numeric timestamp.
- * Returns Date.now() when the input is missing or unparseable.
- */
-function safeTimestamp(dateStr: string | undefined | null, fallback?: number): number {
-    if (!dateStr) return fallback ?? Date.now()
-    const ts = new Date(dateStr).valueOf()
-    return Number.isNaN(ts) ? (fallback ?? Date.now()) : ts
-}
-
-/**
- * Transform raw revision data (snake_case) to RevisionListItem (camelCase)
- */
-export function transformRevisionToListItem(
-    revision: ApiRevisionListItem,
-    variantId: string,
-    context?: {appId?: string; uri?: string; variantName?: string},
-): RevisionListItem {
-    const createdAtTimestamp = safeTimestamp(revision.created_at)
-    const updatedAtTimestamp = safeTimestamp(revision.updated_at, createdAtTimestamp)
-    return {
-        id: revision.id,
-        revision: revision.revision,
-        variantId,
-        variantName: context?.variantName,
-        appId: context?.appId,
-        uri: context?.uri,
-        commitMessage: revision.commit_message,
-        createdAt: revision.created_at,
-        updatedAt: revision.updated_at,
-        createdAtTimestamp,
-        updatedAtTimestamp,
-        author: revision.modified_by,
-        parameters: revision.config?.parameters,
     }
 }

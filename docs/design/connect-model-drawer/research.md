@@ -250,6 +250,6 @@ Notes:
 
 ## 10. Verification environment
 
-Dev stack on the Hetzner box: `http://144.76.237.122:8280` (EE dev, hot-reloads web
+Dev stack on the Hetzner box: `http://<dev-host>:8280` (EE dev, hot-reloads web
 changes; package changes under `web/packages` are mounted). Light and dark themes both
 required. The `debug-local-deployment` skill documents login and log access.

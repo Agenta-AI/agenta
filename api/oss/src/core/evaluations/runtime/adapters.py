@@ -45,8 +45,10 @@ def _project_inputs(inputs: Any, data: Any) -> Any:
     so filter ``inputs`` down to the keys present in
     ``data.schemas.inputs.properties``.
 
-    If the revision declares no input schema (no ``properties``), inputs pass
-    through unchanged so untyped/legacy revisions are not broken.
+    Inputs pass through unchanged unless the schema declares ``properties`` and
+    sets ``additionalProperties`` to false. Prompt apps accept their template
+    variables as undeclared keys (e.g. a chat revision declares only
+    ``messages``), so filtering them would drop the variables.
     """
     if not isinstance(inputs, dict):
         return inputs
@@ -57,6 +59,8 @@ def _project_inputs(inputs: Any, data: Any) -> Any:
         _read_field(inputs_schema, "properties") if inputs_schema is not None else None
     )
     if not isinstance(properties, dict) or not properties:
+        return inputs
+    if _read_field(inputs_schema, "additionalProperties") is not False:
         return inputs
 
     return {key: value for key, value in inputs.items() if key in properties}

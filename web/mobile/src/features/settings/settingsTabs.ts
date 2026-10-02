@@ -17,6 +17,7 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "secrets",
     "webhooks",
     "tools",
+    "channels",
     "mcpEndpoints",
     "organizationGeneral",
     "workspace",

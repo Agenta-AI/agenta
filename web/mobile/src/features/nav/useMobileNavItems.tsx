@@ -55,14 +55,13 @@ setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
 /** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
 const PALETTE_SHORTCUT_ID = "palette.open"
 
-/**
- * Mobile's registration over the SHARED machinery: same gated sessions source, same
- * pinned-first ordering, mobile's own child routes. Desktop's registry entry differs only
- * in its paths and its pending-open handoff — the model is the reuse, the content is ours.
- */
 /** Flip to show the Observability rail entry again — the screen and its route are untouched. */
 const SHOW_OBSERVABILITY = false
 
+/**
+ * Mobile's registration over the SHARED machinery: same gated sessions source, same
+ * pinned-first ordering, mobile's own child routes.
+ */
 export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     MOBILE_NAV_SCOPE_ID,
     SESSIONS_SIDEBAR_KEY,
@@ -242,25 +241,20 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     )
 }
 
-/**
- * The pinned bottom entries — the desktop rail's, minus what has no mobile destination.
- * Settings is a placeholder screen until its surfaces land; Help & Docs is the SHARED entry, so
- * both apps point at the same destinations. Invite Teammate is desktop-only: inviting is
- * workspace administration, not something this app is for.
- */
-// Lazy-load package.json so its version stays out of the initial bundle — same as the desktop.
+// Lazy-load package.json so its version stays out of the initial bundle.
 // `unwrap` yields undefined until the import settles, which is all the suffix below needs.
 const versionAtom = unwrap(atom(async () => (await import("../../../package.json")).version))
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
+/** The pinned bottom entries: the Settings link, dropped inside the settings scope. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
 ): SidebarConfig[] =>
     useMemo(
         () =>
-            // The settings scope drops it: the rail IS settings there, as on the desktop.
+            // The settings scope drops it: the rail IS settings there.
             includeSettingsLink
                 ? [
                       {

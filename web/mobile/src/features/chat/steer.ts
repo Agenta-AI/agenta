@@ -1,8 +1,8 @@
 import {getEnv} from "@/lib/env"
 
 /**
- * Steer-lite (deny + redirect): gates the approval dock's "Redirect" control, mirroring the
- * desktop flag `NEXT_PUBLIC_AGENT_CHAT_STEER` (`isAgentChatSteerEnabled`). OFF by default.
+ * Steer-lite (deny + redirect): gates the approval dock's "Redirect" control via
+ * `NEXT_PUBLIC_AGENT_CHAT_STEER`. OFF by default.
  *
  * Why it stays off: the redirect note only reaches the model on the runner's COLD-replay path,
  * where it closes the replayed transcript as the next user turn. A warm-parked sandbox — the

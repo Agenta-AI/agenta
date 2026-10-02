@@ -1,4 +1,5 @@
 from copy import deepcopy
+from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -8,8 +9,13 @@ from httpx import ASGITransport, AsyncClient
 
 from oss.src.apis.fastapi.agent_templates import router as router_module
 from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
+from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.agent_templates.dtos import TemplateLoadResult
+from oss.src.core.agent_templates.dtos import (
+    TemplateLoadResult,
+    TemplateValidationIssue,
+    TemplateValidationResult,
+)
 from oss.src.core.agent_templates.exceptions import (
     TemplateCreateConflict,
     TemplatePackageInvalid,
@@ -19,6 +25,13 @@ from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
 
 
+CATALOG = AgentTemplateCatalog(
+    catalog_path=Path(__file__).resolve().parents[4]
+    / "src"
+    / "resources"
+    / "agent_templates"
+    / "catalog.json"
+)
 PROJECT_ID = uuid4()
 USER_ID = uuid4()
 
@@ -55,7 +68,7 @@ def _result(*, replayed=False):
     )
 
 
-def _app(loader):
+def _app(loader, catalog=CATALOG):
     app = FastAPI()
 
     @app.middleware("http")
@@ -65,7 +78,7 @@ def _app(loader):
         return await call_next(request)
 
     app.include_router(
-        AgentTemplatesRouter(loader=loader).router,
+        AgentTemplatesRouter(loader=loader, catalog=catalog).router,
         prefix="/api/agent-templates",
     )
     return app
@@ -313,3 +326,319 @@ async def test_internal_path_error_is_not_exposed(monkeypatch):
     assert (
         response.json()["message"] == "The template contains an invalid workspace path."
     )
+
+
+async def _request(app, method, path, **kwargs):
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.request(
+            method, f"/api/agent-templates{path}?project_id={PROJECT_ID}", **kwargs
+        )
+
+
+@pytest.mark.asyncio
+async def test_query_returns_every_listed_template_in_catalog_order(monkeypatch):
+    access = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+
+    response = await _request(_app(AsyncMock()), "POST", "/query", json={})
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["count"] == len(body["templates"]) == 29
+    assert [item["key"] for item in body["templates"]] == [
+        entry.key for entry in CATALOG.entries()
+    ]
+    first = body["templates"][0]
+    assert first["author"]["id"] == "agenta"
+    assert first["source"] == {"kind": "internal", "key": "pr-reviewer"}
+    assert first["tools_summary"] == "3 GitHub tools"
+    assert access.await_args.kwargs["permission"] == Permission.VIEW_WORKFLOWS
+
+
+@pytest.mark.asyncio
+async def test_query_accepts_an_empty_body_and_filters(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    app = _app(AsyncMock())
+
+    empty = await _request(app, "POST", "/query")
+    filtered = await _request(
+        app, "POST", "/query", json={"category": "Support", "search": "zendesk"}
+    )
+
+    assert empty.status_code == 200
+    assert empty.json()["count"] == 29
+    assert [item["key"] for item in filtered.json()["templates"]] == [
+        "support-reply-drafter"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_query_rejects_unknown_filters(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _request(_app(AsyncMock()), "POST", "/query", json={"page": 2})
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_catalog_reads_require_view_permission(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=False)
+    )
+    app = _app(AsyncMock())
+
+    assert (await _request(app, "POST", "/query", json={})).status_code == 403
+    assert (await _request(app, "GET", "/pr-reviewer")).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_fetch_returns_detail_and_selected_version(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    app = _app(AsyncMock())
+
+    latest = await _request(app, "GET", "/pr-reviewer")
+    pinned = await _request(app, "GET", "/pr-reviewer", params={"version": "1.0.0"})
+
+    assert latest.status_code == 200, latest.text
+    assert latest.json()["template"]["version"] == "1.0.0"
+    assert latest.json()["template"]["connections"][0]["alternatives"] == ["gitlab"]
+    assert pinned.json() == latest.json()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "params"),
+    [
+        ("/missing-template", None),
+        ("/pr-reviewer", {"version": "9.9.9"}),
+        ("/outbound-prospecting", None),
+    ],
+)
+async def test_fetch_unknown_key_or_version_is_404(monkeypatch, path, params):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _request(_app(AsyncMock()), "GET", path, params=params)
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "template_source_not_found"
+
+
+def test_openapi_registers_query_before_detail():
+    paths = list(_app(AsyncMock()).openapi()["paths"])
+
+    assert paths.index("/api/agent-templates/query") < paths.index(
+        "/api/agent-templates/{key}"
+    )
+
+
+def _validation_app(validator, loader=None):
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(PROJECT_ID)
+        request.state.user_id = str(USER_ID)
+        return await call_next(request)
+
+    app.include_router(
+        AgentTemplatesRouter(
+            loader=loader or AsyncMock(), catalog=CATALOG, validator=validator
+        ).router,
+        prefix="/api/agent-templates",
+    )
+    return app
+
+
+async def _validate(app, body, *, project_id=PROJECT_ID):
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.post(
+            f"/api/agent-templates/validate?project_id={project_id}",
+            json=body,
+        )
+
+
+_SESSION_FILE = {
+    "kind": "session_file",
+    "session_id": "chat-session",
+    "path": "templates/seo.zip",
+}
+
+
+@pytest.mark.asyncio
+async def test_validate_returns_result_and_never_calls_the_loader(monkeypatch):
+    validator = AsyncMock()
+    validator.validate.return_value = TemplateValidationResult(
+        valid=False,
+        supported_schema_versions=["ai.agenta/1"],
+        issues=[
+            TemplateValidationIssue(
+                code="file_not_found",
+                path="ai.agenta/agents.json",
+                field="agents.seo.setup",
+                message="The declared file SETUP.md does not exist.",
+                next_step="Create it.",
+            )
+        ],
+    )
+    loader = AsyncMock()
+    access = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+
+    response = await _validate(
+        _validation_app(validator, loader), {"source": _SESSION_FILE}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["issues"][0]["field"] == "agents.seo.setup"
+    loader.load.assert_not_awaited()
+    source = validator.validate.await_args.kwargs["source"]
+    assert source.kind == "session_file" and source.path == "templates/seo.zip"
+    assert [call.kwargs["permission"] for call in access.await_args_list] == [
+        Permission.VIEW_WORKFLOWS,
+        Permission.VIEW_SESSIONS,
+        Permission.VIEW_MOUNTS,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_validate_denies_without_session_file_access(monkeypatch):
+    validator = AsyncMock()
+    monkeypatch.setattr(
+        router_module,
+        "check_action_access",
+        AsyncMock(side_effect=[True, True, False]),
+    )
+
+    response = await _validate(_validation_app(validator), {"source": _SESSION_FILE})
+
+    assert response.status_code == 403
+    validator.validate.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_validate_refuses_another_project(monkeypatch):
+    validator = AsyncMock()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _validate(
+        _validation_app(validator), {"source": _SESSION_FILE}, project_id=uuid4()
+    )
+
+    assert response.status_code == 403
+    validator.validate.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "source",
+    [
+        {"kind": "session_file", "session_id": "s", "path": "a.zip", "extra": 1},
+        {"kind": "server_path", "path": "/etc/passwd"},
+        {"kind": "upload", "staging_session_id": "s", "attachment_id": "nope"},
+        {"kind": "directory", "path": "templates/seo"},
+    ],
+)
+async def test_validate_rejects_unknown_or_host_path_sources(monkeypatch, source):
+    validator = AsyncMock()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _validate(_validation_app(validator), {"source": source})
+
+    assert response.status_code == 422
+    validator.validate.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_validate_missing_source_is_a_normal_404(monkeypatch):
+    validator = AsyncMock()
+    validator.validate.side_effect = TemplateSourceNotFound("session_file:a.zip")
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _validate(_validation_app(validator), {"source": _SESSION_FILE})
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "template_source_not_found"
+
+
+@pytest.mark.asyncio
+async def test_archive_load_checks_session_access_and_keeps_source(monkeypatch):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    access = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+    body = _body()
+    body["source"] = {
+        **_SESSION_FILE,
+        "pin": {"version": "1.0.0", "digest": "sha256:" + "a" * 64},
+    }
+
+    response = await _post(_app(loader), body=body)
+
+    assert response.status_code == 201
+    assert [call.kwargs["permission"] for call in access.await_args_list] == [
+        Permission.EDIT_WORKFLOWS,
+        Permission.RUN_SESSIONS,
+        Permission.VIEW_SESSIONS,
+        Permission.VIEW_MOUNTS,
+    ]
+    command = loader.load.await_args.kwargs["command"]
+    assert command.source.pin.version == "1.0.0"
+
+
+@pytest.mark.asyncio
+async def test_internal_source_without_kind_still_loads(monkeypatch):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    body = _body()
+    body["source"] = {"key": "outbound-prospecting"}
+
+    response = await _post(_app(loader), body=body)
+
+    assert response.status_code == 201
+    assert loader.load.await_args.kwargs["command"].source.kind == "internal"
+
+
+@pytest.mark.asyncio
+async def test_validate_without_query_project_uses_the_credential_project(monkeypatch):
+    # The validate_template platform op posts to the bare path.
+    validator = AsyncMock()
+    validator.validate.return_value = TemplateValidationResult(
+        valid=True,
+        version="1.0.0",
+        digest="sha256:" + "a" * 64,
+        supported_schema_versions=["ai.agenta/1"],
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=_validation_app(validator)), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/api/agent-templates/validate", json={"source": _SESSION_FILE}
+        )
+
+    assert response.status_code == 200
+    assert validator.validate.await_args.kwargs["project_id"] == PROJECT_ID

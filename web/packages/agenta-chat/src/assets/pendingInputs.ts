@@ -96,6 +96,7 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         attachmentCount,
         policy: input.policy,
         source: "server",
+        clientId: input.idempotency_key ?? null,
         editable: input.state === "pending" && display === undefined,
     }
 }

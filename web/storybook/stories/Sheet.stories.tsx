@@ -20,7 +20,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` Sheet (Radix-based) that replaces antd `Drawer`. It is a compound component — compose `Sheet` > `SheetContent` > `SheetHeader`/`SheetFooter`. Prop tables for each part are below.\n\n**Used in:** 1 place directly — `EnhancedDrawer`, which in turn backs all 23 app drawers.",
+                    "The `@agenta/ui` Sheet (Radix-based) that replaces antd `Drawer`. It is a compound component — compose `Sheet` > `SheetContent` > `SheetHeader`/`SheetFooter`. Prop tables for each part are below.\n\nThe `left` and `right` sides float: 8px in from the viewport, rounded, with no border. The close button sits at the right of the header (`showCloseButton={false}` on `SheetHeader` hides it), and the footer is a muted band. `top` and `bottom` stay edge to edge. `responsive` is a bottom sheet below `lg` and the floating right drawer from `lg` up.\n\n**Used in:** `EnhancedDrawer`, which backs the app drawers, and directly by the /m sheets (navigation, session inspector, Publish, settings forms).",
             },
         },
     },

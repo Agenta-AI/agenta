@@ -3,7 +3,7 @@
  * the protocol Pi's RPC mode speaks over stdio, here over an in-memory channel. pi-acp's session
  * consumes exactly this protocol, so dialogs raised by an in-process session reach the runner's
  * permission flow the same way they do from a Pi subprocess. The behavior of each method follows
- * Pi 0.85.1 `modes/rpc/rpc-mode.js` (`createExtensionUIContext`).
+ * Pi 0.87.1 `modes/rpc/rpc-mode.js` (`createExtensionUIContext`).
  */
 import { randomUUID } from "node:crypto";
 import type { ExtensionUIContext, ExtensionUIDialogOptions, Theme } from "@earendil-works/pi-coding-agent";

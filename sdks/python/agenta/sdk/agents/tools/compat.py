@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import ToolConfigurationError
 from .models import (
+    AgentaToolsConfig,
     BuiltinToolConfig,
     ClientToolConfig,
     CodeToolConfig,
@@ -98,6 +99,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
             ClientToolConfig,
             ReferenceToolConfig,
             PlatformToolConfig,
+            AgentaToolsConfig,
         ),
     ):
         return value
@@ -135,6 +137,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
         "client",
         "reference",
         "platform",
+        "agenta_tools",
     }:
         return parse_tool_config(data)
 
@@ -149,9 +152,15 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     raise ToolConfigurationError("Unsupported tool configuration shape", value=value)
 
 
-def _check_one_entry_per_integration(
-    tool_config: ToolConfig, seen: set[tuple[str, str]]
-) -> None:
+def _check_single_entries(tool_config: ToolConfig, seen: set[tuple[str, str]]) -> None:
+    if isinstance(tool_config, AgentaToolsConfig):
+        # Two maps would need a rule to combine them, and an empty one would stop meaning "off".
+        if ("agenta_tools", "") in seen:
+            raise ToolConfigurationError(
+                "Duplicate agenta_tools entry: an agent revision holds at most one"
+            )
+        seen.add(("agenta_tools", ""))
+        return
     """One revision holds at most one connection entry per provider and integration.
 
     Two entries for one integration would give the same tool key two policies with no rule
@@ -177,7 +186,7 @@ def coerce_tool_configs(
     """Convert legacy values, either raising or returning structured diagnostics.
 
     It is also the one entry point that sees a whole revision's list, so a rule that spans
-    entries is enforced here: see :func:`_check_one_entry_per_integration`.
+    entries is enforced here: see :func:`_check_single_entries`.
     """
     if on_error not in {"raise", "collect"}:
         raise ValueError("on_error must be 'raise' or 'collect'")
@@ -195,7 +204,7 @@ def coerce_tool_configs(
         else:
             try:
                 tool_config = coerce_tool_config(value)
-                _check_one_entry_per_integration(tool_config, seen_connections)
+                _check_single_entries(tool_config, seen_connections)
                 tool_configs.append(tool_config)
                 continue
             except ToolConfigurationError as exc:

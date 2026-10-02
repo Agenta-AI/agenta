@@ -15,7 +15,10 @@
  * Run: pnpm exec vitest run --project unit failed-turn-continuity
  */
 import assert from "node:assert/strict";
-import { beforeEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
+import { createSandboxAgentOtel, type SandboxAgentOtel } from "../../src/tracing/otel.ts";
+
+afterEach(() => vi.unstubAllEnvs());
 
 import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
 import type { SandboxAgentDeps } from "../../src/engines/sandbox_agent.ts";
@@ -35,12 +38,14 @@ const REFUSAL =
 
 function fakeFailingSandbox(
   rollback?: () => Promise<boolean>,
-  completed?: { nativeHistorySaved?: () => boolean },
+  completed?: { nativeHistorySaved?: () => boolean; output?: () => void },
 ) {
   const continuityStore = new SessionContinuityStore();
   // The conversation's previous turn finished on this harness session.
   continuityStore.record("sess-fail", "claude", AGENT_SESSION_ID, 0);
+  let sessionEvent: ((event: unknown) => void) | undefined;
   const calls = {
+    emitUpdate: (update: unknown) => sessionEvent?.({ payload: { params: { update } } }),
     rollbacks: 0,
     completed: [] as Array<{
       sessionId: string;
@@ -52,9 +57,13 @@ function fakeFailingSandbox(
   const session: any = {
     id: "harness-session-1",
     agentSessionId: AGENT_SESSION_ID,
-    onEvent() {},
+    onEvent(handler: (event: unknown) => void) { sessionEvent = handler; },
     onPermissionRequest() {},
     async prompt() {
+      if (completed?.output) {
+        completed.output();
+        return await new Promise(() => {});
+      }
       if (completed) return { stopReason: "end_turn" };
       throw new Error(REFUSAL);
     },
@@ -168,6 +177,29 @@ const failRequest: AgentRunRequest = {
 };
 
 describe("a failed turn's continuity", () => {
+  it("terminates runaway output through the real tracer and drops native continuity", async () => {
+    vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "1024");
+    let tracer: SandboxAgentOtel;
+    const { calls, deps, continuityStore } = fakeFailingSandbox(undefined, {
+      output: () => {
+        calls.emitUpdate({ sessionUpdate: "tool_call", toolCallId: "rejected", rawInput: { text: "x".repeat(2048) } });
+        for (let i = 0; i < 100; i++) calls.emitUpdate({ sessionUpdate: "tool_call", toolCallId: `late-${i}`, rawInput: { text: "late" } });
+      },
+    });
+    deps.createOtel = (init) => {
+      tracer = createSandboxAgentOtel({ ...init, emitSpans: false });
+      return tracer;
+    };
+    const events: any[] = [];
+    const result = await runSandboxAgent(failRequest, (event) => events.push(event), undefined, deps);
+    assert.equal(result.ok, false);
+    assert.match(result.error!, /output exceeded the turn limit/);
+    assert.equal(events.filter((event) => event.type === "error" && event.code === "output_limit_exceeded").length, 1);
+    assert.equal(events.filter((event) => event.type === "done").length, 1);
+    assert.equal(events.filter((event) => event.type === "message_delta" || event.type === "tool_call").length, 0);
+    assert.deepEqual(tracer!.openToolCallIds(), []);
+    assert.equal(continuityStore.get("sess-fail", "claude"), undefined);
+  });
   it("keeps the native session when the harness rolled the failed turn back", async () => {
     const { calls, deps, continuityStore } = fakeFailingSandbox(async () => true);
 

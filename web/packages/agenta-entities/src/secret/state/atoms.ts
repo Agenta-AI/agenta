@@ -1,8 +1,6 @@
 /**
  * Secret Entity — Jotai Atoms
  *
- * Ported verbatim from `web/oss/src/state/app/atoms/vault.ts`.
- *
  * Pattern: minimal molecule — query + mutation only. No draft semantics,
  * no isDirty, no imperative get/set scaffolding. Vault is not an artifact,
  * it has no revision lineage; the molecule shape would only contribute
@@ -50,6 +48,7 @@ import {
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformStandardProviderPayloadData,
+    toUpdateSecretPayload,
 } from "../core/transforms"
 import {
     SecretKind,
@@ -314,7 +313,11 @@ export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: N
         const secretId = findSecret?.id ?? secret.id
 
         if (secretId) {
-            await updateMutation.mutateAsync({projectId, secret_id: secretId, payload})
+            await updateMutation.mutateAsync({
+                projectId,
+                secret_id: secretId,
+                payload: toUpdateSecretPayload(payload),
+            })
         } else {
             await createMutation.mutateAsync({projectId, payload})
         }

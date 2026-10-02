@@ -23,7 +23,13 @@
 
 import {Fragment, memo, type ReactNode} from "react"
 
-import {formatCurrency, formatLatency, formatTokens} from "@agenta/shared/utils"
+import {
+    formatCurrency,
+    formatLatency,
+    formatTokens,
+    splitTokenUsage,
+    type TokenBreakdown,
+} from "@agenta/shared/utils"
 import {Timer, Coins, Hash} from "@phosphor-icons/react"
 
 import {cn} from "../../../utils/styles"
@@ -47,6 +53,10 @@ export interface ExecutionMetricsData {
     promptTokens?: number
     /** Completion/output tokens */
     completionTokens?: number
+    /** Prompt tokens read from the provider's cache */
+    cacheReadTokens?: number
+    /** Prompt tokens written to the provider's cache */
+    cacheWriteTokens?: number
     /** Total cost in dollars */
     totalCost?: number
 }
@@ -82,6 +92,24 @@ export const MetaSeparator = ({className}: {className?: string}) => (
     </span>
 )
 
+const TokenRow = ({label, value, dim}: {label: string; value: number; dim?: boolean}) => (
+    <div className={cn("flex items-center justify-between gap-3", dim && "opacity-85")}>
+        <span>{label}</span>
+        <span>{formatTokens(value)}</span>
+    </div>
+)
+
+/** A token total and its input, cache read, cache write and output parts, for a tooltip. */
+export const TokenBreakdownList = ({breakdown}: {breakdown: TokenBreakdown}) => (
+    <div className="min-w-[140px]">
+        <TokenRow label="Total Tokens" value={breakdown.total} />
+        <TokenRow label="Input" value={breakdown.input} dim />
+        <TokenRow label="Cache read" value={breakdown.cacheRead} dim />
+        <TokenRow label="Cache write" value={breakdown.cacheWrite} dim />
+        <TokenRow label="Output" value={breakdown.output} dim />
+    </div>
+)
+
 /**
  * Pure presentational component for displaying execution metrics
  */
@@ -111,29 +139,38 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     const tagClassName = cn("flex items-center gap-1 m-0", size === "small" && "text-xs py-0")
     const iconSize = size === "small" ? 10 : 12
 
+    const tokenBreakdown = splitTokenUsage({
+        prompt: metrics.promptTokens,
+        completion: metrics.completionTokens,
+        cacheRead: metrics.cacheReadTokens,
+        cacheWrite: metrics.cacheWriteTokens,
+        total: metrics.totalTokens,
+    })
+
     // The one thing the compact row can't show inline, so both variants share it.
-    const tokensTooltip: ReactNode =
-        metrics.promptTokens !== undefined && metrics.completionTokens !== undefined ? (
-            <div className="min-w-[140px]">
-                <div className="flex items-center justify-between gap-3">
-                    <span>Total Tokens</span>
-                    <span>{formattedTokens}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 opacity-85">
-                    <span>Prompt</span>
-                    <span>{formatTokens(metrics.promptTokens)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 opacity-85">
-                    <span>Completion</span>
-                    <span>{formatTokens(metrics.completionTokens)}</span>
-                </div>
-            </div>
-        ) : (
-            <div className="flex items-center justify-between gap-3 min-w-[120px]">
+    const tokensTooltip: ReactNode = tokenBreakdown ? (
+        <TokenBreakdownList breakdown={tokenBreakdown} />
+    ) : metrics.promptTokens !== undefined && metrics.completionTokens !== undefined ? (
+        <div className="min-w-[140px]">
+            <div className="flex items-center justify-between gap-3">
                 <span>Total Tokens</span>
                 <span>{formattedTokens}</span>
             </div>
-        )
+            <div className="flex items-center justify-between gap-3 opacity-85">
+                <span>Prompt</span>
+                <span>{formatTokens(metrics.promptTokens)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 opacity-85">
+                <span>Completion</span>
+                <span>{formatTokens(metrics.completionTokens)}</span>
+            </div>
+        </div>
+    ) : (
+        <div className="flex items-center justify-between gap-3 min-w-[120px]">
+            <span>Total Tokens</span>
+            <span>{formattedTokens}</span>
+        </div>
+    )
 
     if (isLoading) {
         return (

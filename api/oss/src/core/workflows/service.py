@@ -3662,6 +3662,66 @@ class SimpleWorkflowsService:
             workflow_ref=Reference(id=workflow_id),
         )
 
+    @staticmethod
+    def _idempotent_child_slugs(
+        *,
+        project_id: UUID,
+        namespace: str,
+        request_key: str,
+        component: str,
+    ) -> tuple[str, str, str]:
+        return tuple(  # type: ignore[return-value]
+            resource_identity(
+                project_id, namespace, request_key, f"{component}:{child}"
+            ).hex[-12:]
+            for child in ("variant", "blank", "content")
+        )
+
+    async def fetch_idempotent_created(
+        self,
+        *,
+        project_id: UUID,
+        namespace: str,
+        request_key: str,
+        component: str,
+    ) -> Optional[SimpleWorkflow]:
+        """Read a finished idempotent create without writing, or None if any part is missing."""
+        workflow = await self.fetch_idempotent_root(
+            project_id=project_id,
+            namespace=namespace,
+            request_key=request_key,
+            component=component,
+        )
+        if workflow is None or workflow.id is None:
+            return None
+        variant_slug, _, content_slug = self._idempotent_child_slugs(
+            project_id=project_id,
+            namespace=namespace,
+            request_key=request_key,
+            component=component,
+        )
+        variant = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            workflow_ref=Reference(id=workflow.id),
+            workflow_variant_ref=Reference(slug=variant_slug),
+        )
+        if variant is None or variant.id is None:
+            return None
+        content = await self.workflows_service.fetch_workflow_revision(
+            project_id=project_id,
+            workflow_variant_ref=Reference(id=variant.id),
+            workflow_revision_ref=Reference(slug=content_slug),
+        )
+        if content is None or content.id is None:
+            return None
+        return SimpleWorkflow(
+            **workflow.model_dump(exclude={"flags"}),
+            flags=SimpleWorkflowFlags(**WorkflowsService._dump_flags(content.flags)),
+            variant_id=variant.id,
+            revision_id=content.id,
+            data=_build_simple_workflow_data(content.data),
+        )
+
     # Keep artifact/variant/revision semantics aligned with ordinary create below.
     async def create_idempotent(
         self,
@@ -3693,15 +3753,12 @@ class SimpleWorkflowsService:
             slug=simple_workflow_create.slug,
             workflow_id=workflow_id,
         )
-        variant_slug = resource_identity(
-            project_id, namespace, request_key, f"{component}:variant"
-        ).hex[-12:]
-        blank_slug = resource_identity(
-            project_id, namespace, request_key, f"{component}:blank"
-        ).hex[-12:]
-        content_slug = resource_identity(
-            project_id, namespace, request_key, f"{component}:content"
-        ).hex[-12:]
+        variant_slug, blank_slug, content_slug = self._idempotent_child_slugs(
+            project_id=project_id,
+            namespace=namespace,
+            request_key=request_key,
+            component=component,
+        )
         metadata = self._idempotent_meta(
             namespace=namespace,
             request_key=request_key,

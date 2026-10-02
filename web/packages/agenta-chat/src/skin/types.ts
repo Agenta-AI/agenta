@@ -1,13 +1,6 @@
 /**
- * Skin registration shapes (WP3a-C5).
- *
- * Generalized from the three OSS chat registries — clientTools, approvals, toolDisplay (see
- * `web/oss/src/components/AgentChatSlice/components/clientTools/{registry.tsx,types.ts}`,
- * `.../components/approvals/registry.tsx`, `.../assets/toolDisplay.ts`) — with `Handler`/`Renderer`
- * renamed to `Widget`/`Entry` and no OSS import (this package never imports from `web/oss`). The
- * OSS registries keep running standalone until the desktop re-plumb PR switches them onto this
- * store; until then `registerChatSkin` (./registry.ts) is called by nobody and the store stays
- * empty — skins (mobile shadcn first) populate it.
+ * Skin registration shapes for the three chat registries — clientTools, approvals, toolDisplay.
+ * Skins populate the store through `registerChatSkin` (./registry.ts).
  */
 import type {ClientToolWidget} from "@agenta/shared/clientTools"
 
@@ -104,13 +97,10 @@ export type ActivityIcon =
     | "secret"
 
 /**
- * One toolDisplay registry entry — mirrors the *registration-time* shape OSS actually stores in its
- * `BY_TOOL_NAME` map (`toolDisplay.ts`'s unexported `ToolDisplayOverride`: `{label?; source?;
- * summary?}`), generalized with an optional `kind` override since a skin registration is not
- * required to restate `raw` (it IS the record key in `ChatSkinRegistration.toolDisplay`) or force a
- * default's inferred `kind`. All fields are optional: an entry may override just one piece (OSS's
- * `commit_revision` entry, for example, overrides only `summary`) and the resolver fills the rest
- * from the parsed name shape (see `resolveToolDisplay` in `./registry.ts`).
+ * One toolDisplay registry entry. A skin registration is not required to restate `raw` (it IS the
+ * record key in `ChatSkinRegistration.toolDisplay`) or force a default's inferred `kind`. All
+ * fields are optional: an entry may override just one piece (e.g. only `summary`) and the resolver
+ * fills the rest from the parsed name shape (see `resolveToolDisplay` in `./registry.ts`).
  */
 export interface ToolDisplayEntry {
     /** Humanized action label ("Fetch emails"); overrides the parsed default when present. */
@@ -131,8 +121,8 @@ export interface ToolDisplayEntry {
 }
 
 /**
- * A resolved toolDisplay — the full shape `resolveToolDisplay` returns, mirroring OSS's public
- * `ToolDisplay` interface (`raw`/`kind`/`label` always present; `source`/`summary` still optional).
+ * A resolved toolDisplay — the full shape `resolveToolDisplay` returns (`raw`/`kind`/`label`
+ * always present; `source`/`summary` still optional).
  */
 export interface ResolvedToolDisplay {
     label: string
@@ -153,21 +143,19 @@ export interface ResolvedToolDisplay {
 }
 
 /**
- * Everything one skin contributes to the shared chat registries. Mirrors the OSS two-level
- * clientTools split (a render-kind map checked first, then a tool-name map — see
- * `resolveClientToolHandler`'s precedence in `clientTools/registry.tsx`) rather than inventing a
- * different nesting.
+ * Everything one skin contributes to the shared chat registries. clientTools is two-level: a
+ * render-kind map checked first, then a tool-name map.
  */
 export interface ChatSkinRegistration {
     clientTools?: {
-        /** Checked first — the finer dispatch axis (mirrors OSS `BY_RENDER_KIND`). */
+        /** Checked first — the finer dispatch axis. */
         byRenderKind?: Record<string, ClientToolWidget>
-        /** Checked when no render-kind hint matched (mirrors OSS `BY_TOOL_NAME`). */
+        /** Checked when no render-kind hint matched. */
         byToolName?: Record<string, ClientToolWidget>
     }
     /** Tool name → the describer that turns its payload into the card's plain-English copy. */
     approvals?: Record<string, ApprovalDescriber>
-    /** Raw tool name → display override (mirrors OSS `BY_TOOL_NAME`). */
+    /** Raw tool name → display override. */
     toolDisplay?: Record<string, ToolDisplayEntry>
     /** Connected integration slugs: a bare tool name carrying one (`list-devto-articles`) is that app's. */
     appHints?: string[]

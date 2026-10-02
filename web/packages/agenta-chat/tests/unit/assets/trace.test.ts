@@ -6,6 +6,7 @@ import {
     getMessageRunErrorCode,
     getMessageTraceId,
     getMessageUsage,
+    mergeTurnMetrics,
 } from "../../../src/assets/trace"
 
 describe("getMessageTraceId", () => {
@@ -150,5 +151,29 @@ describe("getMessageUsage", () => {
             parts: [],
         } as unknown as UIMessage
         expect(getMessageUsage(message)).toBeUndefined()
+    })
+})
+
+describe("mergeTurnMetrics", () => {
+    const usage = {promptTokens: 10, completionTokens: 20, totalTokens: 30, totalCost: 0.01}
+
+    it("takes cost and tokens from the trace when it has them", () => {
+        const trace = {durationMs: 900, promptTokens: 11, completionTokens: 22, totalTokens: 33}
+        expect(mergeTurnMetrics({...trace, totalCost: 0.3}, usage)).toEqual({
+            ...trace,
+            totalCost: 0.3,
+        })
+    })
+
+    it("shows the trace's cost for a turn the runner reported no cost for", () => {
+        const noCost = {promptTokens: 10, completionTokens: 20, totalTokens: 30}
+        expect(mergeTurnMetrics({totalCost: 0.3087451}, noCost).totalCost).toBe(0.3087451)
+    })
+
+    it("falls back to the message usage for figures the trace lacks", () => {
+        expect(mergeTurnMetrics({durationMs: 900, totalCost: undefined}, usage)).toEqual({
+            durationMs: 900,
+            ...usage,
+        })
     })
 })

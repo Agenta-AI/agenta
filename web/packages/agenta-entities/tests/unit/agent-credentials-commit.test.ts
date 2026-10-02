@@ -99,6 +99,17 @@ describe("secret attachment transaction", () => {
             revisionId: "rev-1",
         })
     })
+    it("saves the default Agenta tools entry on an agent saved without one", async () => {
+        await store.set(commitAgentCredentialsAtom, {revisionId: "rev-1", bindings})
+        const [payload] = api.commit.mock.calls[0]
+        expect(payload.workflow_revision.data.parameters.agent.tools).toEqual([
+            {
+                type: "agenta_tools",
+                tools: {get_current_session: "allow", rename_session: "allow"},
+            },
+        ])
+    })
+
     it("anchors on a newer head when the panel displays an older revision (#6734)", async () => {
         api.retrieve.mockResolvedValue(head)
         await expect(
@@ -225,6 +236,12 @@ describe("secret attachment transaction", () => {
                     agent: {
                         ...base.data.parameters.agent,
                         sandbox: {kind: "daytona", credentials: bindings},
+                        tools: [
+                            {
+                                type: "agenta_tools",
+                                tools: {get_current_session: "allow", rename_session: "allow"},
+                            },
+                        ],
                     },
                 },
             },

@@ -302,7 +302,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             className={[
                 "group/rail relative border-0 border-r border-solid border-[var(--ag-shell-line)] [&[data-resizing=true]_*]:!transition-none",
                 // Claim the sheet's height; left to its content the frame collapses to the column.
-                isOverlay ? "h-full" : "",
+                // The corners follow the floating sheet's, so the rail's surface cannot square them.
+                isOverlay ? "h-full rounded-[inherit]" : "",
                 className ?? "",
             ]
                 .join(" ")
@@ -318,8 +319,10 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 data-theme={theme}
                 className={[
                     // The surface fills the sheet, so it still bleeds behind a phone's toolbar.
+                    // overflow-hidden clips to those corners; the switcher's panel portals into
+                    // the sheet, outside this element, so it is not cut off.
                     isOverlay
-                        ? "h-full w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300"
+                        ? "h-full w-[var(--ag-sidebar-w)] overflow-hidden rounded-[inherit] bg-[var(--ag-sidebar-bg)] transition-all duration-300"
                         : // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
                           // document-scrolling routes; 0px everywhere else.
                           "sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
@@ -329,7 +332,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     className={clsx(
                         "flex flex-col w-[var(--ag-sidebar-w)] transition-all duration-300",
                         // `vh` is a phone's toolbars-HIDDEN height; the var also narrows for a keyboard.
-                        isOverlay ? "h-[var(--ag-viewport-height,100dvh)]" : "h-full",
+                        // Capped at the sheet's height: the sheet floats 8px in from the top and
+                        // bottom, so a viewport-tall column ran the workspace row off its bottom.
+                        isOverlay ? "h-[min(100%,var(--ag-viewport-height,100dvh))]" : "h-full",
                     )}
                 >
                     {renderSlot(scope.header, collapsed, scope.lastPath, onDismiss)}

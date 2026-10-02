@@ -43,6 +43,9 @@ const selectTriggerVariants = cva(
         // antd's error state colours the border AND the text/arrow/placeholder, + red focus glow.
         "aria-[invalid=true]:border-error aria-[invalid=true]:text-error aria-[invalid=true]:shadow-[0_0_0_3px_var(--ag-errorOutline)]",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+        // Below md, 16px like Input (iOS Safari zooms the page on a smaller focused control), so
+        // a phone form does not mix two text sizes. The size variants set the desktop ramp.
+        "max-md:text-base",
     ],
     {
         variants: {

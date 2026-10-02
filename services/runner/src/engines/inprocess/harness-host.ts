@@ -21,6 +21,7 @@ import { dirname, join } from "node:path";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { InMemoryCredentialStore, type CredentialStore } from "pi-coding-agent-pi-ai";
 import type { InMemorySessionPersistDriver, SessionRecord } from "sandbox-agent";
+import type { AttachmentFiles } from "../sandbox_agent/attachments.ts";
 import { agentMountPath } from "../sandbox_agent/agent-mount.ts";
 import type { InRunnerRunFacts } from "../sandbox_agent/runtime-contracts.ts";
 import type { ConversationRegistry } from "./conversation-registry.ts";
@@ -33,6 +34,8 @@ import type { SandboxRequirements } from "./sandbox/command-sandbox.ts";
 import { createSandboxBashTool } from "./tools/bash-tool.ts";
 import { EditDiffs } from "./tools/edit-diffs.ts";
 import { buildFileTools, type SandboxToolAccess } from "./tools/file-tools.ts";
+import { attachmentFiles } from "./workspace/attachment-files.ts";
+import type { ObjectStore } from "./workspace/drive-objects.ts";
 import { publishSkillSnapshot } from "./workspace/skill-snapshot.ts";
 import { withPublicCode } from "../sandbox_agent/errors.ts";
 import type { SessionLedger } from "./session-ledger.ts";
@@ -96,6 +99,8 @@ export class InProcessHarnessHost {
   private readonly preparations: SandboxPreparation[] = [];
   private workspace: ConversationWorkspace | undefined;
   private leasing: Promise<ConversationWorkspace> | undefined;
+  /** The session folder's prefix of the drive, as objects: what the runner itself puts there. */
+  private sessionObjects: ObjectStore | undefined;
   private released = false;
 
   constructor(
@@ -146,7 +151,8 @@ export class InProcessHarnessHost {
         ...(this.facts.usage ? { usage: this.facts.usage } : {}),
       });
       // The runner built the skill snapshot on its own disk; the sandbox reads it from the drive.
-      if (skillDir) workspace.prepareDrive(publishSkillSnapshot(cwd, skillDir, this.runtime.registry.objects(session.credentials), this.log));
+      this.sessionObjects = this.runtime.registry.objects(session.credentials);
+      if (skillDir) workspace.prepareDrive(publishSkillSnapshot(cwd, skillDir, this.sessionObjects, this.log));
       this.workspace = workspace;
       return workspace;
     })();
@@ -328,6 +334,12 @@ export class InProcessHarnessHost {
     return session.toRecord();
   }
 
+  /** Attachment copies go to the drive the model's file tools read, never to the runner's disk. */
+  get attachmentFiles(): AttachmentFiles {
+    if (!this.sessionObjects) throw new Error("inprocess: no session is open, so there is no drive for attachments");
+    return attachmentFiles(this.sessionObjects);
+  }
+
   // ---- Runner files: callers are runner code, never the model; the runner's own disk ---------- //
 
   async writeFsFile(query: { path: string }, body: string | Uint8Array | ArrayBuffer): Promise<unknown> {
@@ -363,7 +375,7 @@ export class InProcessHarnessHost {
 
   // ---- Processes: the command sandbox, never the runner host -------------------------------- //
 
-  async runProcess(request: { command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeoutMs?: number }): Promise<unknown> {
+  async runProcess(request: { command: string; args?: string[]; cwd?: string; env?: Record<string, string>; timeoutMs?: number }) {
     const workspace = this.workspace;
     if (!workspace) throw new Error("inprocess: no session is open, so there is no command sandbox to run processes in");
     const r = await workspace.runHelper([request.command, ...(request.args ?? [])], {

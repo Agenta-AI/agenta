@@ -13,17 +13,18 @@ const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
 const GET_STARTED = "https://cloud.agenta.ai/";
 
 // Top-level links. First-party pages navigate same-tab; links that leave the
-// marketing site (Docs) open in a new tab via `external`.
+// marketing site open in a new tab via `external`.
 type NavLink = { label: string; href: string; external?: boolean };
 const links: NavLink[] = [
   { label: "Pricing", href: "/pricing" },
-  { label: "Docs", href: "https://docs.agenta.ai/", external: true },
+  { label: "Templates", href: "/marketplace" },
   { label: "Blog", href: "/blog" },
 ];
 
 // Lucide-style 1.5px line icons (currentColor) for the dropdown items, mirroring
-// live agenta.ai's menus (help-circle · history · route for Resources; brand
-// glyphs for Community).
+// live agenta.ai's menus (book-open · help-circle · history · route for
+// Resources; brand glyphs for Community).
+const icoBook = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`;
 const icoHelp = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>`;
 const icoHistory = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>`;
 const icoRoute = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>`;
@@ -42,6 +43,7 @@ const dropdowns: { label: string; items: Item[] }[] = [
   {
     label: "Resources",
     items: [
+      { label: "Docs", desc: "Read the documentation", href: "https://docs.agenta.ai/", icon: icoBook, external: true },
       ...(SHOW_TUTORIAL
         ? [{ label: "Tutorial", desc: "Get started with Agenta", href: "https://agenta.ai/docs/tutorials/cookbooks/capture-user-feedback", icon: icoHelp, external: true }]
         : []),

@@ -111,7 +111,7 @@ describe("McpConnectionDetail on a phone", () => {
         const panel = document.querySelector('[role="dialog"]')
         expect(panel, "no drawer panel").not.toBeNull()
         expect(panel!.className).toContain("bottom-0")
-        expect(panel!.className).toContain("lg:right-0")
+        expect(panel!.className).toContain("lg:right-2")
     })
 })
 
