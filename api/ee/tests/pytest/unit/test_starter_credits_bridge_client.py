@@ -283,3 +283,45 @@ class TestUpdateKeyModels:
 
         assert "sk-virtual-abc" not in raised.value.detail
         assert "sk-[redacted]" in raised.value.detail
+
+
+class TestKeyReads:
+    async def test_lists_one_page_of_the_team_keys_as_full_objects(self):
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.path
+            seen["params"] = dict(request.url.params)
+            return httpx.Response(
+                200,
+                json={
+                    "keys": [{"token": "hashed-1", "spend": 1.5}, "not-an-object"],
+                    "total_count": 1,
+                },
+            )
+
+        keys = await _client_with_handler(handler).list_team_keys(
+            team_id="team-1", page=2, size=50
+        )
+
+        assert keys == [{"token": "hashed-1", "spend": 1.5}]
+        assert seen["path"] == "/key/list"
+        assert seen["params"] == {
+            "team_id": "team-1",
+            "page": "2",
+            "size": "50",
+            "return_full_object": "true",
+        }
+
+    async def test_reads_key_info(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/key/info"
+            assert request.url.params["key"] == "hashed-1"
+            return httpx.Response(
+                200,
+                json={"key": "hashed-1", "info": {"spend": 2.0, "max_budget": 5.0}},
+            )
+
+        info = await _client_with_handler(handler).get_key_info(key="hashed-1")
+
+        assert info == {"spend": 2.0, "max_budget": 5.0}
