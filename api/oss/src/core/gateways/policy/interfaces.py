@@ -1,7 +1,7 @@
 """Ports the gateway policy depends on: secret resolution, spend admission, usage."""
 
 from abc import ABC, abstractmethod
-from typing import Optional, Set
+from typing import Dict, Optional, Set
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -124,5 +124,6 @@ class UsageSinkInterface(ABC):
         target: GatewayTarget,
         outcome: GatewayOutcome,
         run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]] = None,
     ) -> None:
         raise NotImplementedError

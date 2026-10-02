@@ -4,7 +4,7 @@ What OSS and an EE deployment with the wallet off run, so their request path beh
 it did before the wallet existed.
 """
 
-from typing import Optional
+from typing import Dict, Optional
 
 from oss.src.core.gateways.policy.dtos import (
     GatewayOutcome,
@@ -31,5 +31,6 @@ class NullUsageSink(UsageSinkInterface):
         target: GatewayTarget,
         outcome: GatewayOutcome,
         run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]] = None,
     ) -> None:
         return None

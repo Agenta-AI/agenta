@@ -9,6 +9,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.utils.env import env
+
 from agenta.sdk.utils.assets import supported_llm_models
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
@@ -194,7 +196,9 @@ class _MockPolicy:
             reason=None if self.admitted else "entitlement_denied",
         )
 
-    async def record(self, *, scope, target, decision, outcome, run_id=None):
+    async def record(
+        self, *, scope, target, decision, outcome, run_id=None, run_labels=None
+    ):
         self.record_calls.append((scope, target, decision, outcome))
         self.record_run_ids.append(run_id)
 
@@ -310,7 +314,8 @@ async def test_query_endpoints_delegates_to_dao_unchanged():
 
 
 @pytest.mark.asyncio
-async def test_list_endpoints_merges_generated_and_custom_with_two_keys():
+async def test_list_endpoints_merges_generated_and_custom_with_two_keys(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
     dao = _MockLlmEndpointsDAO()
     custom_row = _custom_row(slug="acme")
     dao.query_result = [custom_row]
@@ -325,7 +330,8 @@ async def test_list_endpoints_merges_generated_and_custom_with_two_keys():
 
 
 @pytest.mark.asyncio
-async def test_list_endpoints_with_no_keys_yields_custom_rows_only():
+async def test_list_endpoints_with_no_keys_yields_custom_rows_only(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
     dao = _MockLlmEndpointsDAO()
     custom_row = _custom_row(slug="acme")
     dao.query_result = [custom_row]
@@ -334,6 +340,22 @@ async def test_list_endpoints_with_no_keys_yields_custom_rows_only():
     result = await _service(dao=dao, resolver=resolver).list_endpoints(scope=_scope())
 
     assert result == [custom_row]
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_offers_builtin_models_only_under_the_mock_switch(
+    monkeypatch,
+):
+    resolver = _MockResolver(provider_keys=set())
+
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    off = await _service(resolver=resolver).list_endpoints(scope=_scope())
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    on = await _service(resolver=resolver).list_endpoints(scope=_scope())
+
+    builtin = GatewayEndpointNamespace.BUILTIN
+    assert [e for e in off if e.namespace == builtin] == []
+    assert {e.slug for e in on if e.namespace == builtin} == {"agenta", "mock"}
 
 
 # --- list_models (R3) ------------------------------------------------------- #
@@ -470,6 +492,57 @@ async def test_a_custom_endpoint_row_still_owns_the_slug_it_is_stored_under():
     )
 
     assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
+
+
+@pytest.mark.asyncio
+async def test_a_named_namespace_wins_over_a_custom_row_sharing_the_builtin_slug(
+    monkeypatch,
+):
+    """A custom `mock` must not take a call the author routed to builtin `mock`.
+
+    The two differ in who pays: builtin runs on the platform wallet, custom on the
+    customer's credential. Without the namespace the stored row wins the slug.
+    """
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["mock"] = _custom_row(slug="mock")
+    service = _service(dao=dao)
+
+    builtin = await service.resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-5.5",
+        provider_key="openai",
+        connection_slug="mock",
+        connection_namespace=GatewayEndpointNamespace.BUILTIN,
+    )
+    inferred = await service.resolve_agent_connection(
+        scope=_scope(), model="gpt-4o", provider_key=None, connection_slug="mock"
+    )
+
+    assert (builtin.namespace, builtin.name) == (
+        GatewayEndpointNamespace.BUILTIN,
+        "mock",
+    )
+    assert (inferred.namespace, inferred.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        "mock",
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_named_namespace_that_does_not_hold_the_slug_is_not_found(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["mock"] = _custom_row(slug="mock")
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service(dao=dao).resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-5.5",
+            provider_key="openai",
+            connection_slug="mock",
+            connection_namespace=GatewayEndpointNamespace.BUILTIN,
+        )
 
 
 @pytest.mark.asyncio

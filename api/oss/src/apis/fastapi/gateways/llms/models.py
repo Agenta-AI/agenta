@@ -18,6 +18,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMEndpointEdit,
     LLMEndpointQuery,
 )
+from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.env import env
 
@@ -86,6 +87,9 @@ class LLMGatewayConnectionResolveRequest(BaseModel):
     model: str
     provider_key: Optional[str] = None
     connection_slug: Optional[str] = None
+    # The namespace the caller picked the slug from. A slug alone is ambiguous: a custom
+    # endpoint may share a builtin endpoint's name, and they differ in who pays.
+    connection_namespace: Optional[GatewayEndpointNamespace] = None
 
 
 class LLMGatewayConnectionResolveResponse(BaseModel):

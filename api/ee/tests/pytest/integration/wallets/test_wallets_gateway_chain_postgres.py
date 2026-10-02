@@ -25,6 +25,8 @@ from starlette.requests import Request
 
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
+from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind, LLMModelFilter
 from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
@@ -53,7 +55,11 @@ from ee.src.core.wallets.streaming import deserialize_measurement_command
 from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
 from ee.src.dbs.postgres.measurements.dbes import MeasurementDBE, MeasurementValueDBE
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
+from ee.src.dbs.postgres.measurements.usage import MeasurementUsageDAO
 from ee.src.dbs.postgres.wallets.dbes import WalletBalanceDBE, WalletDebitDBE
+from ee.src.dbs.postgres.wallets.usage import WalletUsageDAO
+from ee.src.core.wallets.usage import service as usage_service_module
+from ee.src.core.wallets.usage.service import WalletUsageService
 from ee.src.dbs.redis.wallets.streams import (
     RedisDebitPublisher,
     RedisMeasurementPublisher,
@@ -64,6 +70,7 @@ from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 from oss.tests.pytest.unit.gateways.test_gateways_llm_service import (
     _MockLlmEndpointsDAO,
     _MockResolver,
+    _custom_row,
     _secret,
 )
 
@@ -138,7 +145,14 @@ class _CountingMockAdapter(MockLLMAdapter):
 class _Chain:
     """The composition `routers.py` builds with the wallet on, plus the two workers."""
 
-    def __init__(self, *, redis_client, analytics_engine, wallet_on: bool = True):
+    def __init__(
+        self,
+        *,
+        redis_client,
+        analytics_engine,
+        wallet_on: bool = True,
+        endpoints_dao=None,
+    ):
         self.redis_client = redis_client
         self.wallets = WalletsService(
             wallets_dao=WalletsDAO(engine=get_transactions_engine())
@@ -157,14 +171,13 @@ class _Chain:
             if wallet_on
             else GatewayPolicyService(resolver=resolver)
         )
-        self.proxy = LLMGatewayProxy(
-            llm_gateway_service=LLMGatewayService(
-                llm_endpoints_dao=_MockLlmEndpointsDAO(),
-                policy=policy,
-                resolver=resolver,
-                upstream_registry=LLMUpstreamRegistry(adapters={"mock": self.adapter}),
-            )
+        self.service = LLMGatewayService(
+            llm_endpoints_dao=endpoints_dao or _MockLlmEndpointsDAO(),
+            policy=policy,
+            resolver=resolver,
+            upstream_registry=LLMUpstreamRegistry(adapters={"mock": self.adapter}),
         )
+        self.proxy = LLMGatewayProxy(llm_gateway_service=self.service)
         self.analytics_engine = analytics_engine
 
     def _counting_wallet(self):
@@ -213,11 +226,11 @@ class _Chain:
 
 
 @contextmanager
-def _caller(organization_id):
+def _caller(organization_id, project_id=None):
     scope = AuthScope(
         organization_id=organization_id,
         workspace_id=uuid4(),
-        project_id=uuid4(),
+        project_id=project_id or uuid4(),
         user_id=uuid4(),
     )
     token = set_auth_context(
@@ -229,7 +242,12 @@ def _caller(organization_id):
         reset_auth_context(token)
 
 
-def _request(*, stream: bool = False, run_id: Optional[str] = None) -> Request:
+def _request(
+    *,
+    stream: bool = False,
+    run_id: Optional[str] = None,
+    run_labels: Optional[dict] = None,
+) -> Request:
     body = json.dumps(
         {
             "model": "gpt-5.5",
@@ -246,13 +264,23 @@ def _request(*, stream: bool = False, run_id: Optional[str] = None) -> Request:
     )
     if run_id is not None:
         request.state.gateway_run_id = run_id
+    if run_labels is not None:
+        request.state.gateway_run_labels = run_labels
     return request
 
 
-async def _call(chain, organization_id, *, namespace="builtin", **request_kwargs):
+async def _call(
+    chain,
+    organization_id,
+    *,
+    namespace="builtin",
+    name="mock",
+    project_id=None,
+    **request_kwargs,
+):
     relay = getattr(chain.proxy, f"chat_completions_{namespace}")
-    with _caller(organization_id):
-        response = await relay(_request(**request_kwargs), "mock")
+    with _caller(organization_id, project_id):
+        response = await relay(_request(**request_kwargs), name)
         if hasattr(response, "body_iterator"):
             body = b"".join([chunk async for chunk in response.body_iterator])
         else:
@@ -367,6 +395,63 @@ async def test_a_builtin_call_is_measured_priced_and_settled_exactly_once(
     assert debit.amount_musd == amount
     assert debit.pricing_version == version
     assert await _general_balance(organization_id) == before - amount
+
+    await _cleanup(organization_id)
+
+
+async def test_a_builtin_pick_is_charged_even_beside_a_custom_endpoint_of_its_name(
+    wallet_schema, redis_client, analytics_engine
+):
+    """The resolved route decides who pays, so the picked namespace must survive it.
+
+    The project holds a custom endpoint also called `mock`. Picking the builtin still
+    routes to builtin and is charged; picking the custom one routes to custom and is not.
+    """
+    organization_id = uuid4()
+    await _fund(organization_id)
+    endpoints_dao = _MockLlmEndpointsDAO()
+    endpoints_dao.rows_by_slug["mock"] = _custom_row(
+        slug="mock",
+        deployment_kind=LLMDeploymentKind.MOCK,
+        models=LLMModelFilter(allowlist=["gpt-5.5"]),
+    )
+    chain = _Chain(
+        redis_client=redis_client,
+        analytics_engine=analytics_engine,
+        endpoints_dao=endpoints_dao,
+    )
+    await chain.start_workers()
+    before = await _general_balance(organization_id)
+
+    async def _pick(connection_namespace):
+        with _caller(organization_id) as scope:
+            route = await chain.service.resolve_agent_connection(
+                scope=scope,
+                model="gpt-5.5",
+                provider_key="openai",
+                connection_slug="mock",
+                connection_namespace=connection_namespace,
+            )
+        response, _ = await _call(
+            chain, organization_id, namespace=route.namespace.value, name=route.name
+        )
+        assert response.status_code == 200
+        return route.namespace
+
+    assert await _pick(GatewayEndpointNamespace.BUILTIN) == (
+        GatewayEndpointNamespace.BUILTIN
+    )
+    [measurement] = await chain.run_workers()
+    [debit] = await _debits(organization_id)
+    assert debit.idempotency_key == f"measurement:{measurement.measurement_id}"
+    assert chain.checks == 1
+
+    assert await _pick(None) == GatewayEndpointNamespace.CUSTOM
+    assert await chain.run_workers() == []
+    assert chain.checks == 1
+    assert len(await _debits(organization_id)) == 1
+    assert await _general_balance(organization_id) == before - debit.amount_musd
+    assert chain.adapter.calls == 2
 
     await _cleanup(organization_id)
 
@@ -515,3 +600,85 @@ async def test_with_the_wallet_off_nothing_is_checked_or_measured(
     assert chain.checks == 0
     assert await chain.run_workers() == []
     assert await _debits(organization_id) == []
+
+
+async def test_the_usage_view_reads_a_labelled_charge_back_by_session(
+    wallet_schema, redis_client, analytics_engine
+):
+    organization_id = uuid4()
+    agent_id = uuid4()
+    await _fund(organization_id)
+    chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
+    await chain.start_workers()
+    labels = {"session_id": "session-7", "agent_id": str(agent_id)}
+    project_id = uuid4()
+
+    await _call(chain, organization_id, project_id=project_id, run_labels=labels)
+    await _call(chain, organization_id, project_id=project_id, run_labels=labels)
+    measurements = await chain.run_workers()
+
+    service = WalletUsageService(
+        wallets_dao=WalletsDAO(engine=get_transactions_engine()),
+        usage_dao=WalletUsageDAO(engine=get_transactions_engine()),
+        measurements_dao=MeasurementUsageDAO(engine=analytics_engine),
+    )
+    usage = await service.usage(organization_id=organization_id)
+    summary = await service.summary(organization_id=organization_id)
+
+    debits = await _debits(organization_id)
+    spent = sum(debit.amount_musd for debit in debits)
+    [session] = usage.sessions
+    assert session.session_id == "session-7"
+    assert session.agent_id == agent_id
+    assert session.charge_count == 2
+    assert session.amount_musd == spent
+    assert {charge.measurement_id for charge in session.charges} == {
+        m.measurement_id for m in measurements
+    }
+    assert all(
+        charge.input_tokens and charge.output_tokens for charge in session.charges
+    )
+    [day] = usage.days
+    assert (day.category, day.amount_musd, day.charge_count) == (
+        "Model calls",
+        spent,
+        2,
+    )
+    assert summary.spendable_musd == TEN_DOLLARS - spent
+    assert summary.active_credit_total_musd == TEN_DOLLARS
+    [credit] = summary.credits
+    assert credit.remaining_musd == TEN_DOLLARS - spent
+
+    await _cleanup(organization_id)
+
+
+async def test_the_daily_totals_count_every_posting_past_the_detail_cap(
+    wallet_schema, redis_client, analytics_engine, monkeypatch
+):
+    monkeypatch.setattr(usage_service_module, "MAX_DEBITS", 2)
+    organization_id = uuid4()
+    await _fund(organization_id)
+    chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
+    await chain.start_workers()
+
+    for _ in range(5):
+        await _call(chain, organization_id)
+    await chain.run_workers()
+
+    usage = await WalletUsageService(
+        wallets_dao=WalletsDAO(engine=get_transactions_engine()),
+        usage_dao=WalletUsageDAO(engine=get_transactions_engine()),
+        measurements_dao=MeasurementUsageDAO(engine=analytics_engine),
+    ).usage(organization_id=organization_id)
+
+    debits = await _debits(organization_id)
+    assert len(debits) == 5
+    assert usage.truncated is True
+    assert sum(session.charge_count for session in usage.sessions) == 2
+    [day] = usage.days
+    assert (day.amount_musd, day.charge_count) == (
+        sum(debit.amount_musd for debit in debits),
+        5,
+    )
+
+    await _cleanup(organization_id)

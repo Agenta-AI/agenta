@@ -10,6 +10,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
+    BUILTIN_LLM_PROVIDERS,
     builtin_llm_endpoint,
     standard_llm_endpoint,
     standard_llm_endpoints,
@@ -271,7 +272,10 @@ class LLMGatewayService:
         )
 
     async def list_endpoints(self, *, scope: AuthScope) -> List[LLMEndpoint]:
-        """List generated standard endpoints and persisted custom endpoints.
+        """List generated standard and builtin endpoints and persisted custom endpoints.
+
+        Builtin endpoints exist only under the development mock switch, so this lists them
+        only there; that is what lets an agent picker offer a platform-funded model.
 
         Takes the scope rather than a bare project_id (R14): existence is a per-owner fact
         the moment user-owned secrets ship, and fabricating an AuthScope to satisfy the port
@@ -284,8 +288,13 @@ class LLMGatewayService:
             for endpoint in standard_llm_endpoints()
             if endpoint.provider_key in provider_keys
         ]
+        builtin = [
+            endpoint
+            for provider_key in BUILTIN_LLM_PROVIDERS
+            if (endpoint := builtin_llm_endpoint(provider_key=provider_key)) is not None
+        ]
         custom = await self.llm_endpoints_dao.query_endpoints(project_id=project_id)
-        return generated + custom
+        return generated + builtin + custom
 
     async def resolve_agent_connection(
         self,
@@ -294,6 +303,7 @@ class LLMGatewayService:
         model: str,
         provider_key: Optional[str],
         connection_slug: Optional[str],
+        connection_namespace: Optional[GatewayEndpointNamespace] = None,
     ) -> LLMGatewayConnectionResolution:
         """Resolve an agent connection to public gateway route metadata.
 
@@ -302,7 +312,10 @@ class LLMGatewayService:
         with nothing to act on. `LLMGatewayConnectionResolution.provider_key` stays a required
         field, so the invariant no construction path can dodge is still enforced underneath.
         """
-        if connection_slug:
+        if connection_slug and connection_namespace:
+            namespace = connection_namespace
+            name = connection_slug
+        elif connection_slug:
             namespace = await self._namespace_of_slug(scope=scope, slug=connection_slug)
             name = connection_slug
         elif provider_key:
@@ -372,6 +385,7 @@ class LLMGatewayService:
         headers: Dict[str, str],
         protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
         run_id: Optional[str] = None,
+        run_labels: Optional[Dict[str, str]] = None,
     ) -> LLMRelayResult:
         """Relay one request for the specified protocol."""
         target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
@@ -480,6 +494,7 @@ class LLMGatewayService:
                 result=result,
                 secret=secret,
                 run_id=run_id,
+                run_labels=run_labels,
             )
             return result
 
@@ -498,6 +513,7 @@ class LLMGatewayService:
             result=result,
             secret=secret,
             run_id=run_id,
+            run_labels=run_labels,
         )
         return result
 
@@ -745,6 +761,7 @@ class LLMGatewayService:
         result: LLMRelayResult,
         secret: Optional[ResolvedSecret],
         run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
         """Consume a non-streaming body now, record the call, and hand back the bytes.
 
@@ -770,6 +787,7 @@ class LLMGatewayService:
                         result=result, secret=secret, target=target
                     ),
                     run_id=run_id,
+                    run_labels=run_labels,
                 )
             )
         return _replay_body(b"".join(chunks))
@@ -784,6 +802,7 @@ class LLMGatewayService:
         result: LLMRelayResult,
         secret: Optional[ResolvedSecret],
         run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
         try:
             async for chunk in body:
@@ -804,5 +823,6 @@ class LLMGatewayService:
                         result=result, secret=secret, target=target
                     ),
                     run_id=run_id,
+                    run_labels=run_labels,
                 )
             )
