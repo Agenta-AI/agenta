@@ -1,7 +1,8 @@
+import type {MouseEvent} from "react"
+
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {ChatCircleIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
-import type {MouseEvent} from "react"
 
 import {liveChatOpenAtom, liveChatUnreadAtom, toggleLiveChat} from "./crispChat"
 
