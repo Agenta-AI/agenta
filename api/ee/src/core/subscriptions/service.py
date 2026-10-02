@@ -52,29 +52,14 @@ class SubscriptionsService:
         self,
         *,
         organization_id: str,
-        first_period: bool,
-        invoice_plan: Optional[str],
+        plan: str,
         period_start: datetime,
         period_end: datetime,
     ) -> None:
         """Grant the monthly credits of a paid billing period. Idempotent per
-        organization and period (see `WalletsService.grant_period_allowance`).
-
-        The first period takes the plan from the invoice: Stripe does not order the
-        subscription-created event before the first invoice, so the local subscription
-        may still be on the free plan. A renewal takes the local plan, because a plan
-        switch updates the local plan but not the Stripe metadata."""
+        organization and period (see `WalletsService.grant_period_allowance`)."""
         if not env.wallets.enabled or self.wallets_service is None:
             return
-
-        plan = invoice_plan if first_period else None
-        if not plan:
-            subscription = await self.read(organization_id=organization_id)
-            plan = subscription.plan if subscription else None
-        if not plan:
-            raise EventException(
-                f"Subscription not found for organization ID: {organization_id}"
-            )
 
         credit = await self.wallets_service.grant_period_allowance(
             organization_id=UUID(organization_id),
@@ -411,6 +396,9 @@ class SubscriptionsService:
                     ).data
                 ]
                 + get_stripe_line_items(plan),
+                # Invoices snapshot this metadata, and the renewal's monthly credits
+                # follow the plan it names (see BillingRouter._grant_period_credits).
+                metadata={"plan": plan},
             )
 
             subscription = await self.update(subscription=subscription)

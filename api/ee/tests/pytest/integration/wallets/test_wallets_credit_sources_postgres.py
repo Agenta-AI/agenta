@@ -187,12 +187,11 @@ async def test_a_redelivered_top_up_grants_once(wallet_schema):
 
 
 class FakeProxyClient:
-    """The proxy's key list and key info, with blocking. A block freezes the key's
-    spend; `spend_before_block` is spend that lands between the list and the block."""
+    """The proxy's key list and key info, with blocking. Blocking does not freeze spend:
+    a request admitted before the block still records spend after it."""
 
-    def __init__(self, keys, *, spend_before_block=None):
+    def __init__(self, keys):
         self.keys = {key["token"]: dict(key) for key in keys}
-        self.spend_before_block = dict(spend_before_block or {})
         self.blocked_calls = []
 
     async def list_team_keys(self, *, team_id, page, size):
@@ -204,10 +203,7 @@ class FakeProxyClient:
 
     async def block_key(self, *, key):
         self.blocked_calls.append(key)
-        record = self.keys[key]
-        if not record.get("blocked"):
-            record["spend"] += self.spend_before_block.pop(key, 0)
-        record["blocked"] = True
+        self.keys[key]["blocked"] = True
 
     async def get_key_info(self, *, key):
         return dict(self.keys[key])
@@ -251,7 +247,7 @@ def _key(token, organization_id, *, spend, max_budget=5.0, origin=PROXY_ORIGIN):
     }
 
 
-async def test_migration_moves_each_remainder_once_and_blocks_every_key(
+async def test_migration_moves_each_remainder_once_after_the_drain(
     wallet_schema,
 ):
     engine = get_transactions_engine()
@@ -267,24 +263,32 @@ async def test_migration_moves_each_remainder_once_and_blocks_every_key(
             _key("b-fully", fully_spent, spend=5.3),
             _key("c-foreign", foreign, spend=0.0, origin="someone-else"),
             _key("d-deleted", deleted, spend=0.0),
-        ],
-        # Spend that lands before the block is not granted.
-        spend_before_block={"a-partly": 0.5},
+        ]
     )
+    run = dict(client=client, team_id="team-1", page_size=2)
 
     try:
-        dry_run = await migrate_starter_credits(
-            apply=False, client=client, team_id="team-1", page_size=2
-        )
+        dry_run = await migrate_starter_credits(stage="dry-run", **run)
         assert (dry_run.keys, dry_run.no_organization, dry_run.granted) == (3, 1, 0)
         assert dry_run.remaining_musd == 3_750_000
         assert client.blocked_calls == []
+
+        # Applying before the block grants nothing: spend is not final yet.
+        early = await migrate_starter_credits(stage="apply", **run)
+        assert (early.not_blocked, early.granted, early.failed) == (2, 0, 0)
         assert await _credits(partly_spent, "starter_credits") == []
 
-        first = await migrate_starter_credits(
-            apply=True, client=client, team_id="team-1", page_size=2
-        )
-        assert (first.granted, first.granted_musd, first.blocked) == (1, 3_250_000, 3)
+        blocked = await migrate_starter_credits(stage="block", **run)
+        assert (blocked.blocked, blocked.granted) == (3, 0)
+        assert not client.keys["c-foreign"]["blocked"]
+        assert client.keys["d-deleted"]["blocked"]
+        assert await _credits(partly_spent, "starter_credits") == []
+
+        # A request admitted before the block finishes during the drain.
+        client.keys["a-partly"]["spend"] += 0.5
+
+        first = await migrate_starter_credits(stage="apply", **run)
+        assert (first.granted, first.granted_musd, first.blocked) == (1, 3_250_000, 0)
         assert (first.zero_remaining, first.no_organization, first.failed) == (1, 1, 0)
 
         [credit] = await _credits(partly_spent, "starter_credits")
@@ -292,13 +296,9 @@ async def test_migration_moves_each_remainder_once_and_blocks_every_key(
         assert credit.end_time - credit.start_time == timedelta(days=365)
         assert await _credits(fully_spent, "starter_credits") == []
         assert await _credits(deleted, "starter_credits") == []
-        assert not client.keys["c-foreign"]["blocked"]
-        assert client.keys["d-deleted"]["blocked"]
 
-        rerun = await migrate_starter_credits(
-            apply=True, client=client, team_id="team-1", page_size=2
-        )
-        assert (rerun.blocked, rerun.failed) == (0, 0)
+        rerun = await migrate_starter_credits(stage="apply", **run)
+        assert rerun.failed == 0
         assert [
             row.amount_musd for row in await _credits(partly_spent, "starter_credits")
         ] == [3_250_000]
@@ -314,3 +314,30 @@ async def test_migration_moves_each_remainder_once_and_blocks_every_key(
                 await session.execute(
                     text("DELETE FROM users WHERE id = :id"), {"id": user_id}
                 )
+
+
+async def test_migration_counts_a_key_with_unreadable_spend_as_failed(wallet_schema):
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        user_id, organization_id = await _organization(session)
+    key = _key("a-broken", organization_id, spend=1.0)
+    del key["spend"]
+    key["blocked"] = True
+    client = FakeProxyClient([key])
+
+    try:
+        counts = await migrate_starter_credits(
+            stage="apply", client=client, team_id="team-1"
+        )
+
+        assert (counts.failed, counts.granted) == (1, 0)
+        assert await _credits(organization_id, "starter_credits") == []
+    finally:
+        async with engine.session() as session:
+            await session.execute(
+                text("DELETE FROM organizations WHERE id = :id"),
+                {"id": organization_id},
+            )
+            await session.execute(
+                text("DELETE FROM users WHERE id = :id"), {"id": user_id}
+            )

@@ -295,7 +295,7 @@ class TestKeyReads:
             return httpx.Response(
                 200,
                 json={
-                    "keys": [{"token": "hashed-1", "spend": 1.5}, "not-an-object"],
+                    "keys": [{"token": "hashed-1", "spend": 1.5}],
                     "total_count": 1,
                 },
             )
@@ -325,3 +325,21 @@ class TestKeyReads:
         info = await _client_with_handler(handler).get_key_info(key="hashed-1")
 
         assert info == {"spend": 2.0, "max_budget": 5.0}
+
+    @pytest.mark.parametrize(
+        "path,payload",
+        [
+            ("/key/list", {"keys": "nope"}),
+            ("/key/list", {"keys": ["not-an-object"]}),
+            ("/key/list", []),
+            ("/key/info", {"key": "hashed-1"}),
+        ],
+    )
+    async def test_refuses_an_unexpected_shape(self, path, payload):
+        client = _client_with_handler(lambda request: httpx.Response(200, json=payload))
+
+        with pytest.raises(ProxyRequestError):
+            if path == "/key/list":
+                await client.list_team_keys(team_id="team-1", page=1, size=10)
+            else:
+                await client.get_key_info(key="hashed-1")

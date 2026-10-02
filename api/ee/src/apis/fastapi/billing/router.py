@@ -102,16 +102,34 @@ _PERIOD_BILLING_REASONS = frozenset({"subscription_create", "subscription_cycle"
 TOP_UP_PURPOSE = "credit_top_up"
 
 
+def _is_plan_line(line: Any) -> bool:
+    """A recurring subscription line, not a proration and not a one-off invoice item.
+    Reads both webhook shapes: before 2025-03-31 (`type`, `proration`) and after
+    (`parent.subscription_item_details`)."""
+    if _stripe_get(line, "type") == "subscription":
+        return not _stripe_get(line, "proration")
+
+    parent = _stripe_get(line, "parent")
+    if _stripe_get(parent, "type") == "subscription_item_details":
+        details = _stripe_get(parent, "subscription_item_details")
+        return not _stripe_get(details, "proration")
+
+    return False
+
+
 def _invoice_period(invoice: Any) -> Optional[Tuple[datetime, datetime]]:
-    """The billing period an invoice opens: the period of its latest-starting line. A
-    renewal also carries usage lines billed in arrears for the period that just ended."""
+    """The billing period an invoice opens: the latest-starting period among its
+    recurring subscription lines. A renewal also carries usage lines billed in arrears
+    for the period that just ended, and may carry prorations and one-off items."""
     lines = _stripe_get(_stripe_get(invoice, "lines"), "data") or []
     periods = []
     for line in lines:
+        if not _is_plan_line(line):
+            continue
         period = _stripe_get(line, "period")
         start = _stripe_get(period, "start")
         end = _stripe_get(period, "end")
-        if start and end:
+        if start and end and end > start:
             periods.append((start, end))
 
     if not periods:
@@ -537,6 +555,9 @@ class BillingRouter:
         if billing_reason not in _PERIOD_BILLING_REASONS:
             return
 
+        if not env.stripe.webhook_secret:
+            raise EventException("Monthly credits need a verified Stripe webhook")
+
         # A trial or fully discounted period is not paid for and gets no credits.
         if not (_stripe_get(invoice, "total") or 0) > 0:
             return
@@ -544,13 +565,21 @@ class BillingRouter:
         period = _invoice_period(invoice)
         if period is None:
             raise EventException(
-                f"Invoice for organization ID {organization_id} carries no period"
+                f"Invoice for organization ID {organization_id} carries no plan period"
+            )
+
+        # The plan the invoice was finalized under: Stripe snapshots the subscription's
+        # metadata onto the invoice, and a plan switch rewrites that metadata. A renewal
+        # delivered after a later switch still grants the plan that was paid for.
+        plan = _stripe_get(metadata, "plan")
+        if plan not in get_plans():
+            raise EventException(
+                f"Invoice for organization ID {organization_id} names no known plan"
             )
 
         await self.subscription_service.grant_period_credits(
             organization_id=organization_id,
-            first_period=billing_reason == "subscription_create",
-            invoice_plan=_stripe_get(metadata, "plan"),
+            plan=plan,
             period_start=period[0],
             period_end=period[1],
         )
@@ -569,6 +598,14 @@ class BillingRouter:
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content={"status": "skip", "message": "Not a credit top-up"},
+            )
+
+        # Without a webhook secret the event is unsigned, and anyone could post one.
+        if not env.stripe.webhook_secret:
+            log.error("[billing] [wallets] top-up event unsigned; no credit")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"status": "error", "message": "Webhook not verified"},
             )
 
         session_id = _stripe_get(session, "id")
@@ -788,7 +825,8 @@ class BillingRouter:
             )
 
         stripe = _load_stripe()
-        if stripe is None:
+        # The purchase is credited by a signed webhook only.
+        if stripe is None or not env.stripe.webhook_secret:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Credit top-ups are not available",

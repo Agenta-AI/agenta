@@ -2,6 +2,7 @@
 daily free credits granted on admission, a paid plan's monthly credits, purchased top-ups
 and the starter-credits transfer."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -169,6 +170,62 @@ async def test_a_failed_daily_grant_admits_on_the_balance_and_retries_next_time(
     assert dao.award_calls == 0
     assert await service.check(organization_id=organization_id) is True
     assert dao.award_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_a_stalled_daily_grant_does_not_stall_the_admission(monkeypatch):
+    monkeypatch.setattr(service_module, "DAILY_GRANT_TIMEOUT_SECONDS", 0.05)
+    dao = _dao()
+    dao.general_balance = dao.general_balance.model_copy(
+        update={"balance_musd": 1_000_000}
+    )
+    stalled = asyncio.Event()
+
+    async def stalled_reader(_):
+        await stalled.wait()
+        return HOBBY
+
+    service = WalletsService(wallets_dao=dao, plan_reader=stalled_reader)
+
+    allowed = await asyncio.wait_for(
+        service.check(organization_id=dao.general_balance.organization_id), 1.0
+    )
+
+    assert allowed is True
+    assert dao.award_calls == 0
+    # Not marked done: the next admission tries again.
+    assert dao.general_balance.organization_id not in service._daily_done
+
+
+@pytest.mark.asyncio
+async def test_a_grant_that_crosses_midnight_does_not_mark_the_new_day_done(
+    monkeypatch,
+):
+    dao = _dao()
+    organization_id = dao.general_balance.organization_id
+    release = asyncio.Event()
+
+    async def slow_reader(_):
+        await release.wait()
+        return HOBBY
+
+    service = WalletsService(wallets_dao=dao, plan_reader=slow_reader)
+    monkeypatch.setattr(service_module, "DAILY_GRANT_TIMEOUT_SECONDS", 5)
+
+    _freeze(monkeypatch, NOW)
+    before_midnight = asyncio.ensure_future(
+        service.check(organization_id=organization_id)
+    )
+    await asyncio.sleep(0)
+    # Another organization's admission after midnight starts the new day.
+    _freeze(monkeypatch, NOW + timedelta(hours=1))
+    other = asyncio.ensure_future(service.check(organization_id=uuid4()))
+    await asyncio.sleep(0)
+    release.set()
+    await asyncio.gather(before_midnight, other)
+
+    assert service._daily_day == (NOW + timedelta(hours=1)).date()
+    assert organization_id not in service._daily_done
 
 
 @pytest.mark.asyncio

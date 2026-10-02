@@ -7,6 +7,7 @@ billing boundary". Neither calls `check_entitlements`
 checks the wallet's committed balance against its floor.
 """
 
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 from typing import Awaitable, Callable, Optional, Set, Tuple
 from uuid import UUID
@@ -49,6 +50,11 @@ from ee.src.core.wallets.types import (
 log = get_module_logger(__name__)
 
 PlanReader = Callable[[UUID], Awaitable[Optional[str]]]
+
+# The daily grant's share of an admission. Well below the 1s shadow bound and the 2s bound
+# each admission point puts around its whole answer, so a stalled plan read or award lock
+# leaves time to read the balance and admit.
+DAILY_GRANT_TIMEOUT_SECONDS = 0.5
 
 
 class WalletsService(WalletCheckPort, WalletSettlementPort):
@@ -117,8 +123,8 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
 
     async def _grant_daily_free_credits(self, *, organization_id: UUID) -> None:
         """Grant today's free credits on the organization's first admission of the UTC
-        day, when its plan has them. Never fails the admission: a failed grant is logged
-        and retried on the next admission."""
+        day, when its plan has them. Never fails or stalls the admission: a failed or
+        slow grant is logged and retried on the next admission."""
         if self.plan_reader is None:
             return
 
@@ -130,21 +136,42 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         if organization_id in self._daily_done:
             return
 
-        try:
-            plan = await self.plan_reader(organization_id)
-            if plan in DAILY_FREE_CREDIT_PLANS:
-                await self.award(
-                    organization_id=organization_id,
-                    activity_code=DAILY_FREE_ACTIVITY,
-                    reference=daily_free_reference(day=today),
-                    now=now,
-                )
-            self._daily_done.add(organization_id)
-        except Exception:
+        # `asyncio.wait`, not `wait_for`: `wait_for` also waits out the cancellation
+        # cleanup (a DB session closing), which could outlast the bound.
+        grant = asyncio.ensure_future(
+            self._grant_daily_free_credits_now(organization_id=organization_id, now=now)
+        )
+        done, _ = await asyncio.wait({grant}, timeout=DAILY_GRANT_TIMEOUT_SECONDS)
+        if not done:
+            grant.cancel()
+            grant.add_done_callback(_discard_result)
+            log.warning(
+                "[wallets] daily free credits grant timed out; retrying on next admission",
+                organization_id=str(organization_id),
+            )
+            return
+        if grant.exception() is not None:
             log.warning(
                 "[wallets] daily free credits grant failed; retrying on next admission",
                 organization_id=str(organization_id),
-                exc_info=True,
+                reason=repr(grant.exception()),
+            )
+            return
+        # A grant that started before midnight must not mark the organization done for
+        # the new day.
+        if self._daily_day == today:
+            self._daily_done.add(organization_id)
+
+    async def _grant_daily_free_credits_now(
+        self, *, organization_id: UUID, now: datetime
+    ) -> None:
+        plan = await self.plan_reader(organization_id)
+        if plan in DAILY_FREE_CREDIT_PLANS:
+            await self.award(
+                organization_id=organization_id,
+                activity_code=DAILY_FREE_ACTIVITY,
+                reference=daily_free_reference(day=now.date()),
+                now=now,
             )
 
     async def settle(self, command: DebitCommandV1) -> None:
@@ -275,3 +302,9 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
             end_time=now + timedelta(days=STARTER_CREDITS_LIFETIME_DAYS),
             now=now,
         )
+
+
+def _discard_result(task: "asyncio.Future") -> None:
+    # Retrieve the outcome of an abandoned grant so asyncio does not log it as unhandled.
+    if not task.cancelled():
+        task.exception()

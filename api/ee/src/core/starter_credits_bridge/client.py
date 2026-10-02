@@ -124,14 +124,22 @@ class StarterCreditsProxyClient:
             },
         )
         keys = payload.get("keys") if isinstance(payload, dict) else None
-        return [key for key in keys or [] if isinstance(key, dict)]
+        if not isinstance(keys, list) or not all(isinstance(key, dict) for key in keys):
+            raise ProxyRequestError(
+                status_code=200, detail="key list response carried no key objects"
+            )
+        return keys
 
     async def get_key_info(self, *, key: str) -> dict[str, Any]:
         """The key's current `spend`, `max_budget` and `blocked`. `key` is the key
         itself or its hashed token."""
         payload = await self._request("GET", "/key/info", params={"key": key})
         info = payload.get("info") if isinstance(payload, dict) else None
-        return info if isinstance(info, dict) else {}
+        if not isinstance(info, dict):
+            raise ProxyRequestError(
+                status_code=200, detail="key info response carried no info"
+            )
+        return info
 
     async def _request(
         self,

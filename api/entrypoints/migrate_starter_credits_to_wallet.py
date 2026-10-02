@@ -2,21 +2,26 @@
 migrate_starter_credits_to_wallet - one-off operator job (EE only) that moves each
 organization's remaining starter-credits budget from the proxy into its wallet.
 
-For every key the starter-credits bridge minted (the program team's keys whose metadata
-carries the bridge origin), it blocks the key, reads the key's final spend, and grants the
-remainder (`max_budget - spend`) as a `starter_credits` wallet credit that expires after
-twelve months. Block first, then read: a key spending between the read and the block would
-otherwise be paid twice.
+It works on the keys the starter-credits bridge minted: the program team's keys whose
+metadata carries the bridge origin. It runs in two stages, because blocking a key stops
+new requests but not the ones already running, and the proxy writes their spend later:
+
+1. `--block` blocks every bridge key.
+2. Wait for running requests and the proxy's spend writes to finish (10 minutes is ample).
+3. `--apply` reads each blocked key's final spend and grants the remainder
+   (`max_budget - spend`) as a `starter_credits` wallet credit that expires after twelve
+   months. A key that is not blocked yet is counted and left alone.
 
 Run it against the deployment's own database and proxy, once the wallet funds the models:
 
     cd api
     AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet
+    AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet --block
     AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet --apply
 
-Without --apply it only reads and counts. The grant is idempotent per organization and the
-block is idempotent on the proxy, so a rerun finishes what a failed run left and never
-grants twice. A key whose organization no longer exists is blocked and granted nothing.
+Without a flag it only reads and counts. Both stages are idempotent (a blocked key stays
+blocked, and the grant is once per organization), so a rerun finishes what a failed run left
+and never grants twice. A key whose organization no longer exists is granted nothing.
 Reads AGENTA_STARTER_CREDITS_BRIDGE_PROXY_ADMIN_URL, _MASTER_KEY and _TEAM_ID.
 """
 
@@ -42,6 +47,10 @@ log = get_module_logger(__name__)
 
 PAGE_SIZE = 100
 
+DRY_RUN = "dry-run"
+BLOCK = "block"
+APPLY = "apply"
+
 _MUSD_PER_USD = Decimal(1_000_000)
 
 _ORGANIZATION_EXISTS = text(
@@ -54,23 +63,25 @@ class MigrationCounts:
     keys: int = 0
     skipped: int = 0
     no_organization: int = 0
+    not_blocked: int = 0
+    blocked: int = 0
     zero_remaining: int = 0
     granted: int = 0
     granted_musd: int = 0
     remaining_musd: int = 0
-    blocked: int = 0
     failed: int = 0
 
 
 def remaining_musd(info: dict[str, Any]) -> int:
-    """`max_budget - spend` in musd, rounded down, never negative."""
+    """`max_budget - spend` in musd, rounded down, never negative. Raises on a missing or
+    non-numeric value: a guess would grant the whole budget or nothing."""
     try:
-        max_budget = Decimal(str(info.get("max_budget")))
-        spend = Decimal(str(info.get("spend") or 0))
-    except InvalidOperation:
-        return 0
+        max_budget = Decimal(str(info["max_budget"]))
+        spend = Decimal(str(info["spend"]))
+    except (KeyError, InvalidOperation) as exc:
+        raise ValueError("key info carries no numeric max_budget and spend") from exc
     if not max_budget.is_finite() or not spend.is_finite():
-        return 0
+        raise ValueError("key info carries a non-finite max_budget or spend")
     return max(0, int((max_budget - spend) * _MUSD_PER_USD))
 
 
@@ -93,7 +104,7 @@ async def _organization_exists(engine, organization_id: UUID) -> bool:
 async def _migrate_key(
     *,
     key: dict[str, Any],
-    apply: bool,
+    stage: str,
     client: StarterCreditsProxyClient,
     service: WalletsService,
     engine,
@@ -109,20 +120,22 @@ async def _migrate_key(
         )
         return
 
-    exists = await _organization_exists(engine, organization_id)
-    if not exists:
-        counts.no_organization += 1
+    if stage == BLOCK:
+        if not key.get("blocked"):
+            await client.block_key(key=token)
+            counts.blocked += 1
+        return
 
-    if not apply:
-        if exists:
-            counts.remaining_musd += remaining_musd(key)
+    if not await _organization_exists(engine, organization_id):
+        counts.no_organization += 1
+        return
+
+    if stage == DRY_RUN:
+        counts.remaining_musd += remaining_musd(key)
         return
 
     if not key.get("blocked"):
-        await client.block_key(key=token)
-        counts.blocked += 1
-
-    if not exists:
+        counts.not_blocked += 1
         return
 
     amount_musd = remaining_musd(await client.get_key_info(key=token))
@@ -141,7 +154,7 @@ async def _migrate_key(
 
 async def migrate_starter_credits(
     *,
-    apply: bool,
+    stage: str,
     client: StarterCreditsProxyClient,
     team_id: str,
     page_size: int = PAGE_SIZE,
@@ -165,7 +178,7 @@ async def migrate_starter_credits(
             try:
                 await _migrate_key(
                     key=key,
-                    apply=apply,
+                    stage=stage,
                     client=client,
                     service=service,
                     engine=engine,
@@ -180,7 +193,7 @@ async def migrate_starter_credits(
                     exc_info=True,
                 )
 
-        log.info("[starter_credits_migration] page done", apply=apply, **vars(counts))
+        log.info("[starter_credits_migration] page done", stage=stage, **vars(counts))
 
         # Blocking keeps a key in the list, so pages stay stable across the run.
         if len(keys) < page_size:
@@ -192,11 +205,22 @@ async def migrate_starter_credits(
 
 def _parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument(
-        "--apply",
-        action="store_true",
-        help="Block the keys and grant the credit. Without it the job only counts.",
+    stage = parser.add_mutually_exclusive_group()
+    stage.add_argument(
+        "--block",
+        dest="stage",
+        action="store_const",
+        const=BLOCK,
+        help="Stage 1: block every starter-credits key.",
     )
+    stage.add_argument(
+        "--apply",
+        dest="stage",
+        action="store_const",
+        const=APPLY,
+        help="Stage 2, after the drain: grant each blocked key's remaining budget.",
+    )
+    parser.set_defaults(stage=DRY_RUN)
     parser.add_argument("--page-size", type=int, default=PAGE_SIZE)
     return parser.parse_args(argv)
 
@@ -214,7 +238,7 @@ def main(argv=None) -> int:
 
     counts = asyncio.run(
         migrate_starter_credits(
-            apply=args.apply,
+            stage=args.stage,
             client=StarterCreditsProxyClient(
                 base_url=config.proxy_admin_url,
                 master_key=config.master_key,
@@ -223,9 +247,8 @@ def main(argv=None) -> int:
             page_size=args.page_size,
         )
     )
-    mode = "apply" if args.apply else "dry-run"
     print(
-        f"starter credits migration ({mode}): "
+        f"starter credits migration ({args.stage}): "
         + " ".join(f"{name}={value}" for name, value in vars(counts).items())
     )
     return 1 if counts.failed else 0

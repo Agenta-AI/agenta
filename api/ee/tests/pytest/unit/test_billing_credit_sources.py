@@ -40,20 +40,22 @@ def _ts(value):
     return datetime.fromtimestamp(value, tz=timezone.utc)
 
 
-def _install_event(monkeypatch, event_type, data_object):
+def _install_event(monkeypatch, event_type, data_object, *, signed=True):
+    event = SimpleNamespace(type=event_type, data=SimpleNamespace(object=data_object))
     monkeypatch.setattr(billing_router_module.env.stripe, "api_key", "sk_test_123")
-    monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", None)
+    monkeypatch.setattr(
+        billing_router_module.env.stripe,
+        "webhook_secret",
+        "whsec_test" if signed else None,
+    )
     monkeypatch.setattr(
         billing_router_module,
         "_load_stripe",
         lambda: SimpleNamespace(
             api_key="sk_test_123",
-            Event=SimpleNamespace(
-                construct_from=lambda payload, api_key: SimpleNamespace(
-                    type=event_type,
-                    data=SimpleNamespace(object=data_object),
-                ),
-            ),
+            Event=SimpleNamespace(construct_from=lambda payload, api_key: event),
+            Webhook=SimpleNamespace(construct_event=lambda payload, sig, secret: event),
+            error=SimpleNamespace(SignatureVerificationError=ValueError),
         ),
     )
 
@@ -70,8 +72,23 @@ def _router(subscription_service=None, wallets_service=None):
     )
 
 
-def _line(start, end):
-    return {"period": {"start": start, "end": end}}
+def _line(start, end, *, type="subscription", proration=False):
+    return {
+        "type": type,
+        "proration": proration,
+        "period": {"start": start, "end": end},
+    }
+
+
+def _new_shape_line(start, end, *, proration=False):
+    """A line as webhooks from API version 2025-03-31 on carry it."""
+    return {
+        "parent": {
+            "type": "subscription_item_details",
+            "subscription_item_details": {"proration": proration},
+        },
+        "period": {"start": start, "end": end},
+    }
 
 
 def _invoice(*, billing_reason, total=2900, lines=None, plan=PRO):
@@ -113,8 +130,7 @@ async def test_renewal_invoice_grants_the_period_it_opens(monkeypatch):
     assert response.status_code == 200
     router.subscription_service.grant_period_credits.assert_awaited_once_with(
         organization_id=ORGANIZATION_ID,
-        first_period=False,
-        invoice_plan=PRO,
+        plan=PRO,
         period_start=_ts(OCT_1),
         period_end=_ts(NOV_1),
     )
@@ -126,19 +142,97 @@ async def test_renewal_invoice_grants_the_period_it_opens(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_first_invoice_grants_with_the_invoice_plan(monkeypatch):
+async def test_a_renewal_grants_the_plan_the_invoice_names(monkeypatch):
+    # Paid as Business; delivered after a later switch to Pro. The invoice snapshots the
+    # subscription metadata, which a switch rewrites, so it still names Business.
     router = _router()
     _install_event(
         monkeypatch,
         "invoice.payment_succeeded",
-        _invoice(billing_reason="subscription_create"),
+        _invoice(billing_reason="subscription_cycle", plan=BUSINESS),
     )
 
     await router.handle_events(DummyRequest())
 
     kwargs = router.subscription_service.grant_period_credits.await_args.kwargs
-    assert kwargs["first_period"] is True
-    assert kwargs["invoice_plan"] == PRO
+    assert kwargs["plan"] == BUSINESS
+
+
+@pytest.mark.asyncio
+async def test_the_period_comes_from_a_recurring_plan_line_only(monkeypatch):
+    router = _router()
+    late = OCT_1 + 86_400
+    _install_event(
+        monkeypatch,
+        "invoice.payment_succeeded",
+        _invoice(
+            billing_reason="subscription_cycle",
+            lines=[
+                _line(OCT_1, NOV_1),
+                # A proration and a one-off item added later must not win.
+                _line(late, NOV_1, proration=True),
+                _line(late, late, type="invoiceitem"),
+            ],
+        ),
+    )
+
+    await router.handle_events(DummyRequest())
+
+    kwargs = router.subscription_service.grant_period_credits.await_args.kwargs
+    assert (kwargs["period_start"], kwargs["period_end"]) == (_ts(OCT_1), _ts(NOV_1))
+
+
+@pytest.mark.asyncio
+async def test_the_period_reads_the_new_webhook_line_shape(monkeypatch):
+    router = _router()
+    _install_event(
+        monkeypatch,
+        "invoice.payment_succeeded",
+        _invoice(
+            billing_reason="subscription_cycle",
+            lines=[
+                _new_shape_line(SEP_1, OCT_1),
+                _new_shape_line(OCT_1, NOV_1),
+                _new_shape_line(OCT_1 + 60, NOV_1, proration=True),
+            ],
+        ),
+    )
+
+    await router.handle_events(DummyRequest())
+
+    kwargs = router.subscription_service.grant_period_credits.await_args.kwargs
+    assert kwargs["period_start"] == _ts(OCT_1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "invoice,signed",
+    [
+        (_invoice(billing_reason="subscription_cycle", lines=[]), True),
+        (
+            _invoice(
+                billing_reason="subscription_cycle",
+                lines=[_line(OCT_1, OCT_1)],
+            ),
+            True,
+        ),
+        (_invoice(billing_reason="subscription_cycle", plan="no_such_plan"), True),
+        (_invoice(billing_reason="subscription_cycle", plan=None), True),
+        (_invoice(billing_reason="subscription_cycle"), False),
+    ],
+    ids=["no-lines", "empty-period", "unknown-plan", "no-plan", "unsigned"],
+)
+async def test_a_paid_period_that_cannot_be_resolved_fails_the_webhook(
+    monkeypatch, invoice, signed
+):
+    router = _router()
+    _install_event(monkeypatch, "invoice.payment_succeeded", invoice, signed=signed)
+
+    with pytest.raises(HTTPException) as error:
+        await router.handle_events(DummyRequest())
+
+    assert error.value.status_code == 500
+    router.subscription_service.grant_period_credits.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -189,35 +283,26 @@ async def test_a_failed_grant_fails_the_webhook_so_stripe_redelivers(monkeypatch
 # ---------------------------------------------------------------------------
 
 
-def _subscriptions_service(local_plan):
+def _subscriptions_service():
     wallets_service = SimpleNamespace(
         grant_period_allowance=AsyncMock(return_value=None)
     )
-    dao = SimpleNamespace(
-        read=AsyncMock(
-            return_value=SimpleNamespace(plan=local_plan) if local_plan else None
-        )
-    )
     return (
-        SubscriptionsService(subscriptions_dao=dao, wallets_service=wallets_service),
+        SubscriptionsService(
+            subscriptions_dao=SimpleNamespace(), wallets_service=wallets_service
+        ),
         wallets_service,
     )
 
 
-@pytest.fixture
-def wallets_enabled(monkeypatch):
-    monkeypatch.setattr(subscriptions_service_module.env.wallets, "enabled", True)
-
-
 @pytest.mark.asyncio
-async def test_first_period_takes_the_invoice_plan_over_the_local_one(wallets_enabled):
-    # The invoice outran the subscription-created event: the local row is still free.
-    service, wallets = _subscriptions_service(HOBBY)
+async def test_period_credits_go_to_the_wallet(monkeypatch):
+    monkeypatch.setattr(subscriptions_service_module.env.wallets, "enabled", True)
+    service, wallets = _subscriptions_service()
 
     await service.grant_period_credits(
         organization_id=ORGANIZATION_ID,
-        first_period=True,
-        invoice_plan=PRO,
+        plan=PRO,
         period_start=_ts(OCT_1),
         period_end=_ts(NOV_1),
     )
@@ -231,30 +316,13 @@ async def test_first_period_takes_the_invoice_plan_over_the_local_one(wallets_en
 
 
 @pytest.mark.asyncio
-async def test_renewal_takes_the_local_plan(wallets_enabled):
-    # Switched Pro -> Business; the Stripe metadata still says Pro.
-    service, wallets = _subscriptions_service(BUSINESS)
-
-    await service.grant_period_credits(
-        organization_id=ORGANIZATION_ID,
-        first_period=False,
-        invoice_plan=PRO,
-        period_start=_ts(OCT_1),
-        period_end=_ts(NOV_1),
-    )
-
-    assert wallets.grant_period_allowance.await_args.kwargs["plan"] == BUSINESS
-
-
-@pytest.mark.asyncio
 async def test_no_period_credits_while_the_wallet_is_off(monkeypatch):
     monkeypatch.setattr(subscriptions_service_module.env.wallets, "enabled", False)
-    service, wallets = _subscriptions_service(PRO)
+    service, wallets = _subscriptions_service()
 
     await service.grant_period_credits(
         organization_id=ORGANIZATION_ID,
-        first_period=False,
-        invoice_plan=PRO,
+        plan=PRO,
         period_start=_ts(OCT_1),
         period_end=_ts(NOV_1),
     )
@@ -334,6 +402,18 @@ async def test_sessions_that_are_not_a_paid_top_up_grant_nothing(
 
 
 @pytest.mark.asyncio
+async def test_an_unsigned_top_up_event_grants_nothing(monkeypatch):
+    wallets = SimpleNamespace(grant_purchase=AsyncMock())
+    router = _router(wallets_service=wallets)
+    _install_event(monkeypatch, "checkout.session.completed", _session(), signed=False)
+
+    response = await router.handle_events(DummyRequest())
+
+    assert response.status_code == 400
+    wallets.grant_purchase.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "overrides",
     [
@@ -381,6 +461,7 @@ def _subscription(plan, subscription_id="sub_123", customer_id="cus_123"):
 @pytest.fixture
 def top_up_ready(monkeypatch):
     monkeypatch.setattr(billing_router_module.env.wallets, "enabled", True)
+    monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", "whsec_x")
     monkeypatch.setattr(billing_router_module, "get_free_plan", lambda: HOBBY)
     stripe = _stripe_for_checkout()
     monkeypatch.setattr(billing_router_module, "_load_stripe", lambda: stripe)
@@ -474,3 +555,21 @@ async def test_top_up_checkout_is_absent_while_the_wallet_is_off(
         )
 
     assert error.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_top_up_checkout_is_absent_without_a_webhook_secret(
+    top_up_ready, monkeypatch
+):
+    monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", None)
+    router = _router(subscription_service=SimpleNamespace(read=AsyncMock()))
+
+    with pytest.raises(HTTPException) as error:
+        await router.create_top_up_checkout(
+            organization_id=ORGANIZATION_ID,
+            pack="credits_1000",
+            success_url="https://app.example/billing",
+        )
+
+    assert error.value.status_code == 404
+    top_up_ready.checkout.Session.create.assert_not_called()
