@@ -1,11 +1,11 @@
 import asyncio
 from bisect import bisect_left, bisect_right
 from contextlib import asynccontextmanager
-from collections import deque
 from posixpath import basename
 from re import sub
 from typing import (
     AsyncIterator,
+    Callable,
     TYPE_CHECKING,
     List,
     Literal,
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.core.mounts.dtos import (
+    AppShare,
     MountArchiveSource,
     Mount,
     MountCreate,
@@ -38,7 +39,7 @@ from oss.src.core.mounts.dtos import (
 )
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.dtos import StoreObject
-from oss.src.core.store.storage import ObjectStore
+from oss.src.core.store.storage import ObjectStore, read_in_order
 from oss.src.core.store.types import StorePreconditionFailed
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_NAME,
@@ -466,9 +467,98 @@ class MountsService:
         )
         return f"{base}/{path.lstrip('/')}" if path else f"{base}/"
 
+    def share_storage_key(
+        self, *, project_id: UUID, mount_id: UUID, path: str = ""
+    ) -> str:
+        """Key under a drive's share prefix: [<namespace>/]shares/<project_id>/<mount_id>/<path>.
+
+        Beside the drive prefix, never under it, so drive listings and sandbox credentials
+        cannot reach a snapshot.
+        """
+        ns = (self.namespace or "").strip("/")
+        base = (
+            f"{ns}/shares/{project_id}/{mount_id}"
+            if ns
+            else f"shares/{project_id}/{mount_id}"
+        )
+        return f"{base}/{path.lstrip('/')}" if path else f"{base}/"
+
     def _stored_prefixes(self, *, project_id: UUID, mount: Mount) -> List[str]:
         """Every object prefix a mount owns. Deleting its session removes all of them."""
-        return [self._storage_key(project_id=project_id, mount=mount)]
+        return [
+            self._storage_key(project_id=project_id, mount=mount),
+            self.share_storage_key(project_id=project_id, mount_id=mount.id),
+        ]
+
+    async def update_app_share(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        mutate: Callable[[Mount, Optional[AppShare]], Optional[AppShare]],
+    ) -> Optional[AppShare]:
+        return await self.mounts_dao.update_app_share(
+            project_id=project_id,
+            mount_id=mount_id,
+            path=path,
+            mutate=mutate,
+        )
+
+    async def read_files_bytes(
+        self, *, project_id: UUID, mount_id: UUID, paths: List[str]
+    ) -> dict[str, bytes]:
+        """Raw bytes of several files of one mount: one mount lookup, bounded parallel reads."""
+        for path in paths:
+            validate_file_path(path)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="read"
+        )
+        bucket = self._bucket()
+        gate = asyncio.Semaphore(_ARCHIVE_READ_CONCURRENCY)
+
+        async def read(path: str) -> Tuple[str, bytes]:
+            key = self._storage_key(project_id=project_id, mount=mount, path=path)
+            async with gate:
+                return path, await self.mounts_store.get_object(bucket=bucket, key=key)
+
+        return dict(await asyncio.gather(*(read(path) for path in paths)))
+
+    async def fetch_mount_for_share(
+        self, *, project_id: UUID, mount_id: UUID
+    ) -> Optional[Mount]:
+        """The drive behind a share, archived rows included: an archived one pauses the share."""
+        mount = await self.mounts_dao.fetch_mount(
+            project_id=project_id, mount_id=mount_id
+        )
+        if mount is None or is_protected_mount(mount):
+            return None
+        return mount
+
+    def share_drive_kind(self, mount: Mount) -> Optional[Literal["session", "agent"]]:
+        """Which drive an app can be shared from: a session's working drive or an agent's own."""
+        if _is_session_cwd_mount(mount):
+            return "session"
+        if mount.agent_id and not mount.session_id and not is_protected_mount(mount):
+            return "agent"
+        return None
+
+    async def is_drive_archived(self, *, project_id: UUID, mount: Mount) -> bool:
+        """A session drive is archived with its row; an agent drive with its agent."""
+        if mount.deleted_at is not None:
+            return True
+        if not mount.agent_id or mount.session_id or self.workflows_service is None:
+            return False
+        agent_id = UUID(mount.agent_id)
+        static_catalog = self.workflows_service.static_catalog
+        if static_catalog is not None and static_catalog.is_static_id(agent_id):
+            return False
+        workflow = await self.workflows_service.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=agent_id),
+            include_archived=True,
+        )
+        return workflow is None or workflow.deleted_at is not None
 
     async def create_mount(
         self,
@@ -1002,10 +1092,27 @@ class MountsService:
                         bucket=self.bucket,
                         prefix=prefix,
                     )
-        await self.mounts_dao.delete_by_session_id(
+        # By id: a mount bound after the fetch keeps its row, since its objects were not removed.
+        await self.mounts_dao.delete_mounts(
             project_id=project_id,
-            session_id=session_id,
+            mount_ids=[mount.id for mount in mounts],
         )
+        # A publish that swapped its snapshot in before the rows went wrote after the first pass.
+        if self.mounts_store is not None and self.bucket:
+            for mount in mounts:
+                try:
+                    await self.mounts_store.delete_prefix(
+                        bucket=self.bucket,
+                        prefix=self.share_storage_key(
+                            project_id=project_id, mount_id=mount.id
+                        ),
+                    )
+                except Exception:  # noqa: BLE001 - the rows are gone; nothing can retry this
+                    log.warning(
+                        "session delete: shares of mount %s were not removed",
+                        mount.id,
+                        exc_info=True,
+                    )
         return mounts
 
     async def archive_session_mounts(
@@ -1192,6 +1299,7 @@ class MountsService:
         base_prefix: str,
         mount_base: str,
         cap: Optional[int] = None,
+        inherited_specs: Optional[List[Tuple[str, "pathspec.PathSpec"]]] = None,
     ) -> Tuple[List[StoreObject], List[Tuple[str, "pathspec.PathSpec"]], bool]:
         """Enumerate a mount's FILES by descending the tree LEVEL BY LEVEL, skipping every directory
         the curated view discards — `.git`, gitignored, runner-internal (`agents/`) and hidden
@@ -1208,13 +1316,16 @@ class MountsService:
         the caller will actually count, so a drive only reports "N+" when it genuinely holds that
         many VISIBLE files.
 
+        `inherited_specs` are the `.gitignore` rules of the folders above `base_prefix`, which the
+        walk itself never lists.
+
         Returns (kept StoreObjects, specs, truncated). `truncated` is True when the `cap` stopped the
         walk early (the real count is higher). The caller still applies FILE-level gitignore for
         ignored FILES inside kept directories (this only prunes whole directories).
         """
         bucket = self._bucket()
         semaphore = asyncio.Semaphore(_LIST_CONCURRENCY)
-        specs: List[Tuple[str, "pathspec.PathSpec"]] = []
+        specs: List[Tuple[str, "pathspec.PathSpec"]] = list(inherited_specs or [])
         kept: List[StoreObject] = []
 
         async def _shallow(prefix: str):
@@ -1476,8 +1587,25 @@ class MountsService:
             if git_aware:
                 # Descend pruning ignored/plumbing DIRECTORIES at the store level (never enumerate a
                 # `node_modules` dump) rather than scanning the whole object set.
+                # git applies every ancestor's `.gitignore`, and the walk starts at `path`.
+                above = list_prefix[len(mount_base) :].rstrip("/").split("/")[:-1]
+                inherited = (
+                    await self._read_gitignore_specs(
+                        [
+                            (d, f"{mount_base}{d + '/' if d else ''}.gitignore")
+                            for d in [""]
+                            + ["/".join(above[: i + 1]) for i in range(len(above))]
+                        ],
+                        [],
+                    )
+                    if path
+                    else []
+                )
                 store_files, specs, truncated = await self._list_pruned_files(
-                    base_prefix=list_prefix, mount_base=mount_base, cap=cap
+                    base_prefix=list_prefix,
+                    mount_base=mount_base,
+                    cap=cap,
+                    inherited_specs=inherited,
                 )
             elif cap is not None:
                 # RAW count-only: page until MORE than `cap` real files are known to exist (the UI
@@ -1724,31 +1852,15 @@ class MountsService:
         """Yield ``(zip_path, size, mtime, raw_bytes)`` with bounded ordered prefetch."""
         bucket = self._bucket()
 
-        # Ordered bounded-concurrency prefetch: keep ~`concurrency` reads in flight, yield in order.
-        inflight: deque = deque()
-        cursor = 0
-
-        def schedule() -> None:
-            nonlocal cursor
-            while len(inflight) < max(1, concurrency) and cursor < len(work):
-                zip_path, key, size, mtime = work[cursor]
-                task = asyncio.create_task(
-                    self.mounts_store.get_object(bucket=bucket, key=key)
-                )
-                inflight.append((zip_path, size, mtime, task))
-                cursor += 1
-
-        try:
-            schedule()
-            while inflight:
-                zip_path, size, mtime, task = inflight.popleft()
-                body = await task
-                yield zip_path, size, mtime, body
-                schedule()
-        finally:
-            # Client disconnect / early close: cancel reads still in flight so they don't orphan.
-            for _zip_path, _size, _mtime, task in inflight:
-                task.cancel()
+        async for (zip_path, size, mtime), body in read_in_order(
+            self.mounts_store,
+            bucket=bucket,
+            items=(
+                ((zip_path, size, mtime), key) for zip_path, key, size, mtime in work
+            ),
+            window=concurrency,
+        ):
+            yield zip_path, size, mtime, body
 
     async def read_file(
         self,

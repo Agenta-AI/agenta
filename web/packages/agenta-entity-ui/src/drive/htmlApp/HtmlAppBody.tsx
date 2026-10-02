@@ -9,19 +9,16 @@
  * token resolver, the grant store — arrives through {@link HtmlAppEnvContext}, with defaults that
  * are the real drive: mount io, `createHtmlAppHost`, `BRIDGE_STUB` and `KIT_CSS`.
  */
-import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     createHtmlAppHost,
     exceedsGrant,
-    fetchMountFileBlob,
     getGrant,
     resolveDriveLink,
     setGrant as storeGrant,
     type GrantLevel,
-    type GrantRecord,
     type HtmlAppHost,
-    type HtmlAppHostOptions,
 } from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {agentAppsEnabledAtom, projectIdAtom} from "@agenta/shared/state"
@@ -30,14 +27,18 @@ import {useAtomValue} from "jotai"
 
 import {DriveCodeBlock} from "../driveMarkdown"
 
-import {assemblePreview, blobToDataUri, dirOf, type AssembleIo} from "./assemble"
+import {assemblePreview, dirOf} from "./assemble"
 import {GrantSheet} from "./GrantSheet"
+import {HtmlAppEnvContext, type GrantStore} from "./htmlAppEnv"
 import {KIT_CSS} from "./kit"
+import {useMountAssembleIo} from "./mountIo"
 import {RunView, resolveHostKitTokens} from "./RunView"
+import {isShareableMount, ShareAppButton} from "./ShareAppPopover"
 import {useAppManifest} from "./useAppManifest"
 import {useChangedHint} from "./useChangedHint"
 
 export {dirOf}
+export {createGrantStore, HtmlAppEnvContext, type GrantStore, type HtmlAppEnv} from "./htmlAppEnv"
 
 /** The feature flag: Settings › Preferences writes it, the viewer reads the same atom. */
 export {agentAppsEnabledAtom}
@@ -46,59 +47,8 @@ export {agentAppsEnabledAtom}
 // Environment (what a host or a story injects)
 // ---------------------------------------------------------------------------------------------
 
-export interface GrantStore {
-    get: (mountId: string, dir: string) => GrantRecord | null
-    set: (mountId: string, dir: string, level: GrantLevel, asked?: GrantLevel) => void
-}
-
-const grantKey = (mountId: string, dir: string) => `${mountId}::${dir}`
-
-/** An isolated in-memory store (stories, tests). */
-export const createGrantStore = (): GrantStore => {
-    const grants = new Map<string, GrantRecord>()
-    return {
-        get: (mountId, dir) => grants.get(grantKey(mountId, dir)) ?? null,
-        set: (mountId, dir, level, asked = level) => {
-            grants.set(grantKey(mountId, dir), {level, asked})
-        },
-    }
-}
-
 /** Tab-lived grants (sessionStorage): a reload keeps the answer, a new browser session asks. */
 const defaultGrants: GrantStore = {get: getGrant, set: storeGrant}
-
-export interface HtmlAppEnv {
-    /** Override the flag (stories); default reads {@link agentAppsEnabledAtom}. */
-    enabled?: boolean
-    /** Bridge host factory; default `createHtmlAppHost` (stories inject the mock). */
-    createHost?: (opts: HtmlAppHostOptions) => HtmlAppHost
-    /** Mount io override (stories serve the mock's files); default: the real mount. */
-    io?: AssembleIo | null
-    /** Whether "Read and write files" is offered; default: the drive's upload gate. */
-    canEditMounts?: boolean
-    /** Kit stylesheet; default `KIT_CSS`. */
-    kitCss?: string
-    /** Bridge stub source; default `BRIDGE_STUB`. */
-    bridgeStub?: string
-    resolveTokens?: () => Record<string, string>
-    grants?: GrantStore
-}
-
-export const HtmlAppEnvContext = createContext<HtmlAppEnv>({})
-
-/** Mount-backed {@link AssembleIo}; null without a mount (a local composer attachment). */
-export const useMountAssembleIo = (mountId: string | null, projectId: string | null) =>
-    useMemo<AssembleIo | null>(() => {
-        if (!mountId || !projectId) return null
-        return {
-            fetchText: async (path) => {
-                const blob = await fetchMountFileBlob({mountId, projectId, path})
-                return blob ? blob.text() : null
-            },
-            fetchDataUri: async (path) =>
-                blobToDataUri(await fetchMountFileBlob({mountId, projectId, path})),
-        }
-    }, [mountId, projectId])
 
 /** A stable id per host instance, for keying the view that attaches it. */
 const hostKeys = new WeakMap<HtmlAppHost, number>()
@@ -341,13 +291,21 @@ export function HtmlAppBody({
     return (
         <>
             {previewOnly || controlledView ? null : (
-                <div className="flex shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary p-1.5">
+                <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary p-1.5">
                     <Segmented
                         size="sm"
                         value={view}
                         onChange={(next) => pickView(next as HtmlAppView)}
                         options={options}
                     />
+                    <span className="flex-1" />
+                    {runnable ? (
+                        <ShareAppButton
+                            mountId={isShareableMount(mount) ? mount.id : null}
+                            dir={dir}
+                            canEdit={canEditMounts}
+                        />
+                    ) : null}
                 </div>
             )}
 

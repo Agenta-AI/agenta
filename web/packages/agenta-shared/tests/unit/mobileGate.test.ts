@@ -637,3 +637,11 @@ describe("cookie policy", () => {
         expect(GATE_COOKIE_MAX_AGE).toBe(60 * 60 * 24 * 180)
     })
 })
+
+describe("decideMobileGate for a shared app", () => {
+    it("keeps a classic-mode user on the share link", () => {
+        const i = input({pathname: "/share/tok", headers: docHeaders(DESKTOP_UA)})
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
+        expect(decideMobileGate(i)).toEqual({kind: "pass"})
+    })
+})

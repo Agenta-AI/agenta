@@ -67,6 +67,61 @@ export function peekTemplateKey(now = Date.now()): string {
     }
 }
 
+const RETURN_PATH_KEY = "agenta:mobile:return-path"
+
+/**
+ * Keep where a signed-out visit was going, so sign-in in this tab returns there. Tab storage, so
+ * a later sign-in in another tab (or by another person) never inherits it. Only a path inside
+ * this app is kept: never another origin (`//x`, a scheme) and never the sign-in page.
+ */
+export function rememberReturnPath(path: string, now = Date.now()): void {
+    if (!path.startsWith("/") || path.startsWith("//") || /^\/auth(\/|\?|$)/.test(path)) return
+    if (path === "/") return
+    try {
+        sessionStorage.setItem(RETURN_PATH_KEY, JSON.stringify({path, capturedAt: now}))
+    } catch {
+        // storage unavailable — sign-in lands on the root as before
+    }
+}
+
+// Set while a successful sign-in hands over to the page that asked for it, so the session gate
+// does not race it with its own redirect from `/auth`.
+let completingSignIn = false
+
+/** Run the post-sign-in navigation as the only one: the gate stands down while it runs. */
+export async function completeSignIn(navigate: () => Promise<unknown>): Promise<void> {
+    completingSignIn = true
+    try {
+        await navigate()
+    } finally {
+        completingSignIn = false
+    }
+}
+
+export const isCompletingSignIn = (): boolean => completingSignIn
+
+/** The kept path, used once: reading it forgets it. "" when none is kept or it expired. */
+export function takeReturnPath(now = Date.now()): string {
+    try {
+        const raw = sessionStorage.getItem(RETURN_PATH_KEY)
+        sessionStorage.removeItem(RETURN_PATH_KEY)
+        const parsed = raw ? (JSON.parse(raw) as {path?: unknown; capturedAt?: unknown}) : null
+        if (
+            parsed &&
+            typeof parsed.path === "string" &&
+            typeof parsed.capturedAt === "number" &&
+            now - parsed.capturedAt <= PENDING_TEMPLATE_TTL_MS &&
+            parsed.path.startsWith("/") &&
+            !parsed.path.startsWith("//")
+        ) {
+            return parsed.path
+        }
+        return ""
+    } catch {
+        return ""
+    }
+}
+
 /** Forget the remembered template key; the template screen calls this once it has arrived. */
 export function forgetTemplateKey(): void {
     try {

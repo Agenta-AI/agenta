@@ -101,6 +101,10 @@ export interface RunViewProps {
     onNavigate?: (path: string) => void
     /** Maps a mount-relative path to the presented one for `onNavigate` (default: identity). */
     toDisplayPath?: (path: string) => string
+    /** The policy the app runs under; default `RUN_CSP`. A shared app passes `SHARE_CSP`. */
+    csp?: string
+    /** The status strip (grant, folder, Refresh). A shared app shows its own header instead. */
+    statusBar?: boolean
     className?: string
 }
 
@@ -128,6 +132,8 @@ export function RunView({
     onReload,
     onNavigate,
     toDisplayPath = (p) => p,
+    csp,
+    statusBar = true,
     className,
 }: RunViewProps) {
     const frameRef = useRef<HTMLIFrameElement>(null)
@@ -175,6 +181,8 @@ export function RunView({
                 kitCss,
                 bridgeStub,
                 title,
+                page: currentPath,
+                csp,
             })
             if (!alive) return
             result.errors.forEach(pushError)
@@ -194,11 +202,12 @@ export function RunView({
         kitCss,
         bridgeStub,
         title,
+        csp,
         frameKey,
         pushError,
     ])
 
-    const frameDoc = useMemo(() => (doc == null ? null : buildRunFrame(doc)), [doc])
+    const frameDoc = useMemo(() => (doc == null ? null : buildRunFrame(doc, {csp})), [doc, csp])
 
     const stopApp = useCallback(() => {
         host.detach()
@@ -287,93 +296,95 @@ export function RunView({
 
     return (
         <div className={cn("flex min-h-0 flex-1 flex-col text-xs", className)}>
-            <div
-                data-slot="run-status"
-                className="flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1 text-colorTextSecondary"
-            >
-                <span
-                    aria-hidden
-                    className={cn(
-                        "size-2 shrink-0 rounded-full",
-                        doc == null
-                            ? "bg-colorTextQuaternary"
-                            : stopped
-                              ? "bg-colorError"
-                              : "bg-colorSuccess",
-                    )}
-                />
-                <span className="truncate">
-                    <span className="text-colorText">
-                        {doc == null ? "Starting" : stopped ? "Stopped" : "Running"}
+            {statusBar ? (
+                <div
+                    data-slot="run-status"
+                    className="flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1 text-colorTextSecondary"
+                >
+                    <span
+                        aria-hidden
+                        className={cn(
+                            "size-2 shrink-0 rounded-full",
+                            doc == null
+                                ? "bg-colorTextQuaternary"
+                                : stopped
+                                  ? "bg-colorError"
+                                  : "bg-colorSuccess",
+                        )}
+                    />
+                    <span className="truncate">
+                        <span className="text-colorText">
+                            {doc == null ? "Starting" : stopped ? "Stopped" : "Running"}
+                        </span>
+                        {" · "}
+                        {GRANT_LABEL[grant]}
+                        {" · "}
+                        <code className="text-[11px]">{dir || "/"}</code>
+                        {pageLabel ? (
+                            <span className="text-colorTextTertiary"> · {pageLabel}</span>
+                        ) : null}
                     </span>
-                    {" · "}
-                    {GRANT_LABEL[grant]}
-                    {" · "}
-                    <code className="text-[11px]">{dir || "/"}</code>
-                    {pageLabel ? (
-                        <span className="text-colorTextTertiary"> · {pageLabel}</span>
-                    ) : null}
-                </span>
 
-                <span className="ml-auto flex items-center gap-1">
-                    {backStack.length > 0 ? (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={goBack}
-                            aria-label="Back to the previous page"
-                            className="h-6 gap-0.5 px-1.5 text-xs"
-                        >
-                            <CaretLeft weight="bold" className="size-3" />
-                            back
-                        </Button>
-                    ) : null}
-
-                    {changedPaths.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={reload}
-                            title={changedPaths.join("\n")}
-                            className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
-                        >
-                            Files changed · Reload
-                        </button>
-                    ) : null}
-
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                    <span className="ml-auto flex items-center gap-1">
+                        {backStack.length > 0 ? (
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                aria-label="Refresh"
-                                className="h-6 gap-1 px-1.5 text-xs"
+                                onClick={goBack}
+                                aria-label="Back to the previous page"
+                                className="h-6 gap-0.5 px-1.5 text-xs"
                             >
-                                <ArrowsClockwise className="size-3" />
-                                Refresh
-                                <CaretDown weight="bold" className="size-2.5 opacity-70" />
+                                <CaretLeft weight="bold" className="size-3" />
+                                back
                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[160px]">
-                            <DropdownMenuItem onSelect={reload}>Reload files</DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                        ) : null}
 
-                    {errors.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={() => setErrorsOpen((v) => !v)}
-                            aria-expanded={errorsOpen}
-                            aria-label={`${errors.length} error${errors.length === 1 ? "" : "s"}`}
-                            className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
-                        >
-                            <Warning weight="fill" className="size-3" />
-                            {errors.length}
-                        </button>
-                    ) : null}
-                </span>
-            </div>
+                        {changedPaths.length > 0 ? (
+                            <button
+                                type="button"
+                                onClick={reload}
+                                title={changedPaths.join("\n")}
+                                className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
+                            >
+                                Files changed · Reload
+                            </button>
+                        ) : null}
 
-            {errorsOpen && errors.length > 0 ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    aria-label="Refresh"
+                                    className="h-6 gap-1 px-1.5 text-xs"
+                                >
+                                    <ArrowsClockwise className="size-3" />
+                                    Refresh
+                                    <CaretDown weight="bold" className="size-2.5 opacity-70" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-[160px]">
+                                <DropdownMenuItem onSelect={reload}>Reload files</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {errors.length > 0 ? (
+                            <button
+                                type="button"
+                                onClick={() => setErrorsOpen((v) => !v)}
+                                aria-expanded={errorsOpen}
+                                aria-label={`${errors.length} error${errors.length === 1 ? "" : "s"}`}
+                                className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
+                            >
+                                <Warning weight="fill" className="size-3" />
+                                {errors.length}
+                            </button>
+                        ) : null}
+                    </span>
+                </div>
+            ) : null}
+
+            {statusBar && errorsOpen && errors.length > 0 ? (
                 <div
                     data-slot="run-errors"
                     className="flex max-h-40 shrink-0 flex-col gap-1 overflow-auto border-0 border-b border-solid border-colorBorderSecondary bg-colorErrorBg px-2 py-1.5 text-colorError"
@@ -411,9 +422,14 @@ export function RunView({
                     </div>
                 </div>
             ) : stopped ? (
-                <div data-slot="run-stopped" className="min-h-0 flex-1 p-3 text-colorTextSecondary">
-                    The app tried to load another page and was stopped. Use Refresh, then Reload
-                    files, to start it again.
+                <div
+                    data-slot="run-stopped"
+                    className="flex min-h-0 flex-1 flex-col items-start gap-2 p-3 text-colorTextSecondary"
+                >
+                    The app tried to load another page and was stopped.
+                    <Button variant="outline" size="sm" onClick={reload} className="h-7 text-xs">
+                        Restart app
+                    </Button>
                 </div>
             ) : (
                 // No allow-same-origin: the app is an opaque origin and reaches the drive only over

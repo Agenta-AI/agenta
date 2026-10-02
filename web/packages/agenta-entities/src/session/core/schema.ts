@@ -383,6 +383,7 @@ export const mountSchema = z.object({
     slug: z.string().nullish(),
     name: z.string().nullish(),
     session_id: z.string().nullish(),
+    agent_id: z.string().nullish(),
 })
 
 export const sessionMountsResponseSchema = z.object({

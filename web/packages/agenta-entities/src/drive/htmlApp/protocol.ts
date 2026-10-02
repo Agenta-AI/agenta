@@ -215,6 +215,10 @@ export const SANDBOX_FLAGS = "allow-scripts allow-forms"
 export const RUN_CSP =
     "default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; connect-src https:; form-action 'none'"
 
+/** CSP of a shared app: inline code and `data:`/`blob:` assets only, no network at all. */
+export const SHARE_CSP =
+    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'"
+
 /**
  * CSP injected into the PREVIEW document (ordinary drive HTML, not an app).
  *

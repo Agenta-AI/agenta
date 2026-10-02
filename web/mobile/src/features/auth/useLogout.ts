@@ -5,7 +5,7 @@ import {useRouter} from "next/router"
 import {resetAnalytics} from "@/features/analytics/client"
 import {clearTranscriptSnapshots} from "@/features/chat/useSessionTranscript"
 import {signOut} from "@/lib/auth"
-import {clearLastContext} from "@/lib/context"
+import {clearLastContext, takeReturnPath} from "@/lib/context"
 import {queryClient} from "@/lib/queryClient"
 
 /**
@@ -25,6 +25,9 @@ export const useLogout = () => {
             queryClient.invalidateQueries({queryKey: ["profile"]}),
             queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
         ])
-        void router.replace("/auth")
+        await router.replace("/auth")
+        // A signed-out tab keeps no destination for whoever signs in next. Cleared only once on
+        // `/auth`: the refetch above makes the session gate save the page it is leaving.
+        takeReturnPath()
     }, [router])
 }

@@ -18,6 +18,7 @@ import {MountsClient} from "@agentaai/api-client/resources/mounts"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
+import {SharedAppsClient} from "@agentaai/api-client/resources/sharedApps"
 import {SkillsClient} from "@agentaai/api-client/resources/skills"
 import {TestsetsClient} from "@agentaai/api-client/resources/testsets"
 import {ToolsClient} from "@agentaai/api-client/resources/tools"
@@ -143,6 +144,11 @@ export function getProjectsClient(): ProjectsClient {
 let _mounts: MountsClient | undefined
 export function getMountsClient(): MountsClient {
     return (_mounts ??= new MountsClient(buildClientOptions()))
+}
+
+let _sharedApps: SharedAppsClient | undefined
+export function getSharedAppsClient(): SharedAppsClient {
+    return (_sharedApps ??= new SharedAppsClient(buildClientOptions()))
 }
 
 let _mountsLowPriority: MountsClient | undefined

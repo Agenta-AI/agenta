@@ -1,12 +1,18 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Callable, List, Optional
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert
 
-from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
+from oss.src.core.mounts.dtos import (
+    AppShare,
+    Mount,
+    MountCreate,
+    MountEdit,
+    MountQuery,
+)
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_PURPOSE,
@@ -250,6 +256,49 @@ class MountsDAO(MountsDAOInterface):
 
             return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
 
+    async def update_app_share(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        #
+        mutate: Callable[[Mount, Optional[AppShare]], Optional[AppShare]],
+    ) -> Optional[AppShare]:
+        """Change one app's share entry under a row lock, so concurrent changes both land.
+
+        `mutate` is a plain function of the drive and the current entry that returns the new one
+        (None removes it). It runs under the lock, so it does no I/O.
+        """
+        async with self.engine.session() as session:
+            stmt = (
+                select(MountDBE)
+                .where(
+                    MountDBE.project_id == project_id,
+                    MountDBE.id == mount_id,
+                )
+                .with_for_update()
+            )
+            mount_dbe = (await session.execute(stmt)).scalar_one_or_none()
+            if not mount_dbe:
+                return None
+
+            mount = map_mount_dbe_to_dto(mount_dbe=mount_dbe)
+            updated = mutate(mount, mount.data.shares.get(path))
+
+            data = dict(mount_dbe.data or {})
+            shares = dict(data.get("shares") or {})
+            if updated is None:
+                shares.pop(path, None)
+            else:
+                shares[path] = updated.model_dump(mode="json")
+            data["shares"] = shares
+            # A new dict: the `json` column does not track in-place mutation.
+            mount_dbe.data = data
+
+            await session.commit()
+            return updated
+
     async def fetch_by_session_id(
         self,
         *,
@@ -267,35 +316,23 @@ class MountsDAO(MountsDAOInterface):
                 map_mount_dbe_to_dto(mount_dbe=dbe) for dbe in result.scalars().all()
             ]
 
-    async def delete_by_session_id(
+    async def delete_mounts(
         self,
         *,
         project_id: UUID,
-        session_id: str,
-    ) -> List[Mount]:
-        """Hard delete the mount rows bound to a session. Mounts are semi-
-        independent (optional `session_id`, may outlive a session) — this is
-        the explicit, session-scoped fan-out (S7/F1, WP5), not a blind
-        cascade. Returns the deleted rows so the caller can tear down their
-        object-store prefixes."""
+        mount_ids: List[UUID],
+    ) -> None:
+        """Hard delete these mount rows. Session delete passes the rows it tore down."""
+        if not mount_ids:
+            return
         async with self.engine.session() as session:
-            stmt = select(MountDBE).where(
-                MountDBE.project_id == project_id,
-                MountDBE.session_id == session_id,
-            )
-            result = await session.execute(stmt)
-            mount_dbes = list(result.scalars().all())
-            mounts = [map_mount_dbe_to_dto(mount_dbe=dbe) for dbe in mount_dbes]
-
-            if mount_dbes:
-                del_stmt = sa_delete(MountDBE).where(
+            await session.execute(
+                sa_delete(MountDBE).where(
                     MountDBE.project_id == project_id,
-                    MountDBE.session_id == session_id,
+                    MountDBE.id.in_(mount_ids),
                 )
-                await session.execute(del_stmt)
-                await session.commit()
-
-        return mounts
+            )
+            await session.commit()
 
     async def query_mounts(
         self,

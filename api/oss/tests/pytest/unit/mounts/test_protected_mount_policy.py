@@ -184,15 +184,9 @@ class _MountsDAO:
             if mount.project_id == project_id and mount.session_id == session_id
         ]
 
-    async def delete_by_session_id(self, *, project_id, session_id):
-        deleted = [
-            mount
-            for mount in self.mounts.values()
-            if mount.project_id == project_id and mount.session_id == session_id
-        ]
-        for mount in deleted:
-            del self.mounts[mount.id]
-        return deleted
+    async def delete_mounts(self, *, project_id, mount_ids):
+        for mount_id in mount_ids:
+            self.mounts.pop(mount_id, None)
 
 
 class _ObjectStore:
@@ -615,6 +609,8 @@ async def test_session_hard_delete_still_includes_protected_mount(mount_context)
     assert {
         f"mounts/{_PROJECT_ID}/{protected.id}/",
         f"mounts/{_PROJECT_ID}/{cwd.id}/",
+        f"shares/{_PROJECT_ID}/{protected.id}/",
+        f"shares/{_PROJECT_ID}/{cwd.id}/",
     } == set(store.deleted_prefixes)
 
 

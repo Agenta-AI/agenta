@@ -66,4 +66,11 @@ describe("loading PostHog", () => {
         expect(isAnalyticsAuthRoute("/m/auth/callback/google")).toBe(false)
         expect(isAnalyticsAuthRoute("/m/w/ws/p/p/sessions/id")).toBe(false)
     })
+
+    it("never tracks a shared app's page", async () => {
+        const {isAnalyticsExcludedRoute} = await import("@/features/analytics/client")
+        expect(isAnalyticsExcludedRoute("/m/share/tok")).toBe(true)
+        expect(isAnalyticsExcludedRoute("/share/tok")).toBe(true)
+        expect(isAnalyticsExcludedRoute("/m/w/a/p/b/apps")).toBe(false)
+    })
 })

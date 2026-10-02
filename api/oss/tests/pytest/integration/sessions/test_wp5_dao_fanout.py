@@ -11,8 +11,8 @@ delete/archive/unarchive fan-out is built on, and were "new plumbing" per the br
     deletes via delete_by_session_id).
   - SessionStreamsDAO.unarchive_by_session_id / get_by_session_id_including_archived
     — the archive round-trip's reverse + confirmation read.
-  - MountsDAO.delete_by_session_id — hard delete of session-bound mount rows,
-    returning the deleted rows (so the service can tear down their prefixes).
+  - MountsDAO.delete_mounts — hard delete of the mount rows session teardown fetched, by id
+    (the service removes their storage prefixes first).
 """
 
 import uuid
@@ -477,13 +477,11 @@ async def test_streams_archive_unarchive_round_trip(streams_dao, project):
 
 
 # ---------------------------------------------------------------------------
-# MountsDAO.delete_by_session_id — new hard delete of session-bound mounts
+# MountsDAO.delete_mounts — hard delete of the mount rows session teardown fetched
 # ---------------------------------------------------------------------------
 
 
-async def test_mounts_delete_by_session_id_hard_deletes_and_returns_rows(
-    mounts_dao, project
-):
+async def test_mounts_delete_mounts_hard_deletes_the_given_rows(mounts_dao, project):
     project_id = project["project_id"]
     user_id = project["user_id"]
     session_id = f"wp5-mounts-{uuid.uuid4().hex[:8]}"
@@ -498,46 +496,32 @@ async def test_mounts_delete_by_session_id_hard_deletes_and_returns_rows(
         ),
     )
 
-    deleted_mounts = await mounts_dao.delete_by_session_id(
-        project_id=project_id, session_id=session_id
-    )
-    assert len(deleted_mounts) == 1
-    assert deleted_mounts[0].id == mount.id
+    await mounts_dao.delete_mounts(project_id=project_id, mount_ids=[mount.id])
 
     fetched = await mounts_dao.fetch_mount(project_id=project_id, mount_id=mount.id)
     assert fetched is None
 
 
-async def test_mounts_delete_by_session_id_scoped_to_session(mounts_dao, project):
-    """A mount bound to a different session must survive another session's delete."""
+async def test_mounts_delete_mounts_leaves_other_rows(mounts_dao, project):
+    """A mount that was not named survives, even one bound to the same session."""
     project_id = project["project_id"]
     user_id = project["user_id"]
-    session_a = f"wp5-mounts-a-{uuid.uuid4().hex[:8]}"
-    session_b = f"wp5-mounts-b-{uuid.uuid4().hex[:8]}"
+    session_id = f"wp5-mounts-a-{uuid.uuid4().hex[:8]}"
 
-    mount_a = await mounts_dao.create_mount(
-        project_id=project_id,
-        user_id=user_id,
-        mount_create=MountCreate(
-            slug=f"wp5-mount-a-{uuid.uuid4().hex[:8]}",
-            name="cwd",
-            session_id=session_a,
-        ),
-    )
-    mount_b = await mounts_dao.create_mount(
-        project_id=project_id,
-        user_id=user_id,
-        mount_create=MountCreate(
-            slug=f"wp5-mount-b-{uuid.uuid4().hex[:8]}",
-            name="cwd",
-            session_id=session_b,
-        ),
-    )
+    mount_a, mount_b = [
+        await mounts_dao.create_mount(
+            project_id=project_id,
+            user_id=user_id,
+            mount_create=MountCreate(
+                slug=f"wp5-mount-{name}-{uuid.uuid4().hex[:8]}",
+                name=name,
+                session_id=session_id,
+            ),
+        )
+        for name in ("cwd", "notes")
+    ]
 
-    deleted_mounts = await mounts_dao.delete_by_session_id(
-        project_id=project_id, session_id=session_a
-    )
-    assert [m.id for m in deleted_mounts] == [mount_a.id]
+    await mounts_dao.delete_mounts(project_id=project_id, mount_ids=[mount_a.id])
 
     still_there = await mounts_dao.fetch_mount(
         project_id=project_id, mount_id=mount_b.id
@@ -545,14 +529,8 @@ async def test_mounts_delete_by_session_id_scoped_to_session(mounts_dao, project
     assert still_there is not None
 
 
-async def test_mounts_delete_by_session_id_no_mounts_returns_empty(mounts_dao, project):
-    project_id = project["project_id"]
-    session_id = f"wp5-mounts-none-{uuid.uuid4().hex[:8]}"
-
-    deleted_mounts = await mounts_dao.delete_by_session_id(
-        project_id=project_id, session_id=session_id
-    )
-    assert deleted_mounts == []
+async def test_mounts_delete_mounts_with_no_ids_is_a_noop(mounts_dao, project):
+    await mounts_dao.delete_mounts(project_id=project["project_id"], mount_ids=[])
 
 
 # ---------------------------------------------------------------------------

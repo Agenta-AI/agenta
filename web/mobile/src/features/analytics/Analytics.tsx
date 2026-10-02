@@ -9,7 +9,7 @@ import {useRouter} from "next/router"
 
 import {getEnv} from "@/lib/env"
 
-import {capture, isAnalyticsAuthRoute, loadPostHog, posthogAtom} from "./client"
+import {capture, isAnalyticsExcludedRoute, loadPostHog, posthogAtom} from "./client"
 
 export const Analytics = () => {
     const router = useRouter()
@@ -18,7 +18,7 @@ export const Analytics = () => {
     const identityRef = useRef<string | null>(null)
     const aliasedIdRef = useRef<string | null>(null)
     const initialPageviewRef = useRef(false)
-    const authRoute = isAnalyticsAuthRoute(router.asPath || router.pathname || "")
+    const authRoute = isAnalyticsExcludedRoute(router.asPath || router.pathname || "")
     const enabled = Boolean(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"))
 
     useEffect(() => {
@@ -60,7 +60,7 @@ export const Analytics = () => {
     useEffect(() => {
         if (!client || !enabled) return
         const capturePageview = () => {
-            if (!isAnalyticsAuthRoute(window.location.pathname)) {
+            if (!isAnalyticsExcludedRoute(window.location.pathname)) {
                 capture("$pageview", {$current_url: window.location.href})
             }
         }

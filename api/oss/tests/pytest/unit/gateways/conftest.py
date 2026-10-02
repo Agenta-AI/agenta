@@ -91,7 +91,7 @@ def _resolve_without_the_pool(request, monkeypatch):
     if "real_resolver_offload" in request.fixturenames:
         return
 
-    async def _inline(resolve, *, timeout=None):
+    async def _inline(resolve, *, timeout=None, executor=None):
         return resolve()
 
     # Both bindings: the boundary calls it as a module global, and the registration check

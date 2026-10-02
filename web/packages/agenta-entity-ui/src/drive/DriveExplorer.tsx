@@ -3,7 +3,15 @@
  * (folder grid / list, the editors, or a preview). Its own module so hosts `next/dynamic`-import
  * it. A composition root: every concern lives in a sibling hook.
  */
-import {type KeyboardEvent, type ReactNode, useCallback, useMemo, useRef, useState} from "react"
+import {
+    type KeyboardEvent,
+    type ReactNode,
+    useCallback,
+    useContext,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {looksLikeFilePath} from "@agenta/entities/drive"
 import {type DriveId, type DriveScope} from "@agenta/entities/drive"
@@ -61,6 +69,9 @@ import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
 import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
+import {dirOf} from "./htmlApp/assemble"
+import {HtmlAppEnvContext} from "./htmlApp/htmlAppEnv"
+import {isShareableMount, ShareAppButton} from "./htmlApp/ShareAppPopover"
 import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDrivePasteUpload} from "./useDrivePasteUpload"
@@ -360,9 +371,12 @@ export function DriveExplorer({
     // An editable HTML file shows its source or the rendered document (row 2 switches).
     const htmlKind = editableCode && selectedKind === "html"
     const agentAppsEnabled = useAtomValue(agentAppsEnabledAtom)
+    const htmlAppEnv = useContext(HtmlAppEnvContext)
     const [htmlView, setHtmlView] = useState<"source" | "preview" | "run">("source")
-    // Run needs the flag and a mount; without them a stale "run" falls back to Preview.
-    const htmlRunnable = htmlKind && agentAppsEnabled && !!selectedMount
+    // Run needs the flag, a mount, and an app folder (the drive root is not a scope); without
+    // them a stale "run" falls back to Preview.
+    const htmlRunnable =
+        htmlKind && agentAppsEnabled && !!selectedMount && dirOf(selectedMountPath) !== ""
     const htmlPreview = htmlKind && htmlView !== "source"
     const htmlBodyView = htmlView === "run" && htmlRunnable ? "run" : "preview"
     const editing = editableMarkdown || editableCode
@@ -617,6 +631,15 @@ export function DriveExplorer({
                               ],
                           }
                         : undefined
+                }
+                trailing={
+                    htmlRunnable ? (
+                        <ShareAppButton
+                            mountId={isShareableMount(selectedMount) ? selectedMount.id : null}
+                            dir={dirOf(selectedMountPath)}
+                            canEdit={canWrite && htmlAppEnv.canEditMounts !== false}
+                        />
+                    ) : undefined
                 }
                 onCopyPath={onCopyCurrentPath}
                 onDownload={onDownloadCurrent}

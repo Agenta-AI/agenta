@@ -15,9 +15,12 @@ const isCallbackRoute = (pathname: string) => pathname.startsWith("/auth/callbac
 
 const isAuthRoute = (pathname: string) => pathname.startsWith("/auth")
 
+/** A shared app opens without sign-in; its page asks for one itself when the share needs it. */
+const isShareRoute = (pathname: string) => pathname.startsWith("/share/")
+
 /** The route to replace with, or null to stay put. */
 export const authRedirectTarget = (verdict: SessionVerdict, pathname: string): string | null => {
-    if (isCallbackRoute(pathname)) return null
+    if (isCallbackRoute(pathname) || isShareRoute(pathname)) return null
     if (verdict === "unauthenticated") return isAuthRoute(pathname) ? null : "/auth"
     // A confirmed session while sitting on the sign-in page: hand back to the root resolver, which
     // knows the remembered workspace/project pair. Only from a CONFIRMED verdict — "unknown" is
@@ -28,4 +31,5 @@ export const authRedirectTarget = (verdict: SessionVerdict, pathname: string): s
 
 /** Whether the gate should be asking at all. It must keep asking on /auth — that is the only way a
  * stale or wrong verdict gets corrected — but never during the callback exchange. */
-export const shouldCheckSession = (pathname: string) => !isCallbackRoute(pathname)
+export const shouldCheckSession = (pathname: string) =>
+    !isCallbackRoute(pathname) && !isShareRoute(pathname)
