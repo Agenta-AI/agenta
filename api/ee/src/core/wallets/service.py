@@ -7,21 +7,39 @@ billing boundary". Neither calls `check_entitlements`
 checks the wallet's committed balance against its floor.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+import asyncio
+from datetime import date, datetime, timedelta, timezone
+from typing import Awaitable, Callable, Optional, Set, Tuple
 from uuid import UUID
+
+from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.wallets.contracts import DebitCommandV1
 from ee.src.core.wallets.grants import (
+    DAILY_FREE_ACTIVITY,
     GrantReferenceRequiredError,
     UnknownGrantActivityError,
     compose_award_idempotency_key,
+    daily_free_reference,
     get_grant_rule,
+    next_utc_midnight,
 )
 from ee.src.core.wallets.interfaces import WalletCheckPort, WalletSettlementPort
 from ee.src.core.wallets.plans import (
+    DAILY_FREE_CREDIT_PLANS,
     LAZY_PROVISION_FLOOR_MUSD,
+    PLAN_ALLOWANCE_CREDIT_KIND,
+    PLAN_ALLOWANCE_PRIORITY,
+    allowance_musd_for_plan,
     floor_musd_for_plan,
+)
+from ee.src.core.wallets.purchases import (
+    PURCHASE_CREDIT_KIND,
+    PURCHASE_LIFETIME_DAYS,
+    PURCHASE_PRIORITY,
+    STARTER_CREDITS_KIND,
+    STARTER_CREDITS_LIFETIME_DAYS,
+    STARTER_CREDITS_PRIORITY,
 )
 from ee.src.core.wallets.types import (
     WalletCreditDTO,
@@ -29,10 +47,32 @@ from ee.src.core.wallets.types import (
     WalletsDAOInterface,
 )
 
+log = get_module_logger(__name__)
+
+PlanReader = Callable[[UUID], Awaitable[Optional[str]]]
+
+# The daily grant's share of an admission. Well below the 1s shadow bound and the 2s bound
+# each admission point puts around its whole answer, so a stalled plan read or award lock
+# leaves time to read the balance and admit.
+DAILY_GRANT_TIMEOUT_SECONDS = 0.5
+
 
 class WalletsService(WalletCheckPort, WalletSettlementPort):
-    def __init__(self, *, wallets_dao: WalletsDAOInterface):
+    def __init__(
+        self,
+        *,
+        wallets_dao: WalletsDAOInterface,
+        plan_reader: Optional[PlanReader] = None,
+    ):
         self.wallets_dao = wallets_dao
+        # Reads an organization's plan slug. Only the admission instance has one, and only
+        # that instance grants the daily free credits.
+        self.plan_reader = plan_reader
+        # Organizations whose daily grant this process already settled for `_daily_day`.
+        # Spares a plan read and a locked award on every admission; the award's
+        # idempotency key, not this set, is what guarantees one grant per day.
+        self._daily_day: Optional[date] = None
+        self._daily_done: Set[UUID] = set()
 
     async def check(self, *, organization_id: UUID) -> bool:
         balance, floor = await self._spendable(organization_id=organization_id)
@@ -52,6 +92,8 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         return balance > floor and balance - amount_musd >= floor
 
     async def _spendable(self, *, organization_id: UUID) -> Tuple[int, int]:
+        await self._grant_daily_free_credits(organization_id=organization_id)
+
         # Spendable, not the raw general balance: nothing posts an expired credit's
         # remainder out of the general row, so the raw number would admit calls that
         # settlement can only book as deficit (open-designs item 21).
@@ -78,6 +120,59 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
 
         floor = balance.floor_musd if balance.floor_musd is not None else 0
         return balance.spendable_musd, floor
+
+    async def _grant_daily_free_credits(self, *, organization_id: UUID) -> None:
+        """Grant today's free credits on the organization's first admission of the UTC
+        day, when its plan has them. Never fails or stalls the admission: a failed or
+        slow grant is logged and retried on the next admission."""
+        if self.plan_reader is None:
+            return
+
+        now = datetime.now(timezone.utc)
+        today = now.date()
+        if self._daily_day != today:
+            self._daily_day = today
+            self._daily_done = set()
+        if organization_id in self._daily_done:
+            return
+
+        # `asyncio.wait`, not `wait_for`: `wait_for` also waits out the cancellation
+        # cleanup (a DB session closing), which could outlast the bound.
+        grant = asyncio.ensure_future(
+            self._grant_daily_free_credits_now(organization_id=organization_id, now=now)
+        )
+        done, _ = await asyncio.wait({grant}, timeout=DAILY_GRANT_TIMEOUT_SECONDS)
+        if not done:
+            grant.cancel()
+            grant.add_done_callback(_discard_result)
+            log.warning(
+                "[wallets] daily free credits grant timed out; retrying on next admission",
+                organization_id=str(organization_id),
+            )
+            return
+        if grant.exception() is not None:
+            log.warning(
+                "[wallets] daily free credits grant failed; retrying on next admission",
+                organization_id=str(organization_id),
+                reason=repr(grant.exception()),
+            )
+            return
+        # A grant that started before midnight must not mark the organization done for
+        # the new day.
+        if self._daily_day == today:
+            self._daily_done.add(organization_id)
+
+    async def _grant_daily_free_credits_now(
+        self, *, organization_id: UUID, now: datetime
+    ) -> None:
+        plan = await self.plan_reader(organization_id)
+        if plan in DAILY_FREE_CREDIT_PLANS:
+            await self.award(
+                organization_id=organization_id,
+                activity_code=DAILY_FREE_ACTIVITY,
+                reference=daily_free_reference(day=now.date()),
+                now=now,
+            )
 
     async def settle(self, command: DebitCommandV1) -> None:
         await self.wallets_dao.settle(command=command)
@@ -121,11 +216,12 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
             organization_id=organization_id,
             reference=reference if rule.repeatable else None,
         )
-        end_time = (
-            now + timedelta(days=rule.lifetime_days)
-            if rule.lifetime_days is not None
-            else None
-        )
+        if rule.ends_at_utc_midnight:
+            end_time = next_utc_midnight(now)
+        elif rule.lifetime_days is not None:
+            end_time = now + timedelta(days=rule.lifetime_days)
+        else:
+            end_time = None
 
         return await self.wallets_dao.award_credit(
             organization_id=organization_id,
@@ -136,3 +232,79 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
             end_time=end_time,
             now=now,
         )
+
+    async def grant_period_allowance(
+        self,
+        *,
+        organization_id: UUID,
+        plan: str,
+        period_start: datetime,
+        period_end: datetime,
+    ) -> Optional[WalletCreditDTO]:
+        """Grant a paid plan's monthly credits for one billing period, expiring at its
+        end. Idempotent per organization and period start, so a redelivered renewal
+        event grants once. Returns None for a plan without monthly credits."""
+        amount_musd = allowance_musd_for_plan(plan=plan)
+        if amount_musd <= 0:
+            return None
+
+        return await self.wallets_dao.award_credit(
+            organization_id=organization_id,
+            idempotency_key=(
+                f"plan_allowance:organization:{organization_id}"
+                f":period:{period_start.isoformat()}"
+            ),
+            credit_kind=PLAN_ALLOWANCE_CREDIT_KIND,
+            amount_musd=amount_musd,
+            priority=PLAN_ALLOWANCE_PRIORITY,
+            end_time=period_end,
+            now=period_start,
+        )
+
+    async def grant_purchase(
+        self,
+        *,
+        organization_id: UUID,
+        checkout_session_id: str,
+        amount_musd: int,
+        now: Optional[datetime] = None,
+    ) -> WalletCreditDTO:
+        """Grant a paid top-up, expiring after twelve months. Idempotent per Stripe
+        checkout session, so a redelivered payment event grants once."""
+        now = now or datetime.now(timezone.utc)
+        return await self.wallets_dao.award_credit(
+            organization_id=organization_id,
+            idempotency_key=f"purchase:checkout_session:{checkout_session_id}",
+            credit_kind=PURCHASE_CREDIT_KIND,
+            amount_musd=amount_musd,
+            priority=PURCHASE_PRIORITY,
+            end_time=now + timedelta(days=PURCHASE_LIFETIME_DAYS),
+            now=now,
+        )
+
+    async def grant_starter_credits(
+        self,
+        *,
+        organization_id: UUID,
+        amount_musd: int,
+        now: Optional[datetime] = None,
+    ) -> WalletCreditDTO:
+        """Move an organization's remaining starter-credits proxy budget into the wallet,
+        expiring after twelve months. Idempotent per organization: a rerun returns the
+        first transfer whatever amount it is called with."""
+        now = now or datetime.now(timezone.utc)
+        return await self.wallets_dao.award_credit(
+            organization_id=organization_id,
+            idempotency_key=f"starter_credits:organization:{organization_id}",
+            credit_kind=STARTER_CREDITS_KIND,
+            amount_musd=amount_musd,
+            priority=STARTER_CREDITS_PRIORITY,
+            end_time=now + timedelta(days=STARTER_CREDITS_LIFETIME_DAYS),
+            now=now,
+        )
+
+
+def _discard_result(task: "asyncio.Future") -> None:
+    # Retrieve the outcome of an abandoned grant so asyncio does not log it as unhandled.
+    if not task.cancelled():
+        task.exception()

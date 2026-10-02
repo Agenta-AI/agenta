@@ -225,7 +225,7 @@ async def test_award_signup_grant_via_organizations_service_hooks_against_real_d
         dao = WalletsDAO()
         general = await dao.get_general_balance(organization_id=organization_id)
         assert general is not None
-        assert general.balance_musd == 1_000_000  # the $1 signup grant landed
+        assert general.balance_musd == 5_000_000  # the $5 signup grant landed
 
         # A second signup-path run (retry, duplicate call) must not double-award.
         await organizations_service_module._award_signup_grant(
@@ -234,7 +234,7 @@ async def test_award_signup_grant_via_organizations_service_hooks_against_real_d
         general_after_retry = await dao.get_general_balance(
             organization_id=organization_id
         )
-        assert general_after_retry.balance_musd == 1_000_000
+        assert general_after_retry.balance_musd == 5_000_000
 
         engine = get_transactions_engine()
         async with engine.session() as session:
