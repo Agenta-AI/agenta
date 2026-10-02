@@ -2100,10 +2100,20 @@ def _pi_only(cell: dict, what: str) -> dict | None:
 
 
 def _bash_call_outcome(t: "Turn") -> tuple[dict | None, str | None]:
-    """The bash call the model attempted and its wire outcome, or (None, None)."""
+    """The shell call the model attempted and its wire outcome, or (None, None).
+
+    A shell call is named `bash` or `terminal` (Claude, Pi), or carries a string `command`
+    input. Codex names its exec call after the command text itself
+    (`echo "QA-BASH-$(hostname)-$(uname -m)"`), so the name alone never matches there. The
+    token checks stay on this call's own output, so a fabricated reply still fails.
+    """
     for call in t.tool_calls:
         name = (call.get("toolName") or "").lower()
-        if name in ("bash", "terminal"):
+        call_input = call.get("input")
+        has_command = isinstance(call_input, dict) and isinstance(
+            call_input.get("command"), str
+        )
+        if name in ("bash", "terminal") or has_command:
             return call, t.tool_outcomes.get(call["toolCallId"])
     return None, None
 
