@@ -146,7 +146,7 @@ import type { InProcessProvider } from "./engines/inprocess/index.ts";
 import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
-import { endAbandonedTurn, runAdmittedTurn } from "./metering/turn-admission.ts";
+import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/turn-admission.ts";
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
 const SHUTDOWN_TURN_END_BUDGET_MS = 5_000;
@@ -470,6 +470,7 @@ const dispatchRun: RunAgent = async (request, emit, signal, options) => {
     // come from the signed mount rather than the request. A control command needs it to tell
     // one tenant's session from another's.
     onScopeResolved: (projectId) => {
+      noteTurnScope(projectId);
       const sessionId = request.sessionId?.trim();
       const turnId = request.turnId?.trim();
       if (sessionId && turnId)

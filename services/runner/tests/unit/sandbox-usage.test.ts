@@ -291,18 +291,18 @@ describe("startSandboxMeter", () => {
     expect(calls.map((c) => [c.body.start_time, c.body.end_time])).toEqual([[iso(START_S), iso(START_S + 10)]]);
   });
 
-  it("a sandbox that comes up between its session's turns is billed from the next turn", async () => {
+  it("a meter whose key no turn has ended yet bills until one does: the cold path never pauses", async () => {
     endTurn();
     const { calls, fetch } = platform();
     const m = meter({ fetch });
 
-    await advance(90_000);
-    endTurn = beginMeteredTurn(TURN_KEY);
-    await advance(15_000);
+    await advance(60_000);
+    await advance(5_000);
     await m.stop();
 
     expect(calls.map((c) => [c.body.start_time, c.body.end_time])).toEqual([
-      [iso(START_S + 90), iso(START_S + 105)],
+      [iso(START_S), iso(START_S + 60)],
+      [iso(START_S + 60), iso(START_S + 65)],
     ]);
   });
 
@@ -519,8 +519,7 @@ describe("the wallet switch", () => {
       sessionId: "conv-1",
       agentId: AGENT,
     });
-    const scoped = { ...RUN, sessionId: "conv-1", runContext: { ...RUN.runContext, project: { id: "proj-1" } } };
-    expect(sandboxUsageContext(scoped as AgentRunRequest, "conv-1")?.turnKey).toBe("proj-1:conv-1");
+    expect(sandboxUsageContext(RUN, "conv-1", "proj-1")?.turnKey).toBe("proj-1:conv-1");
   });
 });
 

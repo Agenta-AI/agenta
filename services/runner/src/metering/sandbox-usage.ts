@@ -79,25 +79,26 @@ export function meteringCredentialForRequest(request: AgentRunRequest): string {
 }
 
 /**
- * The key a session's turns and its sandboxes' meters share: `<projectId>:<sessionId>`, the same
- * scope the session pool keys on. A session id alone is a caller-chosen label that two projects
- * may both use. Undefined without both, and then a meter is never paused between turns.
+ * The key a session's turns and its sandboxes' meters share: `<projectId>:<sessionId>`, the
+ * session pool's own key, with the project resolved the pool's way (run context first, then the
+ * signed mount). A session id alone is a label two projects may share.
  */
-export function meteredTurnKey(request: Pick<AgentRunRequest, "runContext" | "sessionId">): string | undefined {
-  const projectId = request.runContext?.project?.id?.trim();
-  const sessionId = request.sessionId?.trim();
-  return projectId && sessionId ? `${projectId}:${sessionId}` : undefined;
+export function meteredTurnKey(projectId: string | undefined, sessionId: string | undefined): string | undefined {
+  const project = projectId?.trim();
+  const session = sessionId?.trim();
+  return project && session ? `${project}:${session}` : undefined;
 }
 
 /** Who a run's command sandbox reports for, or undefined when nothing is metered. */
 export function sandboxUsageContext(
   request: AgentRunRequest,
   sessionId: string | undefined,
+  projectScopeId?: string,
 ): SandboxUsageContext | undefined {
   const authorization = meteringCredentialForRequest(request);
   if (!authorization) return undefined;
   const agentId = request.runContext?.workflow?.artifact?.id;
-  const turnKey = meteredTurnKey(request);
+  const turnKey = meteredTurnKey(projectScopeId, sessionId);
   return {
     authorization,
     ...(sessionId ? { sessionId } : {}),
@@ -299,12 +300,13 @@ const runningTurns = new Map<string, number>();
 const sessionMeters = new Map<string, Set<SessionMeter>>();
 
 /**
- * A turn of this session (`meteredTurnKey`) started: its sandboxes are billed until the returned
- * function is called.
+ * A turn of this session (`meteredTurnKey`) started: its sandboxes are billed again until the
+ * returned function is called, which pauses them.
  *
  * Only running turns are billed. A sandbox kept warm after a turn, or waiting for a person to
  * answer an approval, keeps running on the provider's account, but its time between turns is not
- * charged. A run without a session has no warm window: its meter runs until its sandbox stops.
+ * charged. A meter runs until a turn of its key ends: a run that never parks (no session, no
+ * project scope, the cold path) has no window to pause, and is billed until its sandbox stops.
  */
 export function beginMeteredTurn(turnKey: string | undefined): () => void {
   if (!turnKey) return () => {};
@@ -373,8 +375,7 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
   let pending: Interval[] = [];
   let unmetered = false;
   let stopped = false;
-  // A session's sandbox that comes up between its turns is not billed until the next one starts.
-  let paused = options.turnKey ? !runningTurns.has(options.turnKey) : false;
+  let paused = false;
   // One report in flight at a time, in order.
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(work: () => Promise<T>): Promise<T> => {

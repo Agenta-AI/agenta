@@ -6,6 +6,8 @@
  * A refused turn never starts: the person reads the platform's own sentence and its stable class.
  * An admitted turn runs to its end, or to the plan's turn limit; its balance never stops it.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { runWithTurnLimit } from "../engines/sandbox_agent/run-limits.ts";
 import type { AgentRunRequest, AgentRunResult, EmitEvent } from "../protocol.ts";
 import {
@@ -30,18 +32,39 @@ export async function runAdmittedTurn(
     return { ok: false, error: admission.message };
   }
   const slot = admission.slotHeld ? (deps.holdSlot ?? holdTurnSlot)(authorization, turnId) : undefined;
-  const endMeteredTurn = beginMeteredTurn(meteredTurnKey(request));
+  const turn: AdmittedTurn = { sessionId: request.sessionId?.trim() };
   const end = (): void => {
     if (openTurns.get(turnId) === end) openTurns.delete(turnId);
-    endMeteredTurn();
+    turn.ended = true;
+    turn.endWindow?.();
     slot?.release();
   };
   openTurns.set(turnId, end);
   try {
-    return await runWithTurnLimit(admission.turnLimit, run);
+    return await admittedTurnStorage.run(turn, () => runWithTurnLimit(admission.turnLimit, run));
   } finally {
     end();
   }
+}
+
+interface AdmittedTurn {
+  sessionId?: string;
+  endWindow?: () => void;
+  ended?: boolean;
+}
+
+const admittedTurnStorage = new AsyncLocalStorage<AdmittedTurn>();
+
+/**
+ * The session pool resolved this turn's project: open its billing window under the pool's own
+ * key, so the warm sandbox it reuses or parks is billed only while this turn runs. Called once
+ * per dispatch, before the sandbox is acquired.
+ */
+export function noteTurnScope(projectId: string): void {
+  const turn = admittedTurnStorage.getStore();
+  if (!turn || turn.ended || turn.endWindow) return;
+  const key = meteredTurnKey(projectId, turn.sessionId);
+  if (key) turn.endWindow = beginMeteredTurn(key);
 }
 
 /** Each admitted turn's ending, until it runs; both endings below are idempotent. */

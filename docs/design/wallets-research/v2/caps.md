@@ -103,13 +103,15 @@ API's message. A pause for a person's approval stops every deadline, as before.
 ### Billing only while a turn runs
 
 The sandbox meter (`services/runner/src/metering/sandbox-usage.ts`) keeps its per-minute
-reports. Each meter of a session's sandbox now runs only while a turn of that session runs:
-`beginMeteredTurn(turnKey)` at admission resumes it, and the end of the turn pauses it. The key
-is `<projectId>:<sessionId>` (the session pool's scope), because a session id is a label two
-projects may share. A run without both has no pause, so it is billed until its sandbox stops. A
-pause cuts the open interval at the turn's end and reports it like any interval. A sandbox
-that comes up between turns starts paused. A run without a session has no warm window, so its
-meter runs until its sandbox stops.
+reports. A meter of a parked session's sandbox is paused between that session's turns. The key
+is the session pool's own key, `<projectId>:<sessionId>`, with the project resolved the pool's
+way (the run context first, then the signed mount), because a session id is a label two
+projects may share. When the pool resolves a turn's scope (before it acquires or reuses the
+sandbox), `noteTurnScope` resumes that key's meters; the end of the turn, however it ends
+(including an abandoned turn), pauses them. A pause cuts the open interval at the turn's end
+and reports it like any interval. A meter is active until a turn of its key ends, so a run that
+never parks (no session, no project scope, the cold path) is billed until its sandbox stops,
+as before.
 
 ## The messages
 

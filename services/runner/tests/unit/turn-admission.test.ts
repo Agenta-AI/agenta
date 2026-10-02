@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.unmock("../../src/metering/sandbox-usage.ts");
+
 import { resolveRunLimits } from "../../src/engines/sandbox_agent/run-limits.ts";
-import type { SandboxTurnAdmission } from "../../src/metering/sandbox-usage.ts";
-import { endAbandonedTurn, runAdmittedTurn } from "../../src/metering/turn-admission.ts";
+import { startSandboxMeter, type SandboxTurnAdmission } from "../../src/metering/sandbox-usage.ts";
+import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "../../src/metering/turn-admission.ts";
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
 
 const RUN = {
   sessionId: "conv-1",
-  runContext: { project: { id: "proj-1" } },
   telemetry: { exporters: { otlp: { headers: { authorization: "Access run-token" } } } },
 } as unknown as AgentRunRequest;
 
@@ -105,5 +106,49 @@ describe("runAdmittedTurn", () => {
     endAbandonedTurn("t-stuck");
 
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("the pool's resolved scope opens the billing window, and the turn's end pauses the warm sandbox", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
+    try {
+      let clock = Date.UTC(2026, 9, 2, 12, 0, 0);
+      const bounds: Array<[string, string]> = [];
+      const fetch = (async (_url: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        bounds.push([body.start_time, body.end_time]);
+        return new Response("{}", { status: 200 });
+      }) as unknown as typeof globalThis.fetch;
+      let meter: ReturnType<typeof startSandboxMeter> | undefined;
+
+      await runAdmittedTurn(RUN, "t-1", undefined, async () => {
+        // The coordinator resolves the scope (here from the signed mount), then acquires.
+        noteTurnScope("proj-from-mount");
+        meter = startSandboxMeter({
+          provider: "daytona",
+          sandboxId: "sb-1",
+          resources: () => ({ vcpu: 2, memoryGib: 4 }),
+          credential: () => "Secret run-1",
+          turnKey: "proj-from-mount:conv-1",
+          now: () => clock,
+          intervalMs: 60_000,
+          fetch,
+          baseUrl: "http://api.test",
+          log: () => {},
+        });
+        clock += 20_000;
+        return { ok: true } as never;
+      }, { admit: admitting({ admitted: true }) });
+
+      clock += 120_000; // warm, between turns
+      await vi.advanceTimersByTimeAsync(120_000);
+      await meter!.stop();
+
+      const start = Math.floor(Date.UTC(2026, 9, 2, 12, 0, 0) / 1000);
+      expect(bounds).toEqual([
+        [new Date(start * 1000).toISOString(), new Date((start + 20) * 1000).toISOString()],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
