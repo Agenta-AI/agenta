@@ -25,6 +25,8 @@ class MountsDAOInterface(ABC):
         user_id: UUID,
         #
         mount_create: MountCreate,
+        #
+        reactivate: bool,
     ) -> Mount: ...
 
     @abstractmethod
@@ -84,6 +86,14 @@ class MountsDAOInterface(ABC):
         mount_query: Optional[MountQuery] = None,
         #
         windowing: Optional[Windowing] = None,
+    ) -> List[Mount]: ...
+
+    @abstractmethod
+    async def fetch_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
     ) -> List[Mount]: ...
 
     @abstractmethod

@@ -553,3 +553,34 @@ describe("preview links", () => {
         frame.remove()
     })
 })
+
+describe("a failed build never renders the raw document", () => {
+    const throwing: AssembleIo = {
+        fetchText: async () => {
+            throw new Error("store down")
+        },
+        fetchDataUri: async () => {
+            throw new Error("store down")
+        },
+    }
+    const page =
+        '<html><head><link rel="stylesheet" href="app.css"></head><body><script>alert(1)</script></body></html>'
+
+    it("Preview returns an error document under PREVIEW_CSP", async () => {
+        const html = await assemblePreview(page, {dir: "site", io: throwing})
+        expect(html).toContain(PREVIEW_CSP.replace(/'/g, "&#39;"))
+        expect(html).not.toContain("alert(1)")
+    })
+
+    it("Run returns an error document under RUN_CSP", async () => {
+        const {html, errors} = await assembleRunDocument(page, {
+            dir: "site",
+            io: throwing,
+            tokens: {},
+            kitCss: null,
+        })
+        expect(html).toContain(RUN_CSP.replace(/'/g, "&#39;"))
+        expect(html).not.toContain("alert(1)")
+        expect(errors[0]).toContain("store down")
+    })
+})

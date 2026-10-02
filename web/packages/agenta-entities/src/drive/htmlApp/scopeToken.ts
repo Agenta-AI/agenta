@@ -8,12 +8,12 @@
  * API refuses anything outside, and a bug in this file stops being the only thing standing there.
  *
  * It NARROWS. Without it a call is an ordinary drive request, which is how the Files pane and
- * every other drive surface are unaffected; with it the same call is additionally bounded. So a
- * failure to mint is not a reason to refuse the app — the app runs, less protected, and that is
- * strictly what shipped before this existed.
+ * every other drive surface are unaffected; with it the same call is additionally bounded. An app
+ * never runs unscoped: when no token can be minted, the app's file calls fail (see `fsClient`).
  *
  * One token per mount+dir+level, cached and re-minted a minute before it lapses so a long-running
- * app never has a call fail on expiry.
+ * app never has a call fail on expiry. A token the server rejects is dropped with
+ * {@link dropScopeToken} and minted again once.
  */
 
 import {getMountsClient, projectScopedRequest} from "@agenta/entities/session"
@@ -37,6 +37,11 @@ const inflight = new Map<string, Promise<string | null>>()
 
 const cacheKey = (mountId: string, dir: string, level: GrantLevel) => `${mountId}|${dir}|${level}`
 
+/** Forget one cached token, so the next call mints a fresh one (the server rejected it). */
+export function dropScopeToken(mountId: string, dir: string, level: GrantLevel): void {
+    cache.delete(cacheKey(mountId, dir, level))
+}
+
 /** Drop every cached token (a sign-out, or a test). */
 export function clearScopeTokens(): void {
     cache.clear()
@@ -58,16 +63,12 @@ async function mint(
         cache.set(cacheKey(mountId, dir, level), {token, expiresAt: expiresAt * 1000})
         return token
     } catch {
-        // A deployment that has not shipped the endpoint, or a transient failure. The app runs
-        // unscoped, exactly as it did before the token existed; it must not be blocked on this.
+        // The caller fails closed on null: an app never falls back to unscoped drive access.
         return null
     }
 }
 
-/**
- * The token for this app, minting or refreshing as needed. Resolves null when the server cannot
- * issue one — callers send no header and the request is an ordinary drive call.
- */
+/** The token for this app, minting or refreshing as needed. Resolves null when none can be minted. */
 export async function getScopeToken(
     mountId: string,
     projectId: string,

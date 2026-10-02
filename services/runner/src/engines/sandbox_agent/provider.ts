@@ -12,6 +12,7 @@ import {
   type RunnerDaytonaConfig,
   type SandboxProviderId,
 } from "../../config/runner-config.ts";
+import { closeInheritedEnv } from "./daemon.ts";
 import { daytonaEnvVars } from "./daytona.ts";
 import {
   applyDaytonaSdkEnv,
@@ -288,7 +289,8 @@ export function buildSandboxProvider(
     );
   }
 
-  // local: spawn `sandbox-agent server` on this host with the daemon env merged in.
+  // local: spawn `sandbox-agent server` on this host with the daemon env merged in. The env is
+  // frozen by now, so closing the inheritance here covers every key the run set.
   const logMode = config.server.logLevel as any;
-  return local({ env, binaryPath, log: logMode });
+  return local({ env: closeInheritedEnv(env), binaryPath, log: logMode });
 }

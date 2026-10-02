@@ -112,7 +112,7 @@ class _MountsDAO:
         mounts = [mount for mount in mounts if not is_protected_mount(mount)]
         return mounts
 
-    async def upsert_mount(self, *, project_id, user_id, mount_create):
+    async def upsert_mount(self, *, project_id, user_id, mount_create, reactivate=True):
         del user_id
         self.last_upsert = mount_create
         existing = next(
@@ -176,6 +176,13 @@ class _MountsDAO:
         )
         self.mounts[mount.id] = unarchived
         return unarchived
+
+    async def fetch_by_session_id(self, *, project_id, session_id):
+        return [
+            mount
+            for mount in self.mounts.values()
+            if mount.project_id == project_id and mount.session_id == session_id
+        ]
 
     async def delete_by_session_id(self, *, project_id, session_id):
         deleted = [

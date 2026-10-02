@@ -22,7 +22,7 @@ from miniopy_async.error import S3Error
 
 from oss.src.core.store import webidentity
 from oss.src.core.store.dtos import StoreObject, StorePutResult
-from oss.src.core.store.types import StorePreconditionFailed
+from oss.src.core.store.types import StoreDeleteFailed, StorePreconditionFailed
 from oss.src.core.mounts.types import MountFileNotFound, MountStorageUnavailable
 
 # STS responses are SOAP-ish XML under the 2011-06-15 namespace; strip it for tag lookups.
@@ -709,8 +709,9 @@ class ObjectStore:
             bucket,
             [DeleteObject(key) for key in keys],
         )
-        async for _ in errors:
-            pass
+        failed = [error.name or "?" async for error in errors]
+        if failed:
+            raise StoreDeleteFailed(failed)
         return len(keys)
 
     async def delete_prefix(

@@ -123,6 +123,40 @@ export const KNOWN_SANDBOX_ENV_VARS = [
   "E2B_API_KEY",
 ] as const;
 
+/** Proxy URLs pass to a harness without their `user:password@`, so no proxy login reaches it. */
+const PROXY_URL_ENV_VARS = new Set(["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]);
+
+export const withoutUserinfo = (value: string): string =>
+  value.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/]*@/i, "$1");
+
+/**
+ * Locale, time zone, temp dir, shell, proxy and CA settings: what a harness process needs to run
+ * and reach the network on this host. None is a platform credential; proxy logins are
+ * stripped (see `withoutUserinfo`).
+ */
+export const NEUTRAL_OS_ENV_VARS = [
+  "TMPDIR",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "XDG_CONFIG_HOME",
+  "XDG_CACHE_HOME",
+  "XDG_DATA_HOME",
+  "XDG_RUNTIME_DIR",
+  "TZ",
+  "USER",
+  "SHELL",
+  "TERM",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy",
+  "SSL_CERT_FILE",
+  "NODE_EXTRA_CA_CERTS",
+] as const;
+
 /**
  * Provider family -> the env vars a run against that family may inherit. Least privilege within a
  * run (RUN-SEC-1): a run that declared an OpenAI model has no business seeing the sidecar's
@@ -288,6 +322,11 @@ export function buildDaemonEnv(
   if (process.env.CODEX_HOME) env.CODEX_HOME = process.env.CODEX_HOME;
 
   if (process.env.HOME) env.HOME = process.env.HOME;
+  // Neutral OS settings a harness process needs to run; none is a credential.
+  for (const key of NEUTRAL_OS_ENV_VARS) {
+    const value = process.env[key];
+    if (value) env[key] = PROXY_URL_ENV_VARS.has(key) ? withoutUserinfo(value) : value;
+  }
 
   // Force-blank sandbox infra creds on every run (see KNOWN_SANDBOX_ENV_VARS doc): the underlying
   // spawn inherits process.env first, so an absent key here would NOT stop the leak.
@@ -307,4 +346,23 @@ export function buildDaemonEnv(
   }
 
   return env;
+}
+
+/**
+ * Close the inheritance that `local()` adds: it spawns `{...process.env, ...env}`, so a key the
+ * allowlist left out still reaches the harness. Every other runner key is set to `undefined`,
+ * which `child_process` drops, so the child environment equals `env` and a platform credential
+ * such as AGENTA_API_KEY cannot leak. Unset, not `""`: an empty `SSL_CERT_DIR` or `GIT_*` does
+ * not behave like an absent one. Local only: Daytona receives `env` as its full `envVars`.
+ */
+export function closeInheritedEnv(
+  env: Record<string, string>,
+  inherited: NodeJS.ProcessEnv = process.env,
+): Record<string, string> {
+  const closed: Record<string, string | undefined> = { ...env };
+  for (const key of Object.keys(inherited)) {
+    if (!(key in env)) closed[key] = undefined;
+  }
+  // `local()` types its env as strings; `child_process` accepts and skips `undefined`.
+  return closed as Record<string, string>;
 }

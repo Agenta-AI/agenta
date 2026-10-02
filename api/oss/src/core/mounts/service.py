@@ -4,7 +4,15 @@ from contextlib import asynccontextmanager
 from collections import deque
 from posixpath import basename
 from re import sub
-from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Protocol, Tuple
+from typing import (
+    AsyncIterator,
+    TYPE_CHECKING,
+    List,
+    Literal,
+    Optional,
+    Protocol,
+    Tuple,
+)
 from uuid import UUID, uuid4, uuid5, NAMESPACE_DNS
 
 import pathspec
@@ -37,6 +45,7 @@ from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_PURPOSE,
     RESERVED_SLUG_PREFIX,
     SESSION_SLUG_PREFIX,
+    MountArchived,
     MountArtifactIdInvalid,
     MountArtifactNotFound,
     MountFileNotFound,
@@ -58,6 +67,9 @@ log = get_module_logger(__name__)
 # Deterministic UUIDv5 namespace: the project-wide root (uuid5(NAMESPACE_DNS, "agenta"))
 # sub-namespaced under "mounts". Stable across instances/restarts so the same session id
 # always derives the same slug. The same derived-root style as static_catalog's "catalog".
+# What a drive operation does, which decides whether an archived (read-only) drive allows it.
+MountAccess = Literal["read", "write", "lifecycle"]
+
 _MOUNTS_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "mounts")
 
 # The single session-bound mount: the agent's durable working directory.
@@ -454,6 +466,10 @@ class MountsService:
         )
         return f"{base}/{path.lstrip('/')}" if path else f"{base}/"
 
+    def _stored_prefixes(self, *, project_id: UUID, mount: Mount) -> List[str]:
+        """Every object prefix a mount owns. Deleting its session removes all of them."""
+        return [self._storage_key(project_id=project_id, mount=mount)]
+
     async def create_mount(
         self,
         *,
@@ -522,11 +538,16 @@ class MountsService:
             session_id=session_id,
             purpose=purpose,
         )
-        return await self.mounts_dao.upsert_mount(
+        mount = await self.mounts_dao.upsert_mount(
             project_id=project_id,
             user_id=user_id,
             mount_create=mount_create,
+            reactivate=False,
         )
+        # Only unarchiving the session brings its drive back; binding it does not.
+        if mount.deleted_at is not None:
+            raise MountArchived()
+        return mount
 
     async def _verify_agent_artifact(
         self,
@@ -580,6 +601,7 @@ class MountsService:
             project_id=project_id,
             user_id=user_id,
             mount_create=mount_create,
+            reactivate=True,
         )
 
     @asynccontextmanager
@@ -802,6 +824,7 @@ class MountsService:
             project_id=project_id,
             mount_id=mount_id,
             allow_protected=True,
+            access="write",
         )
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         await self.mounts_store.put_object(
@@ -825,6 +848,7 @@ class MountsService:
             project_id=project_id,
             mount_id=mount_id,
             allow_protected=True,
+            access="read",
         )
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
@@ -844,6 +868,8 @@ class MountsService:
             project_id=project_id,
             mount_id=mount_id,
             allow_protected=True,
+            # Cleanup (the attachment sweep), so an archived session does not block it.
+            access="lifecycle",
         )
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         await self.mounts_store.delete_keys(bucket=self._bucket(), keys=[key])
@@ -889,6 +915,7 @@ class MountsService:
         await self._resolve_mount(
             project_id=project_id,
             mount_id=mount_edit.id,
+            access="write",
         )
 
         return await self.mounts_dao.edit_mount(
@@ -908,6 +935,7 @@ class MountsService:
         await self._resolve_mount(
             project_id=project_id,
             mount_id=mount_id,
+            access="lifecycle",
         )
         return await self.mounts_dao.archive_mount(
             project_id=project_id,
@@ -926,6 +954,7 @@ class MountsService:
         await self._resolve_mount(
             project_id=project_id,
             mount_id=mount_id,
+            access="lifecycle",
         )
         return await self.mounts_dao.unarchive_mount(
             project_id=project_id,
@@ -960,17 +989,23 @@ class MountsService:
         object-store prefix. Explicit + session-aware (S7/F1, WP5): mounts are
         semi-independent (optional `session_id`, can outlive a session), so this
         is a targeted fan-out, never a blind cascade."""
-        mounts = await self.mounts_dao.delete_by_session_id(
+        # Objects go first: a failed removal keeps the rows, so a repeated delete finds the
+        # prefixes again and finishes the job instead of orphaning them.
+        mounts = await self.mounts_dao.fetch_by_session_id(
             project_id=project_id,
             session_id=session_id,
         )
         if self.mounts_store is not None and self.bucket:
             for mount in mounts:
-                prefix = self._storage_key(project_id=project_id, mount=mount)
-                await self.mounts_store.delete_prefix(
-                    bucket=self.bucket,
-                    prefix=prefix,
-                )
+                for prefix in self._stored_prefixes(project_id=project_id, mount=mount):
+                    await self.mounts_store.delete_prefix(
+                        bucket=self.bucket,
+                        prefix=prefix,
+                    )
+        await self.mounts_dao.delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )
         return mounts
 
     async def archive_session_mounts(
@@ -1029,8 +1064,10 @@ class MountsService:
         *,
         project_id: UUID,
         mount_id: UUID,
+        access: MountAccess,
         allow_protected: bool = False,
     ) -> Mount:
+        # `access` has no default so every caller decides what an archived drive allows it.
         mount = await self.mounts_dao.fetch_mount(
             project_id=project_id,
             mount_id=mount_id,
@@ -1039,6 +1076,8 @@ class MountsService:
             raise MountNotFound()
         if not allow_protected and is_protected_mount(mount):
             raise MountProtected()
+        if access == "write" and mount.deleted_at is not None:
+            raise MountArchived()
         return mount
 
     def _bucket(self) -> str:
@@ -1062,7 +1101,9 @@ class MountsService:
         if self.mounts_store is None:
             raise MountStorageUnavailable()
 
-        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="write"
+        )
         bucket = self._bucket()
         # `<project_id>/<mount_id>` — the durable prefix, slug-independent (no trailing slash).
         prefix = self._storage_key(project_id=project_id, mount=mount).rstrip("/")
@@ -1293,7 +1334,9 @@ class MountsService:
         Applies to the `depth=1` and browse views (the drawer + its search); the summary flat/count
         view ignores it. Off by default.
         """
-        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="read"
+        )
 
         base = self._storage_key(project_id=project_id, mount=mount).rstrip("/")
         prefix = base
@@ -1580,7 +1623,9 @@ class MountsService:
     ) -> bytes:
         """Raw object bytes — the basis for binary download (no lossy decode)."""
         validate_file_path(path)
-        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="read"
+        )
 
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
@@ -1594,7 +1639,9 @@ class MountsService:
     ) -> StoreObject:
         """Size and etag of one file, so callers can bound a read before making it."""
         validate_file_path(path)
-        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="read"
+        )
 
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         return await self.mounts_store.stat_object(bucket=self._bucket(), key=key)
@@ -1626,7 +1673,9 @@ class MountsService:
             if source.source_path:
                 validate_file_path(source.source_path)
             mount = await self._resolve_mount(
-                project_id=project_id, mount_id=source.mount_id
+                project_id=project_id,
+                mount_id=source.mount_id,
+                access="read",
             )
             mount_base = self._storage_key(project_id=project_id, mount=mount)
             is_session_cwd = _is_session_cwd_mount(mount)
@@ -1709,7 +1758,9 @@ class MountsService:
         path: str,
     ) -> MountFileContent:
         validate_file_path(path)
-        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="read"
+        )
 
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         body, etag = await self.mounts_store.get_object_with_etag(
@@ -1735,7 +1786,9 @@ class MountsService:
         `if_none_match_any` only creates; a failed condition raises `MountPreconditionFailed`
         with the current etag (None when the file is absent). Neither set: unconditional."""
         validate_file_path(path)
-        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="write"
+        )
 
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         try:
@@ -1758,7 +1811,9 @@ class MountsService:
         path: str,
     ) -> MountFolderCreated:
         validate_file_path(path)
-        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="write"
+        )
 
         # Object stores have no directories; a trailing-slash zero-byte marker
         # is the S3 console convention for an explicit empty folder.
@@ -1784,7 +1839,9 @@ class MountsService:
         otherwise `MountPreconditionFailed` carries the current etag (None when absent — a
         missing file or a folder, which has no etag)."""
         validate_file_path(path)
-        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        mount = await self._resolve_mount(
+            project_id=project_id, mount_id=mount_id, access="write"
+        )
 
         # A file matches one exact key; a folder matches keys under "<path>/".
         # List the folder prefix to avoid `foo` falsely matching `foobar`.

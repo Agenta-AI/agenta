@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 
 class StorePreconditionFailed(Exception):
@@ -10,3 +10,11 @@ class StorePreconditionFailed(Exception):
     def __init__(self, current_etag: Optional[str] = None):
         self.current_etag = current_etag
         super().__init__("Object store precondition failed.")
+
+
+class StoreDeleteFailed(Exception):
+    """The store refused to delete some keys. The caller must not act as if they are gone."""
+
+    def __init__(self, failed_keys: List[str]):
+        self.failed_keys = failed_keys
+        super().__init__(f"Object store could not delete {len(failed_keys)} key(s).")

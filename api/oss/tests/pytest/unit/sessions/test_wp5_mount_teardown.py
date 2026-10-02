@@ -16,6 +16,7 @@ import pytest
 
 from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
 from oss.src.core.mounts.service import MountsService
+from oss.src.core.store.types import StoreDeleteFailed
 
 
 _PROJECT = uuid4()
@@ -48,7 +49,7 @@ class _FakeMountsDAO:
         raise NotImplementedError
 
     async def upsert_mount(
-        self, *, project_id, user_id, mount_create: MountCreate
+        self, *, project_id, user_id, mount_create: MountCreate, reactivate: bool
     ) -> Mount:
         raise NotImplementedError
 
@@ -94,6 +95,9 @@ class _FakeMountsDAO:
                 rows = [m for m in rows if m.deleted_at is None]
         return rows
 
+    async def fetch_by_session_id(self, *, project_id, session_id) -> List[Mount]:
+        return [m for m in self.mounts.values() if m.session_id == session_id]
+
     async def delete_by_session_id(self, *, project_id, session_id) -> List[Mount]:
         self.deleted_session_ids.append(session_id)
         matched = [m for m in self.mounts.values() if m.session_id == session_id]
@@ -103,11 +107,15 @@ class _FakeMountsDAO:
 
 
 class _FakeObjectStore:
-    def __init__(self):
+    def __init__(self, *, fail_prefixes: int = 0):
         self.delete_prefix_calls: list[dict] = []
+        self.fail_prefixes = fail_prefixes
 
     async def delete_prefix(self, *, bucket: str, prefix: str) -> int:
         self.delete_prefix_calls.append({"bucket": bucket, "prefix": prefix})
+        if self.fail_prefixes:
+            self.fail_prefixes -= 1
+            raise StoreDeleteFailed([f"{prefix}file.txt"])
         return 3
 
 
@@ -214,3 +222,22 @@ async def test_archive_session_mounts_only_touches_bound_mounts():
     )
 
     assert dao.archive_calls == [bound.id]
+
+
+@pytest.mark.asyncio
+async def test_delete_session_mounts_keeps_rows_when_the_store_fails_and_a_retry_finishes():
+    mount = _mount(session_id=_SESSION, slug="cwd")
+    dao = _FakeMountsDAO([mount])
+    store = _FakeObjectStore(fail_prefixes=1)
+    svc = MountsService(mounts_dao=dao, mounts_store=store, bucket=_BUCKET)
+
+    with pytest.raises(StoreDeleteFailed):
+        await svc.delete_session_mounts(project_id=_PROJECT, session_id=_SESSION)
+
+    assert mount.id in dao.mounts
+    assert dao.deleted_session_ids == []
+
+    await svc.delete_session_mounts(project_id=_PROJECT, session_id=_SESSION)
+
+    assert dao.mounts == {}
+    assert len(store.delete_prefix_calls) == 2

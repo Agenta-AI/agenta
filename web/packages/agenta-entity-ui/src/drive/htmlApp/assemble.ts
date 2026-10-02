@@ -217,7 +217,7 @@ export async function assemblePreview(html: string, {dir, io}: PreviewContext): 
 
         return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`
     } catch {
-        return html
+        return errorDocument(PREVIEW_CSP, "This file could not be prepared for preview.")
     }
 }
 
@@ -246,6 +246,16 @@ export interface RunDocument {
     /** Human-readable notes about what the assembler had to drop (shown in the error strip). */
     errors: string[]
 }
+
+const escapeHtml = (text: string): string =>
+    text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+
+/**
+ * What the frame shows when a document cannot be built: the error, under the same policy. The
+ * original HTML is never the fallback, because it would render without its policy.
+ */
+export const errorDocument = (csp: string, message: string): string =>
+    `<!DOCTYPE html>\n<html lang="en"><head><meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}"><title>Could not open this file</title></head><body style="font:14px system-ui,sans-serif;padding:16px;color:#555">${escapeHtml(message)}</body></html>`
 
 /** A script body can close its own tag when inlined; neutralise the terminator. */
 const escapeInlineScript = (text: string): string => text.replace(/<\/script/gi, "<\\/script")
@@ -334,9 +344,8 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
 
         return {html: `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`, errors}
     } catch (error) {
-        errors.push(
-            `Could not assemble the app document: ${error instanceof Error ? error.message : String(error)}`,
-        )
-        return {html, errors}
+        const message = `Could not assemble the app document: ${error instanceof Error ? error.message : String(error)}`
+        errors.push(message)
+        return {html: errorDocument(RUN_CSP, message), errors}
     }
 }
