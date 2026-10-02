@@ -1,10 +1,7 @@
 import {describe, expect, it} from "vitest"
 
-import {
-    AGENT_TEMPLATES,
-    templateConnections,
-    type AgentStarterTemplate,
-} from "../../src/workflow/agentTemplates"
+import {templateConnections, type AgentStarterTemplate} from "../../src/workflow/agentTemplates"
+import {FIXTURE_TEMPLATES as AGENT_TEMPLATES} from "./agentTemplateFixtures"
 import {
     detectAccounts,
     detectAccountsFromTemplate,

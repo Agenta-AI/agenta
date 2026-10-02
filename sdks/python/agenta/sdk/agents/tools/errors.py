@@ -57,6 +57,10 @@ class GatewayToolResolutionError(ToolResolutionError):
     """Raised when a gateway adapter cannot resolve a configured tool."""
 
 
+class PlatformApiUnavailableError(GatewayToolResolutionError):
+    """Raised when platform tools are configured but the Agenta API address is unknown."""
+
+
 class UnsupportedToolProviderError(ToolResolutionError):
     """Raised when no resolver is available for a configured gateway provider."""
 

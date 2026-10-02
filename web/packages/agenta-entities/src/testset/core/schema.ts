@@ -124,10 +124,6 @@ export const revisionSchemas = createEntitySchemaSet({
     },
 })
 
-export type CreateRevision = typeof revisionSchemas.types.Create
-export type UpdateRevision = typeof revisionSchemas.types.Update
-export type LocalRevision = typeof revisionSchemas.types.Local
-
 /**
  * Revision list item - lighter version for lists
  */
@@ -207,8 +203,6 @@ export const testsetSchemas = createEntitySchemaSet({
 })
 
 export type CreateTestset = typeof testsetSchemas.types.Create
-export type UpdateTestset = typeof testsetSchemas.types.Update
-export type LocalTestset = typeof testsetSchemas.types.Local
 
 /**
  * Testset query response

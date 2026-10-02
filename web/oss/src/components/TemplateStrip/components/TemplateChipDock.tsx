@@ -4,7 +4,8 @@ import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import TemplateChip from "./TemplateChip"
 
 interface TemplateChipDockProps {
-    template: AgentStarterTemplate
+    /** Null before any template was picked — the chip then has nothing to show. */
+    template: AgentStarterTemplate | null
     /** Whether a template is currently selected — drives the fade/rise in and out. */
     visible: boolean
     onClear: () => void
@@ -17,7 +18,7 @@ const ENTRANCE = {type: "spring", visualDuration: 0.3, bounce: 0} as const
 const TemplateChipDock = ({template, visible, onClear}: TemplateChipDockProps) => (
     <MotionConfig reducedMotion="user">
         <AnimatePresence>
-            {visible && (
+            {visible && template && (
                 <motion.div
                     key="template-chip"
                     className="origin-bottom-left"

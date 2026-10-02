@@ -163,6 +163,22 @@ class SessionAttachmentsService:
             )
         return ready
 
+    async def fetch_attachment(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        attachment_id: UUID,
+    ) -> Attachment:
+        attachment = await self._dao.fetch_ready(
+            project_id=project_id,
+            session_id=session_id,
+            attachment_id=attachment_id,
+        )
+        if attachment is None:
+            raise AttachmentNotFound(attachment_id=attachment_id)
+        return attachment
+
     async def fetch_attachment_content(
         self,
         *,

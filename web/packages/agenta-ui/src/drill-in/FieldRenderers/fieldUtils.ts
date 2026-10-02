@@ -11,25 +11,10 @@ import {isChatMessageObject} from "@agenta/shared/utils"
 import type {DataType} from "../coreTypes"
 
 /**
- * Maximum depth for recursive field expansion
- */
-export const MAX_NESTED_DEPTH = 20
-
-/**
  * Get nested value from an object by key
  */
 export function getNestedValue(obj: Record<string, unknown>, key: string): string {
     const value = obj[key]
-    if (value === null || value === undefined) return ""
-    if (typeof value === "string") return value
-    return JSON.stringify(value, null, 2)
-}
-
-/**
- * Get array item value as string
- */
-export function getArrayItemValue(arr: unknown[], index: number): string {
-    const value = arr[index]
     if (value === null || value === undefined) return ""
     if (typeof value === "string") return value
     return JSON.stringify(value, null, 2)
@@ -50,13 +35,6 @@ export function canExpandValue(value: unknown): boolean {
  */
 export function canExpandAsArray(value: unknown): boolean {
     return Array.isArray(value) && value.length > 0
-}
-
-/**
- * Check if a native value can be expanded.
- */
-export function canExpand(value: unknown): boolean {
-    return canExpandValue(value) || canExpandAsArray(value)
 }
 
 export {isChatMessageObject} from "@agenta/shared/utils"
@@ -180,18 +158,6 @@ export function detectDataType(
 }
 
 /**
- * Check if a field can be shown in text mode (not locked to raw-only)
- */
-export function canShowTextMode(
-    value: unknown,
-    valueMode: "native" | "string" = "native",
-): boolean {
-    const dataType = detectDataType(value, valueMode)
-    // JSON objects (non-message) can only be shown in raw mode
-    return dataType !== "json-object"
-}
-
-/**
  * Get the pretty text value for text mode display
  * For strings: show the string content without outer quotes
  * For messages: handled separately by ChatMessageList
@@ -225,32 +191,4 @@ export function textModeToStorageValue(
     }
 
     return textValue
-}
-
-/**
- * Format values for JSON display
- * Preserves original data types - strings stay as strings, objects stay as objects.
- * This ensures the JSON editor shows the actual data format without modification.
- */
-export function formatForJsonDisplay(values: Record<string, unknown>): string {
-    // Use values as-is to preserve original data types
-    // A string containing JSON (e.g., '{"key": "value"}') should remain a string,
-    // not be parsed into an object - this preserves data integrity
-    return JSON.stringify(values, null, 2)
-}
-
-/**
- * Parse JSON display back to native values (preserves objects/arrays)
- */
-export function parseFromJsonDisplay(jsonStr: string): Record<string, unknown> | null {
-    try {
-        const parsed = JSON.parse(jsonStr)
-        if (typeof parsed !== "object" || parsed === null) {
-            return null
-        }
-        // Return native values as-is (objects, arrays, strings, numbers, booleans)
-        return parsed as Record<string, unknown>
-    } catch {
-        return null
-    }
 }

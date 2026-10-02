@@ -11,7 +11,8 @@ import {join} from "node:path"
 
 import {describe, expect, it} from "vitest"
 
-import {AGENT_TEMPLATES, PROVIDERS, templateConnections} from "../../src/workflow/agentTemplates"
+import {PROVIDERS, templateConnections} from "../../src/workflow/agentTemplates"
+import {FIXTURE_TEMPLATES as AGENT_TEMPLATES} from "./agentTemplateFixtures"
 
 const PLAYBOOK_DIR = join(
     __dirname,

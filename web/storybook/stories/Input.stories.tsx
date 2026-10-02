@@ -131,8 +131,9 @@ export const AntdVsAgenta: Story = {
                 a={<AntInput.Password defaultValue="hunter2" />}
                 s={<PasswordInput aria-label="Password" defaultValue="hunter2" />}
             />
+            {/* Resizes vertically only; drag the corner to check it stays in its column. */}
             <Row
-                label="textarea"
+                label="textarea (resize-y)"
                 a={<AntInput.TextArea rows={2} placeholder="ta" />}
                 s={<Textarea rows={2} placeholder="ta" />}
             />
@@ -212,6 +213,18 @@ export const InteractionStates: Story = {
                         defaultValue="text"
                     />
                 }
+            />
+            <StateRow
+                label="textarea · focus"
+                pseudo="pseudo-focus-within-all"
+                a={<AntInput.TextArea rows={2} defaultValue="text" />}
+                s={<Textarea rows={2} defaultValue="text" />}
+            />
+            <StateRow
+                label="textarea · error"
+                pseudo=""
+                a={<AntInput.TextArea status="error" rows={2} defaultValue="text" />}
+                s={<Textarea aria-invalid rows={2} defaultValue="text" />}
             />
             <StateRow
                 label="default · hover"

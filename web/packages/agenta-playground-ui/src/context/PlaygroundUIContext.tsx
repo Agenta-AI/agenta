@@ -1,27 +1,18 @@
 /**
  * PlaygroundUIContext
  *
- * Provides context injection for OSS-specific components that vary between OSS and EE.
- * This allows the @agenta/playground package to remain environment-agnostic while
- * the consuming app (OSS or EE) provides the actual component implementations.
+ * Provides context injection for app-layer components. This keeps the playground
+ * packages environment-agnostic while the consuming app provides the implementations.
  *
  * @example
  * ```tsx
- * // In OSS app
- * import { PlaygroundUIProvider } from "@agenta/playground-ui"
- * import { EntityDrillInView } from "@/oss/components/DrillInView"
- *
- * export function PlaygroundTest() {
- *   return (
- *     <PlaygroundUIProvider providers={{
- *       EntityDrillInView,
- *       SharedGenerationResultUtils,
- *       CommitVariantChangesButton: dynamic(() => import("...CommitVariantChangesButton")),
- *     }}>
- *       <PlaygroundContent />
- *     </PlaygroundUIProvider>
- *   )
- * }
+ * <PlaygroundUIProvider providers={{
+ *   EntityDrillInView,
+ *   SharedGenerationResultUtils,
+ *   CommitVariantChangesButton,
+ * }}>
+ *   {children}
+ * </PlaygroundUIProvider>
  * ```
  */
 

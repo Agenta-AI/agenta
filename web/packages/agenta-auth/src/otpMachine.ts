@@ -2,8 +2,8 @@
  * Pure state machine + status mapping for the passwordless (email OTP) flow.
  *
  * Kept free of SuperTokens imports so the whole flow — including every error
- * branch the desktop's SendOTP component handles — is unit-testable. The
- * network wrappers live in ./index.ts and only feed statuses in here.
+ * branch — is unit-testable. The network wrappers live in ./client.ts and only
+ * feed statuses in here.
  */
 
 export type OtpPhase = "email" | "sending" | "code" | "verifying"
@@ -79,13 +79,6 @@ export const OTP_RESEND_COOLDOWN_MS = 60_000
 
 const GENERIC_ERROR = "Something went wrong. Try again."
 
-export type OtpOutcome =
-    | {kind: "ok"}
-    /** Recoverable: stay on the code step and let the user retype. */
-    | {kind: "retry"; message: string}
-    /** Unrecoverable: drop the attempt and go back to the email step. */
-    | {kind: "restart"; message: string}
-
 export function describeCreateCode(
     result: {status: string; reason?: string} | null,
 ): {kind: "ok"} | {kind: "failed"; message: string} {
@@ -104,40 +97,4 @@ export function describeResendCode(
         return {kind: "restart", message: "That code expired. Request a new one."}
     }
     return {kind: "restart", message: GENERIC_ERROR}
-}
-
-export function describeConsumeCode(
-    result: {
-        status: string
-        reason?: string
-        failedCodeInputAttemptCount?: number
-        maximumCodeInputAttempts?: number
-    } | null,
-): OtpOutcome {
-    switch (result?.status) {
-        case "OK":
-            return {kind: "ok"}
-        case "INCORRECT_USER_INPUT_CODE_ERROR": {
-            const left =
-                (result.maximumCodeInputAttempts ?? 0) - (result.failedCodeInputAttemptCount ?? 0)
-            return {
-                kind: "retry",
-                message:
-                    left > 0
-                        ? `Incorrect code. ${left} attempt${left === 1 ? "" : "s"} left.`
-                        : "Incorrect code.",
-            }
-        }
-        case "EXPIRED_USER_INPUT_CODE_ERROR":
-            return {kind: "retry", message: "That code expired. Request a new one."}
-        case "RESTART_FLOW_ERROR":
-            return {kind: "restart", message: "That sign-in attempt expired. Start again."}
-        case "SIGN_IN_UP_NOT_ALLOWED":
-            return {
-                kind: "restart",
-                message: result?.reason || "Sign-in is not allowed for this email.",
-            }
-        default:
-            return {kind: "restart", message: GENERIC_ERROR}
-    }
 }

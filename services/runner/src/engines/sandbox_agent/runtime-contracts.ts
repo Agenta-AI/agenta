@@ -194,6 +194,8 @@ export interface CurrentTurn {
   handleUpdate: (update: unknown) => void;
   /** Route a permission reverse-RPC for the active turn (built by attachPermissionResponder). */
   onPermissionRequest?: (req: unknown) => void;
+  /** The turn handed its final usage to the tracer; a later cost reading no longer belongs to it. */
+  usageSettled?: boolean;
 }
 
 /**
@@ -511,6 +513,11 @@ export interface SessionEnvironment {
    * count means a gate lacked an id and cannot be resumed live, so the dispatch stays cold.
    */
   approvalGateCount: number;
+  /**
+   * The last session-wide running cost total the harness reported (Claude Code's
+   * `total_cost_usd`), so the next turn on this live session can report only its own share.
+   */
+  harnessCostReading?: number;
   /**
    * How many NON-parkable pauses happened this turn (a client-tool ACP gate or a browser-fulfilled
    * relay/MCP client tool), reset at turn start. Non-zero means the turn mixes an unanswerable

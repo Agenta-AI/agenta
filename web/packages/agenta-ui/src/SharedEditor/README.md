@@ -67,7 +67,7 @@ const [localValue, setLocalValue] = useDebounceInput(
 
 ```
 SharedEditor/
-├── SharedEditor.tsx    # Main component
+├── SharedEditorImpl.tsx # Main component
 ├── types.ts            # Type definitions
 ├── index.ts            # Exports
 └── README.md           # This file

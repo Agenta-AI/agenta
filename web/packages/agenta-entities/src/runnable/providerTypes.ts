@@ -13,7 +13,7 @@
  * @module runnable/providerTypes
  */
 
-import type {Atom, WritableAtom} from "jotai"
+import type {Atom} from "jotai"
 
 // ============================================================================
 // QUERY STATE
@@ -54,26 +54,6 @@ export interface EntityRevisionSelectors<TData> {
 }
 
 // ============================================================================
-// APP REVISION LIST INTERFACES
-// ============================================================================
-
-/**
- * List selectors for app revision entity hierarchies.
- * Allows the playground controller to query variants/revisions
- * without knowing the concrete data source.
- */
-export interface AppRevisionListSelectors {
-    /** Variants for an app (includes local draft groups) */
-    variantsForApp: (appId: string) => Atom<{data: unknown[] | null}> | undefined
-    /** Revisions for a variant */
-    revisionsForVariant: (variantId: string) => Atom<unknown[]> | undefined
-    /** All revisions for an app (flattened, includes local drafts) */
-    allRevisions: (appId: string) => Atom<unknown[]>
-    /** Readiness signal — true when initial revision load is complete */
-    isReady: Atom<boolean>
-}
-
-// ============================================================================
 // APP REVISION CRUD INTERFACES
 // ============================================================================
 
@@ -102,42 +82,9 @@ export interface AppRevisionCrudResult {
     errorStatus?: number
 }
 
-/**
- * CRUD actions for app revision entities.
- * OSS/EE provides concrete implementations via the provider.
- */
-export interface AppRevisionActions {
-    createVariant: WritableAtom<
-        null,
-        [AppRevisionCreateVariantPayload],
-        Promise<AppRevisionCrudResult>
-    >
-    commitRevision: WritableAtom<null, [AppRevisionCommitPayload], Promise<AppRevisionCrudResult>>
-    deleteRevision: WritableAtom<null, [string], Promise<AppRevisionCrudResult>>
-    invalidateQueries: WritableAtom<null, [], Promise<void>>
-}
-
 // ============================================================================
 // RAW DATA TYPES
 // ============================================================================
-
-/**
- * App revision raw data (as returned by the molecule)
- */
-export interface AppRevisionRawData {
-    id: string
-    name?: string
-    variantSlug?: string
-    version?: number
-    configuration?: Record<string, unknown>
-    invocationUrl?: string
-    appId?: string
-    variantId?: string
-    schemas?: {
-        inputs?: Record<string, unknown>
-        outputs?: Record<string, unknown>
-    }
-}
 
 /**
  * Evaluator raw data (as returned by the new evaluator molecule)
@@ -194,20 +141,6 @@ export interface WorkflowRawData {
 // ============================================================================
 // PROVIDER INTERFACE
 // ============================================================================
-
-/**
- * Selectors for the new evaluator entity
- */
-export interface EvaluatorSelectors extends EntityRevisionSelectors<EvaluatorRawData> {
-    /** Evaluator URI (e.g., "agenta:builtin:auto_exact_match:v0") */
-    uri?: (id: string) => Atom<string | null>
-    /** Evaluator key parsed from URI */
-    evaluatorKey?: (id: string) => Atom<string | null>
-    /** Configuration parameters */
-    parameters?: (id: string) => Atom<Record<string, unknown> | null>
-    /** Is custom evaluator */
-    isCustom?: (id: string) => Atom<boolean>
-}
 
 /**
  * Injected entity providers

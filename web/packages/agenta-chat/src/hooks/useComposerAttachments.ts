@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
+import {useAtomValue} from "jotai"
 
 import {
     type AttachmentRejection,
@@ -8,7 +10,11 @@ import {
     attachmentRefsToParts,
     validateIncoming,
 } from "../assets"
-import {uploadAttachment, type SessionAttachmentResponse} from "../assets/attachmentTransport"
+import {
+    AttachmentUploadError,
+    uploadAttachment,
+    type SessionAttachmentResponse,
+} from "../assets/attachmentTransport"
 import type {StagedUpload as UploadFile} from "../model"
 import {attachmentsBySession} from "../state/sessionEphemera"
 
@@ -58,6 +64,10 @@ export const useComposerAttachments = ({
     /** Hosts gate the whole attachment path on their rollout flag; off = inline-only staging. */
     uploadsEnabled?: boolean
 }) => {
+    // The session's project. Every other session-scoped call sends it; the upload must too, or
+    // the API stores the attachment under the caller's default project and the runner, scoped
+    // to the session's real project, gets a 404 and never reads the file.
+    const projectId = useAtomValue(projectIdAtom)
     // Restored from the per-session store on remount (route re-entry, tab close/reopen) —
     // pending attachments survive alongside the composer draft. Rejections stay transient.
     const [files, setFiles] = useState<StagedFile[]>(
@@ -110,8 +120,24 @@ export const useComposerAttachments = ({
                 onProgress,
                 signal,
             }: {uid: string; onProgress: (percent: number) => void; signal: AbortSignal},
-        ) => uploadAttachment({file, sessionId, idempotencyKey: uid, onProgress, signal}),
-        [sessionId],
+        ) => {
+            // A staged file only exists inside an open session, so the project is resolved by
+            // now. Guard the pre-hydration null so the attachment is never posted without it.
+            if (!projectId) {
+                return Promise.reject(
+                    new AttachmentUploadError("This upload needs an active project."),
+                )
+            }
+            return uploadAttachment({
+                file,
+                sessionId,
+                projectId,
+                idempotencyKey: uid,
+                onProgress,
+                signal,
+            })
+        },
+        [sessionId, projectId],
     )
     // Upload lifecycle for the tray (progress / error / retry).
     const uploads = useAttachmentUploads(files, setFiles, attachmentUploader)

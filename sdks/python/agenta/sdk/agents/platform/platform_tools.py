@@ -23,6 +23,7 @@ from agenta.sdk.agents.tools import (
     CallbackToolSpec,
     GatewayToolResolution,
     GatewayToolResolutionError,
+    PlatformApiUnavailableError,
     PlatformToolConfig,
     ToolCallback,
 )
@@ -65,7 +66,7 @@ class AgentaPlatformToolResolver:
     ) -> GatewayToolResolution:
         api_base = self._connection.base_url()
         if not api_base:
-            error = GatewayToolResolutionError(
+            error = PlatformApiUnavailableError(
                 "Agent has platform (type:'platform') tools configured but the Agenta API "
                 "base URL is unknown. Set AGENTA_AGENT_TOOLS_API_URL or AGENTA_API_URL."
             )

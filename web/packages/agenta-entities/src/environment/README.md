@@ -388,22 +388,9 @@ await commitEnvironmentRevision({
 
 ```typescript
 import {
-  getDeployedRevisionId,
-  getDeployedAppKeys,
-  isGuardedEnvironment,
   normalizeEnvironment,
   normalizeEnvironmentRevision,
 } from '@agenta/entities/environment'
-
-// Get deployed revision ID for an app
-const revId = getDeployedRevisionId(env.data, 'myapp.default')
-
-// Get all deployed app keys
-const appKeys = getDeployedAppKeys(env.data)
-// => ['myapp.default', 'otherapp.default']
-
-// Check if environment is guarded
-isGuardedEnvironment(env) // => true/false
 
 // Normalize API responses
 const env = normalizeEnvironment(rawApiData)

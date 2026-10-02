@@ -10,7 +10,6 @@ src/
 │   ├── selection/           # Selection UI (search, lists, pagination)
 │   ├── presentational/      # Pure display components (badges, labels, etc.)
 │   ├── modal/               # Modal layout components
-│   ├── CopyButtonDropdown.tsx  # Copy button with dropdown options
 │   ├── EnhancedModal.tsx    # Modal wrapper with lazy rendering
 │   └── README.md
 ├── ChatMessage/             # Chat message editing components
@@ -84,10 +83,6 @@ Pure display components for entity information:
 - **EnhancedModal**: Modal wrapper with lazy rendering, auto-height
 - **ModalContent**: Standardized modal content layout
 - **ModalFooter**: Standardized modal footer with cancel/confirm
-
-#### Action Components
-
-- **CopyButtonDropdown**: Copy button with dropdown options
 
 ### ChatMessage
 

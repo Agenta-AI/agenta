@@ -17,7 +17,6 @@ import type {
     RunnableType,
     RunnableData,
     ExecutionResult,
-    InputMapping,
     PlaygroundNode,
     OutputConnection,
 } from "./types"
@@ -27,75 +26,8 @@ import type {
 // ============================================================================
 
 /**
- * Compute topological order for DAG execution
- *
- * @param nodes - Array of nodes with nodeId property
- * @param connections - Output connections between nodes
- * @param startNodeId - Optional starting node ID (ensures it's first)
- * @returns Array of node IDs in execution order
- */
-export function computeTopologicalOrder(
-    nodes: {nodeId: string}[] | PlaygroundNode[],
-    connections: OutputConnection[],
-    startNodeId?: string,
-): string[] {
-    // Normalize nodes to get IDs
-    const nodeIds = nodes.map((n) => ("nodeId" in n ? n.nodeId : n.id))
-
-    const inDegree = new Map<string, number>()
-    const adjacency = new Map<string, string[]>()
-
-    // Initialize
-    for (const nodeId of nodeIds) {
-        inDegree.set(nodeId, 0)
-        adjacency.set(nodeId, [])
-    }
-
-    // Build graph from connections
-    for (const conn of connections) {
-        const targets = adjacency.get(conn.sourceNodeId) ?? []
-        targets.push(conn.targetNodeId)
-        adjacency.set(conn.sourceNodeId, targets)
-
-        const currentInDegree = inDegree.get(conn.targetNodeId) ?? 0
-        inDegree.set(conn.targetNodeId, currentInDegree + 1)
-    }
-
-    // Kahn's algorithm
-    const queue: string[] = []
-    const result: string[] = []
-
-    // If startNodeId provided, ensure it's processed first
-    if (startNodeId && inDegree.get(startNodeId) === 0) {
-        queue.push(startNodeId)
-    }
-
-    for (const [nodeId, degree] of inDegree.entries()) {
-        if (degree === 0 && nodeId !== startNodeId) {
-            queue.push(nodeId)
-        }
-    }
-
-    while (queue.length > 0) {
-        const nodeId = queue.shift()!
-        result.push(nodeId)
-
-        for (const neighbor of adjacency.get(nodeId) ?? []) {
-            const newDegree = (inDegree.get(neighbor) ?? 1) - 1
-            inDegree.set(neighbor, newDegree)
-
-            if (newDegree === 0) {
-                queue.push(neighbor)
-            }
-        }
-    }
-
-    return result
-}
-
-/**
- * Like computeTopologicalOrder but groups nodes into execution batches
- * that respect connection-level parallelism.
+ * Topologically orders nodes into execution batches that respect
+ * connection-level parallelism.
  *
  * Returns `string[][]` where each inner array is a batch of nodes.
  * Nodes within the same batch execute concurrently via `Promise.all`;
@@ -337,44 +269,6 @@ export function resolveChainInputs(
     return result
 }
 
-/**
- * Resolve inputs from mappings directly (simpler overload for modal usage)
- *
- * @param mappings - Input mappings for the node
- * @param upstreamOutputs - Outputs from upstream nodes
- * @param testcaseData - Optional testcase data
- * @returns Resolved input data
- */
-export function resolveInputsFromMappings(
-    mappings: InputMapping[],
-    upstreamOutputs: Record<string, unknown>,
-    testcaseData?: Record<string, unknown>,
-): Record<string, unknown> {
-    const result: Record<string, unknown> = {}
-
-    for (const mapping of mappings) {
-        // Check for valid mapping with source path
-        if (mapping.status === "valid" && mapping.sourcePath) {
-            // Get value from source
-            const sourceType = mapping.sourcePath.split(".")[0]
-            const sourcePath = mapping.sourcePath.split(".").slice(1)
-
-            let value: unknown
-
-            if (sourceType === "testcase" && testcaseData) {
-                value = getValueAtPath(testcaseData, sourcePath)
-            } else {
-                value = getValueAtPath(upstreamOutputs, mapping.sourcePath.split("."))
-            }
-
-            result[mapping.targetKey] = value
-        }
-        // Unmapped inputs are left undefined
-    }
-
-    return result
-}
-
 // ============================================================================
 // AUTO MAPPING
 // ============================================================================
@@ -391,57 +285,6 @@ export interface PathSource {
     label?: string
     /** Full path string for display (e.g., "testcase.input") */
     pathString?: string
-}
-
-/**
- * Auto-map inputs based on name matching
- *
- * @param targetKeys - Keys to map
- * @param availableSources - Available source paths (PathInfo[] or simpler {path, key}[])
- * @returns Input mappings
- */
-export function autoMapInputs(
-    targetKeys: string[],
-    availableSources: PathSource[],
-): InputMapping[] {
-    const mappings: InputMapping[] = []
-
-    for (const targetKey of targetKeys) {
-        // Try to find a match by key, label, or last segment of path
-        const match = availableSources.find((source) => {
-            // Match by key if available
-            if (source.key && source.key.toLowerCase() === targetKey.toLowerCase()) {
-                return true
-            }
-            // Match by label if available
-            if (source.label && source.label.toLowerCase() === targetKey.toLowerCase()) {
-                return true
-            }
-            // Match by last segment of path (e.g., "testcase.input" -> "input")
-            const pathKey = source.path.split(".").pop()
-            if (pathKey && pathKey.toLowerCase() === targetKey.toLowerCase()) {
-                return true
-            }
-            return false
-        })
-
-        if (match) {
-            mappings.push({
-                targetKey,
-                sourcePath: match.pathString || match.path,
-                status: "valid",
-                isAutoMapped: true,
-            })
-        } else {
-            mappings.push({
-                targetKey,
-                sourcePath: null,
-                status: "unmapped",
-            })
-        }
-    }
-
-    return mappings
 }
 
 // ============================================================================
@@ -1335,70 +1178,6 @@ function transformTraceKeysInSettings(settings: Record<string, unknown>): Record
         }
     }
     return result
-}
-
-/**
- * Extract template variables from enhanced prompts (draft format).
- *
- * Enhanced prompts use a wrapped value structure:
- *   [{ messages: { value: [{ content: { value: "string" | ContentPart[] } }] } }]
- *
- * This is different from the raw agConfig format where content is a plain string.
- * Used to derive input ports from locally-edited prompts that haven't been saved yet.
- *
- * @param enhancedPrompts - Array of enhanced prompt objects
- * @returns Array of unique variable names
- */
-export function extractVariablesFromEnhancedPrompts(
-    enhancedPrompts: unknown[],
-    templateFormat: TemplateFormat = "curly",
-): string[] {
-    if (!enhancedPrompts || enhancedPrompts.length === 0) return []
-
-    const variables: string[] = []
-
-    for (const prompt of enhancedPrompts) {
-        const promptObj = prompt as Record<string, unknown> | null | undefined
-
-        // Read template_format from the enhanced prompt if available
-        const tfWrapper = (promptObj?.template_format ?? promptObj?.templateFormat) as
-            | Record<string, unknown>
-            | string
-            | undefined
-        const rawTf = typeof tfWrapper === "object" ? (tfWrapper?.value as string) : tfWrapper
-        const effectiveFormat = resolveTemplateFormat(rawTf) ?? templateFormat
-
-        const messagesWrapper = promptObj?.messages as Record<string, unknown> | undefined
-        const messages = messagesWrapper?.value
-        if (!Array.isArray(messages)) continue
-
-        for (const message of messages) {
-            const msgObj = message as Record<string, unknown> | null | undefined
-            const contentWrapper = msgObj?.content as Record<string, unknown> | undefined
-            const content = contentWrapper?.value
-            if (typeof content === "string") {
-                for (const v of extractTemplateVariables(content, effectiveFormat)) {
-                    if (!variables.includes(v)) variables.push(v)
-                }
-            } else if (Array.isArray(content)) {
-                for (const part of content) {
-                    const partObj = part as Record<string, unknown> | null | undefined
-                    const text =
-                        typeof part === "string"
-                            ? part
-                            : ((partObj?.text as Record<string, unknown> | undefined)?.value ??
-                              partObj?.text)
-                    if (typeof text === "string") {
-                        for (const v of extractTemplateVariables(text, effectiveFormat)) {
-                            if (!variables.includes(v)) variables.push(v)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return variables
 }
 
 // ============================================================================

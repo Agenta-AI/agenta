@@ -79,12 +79,12 @@ class SubscriptionLoginState(str, Enum):
 SUBSCRIPTION_PROVIDER_MODELS = {
     SubscriptionProviderKind.CHATGPT: [
         "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
         "gpt-5.5",
-        "gpt-5.4",
-        "gpt-5.4-mini",
         "gpt-5.3-codex-spark",
     ],
 }

@@ -155,10 +155,17 @@ export const useElicitationDock = ({
         }
     }, [onOutput, mark, forget, isSettling])
 
-    // A card whose answer is out can never be the front one the actions address.
+    // A card whose answer is out can never be the front one the actions address. Shown only once
+    // its schema is whole and renders; a bad one settles unseen unless it parked for a Skip.
     const live = useMemo(
-        () => pending.filter((meta) => !settlingIds.has(meta.toolCallId)),
-        [pending, settlingIds],
+        () =>
+            pending.filter(
+                (meta) =>
+                    !settlingIds.has(meta.toolCallId) &&
+                    payloadArrived(meta) &&
+                    (degradedEarlierInTurn || parseElicitationPayload(meta.input).ok),
+            ),
+        [pending, settlingIds, degradedEarlierInTurn],
     )
     // Hold the last non-empty view so a host can animate the dock closed around content already gone.
     const open = live.length > 0

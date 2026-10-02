@@ -1585,6 +1585,20 @@ class MountsService:
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
 
+    async def stat_file(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+    ) -> StoreObject:
+        """Size and etag of one file, so callers can bound a read before making it."""
+        validate_file_path(path)
+        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+
+        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        return await self.mounts_store.stat_object(bucket=self._bucket(), key=key)
+
     async def build_archive_work_list(
         self,
         *,

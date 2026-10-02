@@ -1,7 +1,6 @@
 import {describe, expect, it} from "vitest"
 
 import {
-    describeConsumeCode,
     describeCreateCode,
     describeResendCode,
     initialOtpState,
@@ -95,60 +94,5 @@ describe("describeResendCode", () => {
     })
     it("restarts on an unknown result", () => {
         expect(describeResendCode(null).kind).toBe("restart")
-    })
-})
-
-describe("describeConsumeCode", () => {
-    it("accepts OK", () => {
-        expect(describeConsumeCode({status: "OK"})).toEqual({kind: "ok"})
-    })
-
-    it("reports the remaining attempts on a wrong code", () => {
-        expect(
-            describeConsumeCode({
-                status: "INCORRECT_USER_INPUT_CODE_ERROR",
-                failedCodeInputAttemptCount: 3,
-                maximumCodeInputAttempts: 5,
-            }),
-        ).toEqual({kind: "retry", message: "Incorrect code. 2 attempts left."})
-    })
-
-    it("singularizes the last attempt", () => {
-        expect(
-            describeConsumeCode({
-                status: "INCORRECT_USER_INPUT_CODE_ERROR",
-                failedCodeInputAttemptCount: 4,
-                maximumCodeInputAttempts: 5,
-            }),
-        ).toEqual({kind: "retry", message: "Incorrect code. 1 attempt left."})
-    })
-
-    it("omits the count when no attempts remain", () => {
-        expect(
-            describeConsumeCode({
-                status: "INCORRECT_USER_INPUT_CODE_ERROR",
-                failedCodeInputAttemptCount: 5,
-                maximumCodeInputAttempts: 5,
-            }),
-        ).toEqual({kind: "retry", message: "Incorrect code."})
-    })
-
-    it("keeps the user on the code step when the code expired", () => {
-        expect(describeConsumeCode({status: "EXPIRED_USER_INPUT_CODE_ERROR"}).kind).toBe("retry")
-    })
-
-    it("restarts on RESTART_FLOW_ERROR", () => {
-        expect(describeConsumeCode({status: "RESTART_FLOW_ERROR"}).kind).toBe("restart")
-    })
-
-    it("restarts with the backend reason when sign-in is not allowed", () => {
-        expect(describeConsumeCode({status: "SIGN_IN_UP_NOT_ALLOWED", reason: "linked"})).toEqual({
-            kind: "restart",
-            message: "linked",
-        })
-    })
-
-    it("restarts on a thrown/unknown result", () => {
-        expect(describeConsumeCode(null).kind).toBe("restart")
     })
 })

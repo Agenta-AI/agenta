@@ -15,15 +15,8 @@ export type {ListItemProps, EntityListItemProps} from "./ListItem"
 
 // Virtual lists
 export {VirtualList, SimpleList, AdaptiveList} from "./VirtualList"
-export {VirtualEntityList, SimpleEntityList, AdaptiveEntityList} from "./VirtualList"
-export type {
-    VirtualListProps,
-    SimpleListProps,
-    AdaptiveListProps,
-    VirtualEntityListProps,
-    SimpleEntityListProps,
-    AdaptiveEntityListProps,
-} from "./VirtualList"
+export {VirtualEntityList} from "./VirtualList"
+export type {VirtualListProps, SimpleListProps, AdaptiveListProps} from "./VirtualList"
 
 // Load more button
 export {LoadMoreButton, LoadMoreInline, EndOfList} from "./LoadMoreButton"

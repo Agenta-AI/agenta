@@ -1,5 +1,7 @@
 import { useState, type CSSProperties } from "react";
 
+import { USE_IT_FOR_FREE_LABEL, useItForFreeUrl } from "../lib/useItForFree";
+
 /*
  * TemplateExplorer — the "An agent for every job" featured-template island.
  * Ported from the dark landing DC (templateSectionVals): a centered area-tab
@@ -7,8 +9,6 @@ import { useState, type CSSProperties } from "react";
  * The Harness row is itself a segmented switch that swaps the model caption.
  * Rendered as a React island (client:visible).
  */
-
-const CLOUD_URL = "https://cloud.agenta.ai/";
 
 // Brand marks self-hosted under public/logos/tools/. The source SVGs are
 // fill="currentColor" (they render black as <img>), so we tint them to the
@@ -46,8 +46,7 @@ const MODELS: { name: string; logo: string }[] = [
 ];
 
 type Template = {
-  // Key from the app template registry (web/oss/.../agent-home/assets/templates.ts).
-  // The app captures ?template=<key> on arrival and creates the agent from it.
+  // Catalog key (src/data/templates.json); "Use it for free" loads that package.
   key: string;
   area: string;
   title: string;
@@ -60,7 +59,7 @@ type Template = {
   agents: string;
 };
 
-const TEMPLATES: Template[] = [
+export const TEMPLATES: Template[] = [
   {
     key: "pr-reviewer",
     area: "Engineering",
@@ -550,11 +549,11 @@ export default function TemplateExplorer() {
           >
             <a
               className="ag-btn ag-btn--primary"
-              href={`${CLOUD_URL}?template=${current.key}`}
+              href={useItForFreeUrl(current.key)}
               target="_blank"
               rel="noopener"
             >
-              Use this template
+              {USE_IT_FOR_FREE_LABEL}
               <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
                 <path
                   d="M3 2.5 6.5 6 3 9.5"

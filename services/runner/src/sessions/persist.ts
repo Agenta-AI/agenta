@@ -21,6 +21,7 @@
  *    "user" for the inbound user turn persisted at run start.
  */
 
+import { randomUUID } from "node:crypto";
 import { apiBase } from "../apiBase.ts";
 import { envInt, envTimerMs } from "../env.ts";
 import type { AgentEvent } from "../protocol.ts";
@@ -29,6 +30,20 @@ import { stableRecordId } from "./record-id.ts";
 import { LiveFramePublisher } from "./live-frames.ts";
 
 const INGEST_RETRY_BASE_MS = 100;
+// Per-request ceiling on one ingest POST. Without it a single stalled request (a hung API, a
+// half-open socket) blocks the whole per-session persist chain — and behind it the turn-end
+// drain — for as long as the socket stays open. Bounded here so a stalled write becomes a
+// retryable failure like any other transient error, not an unbounded wait.
+const INGEST_REQUEST_TIMEOUT_MS = 30_000;
+
+function ingestRequestTimeoutMs(): number {
+  return envInt("AGENTA_RECORDS_INGEST_TIMEOUT_MS", INGEST_REQUEST_TIMEOUT_MS, {
+    min: 1_000,
+    max: 120_000,
+    log,
+  });
+}
+
 // Attempts with exponential backoff before a drop.
 // 6 attempts ≈ 100+200+400+800+1600ms of backoff (~3.1s) — bounded per event so a real outage
 // can't hang the turn-end drain indefinitely.
@@ -75,22 +90,28 @@ async function postEvent(
 ): Promise<void> {
   const url = `${apiBase()}/sessions/records/ingest`;
   const maxRetries = durableMaxRetries();
+  const timeoutMs = ingestRequestTimeoutMs();
+  // Allocate once, before retries: a timeout can happen after the API accepted the row.
+  const retryRecordId = recordId ?? randomUUID();
+  const timestamp = new Date().toISOString();
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(url, {
         method: "POST",
+        // Fail a stalled request instead of hanging the persist chain; a timeout throws and is
+        // retried like any other transient error below.
+        signal: AbortSignal.timeout(timeoutMs),
         headers: {
           "content-type": "application/json",
           authorization: auth(),
         },
         body: JSON.stringify({
           session_id: sessionId,
-          // Present only for tool-family records (stable uuid5); the backend mints a
-          // uuid4 when omitted. A re-sent id upserts the same row.
-          ...(recordId ? { record_id: recordId } : {}),
+          // Re-sending an accepted request upserts the same row, for every event family.
+          record_id: retryRecordId,
           record_index: eventIndex,
-          timestamp: new Date().toISOString(),
+          timestamp,
           record_source: sender,
           record_type: event.type,
           attributes: event,
@@ -100,6 +121,8 @@ async function postEvent(
           ...(spanId ? { span_id: spanId } : {}),
         }),
       });
+      // We need only the status. Release the response body on both success and retry.
+      await res.body?.cancel();
       // Prefixed so a runner-side 401 is distinguishable from a provider refusal; see
       // `RUNNER_INTERNAL_401` in engines/sandbox_agent/errors.ts.
       if (!res.ok)
@@ -424,16 +447,22 @@ export function buildPersistingEmitter(
   const flush = async (): Promise<void> => {
     // A paused call ends the turn with its slot still open — persist it before draining.
     flushOpenTool();
-    await drainPersist(sessionId);
-    // Consume the drop signal at the turn-end drain: records that exhausted retries mean the durable
-    // log is incomplete, so next turn's reconstruction may be missing context. Reading here also
-    // clears the per-session counter so it can't accumulate unread.
-    const dropped = takePersistFailures(sessionId);
-    if (dropped > 0) {
-      log(
-        `WARN session=${sessionId} durable log incomplete: ${dropped} record(s) dropped this turn; reconstruction may lack context`,
+    // An interrupted producer may never send an end marker. Preserve its accepted prefix,
+    // then release the buffers even when the same emitter is flushed again.
+    for (const [key, acc] of coalescedMessages) {
+      persistEvent(
+        sessionId, auth,
+        { type: key.startsWith("thought:") ? "thought" : "message", text: acc.text, message_id: acc.id },
+        eventIndex++, "agent", undefined, redactor, turnId, spanId,
       );
     }
+    coalescedMessages.clear();
+    await drainPersist(sessionId);
+    // The drop count is deliberately NOT consumed here. The turn's caller (server.ts's `finally`)
+    // reads it exactly once, after this drain, via `takePersistFailures` to decide whether to mark
+    // the session's record log incomplete. Consuming (and clearing) it here would leave that caller
+    // reading zero, so the session with a hole in its log would never be marked — the reconstruction
+    // guard would then trust an incomplete log. So the single read stays with the caller.
     await liveFrames?.whenIdle();
     liveFrames?.reportDrops();
   };
