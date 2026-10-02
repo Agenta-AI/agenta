@@ -9,7 +9,6 @@ import {useHydrateAtoms} from "jotai/react/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {Analytics} from "@/features/analytics/Analytics"
-import {LiveChat} from "@/features/support/LiveChat"
 import {ensureAuthInit, tryRefreshSession} from "@/lib/auth"
 import {getApiUrl} from "@/lib/env"
 import {queryClient} from "@/lib/queryClient"
@@ -38,7 +37,6 @@ export const AppProviders = ({children}: PropsWithChildren) => (
             <HydrateAtoms>
                 <ContextSync />
                 <Analytics />
-                <LiveChat />
                 {/* The project's only live revalidation channel — without it every project list
                     here waits out its stale time and a remount. */}
                 <ProjectWatch refreshSession={tryRefreshSession} />
