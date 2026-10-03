@@ -68,6 +68,17 @@ def test_gateway_route_leaves_the_anthropic_version_to_its_sdk():
     assert route == "https://gw.example/api/gateways/llms/custom/anthropic"
 
 
+def test_gateway_route_leaves_the_mistral_version_to_its_sdk():
+    # Pi's Mistral client appends `/v1/chat/completions` to its base URL.
+    route = gateway_route(
+        namespace="standard",
+        name="mistral",
+        provider="mistral",
+        gateway_base_url="https://gw.example/api",
+    )
+    assert route == "https://gw.example/api/gateways/llms/standard/mistral"
+
+
 # --------------------------------------------------------- build_gateway_resolved_connection
 
 
