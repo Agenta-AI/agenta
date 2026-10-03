@@ -108,6 +108,42 @@ alembic mechanics and docker commands, see the parked `core/README.md` — but a
 those commands from the appropriate active chain working directory (`core_oss`/`tracing_oss`
 or `core_ee`/`tracing_ee`), not the parked `core/`/`tracing/` dirs.
 
+### Migration gate
+
+A deploy runs `alembic upgrade head` in a Helm pre-upgrade hook, before any new pod
+starts, and the api runs two replicas with `maxUnavailable=0`. The old code therefore
+runs against the new schema for the length of every rollout. A failed deploy rolls the
+application back. It never rolls the database back.
+
+CI scans the revisions a pull request adds and fails the **Migration gate** check on a
+destructive or write-blocking operation in the `upgrade()` path. `downgrade()` is not
+scanned, because the hook never runs it.
+
+- **Fails the check**: `drop_table`, `drop_column`, `rename_table`, a column rename or
+  type change through `alter_column`, a tightening to `nullable=False` with no
+  `server_default`, `add_column` of a `NOT NULL` column with no `server_default`, and the
+  raw-SQL equivalents in `op.execute(...)` or `conn.execute(...)`.
+- **Reported, does not fail**: `create_index` without `postgresql_concurrently=True`,
+  `drop_index`, `drop_constraint`, and `add_column` of a `NOT NULL` column that does
+  carry a `server_default`.
+- **Not flagged**: anything scoped to a table the same revision creates, and a
+  constraint or index dropped and created again under the same name.
+
+To clear a flagged revision, prefer the expand and contract pattern. Add the new shape in
+one release. Write to both shapes until every pod runs the new code. Remove the old shape
+in a later release.
+
+If the change must land as it is, ask a reviewer to apply the
+`migration:destructive-approved` label. The check then reports the findings and passes.
+The label records that someone accepted the rollout risk.
+
+Run the gate locally before you push:
+
+```bash
+uv run api/scripts/migration_gate.py <revision.py>   # the files you added
+uv run api/scripts/migration_gate.py --all           # audit the whole tree
+```
+
 ### Layering and dependency direction
 
 Required direction:

@@ -23,8 +23,10 @@ spec:
       {{- /* A single-replica pod that holds state: the cluster autoscaler consolidating its node
              takes the whole component down. On GKE it evicted redis-volatile and supertokens
              mid-traffic and every agent turn was refused until the replacement pod was ready.
-             The annotation makes the autoscaler skip that node. It does not block an operator
-             drain or a node upgrade, and it is inert where no autoscaler runs. Set
+             The annotation makes the autoscaler skip that node for scale-down. It does not
+             block an operator drain. On GKE Autopilot it also DELAYS automatic node upgrades
+             for that node, and GKE may evict the pod anyway after about seven days, so it is a
+             strong preference, not a guarantee. It is inert where no autoscaler runs. Set
              `$supertokens.safeToEvict: true` to opt out, or override the key through
              `$supertokens.podAnnotations`. */}}
       {{- $annotations := dict "cluster-autoscaler.kubernetes.io/safe-to-evict" (ternary "true" "false" (default false $supertokens.safeToEvict)) -}}

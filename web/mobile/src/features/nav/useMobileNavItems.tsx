@@ -38,6 +38,7 @@ import {
     RobotIcon,
     ScrollIcon,
     SlackLogoIcon,
+    SquaresFourIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
@@ -247,26 +248,41 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** The pinned bottom entries: the Settings link, dropped inside the settings scope. */
+/** The pinned bottom entries: Templates and Settings, both dropped inside the settings scope. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] =>
-    useMemo(
+): SidebarConfig[] => {
+    const version = useMobileVersion()
+    return useMemo(
         () =>
-            // The settings scope drops it: the rail IS settings there.
+            // The settings scope drops them: the rail IS settings there.
             includeSettingsLink
                 ? [
+                      {
+                          key: "mobile-templates",
+                          title: "Templates",
+                          icon: createElement(SquaresFourIcon, {size: 16}),
+                          link: `${projectURL}/templates`,
+                      },
                       {
                           key: "mobile-settings",
                           title: "Settings",
                           icon: createElement(GearIcon, {size: 16}),
                           link: `${projectURL}/settings`,
+                          suffix: version
+                              ? createElement(
+                                    "span",
+                                    {className: "text-[10px] leading-none text-colorTextTertiary"},
+                                    `v${version}`,
+                                )
+                              : undefined,
                       },
                   ]
                 : [],
-        [includeSettingsLink, projectURL],
+        [includeSettingsLink, projectURL, version],
     )
+}
 
 /**
  * Help & Docs as an item the rail renders as an icon button beside the project switcher, the

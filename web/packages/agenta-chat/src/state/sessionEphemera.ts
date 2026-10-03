@@ -1,4 +1,5 @@
 import {freshSessionIds} from "@agenta/entities/session"
+import {clearSessionQuotes} from "@agenta/ui/quote-selection"
 
 import type {StagedUpload} from "../model"
 
@@ -64,4 +65,6 @@ export const clearSessionEphemera = (sessionId: string) => {
     acceptedRunBySession.delete(sessionId)
     turnDeliverySourceBySession.delete(sessionId)
     freshSessionIds.delete(sessionId)
+    // Staged reply quotes live in @agenta/ui (the file preview needs them too), same lifetime.
+    clearSessionQuotes(sessionId)
 }
