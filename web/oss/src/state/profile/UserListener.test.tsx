@@ -82,6 +82,29 @@ describe("desktop preference identity", () => {
         expect(store.get(activeUserIdAtom)).toBe("profile-uid")
     })
 
+    it.each([
+        {isPending: true, error: null},
+        {isPending: false, error: new Error("network")},
+    ])("clears identity on sign-out even when the profile is unavailable (%j)", async (profile) => {
+        await render()
+        expect(store.get(activeUserIdAtom)).toBe("profile-uid")
+        expect(store.get(sharedUserAtom)?.uid).toBe("profile-uid")
+        await act(() => store.set(profileState, profile))
+        mock.session = {loading: false, doesSessionExist: false, userId: ""}
+        await render()
+        expect(store.get(activeUserIdAtom)).toBeNull()
+        expect(store.get(sharedUserAtom)).toBeNull()
+        expect(localStorage.getItem("agenta:onboarding:active-user-id")).toBeNull()
+    })
+
+    it("preserves identity while the session is loading", async () => {
+        await render()
+        mock.session = {loading: true, doesSessionExist: false, userId: ""}
+        await render()
+        expect(store.get(activeUserIdAtom)).toBe("profile-uid")
+        expect(store.get(sharedUserAtom)?.uid).toBe("profile-uid")
+    })
+
     it("clears the scope on sign-out and scopes the next account independently", async () => {
         await render()
         mock.session = {loading: false, doesSessionExist: false, userId: ""}

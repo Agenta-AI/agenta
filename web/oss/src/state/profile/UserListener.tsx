@@ -29,10 +29,16 @@ const UserListener = () => {
     const sessionUserId = !session.loading && session.doesSessionExist ? session.userId : null
 
     useEffect(() => {
-        if (profile.isPending || profile.error || session.loading) return
-        if (user?.uid && sessionUserId) migrateSessionPreferences(sessionUserId, user.uid)
-        setActiveUserId(sessionUserId ? (user?.uid ?? null) : null)
-        setSharedUser(sessionUserId ? user : null)
+        if (session.loading) return
+        if (!sessionUserId) {
+            setActiveUserId(null)
+            setSharedUser(null)
+            return
+        }
+        if (profile.isPending || profile.error) return
+        if (user?.uid) migrateSessionPreferences(sessionUserId, user.uid)
+        setActiveUserId(user?.uid ?? null)
+        setSharedUser(user)
     }, [
         profile.isPending,
         profile.error,
