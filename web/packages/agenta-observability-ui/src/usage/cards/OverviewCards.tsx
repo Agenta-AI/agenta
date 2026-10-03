@@ -65,8 +65,8 @@ export const CostCard = ({ctx}: {ctx: OverviewContext}) => {
     return (
         <UsageCard
             title="Cost"
-            value={formatMoney(hovered === null ? totals.cost : values[hovered])}
-            caption={hovered === null ? ctx.rangeLabel : ctx.fullLabels[hovered]}
+            value={formatMoney(totals.cost)}
+            caption={ctx.rangeLabel}
             onExplore={() => ctx.onExplore("cost", null)}
             loading={status.pending}
             error={status.error}
@@ -123,8 +123,8 @@ export const RunsCard = ({ctx}: {ctx: OverviewContext}) => {
     return (
         <UsageCard
             title="Runs"
-            value={formatCount(hovered === null ? totals.runs : values[hovered])}
-            caption={hovered === null ? ctx.rangeLabel : ctx.fullLabels[hovered]}
+            value={formatCount(totals.runs)}
+            caption={ctx.rangeLabel}
             onExplore={() => ctx.onExplore("runs", null)}
             loading={status.pending}
             error={status.error}
@@ -174,17 +174,14 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
     const present = values.filter((v): v is number => v !== null)
     const floor = present.length ? Math.max(0, Math.floor((Math.min(...present) - 5) / 10) * 10) : 0
     const status = ctx.data.status.overview
-    const caption =
-        hovered !== null
-            ? ctx.fullLabels[hovered]
-            : `succeeded · ${formatCount(totals.failed)} failed (${formatMetric(
-                  "failrate",
-                  totals.runs ? (totals.failed / totals.runs) * 100 : 0,
-              )})`
+    const caption = `succeeded · ${formatCount(totals.failed)} failed (${formatMetric(
+        "failrate",
+        totals.runs ? (totals.failed / totals.runs) * 100 : 0,
+    )})`
     return (
         <UsageCard
             title="Success rate"
-            value={formatMetric("success", hovered === null ? overall : values[hovered])}
+            value={formatMetric("success", overall)}
             caption={caption}
             onExplore={() => ctx.onExplore("success", null)}
             loading={status.pending}
@@ -267,8 +264,8 @@ export const TokensCard = ({ctx}: {ctx: OverviewContext}) => {
     return (
         <UsageCard
             title="Tokens by type"
-            value={formatMetric("tokens", hovered === null ? totals.tokens : shown(hovered))}
-            caption={hovered === null ? ctx.rangeLabel : ctx.fullLabels[hovered]}
+            value={formatMetric("tokens", totals.tokens)}
+            caption={ctx.rangeLabel}
             onExplore={() => ctx.onExplore("tokens", null)}
             loading={status.pending}
             error={status.error}

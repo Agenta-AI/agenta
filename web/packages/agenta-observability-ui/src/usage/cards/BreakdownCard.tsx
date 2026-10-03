@@ -129,19 +129,11 @@ export const BreakdownCard = ({
                     />
                 ) : null
             }
-            value={
-                hovered !== null
-                    ? formatValue(metric, bucketTotal(hovered))
-                    : leader
-                      ? keyLabel(leader)
-                      : "—"
-            }
+            value={leader ? keyLabel(leader) : "—"}
             caption={
-                hovered !== null
-                    ? fullLabels[hovered]
-                    : leader
-                      ? `${formatValue(metric, leaderValue)}${word} · ${sharePercent(leaderValue, grand) || "0%"} of ${allWord}`
-                      : rangeLabel
+                leader
+                    ? `${formatValue(metric, leaderValue)}${word} · ${sharePercent(leaderValue, grand) || "0%"} of ${allWord}`
+                    : rangeLabel
             }
             onExplore={() => onExplore(exploreMetric, null)}
             loading={source.status.pending}

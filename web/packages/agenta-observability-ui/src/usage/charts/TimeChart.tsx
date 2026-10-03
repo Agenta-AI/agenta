@@ -161,28 +161,6 @@ export const TimeChart = ({
                             fill={s.color}
                             fillOpacity={1}
                             radius={si === visible.length - 1 ? [3, 3, 0, 0] : 0}
-                            shape={(props: unknown) => {
-                                const p = props as {
-                                    x: number
-                                    y: number
-                                    width: number
-                                    height: number
-                                    index: number
-                                    fill: string
-                                }
-                                const dim = hovered !== null && hovered !== p.index
-                                return (
-                                    <rect
-                                        x={p.x}
-                                        y={p.y}
-                                        width={p.width}
-                                        height={Math.max(0, p.height)}
-                                        fill={p.fill}
-                                        opacity={dim ? 0.3 : 1}
-                                        rx={si === visible.length - 1 ? 3 : 0}
-                                    />
-                                )
-                            }}
                         />
                     ))}
                 </BarChart>
