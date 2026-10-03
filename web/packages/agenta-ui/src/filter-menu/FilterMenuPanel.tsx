@@ -5,7 +5,7 @@ import {ArrowLeft, RotateCcw as ArrowCounterClockwise, Search} from "lucide-reac
 import {cn} from "../components/ui/utils"
 import {useMediaQuery} from "../hooks/useMediaQuery"
 
-import {FilterMenuOptionList} from "./FilterMenuOptionList"
+import {FilterMenuFlyoutBody} from "./FilterMenuFlyoutBody"
 import {FilterMenuRow, selectedValues, summaryLabel} from "./FilterMenuRow"
 import {FilterMenuToggleRow} from "./FilterMenuToggleRow"
 import {isFilterMenuToggle, type FilterMenuItem, type FilterMenuPlacementProps} from "./types"
@@ -250,11 +250,12 @@ export const FilterMenuPanel = ({
                         <span className="truncate">{section.label}</span>
                     </button>
                 </div>
-                <div className="flex max-h-[280px] flex-col overflow-y-auto p-1">
-                    <FilterMenuOptionList
+                <div className="flex max-h-[280px] flex-col">
+                    <FilterMenuFlyoutBody
+                        section={section}
                         options={options}
                         selected={selectedValues(section)}
-                        emptyText={section.emptyText ?? `No ${section.label.toLowerCase()} options`}
+                        autoFocus
                         onDismiss={back}
                         onSelect={(value) => {
                             section.onChange(value)

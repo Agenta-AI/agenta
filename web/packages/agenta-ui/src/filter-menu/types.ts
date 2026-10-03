@@ -48,6 +48,9 @@ export interface FilterMenuSection<Value extends string = string> {
      * fits "Last 30 days"; an agent called "Search Console Assistant" truncates to nothing.
      */
     wide?: boolean
+    /** A search field over the flyout's options, for lists of names too long to scan. */
+    searchable?: boolean
+    searchPlaceholder?: string
 }
 
 /**
