@@ -13,7 +13,7 @@ from oss.src.utils.context import AuthScope
 from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.wallets import admission as admission_module
 from ee.src.core.wallets.admission import WalletSpendAdmission
-from ee.src.core.wallets.caps import credit_exhausted_message
+from ee.src.core.wallets.caps import model_call_refused_message
 from ee.tests.pytest.utils.measurements.fakes import InMemorySessionTurnHolds, no_plan
 
 _HOBBY = DefaultPlan.CLOUD_V0_HOBBY.value
@@ -79,7 +79,9 @@ async def test_a_call_with_no_session_is_one_check_of_the_callers_organization(a
     assert wallet.checked == [scope.organization_id]
     assert admission.allowed is allowed
     assert admission.reason == (None if allowed else "wallet_balance_exhausted")
-    assert admission.message == (None if allowed else credit_exhausted_message(_HOBBY))
+    assert admission.message == (
+        None if allowed else model_call_refused_message(_HOBBY)
+    )
     assert admission.ceiling_musd is None
 
 
@@ -120,6 +122,27 @@ async def test_a_hold_store_that_cannot_answer_checks_the_call():
     )
 
     assert refused.reason == "wallet_balance_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_a_slow_hold_store_falls_back_to_the_balance_check(monkeypatch):
+    """Codex review r2: a stalled store used up the gateway's 2s bound and refused."""
+    import asyncio
+
+    class _Slow(InMemorySessionTurnHolds):
+        async def held(self, *, organization_id, session_id):
+            await asyncio.sleep(10)
+            return True
+
+    monkeypatch.setattr(admission_module, "SESSION_HOLD_TIMEOUT_SECONDS", 0.05)
+    wallet = _Wallet(allowed=True)
+
+    admitted = await _admission(wallet, _Slow()).admit(
+        scope=_scope(), target=_TARGET, session_id="sess-1"
+    )
+
+    assert admitted.allowed
+    assert len(wallet.checked) == 1
 
 
 @pytest.mark.asyncio

@@ -16,7 +16,7 @@ from ee.src.core.wallets.caps import (
     BUILTIN_MODELS_NOT_ENABLED_MESSAGE,
     WALLET_BALANCE_EXHAUSTED_CODE,
     SessionTurnHoldsInterface,
-    credit_exhausted_message,
+    model_call_refused_message,
 )
 from ee.src.core.wallets.interfaces import WalletCheckPort
 
@@ -25,6 +25,10 @@ log = get_module_logger(__name__)
 # Below the 2s bound each admission point puts around its whole answer, so a slow wallet in
 # shadow mode still admits instead of being refused by that outer bound.
 SHADOW_CHECK_TIMEOUT_SECONDS = 1.0
+
+# The session-hold read runs before the balance check, inside the same 2s bound; a slow
+# store falls back to the balance check instead of using up the bound.
+SESSION_HOLD_TIMEOUT_SECONDS = 0.5
 
 
 async def admit_in_mode(
@@ -144,15 +148,18 @@ class WalletSpendAdmission(SpendAdmissionInterface):
         return SpendAdmission(
             allowed=False,
             reason=WALLET_BALANCE_EXHAUSTED_CODE,
-            message=credit_exhausted_message(await self._plan(organization_id)),
+            message=model_call_refused_message(await self._plan(organization_id)),
         )
 
     async def _turn_running(self, organization_id: UUID, session_id: str) -> bool:
         # A store that cannot answer falls back to checking the call: the turn may then
         # be refused, never served unchecked.
         try:
-            return await self.session_holds.held(
-                organization_id=organization_id, session_id=session_id
+            return await asyncio.wait_for(
+                self.session_holds.held(
+                    organization_id=organization_id, session_id=session_id
+                ),
+                timeout=SESSION_HOLD_TIMEOUT_SECONDS,
             )
         except Exception:  # noqa: BLE001
             log.warning(

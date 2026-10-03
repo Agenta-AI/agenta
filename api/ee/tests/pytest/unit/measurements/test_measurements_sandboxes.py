@@ -389,3 +389,21 @@ async def test_a_hold_store_that_cannot_answer_still_admits_the_turn():
     )
 
     assert admission.allowed
+
+
+@pytest.mark.asyncio
+async def test_a_failed_slot_release_still_lets_go_of_the_session():
+    holds = InMemorySessionTurnHolds()
+    slots = InMemoryTurnSlots()
+    scope = _scope()
+    service = _admitting(_Wallet(True), holds, slots=slots)
+    await service.admit(scope=scope, turn_id="turn-1", session_id="sess-1")
+
+    async def _broken(**_kwargs):
+        raise ConnectionError("turn slots unavailable")
+
+    slots.release = _broken
+    with pytest.raises(ConnectionError):
+        await service.release_turn(scope=scope, turn_id="turn-1", session_id="sess-1")
+
+    assert holds.holds == {}

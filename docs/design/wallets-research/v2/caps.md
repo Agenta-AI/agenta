@@ -172,15 +172,17 @@ against decision "a turn is never stopped for its balance".
   longest turn: 30 minutes on Hobby, 4 hours on Pro, 11 hours on Business. A plan with no turn
   cap is held for the gateway credential's lifetime (`AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS`,
   12 hours by default), the longest a turn can reach the gateway at all. The turn's release
-  (`POST /wallets/sandboxes/turns/release`, sent when the turn held a slot) lets go of the hold
-  if it is still that turn's.
+  (`POST /wallets/sandboxes/turns/release`, sent at the end of every admitted session turn, with
+  or without a slot) lets go of the hold if it is still that turn's, even when the slot release
+  fails.
 - The gateway credential the runtime hands the sandbox carries the session as a label. A
   `builtin` call whose session is held is measured and charged but never refused for the
   balance. How far one turn goes below zero is bounded by its turn limit, the same bound as its
   sandbox time.
 - Anything else is checked on every call: a new turn (the runner refuses it before it starts),
   a call with no session label (a direct API call), and a session with no admitted turn.
-- A hold store that cannot answer falls back to checking the call. A turn may then be refused
+- A hold store that cannot answer, or does not answer within 0.5 seconds, falls back to
+  checking the call. A turn may then be refused
   mid-way during a Redis outage; it is never served unchecked.
 - `shadow` admits and holds as before; `off` refuses every `builtin` call (see
   [funded-models.md](funded-models.md)) and holds nothing.
@@ -194,7 +196,7 @@ sentence instead of the code:
 
 | Code | Sentence | Chat title |
 | --- | --- | --- |
-| `wallet_balance_exhausted` | The out-of-credit message below | Out of credits |
+| `wallet_balance_exhausted` | "Your organization has used all its credits, so this model call was refused." and the plan's next step from the out-of-credit message below (draft, pending approval). It makes no claim about earlier work or charges, because the call can come mid-way through work. | Out of credits |
 | `builtin_models_not_enabled` | "Built-in models are not enabled for this organization. Choose a model that uses your own provider key." (draft, pending approval) | Built-in models not enabled, with "Add your key" |
 
 The runner recognizes both codes in the harness's error text (`personFacingGatewayRefusal` in

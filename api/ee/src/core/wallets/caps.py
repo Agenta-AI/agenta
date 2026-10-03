@@ -156,7 +156,7 @@ def turn_length_message(plan: str, caps: AgentTurnCaps) -> str:
     )
 
 
-def credit_exhausted_message(plan: Optional[str]) -> str:
+def _credit_next_step(plan: Optional[str]) -> str:
     if plan == _HOBBY:
         next_step = (
             "Your free daily credits come back at 00:00 UTC, or upgrade to Pro for "
@@ -171,8 +171,21 @@ def credit_exhausted_message(plan: Optional[str]) -> str:
         next_step = f"{_SMALLEST_TOP_UP}, or contact us."
     else:
         next_step = "Add credits to keep going."
+    return next_step
+
+
+def credit_exhausted_message(plan: Optional[str]) -> str:
     return (
         "Your organization has used all its credits, so this turn did not start, and you "
         "were not charged. Turns already running will finish. Agents that use your own "
-        f"model key still need credits for sandbox time. {next_step}"
+        f"model key still need credits for sandbox time. {_credit_next_step(plan)}"
+    )
+
+
+def model_call_refused_message(plan: Optional[str]) -> str:
+    """For a model call refused at the gateway, outside a turn the runner admitted. It
+    makes no claim about the work or charges before the call."""
+    return (
+        "Your organization has used all its credits, so this model call was refused. "
+        f"{_credit_next_step(plan)}"
     )

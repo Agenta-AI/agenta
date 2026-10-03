@@ -100,6 +100,21 @@ describe("admitSandboxTurn", () => {
     expect(seen).toEqual([{ turn_id: "t-1" }]);
   });
 
+  it("without heartbeats, sends only the release at the end", async () => {
+    const { calls, fetch } = platform();
+    const slot = holdTurnSlot("Secret run-1", "t-1", "sess-1", {
+      fetch,
+      baseUrl: BASE,
+      log: () => {},
+      intervalMs: 60_000,
+      heartbeat: false,
+      startLease: () => ({ credential: () => "Secret run-1", release: () => {} }),
+    });
+    slot.release();
+    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].url.replace(BASE, "")).toBe("/wallets/sandboxes/turns/release");
+  });
+
   it("names the turn's session, so the gateway serves the admitted turn to its end", async () => {
     const seen: unknown[] = [];
     const fetch = (async (_url: string, init?: RequestInit) => {

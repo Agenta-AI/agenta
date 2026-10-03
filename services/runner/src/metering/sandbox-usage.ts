@@ -206,6 +206,10 @@ export interface TurnSlot {
  * beat every interval, and a release at the end. A runner that dies stops beating, so its turns
  * leave the count on their own once the platform's hold expires. A failed beat or release is
  * logged and never touches the turn.
+ *
+ * `heartbeat: false` holds no slot (the platform counted none) and only sends the release at the
+ * end, which also ends the gateway's hold on the turn's session: a session must not keep serving
+ * model calls past zero after its turn ended.
  */
 export function holdTurnSlot(
   authorization: string,
@@ -217,6 +221,7 @@ export function holdTurnSlot(
     log?: Log;
     intervalMs?: number;
     startLease?: (authorization: string) => PlatformCredentialLease;
+    heartbeat?: boolean;
   } = {},
 ): TurnSlot {
   const log = deps.log ?? defaultLog;
@@ -239,8 +244,11 @@ export function holdTurnSlot(
   // One call at a time, in order: a beat still in flight must not land after the release.
   let queue: Promise<void> = Promise.resolve();
   const serial = (action: "heartbeat" | "release"): Promise<void> => (queue = queue.then(() => post(action)));
-  const timer = setInterval(() => void serial("heartbeat"), deps.intervalMs ?? TURN_SLOT_HEARTBEAT_MS);
-  timer.unref?.();
+  const timer =
+    deps.heartbeat === false
+      ? undefined
+      : setInterval(() => void serial("heartbeat"), deps.intervalMs ?? TURN_SLOT_HEARTBEAT_MS);
+  timer?.unref?.();
   let released = false;
   return {
     release() {

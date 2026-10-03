@@ -63,7 +63,7 @@ describe("runAdmittedTurn", () => {
     expect(result).toMatchObject({ ok: true });
     expect(totalMs).toBe(1_800_000);
     expect(admit).toHaveBeenCalledWith("Access run-token", "t-1", "conv-1");
-    expect(holdSlot).toHaveBeenCalledWith("Access run-token", "t-1", "conv-1");
+    expect(holdSlot).toHaveBeenCalledWith("Access run-token", "t-1", "conv-1", { heartbeat: true });
     expect(release).toHaveBeenCalledTimes(1);
   });
 
@@ -85,11 +85,26 @@ describe("runAdmittedTurn", () => {
 
   it("no slot is held when the platform does not count the turn", async () => {
     const holdSlot = vi.fn();
-    await runAdmittedTurn(RUN, "t-1", undefined, async () => ({ ok: true }) as never, {
+    const noSession = { ...RUN, sessionId: undefined } as unknown as AgentRunRequest;
+    await runAdmittedTurn(noSession, "t-1", undefined, async () => ({ ok: true }) as never, {
       admit: admitting({ admitted: true }),
       holdSlot,
     });
     expect(holdSlot).not.toHaveBeenCalled();
+  });
+
+  it("a session turn the platform does not count still releases at its end, without beats", async () => {
+    // Codex review r2: an uncapped turn's session hold outlived the turn because only a held slot
+    // was ever released.
+    vi.stubEnv("AGENTA_WALLETS_ENABLED", "true");
+    const release = vi.fn();
+    const holdSlot = vi.fn(() => ({ release }));
+    await runAdmittedTurn(RUN, "t-1", undefined, async () => ({ ok: true }) as never, {
+      admit: admitting({ admitted: true }),
+      holdSlot,
+    });
+    expect(holdSlot).toHaveBeenCalledWith("Access run-token", "t-1", "conv-1", { heartbeat: false });
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it("a turn the runner abandons gives its slot back although its run never settles", async () => {

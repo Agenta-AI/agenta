@@ -32,7 +32,12 @@ export async function runAdmittedTurn(
     emit?.({ type: "error", message: admission.message, code: admission.code });
     return { ok: false, error: admission.message };
   }
-  const slot = admission.slotHeld ? (deps.holdSlot ?? holdTurnSlot)(authorization, turnId, sessionId) : undefined;
+  // A turn that holds a slot beats until it ends; a session turn without one still releases at the
+  // end, which ends the gateway's hold on its session.
+  const slot =
+    admission.slotHeld || sessionId
+      ? (deps.holdSlot ?? holdTurnSlot)(authorization, turnId, sessionId, { heartbeat: admission.slotHeld === true })
+      : undefined;
   const turn: AdmittedTurn = { sessionId };
   const end = (): void => {
     if (openTurns.get(turnId) === end) openTurns.delete(turnId);

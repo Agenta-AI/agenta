@@ -269,15 +269,19 @@ class SandboxUsageService:
     async def release_turn(
         self, *, scope: AuthScope, turn_id: str, session_id: Optional[str] = None
     ) -> None:
-        await self.turn_slots.release(
-            organization_id=scope.organization_id, turn_id=turn_id
-        )
-        if session_id:
-            await self.session_holds.release(
-                organization_id=scope.organization_id,
-                session_id=session_id,
-                turn_id=turn_id,
+        # The session hold is let go even when the slot release fails: a hold that
+        # outlives its turn serves model calls past zero until it expires.
+        try:
+            await self.turn_slots.release(
+                organization_id=scope.organization_id, turn_id=turn_id
             )
+        finally:
+            if session_id:
+                await self.session_holds.release(
+                    organization_id=scope.organization_id,
+                    session_id=session_id,
+                    turn_id=turn_id,
+                )
 
     async def _hold_session(
         self,
