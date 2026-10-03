@@ -18,7 +18,7 @@ import {stringStorage} from "./stringStorage"
  *
  * Storage-backed rather than derived from the profile query, so a preference survives a reload
  * without waiting on a request. Apps push into it once they know who is signed in (OSS from
- * onboarding, mobile from its profile query).
+ * its profile listener, mobile from its profile query). Both use the stable profile `uid`.
  *
  * It does NOT resolve on the first paint. Deliberately no `getOnInit`: this atom scopes values
  * that render (the Classic mode switch, the sidebar's nav areas), and reading storage during
