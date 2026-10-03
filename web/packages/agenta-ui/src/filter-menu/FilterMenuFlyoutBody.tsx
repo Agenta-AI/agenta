@@ -29,7 +29,9 @@ export const FilterMenuFlyoutBody = ({
     const listRef = useRef<HTMLDivElement | null>(null)
     const query = term.trim().toLowerCase()
     const shown = query
-        ? options.filter((option) => option.label.toLowerCase().includes(query))
+        ? options.filter((option) =>
+              `${option.label} ${option.group ?? ""}`.toLowerCase().includes(query),
+          )
         : options
 
     // Keyboard readers land in the field rather than on the first option.

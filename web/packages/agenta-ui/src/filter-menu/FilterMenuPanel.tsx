@@ -119,7 +119,7 @@ export const FilterMenuPanel = ({
             if (!term) return {section, options: section.options, visible: true}
             const rowHit = section.label.toLowerCase().includes(term)
             const options = section.options.filter((option) =>
-                option.label.toLowerCase().includes(term),
+                `${option.label} ${option.group ?? ""}`.toLowerCase().includes(term),
             )
             return {
                 section,

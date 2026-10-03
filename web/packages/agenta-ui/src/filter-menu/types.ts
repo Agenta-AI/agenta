@@ -21,6 +21,8 @@ export interface FilterMenuOption<Value extends string = string> {
     /** Rendered at the option's left edge. Consumers own the icon set. */
     icon?: ReactNode
     disabled?: boolean
+    /** Options sharing a group render under its heading; pass them already contiguous. */
+    group?: string
 }
 
 export interface FilterMenuSection<Value extends string = string> {
