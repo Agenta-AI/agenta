@@ -20,6 +20,7 @@ import {CaretRight, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Link from "next/link"
 
+import {FadeScrollBox} from "./FadeScrollBox"
 import {SidebarReorderLayer} from "./reorder"
 
 /**
@@ -170,9 +171,10 @@ const RowLabel = memo(function RowLabel({
     // entity's tooltip where it has one, the full title otherwise. `Tip` is the collapsed rail's,
     // and both list groups hide their children there.
     const hover = item.tooltip ?? (typeof item.title === "string" ? item.title : undefined)
+    // `flex-1` pins the fade to the label's right edge, so long rows fade at one line.
     const content = (
         <span className="flex w-full items-center">
-            <span className="min-w-0 truncate" title={hover}>
+            <span className="ag-text-fade min-w-0 flex-1" title={hover}>
                 {item.title} <TagChip tag={item.tag} />
             </span>
             {item.suffix ? <span className="ml-auto shrink-0 pl-2">{item.suffix}</span> : null}
@@ -205,13 +207,21 @@ const RowLabel = memo(function RowLabel({
 
 /** A group heading inside a submenu — a label over the rows below it, never a row itself.
  * With `onClick` it folds the rows under it away, and grows a caret to say so. */
+// Sticky only inside the scrolling list; the opaque fill hides rows that pass under it.
+const STICKY_HEADING =
+    "[[data-nav-scroll]_&]:sticky [[data-nav-scroll]_&]:top-0 [[data-nav-scroll]_&]:z-10 [[data-nav-scroll]_&]:bg-[var(--ag-sidebar-bg)]"
+
 const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
     const toggle = item.onClick
     if (!toggle)
         return (
             <p
                 {...dragAttrs(item.dragItem)}
-                className="m-0 mx-auto w-[calc(100%-16px)] shrink-0 px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none"
+                data-sticky-heading="true"
+                className={clsx(
+                    "m-0 w-full shrink-0 pb-0.5 pl-5 pr-5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none",
+                    STICKY_HEADING,
+                )}
             >
                 {item.title}
             </p>
@@ -224,7 +234,11 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             {...dragAttrs(item.dragItem)}
             // Not uppercase, unlike the static heading above: a collapsible heading labels an
             // ENTITY (an agent), and shouting a proper noun misspells it.
-            className="mx-auto flex w-[calc(100%-16px)] shrink-0 cursor-pointer select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText"
+            data-sticky-heading="true"
+            className={clsx(
+                "flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText",
+                STICKY_HEADING,
+            )}
             onClick={(event) => {
                 // The "+" is an anchor and its click must reach the shell frame (the drawer
                 // closes itself on any anchor click), so it bubbles — and must not fold the group.
@@ -318,6 +332,7 @@ const LeafRow = memo(function LeafRow({
             role={isControl ? "menuitem" : undefined}
             tabIndex={isControl ? 0 : undefined}
             aria-current={isControl && selected ? "page" : undefined}
+            data-selected={selected || undefined}
             onKeyDown={(event) => {
                 if (onMoveKey(event)) return
                 if (!isControl) return
@@ -355,7 +370,6 @@ const ScrollGroupChildren = ({
     className: string
     onReachEnd?: () => void
 }) => {
-    const boxRef = useRef<HTMLDivElement>(null)
     // Throttled, NOT keyed on scrollHeight: a page whose rows all land in collapsed groups adds no
     // height, and a height-keyed guard would then never let another page be asked for. Time cannot
     // latch. The source's own in-flight check stops the duplicate a flick would otherwise queue.
@@ -370,13 +384,12 @@ const ScrollGroupChildren = ({
     }
 
     return (
-        // Its own scroll box, outside HeightCollapse: the animation drives height, and a scroll
-        // area needs its height to come from the flex line instead. `min-h-0` is what lets it
-        // shrink below its content; the rows around it hold their size on their own.
-        <div
-            ref={boxRef}
+        // Outside HeightCollapse: a scroll area takes its height from the flex line.
+        <FadeScrollBox
             data-nav-scroll="true"
-            className={clsx(className, "min-h-0 overflow-y-auto", DRAG_GHOST)}
+            className={className}
+            boxClassName={DRAG_GHOST}
+            revealSelector='[data-selected="true"]'
             onScroll={
                 onReachEnd
                     ? (event) => {
@@ -389,7 +402,7 @@ const ScrollGroupChildren = ({
             }
         >
             {children}
-        </div>
+        </FadeScrollBox>
     )
 }
 

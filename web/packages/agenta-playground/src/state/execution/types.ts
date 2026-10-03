@@ -330,13 +330,6 @@ export function createInitialExecutionState(): ExecutionState {
  * })
  * ```
  */
-// Generic test result shape used by Playground UIs (legacy compat)
-export interface PlaygroundTestResult {
-    response?: unknown
-    error?: string
-    metadata?: Record<string, unknown>
-}
-
 export interface ExecutionAdapter {
     /** Execute a runnable with the given inputs */
     execute(

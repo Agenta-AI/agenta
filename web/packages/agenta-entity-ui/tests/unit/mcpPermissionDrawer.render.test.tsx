@@ -202,7 +202,7 @@ describe("D1 — the drawer at its default", () => {
 
         const panel = document.querySelector('[role="dialog"]')
         expect(panel?.className).toContain("bottom-0")
-        expect(panel?.className).toContain("lg:right-0")
+        expect(panel?.className).toContain("lg:right-2")
     })
 
     it("names the default permission and reads the saved one back as its preset", async () => {

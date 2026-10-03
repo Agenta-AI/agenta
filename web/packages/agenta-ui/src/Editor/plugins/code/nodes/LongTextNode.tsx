@@ -197,16 +197,12 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
     }, [setPopoverOpen])
 
     const handleDrillIn = useCallback(() => {
-        // console.log("[LongTextNode] handleDrillIn called")
-        // console.log("[LongTextNode] spanRef.current:", spanRef.current)
         // Use the ref to find the property key on the same line and dispatch a custom event
         if (spanRef.current) {
             // The class is "editor-code-line", not "code-line"
             const line = spanRef.current.closest(".editor-code-line")
-            // console.log("[LongTextNode] Found line:", line)
             if (line) {
                 const propertyKey = line.querySelector(".token-property") as HTMLElement
-                // console.log("[LongTextNode] Found propertyKey:", propertyKey)
                 if (propertyKey) {
                     // Dispatch a custom event with the property element as detail
                     // This will be caught by PropertyClickPlugin
@@ -214,16 +210,9 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
                         bubbles: true,
                         detail: {propertyElement: propertyKey},
                     })
-                    // console.log("[LongTextNode] Dispatching event:", event)
                     spanRef.current.dispatchEvent(event)
-                } else {
-                    // console.log("[LongTextNode] No property key found on line")
                 }
-            } else {
-                // console.log("[LongTextNode] No .editor-code-line parent found")
             }
-        } else {
-            // console.log("[LongTextNode] spanRef.current is null")
         }
     }, [])
 

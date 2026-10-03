@@ -30,6 +30,7 @@ def test_the_build_kit_keeps_every_tool_it_has_today():
         "remove_subscription",
         "list_starters",
         "create_app",
+        "validate_template",
     )
 
 

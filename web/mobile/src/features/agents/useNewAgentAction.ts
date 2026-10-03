@@ -3,13 +3,14 @@ import {useCallback, useState} from "react"
 import {markSessionFresh, revealConfigPaneAtom} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
+    agentTemplatesAtom,
     appendSetupPreamble,
     invalidateWorkflowsListCache,
     type AgentSetupSelection,
 } from "@agenta/entities/workflow"
 import {useCreateAgent} from "@agenta/home-ui"
 import type {FileUIPart} from "ai"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {captureIntent} from "@/features/analytics/client"
@@ -38,6 +39,8 @@ export const useNewAgentAction = (base: string) => {
     const dropTask = useSetAtom(takePendingTaskAtom)
     const setSetupDraft = useSetAtom(templateSetupDraftAtom)
     const revealConfigPane = useSetAtom(revealConfigPaneAtom)
+    // The fetched catalogue, read at call time — a key is only ever resolved against what loaded.
+    const templates = useAtomValue(agentTemplatesAtom)
 
     const run = useCallback(
         async (params?: {
@@ -68,6 +71,7 @@ export const useNewAgentAction = (base: string) => {
             // Template loading starts the first run server-side. Collect choices on the existing
             // setup screen BEFORE calling it; the live session is already too late for a gate.
             if (params?.templateKey && !params.entityId && !params.setup) {
+                setCreating(true)
                 setSetupDraft({
                     base,
                     templateKey: params.templateKey,
@@ -79,13 +83,21 @@ export const useNewAgentAction = (base: string) => {
                     .push(`${base}/agents/new?template=${encodeURIComponent(params.templateKey)}`)
                     .catch(() => false)
                 if (!navigated) setSetupDraft(null)
+                // Released either way: a query-only navigation keeps this hook mounted.
+                setCreating(false)
                 return navigated
+            }
+            const template = params?.templateKey
+                ? agentTemplateByKey(templates, params.templateKey)
+                : undefined
+            // A template create whose key the catalogue cannot resolve (not loaded, or gone) must
+            // not fall through to a blank agent under the template's name.
+            if (params?.templateKey && !template) {
+                setError("Couldn't load this template — please retry")
+                return false
             }
             setCreating(true)
             setError(null)
-            const template = params?.templateKey
-                ? agentTemplateByKey(params.templateKey)
-                : undefined
             const created = await createAgent({
                 name: params?.name,
                 entityId: params?.entityId,
@@ -149,7 +161,17 @@ export const useNewAgentAction = (base: string) => {
             }
             return true
         },
-        [base, createAgent, creating, dropTask, revealConfigPane, router, setSetupDraft, stashTask],
+        [
+            base,
+            createAgent,
+            creating,
+            dropTask,
+            revealConfigPane,
+            router,
+            setSetupDraft,
+            stashTask,
+            templates,
+        ],
     )
 
     const create = useCallback(() => {
@@ -162,7 +184,7 @@ export const useNewAgentAction = (base: string) => {
      */
     const createFromTemplate = useCallback(
         (templateKey: string) => {
-            const template = agentTemplateByKey(templateKey)
+            const template = agentTemplateByKey(templates, templateKey)
             if (!template) return
             captureIntent({
                 source: "template",
@@ -175,7 +197,7 @@ export const useNewAgentAction = (base: string) => {
             })
             void run({name: template.name, templateKey})
         },
-        [run],
+        [run, templates],
     )
 
     /**

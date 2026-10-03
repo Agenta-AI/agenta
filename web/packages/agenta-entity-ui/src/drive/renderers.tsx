@@ -21,7 +21,7 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
-    Skeleton,
+    SkeletonBlock,
 } from "@agenta/ui/ui"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
 
@@ -33,6 +33,7 @@ import {
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
 import {HtmlAppBody} from "./htmlApp"
+import {useQuotableFile} from "./quotable"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
@@ -141,13 +142,16 @@ const TextBody = ({
     const content = contentQuery.data
     // A link to a neighbouring file opens it here; the host's renderer keeps web links.
     const onClickCapture = useDriveAnchorClickCapture(displayPath ?? path, onNavigate, linkExists)
+    // Rendered markdown is not the file's lines; a quote from it gets a range only when its
+    // excerpt appears once, verbatim, in the source (see `locateQuote`).
+    const quotable = useQuotableFile(mount, path, displayPath, content)
 
     if (contentQuery.isPending)
         return (
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -161,7 +165,11 @@ const TextBody = ({
     if (kind === "markdown")
         return (
             <Inset flush>
-                <div className="min-h-0 flex-1 overflow-y-auto p-3" onClickCapture={onClickCapture}>
+                <div
+                    className="min-h-0 flex-1 overflow-y-auto p-3"
+                    onClickCapture={onClickCapture}
+                    {...quotable}
+                >
                     <DriveMarkdown content={content} className="!text-xs" />
                 </div>
             </Inset>
@@ -169,7 +177,10 @@ const TextBody = ({
     return (
         <Inset flush>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
+                <pre
+                    className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary"
+                    {...quotable}
+                >
                     {content}
                 </pre>
             </div>
@@ -179,9 +190,20 @@ const TextBody = ({
 
 /** Syntax-highlighted body for code (and structured-data) files — the same lexical/Shiki block
  * the playground drawers use, read-only, horizontal scroll (code must not soft-wrap). */
-const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const CodeBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
+    // The raw file, not the pretty print: line numbers are the file's. A selection maps onto it
+    // only while the pretty print moved nothing but whitespace (see `locateQuote`).
+    const quotable = useQuotableFile(mount, path, displayPath, content)
 
     const value = useMemo(() => {
         if (typeof content !== "string") return null
@@ -198,7 +220,7 @@ const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -207,7 +229,10 @@ const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
     return (
         <Inset flush>
-            <div className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre">
+            <div
+                className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre"
+                {...quotable}
+            >
                 <LazyCodeBlock language={driveCodeLanguage(path)} value={value} />
             </div>
         </Inset>
@@ -234,7 +259,7 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -318,7 +343,7 @@ const HtmlBody = ({
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -374,7 +399,7 @@ const MediaLoading = () => (
     <Inset>
         <div className="flex flex-col gap-2">
             {Array.from({length: 5}).map((_, i) => (
-                <Skeleton key={i} className="h-4 w-full" />
+                <SkeletonBlock key={i} className="h-4 w-full" />
             ))}
         </div>
     </Inset>
@@ -529,7 +554,7 @@ export function DriveFileBody({
             )
         case "code":
         case "json":
-            return <CodeBody mount={mount} path={path} />
+            return <CodeBody mount={mount} path={path} displayPath={displayPath} />
         case "csv":
             return <CsvBody mount={mount} path={path} />
         case "html":

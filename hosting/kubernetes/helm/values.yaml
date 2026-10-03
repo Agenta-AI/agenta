@@ -177,6 +177,17 @@ global:
 #    a floating default would break upgrades because volumeClaimTemplates
 #    is immutable on a StatefulSet.
 # ================================================================== #
+# redisVolatile / redisDurable / supertokens each run a single replica and hold state, so
+# losing the pod takes the component down. Each carries
+# `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` so a cluster autoscaler does not
+# remove its node during consolidation. Set `safeToEvict: true` on a component to opt out, or
+# set `podAnnotations` to override the annotation outright. Neither key affects an operator
+# drain. On GKE Autopilot the annotation also delays automatic node upgrades for that node,
+# and GKE may evict the pod anyway after about seven days: treat it as a strong preference,
+# not a guarantee, and keep the single-replica data stores backed up regardless.
+#   redisVolatile:
+#     safeToEvict: false        # default; true lets the autoscaler consolidate the node
+#     podAnnotations: {}        # merged over the default, so a key set here wins
 redisDurable:
   persistence:
     size: "5Gi"
@@ -233,7 +244,7 @@ redisDurable:
 #         key: api-key
 #       apiUrl: https://app.daytona.io/api
 #       target: eu
-#       snapshot: agenta-agent-sandbox-v1
+#       snapshot: agenta-agent-sandbox-v2
 #       autostopMinutes: 15
 #       autodeleteMinutes: 30
 #       sessionIdleTtlMs: ""

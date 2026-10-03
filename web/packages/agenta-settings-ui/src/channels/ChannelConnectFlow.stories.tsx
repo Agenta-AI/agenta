@@ -12,7 +12,7 @@ import {
 /**
  * **The connect flow for one platform.** Hosted Telegram mints a one-time link, shows it as a QR
  * code, and waits for the /start that binds the chat. Hosted Slack opens the install redirect and
- * waits for the connection to appear. The custom tab renders the fields the backend declares.
+ * waits for the connection to appear. The custom method renders the fields the backend declares.
  *
  * Nothing here simulates a handshake: every state comes from the actions. The stories pass fake
  * actions that resolve after a short delay over an in-memory fixture, so each state is reached the
@@ -26,7 +26,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The connect flow, shared by the desktop drawer and the /m sheet. The tabs " +
+                    "The connect flow, shared by the desktop drawer and the /m sheet. The methods " +
                     "are the Agenta-hosted app or bot and the customer's own.",
             },
         },
@@ -54,7 +54,7 @@ export const TelegramHostedQr: Story = {
             description: {
                 story:
                     "The link is minted, then shown as a QR code with the bot name read from the " +
-                    'link itself. Press "Continue in Telegram" to reach the waiting state. It ' +
+                    'link itself. Press "Open in Telegram" to reach the waiting state. It ' +
                     "opens the Telegram link in a new tab, which is what the product does. About " +
                     "six seconds later the fake actions report a bound chat and the flow shows " +
                     "the linked state.",
@@ -124,7 +124,7 @@ export const TelegramCustomBot: Story = {
         docs: {
             description: {
                 story:
-                    "The story opens on the custom tab. The two steps come from the flow; the " +
+                    "The story opens on the custom method. The two steps come from the flow; the " +
                     "bot token field, its label, its help text and its secret and required flags " +
                     "all come from the declaration `loadSetup` returns. Fill the token to enable " +
                     "the connect button.",
@@ -199,7 +199,7 @@ export const SlackHostedUnavailable: Story = {
                 story:
                     'Press "Add to Slack". The install URL resolves to nothing, so no window is ' +
                     "opened and the flow says this deployment has no hosted Slack app and points " +
-                    "at the custom tab.",
+                    "on the custom method.",
             },
         },
     },
@@ -214,7 +214,7 @@ export const SlackCustomApp: Story = {
         docs: {
             description: {
                 story:
-                    "The story opens on the custom tab, at the choice between creating an app " +
+                    "The story opens on the custom method, at the choice between creating an app " +
                     'and using one you already have. "Create the app" opens the manifest guide, ' +
                     'with copy and review for the manifest the backend declared. "Next" reaches ' +
                     "the two declared credential fields, both secret and both required.",

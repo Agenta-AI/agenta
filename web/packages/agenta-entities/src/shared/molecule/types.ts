@@ -61,20 +61,6 @@ export interface AtomFamily<T, P = string> {
     getParams: () => Iterable<P>
 }
 
-/**
- * A writable atom family
- * Includes methods from jotai-family for memory management
- */
-export interface WritableAtomFamily<T, Args extends unknown[] = [T], P = string> {
-    (param: P): WritableAtom<T, Args, void>
-    /** Remove atom for a specific parameter */
-    remove: (param: P) => void
-    /** Set auto-cleanup policy */
-    setShouldRemove: (fn: ((createdAt: number, param: P) => boolean) | null) => void
-    /** Get all cached parameters */
-    getParams: () => Iterable<P>
-}
-
 // ============================================================================
 // MOLECULE ATOMS
 // ============================================================================
@@ -188,11 +174,6 @@ export type LifecycleCallback = (id: string) => void
  * Lifecycle unsubscribe function
  */
 export type LifecycleUnsubscribe = () => void
-
-/**
- * Lifecycle event types
- */
-export type LifecycleEvent = "mount" | "unmount"
 
 /**
  * Lifecycle management API
@@ -422,11 +403,6 @@ export interface CreateMoleculeConfig<T, TDraft = Partial<T>> {
 // ============================================================================
 
 /**
- * Type discriminator for server vs local entities
- */
-export type EntitySource = "server" | "local"
-
-/**
  * Base fields present in all server entities
  * These are NOT present in local-only entities
  */
@@ -584,18 +560,6 @@ export interface CacheKeyConfig {
 }
 
 /**
- * Cache redirect entry for manual cache population
- */
-export interface CacheRedirectEntry<T> {
-    /** The ID to redirect from */
-    fromId: string
-    /** The ID to redirect to (where data actually lives) */
-    toId: string
-    /** Optional: Direct data to populate */
-    data?: T
-}
-
-/**
  * Extended molecule config with cache redirect support
  */
 export interface CacheConfig<T> {
@@ -655,28 +619,6 @@ export interface MoleculeRelation<TParent, TChild> {
      * - 'reference': Just store IDs, fetch children separately
      */
     mode: "populate" | "reference"
-}
-
-/**
- * Molecule with relations to other molecules
- */
-export interface MoleculeWithRelations<
-    T,
-    TDraft,
-    TRelations extends Record<string, MoleculeRelation<T, unknown>>,
-> extends Molecule<T, TDraft> {
-    /** Relation configurations */
-    relations: TRelations
-
-    /** Get child entities for a parent */
-    getChildren: <K extends keyof TRelations>(
-        parentId: string,
-        relationName: K,
-        options?: StoreOptions,
-    ) => TRelations[K] extends MoleculeRelation<T, infer TChild> ? TChild[] : never
-
-    /** Atom to subscribe to child IDs */
-    childIdsAtom: <K extends keyof TRelations>(parentId: string, relationName: K) => Atom<string[]>
 }
 
 // ============================================================================
@@ -789,57 +731,9 @@ export interface EntityRelation<TParent, TChild> extends MoleculeRelation<TParen
     binding?: RelationBindingConfig
 }
 
-/**
- * Type guard to check if a relation has selection config
- */
-export function hasSelectionConfig<TParent, TChild>(
-    relation: EntityRelation<TParent, TChild>,
-): relation is EntityRelation<TParent, TChild> & {selection: RelationSelectionConfig} {
-    return relation.selection !== undefined
-}
-
-/**
- * Type guard to check if a relation has binding config
- */
-export function hasBindingConfig<TParent, TChild>(
-    relation: EntityRelation<TParent, TChild>,
-): relation is EntityRelation<TParent, TChild> & {binding: RelationBindingConfig} {
-    return relation.binding !== undefined
-}
-
-/**
- * Type guard to check if a relation has a child molecule
- */
-export function hasChildMolecule<TParent, TChild>(
-    relation: EntityRelation<TParent, TChild>,
-): relation is EntityRelation<TParent, TChild> & {
-    childMolecule: Molecule<TChild, unknown> | LocalMolecule<TChild>
-} {
-    return relation.childMolecule !== undefined
-}
-
 // ============================================================================
 // TYPE UTILITIES FOR STRICT TYPING
 // ============================================================================
-
-/**
- * Infer entity type from a Zod schema
- * Use this to ensure molecule types match API schemas
- *
- * @example
- * ```typescript
- * import { z } from 'zod'
- *
- * const testcaseSchema = z.object({
- *   id: z.string(),
- *   data: z.record(z.string(), z.any()),
- * })
- *
- * type Testcase = InferSchemaType<typeof testcaseSchema>
- * // Testcase is now { id: string; data: Record<string, any> }
- * ```
- */
-export type InferSchemaType<T> = T extends {_output: infer O} ? O : never
 
 /**
  * Create a server entity type with required server fields
@@ -861,20 +755,6 @@ export type AnyEntity<T> = ServerEntity<T> | LocalEntity<T>
  */
 export function isLocalEntity<T>(entity: AnyEntity<T>): entity is LocalEntity<T> {
     return "localId" in entity
-}
-
-/**
- * Check if entity is from server
- */
-export function isServerEntity<T>(entity: AnyEntity<T>): entity is ServerEntity<T> {
-    return "id" in entity && !("localId" in entity)
-}
-
-/**
- * Get entity ID regardless of source
- */
-export function getEntityId<T>(entity: AnyEntity<T>): string {
-    return isLocalEntity(entity) ? entity.localId : (entity as ServerEntity<T>).id
 }
 
 // ============================================================================
@@ -1095,28 +975,6 @@ export interface LoadableCapability {
     }
 }
 
-/**
- * Combined entity type with runnable capability.
- * Use this type for entities like appRevision and evaluator.
- */
-export type RunnableEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
-    RunnableCapability
-
-/**
- * Combined entity type with loadable capability.
- * Use this type for entities like testcase.
- */
-export type LoadableEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
-    LoadableCapability
-
-/**
- * Combined entity type with both runnable and loadable capabilities.
- * Reserved for future entities that might need both.
- */
-export type RunnableLoadableEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
-    RunnableCapability &
-    LoadableCapability
-
 // ============================================================================
 // ENTITY META CAPABILITY
 // ============================================================================
@@ -1336,32 +1194,6 @@ export interface EntityMetaCapability {
         fieldMap: Required<Record<keyof EntityMetaFieldMap, string | null>>
     }
 }
-
-/**
- * Combined entity type with entity meta capability.
- *
- * @example
- * ```typescript
- * const testsetMolecule = withEntityMeta(
- *     createTestsetMolecule(),
- * ) satisfies MetaEntity<Testset>
- * ```
- */
-export type MetaEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> & EntityMetaCapability
-
-/**
- * Combined entity type with runnable + meta capabilities.
- */
-export type RunnableMetaEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
-    RunnableCapability &
-    EntityMetaCapability
-
-/**
- * Combined entity type with loadable + meta capabilities.
- */
-export type LoadableMetaEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
-    LoadableCapability &
-    EntityMetaCapability
 
 // ============================================================================
 // EXTENSION TYPES

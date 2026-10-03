@@ -78,19 +78,85 @@ class SubscriptionLoginState(str, Enum):
 # version changes its codex model set.
 SUBSCRIPTION_PROVIDER_MODELS = {
     SubscriptionProviderKind.CHATGPT: [
+        "gpt-6.1-sol",
         "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
         "gpt-5.5",
-        "gpt-5.4",
-        "gpt-5.4-mini",
         "gpt-5.3-codex-spark",
     ],
 }
 
 SUBSCRIPTION_PROVIDER_HARNESSES = {
     SubscriptionProviderKind.CHATGPT: ["pi_core"],
+}
+
+# Every list SUBSCRIPTION_PROVIDER_MODELS has ever held, the current one included, written
+# out as literals. A stored row whose list matches one of these (as a set) carries a
+# create-time snapshot of the defaults, not a user's narrowing: the create path used to
+# write the defaults into the row, so a connection made before a catalog update kept
+# offering the old lineup. Such a row is normalized back to "follow the current defaults". Never derive an entry from
+# SUBSCRIPTION_PROVIDER_MODELS: when that list changes, the entry would change with it and
+# the outgoing lineup would match no snapshot. Add the new list here whenever
+# SUBSCRIPTION_PROVIDER_MODELS changes, or connections created under the old one stay pinned.
+SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS = {
+    SubscriptionProviderKind.CHATGPT: (
+        # Introduced with the subscription_provider kind (pre Pi 0.87.1).
+        frozenset(
+            {
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-5.5",
+                "gpt-5.4",
+                "gpt-5.4-mini",
+                "gpt-5.3-codex-spark",
+            }
+        ),
+        # After the gpt-6-astra addition.
+        frozenset(
+            {
+                "gpt-6-astra",
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-5.5",
+                "gpt-5.4",
+                "gpt-5.4-mini",
+                "gpt-5.3-codex-spark",
+            }
+        ),
+        # After GPT-6 Sol and Luna, and dropping the models Pi cannot run (578ce12e).
+        frozenset(
+            {
+                "gpt-6-astra",
+                "gpt-6-sol",
+                "gpt-6-luna",
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-5.5",
+                "gpt-5.3-codex-spark",
+            }
+        ),
+        # After the GPT-6.1 Sol addition (Pi 0.99.1).
+        frozenset(
+            {
+                "gpt-6.1-sol",
+                "gpt-6-astra",
+                "gpt-6-sol",
+                "gpt-6-luna",
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-5.5",
+                "gpt-5.3-codex-spark",
+            }
+        ),
+    ),
 }
 
 # The display name a new subscription connection takes when the caller sends none.

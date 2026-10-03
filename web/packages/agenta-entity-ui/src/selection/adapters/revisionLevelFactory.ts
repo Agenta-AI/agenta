@@ -34,22 +34,6 @@ import type {CreateHierarchyLevelOptions} from "./types"
 // ============================================================================
 
 /**
- * Standard fields for git-based revision entities
- */
-export interface RevisionEntity {
-    id: string
-    version?: number
-    revision?: number
-    created_at?: string
-    createdAt?: string
-    message?: string
-    commitMessage?: string
-    author?: string | null
-    created_by_id?: string | null
-    variant_name?: string | null
-}
-
-/**
  * Field mappings for customizing which fields to use
  */
 export interface RevisionFieldMappings {
@@ -307,52 +291,4 @@ export function createRevisionLevel(
         hasChildren: () => hasChildren,
         isSelectable: () => isSelectable,
     }
-}
-
-// ============================================================================
-// PRESETS
-// ============================================================================
-
-/**
- * Preset for testset revisions
- */
-export function createTestsetRevisionLevel(
-    listAtomFamily: (testsetId: string) => Atom<ListQueryState<unknown>>,
-    onBeforeLoad?: (testsetId: string) => void,
-): CreateHierarchyLevelOptions<unknown> {
-    return createRevisionLevel({
-        type: "revision",
-        listAtomFamily,
-        onBeforeLoad,
-    })
-}
-
-/**
- * Preset for app revisions
- */
-export function createAppRevisionLevel(
-    listAtomFamily: (variantId: string) => Atom<ListQueryState<unknown>>,
-): CreateHierarchyLevelOptions<unknown> {
-    return createRevisionLevel({
-        type: "appRevision",
-        listAtomFamily,
-        fieldMappings: {
-            version: "revision", // App revisions use 'revision' field
-        },
-    })
-}
-
-/**
- * Preset for evaluator revisions
- */
-export function createEvaluatorRevisionLevel(
-    listAtomFamily: (variantId: string) => Atom<ListQueryState<unknown>>,
-): CreateHierarchyLevelOptions<unknown> {
-    return createRevisionLevel({
-        type: "evaluatorRevision",
-        listAtomFamily,
-        fieldMappings: {
-            version: "revision", // Evaluator revisions use 'revision' field
-        },
-    })
 }

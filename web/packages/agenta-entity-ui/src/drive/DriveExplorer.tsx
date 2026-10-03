@@ -698,6 +698,7 @@ export function DriveExplorer({
                 <DriveCodeEditor
                     mount={selectedMount}
                     path={selectedMountPath}
+                    displayPath={selectedPath}
                     loading={editor.loading}
                     failed={editor.failed}
                     onSave={onSave}

@@ -23,11 +23,17 @@ import { join } from "node:path";
 
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 import type { RelayHost } from "../../src/tools/relay.ts";
-import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
+import type {
+  AgentEvent,
+  AgentRunRequest,
+  EmitEvent,
+} from "../../src/protocol.ts";
+import type { ResolvedRunLimits } from "../../src/engines/sandbox_agent/run-limits.ts";
 import {
   runSandboxAgent,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
+import { PINNED_PI_VERSION } from "../../src/engines/sandbox_agent/daytona.ts";
 import { piSessionWorkspaceDir } from "../../src/engines/sandbox_agent/pi-assets.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
@@ -99,6 +105,18 @@ export interface SilentTurnOptions {
   park?: boolean;
   /** Abort a still-pending prompt, the shape a user-cancelled turn has. */
   cancel?: boolean;
+  /**
+   * After the prompt events, never settle on its own: the shape of a harness that stalls. Only a
+   * run limit (or the managed cancel) ends the turn.
+   */
+  hang?: boolean;
+  /** Run limits for this turn, in place of the env-derived ones (tiny windows for a stall). */
+  runLimits?: ResolvedRunLimits;
+  /**
+   * Where the run streams its events. Defaults to the collected `events` list. `null` runs the
+   * turn without a live sink (the non-streaming path), whose events come back on the result.
+   */
+  emit?: EmitEvent | null;
   /**
    * The run's working directory. On a local run a Pi transcript is read from under it; on a
    * Daytona run it is the workspace path INSIDE the sandbox, which is the cwd Pi stamps on the
@@ -202,6 +220,11 @@ export async function runSilentTurn(
           resolveHungPrompt = resolve;
         });
       }
+      if (options.hang) {
+        return new Promise((resolve) => {
+          resolveHungPrompt = resolve;
+        });
+      }
       if (options.park) {
         permissionHandler?.({
           id: "perm-1",
@@ -219,9 +242,9 @@ export async function runSilentTurn(
   const sandbox = {
     async mkdirFs() {},
     // Matches the real daemon contract, not a promiscuous fake:
-    //  - Non-`ls` commands answer `exitCode: 0` so the Daytona bootstrap's `test -x <pinned pi>`
-    //    succeeds (the image already has Pi baked in) — otherwise the run dies during setup and
-    //    never reaches a turn.
+    //  - The Daytona bootstrap's `<pinned pi> --version` answers the pinned version, and other
+    //    non-`ls` commands answer `exitCode: 0` (the image already has Pi baked in) — otherwise
+    //    the run dies during setup and never reaches a turn.
     //  - `ls` answers on STDOUT, the way `sandboxRelayHost.list` reads it in `src/tools/relay.ts`
     //    (`String(ls?.stdout ?? "").split("\n")`), and honors its `args`: only the transcript
     //    directory exists, any other directory fails the way a real `ls` fails. Every call is
@@ -237,6 +260,8 @@ export async function runSilentTurn(
           stdout: `${new TextEncoder().encode(remoteTranscript).length}\n`,
         };
       }
+      if (input?.args?.[0] === "--version")
+        return { exitCode: 0, stdout: `${PINNED_PI_VERSION}\n` };
       if (input?.command !== "ls") return { exitCode: 0, stdout: "" };
       const dir = input.args?.at(-1);
       if (dir !== remoteTranscriptDir)
@@ -305,6 +330,9 @@ export async function runSilentTurn(
       },
     }),
     sessionContinuityStore: store,
+    ...(options.runLimits
+      ? { resolveRunLimits: () => options.runLimits as ResolvedRunLimits }
+      : {}),
   };
 
   try {
@@ -315,7 +343,9 @@ export async function runSilentTurn(
         sessionId: SESSION_ID,
         ...request,
       } as AgentRunRequest,
-      (event) => events.push(event),
+      options.emit === null
+        ? undefined
+        : (options.emit ?? ((event) => events.push(event))),
       options.cancel ? abortController.signal : undefined,
       deps,
     );

@@ -70,11 +70,6 @@ Jotai recipe helpers are also available from `@agenta/shared/state`:
 import {
   atomWithDebounce,
   atomWithRefresh,
-  atomWithCompare,
-  atomWithToggle,
-  atomWithToggleAndStorage,
-  atomWithBroadcast,
-  atomWithRefreshAndDefault,
 } from "@agenta/shared/state"
 ```
 
@@ -136,7 +131,6 @@ import {
   setValueAtPath,
   deleteValueAtPath,
   parsePath,
-  pathToString,
 } from '@agenta/shared'
 
 const data = { user: { profile: { name: 'Alice' } } }
@@ -159,13 +153,11 @@ getValueAtPath(testcase, ['messages', 'content']) // 'hello'
 
 ### Typed Path Utilities
 
-Extract and combine paths with type information for UI selection components:
+Extract paths with type information for UI selection components:
 
 ```typescript
 import {
   extractTypedPaths,
-  combineTypedPaths,
-  buildTestcaseColumnPaths,
   type TypedPathInfo,
 } from '@agenta/shared'
 
@@ -177,19 +169,6 @@ const paths = extractTypedPaths(data, { source: 'output', maxDepth: 3 })
 //   { path: 'user.name', label: 'name', valueType: 'string', source: 'output' },
 //   { path: 'user.age', label: 'age', valueType: 'number', source: 'output' },
 //   { path: 'items', label: 'items', valueType: 'array', source: 'output' },
-// ]
-
-// Combine paths from multiple sources with deduplication
-const combinedPaths = combineTypedPaths(schemaPaths, runtimePaths, testcasePaths)
-
-// Build paths from testcase columns
-const columnPaths = buildTestcaseColumnPaths([
-  { key: 'prompt', name: 'Prompt', type: 'string' },
-  { key: 'expected', name: 'Expected Output' },
-])
-// [
-//   { path: 'testcase.prompt', label: 'Prompt', source: 'testcase', valueType: 'string' },
-//   { path: 'testcase.expected', label: 'Expected Output', source: 'testcase' },
 // ]
 ```
 
@@ -289,9 +268,9 @@ if (schema) {
 | Subpath | Description | Key Exports |
 |---------|-------------|-------------|
 | `@agenta/shared/api` | API utilities | `axios`, `getAgentaApiUrl`, `getEnv`, `configureAxios` |
-| `@agenta/shared/state` | Jotai atoms + recipes | `projectIdAtom`, `setProjectIdAtom`, `atomWithDebounce`, `atomWithRefresh`, `atomWithCompare`, `atomWithToggle`, `atomWithBroadcast`, `atomWithRefreshAndDefault` |
+| `@agenta/shared/state` | Jotai atoms + recipes | `projectIdAtom`, `setProjectIdAtom`, `atomWithDebounce`, `atomWithRefresh` |
 | `@agenta/shared/utils` | Pure utilities | `dayjs`, `createBatchFetcher`, `isValidUUID`, `dereferenceSchema`, path utils, mapping utils, formatters |
-| `@agenta/shared/hooks` | React hooks | `useDebounceInput`, `useReducerAtom` |
+| `@agenta/shared/hooks` | React hooks | `useDebounceInput`, `useDebouncedAtomSearch` |
 | `@agenta/shared/schemas` | Zod schemas | `MESSAGE_CONTENT_SCHEMA`, `CHAT_MESSAGE_SCHEMA`, `CHAT_MESSAGES_ARRAY_SCHEMA` |
 | `@agenta/shared/types` | TypeScript types | `SimpleChatMessage`, `MessageContent`, `TextContentPart`, `ToolCall` |
 
@@ -307,7 +286,6 @@ import {
   setProjectIdAtom,
   atomWithDebounce,
   atomWithRefresh,
-  atomWithToggle,
 } from "@agenta/shared/state"
 
 // Utilities (most common)
@@ -325,7 +303,7 @@ import {
 } from "@agenta/shared/utils"
 
 // React hooks
-import {useDebounceInput, useReducerAtom} from "@agenta/shared/hooks"
+import {useDebounceInput} from "@agenta/shared/hooks"
 
 // Schemas (for validation)
 import {

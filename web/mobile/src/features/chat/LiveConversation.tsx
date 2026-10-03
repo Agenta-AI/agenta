@@ -36,18 +36,22 @@ import {
     markLocalSessionAcceptedAtom,
     registerLocalSessionAtom,
 } from "@agenta/entities/session"
-import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
+import {
+    invalidateAgentCommittedRevisionCache,
+    workflowBuildKitOverlayReadyAtomFamily,
+} from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -58,6 +62,7 @@ import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {waitForBuildKit} from "./buildKitWait"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
@@ -131,6 +136,8 @@ export const LiveConversation = ({
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
     const composerRef = useRef<RichChatInputHandle | null>(null)
+    // Quote-to-reply anchors its pill and note box inside the transcript rail.
+    const quoteRootRef = useRef<HTMLDivElement>(null)
     // The composer's tray, owned here for the same reason: a refusal that arrives after the send
     // resolved has to put the files back from outside the composer's own submit.
     const attachments = useComposerAttachments({sessionId})
@@ -272,8 +279,15 @@ export const LiveConversation = ({
         stop,
         voidPendingResume,
     } = conversation
+    // Subscribed here so the build-kit overlay loads while the user types the first message.
+    const buildKitReadyAtom = workflowBuildKitOverlayReadyAtomFamily(entityId)
+    useAtomValue(buildKitReadyAtom)
+    const store = useStore()
+    const firstTurn = conversation.messages.length === 0
     // A fresh session becomes real on the server only once this first message is admitted, which
     // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).
+    // Every first send (composer, Home task, retry) comes through here, so it is also where the
+    // first turn waits for the build kit.
     const send = useCallback(
         async (input: Parameters<typeof sendToConversation>[0]) => {
             if (isSessionFresh(sessionId)) {
@@ -283,6 +297,11 @@ export const LiveConversation = ({
                     agentId: agentId ?? null,
                     name: input.text,
                 })
+            }
+            if (firstTurn && !(await waitForBuildKit(store, buildKitReadyAtom))) {
+                console.warn(
+                    "[mobile chat] build-kit overlay not ready after 10s; sending without it",
+                )
             }
             try {
                 await sendToConversation(input)
@@ -294,11 +313,14 @@ export const LiveConversation = ({
         },
         [
             agentId,
+            buildKitReadyAtom,
             dropUnacceptedLocalSession,
+            firstTurn,
             projectId,
             registerLocalSession,
             sendToConversation,
             sessionId,
+            store,
         ],
     )
     // A template create asks for its accounts here, on arrival, instead of on a create surface of
@@ -705,7 +727,11 @@ export const LiveConversation = ({
         body = <ChatLoading />
     } else {
         body = (
-            <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <ContentRail
+                ref={quoteRootRef}
+                className="relative flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            >
+                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={sessionId} touch />
                 {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
                     <div className={`${mobileTurnRowClass} justify-end`}>
@@ -732,7 +758,20 @@ export const LiveConversation = ({
                     // which is a different and much more alarming thing to say.
                     <div className="m-auto w-full max-w-[420px]">
                         <AgentIntroCard entityId={entityId} />
-                        {conversation.historyUnavailable ? (
+                        {conversation.historyReadFailed ? (
+                            <div className="mt-3 flex flex-col items-center gap-2">
+                                <p className="text-muted-foreground m-0 text-center text-xs">
+                                    Couldn&apos;t load this session&apos;s earlier messages.
+                                </p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={conversation.retryHistory}
+                                >
+                                    Try again
+                                </Button>
+                            </div>
+                        ) : conversation.historyUnavailable ? (
                             <p className="text-muted-foreground mt-3 text-center text-xs">
                                 This session&apos;s earlier messages are no longer stored. New
                                 messages still work.

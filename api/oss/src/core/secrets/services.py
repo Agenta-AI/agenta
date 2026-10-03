@@ -397,10 +397,11 @@ def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
 
     The two fields are policy edited on their own surface (the connection drawer), so an update
     from another surface — renaming the connection, rotating its key — omits them and must not
-    wipe them. An explicit empty list is a choice ("offer nothing") and is left alone.
+    wipe them. A field the payload set is a choice and is left alone: an empty list ("offer
+    nothing"), and a subscription list normalized to None ("follow the defaults").
     """
     for field in ("models", "harnesses"):
-        if not hasattr(update_data, field) or getattr(update_data, field) is not None:
+        if not hasattr(update_data, field) or field in update_data.model_fields_set:
             continue
 
         stored_value = getattr(stored_data, field, None)

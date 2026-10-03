@@ -224,7 +224,7 @@ cd api && PYTHONPATH=$PWD python -m pytest oss/tests/pytest/unit/sessions/ -q
 
 ## Live verification
 
-Stack: `agenta-ee-dev-session-watchdog` at **http://144.76.237.122:8880**, EE, dev images,
+Stack: `agenta-ee-dev-session-watchdog` at **http://<dev-host>:8880**, EE, dev images,
 local sandbox provider, its own Postgres on 5442. Deployed from this worktree at commit
 `59fb1a7864`; the runner picked up `5bbd5a36df` by hot reload. Images were 40 minutes old at
 deploy time, so `--build` was skipped as the brief allows.

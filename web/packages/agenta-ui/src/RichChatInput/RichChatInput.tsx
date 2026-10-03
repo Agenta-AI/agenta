@@ -103,7 +103,7 @@ export interface RichChatInputProps {
     trailing?: ReactNode
     /** Files pasted into the editor (clipboard images/files). */
     onPasteFile?: (files: FileList) => void
-    /** Keep the send button enabled with empty text (e.g. attachments pending) — sends "". */
+    /** Something besides the text is sendable (e.g. attachments): Send and Enter send "". */
     sendForceEnabled?: boolean
     /** Disable submit without locking the editor (e.g. an attachment upload failed). */
     sendDisabled?: boolean
@@ -451,7 +451,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
                     <CodeFencePlugin />
                     {submitOnEnter ? (
-                        <SubmitPlugin onSubmit={handleSubmit} disabled={sendDisabled} />
+                        <SubmitPlugin
+                            onSubmit={handleSubmit}
+                            disabled={sendDisabled}
+                            forceEnabled={sendForceEnabled}
+                        />
                     ) : null}
                     <FocusStatePlugin onFocusChange={setFocused} />
                     {onChange ? <CharacterCountPlugin onTextChange={onChange} /> : null}

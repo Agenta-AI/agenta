@@ -15,15 +15,17 @@ export const ContextSync = () => {
     const setActiveUserId = useSetAtom(activeUserIdAtom)
     const setSharedUser = useSetAtom(setUserAtom)
     const setSession = useSetAtom(setSessionAtom)
-    const {user, isPending: profilePending} = useProfile()
+    const {user, isPending: profilePending, error: profileError} = useProfile()
 
     // The identity half of the app context, and this app's answer to the desktop's
     // `UserListener`. Entity queries scoped by user gate on it — the vault's secrets key is
     // `["vault", "secrets", user?.id, projectId]` with `enabled: !!user` — so without this the
     // Secrets and LLMs tabs sat on their skeletons forever, waiting on a query never enabled.
+    // A failed read keeps what the last answer said (see the session flag below).
     useEffect(() => {
+        if (profileError) return
         setSharedUser(user)
-    }, [user, setSharedUser])
+    }, [profileError, user, setSharedUser])
 
     // Per-user preferences (the Experiments switches) are scoped by this id, and they are read
     // far from Settings — the chat composer asks whether voice is on. Written only once the
@@ -33,9 +35,9 @@ export const ContextSync = () => {
     // preferences.
     // `uid`, not `id`: the desktop scopes these by `Session.getUserId()`.
     useEffect(() => {
-        if (profilePending) return
+        if (profilePending || profileError) return
         setActiveUserId(user?.uid ?? null)
-    }, [profilePending, user?.uid, setActiveUserId])
+    }, [profilePending, profileError, user?.uid, setActiveUserId])
 
     // Publish Classic mode as a cookie here too, or a switch flipped on /m would not stick.
     useClassicModeCookieSync()
@@ -52,10 +54,15 @@ export const ContextSync = () => {
     // Driven off the SETTLED profile rather than the route: desktop can pre-set it from a
     // ProtectedRoute-guarded URL, but a project id in a mobile URL is not proof of auth, and
     // optimistically claiming a session would 401-storm every gated query behind it.
+    //
+    // A FAILED profile read is not a sign-out: `useProfile` resolves a real 401 to `null`, so an
+    // error here is a network blip, a 5xx or an aborted request on reload. Writing `false` on it
+    // disabled every entity query until the profile refetched — the agent's name fell back to
+    // "Agent", its revision never loaded and the session read as having nothing to message.
     useEffect(() => {
-        if (profilePending) return
+        if (profilePending || profileError) return
         setSession(!!user)
-    }, [profilePending, user, setSession])
+    }, [profilePending, profileError, user, setSession])
 
     const {workspace_id, project_id} = router.query
     const workspaceId = typeof workspace_id === "string" ? workspace_id : null

@@ -41,11 +41,11 @@ export function byDateDesc(a: Post, b: Post): number {
 }
 
 // Social platform → the generic brand icon shipped under /public/icons
-// (mapping from site.json footer socials). Unknown platforms fall back to x.
+// (the icons the site footer uses). Unknown platforms fall back to x.
 const SOCIAL_ICON: Record<string, string> = {
   x: "/icons/social-1.svg",
   twitter: "/icons/social-1.svg",
-  linkedin: "/icons/social-2.svg",
+  linkedin: "/icons/social-linkedin.svg",
   github: "/icons/social-3.svg",
   slack: "/icons/social-4.svg",
   youtube: "/icons/social-5.svg",
@@ -84,6 +84,27 @@ export function isAuthorOf(post: Post, authorId: string): boolean {
 export function authorPosts(authorId: string, all: Post[]): Post[] {
   return all.filter((p) => isAuthorOf(p, authorId)).sort(byDateDesc);
 }
+
+// --- Legacy-era posts ------------------------------------------------------
+//
+// Posts published before the July 2026 relaunch describe the earlier Agenta
+// product (prompt management, evaluation, and LLM observability for LLM apps).
+// Those posts keep their publication dates and content untouched; the post page
+// and its markdown twin both render a dated update note on them so readers and
+// crawlers get the current definition of Agenta next to the historical text.
+export const LEGACY_ERA_END = new Date("2026-07-01T00:00:00Z");
+
+export function isLegacyPost(post: Post): boolean {
+  return post.data.date.getTime() < LEGACY_ERA_END.getTime();
+}
+
+// The note's text, shared verbatim between the HTML notice component and the
+// markdown twin so the two representations never drift.
+export const LEGACY_NOTICE_DATE = "Sep 28, 2026";
+export const LEGACY_NOTICE_TEXT =
+  "This post is from an earlier era of Agenta, when the product focused on prompt management, evaluation, and LLM observability. Agenta is now the open-source workspace for your agents: build AI coworkers through chat, improve them with feedback, and share them with your whole team, self-hosted or in the cloud.";
+export const LEGACY_NOTICE_LINK_LABEL = "See what Agenta is today";
+export const LEGACY_NOTICE_LINK_HREF = "https://agenta.ai/";
 
 // Related posts: same category, most recent, excluding the current post, max 4.
 // Falls back to filling with other recent posts if the category is thin.

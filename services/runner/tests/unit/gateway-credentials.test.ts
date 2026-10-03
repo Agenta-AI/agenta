@@ -179,7 +179,7 @@ describe("gateway credentials, per harness (WP13 Phase 2)", () => {
 describe("gateway credentials over plain http", () => {
   const FLAG = "AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED";
   const ROUTABLE_HTTP =
-    "http://144.76.237.122:8680/api/gateways/llms/builtin/mock/v1";
+    "http://203.0.113.10:8680/api/gateways/llms/builtin/mock/v1";
 
   function withFlag<T>(value: string | undefined, run: () => T): T {
     const previous = process.env[FLAG];

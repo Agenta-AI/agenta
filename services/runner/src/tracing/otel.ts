@@ -31,6 +31,7 @@
  *   AGENTA_CREDENTIALS                       — per-run caller credential (no static API key)
  *   OTEL_SERVICE_NAME            — resource service.name (default "pi-agent")
  */
+import { createOutputBudget } from "./output-budget.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   context,
@@ -55,7 +56,12 @@ import type {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
+import type {
+  AgentEvent,
+  AgentUsage,
+  EmitEvent,
+  ModelTokenUsage,
+} from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
 import { logExportProblem } from "./export-diagnostics.ts";
 import { createStreamTrace } from "./stream-trace.ts";
@@ -865,6 +871,8 @@ export interface RunConfig {
   skillsDropped?: string[];
   /** Per-run known-value redactor; scrubs the run's live secrets from exported spans. */
   redactor?: Redactor;
+  /** True when a custom model connection serves this turn (see CUSTOM_CONNECTION). */
+  customConnection?: boolean;
   /** Filled by the extension on agent_start so the runner can flush/return it. */
   traceId?: string;
 }
@@ -962,6 +970,36 @@ function lastAssistantText(messages: any): string {
   return "";
 }
 
+/**
+ * The TTL of a span's cache writes, which Anthropic bills at different rates. Claude Code writes
+ * 1-hour entries, and claude-agent-acp reports only the total written, so the runner stamps "1h"
+ * on a Claude chat span that wrote cache. Absent means the 5-minute TTL, the Anthropic default.
+ */
+const CACHE_WRITE_TTL = "agenta.usage.cache_write_ttl";
+
+/**
+ * Declares which token contract a span's `gen_ai.usage.input_tokens` follows.
+ *
+ * The runner writes `false`: its input count is EXCLUSIVE — uncached input only, with
+ * `gen_ai.usage.cache_read.input_tokens` and `gen_ai.usage.cache_creation.input_tokens`
+ * reported beside it rather than inside it. The OpenTelemetry GenAI contract means the
+ * opposite (input already includes cached tokens), and pricing derives ordinary input by
+ * subtracting the cache details from the count it is given. Agenta ingests OTLP from
+ * third-party instrumentation as well as from this runner, so without this marker the two
+ * contracts are indistinguishable and one of them is mispriced. An ABSENT marker means
+ * inclusive, the OpenTelemetry meaning; every span this runner gives an input token count
+ * carries the marker.
+ */
+const INPUT_TOKENS_INCLUDES_CACHE = "agenta.usage.input_tokens_includes_cache";
+
+/**
+ * Marks a model span whose model a custom model connection serves: the user's own gateway or
+ * OpenAI-compatible deployment (see `servedByCustomConnection`). Such an endpoint
+ * charges what it charges, so the bare model id on the span must not be priced at the public
+ * provider rate. Set to `true` only on those spans; absent means a standard provider route.
+ */
+export const CUSTOM_CONNECTION = "agenta.model.custom_connection";
+
 /** Fill an LLM span from a finished assistant message (model, tokens, finish, output). */
 /** Returns the error message when the assistant turn failed (stopReason/errorMessage), else
  * undefined — so the caller can emit a matching `error` event, not just stamp the span. */
@@ -983,6 +1021,7 @@ function applyAssistant(
   const u = msg.usage;
   if (u) {
     // Current GenAI names (mapped by Agenta's logfire adapter) ...
+    span.setAttribute(INPUT_TOKENS_INCLUDES_CACHE, false);
     span.setAttribute("gen_ai.usage.input_tokens", u.input ?? 0);
     span.setAttribute("gen_ai.usage.output_tokens", u.output ?? 0);
     // ... and legacy names (mapped by Agenta's semconv.py). Emit both so token
@@ -1004,6 +1043,11 @@ function applyAssistant(
       );
     if (u.cost?.total != null)
       span.setAttribute("gen_ai.usage.cost", u.cost.total);
+    // The runner's pi-ai build patch (src/tools/pi-provider-cost-patch.ts) puts the provider's
+    // billed charge (OpenRouter usage.cost) in cost.total and marks it. Name the source on the
+    // span, so a reader can tell a billed charge from Pi's price-table estimate.
+    if (typeof u.cost?.total === "number" && u.cost.source === "provider")
+      span.setAttribute("agenta.usage.cost_source", "provider");
   }
 
   // Pi keeps transport details outside errorMessage. Preserve a bounded allowlist,
@@ -1063,7 +1107,7 @@ export interface AgentaOtel {
   /** Flush this run's trace to Agenta. Await before the process/response ends. */
   flush: () => Promise<void>;
   /** Run totals (tokens + cost) summed across turns, for roll-up onto the parent. */
-  usage: () => { input: number; output: number; total: number; cost: number };
+  usage: () => AgentUsage;
 }
 
 /**
@@ -1091,6 +1135,7 @@ export function createAgentaOtel(
     skills: init.skills,
     skillsDropped: init.skillsDropped,
     redactor: init.redactor,
+    customConnection: init.customConnection,
   };
 
   const tracer = trace.getTracer("agenta-pi-otel", "0.1.0");
@@ -1110,6 +1155,23 @@ export function createAgentaOtel(
   // (the agent and workflow spans are exported in separate OTLP batches, so Agenta's
   // per-batch cumulative roll-up cannot bridge them on its own).
   const runUsage = { input: 0, output: 0, total: 0, cost: 0 };
+  // Whether ANY turn reported a cost. Without it a run the harness never priced is
+  // indistinguishable from one it priced at zero, and the sum below would report the second.
+  let costReported = false;
+
+  /**
+   * On a custom connection Pi's cost is its public price-table estimate, not what the user's
+   * endpoint charges, so it leaves the span and the run usage. A provider-billed charge (the pi-ai
+   * cost patch marks it `source: "provider"`) stays.
+   */
+  function withoutEstimateOnCustomConnection(msg: any): any {
+    const cost = msg?.usage?.cost;
+    if (!config.customConnection || !cost || cost.source === "provider") {
+      return msg;
+    }
+    const { cost: _estimate, ...usage } = msg.usage;
+    return { ...msg, usage };
+  }
 
   function accumulateUsage(msg: any): void {
     const u = msg?.usage;
@@ -1119,7 +1181,10 @@ export function createAgentaOtel(
     runUsage.input += input;
     runUsage.output += output;
     runUsage.total += u.totalTokens ?? input + output;
-    if (u.cost?.total != null) runUsage.cost += u.cost.total;
+    if (u.cost?.total != null) {
+      runUsage.cost += u.cost.total;
+      costReported = true;
+    }
   }
 
   function beginTurn(next: Partial<RunConfig>): void {
@@ -1137,12 +1202,14 @@ export function createAgentaOtel(
     config.skills = next.skills;
     config.skillsDropped = next.skillsDropped;
     config.redactor = next.redactor;
+    config.customConnection = next.customConnection;
     config.traceId = undefined;
     lastAgentMessages = undefined;
     runUsage.input = 0;
     runUsage.output = 0;
     runUsage.total = 0;
     runUsage.cost = 0;
+    costReported = false;
   }
 
   const register = (pi: ExtensionAPI): void => {
@@ -1245,6 +1312,8 @@ export function createAgentaOtel(
       llmSpan.setAttribute("gen_ai.operation.name", "chat");
       if (providerName) llmSpan.setAttribute("gen_ai.system", providerName);
       if (modelId) llmSpan.setAttribute("gen_ai.request.model", modelId);
+      if (config.customConnection)
+        llmSpan.setAttribute(CUSTOM_CONNECTION, true);
       if (lastContextMessages)
         emitMessages(
           llmSpan,
@@ -1255,7 +1324,7 @@ export function createAgentaOtel(
     });
 
     pi.on("message_end", async (event: any) => {
-      const msg = event?.message;
+      const msg = withoutEstimateOnCustomConnection(event?.message);
       if (!msg || msg.role !== "assistant") return;
       accumulateUsage(msg);
       if (!llmSpan) return;
@@ -1300,8 +1369,9 @@ export function createAgentaOtel(
       // Safety net: if the LLM span is still open (no assistant message_end seen),
       // close it from the turn's assistant message.
       if (llmSpan && event?.message) {
-        applyAssistant(llmSpan, event.message, config.captureContent);
-        accumulateUsage(event.message);
+        const msg = withoutEstimateOnCustomConnection(event.message);
+        applyAssistant(llmSpan, msg, config.captureContent);
+        accumulateUsage(msg);
         llmSpan.end();
         llmSpan = undefined;
       }
@@ -1343,20 +1413,9 @@ export function createAgentaOtel(
           message: finalAssistant.errorMessage,
         });
       }
-      // Stamp the run total on the agent span so it shows the agent's tokens/cost even
-      // though Agenta cannot roll the per-turn LLM spans up across batches.
-      if (runUsage.total > 0) {
-        agentSpan.setAttribute("gen_ai.usage.input_tokens", runUsage.input);
-        agentSpan.setAttribute("gen_ai.usage.output_tokens", runUsage.output);
-        agentSpan.setAttribute("gen_ai.usage.prompt_tokens", runUsage.input);
-        agentSpan.setAttribute(
-          "gen_ai.usage.completion_tokens",
-          runUsage.output,
-        );
-        agentSpan.setAttribute("gen_ai.usage.total_tokens", runUsage.total);
-        if (runUsage.cost > 0)
-          agentSpan.setAttribute("gen_ai.usage.cost", runUsage.cost);
-      }
+      // Each `chat` span owns its own tokens and cost. Ingest reads `gen_ai.usage.*` as the
+      // span's incremental value and rolls children up into the parent, so repeating the run
+      // total here would count it twice.
       agentSpan.end();
       agentSpan = undefined;
       agentCtx = undefined;
@@ -1369,8 +1428,19 @@ export function createAgentaOtel(
     config,
     beginTurn,
     flush: () => flushTrace(config.traceId, config.redactor, runId),
-    usage: () => ({ ...runUsage }),
+    // The usage writeback (`extensions/agenta.ts`) serializes this straight onto the wire, so
+    // an unreported cost has to leave the key off rather than ship the running sum's 0.
+    usage: () => (costReported ? { ...runUsage } : stripCost(runUsage)),
   };
+}
+
+/** Drop the cost key, so an unpriced run reads as unknown rather than measured-free. */
+function stripCost(usage: {
+  input: number;
+  output: number;
+  total: number;
+}): AgentUsage {
+  return { input: usage.input, output: usage.output, total: usage.total };
 }
 
 // ---------------------------------------------------------------------------
@@ -1607,6 +1677,11 @@ export interface SandboxAgentOtelInit extends Omit<
   /** Resolved model id ("openai-codex/gpt-5.5"); set on the LLM span. */
   model?: string;
   /**
+   * True when the user's own model connection serves the run (`servedByCustomConnection`), so
+   * the model spans say so (see CUSTOM_CONNECTION).
+   */
+  customConnection?: boolean;
+  /**
    * Skill names actually materialized for this run — BOTH the author-supplied skills and the
    * forced Agenta platform `_agenta.*` skills the server injected. Stamped on the agent span so
    * a trace shows which skills loaded (F-029), not just the author config echoed elsewhere.
@@ -1629,13 +1704,24 @@ export interface SandboxAgentOtelInit extends Omit<
    * `events[]`. This split is what keeps a delta'd block from being re-sent in full.
    */
   emit?: EmitEvent;
+  /**
+   * Called for every sign of progress the turn shows, with or without `emit`: each event the run
+   * records, plus, on the one-shot path where text and reasoning are coalesced instead of
+   * recorded, each text chunk past the startup banner and each reasoning chunk. The run limits
+   * read it, so a non-streaming turn that is answering never looks stalled.
+   */
+  onProgress?: () => void;
+  /** Stop the turn through the engine's existing run-limit cancellation path. */
+  onOutputLimit?: (reason: string) => void;
 }
 
 export interface SandboxAgentOtel {
   /** Start the invoke_agent (AGENT) span as a child of the caller's traceparent. */
   start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void;
   /** Feed one ACP `session/update` payload (the `update` object). */
-  handleUpdate(update: any): void;
+  handleUpdate(update: any, admitted?: boolean): void;
+  /** Admit a raw update before the engine retains correlation, timer or pause state. */
+  admitUpdate(update: any): boolean;
   /**
    * Record an event the ACP stream does not carry (e.g. an `interaction_request` raised via
    * the permission callback). Routes through the same choke point as stream events, so it
@@ -1653,6 +1739,8 @@ export interface SandboxAgentOtel {
   recordError(message: string, provider?: string): void;
   /** Set final run usage before finish/flush so events and exported spans carry final totals. */
   setUsage(usage: AgentUsage | undefined): void;
+  /** The turn's token counts (with cache reads and writes) for the model span. Not on the wire. */
+  setTokenDetail(tokens: ModelTokenUsage | undefined): void;
   /** Flush this run's trace to Agenta (invoke_agent has a remote parent). */
   flush(): Promise<void>;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
@@ -1694,6 +1782,7 @@ export function createSandboxAgentOtel(
   // undefined. The shared provider keeps runner and Pi export behavior identical.
   const authorization = platformAuthorizationProvider(init.authorization);
   const { provider, id: modelId } = splitModel(init.model);
+  const customConnection = init.customConnection === true;
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
   const runId = mintRunId();
   const streamTrace = createStreamTrace({ harness: init.harness });
@@ -1708,7 +1797,13 @@ export function createSandboxAgentOtel(
   let accumulated = "";
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
+  // Set once the engine hands over the turn's final usage; a later stream reading must not replace it.
+  let usageSettled = false;
+  let tokenDetail: ModelTokenUsage | undefined;
   const events: AgentEvent[] = [];
+  const outputBudget = createOutputBudget(init.onOutputLimit);
+  let finished = false;
+  const admitUpdate = (update: any): boolean => !finished && outputBudget.accept(update);
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
   const toolSpans = new Map<
@@ -1724,8 +1819,10 @@ export function createSandboxAgentOtel(
   // result log and, on the streaming path, flushes the event the moment it is built — so
   // the live order is byte-identical to `events[]`. A sink failure never aborts the run.
   const sink = init.emit;
+  const onProgress = init.onProgress ?? (() => {});
   function record(event: AgentEvent): void {
     events.push(event);
+    onProgress();
     if (sink) {
       try {
         sink(event);
@@ -1735,20 +1832,77 @@ export function createSandboxAgentOtel(
     }
   }
 
-  function stampUsage(span: Span, u: AgentUsage | undefined): void {
-    if (!u) return;
-    span.setAttribute("gen_ai.usage.input_tokens", u.input);
-    span.setAttribute("gen_ai.usage.output_tokens", u.output);
-    span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
-    span.setAttribute("gen_ai.usage.completion_tokens", u.output);
-    span.setAttribute("gen_ai.usage.total_tokens", u.total);
-    if (u.cost > 0) span.setAttribute("gen_ai.usage.cost", u.cost);
+  /**
+   * Stamp token counts on a LEAF model span, the one span that owns them. Input is exclusive of
+   * cache (see INPUT_TOKENS_INCLUDES_CACHE); cache reads and writes ride beside it.
+   */
+  function stampTokens(span: Span, t: ModelTokenUsage): void {
+    const total = t.input + t.output + t.cacheRead + t.cacheWrite;
+    // All zeros is the absence of a measurement, not a measured zero.
+    if (total <= 0) return;
+    span.setAttribute(INPUT_TOKENS_INCLUDES_CACHE, false);
+    span.setAttribute("gen_ai.usage.input_tokens", t.input);
+    span.setAttribute("gen_ai.usage.output_tokens", t.output);
+    span.setAttribute("gen_ai.usage.prompt_tokens", t.input);
+    span.setAttribute("gen_ai.usage.completion_tokens", t.output);
+    span.setAttribute("gen_ai.usage.total_tokens", total);
+    span.setAttribute("gen_ai.usage.cache_read.input_tokens", t.cacheRead);
+    span.setAttribute("gen_ai.usage.cache_creation.input_tokens", t.cacheWrite);
   }
 
+  /**
+   * Stamp the turn's usage on its chat span: the tokens of every model call in the turn, summed,
+   * and the harness cost when it reported one (Claude's turn share). The span stands for many
+   * calls, so without a cost the platform prices the sum as one request. Codex reports neither a
+   * cost nor per-call counts, so a Codex turn whose calls together cross a long-context price tier
+   * is priced at that tier: a known limit.
+   */
+  function stampModelUsage(span: Span): void {
+    const tokens =
+      tokenDetail ??
+      (usage
+        ? {
+            input: usage.input,
+            output: usage.output,
+            cacheRead: 0,
+            cacheWrite: 0,
+          }
+        : undefined);
+    if (tokens) stampTokens(span, tokens);
+    if (init.harness === "claude" && tokens && tokens.cacheWrite > 0)
+      span.setAttribute(CACHE_WRITE_TTL, "1h");
+    if (usage?.cost != null) span.setAttribute("gen_ai.usage.cost", usage.cost);
+  }
+
+  function setTokenDetail(tokens: ModelTokenUsage | undefined): void {
+    tokenDetail = tokens;
+  }
+
+  /**
+   * Set the run's final usage. With token detail set (call `setTokenDetail` first), the usage
+   * reports the counts the model span carries: every model call of the turn, and cache reads and
+   * writes in the total. A harness that traces its own spans (Pi) keeps the usage it reported.
+   */
   function setUsage(finalUsage: AgentUsage | undefined): void {
-    if (!finalUsage) return;
-    usage = finalUsage;
-    const event: AgentEvent = { type: "usage", ...finalUsage };
+    usageSettled = true;
+    const t = emitSpans ? tokenDetail : undefined;
+    let merged: AgentUsage | undefined = t
+      ? {
+          ...finalUsage,
+          input: t.input,
+          output: t.output,
+          total: t.input + t.output + t.cacheRead + t.cacheWrite,
+        }
+      : finalUsage;
+    // Claude's cost is its public price-table estimate, not what a custom connection charges. A
+    // self-tracing harness (Pi) already left its estimate out and keeps a provider-billed charge.
+    if (merged && customConnection && emitSpans) {
+      const { cost: _estimate, ...tokens } = merged;
+      merged = tokens;
+    }
+    if (!merged) return;
+    usage = merged;
+    const event: AgentEvent = { type: "usage", ...merged };
     if (!sink) {
       const index = events.findLastIndex((e) => e.type === "usage");
       if (index !== -1) {
@@ -1808,7 +1962,10 @@ export function createSandboxAgentOtel(
       textBlockId = nextId("msg");
       record({ type: "message_start", id: textBlockId });
     }
-    record({ type: "message_delta", id: textBlockId, delta });
+    // V8 slices can retain the whole growing source string. Own only this delta's
+    // code units before events, persistence and live queues keep it past this callback.
+    const ownedDelta = Buffer.from(delta, "utf16le").toString("utf16le");
+    record({ type: "message_delta", id: textBlockId, delta: ownedDelta });
     textEmitted = target.startsWith(textEmitted) ? target : textEmitted + delta;
     anyTextDelta = true;
   }
@@ -1832,6 +1989,21 @@ export function createSandboxAgentOtel(
     if (body) streamText(body);
   }
 
+  /**
+   * The one-shot path's progress signal for assistant text, which it coalesces instead of
+   * recording. Matches the streaming path: the startup banner is not progress, so nothing counts
+   * until the banner region resolves and real text follows it. After that, every chunk counts.
+   */
+  let oneShotTextStarted = false;
+  function noteOneShotTextProgress(): void {
+    if (!oneShotTextStarted) {
+      const { body, settled } = splitLeadingBanner(accumulated);
+      if (!settled || !body) return;
+      oneShotTextStarted = true;
+    }
+    onProgress();
+  }
+
   /** Open (if needed) the reasoning block and emit the pure delta up to `target`. */
   function streamReasoning(target: string): void {
     closeText(); // a reasoning chunk ends any open text run
@@ -1843,7 +2015,8 @@ export function createSandboxAgentOtel(
       reasoningBlockId = nextId("reason");
       record({ type: "thought_start", id: reasoningBlockId });
     }
-    record({ type: "thought_delta", id: reasoningBlockId, delta });
+    const ownedDelta = Buffer.from(delta, "utf16le").toString("utf16le");
+    record({ type: "thought_delta", id: reasoningBlockId, delta: ownedDelta });
     reasoningEmitted = target.startsWith(reasoningEmitted)
       ? target
       : reasoningEmitted + delta;
@@ -1913,6 +2086,7 @@ export function createSandboxAgentOtel(
     llmSpan.setAttribute("gen_ai.operation.name", "chat");
     if (provider) llmSpan.setAttribute("gen_ai.system", provider);
     if (modelId) llmSpan.setAttribute("gen_ai.request.model", modelId);
+    if (customConnection) llmSpan.setAttribute(CUSTOM_CONNECTION, true);
     if (init.harness === "codex" && modelId) {
       // Codex-only: codex-acp reports no response model and its ACP usage carries no cost, so stamp the
       // resolved model as the response model too; the platform cost calculator reads ag.meta.response.model.
@@ -1926,9 +2100,9 @@ export function createSandboxAgentOtel(
     emitMessages(llmSpan, "llm.input_messages", inputMessages, capture);
   }
 
-  function handleUpdate(update: any): void {
+  function handleUpdate(update: any, admitted = false): void {
     const kind = update?.sessionUpdate;
-    if (!kind) return;
+    if (!kind || finished || (!admitted && !admitUpdate(update))) return;
 
     if (kind === "agent_message_chunk") {
       const t = acpBlockText(update.content);
@@ -1949,6 +2123,7 @@ export function createSandboxAgentOtel(
       // text, so the pure delta is its tail past what we already sent — minus the leading
       // startup banner, which is held back until the body begins (see streamAssistantText).
       if (sink) streamAssistantText();
+      else noteOneShotTextProgress();
       return;
     }
 
@@ -1963,6 +2138,7 @@ export function createSandboxAgentOtel(
       if (thoughtSnapshot) reasoningAccumulated = t;
       else reasoningAccumulated += t;
       if (sink) streamReasoning(reasoningAccumulated);
+      else onProgress();
       return;
     }
 
@@ -2040,18 +2216,25 @@ export function createSandboxAgentOtel(
     }
 
     if (kind === "usage_update") {
-      // ACP usage_update carries only `used` (context tokens) and `cost.amount`. The
-      // per-call input/output split is NOT on the stream; it rides on the PromptResponse,
-      // which the sandbox-agent engine reads. Keep total + cost here and leave the split to the caller.
+      // ACP usage_update carries `used` and `cost.amount`. `used` is the agent's CONTEXT-WINDOW
+      // occupancy at this point in the turn, NOT the tokens this run spent, so it is dropped:
+      // reporting it as a total produced runs shaped `input 0 / output 0 / total <context size>`.
+      // The token split is not on the stream at all; it rides on the PromptResponse, which the
+      // sandbox-agent engine reads and hands back through `setUsage`. Cost is the only run total
+      // here, so an update without one carries nothing worth recording.
+      // The ACP HTTP client reads notifications from SSE and the prompt response from the POST
+      // body, so a reading can land after the engine settled the turn's usage.
       const cost = update.cost?.amount;
-      const total = update.used;
+      if (typeof cost !== "number" || usageSettled) return;
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : (usage?.total ?? 0),
-        cost: typeof cost === "number" ? cost : (usage?.cost ?? 0),
+        total: usage?.total ?? 0,
+        cost,
       };
-      record({ type: "usage", ...usage });
+      // Claude's figure is the whole session's running total, not this turn's. The engine turns
+      // it into the turn's share at the end (`setUsage`), so do not show it live.
+      if (init.harness !== "claude") record({ type: "usage", ...usage });
     }
   }
 
@@ -2150,7 +2333,13 @@ export function createSandboxAgentOtel(
       errSpan.setAttribute("openinference.span.kind", "AGENT");
       errSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
       errSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
-      stampUsage(errSpan, usage);
+      if (usage && usage.total > 0)
+        stampTokens(errSpan, {
+          input: usage.input,
+          output: usage.output,
+          cacheRead: 0,
+          cacheWrite: 0,
+        });
       stamp(errSpan);
       // The standalone span shares the caller's trace id; make sure the run reports it so the
       // engine flushes this trace (a self-instrumenting run otherwise only tracked it from the
@@ -2173,6 +2362,8 @@ export function createSandboxAgentOtel(
 
   function finish(stopReason?: string): string {
     const text = stripStartupBanner(accumulated.trim());
+    if (finished) return text;
+    finished = true;
     // The event log is independent of span emission, so build its tail either way.
     closeText();
     closeReasoning();
@@ -2217,7 +2408,7 @@ export function createSandboxAgentOtel(
         [{ role: "assistant", content: text }],
         capture,
       );
-      stampUsage(llmSpan, usage);
+      stampModelUsage(llmSpan);
       llmSpan.end();
       llmSpan = undefined;
     }
@@ -2229,7 +2420,7 @@ export function createSandboxAgentOtel(
     }
     if (agentSpan) {
       setOutput(agentSpan, text, capture);
-      stampUsage(agentSpan, usage);
+      // The `chat` spans above own this run's usage; ingest rolls them up into this span.
       agentSpan.end();
       agentSpan = undefined;
     }
@@ -2241,10 +2432,19 @@ export function createSandboxAgentOtel(
   return {
     start,
     handleUpdate,
-    emitEvent: record,
+    admitUpdate,
+    emitEvent: (event) => {
+      if (finished) return;
+      // Error/done are engine-authored terminal records, not model output. Preserve them
+      // after a breach so the turn has one visible, durable ending.
+      if (event.type === "error" || event.type === "done" || outputBudget.accept(event)) {
+        record(event);
+      }
+    },
     finish,
     recordError,
     setUsage,
+    setTokenDetail,
     flush: () => flushTrace(runTraceId, init.redactor, runId),
     traceId: () => runTraceId,
     output: () => accumulated,

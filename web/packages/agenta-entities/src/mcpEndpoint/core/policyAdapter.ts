@@ -113,9 +113,15 @@ export function toGatewayPermissions(policy: McpServerPolicy): GatewayConnection
  * entry keeps it, because clearing a stranded entry has to stay possible (CR18).
  */
 export function fromGatewayPermissions(
-    permissions: GatewayConnectionPermissions,
+    view: GatewayConnectionPermissions,
     current: McpServerPolicy = {},
 ): McpServerPolicy {
+    // An MCP policy has no `allow_reads`: its "Ask for write and delete" writes an explicit table
+    // instead. Nothing in the MCP drawer picks it, so should one arrive it reads as the safe `ask`.
+    const permissions = {
+        ...view,
+        default: view.default === "allow_reads" ? ("ask" as const) : view.default,
+    }
     const existing = toolPermissions(current)
     // Null prototype: a tool literally named `__proto__` must land as an entry rather
     // than silently setting this object's prototype and vanishing. See `toolPermissions`.

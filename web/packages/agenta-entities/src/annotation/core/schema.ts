@@ -23,21 +23,18 @@ import {z} from "zod"
  * Maps to backend `SimpleTraceChannel` (otlp | web | sdk | api).
  */
 export const annotationChannelSchema = z.enum(["otlp", "web", "sdk", "api"])
-export type AnnotationChannel = z.infer<typeof annotationChannelSchema>
 
 /**
  * Annotation kind — purpose of the annotation.
  * Maps to backend `SimpleTraceKind` (adhoc | eval | play).
  */
 export const annotationKindSchema = z.enum(["adhoc", "eval", "play"])
-export type AnnotationKind = z.infer<typeof annotationKindSchema>
 
 /**
  * Annotation origin — how the annotation was created.
  * Maps to backend `AnnotationOrigin`.
  */
 export const annotationOriginSchema = z.enum(["custom", "human", "auto"])
-export type AnnotationOrigin = z.infer<typeof annotationOriginSchema>
 
 // ============================================================================
 // SUB-SCHEMAS
@@ -52,7 +49,6 @@ export const annotationLinkSchema = z.object({
     span_id: z.string().optional(),
     attributes: z.record(z.string(), z.unknown()).optional(),
 })
-export type AnnotationLink = z.infer<typeof annotationLinkSchema>
 
 /**
  * A reference to another entity (evaluator, testset, testcase, etc.).
@@ -63,7 +59,6 @@ export const annotationReferenceSchema = z.object({
     version: z.coerce.number().optional(),
     attributes: z.record(z.string(), z.unknown()).optional(),
 })
-export type AnnotationReference = z.infer<typeof annotationReferenceSchema>
 
 /**
  * References attached to an annotation.
@@ -84,7 +79,6 @@ export const annotationReferencesSchema = z.object({
     query_variant: annotationReferenceSchema.optional(),
     query_revision: annotationReferenceSchema.optional(),
 })
-export type AnnotationReferences = z.infer<typeof annotationReferencesSchema>
 
 /**
  * Annotation metadata (name, description, tags).
@@ -94,7 +88,6 @@ export const annotationMetaSchema = z.object({
     description: z.string().optional(),
     tags: z.array(z.string()).optional(),
 })
-export type AnnotationMeta = z.infer<typeof annotationMetaSchema>
 
 /**
  * Annotation data payload — contains output values.
@@ -102,7 +95,6 @@ export type AnnotationMeta = z.infer<typeof annotationMetaSchema>
 export const annotationDataSchema = z.object({
     outputs: z.record(z.string(), z.unknown()).optional(),
 })
-export type AnnotationData = z.infer<typeof annotationDataSchema>
 
 // ============================================================================
 // ANNOTATION SCHEMA

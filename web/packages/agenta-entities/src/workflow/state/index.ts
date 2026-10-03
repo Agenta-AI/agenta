@@ -243,6 +243,15 @@ export {
     templateConnectionChoices,
     type LoadAgentTemplateFromEphemeralParams,
 } from "./loadTemplate"
+export {
+    agentTemplatesQueryAtom,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+    agentTemplateLookupAtomFamily,
+    type AgentTemplatesStatus,
+    type AgentTemplateLookup,
+} from "./agentTemplateCatalog"
 export {buildCreatePayloadFromEphemeral, type EphemeralCreatePayload} from "./createPayload"
 
 // ============================================================================
@@ -254,9 +263,6 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
-    llmEvaluatorsAtom,
-    fullPagePlaygroundEvaluatorsAtom,
-    nonHumanEvaluatorsAtom,
     nonDeterministicEvaluatorsAtom,
     // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
     evaluatorEnrichmentActivatedAtom,

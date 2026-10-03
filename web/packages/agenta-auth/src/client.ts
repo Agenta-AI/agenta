@@ -9,12 +9,7 @@ import Passwordless from "supertokens-web-js/recipe/passwordless"
 import Session from "supertokens-web-js/recipe/session"
 import ThirdParty from "supertokens-web-js/recipe/thirdparty"
 
-import {
-    describeConsumeCode,
-    describeCreateCode,
-    describeResendCode,
-    type OtpOutcome,
-} from "./otpMachine"
+import {describeCreateCode, describeResendCode} from "./otpMachine"
 import {authApiUrl, authEnv} from "./runtime"
 
 /**
@@ -67,34 +62,6 @@ export function ensureAuthInit(): void {
     initialized = true
 }
 
-export type SignInOutcome = {kind: "ok"} | {kind: "rejected"; message: string} | {kind: "error"}
-
-export async function signInWithEmailPassword(
-    email: string,
-    password: string,
-): Promise<SignInOutcome> {
-    ensureAuthInit()
-    try {
-        const result = await EmailPassword.signIn({
-            formFields: [
-                {id: "email", value: email},
-                {id: "password", value: password},
-            ],
-        })
-        if (result.status === "OK") return {kind: "ok"}
-        if (result.status === "WRONG_CREDENTIALS_ERROR")
-            return {kind: "rejected", message: "Incorrect email or password."}
-        if (result.status === "FIELD_ERROR")
-            return {
-                kind: "rejected",
-                message: result.formFields[0]?.error ?? "Invalid email or password.",
-            }
-        return {kind: "rejected", message: result.reason}
-    } catch {
-        return {kind: "error"}
-    }
-}
-
 /* ------------------------------- email OTP -------------------------------- */
 
 /**
@@ -137,16 +104,6 @@ export async function resendEmailCode(): Promise<
         return describeResendCode(await Passwordless.resendCode())
     } catch {
         return describeResendCode(null)
-    }
-}
-
-/** Exchange the typed code for a session. */
-export async function submitEmailCode(code: string): Promise<OtpOutcome> {
-    ensureAuthInit()
-    try {
-        return describeConsumeCode(await Passwordless.consumeCode({userInputCode: code}))
-    } catch {
-        return describeConsumeCode(null)
     }
 }
 

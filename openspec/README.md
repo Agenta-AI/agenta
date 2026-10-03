@@ -1,5 +1,11 @@
 # Repository specifications
 
+## Channel inbound media
+
+[Proposal](changes/channel-inbound-media/proposal.md), [behavior specification](changes/channel-inbound-media/specs/channel-inbound-media/spec.md), and [tasks](changes/channel-inbound-media/tasks.md).
+
+Inbound files reach the agent as session attachments on Slack, Telegram (custom and hosted bot), and WhatsApp, reusing the WhatsApp media path. WhatsApp adds voice notes and video; only stickers, locations, and contact cards keep the fixed reply. Adapters store only the platform's file id and resolve the download at fetch time with the channel's own credentials. Downstream delivery is unchanged: native images are inlined into the model prompt where supported, everything else lands as a file in the session working directory; understanding a file's content is the harness's responsibility.
+
 ## Railway preview cost controls
 
 [Proposal](changes/railway-preview-cost-controls/proposal.md), [behavior specifications](changes/railway-preview-cost-controls/specs/railway-preview-lifecycle/spec.md), [PR comment command](changes/railway-preview-cost-controls/specs/railway-preview-comments/spec.md), [design](changes/railway-preview-cost-controls/design.md), and [tasks](changes/railway-preview-cost-controls/tasks.md).
@@ -11,6 +17,12 @@ Implemented in PR #7058. Delete automatic previews after tests and let authorize
 [Proposal](changes/channels-mention-only-threads/proposal.md), [turn trigger specification](changes/channels-mention-only-threads/specs/channel-turn-triggers/spec.md), [routing delta](changes/channels-mention-only-threads/specs/slack-agent-routing/spec.md), [design](changes/channels-mention-only-threads/design.md), and [tasks](changes/channels-mention-only-threads/tasks.md).
 
 Implemented in PR #7128. In a Slack channel thread, a Slack group DM or a Telegram group, the bot answers only when it is mentioned, given a command, or answered on a pending choice. In a Telegram group, a reply to one of the bot's messages also counts. The next turn carries every message posted since the agent's last turn, up to its own mention, and every mention runs, at most once per thread (context under sub-second concurrent arrival is best effort). A 1:1 DM still answers every message.
+
+## Create, share and load templates
+
+[Handoff](changes/create-share-load-templates/HANDOFF.md), [design](changes/create-share-load-templates/design.md), [specifications and plans](changes/create-share-load-templates/README.md), and [tasks](changes/create-share-load-templates/tasks.md).
+
+Approved delivery direction, not implemented. Extend the single-agent loader with validated zip export/import and exact-commit GitHub sources. Migrate the bundled catalog, API and frontend together through one reader. Generate marketplace data from that reader; visual implementation waits for separately supplied website UI designs. No legacy catalog reader, custom-root setting or directory-only validation API.
 
 ## Agent template specifications
 

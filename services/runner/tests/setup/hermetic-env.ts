@@ -64,11 +64,20 @@ vi.mock("../../src/sessions/records-query.ts", () => ({
   fetchSessionRecords: async () => [],
 }));
 
+// A cold pause waits for the harness to answer the cancelled prompt with its usage. Test fakes
+// never answer, so the default wait would only add seconds to every cold-paused turn. A test that
+// answers the prompt sets a longer wait with vi.stubEnv.
+const COLD_PAUSE_USAGE_SETTLE_MS = "20";
+process.env.AGENTA_RUNNER_COLD_PAUSE_USAGE_SETTLE_MS =
+  COLD_PAUSE_USAGE_SETTLE_MS;
+
 // Re-scrub per test: a prior test may have set one and not restored it. Also drop the memoized
 // runner config so the next `loadRunnerConfig()` re-parses the scrubbed environment.
 beforeEach(() => {
   for (const name of SCRUBBED) delete process.env[name];
   // Restore the stub bundle so a prior test's override (to force a failed install) cannot leak.
   process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = STUB_EXTENSION_BUNDLE;
+  process.env.AGENTA_RUNNER_COLD_PAUSE_USAGE_SETTLE_MS =
+    COLD_PAUSE_USAGE_SETTLE_MS;
   resetRunnerConfigCache();
 });

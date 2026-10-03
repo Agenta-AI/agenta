@@ -6,6 +6,7 @@
  */
 import { describe, it, beforeEach, vi } from "vitest";
 import assert from "node:assert/strict";
+import { buildTurnText } from "../../src/engines/sandbox_agent/transcript.ts";
 
 // The hermetic setup stubs the records query for the engine suites; this file tests the real one.
 vi.unmock("../../src/sessions/records-query.ts");
@@ -49,6 +50,25 @@ beforeEach(() => {
 });
 
 describe("reconstructHistoryIfNeeded", () => {
+  it("renders a fresh post-crash prompt with known work, unknown outcomes and the current message once", async () => {
+    recordsToReturn = [
+      { record_source: "user", turn_id: "old", attributes: { type: "message", text: "create my document" } },
+      { record_source: "agent", turn_id: "old", attributes: { type: "tool_call", id: "c1", name: "create_document", input: {} } },
+      { record_source: "agent", turn_id: "old", attributes: { type: "tool_result", id: "c1", output: "created doc-123" } },
+      { record_source: "agent", turn_id: "old", attributes: { type: "tool_call", id: "c2", name: "send_document", input: {} } },
+      { record_source: "agent", turn_id: "old", attributes: { type: "error", code: "execution_lost", message: "Runner disconnected" } },
+      { record_source: "user", turn_id: "current", attributes: { type: "message", text: "continue carefully" } },
+    ];
+    const request = { harness: "pi_core", turnId: "current", messages: [{ role: "user", content: "continue carefully" }] } as const;
+    const rebuilt = await reconstructHistoryIfNeeded({ ...request, messages: [...request.messages] }, "fresh-process-crash", auth);
+    assert.ok(rebuilt);
+    const prompt = buildTurnText(rebuilt);
+    assert.match(prompt, /created doc-123/);
+    assert.match(prompt, /send_document may have already run/);
+    assert.match(prompt, /do NOT retry a side-effecting call/);
+    assert.doesNotMatch(prompt, /has NOT run yet/);
+    assert.equal(prompt.split("continue carefully").length - 1, 1);
+  });
   it("reconstructs a minimal history", async () => {
     recordsToReturn = [
       { record_source: "user", attributes: { type: "message", text: "q1" } },

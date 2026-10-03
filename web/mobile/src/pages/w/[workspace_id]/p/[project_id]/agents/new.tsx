@@ -1,6 +1,9 @@
+import {useEffect} from "react"
+
 import {useRouter} from "next/router"
 
 import {NewAgentScreen} from "@/features/agents/NewAgentScreen"
+import {forgetTemplateKey} from "@/lib/context"
 
 export default function NewAgentPage() {
     const router = useRouter()
@@ -11,6 +14,10 @@ export default function NewAgentPage() {
         typeof router.query.template === "string" && router.query.template
             ? router.query.template
             : undefined
+    // The template the website link carried across sign-in has arrived; stop remembering it.
+    useEffect(() => {
+        if (templateKey) forgetTemplateKey()
+    }, [templateKey])
     if (!workspaceId || !projectId) return null
     return (
         <NewAgentScreen workspaceId={workspaceId} projectId={projectId} templateKey={templateKey} />

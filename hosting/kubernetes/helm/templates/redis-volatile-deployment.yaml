@@ -20,6 +20,19 @@ spec:
       app.kubernetes.io/component: redis-volatile
   template:
     metadata:
+      {{- /* A single-replica pod that holds state: the cluster autoscaler consolidating its node
+             takes the whole component down. On GKE it evicted redis-volatile and supertokens
+             mid-traffic and every agent turn was refused until the replacement pod was ready.
+             The annotation makes the autoscaler skip that node for scale-down. It does not
+             block an operator drain. On GKE Autopilot it also DELAYS automatic node upgrades
+             for that node, and GKE may evict the pod anyway after about seven days, so it is a
+             strong preference, not a guarantee. It is inert where no autoscaler runs. Set
+             `$redisVolatile.safeToEvict: true` to opt out, or override the key through
+             `$redisVolatile.podAnnotations`. */}}
+      {{- $annotations := dict "cluster-autoscaler.kubernetes.io/safe-to-evict" (ternary "true" "false" (default false $redisVolatile.safeToEvict)) -}}
+      {{- $annotations = merge (deepCopy (default dict $redisVolatile.podAnnotations)) $annotations }}
+      annotations:
+        {{- toYaml $annotations | nindent 8 }}
       labels:
         {{- include "agenta.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: redis-volatile

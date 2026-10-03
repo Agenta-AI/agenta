@@ -557,7 +557,24 @@ export interface AgentUsage {
   input: number;
   output: number;
   total: number;
-  cost: number;
+  /**
+   * INVARIANT: absent means the cost is UNKNOWN (the harness reported none); a present `0` is a
+   * measured zero — a free model or a fully cached turn. Consumers read presence as evidence of
+   * a measurement, so a producer must never substitute a zero for an absence: doing so records
+   * an unpriced run as a free one, which every downstream aggregate then believes.
+   */
+  cost?: number;
+}
+
+/**
+ * Token counts of a turn, as the tracer stamps them on its model span. Input is EXCLUSIVE of
+ * cache: reads and writes are separate counts. Runner-internal, never on the wire.
+ */
+export interface ModelTokenUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
 }
 
 /**
@@ -725,6 +742,12 @@ export interface ModelConnection {
   /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the
    * provider's secret. Omitted when the model is not reached through a gateway. */
   gatewayCredentials?: GatewayCredentials;
+  /**
+   * True when the route serves the user's own custom-provider record, false when it serves a
+   * provider key. The SDK resolver knows the record kind and states it; omitted by older SDKs,
+   * in which case only a `custom` deployment counts (`servedByCustomConnection`).
+   */
+  customConnection?: boolean;
 }
 
 /**
@@ -988,6 +1011,14 @@ export interface AgentRunResult {
    * `parseGatewayErrorDetail` in `gateway-error.ts`). Never present without `error`.
    */
   errorDetail?: AgentErrorDetail;
+  /**
+   * Set only when the turn was ended by the TTFB run-limit on a FRESH prompt, which means it
+   * produced no token, no tool call and no side effect before it was cut. Nothing ran, so the
+   * dispatch may re-prompt it once (`runAgent` in `server.ts`); the flag is cleared before the
+   * result leaves the runner, so no caller can loop on it. Never set for a resume or a
+   * continuation, where earlier work exists that a replay could repeat.
+   */
+  stalledBeforeFirstResponse?: boolean;
 }
 
 /**

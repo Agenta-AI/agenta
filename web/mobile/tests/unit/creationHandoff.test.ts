@@ -17,13 +17,17 @@ vi.mock("@agenta/chat/state", () => ({
     revealConfigPaneAtom: "reveal",
 }))
 vi.mock("@agenta/entities/workflow", () => ({
-    agentTemplateByKey: () => ({key: "reviewer", name: "Reviewer"}),
+    agentTemplatesAtom: "templates",
+    agentTemplateByKey: (templates: {key: string}[], key: string) =>
+        templates.find((template) => template.key === key),
     appendSetupPreamble: (text: string) => text,
     invalidateWorkflowsListCache: vi.fn(),
 }))
 vi.mock("@agenta/home-ui", () => ({useCreateAgent: () => mocks.create}))
 vi.mock("@/features/analytics/client", () => ({captureIntent: mocks.captureIntent}))
 vi.mock("jotai", () => ({
+    useAtomValue: (atom: string) =>
+        atom === "templates" ? [{key: "reviewer", name: "Reviewer"}] : undefined,
     useSetAtom: (atom: string) =>
         ({stash: mocks.stash, drop: mocks.drop, reveal: mocks.reveal, draft: mocks.draft})[atom],
 }))

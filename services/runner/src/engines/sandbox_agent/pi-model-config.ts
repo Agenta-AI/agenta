@@ -185,21 +185,10 @@ interface PiModelAheadOfCatalog {
   withoutCompat?: string[];
 }
 
-export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> = {
-  // Opus 5.5 keeps Opus 5's thinking and sampling rules (adaptive only, no temperature, 1M context,
-  // 128K output). `supportsMidConvoEffort` makes Pi send `thinking.block_binding` and a pinned
-  // effort, which Opus 5.5 has not been verified to accept, so it gets the plain adaptive path.
-  "anthropic/claude-opus-5-5": {
-    inheritsFrom: "claude-opus-5",
-    cost: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
-    withoutCompat: ["supportsMidConvoEffort"],
-  },
-  "xai/grok-4.7": {
-    inheritsFrom: "grok-4.6",
-    cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
-    contextWindow: 500000,
-  },
-};
+// Pi 0.87.1 added Claude Opus 5.5 and Grok 4.7, and Pi 0.99.1 added Claude Sonnet 5.5, at the
+// prices their entries used to supply, so all three were dropped. Empty until the next model
+// outruns the pinned catalog.
+export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> = {};
 
 function entryAheadOfCatalog(
   provider: string,

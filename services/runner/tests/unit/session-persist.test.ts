@@ -35,6 +35,38 @@ beforeEach(() => {
 });
 
 describe("buildPersistingEmitter", () => {
+  it("retries an accepted-but-timed-out record with the same id and timestamp", async () => {
+    const attempts: any[] = [];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      attempts.push(JSON.parse(init!.body as string));
+      assert.ok(init!.signal instanceof AbortSignal);
+      if (attempts.length === 1) throw new DOMException("Timed out after acceptance", "TimeoutError");
+      return new Response("{}", { status: 200 });
+    });
+    try {
+      const emitter = buildPersistingEmitter("retry-timeout", () => "test");
+      emitter.persist({ type: "message", text: "hello" }, "user");
+      await emitter.flush();
+      assert.equal(attempts.length, 2);
+      assert.match(attempts[0].record_id, /^[0-9a-f-]{36}$/);
+      assert.deepEqual(attempts[0], attempts[1]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("flushes and releases unfinished text and thought prefixes exactly once", async () => {
+    const emitter = buildPersistingEmitter("unfinished-prefix", () => "test");
+    emitter.emit({ type: "message_start", id: "m" });
+    emitter.emit({ type: "message_delta", id: "m", delta: "remember this" });
+    emitter.emit({ type: "thought_start", id: "t" });
+    emitter.emit({ type: "thought_delta", id: "t", delta: "partial thought" });
+    await emitter.flush();
+    await emitter.flush();
+    const rows = postedBodies as any[];
+    assert.deepEqual(rows.map((row) => row.attributes.text), ["remember this", "partial thought"]);
+    assert.notEqual(rows[0].record_id, rows[1].record_id);
+  });
   it("persists a plain message event and forwards to the live emitter", async () => {
     const live: unknown[] = [];
     const { emit, flush } = buildPersistingEmitter(
@@ -533,32 +565,19 @@ describe("durable records", () => {
     assert.equal(takePersistFailures("sess-durable"), 0);
   });
 
-  it("the turn-end flush consumes the drop count (warns + clears)", async () => {
+  it("the turn-end flush leaves the drop count for the caller (does not consume it)", async () => {
     vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2");
     fetchFailCount = 99;
-    const warns: string[] = [];
-    const writeSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation((chunk: string | Uint8Array) => {
-        warns.push(String(chunk));
-        return true;
-      });
-    try {
-      const { emit, flush } = buildPersistingEmitter("sess-flush", () => "t");
-      emit({ type: "message", text: "x" });
-      await flush();
+    const { emit, flush } = buildPersistingEmitter("sess-flush", () => "t");
+    emit({ type: "message", text: "x" });
+    await flush();
 
-      // The drain surfaced the incomplete durable log at turn end...
-      assert.equal(
-        warns.some(
-          (w) => w.includes("sess-flush") && w.includes("durable log incomplete"),
-        ),
-        true,
-      );
-    } finally {
-      writeSpy.mockRestore();
-    }
-    // ...and cleared the counter, so nothing accumulates unread.
+    // flush drains but MUST NOT consume the drop count. The turn's caller (server.ts's finally)
+    // reads it once, after the drain, to decide whether to mark the session's record log
+    // incomplete. If flush consumed it here, that caller would read zero and the session with a
+    // hole in its log would never be marked — the bug this guards against.
+    assert.equal(takePersistFailures("sess-flush"), 1);
+    // The caller's single read cleared it, so nothing accumulates unread.
     assert.equal(takePersistFailures("sess-flush"), 0);
   });
 

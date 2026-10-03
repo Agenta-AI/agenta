@@ -15,6 +15,7 @@ import {CaretDown, Microphone, StopCircle, Waveform} from "@phosphor-icons/react
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 import {usePushToTalk} from "../hooks/usePushToTalk"
 import {useVoiceInput} from "../hooks/useVoiceInput"
 
@@ -98,6 +99,7 @@ const VoiceInputButton = ({
     // hear. With no explicit choice, lead with whichever the model can actually use.
     const mode: VoiceMode = chosenMode ?? (audioPerceivable === false ? "transcribe" : "audio")
     const transcribe = useVoiceInput()
+    const hasKeyboard = useHardwareKeyboard()
     if (stopRef) stopRef.current = transcribe.stop
 
     useEffect(() => {
@@ -211,7 +213,9 @@ const VoiceInputButton = ({
           : dictating
             ? "Stop dictation"
             : effective === "transcribe"
-              ? `Hold ${holdLabel} to dictate`
+              ? hasKeyboard
+                  ? `Hold ${holdLabel} to dictate`
+                  : "Dictate into the message"
               : null
 
     const highlighted = dictating || audioPending

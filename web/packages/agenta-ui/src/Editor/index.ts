@@ -52,7 +52,6 @@ export {
 export type {EditorProps, EditorPluginsProps, EditorContextType, EditorProviderProps} from "./types"
 
 // State management
-export {EditorStateProvider} from "./state"
 export {editorStateAtom, markdownViewAtom} from "./state/assets/atoms"
 
 // Code editor utilities

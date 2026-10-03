@@ -15,7 +15,7 @@ Configure the runner service with:
 AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local,daytona
 AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER=daytona
 AGENTA_RUNNER_DAYTONA_API_KEY=...
-AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1
+AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v<N>
 ```
 
 The SDK custom-code evaluator runner can share the built snapshot (it reads the separate
@@ -35,7 +35,9 @@ The snapshot recipe therefore:
   hash-pinned Python lock `agent-requirements.txt`, both embedded (gzip, base64, one `RUN`
   line each) because the Daytona build has no repo context. To change the Python set, edit the
   package list, then regenerate the lock with
-  `uv pip compile --python-version 3.11 --generate-hashes --no-header --no-annotate requirements.in -o agent-requirements.txt`;
+  `uv pip compile --python-version 3.11 --generate-hashes --no-header --no-annotate --override overrides.txt requirements.in -o agent-requirements.txt`,
+  where `overrides.txt` holds `pillow==12.3.0` (moviepy 2.2.1 caps Pillow below 12, and the install
+  runs with `--no-deps` so the override holds);
   the install runs with `--require-hashes`, so a hand-edited pin without a hash fails the build. The same file runs in both runner
   Dockerfiles, so the local sandbox and the Daytona sandbox ship one tool list: the everyday shell
   tools, `gh` from GitHub's apt repo, `uv`, `fd` 10.4.2 (Pi's `find` builtin needs a flag Debian's
@@ -44,8 +46,16 @@ The snapshot recipe therefore:
   data, and the web, and one headless Chromium installed by Playwright under
   `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and linked as `chromium`. Every section of the
   script asserts its own pin and fails the build otherwise; the pins live at the top of that file;
-- installs `@earendil-works/pi-coding-agent@0.85.1`;
+- installs `@earendil-works/pi-coding-agent@0.99.1`;
 - fails the build unless `pi --version` succeeds;
+- applies the pi-ai provider-cost patch to the copy of pi-ai bundled into the `pi` CLI: Pi's
+  OpenAI-completions client keeps OpenRouter's billed `usage.cost` instead of replacing it with
+  Pi's price-table estimate, so a Daytona Pi
+  chat span carries the same billed cost as a local one. The spec is single-sourced from
+  `services/runner/src/tools/pi-provider-cost-patch.json` (shared with the runner image
+  build), the step verifies its own write, and the build fails loudly if `parseChunkUsage`
+  drifts. When a custom image lacks Pi, the runner installs it at session time and applies the
+  same patch there;
 - reinstalls the private Pi ACP adapter at `pi-acp@0.0.29` through
   `sandbox-agent install-agent`, rather than installing a global package that the daemon
   would not resolve;
@@ -82,6 +92,23 @@ The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit
 runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the
 adapter version must not be inherited implicitly from the base image because older versions
 do not forward Pi extension dialogs as ACP permission requests.
+
+## Recipe version
+
+The snapshot name is `agenta-agent-sandbox-v<N>`, where `<N>` is the `version` in
+`services/runner/config/sandbox-recipe.json`. The runner asks for that name by default.
+
+Any change to a pinned harness version or to any build input of this recipe needs, in the same
+commit, a bump of that `version` and a regenerated `sandbox-recipe-fingerprint.json`:
+
+```bash
+uv run --with pytest --with daytona python -c "import json, test_recipe_fingerprint as t; open('sandbox-recipe-fingerprint.json', 'w').write(json.dumps({'fingerprint': t.recipe_fingerprint()}, indent=2) + '\n')"
+uv run --with pytest --with daytona python -m pytest -q test_recipe_fingerprint.py
+```
+
+The fingerprint test fails when the inputs change and the fingerprint does not. CI runs it. A new
+version is a new snapshot name: build it in every Daytona account before the runner that asks for
+it deploys.
 
 ## Refreshing an existing snapshot
 

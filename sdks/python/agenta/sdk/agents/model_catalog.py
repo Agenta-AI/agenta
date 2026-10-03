@@ -116,22 +116,27 @@ def load_pi_model_catalog() -> ModelCatalog:
     overlay = curated_file.get("overlay", {})
     additions = curated_file.get("additions", [])
 
-    entries: List[ModelCatalogEntry] = []
-    generated_ids = set()
-    for raw in generated.get("models", []):
+    def with_overlay(raw: dict) -> dict:
         merged = dict(raw)
-        generated_ids.add(raw.get("id"))
         curated = overlay.get(raw.get("id"))
         if curated:
             for field in _OVERLAY_FIELDS:
                 if field in curated:
                     merged[field] = curated[field]
-        entries.append(ModelCatalogEntry.model_validate(merged))
+        return merged
 
+    entries: List[ModelCatalogEntry] = []
+    generated_ids = set()
+    for raw in generated.get("models", []):
+        generated_ids.add(raw.get("id"))
+        entries.append(ModelCatalogEntry.model_validate(with_overlay(raw)))
+
+    # The overlay decorates an addition too, so its judgments survive the regeneration that
+    # retires the addition.
     for raw in additions:
         if raw.get("id") in generated_ids:
             continue
-        entries.append(ModelCatalogEntry.model_validate(raw))
+        entries.append(ModelCatalogEntry.model_validate(with_overlay(raw)))
 
     return ModelCatalog(schema_version="1", models=entries)
 

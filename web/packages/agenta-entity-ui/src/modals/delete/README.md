@@ -61,22 +61,6 @@ deleteEntities([
 ])
 ```
 
-### Entity-Specific Hooks
-
-```tsx
-// For testsets
-const {deleteTestset} = useTestsetDelete()
-deleteTestset(testsetId, testsetName)
-
-// For variants
-const {deleteVariant} = useVariantDelete()
-deleteVariant(variantId, variantName)
-
-// For evaluators
-const {deleteEvaluator} = useEvaluatorDelete()
-deleteEvaluator(evaluatorId, evaluatorName)
-```
-
 ## Hook Return Type
 
 ```typescript
@@ -107,7 +91,7 @@ interface UseEntityDeleteReturn {
 | `deleteModalBlockedAtom`    | `EntityReference[]` | Entities that cannot be deleted   |
 | `deleteModalCanProceedAtom` | `boolean`           | Can proceed (no blocked entities) |
 | `deleteModalCountAtom`      | `number`            | Total count of entities           |
-| `deleteModalStateAtom`      | `DeleteModalState`  | Combined state object             |
+| `deleteModalStateAtom`      | object  | Combined state object             |
 
 ### Action Atoms
 

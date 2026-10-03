@@ -6,6 +6,7 @@ import {
     canCreateAgent,
     outstandingRequired,
     setupStatus,
+    setupStepNeeded,
     type AgentSetupSelection,
 } from "../../src/workflow/agentSetup"
 import type {DetectedAccount} from "../../src/workflow/detectAccounts"
@@ -166,5 +167,29 @@ describe("appendSetupPreamble", () => {
     it("returns the preamble alone for an empty seed", () => {
         const out = appendSetupPreamble("  ", selection({accounts, connectedSlugs: ["slack"]}))
         expect(out.startsWith("I've connected Slack.")).toBe(true)
+    })
+})
+
+describe("setupStepNeeded", () => {
+    it("skips the step when nothing was detected", () => {
+        expect(setupStepNeeded({...selection(), forTemplate: true})).toBe(false)
+    })
+
+    it("asks while a required account is unconnected", () => {
+        const accounts = [account("github", true)]
+        expect(setupStepNeeded({...selection({accounts}), forTemplate: true})).toBe(true)
+        expect(
+            setupStepNeeded({
+                ...selection({accounts, connectedSlugs: ["github"]}),
+                forTemplate: true,
+            }),
+        ).toBe(false)
+    })
+
+    it("still asks a template whose satisfied slot offers another provider", () => {
+        const accounts = [{...account("github", true), alternatives: ["gitlab"]}]
+        const connected = selection({accounts, connectedSlugs: ["github"]})
+        expect(setupStepNeeded({...connected, forTemplate: true})).toBe(true)
+        expect(setupStepNeeded({...connected, forTemplate: false})).toBe(false)
     })
 })
