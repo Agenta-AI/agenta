@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { personFacingGatewayRefusal } from "../../gateway-error.ts";
 import { SubstitutionStuckError } from "./credential-preflight.ts";
 
 /** Map a provider family to its human-facing vault key label, for the credit/auth hint. */
@@ -68,10 +69,12 @@ function keyHintFor(
 export const SANDBOX_GONE_MARKER = "sandbox is gone";
 export const ABANDONED_TURN_MARKER = "execution abandoned";
 
+export const TURN_TIME_LIMIT_CODE: RunErrorCode = "turn_time_limit_reached";
+
 /** The line the user reads when the machine running their turn disappeared. */
 export const SANDBOX_GONE_MESSAGE =
-  "The sandbox running this session stopped responding, so the run was ended. " +
-  "Send the message again to start a fresh sandbox.";
+  "The agent stopped responding, so we ended this request. " +
+  "Send your message again to start a new one.";
 
 /** Why a shutdown ends the turns it interrupts. */
 export const RUNNER_SHUTDOWN_REASON = "the runner is shutting down";
@@ -93,6 +96,19 @@ export type RunErrorCode =
   | "starter_credits_exhausted"
   | "starter_credits_program_paused"
   | "starter_credits_unavailable"
+  // The caller's wallet is at its floor, so a turn that would run a platform sandbox was refused
+  // before it started. See `metering/sandbox-usage.ts`.
+  | "wallet_balance_exhausted"
+  // The caller's organization already runs as many turns at once as its plan allows, so this turn
+  // was refused before it started. The platform's turn admission writes the message.
+  | "concurrent_turns_limit"
+  // A platform-funded (built-in) model was refused because the organization's wallet is off, so
+  // nothing would measure the call. The gateway writes the message; a model on the caller's own key
+  // still works.
+  | "builtin_models_not_enabled"
+  // The turn ran for the longest time the caller's plan allows and was stopped. What it did so
+  // far is kept; the platform's turn admission writes the message.
+  | "turn_time_limit_reached"
   | "credential_delivery_failed"
   | "rate_limited"
   // Not a failure: the turn was REFUSED before it started because another turn already owns
@@ -421,6 +437,10 @@ export function classifyRunError(
   // An error that states its own public code was written for the person in the chat.
   if (isPublicError(err)) return { message: sanitizeErrorText(err.message), code: err.publicCode };
   const raw = err instanceof Error ? err.message : String(err);
+  // The gateway refused a model call with a sentence written for the person (out of credit,
+  // built-in models not enabled): that sentence and its class, never the raw text and marker.
+  const refusal = personFacingGatewayRefusal(raw);
+  if (refusal) return { message: refusal.message, code: refusal.code as RunErrorCode };
   const msg = raw.split("\n")[0].trim();
   const keyHint = keyHintFor(provider, harness, options.connection);
   // FIRST, and matched on the ERROR CLASS rather than on any text. Every sandbox this run built

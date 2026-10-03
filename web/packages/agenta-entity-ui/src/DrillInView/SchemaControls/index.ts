@@ -93,6 +93,7 @@ export {
     withRunnerPermission,
     readModelId,
     readModelConnectionSlug,
+    readModelConnection,
     readHarnessKind,
     readRunnerPermission,
     readAgentItems,

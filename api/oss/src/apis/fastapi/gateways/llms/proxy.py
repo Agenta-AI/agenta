@@ -6,12 +6,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.apis.fastapi.gateways.exceptions import log_plane_disabled
 from oss.src.apis.fastapi.gateways.llms.utils import (
     LLMRequestBodyError,
     parse_llm_call_context,
     parse_messages_call_context,
     parse_responses_call_context,
 )
+from oss.src.apis.fastapi.gateways.flags import llm_gateway_serves_caller
 from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_marker
 from oss.src.core.gateways.dtos import (
     GatewayEndpointNamespace,
@@ -29,6 +31,7 @@ from oss.src.core.gateways.llms.types import (
     LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
     LLMRoutingFieldNotAllowedError,
+    LLMCapabilityNotAllowedError,
     LLMUpstreamError,
 )
 from oss.src.core.gateways.policy.types import (
@@ -37,9 +40,10 @@ from oss.src.core.gateways.policy.types import (
     SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
+    SpendRefusedError,
 )
+from oss.src.core.gateways.run_claims import gateway_run_id, gateway_run_labels
 from oss.src.utils.context import get_auth_scope
-from oss.src.utils.env import env
 
 if TYPE_CHECKING:
     from oss.src.core.gateways.llms.service import LLMGatewayService
@@ -58,6 +62,7 @@ _DOMAIN_EXCEPTIONS = (
     EntitlementDeniedError,
     LLMModelNotAllowedError,
     LLMRoutingFieldNotAllowedError,
+    LLMCapabilityNotAllowedError,
     LLMModelIdentifierInvalidError,
     CeilingExceededError,
     SecretNotFoundError,
@@ -108,10 +113,20 @@ def _request_body_detail(exc: ValueError) -> str:
 def _map_domain_exception(exc: Exception) -> JSONResponse:
     """Map gateway failures to OpenAI-compatible error responses."""
     if isinstance(exc, GatewayPlaneDisabledError):
+        log_plane_disabled(exc)
         return _openai_error(
             status_code=403,
             message=exc.message,
             error_type="invalid_request_error",
+            code=exc.code,
+        )
+    if isinstance(exc, SpendRefusedError):
+        # Its own code, so the runner and the chat can name the refusal (out of credit,
+        # built-in models not enabled) instead of showing a generic denial.
+        return _openai_error(
+            status_code=403,
+            message=exc.message,
+            error_type="permission_error",
             code=exc.code,
         )
     if isinstance(exc, (PolicyDeniedError, EntitlementDeniedError)):
@@ -144,6 +159,14 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             message=exc.message,
             error_type="invalid_request_error",
             code="routing_field_not_allowed",
+            field=exc.field,
+        )
+    if isinstance(exc, LLMCapabilityNotAllowedError):
+        return _openai_error(
+            status_code=400,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code="capability_not_allowed",
             field=exc.field,
         )
     if isinstance(exc, LLMModelIdentifierInvalidError):
@@ -386,10 +409,11 @@ class LLMGatewayProxy:
     ) -> Response:
         # Checked before the body is read: with the plane off there is nothing to relay to,
         # and a harness that pointed at this base URL needs the refusal, not a parse error.
-        if not env.llm_gateway.enabled:
+        if not await llm_gateway_serves_caller():
             return _map_domain_exception(LLMGatewayDisabledError())
 
         scope = get_auth_scope()
+
         raw_body = await request.body()
 
         try:
@@ -412,6 +436,8 @@ class LLMGatewayProxy:
                 body=raw_body,
                 headers=caller_headers,
                 protocol=protocol,
+                run_id=gateway_run_id(request),
+                run_labels=gateway_run_labels(request),
             )
 
             if context.stream:
@@ -455,7 +481,7 @@ class LLMGatewayProxy:
         # Any, not Dict[str, Any]: the success path returns the OpenAI list body,
         # the denial path returns a JSONResponse — FastAPI passes a Response
         # instance through unprocessed either way.
-        if not env.llm_gateway.enabled:
+        if not await llm_gateway_serves_caller():
             return _map_domain_exception(LLMGatewayDisabledError())
 
         scope = get_auth_scope()

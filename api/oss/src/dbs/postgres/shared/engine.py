@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from math import floor
 
 from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
     AsyncSession,
     AsyncEngine,
     create_async_engine,
@@ -64,6 +65,16 @@ class TransactionsEngine:
             raise e
         finally:
             await session.close()
+
+    @asynccontextmanager
+    async def transaction(self) -> AsyncGenerator[AsyncConnection, None]:
+        """A transaction on its own pooled connection, outside the task-scoped session.
+        `session()` hands every nested caller in one task the same session and commits
+        it on the first exit, so anything that must outlive nested sessions (a
+        transaction-scoped lock, say) needs this instead."""
+        async with self._engine.connect() as connection:
+            async with connection.begin():
+                yield connection
 
 
 class AnalyticsEngine:

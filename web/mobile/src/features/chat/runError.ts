@@ -57,6 +57,13 @@ const recognise = (
 
 const STATUS_PREFIX = /^\s*(\d{3})\s*:\s*/
 
+/** Bounded so a hostile run of text cannot make the scan slow. */
+const CODE_MARKER = /\u27e6agenta_code:[a-z_]{0,64}\u27e7/g
+
+/** The text without the gateway's `⟦agenta_code:…⟧` markers, which are addressed to the runner. */
+export const withoutCodeMarkers = (text: string): string =>
+    text.replace(CODE_MARKER, "").replace(/ {2,}/g, " ").trim()
+
 const firstSentence = (text: string): string => {
     const cut = text.search(/[.!?](\s|$)/)
     return cut > 0 ? text.slice(0, cut + 1) : text
