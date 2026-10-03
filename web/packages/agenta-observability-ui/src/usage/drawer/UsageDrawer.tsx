@@ -41,6 +41,13 @@ const METRIC_LABEL: Record<UsageMetric, string> = {
 
 const TILES: UsageMetric[] = ["cost", "runs", "success", "tokens", "avgcost", "tools"]
 
+/** Tile labels stay on one line in a sixth of the drawer. */
+const TILE_LABEL: Record<UsageMetric, string> = {
+    ...METRIC_LABEL,
+    success: "Success",
+    avgcost: "Avg / run",
+}
+
 const additive = (metric: UsageMetric) => metric !== "success" && metric !== "avgcost"
 
 const pointValue = (metric: UsageMetric, p: UsagePoint, tools: number): number | null => {
@@ -133,9 +140,9 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
 
     return (
         <>
-            <div className="flex items-start gap-3 border-0 border-b border-solid border-border px-5 py-4">
+            <div className="flex items-center gap-3 px-5 pb-1 pt-4">
                 {bucket !== null ? (
-                    <div className="flex gap-0.5 pt-0.5">
+                    <div className="flex gap-0.5">
                         <Button
                             variant="outline"
                             size="icon-sm"
@@ -156,11 +163,11 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                         </Button>
                     </div>
                 ) : null}
-                <div className="flex min-w-0 flex-1 flex-col">
-                    <SheetTitle className="truncate text-lg font-semibold">
+                <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <SheetTitle className="shrink-0 text-lg font-semibold">
                         {focus && bucket === null ? focusName : title}
                     </SheetTitle>
-                    <SheetDescription className="text-xs text-muted-foreground">
+                    <SheetDescription className="truncate text-xs text-muted-foreground">
                         {sub}
                     </SheetDescription>
                 </div>
@@ -220,18 +227,18 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                             }
                             onClick={() => setState({...state, metric: m})}
                             className={cn(
-                                "flex cursor-pointer flex-col gap-0.5 rounded-lg border-0 px-3 py-2 text-left disabled:cursor-default disabled:opacity-50",
+                                "flex min-w-0 cursor-pointer flex-col gap-1 rounded-lg border-0 px-3 py-2.5 text-left disabled:cursor-default disabled:opacity-50",
                                 m === metric ? "bg-background shadow-sm" : "bg-transparent",
                             )}
                         >
-                            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                                 <span
-                                    className="size-1.5 rounded-full"
+                                    className="size-1.5 shrink-0 rounded-full"
                                     style={{background: usageColor(m)}}
                                 />
-                                {METRIC_LABEL[m]}
+                                <span className="truncate">{TILE_LABEL[m]}</span>
                             </span>
-                            <span className="text-base font-semibold tabular-nums">
+                            <span className="truncate text-base font-semibold tabular-nums">
                                 {m === "tools"
                                     ? narrowed
                                         ? "—"
