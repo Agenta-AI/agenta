@@ -68,23 +68,22 @@ cleanup cannot push the answer past the 2-second admission bound.
 
 ## Shared behaviour
 
-- **Cache.** Each API process keeps each payload for 30 seconds. When it is older, the
-  process still answers from it at once and refreshes it in the background, one refresh per
-  flag at a time. The refresh reads the shared `posthog:flags` Redis cache (also 30 seconds)
-  and asks PostHog only on a miss. A payload edit applies within about a minute. A payload
-  older than 5 minutes (a process with no traffic) is not served; the caller waits for the
-  refresh as a new process does. Only those callers wait: at most 0.5 seconds, then they
-  read "off", and that "off" is kept until the refresh lands. The gateway usage sink and
-  the managed-tools record never wait: they read the payload their admission left, however
-  old, so a call that streams for longer than 5 minutes is still measured. This keeps the
-  lookup out of the 0.5-second measurement hand-off and inside the 2-second admission
-  bounds.
-- **PostHog unreachable or malformed.** The answer is "off": the gateway is off and the
-  wallet is off, and a warning or error is logged. The PostHog client returns "no payload"
-  when it cannot reach PostHog, so "unreachable" and "no payload" give the same answer. A
-  failed lookup is kept for the same 30 seconds, so an outage costs one request per process
-  per flag every 30 seconds. A process that already read a payload keeps it through failed
-  refreshes for up to 5 minutes (the stale limit), and only then reads "off".
+- **Cache.** Each API process keeps each payload it read and answers from it at once,
+  whatever its age. When it is older than 30 seconds, the process refreshes it in the
+  background, one refresh per flag at a time. The refresh reads the shared `posthog:flags`
+  Redis cache (also 30 seconds) and asks PostHog only on a miss. A payload edit applies
+  within about a minute on a busy process; an idle process serves its old payload for one
+  more call, then the refresh lands. The API starts reading both payloads at startup. Only a
+  process that has never read a payload waits: at most 1.5 seconds, inside the 2-second
+  admission bounds, then it reads "off" for that call. The gateway usage sink and the
+  managed-tools record never wait, so the lookup stays out of the 0.5-second measurement
+  hand-off.
+- **PostHog unreachable or malformed.** A process that already read a payload keeps it
+  through any number of failed refreshes, logged, and retries once per 30 seconds. A process
+  that never read one reads "off": the gateway is off and the wallet is off. The PostHog
+  client returns "no payload" when it cannot reach PostHog, so "unreachable" and "no payload"
+  give the same answer: to turn organizations off, edit the payload to `[]` or `{}`, do not
+  delete the flag.
 - **A malformed entry.** An entry that is not an organization id, or a mode that is not
   `off`, `shadow` or `enforce`, is dropped and logged. The other entries still apply.
 - **`AGENTA_ROLLOUT_FLAGS_ENABLED`** (default `false`). The flags are read only when it is
@@ -147,4 +146,10 @@ undo them.
   and the runner's per-minute sandbox reports, which are separate requests), or keep the last
   payload for a bounded time. Chosen: keep it for the existing 5-minute stale limit, one
   place for every producer. Cost: deleting a flag's payload takes up to 5 minutes to apply;
-  editing it to `{}` or `[]` still applies within the TTL.
+  editing it to `{}` or `[]` still applies within the TTL. **Changed again 2026-10-03
+  (staging finding G2):** an idle process (no call for 5 minutes) waited 0.5 seconds for
+  PostHog on its first call, and a slow refresh read as "off", so an organization in the
+  rollout was refused "not enabled". Now the last payload is served at any age while the
+  refresh runs, a failed refresh never discards it, the API fetches both payloads at
+  startup, and only a process that never read a payload waits (1.5 seconds). Cost: a
+  deleted flag never applies to a process that read it; edit the payload instead.

@@ -42,11 +42,9 @@ class _PostHog:
 def _fresh_process_state():
     """Each test starts as a process that has read no payload yet."""
     switches._payloads.clear()
-    switches._last_payloads.clear()
     switches._refreshes.clear()
     yield
     switches._payloads.clear()
-    switches._last_payloads.clear()
     switches._refreshes.clear()
 
 
@@ -258,32 +256,67 @@ async def test_concurrent_first_callers_share_one_lookup(posthog):
     assert client.calls == [LLM_GATEWAY_ROLLOUT_FLAG]
 
 
-async def test_a_payload_older_than_the_stale_limit_is_not_served(posthog, cache):
-    # An idle process must not apply a payload edited long ago: it waits for the refresh.
-    client = posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "off"}}))
-    switches._payloads[WALLETS_ROLLOUT_FLAG] = (
-        time.monotonic() - switches.ROLLOUT_MAX_STALE_SECONDS - 1,
-        {str(ORG): "enforce"},
+async def test_a_payload_of_any_age_is_served_at_once_while_a_slow_refresh_runs(
+    posthog, cache
+):
+    # G2: an idle process's first call must not wait on PostHog, nor read "off".
+    client = posthog(_PostHog({LLM_GATEWAY_ROLLOUT_FLAG: [str(ORG)]}, delay=0.3))
+    switches._payloads[LLM_GATEWAY_ROLLOUT_FLAG] = (
+        time.monotonic() - 3600,
+        [str(ORG)],
     )
 
-    assert await wallet_mode_for(ORG) is WalletMode.OFF
-    assert client.calls == [WALLETS_ROLLOUT_FLAG]
+    started = time.monotonic()
+    assert await llm_gateway_enabled_for(ORG) is True
+    assert time.monotonic() - started < 0.1
+
+    await _settle()
+    assert client.calls == [LLM_GATEWAY_ROLLOUT_FLAG]
 
 
-async def test_after_a_slow_first_lookup_the_next_caller_reads_off_without_waiting(
-    posthog, monkeypatch
+async def test_a_first_call_waits_for_the_first_lookup_up_to_the_longer_timeout(
+    posthog,
 ):
-    # The measurement that follows a cold admission must not wait inside its own bound.
-    monkeypatch.setattr(switches, "ROLLOUT_LOOKUP_TIMEOUT_SECONDS", 0.05)
+    posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "enforce"}}, delay=0.6))
+
+    assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
+
+
+async def test_a_measurement_never_waits_for_a_first_lookup(posthog, monkeypatch):
+    # The measurement after a cold admission reads "off" at once, inside its own bound.
+    monkeypatch.setattr(switches, "ROLLOUT_FIRST_LOOKUP_TIMEOUT_SECONDS", 0.05)
     posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "enforce"}}, delay=0.5))
 
     assert await wallet_mode_for(ORG) is WalletMode.OFF
     started = time.monotonic()
-    assert await wallet_mode_for(ORG) is WalletMode.OFF
+    assert await wallet_mode_for(ORG, wait=False) is WalletMode.OFF
     assert time.monotonic() - started < 0.04
 
     await _settle()
     assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
+
+
+async def test_startup_prefetch_reads_both_payloads(posthog):
+    client = posthog(
+        _PostHog(
+            {
+                LLM_GATEWAY_ROLLOUT_FLAG: [str(ORG)],
+                WALLETS_ROLLOUT_FLAG: {str(ORG): "shadow"},
+            },
+            delay=0.05,
+        )
+    )
+
+    switches.prefetch_rollout_flags()
+    await _settle()
+
+    started = time.monotonic()
+    assert await llm_gateway_enabled_for(ORG) is True
+    assert await wallet_mode_for(ORG) is WalletMode.SHADOW
+    assert time.monotonic() - started < 0.04
+    assert sorted(client.calls) == sorted(
+        [LLM_GATEWAY_ROLLOUT_FLAG, WALLETS_ROLLOUT_FLAG]
+    )
 
 
 # PostHog failing
@@ -322,7 +355,7 @@ async def test_a_failed_lookup_is_kept_so_an_outage_costs_one_request_per_ttl(
 async def test_a_slow_first_lookup_reads_as_off_and_its_answer_lands_later(
     posthog, monkeypatch
 ):
-    monkeypatch.setattr(switches, "ROLLOUT_LOOKUP_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(switches, "ROLLOUT_FIRST_LOOKUP_TIMEOUT_SECONDS", 0.05)
     posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "enforce"}}, delay=0.3))
 
     mode = await asyncio.wait_for(wallet_mode_for(ORG), timeout=0.2)
@@ -364,21 +397,15 @@ async def test_a_failed_refresh_between_admission_and_measurement_keeps_the_char
     assert await wallet_mode_for(ORG, wait=False) is WalletMode.ENFORCE
 
 
-async def test_an_outage_longer_than_the_stale_limit_turns_the_switch_off(
-    posthog, cache
-):
+async def test_an_outage_of_any_length_keeps_the_last_payload(posthog, cache):
     client = posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {str(ORG): "enforce"}}))
     assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
 
     client.raises = True
     cache.clear()
-    fetched_at, payload = switches._last_payloads[WALLETS_ROLLOUT_FLAG]
-    switches._last_payloads[WALLETS_ROLLOUT_FLAG] = (
-        fetched_at - switches.ROLLOUT_MAX_STALE_SECONDS - 1,
-        payload,
-    )
-    _expire(WALLETS_ROLLOUT_FLAG)
+    fetched_at, payload = switches._payloads[WALLETS_ROLLOUT_FLAG]
+    switches._payloads[WALLETS_ROLLOUT_FLAG] = (fetched_at - 3600, payload)
     await wallet_mode_for(ORG)
     await _settle()
 
-    assert await wallet_mode_for(ORG) is WalletMode.OFF
+    assert await wallet_mode_for(ORG) is WalletMode.ENFORCE

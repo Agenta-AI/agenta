@@ -473,7 +473,7 @@ async def test_a_slow_first_lookup_answers_inside_the_gateways_bound(
     monkeypatch.setattr(
         switches,
         "_load_posthog",
-        lambda: _SlowPostHog({str(scope.organization_id): "shadow"}, delay=1.2),
+        lambda: _SlowPostHog({str(scope.organization_id): "shadow"}, delay=2.5),
     )
 
     started = time.monotonic()
@@ -485,8 +485,8 @@ async def test_a_slow_first_lookup_answers_inside_the_gateways_bound(
 
 @pytest.mark.parametrize(
     "age",
-    [switches.ROLLOUT_CACHE_TTL_SECONDS + 1, switches.ROLLOUT_MAX_STALE_SECONDS + 1],
-    ids=["stale", "past-the-stale-limit"],
+    [switches.ROLLOUT_CACHE_TTL_SECONDS + 1, 3600],
+    ids=["stale", "an-hour-old"],
 )
 async def test_an_expired_payload_never_delays_the_measurement_past_its_bound(
     real_rollout, monkeypatch, age

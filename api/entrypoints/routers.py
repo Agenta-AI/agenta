@@ -299,6 +299,7 @@ from oss.src.routers import (
 from oss.src.apis.fastapi.access.router import AccessRouter
 
 from oss.src.utils.env import env
+from oss.src.core.rollout.switches import prefetch_rollout_flags
 from oss.src.core.evaluations.runtime.broker import (
     build_evaluations_broker,
     build_evaluations_worker,
@@ -357,6 +358,8 @@ async def lifespan(*args, **kwargs):
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()
+
+    prefetch_rollout_flags()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).

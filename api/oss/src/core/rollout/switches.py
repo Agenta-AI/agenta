@@ -12,12 +12,15 @@ The flags are read only with `AGENTA_ROLLOUT_FLAGS_ENABLED` on. Off, the default
 self-hosted deployment runs, the environment switches alone decide: the gateway serves every
 organization and the wallet enforces for every organization.
 
-PostHog unreachable, slow, or a malformed payload is fail-safe, not fail-closed: the gateway
-is off and the wallet is off for everyone, logged, until a later lookup succeeds. The client
-answers an unreachable PostHog with no payload rather than an error, so "no payload" and
-"unreachable" are the same answer here. A process that read a payload keeps it through a
-failed refresh for up to `ROLLOUT_MAX_STALE_SECONDS`, so a short outage does not turn the
-wallet off between a call's admission and its measurement and drop a charge already spent.
+PostHog unreachable, slow, or a malformed payload never turns a switch that a process
+already read off. Each process serves the last payload it read at once, of any age, and
+refreshes it in the background once it is older than `ROLLOUT_CACHE_TTL_SECONDS`; a refresh
+that fails keeps it and is logged. Only a process that has never read a payload waits, at
+most `ROLLOUT_FIRST_LOOKUP_TIMEOUT_SECONDS`, and then reads "off" (the gateway off and the
+wallet off) until a lookup succeeds. The API fetches both payloads at startup, so that wait
+is rare. The client answers an unreachable PostHog with no payload rather than an error, so
+"no payload" and "unreachable" are the same answer here: to turn an organization off, edit
+the payload, do not delete the flag.
 """
 
 import asyncio
@@ -38,18 +41,13 @@ LLM_GATEWAY_ROLLOUT_FLAG = "llm-gateway-rollout"
 WALLETS_ROLLOUT_FLAG = "wallets-rollout"
 
 # How long a payload is used before it is refreshed, in this process and in the shared
-# `posthog:flags` cache. A payload edit applies within about two of these.
+# `posthog:flags` cache. A payload edit applies within about two of these on a busy process;
+# an idle process applies it on its first call after the edit plus one refresh.
 ROLLOUT_CACHE_TTL_SECONDS = 30
 
-# The oldest payload still served while a refresh runs. A process that saw no traffic for
-# longer waits for the refresh like a new process does, so an idle process does not apply
-# a payload edited long ago.
-ROLLOUT_MAX_STALE_SECONDS = 300
-
-# How long a caller waits when this process holds no payload yet (its first lookup per
-# flag). Short enough that the lookup plus a 1s shadow wallet check stays inside the 2s
-# bound each wallet admission point puts around its answer.
-ROLLOUT_LOOKUP_TIMEOUT_SECONDS = 0.5
+# How long a caller waits when this process has never read a payload for the flag. Inside
+# the 2s bound each wallet admission point puts around its answer.
+ROLLOUT_FIRST_LOOKUP_TIMEOUT_SECONDS = 1.5
 
 # The flags are rolled out to everyone; the payload, not the targeting, carries the rollout.
 _DISTINCT_ID = "agenta-rollout"
@@ -81,81 +79,79 @@ async def wallet_mode_for(organization_id: UUID, *, wait: bool = True) -> Wallet
     return _parse_wallet_modes(payload).get(str(organization_id), WalletMode.OFF)
 
 
-# flag -> (monotonic time fetched, payload), and the one refresh in flight per flag.
+def prefetch_rollout_flags() -> None:
+    """Start reading both payloads at process startup, so a first call rarely waits."""
+    if env.rollout.enabled:
+        for flag in (LLM_GATEWAY_ROLLOUT_FLAG, WALLETS_ROLLOUT_FLAG):
+            _start_refresh(flag)
+
+
+# flag -> (monotonic time of the last refresh, the last payload a refresh returned), and
+# the one refresh in flight per flag.
 _payloads: Dict[str, Tuple[float, Any]] = {}
-# flag -> (monotonic time fetched, payload) of the last refresh that returned a payload.
-_last_payloads: Dict[str, Tuple[float, Any]] = {}
 _refreshes: Dict[str, "asyncio.Future[Any]"] = {}
 
 
 async def _flag_payload(flag: str, *, wait: bool = True) -> Optional[Any]:
     """The flag's raw payload, without a PostHog round trip on the request path.
 
-    A fresh payload is returned as is. A stale one is returned too, while one shared
-    refresh runs in the background; the request path waits only when this process has no
-    usable payload, and then at most `ROLLOUT_LOOKUP_TIMEOUT_SECONDS`. The admission that
-    precedes a measurement therefore always leaves a payload behind for it to read.
+    The last payload this process read is returned at once, whatever its age; one shared
+    refresh runs in the background once it is older than the TTL. Only a process that has
+    never read one waits, and only when the caller can (`wait=False` reads it as None).
     """
     cached = _payloads.get(flag)
-    age = time.monotonic() - cached[0] if cached else None
-    if cached and age < ROLLOUT_CACHE_TTL_SECONDS:
+    if cached is not None:
+        if time.monotonic() - cached[0] >= ROLLOUT_CACHE_TTL_SECONDS:
+            _start_refresh(flag)
         return cached[1]
 
-    refresh = _refreshes.get(flag)
-    if refresh is None:
-        refresh = asyncio.ensure_future(_refresh(flag))
-        _refreshes[flag] = refresh
-        refresh.add_done_callback(lambda _: _refreshes.pop(flag, None))
-
-    if cached and (age < ROLLOUT_MAX_STALE_SECONDS or not wait):
-        return cached[1]
+    refresh = _start_refresh(flag)
     if not wait:
         return None
     try:
         # Shielded: a caller that gives up must not cancel the refresh other callers share.
         return await asyncio.wait_for(
-            asyncio.shield(refresh), timeout=ROLLOUT_LOOKUP_TIMEOUT_SECONDS
+            asyncio.shield(refresh), timeout=ROLLOUT_FIRST_LOOKUP_TIMEOUT_SECONDS
         )
-    except Exception as exc:  # noqa: BLE001 - a lookup not answered in time reads as "off"
+    except Exception as exc:  # noqa: BLE001 - a first lookup not answered reads as "off"
         log.warning(
-            "[rollout] payload not ready; rollout switch off for this call",
+            "[rollout] no payload read yet; rollout switch off for this call",
             feature_flag=flag,
             reason=repr(exc),
         )
-        # Keep that "off" as a stale answer until the refresh lands, so the measurement
-        # after this admission reads it at once instead of waiting inside its own bound.
-        if _payloads.get(flag) is cached:
-            _payloads[flag] = (time.monotonic() - ROLLOUT_CACHE_TTL_SECONDS, None)
         return None
+
+
+def _start_refresh(flag: str) -> "asyncio.Future[Any]":
+    refresh = _refreshes.get(flag)
+    if refresh is None:
+        refresh = asyncio.ensure_future(_refresh(flag))
+        _refreshes[flag] = refresh
+        refresh.add_done_callback(lambda _: _refreshes.pop(flag, None))
+    return refresh
 
 
 async def _refresh(flag: str) -> Optional[Any]:
     """Read the payload from the shared cache, else from PostHog, and keep it here.
 
-    Any failure keeps the last payload while it is younger than the stale limit, else "no
-    payload", so an unreachable PostHog is asked once per TTL per process, not once per call.
+    A failure keeps the last payload and still restarts the TTL, so an unreachable PostHog
+    is asked once per TTL per process, not once per call.
     """
     payload: Optional[Any] = None
     try:
         payload = await _shared_payload(flag)
-    except Exception as exc:  # noqa: BLE001 - any failure reads as "switch off"
+    except Exception as exc:  # noqa: BLE001 - logged; the last payload stands
         log.warning(
-            "[rollout] PostHog lookup failed; rollout switch off",
-            feature_flag=flag,
-            reason=repr(exc),
+            "[rollout] PostHog lookup failed", feature_flag=flag, reason=repr(exc)
         )
-    now = time.monotonic()
-    if payload is not None:
-        _last_payloads[flag] = (now, payload)
-    else:
-        last = _last_payloads.get(flag)
-        if last is not None and now - last[0] < ROLLOUT_MAX_STALE_SECONDS:
-            log.warning(
-                "[rollout] refresh returned no payload; keeping the last one",
-                feature_flag=flag,
-            )
-            payload = last[1]
-    _payloads[flag] = (now, payload)
+    last = _payloads.get(flag)
+    if payload is None and last is not None and last[1] is not None:
+        log.warning(
+            "[rollout] refresh returned no payload; keeping the last one",
+            feature_flag=flag,
+        )
+        payload = last[1]
+    _payloads[flag] = (time.monotonic(), payload)
     return payload
 
 
@@ -167,18 +163,14 @@ async def _shared_payload(flag: str) -> Optional[Any]:
 
     posthog = _load_posthog()
     if posthog is None:
-        log.warning(
-            "[rollout] PostHog unavailable; rollout switch off", feature_flag=flag
-        )
+        log.warning("[rollout] PostHog unavailable", feature_flag=flag)
         return None
     # The client call is blocking HTTP with its own timeout; keep it off the event loop.
     payload = await asyncio.to_thread(
         posthog.get_feature_flag_payload, flag, _DISTINCT_ID
     )
     if payload is None:
-        log.warning(
-            "[rollout] no payload from PostHog; rollout switch off", feature_flag=flag
-        )
+        log.warning("[rollout] no payload from PostHog", feature_flag=flag)
     await set_cache(
         namespace="posthog:flags",
         key=cache_key,
