@@ -327,6 +327,25 @@ async def test_timeout_raises_llm_upstream_timeout_error():
 
 
 @pytest.mark.asyncio
+async def test_a_body_that_times_out_after_the_headers_raises_llm_upstream_timeout_error():
+    class _StallingBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            raise httpx.ReadTimeout("timed out")
+            yield b""  # pragma: no cover
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, stream=_StallingBody())
+
+    adapter = _adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_route(), secret=None, context=_context(), body=_body(), headers={}
+    )
+
+    with pytest.raises(LLMUpstreamTimeoutError):
+        await anext(result.body)
+
+
+@pytest.mark.asyncio
 async def test_connection_failure_raises_llm_upstream_error_never_something_else():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection refused", request=request)

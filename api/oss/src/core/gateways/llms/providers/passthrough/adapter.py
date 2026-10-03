@@ -440,7 +440,11 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         provider_key: Optional[str],
     ) -> AsyncIterator[bytes]:
         try:
-            content = await response.aread()
+            try:
+                content = await response.aread()
+            except httpx.TimeoutException as exc:
+                # The headers came in time and the body did not.
+                raise LLMUpstreamTimeoutError(provider_key=provider_key) from exc
             if scanner.detects(content):
                 raise LLMUpstreamCredentialEchoError(
                     provider_key=provider_key, status_code=response.status_code
