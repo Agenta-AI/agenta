@@ -2,7 +2,7 @@ import {useMemo, type ReactNode} from "react"
 
 import {niceMax} from "@agenta/observability/usage"
 import {ChartContainer, ChartTooltip, cn, type ChartConfig} from "@agenta/ui/ui"
-import {Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis} from "recharts"
+import {Bar, BarChart, CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis, YAxis} from "recharts"
 
 export interface TimeSeries {
     key: string
@@ -23,6 +23,8 @@ export interface TimeChartProps {
     /** Line charts: the y-axis floor (success rate starts above 0). */
     yMin?: number
     yMax?: number
+    /** Line charts: counts drawn as low bars under the line, on their own hidden scale. */
+    underlay?: {key: string; color: string; values: number[]} | null
     height: number
     hovered: number | null
     onHover: (index: number | null) => void
@@ -43,6 +45,7 @@ export const TimeChart = ({
     average,
     yMin,
     yMax,
+    underlay,
     height,
     hovered,
     onHover,
@@ -56,9 +59,10 @@ export const TimeChart = ({
             labels.map((label, i) => {
                 const row: Row = {label, index: i}
                 for (const s of visible) row[s.key] = s.values[i]
+                if (underlay) row[underlay.key] = underlay.values[i]
                 return row
             }),
-        [labels, visible],
+        [labels, visible, underlay],
     )
     const config = useMemo<ChartConfig>(
         () => Object.fromEntries(series.map((s) => [s.key, {label: s.label, color: s.color}])),
@@ -77,6 +81,8 @@ export const TimeChart = ({
     const high = yMax ?? top
     const ticks = [low, low + (high - low) / 2, high]
     const step = Math.max(1, Math.ceil(labels.length / TICKS))
+    // The tallest underlay bar reaches 38% of the plot, so it never crowds the line.
+    const underlayTop = underlay ? Math.max(1, ...underlay.values) / 0.38 : 0
 
     const handleMove = (state: {activeTooltipIndex?: number} | undefined) => {
         const index = state?.activeTooltipIndex
@@ -173,8 +179,27 @@ export const TimeChart = ({
                     ))}
                 </BarChart>
             ) : (
-                <LineChart {...common}>
+                <ComposedChart {...common} barCategoryGap={labels.length > 24 ? "12%" : "18%"}>
                     {axes}
+                    {underlay
+                        ? [
+                              <YAxis
+                                  key="underlay-y"
+                                  yAxisId="underlay"
+                                  hide
+                                  domain={[0, underlayTop]}
+                              />,
+                              <Bar
+                                  key={underlay.key}
+                                  yAxisId="underlay"
+                                  dataKey={underlay.key}
+                                  fill={underlay.color}
+                                  radius={[3, 3, 0, 0]}
+                                  activeBar={{style: {filter: "brightness(0.9)"}}}
+                                  isAnimationActive={false}
+                              />,
+                          ]
+                        : null}
                     {visible.map((s) => (
                         <Line
                             key={s.key}
@@ -188,7 +213,7 @@ export const TimeChart = ({
                             isAnimationActive={false}
                         />
                     ))}
-                </LineChart>
+                </ComposedChart>
             )}
         </ChartContainer>
     )

@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
 import {
     formatCount,
@@ -173,6 +173,10 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
     const overall = successRate(totals.runs, totals.failed)
     const present = values.filter((v): v is number => v !== null)
     const floor = present.length ? Math.max(0, Math.floor((Math.min(...present) - 5) / 10) * 10) : 0
+    const failedBars = useMemo(
+        () => ({key: "failed", color: usageColor("failedRuns"), values: points.map((p) => p.failed)}),
+        [points],
+    )
     const status = ctx.data.status.overview
     const caption = `succeeded · ${formatCount(totals.failed)} failed (${formatMetric(
         "failrate",
@@ -189,6 +193,18 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
             onRetry={status.refetch}
             empty={totals.runs ? null : ctx.emptyText("runs")}
             chartHeight={150}
+            legend={
+                <ChartLegendRow
+                    items={[
+                        {key: "success", label: "Success rate", color: usageColor("success")},
+                        {
+                            key: "failed",
+                            label: `Failed runs (${formatCount(totals.failed)})`,
+                            color: usageColor("failedRuns"),
+                        },
+                    ]}
+                />
+            }
         >
             <TimeChart
                 kind="line"
@@ -204,6 +220,7 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                 formatTick={(v) => formatMetric("success", v, true)}
                 yMin={floor}
                 yMax={100}
+                underlay={failedBars}
                 height={150}
                 hovered={hovered}
                 onHover={setHovered}

@@ -20,6 +20,8 @@ const LIGHT = {
     // Failure-rate bars: above and below the overall rate.
     failAbove: "#e3a9a5",
     failBelow: "#ecd2cf",
+    // Failed-run bars under the success-rate line.
+    failedRuns: "#ecc3c0",
     // Status dots and text.
     dotOk: "#88ad94",
     dotFailed: "#d94c4a",
@@ -32,6 +34,7 @@ const DARK: typeof LIGHT = {
     ...LIGHT,
     other: "#4b4a48",
     failBelow: "#6b4442",
+    failedRuns: "#6b4442",
     textBad: "#e5807e",
     textWarn: "#d7a75a",
     textGood: "#7fbf88",
