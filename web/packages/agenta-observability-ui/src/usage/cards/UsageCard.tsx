@@ -56,13 +56,13 @@ export const UsageCard = ({
                 </Button>
             ) : null}
         </div>
-        <div className="mt-1 flex min-h-8 items-baseline gap-2">
+        <div className="mt-1 flex min-h-7 items-baseline gap-2">
             {loading ? (
-                <SkeletonBlock className="h-7 w-28" />
+                <SkeletonBlock className="h-6 w-24" />
             ) : (
                 <>
                     {value != null ? (
-                        <span className="truncate text-2xl font-semibold tracking-tight text-foreground">
+                        <span className="truncate text-lg font-medium tracking-tight text-foreground">
                             {value}
                         </span>
                     ) : null}
