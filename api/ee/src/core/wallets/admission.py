@@ -97,6 +97,12 @@ async def measured(organization_id: UUID, *, wait: bool = True) -> bool:
     return mode is not WalletMode.OFF
 
 
+async def enforced(organization_id: UUID) -> bool:
+    """Whether a cap may refuse: only in `enforce`. `shadow` admits and logs what it
+    would have refused, so the pilot measures the caps before they bite."""
+    return await wallet_mode_for(organization_id) is WalletMode.ENFORCE
+
+
 class WalletSpendAdmission(SpendAdmissionInterface):
     """Admits a platform-funded call while the organization's spendable balance is above
     its floor. Nothing is reserved, so an admitted call can settle below it (open-design

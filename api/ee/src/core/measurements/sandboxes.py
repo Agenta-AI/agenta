@@ -26,7 +26,7 @@ from ee.src.core.measurements.rate_card import (
     sandbox_rate_tier,
     sandbox_rates_for,
 )
-from ee.src.core.wallets.admission import admit_in_mode, measured
+from ee.src.core.wallets.admission import admit_in_mode, enforced, measured
 from ee.src.core.wallets.caps import (
     CONCURRENT_TURNS_LIMIT_CODE,
     TURN_SLOT_TTL_SECONDS,
@@ -185,11 +185,12 @@ class SandboxUsageService:
         and a turn already running is never stopped for its balance. Its plan caps how
         many such turns the organization runs at once and how long each runs.
 
-        Nothing is capped for an organization whose wallet is `off`. A plan or slot store
+        Nothing is capped for an organization whose wallet is `off`, and nothing is
+        refused in `shadow`: the turn takes a slot when one is free and runs without the
+        plan's turn limit, and a turn the cap would refuse is logged. A plan or slot store
         that cannot answer admits uncapped: a metering outage must not stop agents.
         """
         organization_id = scope.organization_id
-        # Caps apply exactly where usage is measured: `shadow` and `enforce`.
         if not await measured(organization_id):
             return TurnAdmission(allowed=True)
         try:
@@ -222,6 +223,7 @@ class SandboxUsageService:
                 ttl_seconds=env.gateway_credentials.ttl_seconds,
             )
             return TurnAdmission(allowed=True)
+        enforcing = await enforced(organization_id)
         slot_held = False
         if turn_id:
             try:
@@ -239,11 +241,34 @@ class SandboxUsageService:
                 )
             else:
                 if not slot_held:
-                    return TurnAdmission(
-                        allowed=False,
-                        code=CONCURRENT_TURNS_LIMIT_CODE,
-                        message=concurrent_turns_message(plan, caps),
+                    if enforcing:
+                        return TurnAdmission(
+                            allowed=False,
+                            code=CONCURRENT_TURNS_LIMIT_CODE,
+                            message=concurrent_turns_message(plan, caps),
+                        )
+                    log.warning(
+                        "[wallets] shadow: would have refused at the running-turns cap; admitting",
+                        organization_id=str(organization_id),
+                        plan=plan,
+                        limit=caps.concurrent_turns,
                     )
+        if not enforcing:
+            # No turn limit, so the session hold lasts as long as the turn can run.
+            log.info(
+                "[wallets] shadow: turn runs without the plan's turn limit",
+                organization_id=str(organization_id),
+                turn_id=turn_id,
+                plan=plan,
+                limit_seconds=caps.max_turn_seconds,
+            )
+            await self._hold_session(
+                organization_id=organization_id,
+                session_id=session_id,
+                turn_id=turn_id,
+                ttl_seconds=env.gateway_credentials.ttl_seconds,
+            )
+            return TurnAdmission(allowed=True, slot_held=slot_held)
         await self._hold_session(
             organization_id=organization_id,
             session_id=session_id,

@@ -45,8 +45,15 @@ already asks the API to admit. Only while the organization's wallet is on: `wall
 every self-hosted or OSS deployment (the wallet flag is off, so the admit route is a 404), runs
 uncapped with the runner's env deadline.
 
-In `shadow` mode the caps are enforced, while the credit check only logs. The caps protect the
-platform's sandbox quota and bound overshoot; they are not a charge.
+In `shadow` mode nothing is refused, the caps included, so the pilot measures them before they
+bite (decided 2026-10-03; the first version enforced the caps in `shadow`, which capped pilot
+organizations before anyone chose to enforce). A shadow turn takes a slot when one is free, so
+the count stays true. At the cap it is admitted without a slot and the API logs
+`shadow: would have refused at the running-turns cap`. It gets no turn limit (the runner keeps
+its env deadline), and the API logs the limit `enforce` would set, with the turn id, so turns
+that would have been stopped can be counted against their trace durations. Its session hold
+lasts the gateway credential's lifetime, as for a plan with no cap, because the turn is not
+limited.
 
 ## How it works
 
@@ -184,7 +191,8 @@ against decision "a turn is never stopped for its balance".
 - A hold store that cannot answer, or does not answer within 0.5 seconds, falls back to
   checking the call. A turn may then be refused
   mid-way during a Redis outage; it is never served unchecked.
-- `shadow` admits and holds as before; `off` refuses every `builtin` call (see
+- `shadow` admits and holds as before (the hold lasts the credential lifetime, because a shadow
+  turn has no turn limit); `off` refuses every `builtin` call (see
   [funded-models.md](funded-models.md)) and holds nothing.
 - The session label is caller-supplied. A caller holding an API key of the organization can
   label a gateway credential with a session that is running a turn and so call past zero while

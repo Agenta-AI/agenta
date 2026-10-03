@@ -37,6 +37,8 @@ from oss.src.core.rollout.switches import WalletMode
 from oss.src.utils.env import env
 from oss.src.utils.context import AuthScope
 
+from ee.src.core.access.entitlements.types import DefaultPlan
+
 from ee.src.core.measurements.sandboxes import (
     SandboxUsageInterval,
     SandboxUsageService,
@@ -186,6 +188,70 @@ async def test_enforce_is_the_wallets_answer(admit, mode, allowed):
 
     assert await admit(wallet, _scope()) is allowed
     assert wallet.reads == 1
+
+
+async def _hobby(organization_id):
+    return DefaultPlan.CLOUD_V0_HOBBY.value
+
+
+def _capped(slots, holds):
+    return SandboxUsageService(
+        wallet=_Wallet(allowed=True),
+        publisher=InMemoryMeasurementPublisher(),
+        turn_slots=slots,
+        session_holds=holds,
+        plan_for=_hobby,
+    )
+
+
+async def test_shadow_admits_a_turn_past_the_running_turns_cap(mode):
+    mode(WalletMode.SHADOW)
+    scope = _scope()
+    slots = InMemoryTurnSlots()
+    slots.held[scope.organization_id] = {"a", "b"}  # Hobby's 2 at once already run
+    holds = InMemorySessionTurnHolds()
+
+    admitted = await _capped(slots, holds).admit(
+        scope=scope, turn_id="turn-3", session_id="sess-1"
+    )
+
+    assert admitted.allowed and not admitted.slot_held
+    assert slots.held[scope.organization_id] == {"a", "b"}
+    assert (scope.organization_id, "sess-1") in holds.holds
+
+
+async def test_shadow_counts_the_turn_but_sets_no_turn_limit(mode):
+    # The session is held for as long as the turn can run, as for a plan with no cap.
+    mode(WalletMode.SHADOW)
+    scope = _scope()
+    slots = InMemoryTurnSlots()
+    holds = InMemorySessionTurnHolds()
+
+    admitted = await _capped(slots, holds).admit(
+        scope=scope, turn_id="turn-1", session_id="sess-1"
+    )
+
+    assert admitted.allowed and admitted.slot_held
+    assert admitted.turn_limit is None
+    assert holds.holds == {
+        (scope.organization_id, "sess-1"): (
+            "turn-1",
+            env.gateway_credentials.ttl_seconds,
+        )
+    }
+
+
+async def test_enforce_refuses_a_turn_past_the_running_turns_cap(mode):
+    mode(WalletMode.ENFORCE)
+    scope = _scope()
+    slots = InMemoryTurnSlots()
+    slots.held[scope.organization_id] = {"a", "b"}
+
+    refused = await _capped(slots, InMemorySessionTurnHolds()).admit(
+        scope=scope, turn_id="turn-3", session_id="sess-1"
+    )
+
+    assert not refused.allowed
 
 
 async def test_enforce_propagates_a_wallet_that_cannot_answer(mode):
