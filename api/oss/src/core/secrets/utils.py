@@ -9,10 +9,12 @@ from oss.src.models.api.evaluation_model import LMProvidersEnum
 
 _LEGACY_SYSTEM_ENV_NAMES = {
     LMProvidersEnum.mistral.value: ("MISTRALAI_API_KEY",),
+    LMProvidersEnum.togetherai.value: ("TOGETHERAI_API_KEY",),
 }
 
 _PROVIDER_ENV_ALIASES = {
     "mistralai": LMProvidersEnum.mistral.value,
+    "togetherai": LMProvidersEnum.togetherai.value,
 }
 
 
