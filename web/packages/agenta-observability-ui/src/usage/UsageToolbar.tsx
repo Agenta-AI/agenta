@@ -1,10 +1,9 @@
-import {useMemo, useState} from "react"
+import {useMemo} from "react"
 
 import {
     PATH,
     USAGE_RANGE,
     USAGE_RANGES,
-    formatCount,
     isRangeLocked,
     keyedSeries,
     rankKeys,
@@ -14,36 +13,22 @@ import {
     type UsageRetention,
     type UsageWindow,
 } from "@agenta/observability/usage"
+import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
     Button,
-    Checkbox,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    cn,
 } from "@agenta/ui/ui"
-import {
-    ArrowCounterClockwise,
-    CalendarBlank,
-    CaretDown,
-    CaretRight,
-    Check,
-    FunnelSimple,
-    LockSimple,
-    MagnifyingGlass,
-    Robot,
-    Sparkle,
-    X,
-} from "@phosphor-icons/react"
+import {CalendarBlank, CaretDown, Check, LockSimple, Robot, Sparkle, X} from "@phosphor-icons/react"
 
 import {useAgentNames, useUsageBuckets} from "./useUsageData"
 
 type FilterDim = keyof UsageFilters
+
+const ICON = 14
 
 const DIMS: {key: FilterDim; label: string; plural: string; icon: typeof Robot}[] = [
     {key: "agent", label: "Agent", plural: "agents", icon: Robot},
@@ -126,7 +111,7 @@ export const UsageToolbar = ({
                 </DropdownMenuContent>
             </DropdownMenu>
 
-            <FilterPopover
+            <UsageFilterMenu
                 filters={filters}
                 onChange={onFiltersChange}
                 window={window}
@@ -161,56 +146,9 @@ export const UsageToolbar = ({
     )
 }
 
-const FilterPopover = ({
-    filters,
-    onChange,
-    window,
-    label,
-}: {
-    filters: UsageFilters
-    onChange: (filters: UsageFilters) => void
-    window: UsageWindow
-    label: (dim: FilterDim, key: string) => string
-}) => {
-    const [open, setOpen] = useState(false)
-    const [dim, setDim] = useState<FilterDim>("agent")
-    const [query, setQuery] = useState("")
-    const count = DIMS.filter((d) => filters[d.key].length).length
-
-    return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button variant={count ? "secondary" : "outline"} size="sm">
-                    <FunnelSimple data-icon="inline-start" />
-                    Filter
-                    {count ? (
-                        <span className="grid size-4 place-items-center rounded-full bg-foreground text-[10px] text-background">
-                            {count}
-                        </span>
-                    ) : null}
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-[520px] max-w-[calc(100vw-32px)] p-0">
-                {open ? (
-                    <FilterPanel
-                        filters={filters}
-                        onChange={onChange}
-                        window={window}
-                        label={label}
-                        dim={dim}
-                        onDim={setDim}
-                        query={query}
-                        onQuery={setQuery}
-                    />
-                ) : null}
-            </PopoverContent>
-        </Popover>
-    )
-}
-
 /** Counts per value, ignoring the dimension's own filter so every option stays pickable. */
-const useFilterOptions = (dim: FilterDim, filters: UsageFilters, window: UsageWindow) => {
-    const others = {...filters, [dim]: []}
+const useFilterCounts = (dim: FilterDim, filters: UsageFilters, window: UsageWindow) => {
+    const others = useMemo(() => ({...filters, [dim]: []}), [dim, filters])
     const query = useUsageBuckets(dim === "agent" ? "agents" : "models", window, others)
     return useMemo(() => {
         const paths = dim === "agent" ? [PATH.agentApp, PATH.agentWorkflow] : [PATH.model]
@@ -218,137 +156,74 @@ const useFilterOptions = (dim: FilterDim, filters: UsageFilters, window: UsageWi
         const counts: Record<string, number> = {}
         for (const key of rankKeys(series)) counts[key] = sum(series[key])
         for (const key of filters[dim]) counts[key] ??= 0
-        return {counts, pending: query.isPending}
-    }, [dim, query.data, query.isPending, window, filters])
+        return {counts, pending: query.isPending && query.fetchStatus !== "idle"}
+    }, [dim, query.data, query.isPending, query.fetchStatus, window, filters])
 }
 
-const FilterPanel = ({
+const UsageFilterMenu = ({
     filters,
     onChange,
     window,
     label,
-    dim,
-    onDim,
-    query,
-    onQuery,
 }: {
     filters: UsageFilters
     onChange: (filters: UsageFilters) => void
     window: UsageWindow
     label: (dim: FilterDim, key: string) => string
-    dim: FilterDim
-    onDim: (dim: FilterDim) => void
-    query: string
-    onQuery: (query: string) => void
 }) => {
-    const options = useFilterOptions(dim, filters, window)
-    const optionAgentName = useAgentNames(dim === "agent" ? Object.keys(options.counts) : [])
-    const name = (key: string) => (dim === "agent" ? optionAgentName(key) : label(dim, key))
-    const toggle = (key: string) => {
-        const current = filters[dim]
-        onChange({
-            ...filters,
-            [dim]: current.includes(key) ? current.filter((k) => k !== key) : [...current, key],
-        })
-    }
-    const q = query.trim().toLowerCase()
-    const keys = Object.keys(options.counts)
-        .filter((key) => !q || name(key).toLowerCase().includes(q))
-        .sort((a, b) => options.counts[b] - options.counts[a])
+    const agents = useFilterCounts("agent", filters, window)
+    const models = useFilterCounts("model", filters, window)
+    const optionAgentName = useAgentNames(Object.keys(agents.counts))
     const anyActive = DIMS.some((d) => filters[d.key].length)
 
+    const sections = useMemo<FilterMenuSection[]>(
+        () =>
+            DIMS.map((d) => {
+                const {counts, pending} = d.key === "agent" ? agents : models
+                const name = (key: string) =>
+                    d.key === "agent" ? optionAgentName(key) : label(d.key, key)
+                const selected = filters[d.key]
+                const Icon = d.icon
+                return {
+                    key: d.key,
+                    label: d.label,
+                    icon: <Icon size={ICON} />,
+                    multi: true,
+                    wide: true,
+                    searchable: true,
+                    searchPlaceholder: `Search ${d.plural}…`,
+                    value: selected,
+                    valueLabel: !selected.length
+                        ? `All ${d.plural}`
+                        : selected.length === 1
+                          ? name(selected[0])
+                          : `${selected.length} selected`,
+                    options: Object.keys(counts).map((key) => ({
+                        value: key,
+                        label: name(key),
+                        icon: <Icon size={ICON} />,
+                    })),
+                    emptyText: pending ? "Loading…" : `No ${d.plural} in this range`,
+                    onChange: (key: string) =>
+                        onChange({
+                            ...filters,
+                            [d.key]: selected.includes(key)
+                                ? selected.filter((k) => k !== key)
+                                : [...selected, key],
+                        }),
+                }
+            }),
+        [agents, models, optionAgentName, label, filters, onChange],
+    )
+
     return (
-        <div className="grid grid-cols-[180px_minmax(0,1fr)]">
-            <div className="flex flex-col border-0 border-r border-solid border-border p-1">
-                {DIMS.map((d) => {
-                    const selected = filters[d.key]
-                    const Icon = d.icon
-                    return (
-                        <button
-                            key={d.key}
-                            type="button"
-                            aria-pressed={dim === d.key}
-                            onClick={() => onDim(d.key)}
-                            className={cn(
-                                "flex h-9 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-sm",
-                                dim === d.key && "bg-accent",
-                            )}
-                        >
-                            <Icon size={14} className="text-muted-foreground" />
-                            <span className="flex-1">{d.label}</span>
-                            <span
-                                className={cn(
-                                    "max-w-[80px] truncate text-xs",
-                                    selected.length ? "text-foreground" : "text-muted-foreground",
-                                )}
-                            >
-                                {!selected.length
-                                    ? `All ${d.plural}`
-                                    : selected.length === 1
-                                      ? label(d.key, selected[0])
-                                      : `${selected.length} selected`}
-                            </span>
-                            <CaretRight size={12} className="text-muted-foreground" />
-                        </button>
-                    )
-                })}
-                <div className="mt-auto border-0 border-t border-solid border-border pt-1">
-                    <button
-                        type="button"
-                        disabled={!anyActive}
-                        onClick={() => onChange({agent: [], model: []})}
-                        className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-sm text-foreground hover:bg-accent disabled:cursor-default disabled:text-muted-foreground disabled:hover:bg-transparent"
-                    >
-                        <ArrowCounterClockwise size={14} />
-                        Reset to defaults
-                    </button>
-                </div>
-            </div>
-            <div className="flex min-w-0 flex-col">
-                <div className="flex h-10 items-center gap-2 border-0 border-b border-solid border-border px-3">
-                    <MagnifyingGlass size={14} className="text-muted-foreground" />
-                    <input
-                        autoFocus
-                        aria-label={`Search ${DIMS.find((d) => d.key === dim)?.plural}`}
-                        value={query}
-                        onChange={(event) => onQuery(event.target.value)}
-                        placeholder={`Search ${DIMS.find((d) => d.key === dim)?.plural}…`}
-                        className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm outline-none"
-                    />
-                </div>
-                <div className="flex max-h-[300px] flex-col overflow-y-auto p-1">
-                    {options.pending ? (
-                        <span className="px-2 py-2 text-sm text-muted-foreground">Loading…</span>
-                    ) : keys.length ? (
-                        keys.map((key) => {
-                            const checked = filters[dim].includes(key)
-                            return (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    role="checkbox"
-                                    aria-checked={checked}
-                                    onClick={() => toggle(key)}
-                                    className="flex h-8 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-sm hover:bg-accent"
-                                >
-                                    <Checkbox
-                                        checked={checked}
-                                        tabIndex={-1}
-                                        aria-hidden
-                                        className="pointer-events-none"
-                                    />
-                                    <span className="min-w-0 flex-1 truncate">{name(key)}</span>
-                                    <span className="text-xs text-muted-foreground tabular-nums">
-                                        {formatCount(options.counts[key])} runs
-                                    </span>
-                                </button>
-                            )
-                        })
-                    ) : (
-                        <span className="px-2 py-2 text-sm text-muted-foreground">No matches</span>
-                    )}
-                </div>
-            </div>
-        </div>
+        <FilterMenu
+            sections={sections}
+            searchPlaceholder="Search agents and models…"
+            align="start"
+            active={anyActive}
+            onReset={() => onChange({agent: [], model: []})}
+            resetDisabled={!anyActive}
+        />
     )
 }
