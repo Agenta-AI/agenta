@@ -23,6 +23,8 @@ def parse_url(url: str) -> str:
     """
 
     url = url.rstrip("/")
+    if "://" not in url:
+        url = f"http://{url}"
 
     if "localhost" not in url and "0.0.0.0" not in url:
         return url
