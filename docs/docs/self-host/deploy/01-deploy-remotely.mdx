@@ -232,6 +232,10 @@ traefik:
 
 Recreate the API and Traefik containers afterwards.
 
+:::note Retry semantics behind a gateway
+A gateway in front of the workflow service can change which failures a retry follows. See [Retry semantics and your gateway](/self-host/infrastructure/networking).
+:::
+
 ### Agent Runs Fail With `record log is unreadable; cannot rebuild the conversation`
 
 This applies if the deployment answers on a public hostname and agent runs fail while the rest of
