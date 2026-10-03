@@ -223,8 +223,8 @@ describe("filters, reasons, ranges, format", () => {
 
     it("opens on the widest range the plan keeps, up to 30 days", () => {
         expect(defaultRange(planRetention("cloud_v0_hobby"))).toBe("7d")
-        expect(defaultRange(planRetention("cloud_v0_business"))).toBe("30d")
-        expect(defaultRange(null)).toBe("30d")
+        expect(defaultRange(planRetention("cloud_v0_business"))).toBe("7d")
+        expect(defaultRange(null)).toBe("7d")
     })
 
     it("formats metrics for headlines and axis ticks", () => {

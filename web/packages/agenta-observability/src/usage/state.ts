@@ -23,7 +23,7 @@ import type {
     UsageWindow,
 } from "./types"
 
-export const usageRangeAtom = atom<UsageRangeKey>("30d")
+export const usageRangeAtom = atom<UsageRangeKey>("7d")
 
 /** The page's clock; the host ticks it so the window follows real time. */
 export const usageNowAtom = atom(Date.now())

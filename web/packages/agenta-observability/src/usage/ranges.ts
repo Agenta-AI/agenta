@@ -38,7 +38,7 @@ export const planRetention = (plan: string | null | undefined): UsageRetention |
 export const isRangeLocked = (range: UsageRangeOption, retention: UsageRetention | null) =>
     Boolean(retention && range.days > retention.days)
 
-/** The widest open range up to 30 days: the page's starting range. */
+/** The widest open range up to 7 days: the page's starting range. */
 export const defaultRange = (retention: UsageRetention | null): UsageRangeKey =>
-    [...USAGE_RANGES].reverse().find((r) => r.days <= 30 && !isRangeLocked(r, retention))?.key ??
+    [...USAGE_RANGES].reverse().find((r) => r.days <= 7 && !isRangeLocked(r, retention))?.key ??
     "24h"
