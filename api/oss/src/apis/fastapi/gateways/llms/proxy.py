@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.apis.fastapi.gateways.exceptions import log_plane_disabled
 from oss.src.apis.fastapi.gateways.llms.utils import (
     LLMRequestBodyError,
     parse_llm_call_context,
@@ -112,6 +113,7 @@ def _request_body_detail(exc: ValueError) -> str:
 def _map_domain_exception(exc: Exception) -> JSONResponse:
     """Map gateway failures to OpenAI-compatible error responses."""
     if isinstance(exc, GatewayPlaneDisabledError):
+        log_plane_disabled(exc)
         return _openai_error(
             status_code=403,
             message=exc.message,

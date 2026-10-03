@@ -23,6 +23,7 @@ from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
 from oss.src.apis.fastapi.gateways.llms import router as llm_router
 from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
 from oss.src.core.gateways.llms.dtos import LLMGatewayConnectionResolution
+from oss.src.core.gateways.types import BUILTIN_MODELS_NOT_ENABLED_MESSAGE
 from oss.src.core.rollout import switches
 from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
@@ -114,7 +115,24 @@ def test_resolve_refuses_an_organization_outside_it_as_a_disabled_plane(caller):
     response = _resolve(_Unreachable())
 
     assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "llm_gateway_disabled"
+    detail = response.json()["detail"]
+    assert detail["code"] == "llm_gateway_disabled"
+    # A person on the cloud reads this; the operator's switch goes to the logs only.
+    assert detail["message"] == BUILTIN_MODELS_NOT_ENABLED_MESSAGE
+    assert "next_step" not in detail
+
+
+def test_the_endpoint_listing_tells_an_organization_outside_it_in_plain_words(caller):
+    caller(OUTSIDE)
+    app = FastAPI()
+    app.include_router(LLMGatewayRouter(llm_gateway_service=_Unreachable()).router)
+
+    response = TestClient(app).get("/endpoints/")
+
+    assert response.status_code == 403
+    detail = response.json()["detail"]
+    assert detail["message"] == BUILTIN_MODELS_NOT_ENABLED_MESSAGE
+    assert "next_step" not in detail
 
 
 async def test_the_relay_refuses_an_organization_outside_the_rollout(caller):
@@ -127,7 +145,10 @@ async def test_the_relay_refuses_an_organization_outside_the_rollout(caller):
     )
 
     assert response.status_code == 403
-    assert json.loads(bytes(response.body))["error"]["code"] == "llm_gateway_disabled"
+    error = json.loads(bytes(response.body))["error"]
+    assert error["code"] == "llm_gateway_disabled"
+    assert BUILTIN_MODELS_NOT_ENABLED_MESSAGE in error["message"]
+    assert "AGENTA_" not in error["message"]
 
 
 async def test_the_model_listing_refuses_an_organization_outside_the_rollout(caller):
@@ -161,4 +182,8 @@ def test_the_master_switch_off_refuses_even_a_listed_organization(caller, monkey
     response = _resolve(_Unreachable())
 
     assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "llm_gateway_disabled"
+    detail = response.json()["detail"]
+    assert detail["code"] == "llm_gateway_disabled"
+    # A person on the cloud reads this; the operator's switch goes to the logs only.
+    assert detail["message"] == BUILTIN_MODELS_NOT_ENABLED_MESSAGE
+    assert "next_step" not in detail

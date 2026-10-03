@@ -5,6 +5,7 @@ import asyncio
 from typing import Awaitable, Callable, Optional
 from uuid import UUID
 
+from oss.src.core.gateways.types import BUILTIN_MODELS_NOT_ENABLED_MESSAGE
 from oss.src.core.gateways.policy.dtos import GatewayTarget, SpendAdmission
 from oss.src.core.gateways.policy.interfaces import SpendAdmissionInterface
 from oss.src.core.rollout.switches import WalletMode, wallet_mode_for
@@ -13,7 +14,6 @@ from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.wallets.caps import (
     BUILTIN_MODELS_NOT_ENABLED_CODE,
-    BUILTIN_MODELS_NOT_ENABLED_MESSAGE,
     WALLET_BALANCE_EXHAUSTED_CODE,
     SessionTurnHoldsInterface,
     model_call_refused_message,

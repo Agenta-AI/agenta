@@ -27,10 +27,6 @@ CONCURRENT_TURNS_LIMIT_CODE = "concurrent_turns_limit"
 # A `builtin` model call for an organization whose wallet is `off`: nothing would
 # measure or charge it, so it is refused, and the organization uses its own keys.
 BUILTIN_MODELS_NOT_ENABLED_CODE = "builtin_models_not_enabled"
-BUILTIN_MODELS_NOT_ENABLED_MESSAGE = (
-    "Agenta's included models aren't enabled for your organization. "
-    "Use your own provider key, or contact us."
-)
 
 # The runner beats every minute; a turn whose runner stopped beating leaves the count
 # after three missed beats.
