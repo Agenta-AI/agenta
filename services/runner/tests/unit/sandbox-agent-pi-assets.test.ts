@@ -106,28 +106,26 @@ afterEach(() => {
 
 describe("buildPiExtensionEnv", () => {
   it("renders only the gateway route and short-lived gateway credential for Pi MCP", () => {
-    const env = buildPiExtensionEnv(
-      {
-        mcpServers: [
-          {
-            name: "mock",
-            connection: {
-              type: "http",
-              url: "https://api.example.test/gateways/mcps/custom/mock",
-              headers: { "X-Agenta-Mock-Profile": "mcp-custom-mock" },
-              credentials: [
-                {
-                  binding: { kind: "header", name: "X-AG-Credentials" },
-                  value: "short-lived-gateway-token",
-                  usage: "opaque_http",
-                },
-              ],
-            },
-            policy: { tools: { mode: "all" } },
+    const env = buildPiExtensionEnv({
+      mcpServers: [
+        {
+          name: "mock",
+          connection: {
+            type: "http",
+            url: "https://api.example.test/gateways/mcps/custom/mock",
+            headers: { "X-Agenta-Mock-Profile": "mcp-custom-mock" },
+            credentials: [
+              {
+                binding: { kind: "header", name: "X-AG-Credentials" },
+                value: "short-lived-gateway-token",
+                usage: "opaque_http",
+              },
+            ],
           },
-        ],
-      } as AgentRunRequest,
-    );
+          policy: { tools: { mode: "all" } },
+        },
+      ],
+    } as AgentRunRequest);
     const rendered = env[PI_GATEWAY_MCP_SERVERS_ENV] ?? "";
     assert.deepEqual(JSON.parse(rendered), {
       version: 1,
@@ -145,6 +143,24 @@ describe("buildPiExtensionEnv", () => {
     });
     assert.equal(rendered.includes("upstream-secret"), false);
     assert.equal(rendered.includes("mock-mcp-gateway"), false);
+  });
+
+  it("names Pi's own provider for an Agenta key Pi spells differently", () => {
+    const env = buildPiExtensionEnv({
+      modelConnection: {
+        provider: "together_ai",
+        endpoint: {
+          baseUrl:
+            "https://gw.example.test/api/gateways/llms/standard/together_ai/v1",
+        },
+        credentialMode: "none",
+      },
+    } as AgentRunRequest);
+
+    assert.equal(
+      JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]).provider,
+      "together",
+    );
   });
 
   it("carries only public provider endpoint config for Pi", () => {
@@ -190,7 +206,10 @@ describe("buildPiExtensionEnv", () => {
       modelConnection: {
         provider: "anthropic",
         deployment: "direct",
-        endpoint: { baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic" },
+        endpoint: {
+          baseUrl:
+            "https://gateway.example.com/gateways/llms/standard/anthropic",
+        },
         credentialMode: "none",
         credentials: [],
         gatewayCredentials: {
@@ -1239,7 +1258,11 @@ describe("prepareLocalPiAssets (per-session prompts on a shared connection dir)"
     const connectionDir = tempDir("agenta-pi-connection-");
     // What an earlier runner build wrote, or anything else with access to the dir.
     writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
-    writeFileSync(join(connectionDir, "APPEND_SYSTEM.md"), "stale extra", "utf-8");
+    writeFileSync(
+      join(connectionDir, "APPEND_SYSTEM.md"),
+      "stale extra",
+      "utf-8",
+    );
 
     const run = subscriptionRun(connectionDir, { hasSystemPrompt: false });
 
@@ -1271,7 +1294,11 @@ describe("prepareLocalPiAssets (per-session prompts on a shared connection dir)"
 
     // Put both files back, as a writer this runner does not control would.
     writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
-    writeFileSync(join(connectionDir, "APPEND_SYSTEM.md"), "agent A framing", "utf-8");
+    writeFileSync(
+      join(connectionDir, "APPEND_SYSTEM.md"),
+      "agent A framing",
+      "utf-8",
+    );
 
     const b = subscriptionRun(connectionDir, { hasSystemPrompt: false });
     assert.deepEqual(loadedPrompts(b.env, b.argvFile), {
@@ -1394,7 +1421,12 @@ describe("sandbox uploads", () => {
         commands.push(args[1] as string),
     };
 
-    await uploadSystemPromptToSandbox(sandbox, "/pi-agent", undefined, undefined);
+    await uploadSystemPromptToSandbox(
+      sandbox,
+      "/pi-agent",
+      undefined,
+      undefined,
+    );
 
     assert.deepEqual(commands, [
       "rm -f '/pi-agent/SYSTEM.md' '/pi-agent/APPEND_SYSTEM.md'",
