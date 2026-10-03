@@ -1043,11 +1043,23 @@ class VaultConnectionResolver:
         A refusal surfaces as a resolution error rather than as a missing credential: the
         run cannot reach a provider either way, and naming the exchange is what keeps the
         operator from hunting a phantom "no backend configured" misconfiguration.
+
+        A refusal the backend actually answered keeps its status and code, reported the way
+        ``GatewayConnectionRefusedError.from_response`` reports a refused resolve: a client
+        error for a refusal, 502 for a backend that failed, and the backend's own
+        ``failure_code``. A request that never got an answer has neither to keep.
         """
         try:
             return await self._connection.gateway_authorization(plane="llm")
         except GatewayCredentialsError as exc:
-            raise ConnectionResolutionError(str(exc)) from exc
+            if exc.status_code is None:
+                raise ConnectionResolutionError(str(exc)) from exc
+            raise GatewayConnectionRefusedError(
+                str(exc),
+                status_code=502 if exc.status_code >= 500 else 422,
+                gateway_status=exc.status_code,
+                failure_code=exc.failure_code,
+            ) from exc
 
     async def _resolve_from_vault(
         self,
