@@ -236,3 +236,68 @@ def test_other_deployments_keep_unsigned_tool_calls_as_they_are():
         )
         is body
     )
+
+
+def _chat_with_parts(*parts):
+    return json.dumps(
+        {
+            "model": "google/gemini-3.8-flash",
+            "messages": [{"role": "user", "content": [*parts]}],
+        }
+    ).encode()
+
+
+@pytest.mark.parametrize(
+    "file, url",
+    [
+        (
+            {
+                "filename": "doc.pdf",
+                "file_data": "data:application/pdf;base64,JVBERi0x",
+            },
+            "data:application/pdf;base64,JVBERi0x",
+        ),
+        (
+            {"filename": "doc.pdf", "file_data": "JVBERi0x"},
+            "data:application/pdf;base64,JVBERi0x",
+        ),
+    ],
+    ids=["data-url", "bare-base64"],
+)
+def test_vertex_chat_sends_a_file_part_as_the_data_url_gemini_reads(file, url):
+    """Vertex refuses an OpenAI `file` part (HTTP 400) but reads a PDF data URL."""
+    text = {"type": "text", "text": "What is in this file?"}
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        protocol=LLMProtocol.CHAT_COMPLETIONS,
+        body=_chat_with_parts(text, {"type": "file", "file": file}),
+    )
+
+    assert json.loads(result)["messages"][0]["content"] == [
+        text,
+        {"type": "image_url", "image_url": {"url": url}},
+    ]
+
+
+def test_a_file_part_with_no_data_and_other_deployments_are_relayed_as_they_came():
+    by_id = _chat_with_parts({"type": "file", "file": {"file_id": "file-abc"}})
+    inline = _chat_with_parts(
+        {"type": "file", "file": {"file_data": "data:application/pdf;base64,JVBE"}}
+    )
+
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.VERTEX,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=by_id,
+        )
+        is by_id
+    )
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.DIRECT,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=inline,
+        )
+        is inline
+    )

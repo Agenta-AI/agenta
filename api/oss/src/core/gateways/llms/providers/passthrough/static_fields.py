@@ -1,6 +1,7 @@
 """Apply fixed provider-specific fields to relayed request bodies."""
 
 import json
+import mimetypes
 from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
@@ -31,14 +32,7 @@ STATIC_FIELD_REWRITES: Dict[LLMDeploymentKind, LLMStaticFieldRewrite] = {
 GEMINI_SKIP_THOUGHT_SIGNATURE = "skip_thought_signature_validator"
 
 
-def _fill_thought_signatures(body: bytes) -> bytes:
-    try:
-        payload = json.loads(body)
-    except (json.JSONDecodeError, TypeError):
-        return body
-    messages = payload.get("messages") if isinstance(payload, dict) else None
-    if not isinstance(messages, list):
-        return body
+def _fill_thought_signatures(messages: List[Any]) -> bool:
     filled = False
     for message in messages:
         if not isinstance(message, dict) or message.get("role") != "assistant":
@@ -58,18 +52,56 @@ def _fill_thought_signatures(body: bytes) -> bytes:
                 },
             }
             filled = True
-    return json.dumps(payload).encode() if filled else body
+    return filled
+
+
+# Vertex's chat completions refuse an OpenAI `file` content part ("Unrecognized 'type'
+# field") but read the same document as an `image_url` data URL, PDFs included. A part
+# that names an OpenAI file id has no data to carry and is relayed as it came.
+def _inline_file_parts(messages: List[Any]) -> bool:
+    inlined = False
+    for message in messages:
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        for index, part in enumerate(content):
+            if not isinstance(part, dict) or part.get("type") != "file":
+                continue
+            file = part.get("file")
+            data = file.get("file_data") if isinstance(file, dict) else None
+            if not isinstance(data, str) or not data:
+                continue
+            if not data.startswith("data:"):
+                mime = mimetypes.guess_type(file.get("filename") or "")[0]
+                data = f"data:{mime or 'application/pdf'};base64,{data}"
+            content[index] = {"type": "image_url", "image_url": {"url": data}}
+            inlined = True
+    return inlined
+
+
+def _rewrite_vertex_chat(body: bytes) -> bytes:
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body
+    messages = payload.get("messages") if isinstance(payload, dict) else None
+    if not isinstance(messages, list):
+        return body
+    signed = _fill_thought_signatures(messages)
+    inlined = _inline_file_parts(messages)
+    return json.dumps(payload).encode() if signed or inlined else body
 
 
 def apply_static_fields(
     *, deployment_kind: LLMDeploymentKind, protocol: LLMProtocol, body: bytes
 ) -> bytes:
     """Apply the deployment rewrite to Messages JSON without overwriting supplied values,
-    and give a Vertex chat completion's unsigned tool calls the signature Gemini requires."""
+    and make a Vertex chat completion one Gemini accepts: unsigned tool calls get the
+    signature it requires, and `file` parts become data URLs."""
     if deployment_kind == LLMDeploymentKind.VERTEX and protocol == (
         LLMProtocol.CHAT_COMPLETIONS
     ):
-        return _fill_thought_signatures(body)
+        return _rewrite_vertex_chat(body)
     if protocol != LLMProtocol.MESSAGES:
         return body
     rewrite = STATIC_FIELD_REWRITES.get(deployment_kind)
