@@ -57,7 +57,12 @@ describe("SplitPane container resizing", () => {
             const onResize = vi.fn()
             const onResizeEnd = vi.fn()
             const {container} = render(
-                <SplitPane {...props} paneSide={paneSide} onResize={onResize} onResizeEnd={onResizeEnd} />,
+                <SplitPane
+                    {...props}
+                    paneSide={paneSide}
+                    onResize={onResize}
+                    onResizeEnd={onResizeEnd}
+                />,
             )
             expect(paneWidth(container)).toBe("620px")
             resize(800)
@@ -116,7 +121,9 @@ describe("SplitPane container resizing", () => {
         const {container, rerender} = render(<SplitPane {...props} paneSide="end" />)
         resize(800)
         rerender(<SplitPane {...props} paneSide="end" paneSize={0} animate />)
-        const content = container.querySelector<HTMLElement>('[data-slot="split-pane-pane-content"]')!
+        const content = container.querySelector<HTMLElement>(
+            '[data-slot="split-pane-pane-content"]',
+        )!
         expect(paneWidth(container)).toBe("0px")
         expect(content.style.width).toBe("440px")
     })
