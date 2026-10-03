@@ -178,7 +178,7 @@ describe("mobile TurnRow: a run that failed", () => {
             delete runtime.__env
         })
         const sentence =
-            "Your organization already has 2 agents running, the most the Hobby plan allows at once. This turn did not start, and you were not charged. Your running agents keep working. Send your message again when one finishes, or upgrade to Pro to run 10 at once."
+            "Your Free plan can run 2 agents at the same time, and 2 are already working. We didn't start this request, and you weren't charged. Send it again when one of them finishes, or upgrade to Pro to run 10 agents at the same time."
 
         it.each(Object.entries(PLAN_LIMIT_TITLES))(
             "%s shows its title and the platform's whole sentence, never the code",
@@ -209,12 +209,12 @@ describe("mobile TurnRow: a run that failed", () => {
         })
     })
 
-    it("shows built-in models being off as its own refusal, with the key escape", () => {
+    it("shows included models being off as its own refusal, with the key escape", () => {
         const sentence =
-            "Built-in models are not enabled for this organization. Choose a model that uses your own provider key."
+            "The AI models included with Agenta aren't turned on for your organization yet. Choose a model that uses your own AI provider key, or contact us."
         const shown = renderTurn(failedTurn(sentence, "builtin_models_not_enabled"))
 
-        expect(shown).toContain("Built-in models not enabled")
+        expect(shown).toContain("This model isn't available for your organization")
         expect(shown).toContain(sentence)
         expect(shown).toContain("Add your key")
         expect(shown).not.toContain("builtin_models_not_enabled")

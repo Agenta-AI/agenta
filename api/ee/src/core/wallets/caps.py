@@ -6,9 +6,9 @@ with the plan entitlements (`AGENT_TURN_CAPS`). The runner shows each line as it
 a stable code the chat maps to its own title and button, so every line is one line of plain
 text written for the person in the chat.
 
-WORDING PENDING APPROVAL (drafted 2026-10-02 from the pricing proposal's section 6): the
-three messages below, and the built-in models line (drafted 2026-10-03). The numbers in
-them come from the caps and the plan catalog.
+The words are plain on purpose: "request" for what the person asked the agent to do, and
+"agent" for the agent, with no internal terms. The numbers in them come from the caps and
+the plan catalog.
 """
 
 from dataclasses import dataclass
@@ -28,8 +28,8 @@ CONCURRENT_TURNS_LIMIT_CODE = "concurrent_turns_limit"
 # measure or charge it, so it is refused, and the organization uses its own keys.
 BUILTIN_MODELS_NOT_ENABLED_CODE = "builtin_models_not_enabled"
 BUILTIN_MODELS_NOT_ENABLED_MESSAGE = (
-    "Built-in models are not enabled for this organization. Choose a model that uses "
-    "your own provider key."
+    "The AI models included with Agenta aren't turned on for your organization yet. "
+    "Choose a model that uses your own AI provider key, or contact us."
 )
 
 # The runner beats every minute; a turn whose runner stopped beating leaves the count
@@ -45,7 +45,7 @@ _UPGRADE = {_HOBBY: _PRO, _PRO: _BUSINESS}
 
 # Decided numbers the out-of-credit line names (release plan, 2026-10-02).
 _MONTHLY_CREDITS = {_PRO: "2,900", _BUSINESS: "29,900"}
-_SMALLEST_TOP_UP = "Buy credits from $10 for 1,000 credits"
+_BUY_MORE = "Buy more credits to keep going"
 
 
 class TurnSlotsInterface(Protocol):
@@ -109,6 +109,8 @@ def turn_caps_for(plan: Optional[str]) -> Optional[AgentTurnCaps]:
 
 
 def _plan_title(plan: str) -> str:
+    if plan == _HOBBY:
+        return "Free"
     for entry in DEFAULT_CATALOG:
         if entry.get("plan") == plan:
             return entry["title"]
@@ -127,15 +129,16 @@ def concurrent_turns_message(plan: str, caps: AgentTurnCaps) -> str:
     upgrade = _UPGRADE.get(plan)
     upgrade_caps = turn_caps_for(upgrade)
     next_step = (
-        f"upgrade to {_plan_title(upgrade)} to run {upgrade_caps.concurrent_turns} at once."
+        f"upgrade to {_plan_title(upgrade)} to run {upgrade_caps.concurrent_turns} "
+        "agents at the same time."
         if upgrade and upgrade_caps
         else "contact us to raise the limit."
     )
     return (
-        f"Your organization already has {caps.concurrent_turns} agents running, the most "
-        f"the {_plan_title(plan)} plan allows at once. This turn did not start, and you "
-        "were not charged. Your running agents keep working. Send your message again when "
-        f"one finishes, or {next_step}"
+        f"Your {_plan_title(plan)} plan can run {caps.concurrent_turns} agents at the "
+        f"same time, and {caps.concurrent_turns} are already working. We didn't start "
+        "this request, and you weren't charged. Send it again when one of them "
+        f"finishes, or {next_step}"
     )
 
 
@@ -143,32 +146,33 @@ def turn_length_message(plan: str, caps: AgentTurnCaps) -> str:
     upgrade = _UPGRADE.get(plan)
     upgrade_caps = turn_caps_for(upgrade)
     next_step = (
-        f"upgrade to {_plan_title(upgrade)} for turns up to "
+        f"upgrade to {_plan_title(upgrade)} for requests up to "
         f"{_duration(upgrade_caps.max_turn_seconds)}."
         if upgrade and upgrade_caps
-        else "split the work into smaller turns, or contact us."
+        else "split the work into smaller requests."
     )
     return (
-        f"This turn stopped after {_duration(caps.max_turn_seconds)}, the longest turn "
-        f"the {_plan_title(plan)} plan allows. Files the agent saved in its workspace are "
-        "kept, and you were charged only for the time it ran. Send a new "
-        f"message to continue from where it stopped, or {next_step}"
+        f"On the {_plan_title(plan)} plan, an agent can work on one request for up to "
+        f"{_duration(caps.max_turn_seconds)}. This request reached that limit, so we "
+        "stopped it. Anything the agent already saved is kept, and you only paid for "
+        "the time it worked. Send a new message to let it continue, or "
+        f"{next_step}"
     )
 
 
 def _credit_next_step(plan: Optional[str]) -> str:
     if plan == _HOBBY:
         next_step = (
-            "Your free daily credits come back at 00:00 UTC, or upgrade to Pro for "
+            "Your free daily credits come back at midnight UTC, or upgrade to Pro for "
             f"{_MONTHLY_CREDITS[_PRO]} credits a month."
         )
     elif plan == _PRO:
         next_step = (
-            f"{_SMALLEST_TOP_UP}, or upgrade to Business for "
+            f"{_BUY_MORE}, or upgrade to Business for "
             f"{_MONTHLY_CREDITS[_BUSINESS]} credits a month."
         )
     elif plan == _BUSINESS:
-        next_step = f"{_SMALLEST_TOP_UP}, or contact us."
+        next_step = f"{_BUY_MORE}, or contact us."
     else:
         next_step = "Add credits to keep going."
     return next_step
@@ -176,9 +180,10 @@ def _credit_next_step(plan: Optional[str]) -> str:
 
 def credit_exhausted_message(plan: Optional[str]) -> str:
     return (
-        "Your organization has used all its credits, so this turn did not start, and you "
-        "were not charged. Turns already running will finish. Agents that use your own "
-        f"model key still need credits for sandbox time. {_credit_next_step(plan)}"
+        "Your organization has used all its credits, so we didn't start this request, "
+        "and you weren't charged. Requests that were already running will finish. "
+        "Agents that use your own AI provider key also need credits, because the "
+        f"agent's workspace runs on our servers. {_credit_next_step(plan)}"
     )
 
 
@@ -186,6 +191,6 @@ def model_call_refused_message(plan: Optional[str]) -> str:
     """For a model call refused at the gateway, outside a turn the runner admitted. It
     makes no claim about the work or charges before the call."""
     return (
-        "Your organization has used all its credits, so this model call was refused. "
-        f"{_credit_next_step(plan)}"
+        "Your organization has used all its credits, so we couldn't run this request "
+        f"with an included AI model. {_credit_next_step(plan)}"
     )

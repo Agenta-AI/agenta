@@ -164,7 +164,9 @@ async def test_an_off_organization_is_refused_builtin_models_with_its_own_code(m
 
     assert not refused.allowed
     assert refused.reason == "builtin_models_not_enabled"
-    assert refused.message.startswith("Built-in models are not enabled")
+    assert refused.message.startswith(
+        "The AI models included with Agenta aren't turned on"
+    )
     assert wallet.checked == []
 
 

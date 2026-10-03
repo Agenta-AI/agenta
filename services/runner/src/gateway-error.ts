@@ -81,7 +81,7 @@ function firstJsonObject(text: string): unknown {
  */
 const PERSON_FACING_REFUSALS: Record<string, string> = {
   wallet_balance_exhausted: "Your organization has used all its credits.",
-  builtin_models_not_enabled: "Built-in models are not enabled for this organization.",
+  builtin_models_not_enabled: "The AI models included with Agenta aren't turned on for your organization yet. Choose a model that uses your own AI provider key, or contact us.",
 };
 
 /** The person-facing gateway refusal this text carries, with the marker removed, or undefined. */

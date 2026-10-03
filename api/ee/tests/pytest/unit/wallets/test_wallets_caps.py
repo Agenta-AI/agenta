@@ -34,12 +34,12 @@ def test_only_the_three_cloud_plans_are_capped():
     [
         (
             HOBBY,
-            "Your organization already has 2 agents running, the most the Hobby plan "
-            "allows at once. This turn did not start, and you were not charged. Your "
-            "running agents keep working. Send your message again when one finishes, or "
-            "upgrade to Pro to run 10 at once.",
+            "Your Free plan can run 2 agents at the same time, and 2 are already "
+            "working. We didn't start this request, and you weren't charged. Send it "
+            "again when one of them finishes, or upgrade to Pro to run 10 agents at "
+            "the same time.",
         ),
-        (PRO, "upgrade to Business to run 25 at once."),
+        (PRO, "upgrade to Business to run 25 agents at the same time."),
         (BUSINESS, "contact us to raise the limit."),
     ],
 )
@@ -53,13 +53,13 @@ def test_the_concurrency_message(plan, expected):
     [
         (
             HOBBY,
-            "This turn stopped after 30 minutes, the longest turn the Hobby plan allows. "
-            "Files the agent saved in its workspace are kept, and you were charged only "
-            "for the time it ran. Send a new message to continue from where it stopped, "
-            "or upgrade to Pro for turns up to 4 hours.",
+            "On the Free plan, an agent can work on one request for up to 30 minutes. "
+            "This request reached that limit, so we stopped it. Anything the agent "
+            "already saved is kept, and you only paid for the time it worked. Send a "
+            "new message to let it continue, or upgrade to Pro for requests up to 4 hours.",
         ),
-        (PRO, "after 4 hours, the longest turn the Pro plan allows."),
-        (BUSINESS, "split the work into smaller turns, or contact us."),
+        (PRO, "On the Pro plan, an agent can work on one request for up to 4 hours."),
+        (BUSINESS, "to let it continue, or split the work into smaller requests."),
     ],
 )
 def test_the_turn_length_message(plan, expected):
@@ -69,16 +69,22 @@ def test_the_turn_length_message(plan, expected):
 @pytest.mark.parametrize(
     "plan,expected",
     [
-        (HOBBY, "upgrade to Pro for 2,900 credits a month."),
-        (PRO, "Buy credits from $10 for 1,000 credits, or upgrade to Business"),
-        (BUSINESS, "Buy credits from $10 for 1,000 credits, or contact us."),
+        (
+            HOBBY,
+            "come back at midnight UTC, or upgrade to Pro for 2,900 credits a month.",
+        ),
+        (
+            PRO,
+            "Buy more credits to keep going, or upgrade to Business for 29,900 credits a month.",
+        ),
+        (BUSINESS, "Buy more credits to keep going, or contact us."),
         (None, "Add credits to keep going."),
     ],
 )
 def test_the_out_of_credit_message(plan, expected):
     message = credit_exhausted_message(plan)
     assert message.startswith(
-        "Your organization has used all its credits, so this turn did not start"
+        "Your organization has used all its credits, so we didn't start this request"
     )
     assert expected in message
 

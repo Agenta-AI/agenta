@@ -46,7 +46,7 @@ export const WALLET_BALANCE_EXHAUSTED_CODE: RunErrorCode = "wallet_balance_exhau
 export const CONCURRENT_TURNS_LIMIT_CODE: RunErrorCode = "concurrent_turns_limit";
 /** Used only when a refusal states no message of its own. */
 export const WALLET_BALANCE_EXHAUSTED_MESSAGE =
-  "Your Agenta credits are used up, so this turn did not start. Add credits to keep going.";
+  "Your organization has used all its credits, so we didn't start this request, and you weren't charged. Add credits to keep going.";
 
 export interface SandboxResources {
   vcpu: number;

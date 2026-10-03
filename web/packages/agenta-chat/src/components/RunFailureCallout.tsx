@@ -29,7 +29,7 @@ export const STARTER_CREDIT_CODES = new Set([
 
 /**
  * Failure classes the reader clears with a model on their own provider key: the starter credits,
- * and built-in models being off for the organization (its wallet is not in use).
+ * and the included models being off for the organization.
  */
 export const OWN_KEY_CODES = new Set([...STARTER_CREDIT_CODES, "builtin_models_not_enabled"])
 
@@ -61,9 +61,9 @@ export const RETRYABLE_CODES = new Set([
  * to the work and what to do next, so it is shown whole; the host adds a way to the plans.
  */
 export const PLAN_LIMIT_TITLES: Record<string, string> = {
-    wallet_balance_exhausted: "Out of credits",
-    concurrent_turns_limit: "Too many agents running",
-    turn_time_limit_reached: "Turn time limit reached",
+    wallet_balance_exhausted: "You're out of credits",
+    concurrent_turns_limit: "Too many agents running at the same time",
+    turn_time_limit_reached: "This request took too long",
 }
 
 export const planLimitTitle = (code?: string | null): string | null =>
@@ -74,7 +74,7 @@ export const planLimitTitle = (code?: string | null): string | null =>
  * with the title shown over it.
  */
 export const REFUSAL_TITLES: Record<string, string> = {
-    builtin_models_not_enabled: "Built-in models not enabled",
+    builtin_models_not_enabled: "This model isn't available for your organization",
 }
 
 /** The title over a failure the platform worded itself, or `null` for an ordinary failure. */

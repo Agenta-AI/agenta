@@ -140,7 +140,7 @@ async def test_each_plan_runs_its_number_of_turns_at_once_and_refuses_the_next(
 
     assert refused.allowed is False
     assert refused.code == "concurrent_turns_limit"
-    assert f"already has {caps.concurrent_turns} agents running" in refused.message
+    assert f"can run {caps.concurrent_turns} agents at the same time" in refused.message
     assert refused.turn_limit is None and refused.slot_held is False
 
 
@@ -193,7 +193,7 @@ async def test_out_of_credit_is_refused_before_a_slot_is_taken_and_names_the_pla
 
     assert refused.allowed is False
     assert refused.code == "wallet_balance_exhausted"
-    assert "Buy credits from $10" in refused.message
+    assert "Buy more credits to keep going" in refused.message
     assert "upgrade to Business" in refused.message
     assert all(not held for held in slots.held.values())
 

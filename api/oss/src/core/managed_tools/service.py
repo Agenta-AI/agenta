@@ -106,7 +106,7 @@ class ManagedToolsService:
                 AgentError(
                     code="billing_unavailable",
                     message=(
-                        "Billing is unavailable right now, so this tool call did not run. "
+                        "We can't check your account right now, so this tool call didn't run. "
                         f"{_NOT_CHARGED}"
                     ),
                     retryable=True,
@@ -118,7 +118,7 @@ class ManagedToolsService:
                 AgentError(
                     code="wallet_balance_exhausted",
                     message=(
-                        "Your Agenta credits do not cover this tool call, so it did not run."
+                        "Your organization doesn't have enough credits for this tool call, so it didn't run."
                     ),
                     retryable=False,
                     next_step="Ask the user to add credits, then try again.",

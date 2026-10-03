@@ -818,7 +818,7 @@ async def test_an_organization_absent_from_the_wallet_rollout_is_refused_a_built
     error = json.loads(body)["error"]
     assert error["code"] == "builtin_models_not_enabled"
     assert error["message"].startswith(
-        "Built-in models are not enabled for this organization."
+        "The AI models included with Agenta aren't turned on for your organization yet."
     )
     assert "wallet_balance" not in error["message"]
     assert chain.checks == 0

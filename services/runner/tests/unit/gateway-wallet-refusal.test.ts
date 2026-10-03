@@ -14,9 +14,9 @@ import type { AgentEvent } from "../../src/protocol.ts";
 import { fakeHarness } from "../utils/sandbox-agent-harness.ts";
 
 const OUT_OF_CREDIT =
-  "Your organization has used all its credits, so this turn did not start, and you were not charged.";
+  "Your organization has used all its credits, so we didn't start this request, and you weren't charged.";
 const NOT_ENABLED =
-  "Built-in models are not enabled for this organization. Choose a model that uses your own provider key.";
+  "The AI models included with Agenta aren't turned on for your organization yet. Choose a model that uses your own AI provider key, or contact us.";
 
 // Pi unwraps `error` before it reports, so its text carries the bare body.
 const piBody = (message: string, code: string) =>
