@@ -1,0 +1,74 @@
+name: "21 - check migration gate"
+
+# A deploy runs `alembic upgrade head` in a Helm pre-upgrade hook, before any new
+# pod starts, and the api runs two replicas with maxUnavailable=0. During every
+# rollout the OLD code therefore runs against the NEW schema. A failed deploy rolls
+# the application back. It never rolls the database back. This job makes a
+# destructive revision visible, so that a reviewer decides it on purpose.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    paths:
+      - "api/**/databases/postgres/migrations/**/versions/*.py"
+      - "api/scripts/migration_gate.py"
+      - ".github/workflows/21-check-migration-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: migration-gate-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  migration-gate:
+    name: Migration gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Find the revisions this pull request adds
+        id: revisions
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
+          git diff --name-only --diff-filter=AM "origin/${BASE}...HEAD" \
+            | grep -E '^api/.+/databases/postgres/migrations/[^/]+/versions/[^/]+\.py$' \
+            > revisions.txt || true
+          count=$(wc -l < revisions.txt | tr -d ' ')
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+          echo "This pull request adds or changes ${count} revision(s):"
+          cat revisions.txt
+
+      - name: Scan the added revisions
+        if: github.event_name == 'pull_request' && steps.revisions.outputs.count != '0'
+        env:
+          APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'migration:destructive-approved') }}
+        run: |
+          set -euo pipefail
+          arguments=(--format github)
+          if [ "${APPROVED}" = "true" ]; then
+            arguments+=(--approved)
+            echo "The migration:destructive-approved label is applied."
+          fi
+          mapfile -t revisions < revisions.txt
+          python3 api/scripts/migration_gate.py "${arguments[@]}" "${revisions[@]}"
+
+      # --approved here means report, do not gate. The tree already carries 43
+      # destructive revisions that shipped before this gate existed.
+      - name: Audit every revision in the tree
+        if: github.event_name == 'workflow_dispatch'
+        run: python3 api/scripts/migration_gate.py --all --approved
