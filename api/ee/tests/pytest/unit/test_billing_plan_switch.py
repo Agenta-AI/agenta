@@ -208,10 +208,15 @@ async def test_switch_refused_by_stripe_answers_400_and_keeps_the_plan(monkeypat
     router, dao, stripe, organization_id = _setup(
         monkeypatch, plan=PRO, subscription_id="sub_123", prices=["price_pro"]
     )
-    stripe.subscription_id = "sub_other"
+
+    def refuse(id, items):
+        raise FakeStripeError("This subscription cannot be updated.")
+
+    monkeypatch.setattr(stripe.Subscription, "modify", staticmethod(refuse))
 
     with pytest.raises(HTTPException) as error:
         await router.switch_plans(organization_id=organization_id, plan=BUSINESS)
 
     assert error.value.status_code == 400
     assert dao.subscription.plan == PRO
+    assert [item["price"] for item in stripe.items] == ["price_pro"]
