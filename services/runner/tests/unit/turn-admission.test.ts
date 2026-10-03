@@ -62,8 +62,8 @@ describe("runAdmittedTurn", () => {
 
     expect(result).toMatchObject({ ok: true });
     expect(totalMs).toBe(1_800_000);
-    expect(admit).toHaveBeenCalledWith("Access run-token", "t-1");
-    expect(holdSlot).toHaveBeenCalledWith("Access run-token", "t-1");
+    expect(admit).toHaveBeenCalledWith("Access run-token", "t-1", "conv-1");
+    expect(holdSlot).toHaveBeenCalledWith("Access run-token", "t-1", "conv-1");
     expect(release).toHaveBeenCalledTimes(1);
   });
 

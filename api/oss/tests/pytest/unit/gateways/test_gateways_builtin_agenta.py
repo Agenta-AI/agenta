@@ -213,7 +213,7 @@ class _Policy:
     async def authorize(self, *, scope, permission, target):
         return PolicyDecision(allowed=True, permission=permission)
 
-    async def admit(self, *, scope, target):
+    async def admit(self, *, scope, target, session_id=None):
         return SpendAdmission(allowed=True)
 
     async def record(

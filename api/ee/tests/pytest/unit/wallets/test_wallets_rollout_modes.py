@@ -47,6 +47,7 @@ from ee.src.core.wallets import admission
 from ee.src.core.wallets.admission import WalletSpendAdmission
 from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryMeasurementPublisher,
+    InMemorySessionTurnHolds,
     InMemoryTurnSlots,
     no_plan,
 )
@@ -106,9 +107,9 @@ def mode(monkeypatch):
 
 
 async def _gateway(wallet, scope):
-    result = await WalletSpendAdmission(wallet=wallet).admit(
-        scope=scope, target=_TARGET
-    )
+    result = await WalletSpendAdmission(
+        wallet=wallet, session_holds=InMemorySessionTurnHolds(), plan_for=no_plan
+    ).admit(scope=scope, target=_TARGET)
     return result.allowed
 
 
@@ -117,6 +118,7 @@ async def _sandbox(wallet, scope):
         wallet=wallet,
         publisher=InMemoryMeasurementPublisher(),
         turn_slots=InMemoryTurnSlots(),
+        session_holds=InMemorySessionTurnHolds(),
         plan_for=no_plan,
     )
     return (await service.admit(scope=scope)).allowed
@@ -236,6 +238,7 @@ async def _sandbox_published(scope):
         wallet=_Wallet(),
         publisher=publisher,
         turn_slots=InMemoryTurnSlots(),
+        session_holds=InMemorySessionTurnHolds(),
         plan_for=no_plan,
     ).record(
         scope=scope,
@@ -334,7 +337,11 @@ class _StuckWallet:
 def _policy(publisher=None):
     return GatewayPolicyService(
         resolver=None,
-        spend_admission=WalletSpendAdmission(wallet=_StuckWallet()),
+        spend_admission=WalletSpendAdmission(
+            wallet=_StuckWallet(),
+            session_holds=InMemorySessionTurnHolds(),
+            plan_for=no_plan,
+        ),
         usage_sink=MeasurementUsageSink(
             publisher=publisher or InMemoryMeasurementPublisher()
         ),
@@ -377,7 +384,11 @@ async def test_shadow_admits_even_when_the_checks_cancellation_is_slow(real_roll
     )
     policy = GatewayPolicyService(
         resolver=None,
-        spend_admission=WalletSpendAdmission(wallet=_SlowToCancelWallet()),
+        spend_admission=WalletSpendAdmission(
+            wallet=_SlowToCancelWallet(),
+            session_holds=InMemorySessionTurnHolds(),
+            plan_for=no_plan,
+        ),
     )
 
     started = time.monotonic()
@@ -402,7 +413,7 @@ async def test_a_slow_first_lookup_answers_inside_the_gateways_bound(
     started = time.monotonic()
     result = await _policy().admit(scope=scope, target=_TARGET)
 
-    assert (result.allowed, result.reason) == (False, "wallet_off")
+    assert (result.allowed, result.reason) == (False, "builtin_models_not_enabled")
     assert time.monotonic() - started < SPEND_ADMISSION_TIMEOUT_SECONDS
 
 

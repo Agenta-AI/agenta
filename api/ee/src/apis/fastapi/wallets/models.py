@@ -30,6 +30,9 @@ TurnId = Annotated[
 class SandboxAdmissionRequest(BaseModel):
     # Without one the turn is not counted against the organization's running turns.
     turn_id: Optional[TurnId] = None
+    # The session the turn runs in. With it, the gateway serves the turn's model calls to
+    # its end without a balance check; without it, each call is checked.
+    session_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
 
 
 class SandboxTurnLimit(BaseModel):
@@ -50,6 +53,7 @@ class SandboxAdmissionResponse(BaseModel):
 
 class SandboxTurnRequest(BaseModel):
     turn_id: TurnId
+    session_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
 
 
 class SandboxUsageRecordResponse(BaseModel):

@@ -31,7 +31,10 @@ def gateway_run_labels(request: Optional[Request]) -> Optional[Dict[str, str]]:
     """The session and agent the presenting credential names, for the usage record only.
 
     Supplied by the runtime that exchanged the credential, so they label a call and never
-    authorize one: a caller can only name them on its own tenant's usage.
+    authorize one: a caller can only name them on its own tenant's usage. The one thing a
+    session label changes is spend admission: a platform-funded call that names a session
+    whose turn the runner admitted is not refused for the balance until that turn ends
+    (`WalletSpendAdmission`), which a caller can only reach in its own organization.
     """
     if request is None:
         return None

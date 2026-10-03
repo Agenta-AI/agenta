@@ -46,7 +46,8 @@ class GatewayCredentialsRequest(BaseModel):
 
     plane: Optional[GatewayPlane] = None
     # Labels for the usage the gateway records against this credential. They authorize
-    # nothing, so the caller supplies them: the runtime knows its session and agent.
+    # nothing, so the caller supplies them: the runtime knows its session and agent. The
+    # session also lets the gateway serve a turn the runner admitted to its end.
     session_id: Optional[str] = Field(default=None, max_length=128)
     agent_id: Optional[str] = Field(default=None, max_length=128)
 

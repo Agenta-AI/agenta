@@ -183,6 +183,18 @@ the trustworthy actual measurement arrives.
 
 No monetary hold/reservation for the non-strict variable-cost path.
 
+**2026-10-03, admission scope.** The LLM gateway's `check` is per agent turn, not per call.
+The runner's turn admission, which already runs the same check, holds the turn's session until
+the turn ends or its limit passes; a call whose gateway credential names that session is recorded
+and debited without a check. Options were: check every call (the old behaviour; it cut running
+turns off at zero, against the caps decision that a turn already running finishes), admit a run
+at its first gateway call keyed by the workflow run id (rejected: any workflow invocation gets a
+run id without passing turn admission or caps, the run id does not reach the gateway on the
+runtime's re-minted credential, and a first-call check can still stop an admitted turn), or hold
+at turn admission keyed by the session (chosen: one admission decision, bounded by the turn limit).
+Calls with no session keep per-call admission. See
+[../v2/caps.md](../v2/caps.md#model-calls-inside-a-turn).
+
 ---
 
 ## 3. Immutable cancellation, expiry, and plan changes

@@ -19,7 +19,13 @@ from oss.src.utils.context import AuthScope
 
 
 class NullSpendAdmission(SpendAdmissionInterface):
-    async def admit(self, *, scope: AuthScope, target: GatewayTarget) -> SpendAdmission:
+    async def admit(
+        self,
+        *,
+        scope: AuthScope,
+        target: GatewayTarget,
+        session_id: Optional[str] = None,
+    ) -> SpendAdmission:
         return SpendAdmission(allowed=True)
 
 

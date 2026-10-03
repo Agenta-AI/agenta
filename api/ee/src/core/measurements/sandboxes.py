@@ -13,6 +13,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 from oss.src.utils.context import AuthScope
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.measurements.components import (
@@ -32,6 +33,7 @@ from ee.src.core.wallets.caps import (
     WALLET_BALANCE_EXHAUSTED_CODE,
     TurnAdmission,
     TurnLimit,
+    SessionTurnHoldsInterface,
     TurnSlotsInterface,
     concurrent_turns_message,
     credit_exhausted_message,
@@ -162,15 +164,21 @@ class SandboxUsageService:
         wallet: WalletCheckPort,
         publisher: MeasurementPublisher,
         turn_slots: TurnSlotsInterface,
+        session_holds: SessionTurnHoldsInterface,
         plan_for: Callable[[UUID], Awaitable[Optional[str]]],
     ):
         self.wallet = wallet
         self.publisher = publisher
         self.turn_slots = turn_slots
+        self.session_holds = session_holds
         self.plan_for = plan_for
 
     async def admit(
-        self, *, scope: AuthScope, turn_id: Optional[str] = None
+        self,
+        *,
+        scope: AuthScope,
+        turn_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> TurnAdmission:
         """Whether a turn that runs a platform sandbox may start, and the limits it runs
         under. The same spendable check as a `builtin` gateway call; nothing is reserved,
@@ -205,6 +213,14 @@ class SandboxUsageService:
             )
         caps = turn_caps_for(plan)
         if caps is None:
+            # A plan with no turn cap is bounded by the gateway credential's lifetime,
+            # the longest any turn can reach the gateway at all.
+            await self._hold_session(
+                organization_id=organization_id,
+                session_id=session_id,
+                turn_id=turn_id,
+                ttl_seconds=env.gateway_credentials.ttl_seconds,
+            )
             return TurnAdmission(allowed=True)
         slot_held = False
         if turn_id:
@@ -228,6 +244,12 @@ class SandboxUsageService:
                         code=CONCURRENT_TURNS_LIMIT_CODE,
                         message=concurrent_turns_message(plan, caps),
                     )
+        await self._hold_session(
+            organization_id=organization_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            ttl_seconds=caps.max_turn_seconds,
+        )
         return TurnAdmission(
             allowed=True,
             turn_limit=TurnLimit(
@@ -244,10 +266,46 @@ class SandboxUsageService:
             ttl_seconds=TURN_SLOT_TTL_SECONDS,
         )
 
-    async def release_turn(self, *, scope: AuthScope, turn_id: str) -> None:
+    async def release_turn(
+        self, *, scope: AuthScope, turn_id: str, session_id: Optional[str] = None
+    ) -> None:
         await self.turn_slots.release(
             organization_id=scope.organization_id, turn_id=turn_id
         )
+        if session_id:
+            await self.session_holds.release(
+                organization_id=scope.organization_id,
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+
+    async def _hold_session(
+        self,
+        *,
+        organization_id: UUID,
+        session_id: Optional[str],
+        turn_id: Optional[str],
+        ttl_seconds: int,
+    ) -> None:
+        """Let the gateway serve this turn's platform-funded model calls without a
+        balance check until the turn ends or its limit passes: an admitted turn is never
+        stopped for its balance (caps.md). A hold that cannot be written leaves the
+        turn's calls checked one by one, as does a turn that names no session."""
+        if not (session_id and turn_id):
+            return
+        try:
+            await self.session_holds.hold(
+                organization_id=organization_id,
+                session_id=session_id,
+                turn_id=turn_id,
+                ttl_seconds=ttl_seconds,
+            )
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "[wallets] session hold unavailable; the turn's model calls stay checked",
+                organization_id=str(organization_id),
+                exc_info=True,
+            )
 
     async def record(
         self,

@@ -41,6 +41,7 @@ from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.policy.types import (
     EntitlementDeniedError,
     PolicyDeniedError,
+    SpendRefusedError,
 )
 from oss.src.utils.env import env
 
@@ -60,19 +61,29 @@ GATEWAYS_SOURCE = (
 
 class _Admission(SpendAdmissionInterface):
     def __init__(
-        self, *, allowed: bool = True, raises: bool = False, stalls: bool = False
+        self,
+        *,
+        allowed: bool = True,
+        raises: bool = False,
+        stalls: bool = False,
+        refusal: Optional[SpendAdmission] = None,
     ):
         self.allowed = allowed
         self.raises = raises
         self.stalls = stalls
+        self.refusal = refusal
         self.calls: List[GatewayTarget] = []
+        self.session_ids: List[Optional[str]] = []
 
-    async def admit(self, *, scope, target) -> SpendAdmission:
+    async def admit(self, *, scope, target, session_id=None) -> SpendAdmission:
         self.calls.append(target)
+        self.session_ids.append(session_id)
         if self.raises:
             raise RuntimeError("wallet unavailable")
         if self.stalls:
             await asyncio.sleep(60)
+        if self.refusal is not None:
+            return self.refusal
         return SpendAdmission(
             allowed=self.allowed,
             reason=None if self.allowed else "entitlement_denied",
@@ -152,6 +163,7 @@ async def _relay(
     namespace=GatewayEndpointNamespace.BUILTIN,
     stream: bool = False,
     run_id: Optional[str] = None,
+    run_labels: Optional[dict] = None,
 ):
     result = await service.relay_chat_completion(
         scope=_scope(),
@@ -166,6 +178,7 @@ async def _relay(
         ).encode(),
         headers={},
         run_id=run_id,
+        run_labels=run_labels,
     )
     return result, b"".join([chunk async for chunk in result.body])
 
@@ -228,6 +241,40 @@ async def test_a_wallet_that_does_not_answer_in_time_refuses_the_builtin_call(
     assert time.monotonic() - started < 1.0
     assert len(admission.calls) == 1
     assert resolver.resolve_calls == []
+    assert adapter.calls == 0
+    assert audit_events[0]["decision"].reason == "entitlement_denied"
+
+
+@pytest.mark.asyncio
+async def test_admission_is_told_which_session_the_call_belongs_to(
+    mocks_on, permitted, audit_events
+):
+    admission = _Admission()
+    service, _, _ = _gateway(admission=admission, sink=_Sink())
+
+    await _relay(service, run_labels={"session_id": "sess-7"})
+    await _relay(service, run_id="run-1")
+
+    assert admission.session_ids == ["sess-7", None]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "code", ["wallet_balance_exhausted", "builtin_models_not_enabled"]
+)
+async def test_a_refusal_that_names_itself_reaches_the_caller_as_itself(
+    mocks_on, permitted, audit_events, code
+):
+    admission = _Admission(
+        refusal=SpendAdmission(allowed=False, reason=code, message="The sentence.")
+    )
+    service, adapter, _ = _gateway(admission=admission, sink=_Sink())
+
+    with pytest.raises(SpendRefusedError) as refused:
+        await _relay(service, run_id="run-1")
+
+    assert refused.value.code == code
+    assert refused.value.message == "The sentence."
     assert adapter.calls == 0
     assert audit_events[0]["decision"].reason == "entitlement_denied"
 

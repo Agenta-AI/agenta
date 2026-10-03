@@ -155,7 +155,9 @@ class WalletsRouter:
         body: Optional[SandboxAdmissionRequest] = None,
     ):
         admission = await self.sandbox_usage_service.admit(
-            scope=get_auth_scope(), turn_id=body.turn_id if body else None
+            scope=get_auth_scope(),
+            turn_id=body.turn_id if body else None,
+            session_id=body.session_id if body else None,
         )
         return SandboxAdmissionResponse(
             allowed=admission.allowed,
@@ -182,7 +184,7 @@ class WalletsRouter:
     @intercept_exceptions()
     async def release_sandbox_turn(self, request: Request, body: SandboxTurnRequest):
         await self.sandbox_usage_service.release_turn(
-            scope=get_auth_scope(), turn_id=body.turn_id
+            scope=get_auth_scope(), turn_id=body.turn_id, session_id=body.session_id
         )
         return Response(status_code=204)
 

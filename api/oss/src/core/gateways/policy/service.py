@@ -92,12 +92,15 @@ class GatewayPolicyService:
         *,
         scope: AuthScope,
         target: GatewayTarget,
+        session_id: Optional[str] = None,
     ) -> SpendAdmission:
         # Fails closed: a wallet that cannot answer has not said the organization may
         # spend, and a platform-funded call spends money we would then not have checked.
         try:
             return await asyncio.wait_for(
-                self.spend_admission.admit(scope=scope, target=target),
+                self.spend_admission.admit(
+                    scope=scope, target=target, session_id=session_id
+                ),
                 timeout=SPEND_ADMISSION_TIMEOUT_SECONDS,
             )
         except Exception:  # noqa: BLE001 - any failure, a timeout included, refuses

@@ -51,9 +51,9 @@ With `AGENTA_WALLETS_ENABLED=true`:
 
 | Mode | Admission | Measurement and charge |
 | --- | --- | --- |
-| `off` (also any organization not in the payload) | Not checked. Every call is admitted. | None. |
+| `off` (also any organization not in the payload) | Not checked. Every sandbox turn and managed tool call is admitted; a `builtin` model call is refused (`builtin_models_not_enabled`, see [funded-models.md](funded-models.md)). | None. |
 | `shadow` | Checked, never refused. A refusal that `enforce` would make is logged as `[wallets] shadow: would have refused`. | Every call is measured and charged in the ledger. |
-| `enforce` | Today's behaviour: refused at or below the floor. | Every call is measured and charged. |
+| `enforce` | Refused at or below the floor (`wallet_balance_exhausted`). Gateway calls inside a turn the runner admitted are not refused until the turn ends ([caps.md](caps.md#model-calls-inside-a-turn)). | Every call is measured and charged. |
 
 The mode applies at each admission point: the LLM gateway spend admission
 (`WalletSpendAdmission`), the managed-tools executor (`WalletManagedActionBilling.admit`) and

@@ -167,6 +167,9 @@ function readAdmission(body: AdmissionBody): SandboxTurnAdmission {
 export async function admitSandboxTurn(
   authorization: string,
   turnId: string,
+  // The session the turn runs in: while the turn runs, the gateway serves its model calls without
+  // a balance check, so an admitted turn finishes.
+  sessionId: string | undefined,
   deps: { fetch?: Fetch; baseUrl?: string; log?: Log } = {},
 ): Promise<SandboxTurnAdmission> {
   const log = deps.log ?? defaultLog;
@@ -178,7 +181,7 @@ export async function admitSandboxTurn(
         method: "POST",
         headers: { "content-type": "application/json", ...platformHeaders(authorization) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        body: JSON.stringify({ turn_id: turnId }),
+        body: JSON.stringify({ turn_id: turnId, ...(sessionId ? { session_id: sessionId } : {}) }),
       },
     );
     if (res.status === 404) return ADMITTED;
@@ -207,6 +210,7 @@ export interface TurnSlot {
 export function holdTurnSlot(
   authorization: string,
   turnId: string,
+  sessionId: string | undefined,
   deps: {
     fetch?: Fetch;
     baseUrl?: string;
@@ -225,7 +229,7 @@ export function holdTurnSlot(
         method: "POST",
         headers: { "content-type": "application/json", ...platformHeaders(lease.credential()) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        body: JSON.stringify({ turn_id: turnId }),
+        body: JSON.stringify({ turn_id: turnId, ...(sessionId ? { session_id: sessionId } : {}) }),
       });
       if (!res.ok) log(`turn ${action} HTTP ${res.status}`);
     } catch (err) {

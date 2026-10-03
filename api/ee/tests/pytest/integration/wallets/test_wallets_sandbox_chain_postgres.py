@@ -31,7 +31,7 @@ from ee.src.dbs.postgres.wallets.dbes import WalletBalanceDBE
 from ee.src.dbs.postgres.wallets.usage import WalletUsageDAO
 from ee.src.core.wallets.usage.service import WalletUsageService
 from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
-from ee.src.dbs.redis.wallets.turns import RedisTurnSlots
+from ee.src.dbs.redis.wallets.turns import RedisSessionTurnHolds, RedisTurnSlots
 from ee.tests.pytest.utils.measurements.fakes import no_plan
 from ee.tests.pytest.integration.wallets.test_wallets_gateway_chain_postgres import (
     DOWN_REVISION,
@@ -113,6 +113,7 @@ def _service(client, chain) -> SandboxUsageService:
         wallet=chain.wallets,
         publisher=RedisMeasurementPublisher(redis_client=client),
         turn_slots=RedisTurnSlots(redis_client=client),
+        session_holds=RedisSessionTurnHolds(redis_client=client),
         plan_for=no_plan,
     )
 
@@ -204,6 +205,7 @@ async def test_a_hobby_organization_runs_two_turns_at_once_against_real_redis(
         wallet=chain.wallets,
         publisher=RedisMeasurementPublisher(redis_client=redis_client),
         turn_slots=RedisTurnSlots(redis_client=redis_client),
+        session_holds=RedisSessionTurnHolds(redis_client=redis_client),
         plan_for=hobby,
     )
     scope = _scope(organization_id)

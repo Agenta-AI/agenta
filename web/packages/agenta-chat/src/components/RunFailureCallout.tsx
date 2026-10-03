@@ -28,6 +28,12 @@ export const STARTER_CREDIT_CODES = new Set([
 ])
 
 /**
+ * Failure classes the reader clears with a model on their own provider key: the starter credits,
+ * and built-in models being off for the organization (its wallet is not in use).
+ */
+export const OWN_KEY_CODES = new Set([...STARTER_CREDIT_CODES, "builtin_models_not_enabled"])
+
+/**
  * Failure classes cleared by signing in again, not by a key. The subscription's stored sign-in is
  * dead and no newer one exists, so the fix is a new device login on the AI providers page — which
  * is where the provider drawer opens.
@@ -62,6 +68,18 @@ export const PLAN_LIMIT_TITLES: Record<string, string> = {
 
 export const planLimitTitle = (code?: string | null): string | null =>
     (code && PLAN_LIMIT_TITLES[code]) || null
+
+/**
+ * Refusals that are not plan limits but still arrive as the platform's finished sentence, by code,
+ * with the title shown over it.
+ */
+export const REFUSAL_TITLES: Record<string, string> = {
+    builtin_models_not_enabled: "Built-in models not enabled",
+}
+
+/** The title over a failure the platform worded itself, or `null` for an ordinary failure. */
+export const refusalTitle = (code?: string | null): string | null =>
+    planLimitTitle(code) ?? ((code && REFUSAL_TITLES[code]) || null)
 
 /** An admission refusal means the message was not sent, not that an agent run failed. */
 export const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
@@ -101,10 +119,11 @@ export const RunFailureCallout = ({
     const setExpanded = useSetAtom(setExpandedAtom)
     const expanded = stored ?? false
     const big = isBigError(text)
-    const offerOwnKey = !!onAddKey && !!code && STARTER_CREDIT_CODES.has(code)
+    const offerOwnKey = !!onAddKey && !!code && OWN_KEY_CODES.has(code)
     const offerSignIn = !!onSignIn && !!code && SUBSCRIPTION_LOGIN_CODES.has(code)
     const notSent = !!code && NOT_SENT_CODES.has(code)
     const limitTitle = planLimitTitle(code)
+    const title = refusalTitle(code)
     const offerRetry =
         !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
@@ -113,7 +132,7 @@ export const RunFailureCallout = ({
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <span className="text-xs font-medium text-colorError">
-                    {limitTitle ?? (notSent ? "Message not sent" : "The agent run failed")}
+                    {title ?? (notSent ? "Message not sent" : "The agent run failed")}
                 </span>
                 {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">

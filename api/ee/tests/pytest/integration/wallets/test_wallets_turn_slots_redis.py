@@ -9,7 +9,7 @@ from redis.asyncio import Redis
 
 from oss.src.utils.env import env
 
-from ee.src.dbs.redis.wallets.turns import RedisTurnSlots
+from ee.src.dbs.redis.wallets.turns import RedisSessionTurnHolds, RedisTurnSlots
 
 pytestmark = pytest.mark.asyncio
 
@@ -106,3 +106,21 @@ async def test_the_same_turn_id_admitted_again_is_held_by_its_beats(slots):
     assert not await slots.acquire(
         organization_id=org, turn_id="b", limit=1, ttl_seconds=60
     )
+
+
+async def test_a_session_hold_expires_and_only_its_own_turn_releases_it(slots):
+    holds = RedisSessionTurnHolds(redis_client=slots.redis_client)
+    org = uuid4()
+    hold = dict(organization_id=org, session_id="s")
+
+    assert not await holds.held(**hold)
+    await holds.hold(turn_id="t1", ttl_seconds=60, **hold)
+    await holds.release(turn_id="t0", **hold)  # a late release of an older turn
+    assert await holds.held(**hold)
+    assert not await holds.held(organization_id=uuid4(), session_id="s")
+    await holds.release(turn_id="t1", **hold)
+    assert not await holds.held(**hold)
+
+    await holds.hold(turn_id="t2", ttl_seconds=1, **hold)
+    await asyncio.sleep(1.2)
+    assert not await holds.held(**hold)

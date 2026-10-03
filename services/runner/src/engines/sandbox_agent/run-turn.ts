@@ -78,6 +78,7 @@ import {
   classifyRunError,
   conciseError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
+  type RunErrorCode,
   TURN_TIME_LIMIT_CODE,
   withinCredentialPropagationWindow,
   withPublicCode,
@@ -136,6 +137,7 @@ import { appendSessionTurn } from "./session-continuity-durable.ts";
 import { nextTurnIndex, sessionContinuityStore } from "./session-continuity.ts";
 import {
   carriesGatewayRefusalMarker,
+  personFacingGatewayRefusal,
   errorEventWithDetail,
   parseGatewayErrorDetail,
 } from "../../gateway-error.ts";
@@ -1852,12 +1854,13 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedGatewayRefusal) {
-      swallowedError = swallowedGatewayRefusal.message;
+      const personFacing = personFacingGatewayRefusal(visibleOutput);
+      swallowedError = personFacing?.message ?? swallowedGatewayRefusal.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({
         type: "error",
         message: swallowedError,
-        code: "runner_error",
+        code: (personFacing?.code as RunErrorCode | undefined) ?? "runner_error",
         detail: swallowedGatewayRefusal,
       });
     } else if (swallowedPiError) {

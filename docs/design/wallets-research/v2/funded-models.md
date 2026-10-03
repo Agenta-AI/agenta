@@ -63,7 +63,10 @@ The whole `/gateways/llms/*` surface, the listing included, is behind the
 
 Changed from step 1.1: with the wallet on for the deployment, a `builtin` model call from an
 organization whose `wallets-rollout` mode is `off` (absent from the payload, or a cold
-lookup that timed out) is now refused (`policy_denied`, reason `wallet_off`), not admitted.
+lookup that timed out) is now refused (403 `builtin_models_not_enabled`, "Built-in models are
+not enabled for this organization. Choose a model that uses your own provider key."), not
+admitted. Until 2026-10-03 the refusal read `policy_denied`, "Entitlement wallet_balance
+exceeded", which told the person they were out of credit.
 `off` is not measured, so admitting it served the call free on our account. Sandbox and
 managed-tool admission keep step 1.1's behaviour. The listing still shows the models to
 such an organization (it does not read the wallet mode), so enroll an organization in both

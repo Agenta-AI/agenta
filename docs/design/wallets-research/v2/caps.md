@@ -159,6 +159,49 @@ but with the code `billing_unavailable`: "Billing is unavailable right now, so t
 did not run. You were not charged." It is retryable. Before, it read as "Your Agenta credits do
 not cover this tool call", which told the agent to ask the user for credits during an outage.
 
+## Model calls inside a turn
+
+Admission to the LLM gateway is per turn, not per call (fixed 2026-10-03, release QA bug 1).
+Before, the gateway checked the balance on every `builtin` model call, so the first model call
+after the balance reached zero stopped a running turn with a raw `policy_denied` refusal,
+against decision "a turn is never stopped for its balance".
+
+- The runner's turn admission (`POST /wallets/sandboxes/admit`) now names the turn's session.
+  When it admits the turn, it holds the session for that turn
+  (`wallets:sessions:{organization}:{session}` in Redis, value the turn id) for the plan's
+  longest turn: 30 minutes on Hobby, 4 hours on Pro, 11 hours on Business. A plan with no turn
+  cap is held for the gateway credential's lifetime (`AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS`,
+  12 hours by default), the longest a turn can reach the gateway at all. The turn's release
+  (`POST /wallets/sandboxes/turns/release`, sent when the turn held a slot) lets go of the hold
+  if it is still that turn's.
+- The gateway credential the runtime hands the sandbox carries the session as a label. A
+  `builtin` call whose session is held is measured and charged but never refused for the
+  balance. How far one turn goes below zero is bounded by its turn limit, the same bound as its
+  sandbox time.
+- Anything else is checked on every call: a new turn (the runner refuses it before it starts),
+  a call with no session label (a direct API call), and a session with no admitted turn.
+- A hold store that cannot answer falls back to checking the call. A turn may then be refused
+  mid-way during a Redis outage; it is never served unchecked.
+- `shadow` admits and holds as before; `off` refuses every `builtin` call (see
+  [funded-models.md](funded-models.md)) and holds nothing.
+- The session label is caller-supplied. A caller holding an API key of the organization can
+  label a gateway credential with a session that is running a turn and so call past zero while
+  that turn runs. The exposure is the turn's own: same organization, bounded by the turn limit,
+  and the sandbox holding the turn's credential could already do the same.
+
+The two gateway refusals have their own codes, so the runner and the chat show the platform's
+sentence instead of the code:
+
+| Code | Sentence | Chat title |
+| --- | --- | --- |
+| `wallet_balance_exhausted` | The out-of-credit message below | Out of credits |
+| `builtin_models_not_enabled` | "Built-in models are not enabled for this organization. Choose a model that uses your own provider key." (draft, pending approval) | Built-in models not enabled, with "Add your key" |
+
+The runner recognizes both codes in the harness's error text (`personFacingGatewayRefusal` in
+`services/runner/src/gateway-error.ts`). When a harness kept only the code marker (Codex), the
+runner shows a short sentence of its own. The chat strips any `⟦agenta_code:…⟧` marker that
+still reaches a run's error text.
+
 ## The credits view
 
 For an organization whose wallet is enforced (`GET /wallets/summary` now states the mode):
@@ -172,9 +215,6 @@ For an organization whose wallet is enforced (`GET /wallets/summary` now states 
 
 ## Known gaps
 
-- A model call refused mid-turn by the gateway's credit check (the balance reached zero during
-  the turn) still reads as a gateway refusal, not as the out-of-credit message. Admission
-  refuses first in practice, because it runs the same check before the turn.
 - The out-of-credit message for Hobby names the daily free credits (decided, built by release
   plan step 1.3). It must not ship without them.
 - Turn ids are runner-minted lock values. A runner token holder could hold slots for an

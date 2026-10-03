@@ -7,7 +7,8 @@ a stable code the chat maps to its own title and button, so every line is one li
 text written for the person in the chat.
 
 WORDING PENDING APPROVAL (drafted 2026-10-02 from the pricing proposal's section 6): the
-three messages below. The numbers in them come from the caps and the plan catalog.
+three messages below, and the built-in models line (drafted 2026-10-03). The numbers in
+them come from the caps and the plan catalog.
 """
 
 from dataclasses import dataclass
@@ -23,6 +24,13 @@ from ee.src.core.access.entitlements.types import (
 
 WALLET_BALANCE_EXHAUSTED_CODE = "wallet_balance_exhausted"
 CONCURRENT_TURNS_LIMIT_CODE = "concurrent_turns_limit"
+# A `builtin` model call for an organization whose wallet is `off`: nothing would
+# measure or charge it, so it is refused, and the organization uses its own keys.
+BUILTIN_MODELS_NOT_ENABLED_CODE = "builtin_models_not_enabled"
+BUILTIN_MODELS_NOT_ENABLED_MESSAGE = (
+    "Built-in models are not enabled for this organization. Choose a model that uses "
+    "your own provider key."
+)
 
 # The runner beats every minute; a turn whose runner stopped beating leaves the count
 # after three missed beats.
@@ -59,6 +67,26 @@ class TurnSlotsInterface(Protocol):
         ...
 
     async def release(self, *, organization_id: UUID, turn_id: str) -> None: ...
+
+
+class SessionTurnHoldsInterface(Protocol):
+    """The agent turn each session is running, as admitted by the platform's runner, held
+    for at most the turn's limit. While a session holds a turn, the LLM gateway serves its
+    platform-funded calls without checking the balance: a turn that started finishes."""
+
+    async def hold(
+        self, *, organization_id: UUID, session_id: str, turn_id: str, ttl_seconds: int
+    ) -> None:
+        """Hold the session's turn for `ttl_seconds`; a newer turn replaces an older one."""
+        ...
+
+    async def held(self, *, organization_id: UUID, session_id: str) -> bool: ...
+
+    async def release(
+        self, *, organization_id: UUID, session_id: str, turn_id: str
+    ) -> None:
+        """Let go of the session's hold if it is still this turn's."""
+        ...
 
 
 @dataclass(frozen=True)

@@ -99,7 +99,10 @@ class SpendAdmissionInterface(ABC):
 
     Not called `authorize`: that name belongs to the permission check, and permissions and
     entitlements answer different questions. Implementations may raise; the policy service
-    treats a raise as a refusal."""
+    treats a raise as a refusal.
+
+    `session_id` is the agent session the caller's gateway credential names, if any; an
+    implementation may admit a turn of that session once rather than every call in it."""
 
     @abstractmethod
     async def admit(
@@ -107,6 +110,7 @@ class SpendAdmissionInterface(ABC):
         *,
         scope: AuthScope,
         target: GatewayTarget,
+        session_id: Optional[str] = None,
     ) -> SpendAdmission:
         raise NotImplementedError
 

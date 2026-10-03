@@ -36,7 +36,7 @@ from ee.src.core.wallets.service import WalletsService
 from ee.src.core.wallets.usage.service import WalletUsageService
 from ee.src.core.measurements.sandboxes import SandboxUsageService
 from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
-from ee.src.dbs.redis.wallets.turns import RedisTurnSlots
+from ee.src.dbs.redis.wallets.turns import RedisSessionTurnHolds, RedisTurnSlots
 from ee.src.core.organizations.service import register_wallets_service
 
 from ee.src.apis.fastapi.access.router import AccessRouter
@@ -158,6 +158,7 @@ wallets_router = WalletsRouter(
             redis_client=get_streams_engine().get_redis()
         ),
         turn_slots=RedisTurnSlots(redis_client=get_lock_engine()),
+        session_holds=RedisSessionTurnHolds(redis_client=get_lock_engine()),
         plan_for=plan_for,
     ),
 )

@@ -62,6 +62,7 @@ from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
     EntitlementDeniedError,
     PolicyDeniedError,
+    SpendRefusedError,
 )
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.shared.dtos import Windowing
@@ -512,7 +513,13 @@ class LLMGatewayService:
         # at all never has a balance consulted; before the secret and the dispatch, so a
         # refused call costs nothing.
         if target.namespace == GatewayEndpointNamespace.BUILTIN:
-            admission = await self.policy.admit(scope=scope, target=policy_target)
+            # The session label names the agent turn a call belongs to; a turn the runner
+            # admitted is served to its end (`WalletSpendAdmission`).
+            admission = await self.policy.admit(
+                scope=scope,
+                target=policy_target,
+                session_id=(run_labels or {}).get("session_id"),
+            )
             if not admission.allowed:
                 await self.policy.record(
                     scope=scope,
@@ -525,6 +532,12 @@ class LLMGatewayService:
                     outcome=GatewayOutcome(status_code=403),
                     run_id=run_id,
                 )
+                if admission.reason and admission.message:
+                    raise SpendRefusedError(
+                        code=admission.reason,
+                        message=admission.message,
+                        target=target.target_path(),
+                    )
                 raise EntitlementDeniedError(
                     key="wallet_balance", target=target.target_path()
                 )

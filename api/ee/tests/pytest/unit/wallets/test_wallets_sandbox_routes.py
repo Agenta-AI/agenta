@@ -35,6 +35,7 @@ from ee.src.core.access.entitlements.types import (
 )
 from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryMeasurementPublisher,
+    InMemorySessionTurnHolds,
     InMemoryTurnSlots,
 )
 
@@ -78,6 +79,7 @@ def _router(*, allowed=True, publisher=None, slots=None, plan=None):
             wallet=_Wallet(allowed),
             publisher=publisher or InMemoryMeasurementPublisher(),
             turn_slots=slots if slots is not None else InMemoryTurnSlots(),
+            session_holds=InMemorySessionTurnHolds(),
             plan_for=plan_for,
         ),
     )

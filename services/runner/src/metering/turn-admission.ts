@@ -26,13 +26,14 @@ export async function runAdmittedTurn(
   deps: { admit?: typeof admitSandboxTurn; holdSlot?: typeof holdTurnSlot } = {},
 ): Promise<AgentRunResult> {
   const authorization = meteringCredentialForRequest(request);
-  const admission = await (deps.admit ?? admitSandboxTurn)(authorization, turnId);
+  const sessionId = request.sessionId?.trim() || undefined;
+  const admission = await (deps.admit ?? admitSandboxTurn)(authorization, turnId, sessionId);
   if (!admission.admitted) {
     emit?.({ type: "error", message: admission.message, code: admission.code });
     return { ok: false, error: admission.message };
   }
-  const slot = admission.slotHeld ? (deps.holdSlot ?? holdTurnSlot)(authorization, turnId) : undefined;
-  const turn: AdmittedTurn = { sessionId: request.sessionId?.trim() };
+  const slot = admission.slotHeld ? (deps.holdSlot ?? holdTurnSlot)(authorization, turnId, sessionId) : undefined;
+  const turn: AdmittedTurn = { sessionId };
   const end = (): void => {
     if (openTurns.get(turnId) === end) openTurns.delete(turnId);
     turn.ended = true;

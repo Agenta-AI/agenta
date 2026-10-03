@@ -29,6 +29,7 @@ from oss.src.core.gateways.policy.types import (
     SecretInvalidError,
     SecretNotFoundError,
     EntitlementDeniedError,
+    SpendRefusedError,
     PolicyDeniedError,
 )
 from oss.src.utils.context import (
@@ -322,6 +323,22 @@ _DENIAL_CASES = [
         "policy_denied",
     ),
     (EntitlementDeniedError(key="k", target="t"), 403, "policy_denied"),
+    (
+        SpendRefusedError(
+            code="wallet_balance_exhausted", message="Out of credits.", target="t"
+        ),
+        403,
+        "wallet_balance_exhausted",
+    ),
+    (
+        SpendRefusedError(
+            code="builtin_models_not_enabled",
+            message="Built-in models are not enabled.",
+            target="t",
+        ),
+        403,
+        "builtin_models_not_enabled",
+    ),
     (
         LLMModelNotAllowedError(
             model="gpt-4o", namespace=GatewayEndpointNamespace.CUSTOM, name="my-slug"

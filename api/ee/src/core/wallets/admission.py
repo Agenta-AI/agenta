@@ -2,7 +2,7 @@
 rollout mode every wallet admission point and measurement producer applies."""
 
 import asyncio
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Optional
 from uuid import UUID
 
 from oss.src.core.gateways.policy.dtos import GatewayTarget, SpendAdmission
@@ -11,6 +11,13 @@ from oss.src.core.rollout.switches import WalletMode, wallet_mode_for
 from oss.src.utils.context import AuthScope
 from oss.src.utils.logging import get_module_logger
 
+from ee.src.core.wallets.caps import (
+    BUILTIN_MODELS_NOT_ENABLED_CODE,
+    BUILTIN_MODELS_NOT_ENABLED_MESSAGE,
+    WALLET_BALANCE_EXHAUSTED_CODE,
+    SessionTurnHoldsInterface,
+    credit_exhausted_message,
+)
 from ee.src.core.wallets.interfaces import WalletCheckPort
 
 log = get_module_logger(__name__)
@@ -88,25 +95,80 @@ async def measured(organization_id: UUID, *, wait: bool = True) -> bool:
 
 class WalletSpendAdmission(SpendAdmissionInterface):
     """Admits a platform-funded call while the organization's spendable balance is above
-    its floor. One `check` read per call; nothing is reserved, so a call admitted near the
-    floor can settle below it (open-design items 2 and 17). A `check` that raises
-    propagates, and the gateway refuses the call."""
+    its floor. Nothing is reserved, so an admitted call can settle below it (open-design
+    items 2 and 17). A `check` that raises propagates, and the gateway refuses the call.
 
-    def __init__(self, *, wallet: WalletCheckPort):
+    Admission is per agent turn where there is one. The runner admits each turn
+    (`SandboxUsageService.admit`) and holds it for its session until the turn ends or its
+    limit passes. A call whose gateway credential names that session is measured and
+    charged but not refused for the balance, so a turn that started finishes (caps.md);
+    the turn's limit bounds how far below the floor it goes. Any other call is checked."""
+
+    def __init__(
+        self,
+        *,
+        wallet: WalletCheckPort,
+        session_holds: SessionTurnHoldsInterface,
+        plan_for: Callable[[UUID], Awaitable[Optional[str]]],
+    ):
         self.wallet = wallet
+        self.session_holds = session_holds
+        self.plan_for = plan_for
 
-    async def admit(self, *, scope: AuthScope, target: GatewayTarget) -> SpendAdmission:
+    async def admit(
+        self,
+        *,
+        scope: AuthScope,
+        target: GatewayTarget,
+        session_id: Optional[str] = None,
+    ) -> SpendAdmission:
+        organization_id = scope.organization_id
         # A `builtin` model call spends the platform's own provider account, and an
         # organization whose wallet is `off` is not measured, so admitting it would serve
         # the call free. Refused instead, without reading the wallet: such an organization
         # keeps its own provider keys through the `standard` and `custom` namespaces.
-        if not await measured(scope.organization_id):
-            return SpendAdmission(allowed=False, reason="wallet_off")
-        allowed = await admit_in_mode(
-            organization_id=scope.organization_id,
-            point="gateway",
-            check=lambda: self.wallet.check(organization_id=scope.organization_id),
-        )
-        if allowed:
+        if not await measured(organization_id):
+            return SpendAdmission(
+                allowed=False,
+                reason=BUILTIN_MODELS_NOT_ENABLED_CODE,
+                message=BUILTIN_MODELS_NOT_ENABLED_MESSAGE,
+            )
+        if session_id and await self._turn_running(organization_id, session_id):
             return SpendAdmission(allowed=True)
-        return SpendAdmission(allowed=False, reason="entitlement_denied")
+        if await admit_in_mode(
+            organization_id=organization_id,
+            point="gateway",
+            check=lambda: self.wallet.check(organization_id=organization_id),
+        ):
+            return SpendAdmission(allowed=True)
+        return SpendAdmission(
+            allowed=False,
+            reason=WALLET_BALANCE_EXHAUSTED_CODE,
+            message=credit_exhausted_message(await self._plan(organization_id)),
+        )
+
+    async def _turn_running(self, organization_id: UUID, session_id: str) -> bool:
+        # A store that cannot answer falls back to checking the call: the turn may then
+        # be refused, never served unchecked.
+        try:
+            return await self.session_holds.held(
+                organization_id=organization_id, session_id=session_id
+            )
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "[wallets] session holds unavailable; checking the call",
+                organization_id=str(organization_id),
+                exc_info=True,
+            )
+            return False
+
+    async def _plan(self, organization_id: UUID) -> Optional[str]:
+        try:
+            return await self.plan_for(organization_id)
+        except Exception:  # noqa: BLE001 - an unknown plan only changes the wording
+            log.warning(
+                "[wallets] plan unavailable for the refusal message",
+                organization_id=str(organization_id),
+                exc_info=True,
+            )
+            return None

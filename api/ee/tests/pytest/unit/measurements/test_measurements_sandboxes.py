@@ -14,6 +14,8 @@ from pydantic import ValidationError
 from oss.src.utils.context import AuthScope
 
 from ee.src.core.measurements.charges import calculate_charge
+from oss.src.utils.env import env
+
 from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.measurements.rate_card import RATE_CARD_VERSION, SANDBOX_BUSINESS
 from ee.src.core.measurements.sandboxes import (
@@ -28,6 +30,7 @@ from ee.src.core.wallets.errors import UnpricedMeasurementError
 from ee.src.dbs.postgres.measurements.mappings import measurement_fingerprint
 from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryMeasurementPublisher,
+    InMemorySessionTurnHolds,
     InMemoryTurnSlots,
     no_plan,
 )
@@ -207,6 +210,7 @@ async def test_admission_is_the_wallet_check_for_the_callers_organization(allowe
         wallet=wallet,
         publisher=InMemoryMeasurementPublisher(),
         turn_slots=InMemoryTurnSlots(),
+        session_holds=InMemorySessionTurnHolds(),
         plan_for=no_plan,
     )
 
@@ -221,6 +225,7 @@ async def test_a_recorded_interval_is_published_once():
         wallet=_Wallet(True),
         publisher=publisher,
         turn_slots=InMemoryTurnSlots(),
+        session_holds=InMemorySessionTurnHolds(),
         plan_for=no_plan,
     )
 
@@ -240,6 +245,7 @@ async def test_an_unpublished_interval_is_reported_so_the_runner_retries_it():
         wallet=_Wallet(True),
         publisher=_Refusing(),
         turn_slots=InMemoryTurnSlots(),
+        session_holds=InMemorySessionTurnHolds(),
         plan_for=no_plan,
     )
 
@@ -267,6 +273,7 @@ async def test_a_recorded_interval_carries_the_rate_tier_of_the_plan(plan, tier)
         wallet=_Wallet(True),
         publisher=publisher,
         turn_slots=InMemoryTurnSlots(),
+        session_holds=InMemorySessionTurnHolds(),
         plan_for=plan_for,
     )
 
@@ -287,9 +294,98 @@ async def test_an_interval_whose_plan_cannot_be_read_is_reported_so_the_runner_r
         wallet=_Wallet(True),
         publisher=publisher,
         turn_slots=InMemoryTurnSlots(),
+        session_holds=InMemorySessionTurnHolds(),
         plan_for=plan_for,
     )
 
     with pytest.raises(SandboxUsageNotRecordedError):
         await service.record(scope=_scope(), interval=_interval())
     assert publisher.published == []
+
+
+async def _hobby(organization_id):
+    return DefaultPlan.CLOUD_V0_HOBBY.value
+
+
+def _admitting(wallet, holds, plan_for=_hobby, slots=None):
+    return SandboxUsageService(
+        wallet=wallet,
+        publisher=InMemoryMeasurementPublisher(),
+        turn_slots=slots or InMemoryTurnSlots(),
+        session_holds=holds,
+        plan_for=plan_for,
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_admitted_turn_holds_its_session_for_the_plans_turn_limit():
+    holds = InMemorySessionTurnHolds()
+    scope = _scope()
+
+    await _admitting(_Wallet(True), holds).admit(
+        scope=scope, turn_id="turn-1", session_id="sess-1"
+    )
+
+    assert holds.holds == {(scope.organization_id, "sess-1"): ("turn-1", 30 * 60)}
+
+
+@pytest.mark.asyncio
+async def test_a_plan_with_no_turn_cap_holds_the_session_for_the_credential_lifetime():
+    holds = InMemorySessionTurnHolds()
+    scope = _scope()
+
+    await _admitting(_Wallet(True), holds, plan_for=no_plan).admit(
+        scope=scope, turn_id="turn-1", session_id="sess-1"
+    )
+
+    assert holds.holds == {
+        (scope.organization_id, "sess-1"): (
+            "turn-1",
+            env.gateway_credentials.ttl_seconds,
+        )
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_refused_turn_holds_nothing():
+    holds = InMemorySessionTurnHolds()
+    scope = _scope()
+    slots = InMemoryTurnSlots()
+    slots.held[scope.organization_id] = {"a", "b"}  # Hobby's 2 at once already run
+
+    out_of_credit = await _admitting(_Wallet(False), holds).admit(
+        scope=scope, turn_id="turn-1", session_id="sess-1"
+    )
+    at_the_cap = await _admitting(_Wallet(True), holds, slots=slots).admit(
+        scope=scope, turn_id="turn-2", session_id="sess-1"
+    )
+
+    assert not out_of_credit.allowed and not at_the_cap.allowed
+    assert holds.holds == {}
+
+
+@pytest.mark.asyncio
+async def test_a_released_turn_lets_go_of_its_session_but_not_of_a_newer_turn():
+    holds = InMemorySessionTurnHolds()
+    scope = _scope()
+    service = _admitting(_Wallet(True), holds)
+
+    await service.admit(scope=scope, turn_id="turn-1", session_id="sess-1")
+    await service.release_turn(scope=scope, turn_id="turn-1", session_id="sess-1")
+    assert holds.holds == {}
+
+    await service.admit(scope=scope, turn_id="turn-2", session_id="sess-1")
+    await service.release_turn(scope=scope, turn_id="turn-1", session_id="sess-1")
+    assert (scope.organization_id, "sess-1") in holds.holds
+
+
+@pytest.mark.asyncio
+async def test_a_hold_store_that_cannot_answer_still_admits_the_turn():
+    holds = InMemorySessionTurnHolds()
+    holds.fail = True
+
+    admission = await _admitting(_Wallet(True), holds).admit(
+        scope=_scope(), turn_id="turn-1", session_id="sess-1"
+    )
+
+    assert admission.allowed

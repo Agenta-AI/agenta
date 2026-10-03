@@ -130,7 +130,10 @@ class SpendAdmission(BaseModel):
     read it as a budget (wallets open-design item 17)."""
 
     allowed: bool
-    reason: Optional[str] = None  # set when refused
+    # Set when refused: a stable code the caller can act on, and the sentence for the
+    # person who sent the call.
+    reason: Optional[str] = None
+    message: Optional[str] = None
     ceiling_musd: Optional[int] = None
 
 

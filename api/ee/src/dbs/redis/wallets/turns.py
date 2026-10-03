@@ -96,3 +96,44 @@ class RedisTurnSlots:
             turn_id,
             RELEASED_MARKER_SECONDS * 1000,
         )
+
+
+# KEYS[1] the session's hold; ARGV[1] turn id. Deletes only this turn's hold, so a late
+# release of an older turn never ends a newer turn's.
+_RELEASE_HOLD = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+"""
+
+
+def _hold_key(organization_id: UUID, session_id: str) -> str:
+    return f"wallets:sessions:{organization_id}:{session_id}"
+
+
+class RedisSessionTurnHolds:
+    """One key per session, holding the id of its admitted turn until the turn ends or its
+    limit passes."""
+
+    def __init__(self, *, redis_client):
+        self.redis_client = redis_client
+
+    async def hold(
+        self, *, organization_id: UUID, session_id: str, turn_id: str, ttl_seconds: int
+    ) -> None:
+        await self.redis_client.set(
+            _hold_key(organization_id, session_id), turn_id, ex=ttl_seconds
+        )
+
+    async def held(self, *, organization_id: UUID, session_id: str) -> bool:
+        return bool(
+            await self.redis_client.exists(_hold_key(organization_id, session_id))
+        )
+
+    async def release(
+        self, *, organization_id: UUID, session_id: str, turn_id: str
+    ) -> None:
+        await self.redis_client.eval(
+            _RELEASE_HOLD, 1, _hold_key(organization_id, session_id), turn_id
+        )

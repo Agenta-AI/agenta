@@ -189,7 +189,7 @@ class _MockPolicy:
             reason=None if self.allowed else "permission_denied",
         )
 
-    async def admit(self, *, scope, target):
+    async def admit(self, *, scope, target, session_id=None):
         self.admit_calls.append((scope, target))
         return SpendAdmission(
             allowed=self.admitted,

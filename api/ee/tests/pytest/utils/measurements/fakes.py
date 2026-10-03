@@ -145,3 +145,25 @@ class InMemoryTurnSlots:
 
 async def no_plan(organization_id):
     return None
+
+
+class InMemorySessionTurnHolds:
+    """`RedisSessionTurnHolds` without expiry: records each session's turn and ttl."""
+
+    def __init__(self) -> None:
+        self.holds: dict = {}
+        self.fail = False
+
+    async def hold(self, *, organization_id, session_id, turn_id, ttl_seconds) -> None:
+        if self.fail:
+            raise ConnectionError("session holds unavailable")
+        self.holds[(organization_id, session_id)] = (turn_id, ttl_seconds)
+
+    async def held(self, *, organization_id, session_id) -> bool:
+        if self.fail:
+            raise ConnectionError("session holds unavailable")
+        return (organization_id, session_id) in self.holds
+
+    async def release(self, *, organization_id, session_id, turn_id) -> None:
+        if self.holds.get((organization_id, session_id), (None,))[0] == turn_id:
+            del self.holds[(organization_id, session_id)]

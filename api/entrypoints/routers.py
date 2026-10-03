@@ -1318,11 +1318,17 @@ secrets_resolver = SecretsResolver(
 gateway_spend_admission = None
 gateway_usage_sink = None
 if ee and is_ee() and env.wallets.enabled:
+    from ee.src.core.access.entitlements.service import plan_for
     from ee.src.core.measurements.sink import MeasurementUsageSink
     from ee.src.core.wallets.admission import WalletSpendAdmission
     from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
+    from ee.src.dbs.redis.wallets.turns import RedisSessionTurnHolds
 
-    gateway_spend_admission = WalletSpendAdmission(wallet=ee.wallets_service)
+    gateway_spend_admission = WalletSpendAdmission(
+        wallet=ee.wallets_service,
+        session_holds=RedisSessionTurnHolds(redis_client=_lock_engine),
+        plan_for=plan_for,
+    )
     gateway_usage_sink = MeasurementUsageSink(
         publisher=RedisMeasurementPublisher(redis_client=_streams_engine.get_redis())
     )

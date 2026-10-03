@@ -47,7 +47,9 @@ from oss.src.utils.context import (
 from oss.src.utils.env import env
 
 from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
+from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.measurements.charges import calculate_charge
+from ee.src.core.measurements.sandboxes import SandboxUsageService
 from ee.src.core.measurements.sink import MeasurementUsageSink
 from ee.src.core.wallets.admission import WalletSpendAdmission
 from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
@@ -65,9 +67,11 @@ from ee.src.dbs.redis.wallets.streams import (
     RedisDebitPublisher,
     RedisMeasurementPublisher,
 )
+from ee.src.dbs.redis.wallets.turns import RedisSessionTurnHolds, RedisTurnSlots
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 
+from ee.tests.pytest.utils.measurements.fakes import no_plan
 from oss.tests.pytest.unit.gateways.test_gateways_llm_service import (
     _MockLlmEndpointsDAO,
     _MockResolver,
@@ -164,7 +168,11 @@ class _Chain:
         policy = (
             GatewayPolicyService(
                 resolver=resolver,
-                spend_admission=WalletSpendAdmission(wallet=self._counting_wallet()),
+                spend_admission=WalletSpendAdmission(
+                    wallet=self._counting_wallet(),
+                    session_holds=RedisSessionTurnHolds(redis_client=redis_client),
+                    plan_for=no_plan,
+                ),
                 usage_sink=MeasurementUsageSink(
                     publisher=RedisMeasurementPublisher(redis_client=redis_client)
                 ),
@@ -514,10 +522,79 @@ async def test_an_organization_at_its_floor_is_refused_before_the_provider(
     response, body = await _call(chain, organization_id)
 
     assert response.status_code == 403
-    assert json.loads(body)["error"]["code"] == "policy_denied"
+    assert json.loads(body)["error"]["code"] == "wallet_balance_exhausted"
     assert chain.adapter.calls == 0
     assert await chain.run_workers() == []
     assert await _debits(organization_id) == []
+
+    await _cleanup(organization_id)
+
+
+async def _drain_balance(organization_id):
+    async with get_transactions_engine().session() as session:
+        await session.execute(
+            text(
+                "UPDATE wallet_balances SET balance_musd = 0"
+                " WHERE organization_id = :organization_id"
+            ),
+            {"organization_id": organization_id},
+        )
+
+
+async def _hobby(organization_id):
+    return DefaultPlan.CLOUD_V0_HOBBY.value
+
+
+async def test_a_running_turn_finishes_after_its_balance_reaches_the_floor(
+    wallet_schema, redis_client, analytics_engine
+):
+    """Release QA bug 1: the next model call inside a running agent turn was refused with
+    `policy_denied` once the balance hit zero. The runner's admission holds the turn's
+    session; the turn's later calls are served and charged, while a call from another
+    session and a direct call are refused."""
+    organization_id = uuid4()
+    await _fund(organization_id)
+    chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
+    await chain.start_workers()
+    turns = SandboxUsageService(
+        wallet=chain.wallets,
+        publisher=RedisMeasurementPublisher(redis_client=redis_client),
+        turn_slots=RedisTurnSlots(redis_client=redis_client),
+        session_holds=RedisSessionTurnHolds(redis_client=redis_client),
+        plan_for=_hobby,
+    )
+    in_turn = {"session_id": "sess-1"}
+
+    with _caller(organization_id) as scope:
+        admitted = await turns.admit(scope=scope, turn_id="turn-1", session_id="sess-1")
+    first, _ = await _call(chain, organization_id, run_labels=in_turn)
+    await chain.run_workers()
+    await _drain_balance(organization_id)
+    later, _ = await _call(chain, organization_id, run_labels=in_turn)
+    await chain.run_workers()
+    other, other_body = await _call(
+        chain, organization_id, run_labels={"session_id": "sess-2"}
+    )
+    direct, direct_body = await _call(chain, organization_id)
+
+    assert admitted.allowed
+    assert (first.status_code, later.status_code) == (200, 200)
+    assert chain.adapter.calls == 2
+    assert len(await _debits(organization_id)) == 2
+    # The call after the floor was charged: the balance went below it.
+    assert await _general_balance(organization_id) < 0
+    for response, body in ((other, other_body), (direct, direct_body)):
+        assert response.status_code == 403
+        error = json.loads(body)["error"]
+        assert error["code"] == "wallet_balance_exhausted"
+        assert error["message"].startswith("Your organization has used all its credits")
+    # Held for the Hobby plan's turn limit, and let go when the turn ends.
+    ttl = await redis_client.ttl(f"wallets:sessions:{organization_id}:sess-1")
+    assert 30 * 60 - 5 <= ttl <= 30 * 60
+    with _caller(organization_id) as scope:
+        await turns.release_turn(scope=scope, turn_id="turn-1", session_id="sess-1")
+    after_turn, _ = await _call(chain, organization_id, run_labels=in_turn)
+    assert after_turn.status_code == 403
 
     await _cleanup(organization_id)
 
@@ -738,7 +815,12 @@ async def test_an_organization_absent_from_the_wallet_rollout_is_refused_a_built
     response, body = await _call(chain, organization_id)
 
     assert response.status_code == 403
-    assert json.loads(body)["error"]["code"] == "policy_denied"
+    error = json.loads(body)["error"]
+    assert error["code"] == "builtin_models_not_enabled"
+    assert error["message"].startswith(
+        "Built-in models are not enabled for this organization."
+    )
+    assert "wallet_balance" not in error["message"]
     assert chain.checks == 0
     assert chain.adapter.calls == 0
     assert await chain.run_workers() == []
@@ -757,7 +839,7 @@ async def test_two_organizations_on_one_stack_follow_their_own_modes(
     off_gateway, off_body = await _call(chain, outside)
 
     assert refused.status_code == 403
-    assert json.loads(refused_body)["error"]["code"] == "policy_denied"
+    assert json.loads(refused_body)["error"]["code"] == "wallet_balance_exhausted"
     # Outside the gateway rollout: refused as a disabled plane, before any wallet read.
     assert json.loads(off_body)["error"]["code"] == "llm_gateway_disabled"
     assert chain.checks == 1

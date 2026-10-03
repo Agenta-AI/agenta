@@ -19,9 +19,9 @@
 import {act} from "react"
 
 import {
+    OWN_KEY_CODES,
     PLAN_LIMIT_TITLES,
     RETRYABLE_CODES,
-    STARTER_CREDIT_CODES,
     SUBSCRIPTION_LOGIN_CODES,
 } from "@agenta/chat/components"
 import {
@@ -145,7 +145,7 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(shown).not.toContain("Try again")
     })
 
-    it.each([...STARTER_CREDIT_CODES])(
+    it.each([...OWN_KEY_CODES])(
         "offers the key escape for %s, and takes the reader there",
         (code) => {
             const shown = renderTurn(failedTurn("Out of starter credits.", code))
@@ -207,6 +207,31 @@ describe("mobile TurnRow: a run that failed", () => {
                 "Plans and billing",
             )
         })
+    })
+
+    it("shows built-in models being off as its own refusal, with the key escape", () => {
+        const sentence =
+            "Built-in models are not enabled for this organization. Choose a model that uses your own provider key."
+        const shown = renderTurn(failedTurn(sentence, "builtin_models_not_enabled"))
+
+        expect(shown).toContain("Built-in models not enabled")
+        expect(shown).toContain(sentence)
+        expect(shown).toContain("Add your key")
+        expect(shown).not.toContain("builtin_models_not_enabled")
+        expect(shown).not.toContain("Plans and billing")
+    })
+
+    it("never shows the gateway's code marker", () => {
+        // Release QA, 2026-10-03: the reason read "... ⟦agenta_code:policy_denied⟧".
+        const shown = renderTurn(
+            failedTurn(
+                "The model provider refused the request (HTTP 403): Denied use_llm_endpoints on builtin/agenta \u27e6agenta_code:policy_denied\u27e7",
+                "provider_error",
+            ),
+        )
+
+        expect(shown).toContain("Denied use_llm_endpoints on builtin/agenta")
+        expect(shown).not.toContain("agenta_code")
     })
 
     it("draws no escape off a project route, where there is no page to send anyone to", () => {

@@ -39,6 +39,7 @@ from oss.src.core.gateways.policy.types import (
     SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
+    SpendRefusedError,
 )
 from oss.src.core.gateways.run_claims import gateway_run_id, gateway_run_labels
 from oss.src.utils.context import get_auth_scope
@@ -115,6 +116,15 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             status_code=403,
             message=exc.message,
             error_type="invalid_request_error",
+            code=exc.code,
+        )
+    if isinstance(exc, SpendRefusedError):
+        # Its own code, so the runner and the chat can name the refusal (out of credit,
+        # built-in models not enabled) instead of showing a generic denial.
+        return _openai_error(
+            status_code=403,
+            message=exc.message,
+            error_type="permission_error",
             code=exc.code,
         )
     if isinstance(exc, (PolicyDeniedError, EntitlementDeniedError)):

@@ -51,7 +51,7 @@ describe("admitSandboxTurn", () => {
 
   it("refuses only on an explicit no, with the platform's own code and message", async () => {
     expect(
-      await admitSandboxTurn("ApiKey k", "t-1", {
+      await admitSandboxTurn("ApiKey k", "t-1", undefined, {
         ...deps,
         fetch: answer(200, {
           allowed: false,
@@ -64,18 +64,18 @@ describe("admitSandboxTurn", () => {
       code: "concurrent_turns_limit",
       message: "Your organization already has 2 agents running.",
     });
-    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: answer(200, { allowed: false }) })).toEqual({
+    expect(await admitSandboxTurn("ApiKey k", "t-1", undefined, { ...deps, fetch: answer(200, { allowed: false }) })).toEqual({
       admitted: false,
       code: "wallet_balance_exhausted",
       message: "Your Agenta credits are used up, so this turn did not start. Add credits to keep going.",
     });
-    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: answer(200, { allowed: true }) })).toEqual({
+    expect(await admitSandboxTurn("ApiKey k", "t-1", undefined, { ...deps, fetch: answer(200, { allowed: true }) })).toEqual({
       admitted: true,
     });
   });
 
   it("an unknown refusal code is still a refusal, never a raw code in the chat", async () => {
-    const admission = await admitSandboxTurn("ApiKey k", "t-1", {
+    const admission = await admitSandboxTurn("ApiKey k", "t-1", undefined, {
       ...deps,
       fetch: answer(200, { allowed: false, code: "something_new", message: "Not now." }),
     });
@@ -92,7 +92,7 @@ describe("admitSandboxTurn", () => {
       );
     }) as unknown as typeof globalThis.fetch;
 
-    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch })).toEqual({
+    expect(await admitSandboxTurn("ApiKey k", "t-1", undefined, { ...deps, fetch })).toEqual({
       admitted: true,
       turnLimit: { ms: 1_800_000, message: "Stopped at 30 minutes." },
       slotHeld: true,
@@ -100,15 +100,39 @@ describe("admitSandboxTurn", () => {
     expect(seen).toEqual([{ turn_id: "t-1" }]);
   });
 
+  it("names the turn's session, so the gateway serves the admitted turn to its end", async () => {
+    const seen: unknown[] = [];
+    const fetch = (async (_url: string, init?: RequestInit) => {
+      seen.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ allowed: true }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+
+    await admitSandboxTurn("ApiKey k", "t-1", "sess-1", { ...deps, fetch });
+    const slot = holdTurnSlot("Secret run-1", "t-1", "sess-1", {
+      fetch,
+      baseUrl: BASE,
+      log: () => {},
+      intervalMs: 60_000,
+      startLease: () => ({ credential: () => "Secret run-1", release: () => {} }),
+    });
+    slot.release();
+    await vi.waitFor(() => expect(seen).toHaveLength(2));
+
+    expect(seen).toEqual([
+      { turn_id: "t-1", session_id: "sess-1" },
+      { turn_id: "t-1", session_id: "sess-1" },
+    ]);
+  });
+
   it("admits when the platform does not meter sandboxes, fails, or cannot be asked", async () => {
-    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: answer(404) })).toEqual({ admitted: true });
-    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: answer(500) })).toEqual({ admitted: true });
+    expect(await admitSandboxTurn("ApiKey k", "t-1", undefined, { ...deps, fetch: answer(404) })).toEqual({ admitted: true });
+    expect(await admitSandboxTurn("ApiKey k", "t-1", undefined, { ...deps, fetch: answer(500) })).toEqual({ admitted: true });
     const down = (async () => {
       throw new Error("ECONNREFUSED");
     }) as unknown as typeof fetch;
-    expect(await admitSandboxTurn("ApiKey k", "t-1", { ...deps, fetch: down })).toEqual({ admitted: true });
+    expect(await admitSandboxTurn("ApiKey k", "t-1", undefined, { ...deps, fetch: down })).toEqual({ admitted: true });
     const never = vi.fn();
-    expect(await admitSandboxTurn("", "t-1", { ...deps, fetch: never as unknown as typeof fetch })).toEqual({
+    expect(await admitSandboxTurn("", "t-1", undefined, { ...deps, fetch: never as unknown as typeof fetch })).toEqual({
       admitted: true,
     });
     expect(never).not.toHaveBeenCalled();
@@ -127,7 +151,7 @@ describe("holdTurnSlot", () => {
     const { calls, fetch } = platform();
     let credential = "Secret run-1";
     const released = vi.fn();
-    const slot = holdTurnSlot("Secret run-1", "t-1", {
+    const slot = holdTurnSlot("Secret run-1", "t-1", undefined, {
       fetch,
       baseUrl: BASE,
       log: () => {},
@@ -160,7 +184,7 @@ describe("holdTurnSlot", () => {
       order.push(`${action}:done`);
       return new Response(null, { status: 204 });
     }) as unknown as typeof globalThis.fetch;
-    const slot = holdTurnSlot("Secret run-1", "t-1", {
+    const slot = holdTurnSlot("Secret run-1", "t-1", undefined, {
       fetch,
       baseUrl: BASE,
       log: () => {},
@@ -182,7 +206,7 @@ describe("holdTurnSlot", () => {
     const down = (async () => {
       throw new Error("ECONNREFUSED");
     }) as unknown as typeof fetch;
-    const slot = holdTurnSlot("Secret run-1", "t-1", {
+    const slot = holdTurnSlot("Secret run-1", "t-1", undefined, {
       fetch: down,
       baseUrl: BASE,
       log: (line) => lines.push(line),
@@ -497,7 +521,7 @@ describe("the wallet switch", () => {
     const fetch = vi.fn();
 
     // The same calls server.ts and environment.ts make.
-    const admission = await admitSandboxTurn(meteringCredentialForRequest(RUN), "t-1", {
+    const admission = await admitSandboxTurn(meteringCredentialForRequest(RUN), "t-1", undefined, {
       fetch: fetch as unknown as typeof globalThis.fetch,
       baseUrl: BASE,
       log: () => {},
@@ -537,7 +561,7 @@ describe("the runner proves it is the runner", () => {
     }) as unknown as typeof globalThis.fetch;
     let t = START_MS;
 
-    await admitSandboxTurn("Access run-token", "t-1", { fetch, baseUrl: BASE, log: () => {} });
+    await admitSandboxTurn("Access run-token", "t-1", undefined, { fetch, baseUrl: BASE, log: () => {} });
     const meter = startSandboxMeter({
       provider: "daytona",
       sandboxId: "sb-1",
