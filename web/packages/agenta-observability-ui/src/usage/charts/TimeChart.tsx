@@ -121,7 +121,6 @@ export const TimeChart = ({
             domain={[low, high]}
             tickFormatter={formatTick}
             fontSize={11}
-            allowDataOverflow
         />,
         average ? (
             <ReferenceLine
