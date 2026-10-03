@@ -213,7 +213,7 @@ export function SplitPane({
         e.currentTarget.setPointerCapture(e.pointerId)
         // Seed the total up front: a press-and-release with no movement never reaches
         // `handlePointerMove`, and a `total` of 0 breaks any ratio the caller derives from it.
-        lastRef.current = {size: displayedSize, total: readTotal()}
+        lastRef.current = {size: paneSize, total: readTotal()}
         draggingRef.current = true
         setDragging(true)
         onResizeStart?.()
