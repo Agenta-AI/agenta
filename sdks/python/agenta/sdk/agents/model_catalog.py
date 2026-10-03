@@ -202,12 +202,30 @@ def _catalog_id(provider: Optional[str], model_id: str) -> str:
     return f"{provider.lower()}/{model_id}"
 
 
-# Exact upstream identities served by the OpenAI-compatible starter-credits bridge.
-# These aliases affect capability lookup only; the upstream request keeps its model id.
-# Do not infer capabilities from arbitrary custom names or provider prefixes.
-_PI_INPUT_MODALITY_ALIASES = {
-    "openai/vertex_ai/gemini-3.7-flash": "gemini/gemini-3.7-flash",
-}
+def _custom_catalog_id(provider: Optional[str], model_id: str) -> Optional[str]:
+    """Join a self-describing OpenAI-compatible custom model to catalog facts.
+
+    The transport provider is not necessarily the model provider. Strip only the
+    explicit ``<connection>/custom/`` envelope, never arbitrary path segments.
+    Bare custom names remain unknown. This changes no connection routing.
+    """
+    parts = model_id.split("/", 2)
+    namespace = None
+    if len(parts) == 3 and parts[1] == "custom":
+        namespace, _, model_id = parts
+    head, separator, tail = model_id.partition("/")
+    if head.lower() == "openai" and "/" in tail:
+        head, separator, tail = tail.partition("/")
+    if not separator or not tail:
+        return None
+    allowed_providers = {"openai", head.lower()}
+    if namespace:
+        allowed_providers.add(namespace.lower())
+    if provider and provider.lower() not in allowed_providers:
+        return None
+    # Vertex serves the Gemini family; the exact model must still exist in the catalog.
+    family = {"vertex": "gemini", "vertex_ai": "gemini"}.get(head.lower(), head.lower())
+    return f"{family}/{tail}"
 
 
 def model_input_modalities(
@@ -230,7 +248,7 @@ def model_input_modalities(
 
     entry = next((item for item in catalog.models if item.id == catalog_id), None)
     if harness == "pi_core" and entry is None:
-        alias = _PI_INPUT_MODALITY_ALIASES.get(catalog_id)
+        alias = _custom_catalog_id(provider, model_id)
         entry = next((item for item in catalog.models if item.id == alias), None)
     if harness == "claude" and entry is None:
         # Reuse the same sourced Anthropic fact from Pi's generated catalog; do not guess.

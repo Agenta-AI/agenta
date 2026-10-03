@@ -1633,10 +1633,19 @@ async def test_a_hosted_subscription_never_takes_the_gateway_route(
 
 @pytest.mark.parametrize("gateway_response", [True, False])
 @pytest.mark.parametrize("slug", ["starter-credits", "my-vision-proxy"])
-async def test_custom_connection_preserves_image_capabilities(
-    fake_http, connection, gateway_response, slug
+@pytest.mark.parametrize(
+    "upstream_model,expected",
+    [
+        ("vertex_ai/gemini-3.7-flash", ["text", "image"]),
+        ("vertex_ai/gemini-3.6-flash", ["text", "image"]),
+        ("anthropic/claude-sonnet-5-5", ["text", "image"]),
+        ("mistral/codestral-latest", ["text"]),
+        ("vertex_ai/unknown-model", None),
+    ],
+)
+async def test_custom_connection_preserves_catalog_capabilities(
+    fake_http, connection, gateway_response, slug, upstream_model, expected
 ):
-    upstream_model = "vertex_ai/gemini-3.7-flash"
     payload = (
         {
             "connection": {
@@ -1669,5 +1678,5 @@ async def test_custom_connection_preserves_image_capabilities(
     )
     assert resolved.provider == "openai"
     assert resolved.model == upstream_model
-    assert resolved.input_modalities == ["text", "image"]
+    assert resolved.input_modalities == expected
     _assert_routed_through_gateway(resolved, namespace="custom", name=slug)

@@ -444,15 +444,27 @@ def test_opus_5_5_is_a_prompt_model_and_a_default():
         ("vertex_ai/gemini-3.7-flash", "openai", ["text", "image"]),
         ("vertex_ai/gemini-3.7-flash", "OpenAI", ["text", "image"]),
         ("openai/vertex_ai/gemini-3.7-flash", None, ["text", "image"]),
+        ("Agenta/custom/vertex_ai/gemini-3.7-flash", None, ["text", "image"]),
+        ("Agenta/custom/vertex_ai/gemini-3.7-flash", "Agenta", ["text", "image"]),
+        ("Agenta/custom/vertex_ai/gemini-3.6-flash", "openai", ["text", "image"]),
+        ("vertex_ai/gemini-3.6-flash", "openai", ["text", "image"]),
+        ("vertex/gemini-3.7-flash", None, ["text", "image"]),
+        ("vertex_ai/gemini-3.7-flash", "vertex_ai", ["text", "image"]),
+        ("vertex/gemini-3.7-flash", "vertex", ["text", "image"]),
+        ("Agenta/custom/mistral/codestral-latest", "openai", ["text"]),
+        ("gemini/gemini-3.7-flash", "openai", ["text", "image"]),
+        ("anthropic/claude-sonnet-5-5", "openai", ["text", "image"]),
+        ("openrouter/google/gemini-3.7-flash", "openai", ["text", "image"]),
+        ("Agenta/custom/vertex_ai/unknown-model", None, None),
+        ("Agenta/custom/company-vision-v2", None, None),
+        ("Agenta/custom/custom/vertex_ai/gemini-3.7-flash", None, None),
         ("vertex_ai/unknown-model", "openai", None),
         ("company-vision-v2", "openai", None),
         ("other/gemini-3.7-flash", "openai", None),
         ("vertex_ai/gemini-3.7-flash", "anthropic", None),
     ],
 )
-def test_bridge_input_modalities_use_only_verified_aliases(
-    model_id, provider, expected
-):
+def test_custom_input_modalities_use_only_catalog_facts(model_id, provider, expected):
     assert model_input_modalities("pi_core", model_id, provider=provider) == expected
 
 
