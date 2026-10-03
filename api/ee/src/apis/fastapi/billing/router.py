@@ -372,6 +372,19 @@ class BillingRouter:
             else:
                 metadata = _stripe_get(stripe_event.data.object, "metadata")
 
+        # Only a top-up Checkout carries our metadata on the session itself; a plan
+        # Checkout puts it on the subscription. Refusing the others makes Stripe retry
+        # every plan Checkout for days.
+        if stripe_event.type == "checkout.session.completed" and (
+            _stripe_get(stripe_event.data.object, "mode") != "payment"
+            or _stripe_get(metadata, "purpose") != TOP_UP_PURPOSE
+        ):
+            log.info("Skipping stripe event: %s (not a top-up)", stripe_event.type)
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"status": "skip", "message": "Not a credit top-up"},
+            )
+
         if stripe_event.type.startswith("invoice"):
             # Top level before Stripe API version 2025-03-31, under `parent` after it.
             subscription_details = _stripe_get(
@@ -609,15 +622,6 @@ class BillingRouter:
         metadata: Any,
         session: Any,
     ) -> JSONResponse:
-        if (
-            _stripe_get(session, "mode") != "payment"
-            or _stripe_get(metadata, "purpose") != TOP_UP_PURPOSE
-        ):
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content={"status": "skip", "message": "Not a credit top-up"},
-            )
-
         # Without a webhook secret the event is unsigned, and anyone could post one.
         if not env.stripe.webhook_secret:
             log.error("[billing] [wallets] top-up event unsigned; no credit")

@@ -458,6 +458,27 @@ async def test_sessions_that_are_not_a_paid_top_up_grant_nothing(
 
 
 @pytest.mark.asyncio
+async def test_a_plan_checkout_is_acknowledged_so_stripe_does_not_retry_it(
+    monkeypatch,
+):
+    # A plan Checkout puts its metadata on the subscription, not the session.
+    wallets = SimpleNamespace(grant_purchase=AsyncMock())
+    router = _router(wallets_service=wallets)
+    _install_event(
+        monkeypatch,
+        "checkout.session.completed",
+        _session(mode="subscription", metadata={}),
+    )
+
+    response = await router.handle_events(DummyRequest())
+
+    assert response.status_code == 200
+    assert loads(response.body)["status"] == "skip"
+    wallets.grant_purchase.assert_not_awaited()
+    router.subscription_service.process_event.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_an_unsigned_top_up_event_grants_nothing(monkeypatch):
     wallets = SimpleNamespace(grant_purchase=AsyncMock())
     router = _router(wallets_service=wallets)
