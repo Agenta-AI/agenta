@@ -20,6 +20,7 @@ export const PATH = {
     agentApp: "attributes.ag.references.application.id",
     agentWorkflow: "attributes.ag.references.workflow.id",
     model: "attributes.ag.data.parameters.agent.llm.model",
+    provider: "attributes.ag.data.parameters.agent.llm.provider",
     callModel: "attributes.ag.meta.request.model",
     callCost: "attributes.ag.metrics.costs.incremental.total",
     callTokens: "attributes.ag.metrics.tokens.incremental.total",
@@ -27,6 +28,7 @@ export const PATH = {
 } as const
 
 const MODEL_KEY = "ag.data.parameters.agent.llm.model"
+const PROVIDER_KEY = "ag.data.parameters.agent.llm.provider"
 const CALL_MODEL_KEY = "ag.meta.request.model"
 
 export type Condition = Record<string, unknown>
@@ -84,6 +86,7 @@ export const USAGE_QUERIES = {
     },
     models: {focus: "trace", runLevel: true, where: [], specs: [cat(PATH.model)]},
     modelsFailed: {focus: "trace", runLevel: true, where: [FAILED], specs: [cat(PATH.model)]},
+    providers: {focus: "trace", runLevel: true, where: [], specs: [cat(PATH.provider)]},
     calls: {
         focus: "span",
         runLevel: false,
@@ -95,9 +98,9 @@ export const USAGE_QUERIES = {
 
 export type UsageQueryName = keyof typeof USAGE_QUERIES
 
-/** Narrows a query to one breakdown key: an agent, a configured model, or a called model. */
+/** Narrows a query to one key: an agent, a configured model or its provider, or a called model. */
 export interface UsageFocus {
-    dim: "agent" | "model" | "callModel"
+    dim: "agent" | "model" | "provider" | "callModel"
     key: string
 }
 
@@ -113,10 +116,12 @@ export const filterConditions = (filters: UsageFilters): Condition[] => {
     return out
 }
 
+const FOCUS_KEY = {model: MODEL_KEY, provider: PROVIDER_KEY, callModel: CALL_MODEL_KEY}
+
 export const focusCondition = (focus: UsageFocus): Condition =>
     focus.dim === "agent"
         ? {field: "references", operator: "in", value: [{id: focus.key}]}
-        : anyOf(focus.dim === "model" ? MODEL_KEY : CALL_MODEL_KEY, [focus.key])
+        : anyOf(FOCUS_KEY[focus.dim], [focus.key])
 
 export interface UsageQueryParams {
     projectId: string

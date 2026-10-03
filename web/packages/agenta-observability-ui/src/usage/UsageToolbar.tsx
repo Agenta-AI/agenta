@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
 import {
     PATH,
@@ -8,12 +8,14 @@ import {
     keyedSeries,
     rankKeys,
     sum,
+    usageModelProvidersAtomFamily,
     type UsageFilters,
     type UsageRangeKey,
     type UsageRetention,
     type UsageWindow,
 } from "@agenta/observability/usage"
-import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {FilterMenu, type FilterMenuOption, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {getProviderDisplayName, getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {
     Button,
     DropdownMenu,
@@ -23,6 +25,7 @@ import {
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
 import {CalendarBlank, CaretDown, Check, LockSimple, Robot, Sparkle, X} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import {useAgentNames, useUsageBuckets} from "./useUsageData"
 
@@ -160,6 +163,58 @@ const useFilterCounts = (dim: FilterDim, filters: UsageFilters, window: UsageWin
     }, [dim, query.data, query.isPending, query.fetchStatus, window, filters])
 }
 
+/** Models grouped by provider (largest first), each with its provider's mark. */
+const modelOptions = (
+    counts: Record<string, number>,
+    providerOf: Record<string, string> | null,
+): FilterMenuOption[] => {
+    if (!providerOf)
+        return Object.keys(counts).map((key) => ({
+            value: key,
+            label: key,
+            icon: <Sparkle size={ICON} />,
+        }))
+    const totals: Record<string, number> = {}
+    for (const [model, count] of Object.entries(counts)) {
+        const provider = providerOf[model] ?? ""
+        totals[provider] = (totals[provider] ?? 0) + count
+    }
+    // "" (no provider recorded) always sorts last.
+    const rank = (provider: string) => (provider ? totals[provider] : -1)
+    return Object.keys(counts)
+        .map((model) => ({model, provider: providerOf[model] ?? ""}))
+        .sort(
+            (a, b) =>
+                rank(b.provider) - rank(a.provider) ||
+                a.provider.localeCompare(b.provider) ||
+                counts[b.model] - counts[a.model],
+        )
+        .map(({model, provider}) => {
+            const ProviderIcon = provider ? getProviderIcon(provider) : null
+            return {
+                value: model,
+                // The heading already names the provider.
+                label:
+                    provider && model.startsWith(`${provider}/`)
+                        ? model.slice(provider.length + 1)
+                        : model,
+                group: provider ? getProviderDisplayName(provider) : "Other",
+                icon: ProviderIcon ? (
+                    <ProviderIcon className="size-3.5" />
+                ) : (
+                    <Sparkle size={ICON} />
+                ),
+            }
+        })
+}
+
+const useModelProviders = (window: UsageWindow, filters: UsageFilters, enabled: boolean) => {
+    const others = useMemo(() => ({...filters, model: []}), [filters])
+    return (
+        useAtomValue(usageModelProvidersAtomFamily({window, filters: others, enabled})).data ?? null
+    )
+}
+
 const UsageFilterMenu = ({
     filters,
     onChange,
@@ -171,8 +226,10 @@ const UsageFilterMenu = ({
     window: UsageWindow
     label: (dim: FilterDim, key: string) => string
 }) => {
+    const [open, setOpen] = useState(false)
     const agents = useFilterCounts("agent", filters, window)
     const models = useFilterCounts("model", filters, window)
+    const providerOf = useModelProviders(window, filters, open)
     const optionAgentName = useAgentNames(Object.keys(agents.counts))
     const anyActive = DIMS.some((d) => filters[d.key].length)
 
@@ -198,11 +255,14 @@ const UsageFilterMenu = ({
                         : selected.length === 1
                           ? name(selected[0])
                           : `${selected.length} selected`,
-                    options: Object.keys(counts).map((key) => ({
-                        value: key,
-                        label: name(key),
-                        icon: <Icon size={ICON} />,
-                    })),
+                    options:
+                        d.key === "model"
+                            ? modelOptions(counts, providerOf)
+                            : Object.keys(counts).map((key) => ({
+                                  value: key,
+                                  label: name(key),
+                                  icon: <Icon size={ICON} />,
+                              })),
                     emptyText: pending ? "Loading…" : `No ${d.plural} in this range`,
                     onChange: (key: string) =>
                         onChange({
@@ -213,11 +273,13 @@ const UsageFilterMenu = ({
                         }),
                 }
             }),
-        [agents, models, optionAgentName, label, filters, onChange],
+        [agents, models, providerOf, optionAgentName, label, filters, onChange],
     )
 
     return (
         <FilterMenu
+            open={open}
+            onOpenChange={setOpen}
             sections={sections}
             searchPlaceholder="Search agents and models…"
             align="start"

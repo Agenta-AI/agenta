@@ -49,6 +49,7 @@ export {
     EMPTY_FILTERS,
     usageBucketsAtomFamily,
     usageSplitAtomFamily,
+    usageModelProvidersAtomFamily,
     usageRunsAtomFamily,
     usageRunToolsAtomFamily,
     usageAgentNamesAtomFamily,

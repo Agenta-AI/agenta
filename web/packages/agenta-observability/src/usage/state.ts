@@ -6,13 +6,14 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {
+    PATH,
     fetchUsageBuckets,
     fetchUsageRunSpans,
     fetchUsageToolSpans,
     type UsageFocus,
     type UsageQueryName,
 } from "./queries"
-import {rangeWindow, toUsageRun, toolsByRun} from "./transform"
+import {keyedSeries, rangeWindow, toUsageRun, toolsByRun} from "./transform"
 import type {
     UsageDimension,
     UsageFilters,
@@ -98,6 +99,49 @@ export const usageSplitAtomFamily = atomFamily(
                     return Object.fromEntries(entries)
                 },
                 enabled: Boolean(projectId) && key.keys.length > 0,
+                ...QUERY_OPTIONS,
+            }
+        }),
+    isEqual,
+)
+
+export interface UsageModelProvidersKey {
+    window: UsageWindow
+    filters: UsageFilters
+    enabled: boolean
+}
+
+/** Each configured model's provider: the providers in range, then one model request per provider. */
+export const usageModelProvidersAtomFamily = atomFamily(
+    (key: UsageModelProvidersKey) =>
+        atomWithQuery((get) => {
+            const projectId = get(projectIdAtom) as string
+            return {
+                queryKey: ["usage", "modelProviders", projectId, key.window, key.filters],
+                queryFn: async ({signal}) => {
+                    const base = {projectId, window: key.window, filters: key.filters, signal}
+                    const keysOf = async (name: UsageQueryName, path: string, focus?: UsageFocus) =>
+                        Object.keys(
+                            keyedSeries(
+                                key.window,
+                                await fetchUsageBuckets({...base, name, focus}),
+                                [path],
+                            ),
+                        )
+                    const providers = await keysOf("providers", PATH.provider)
+                    const out: Record<string, string> = {}
+                    await Promise.all(
+                        providers.map(async (provider) => {
+                            const models = await keysOf("models", PATH.model, {
+                                dim: "provider",
+                                key: provider,
+                            })
+                            for (const model of models) out[model] = provider
+                        }),
+                    )
+                    return out
+                },
+                enabled: Boolean(projectId) && key.enabled,
                 ...QUERY_OPTIONS,
             }
         }),
