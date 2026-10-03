@@ -522,3 +522,36 @@
         transform: translate(-50%, -50%);
     }
 }
+
+/* Crisp's bubble never shows: the sidebar icon opens the chat; Esc or an outside click closes it. */
+#crisp-chatbox [role="button"][data-maximized] {
+    display: none !important;
+}
+
+/* In phone full view the same element is the header's close X, so it stays. */
+#crisp-chatbox:has([class*="--full-view"]) [role="button"][data-maximized="true"] {
+    display: block !important;
+}
+
+/* Tablets get Crisp's floating window: pin it to the corner the bubble used to hold. */
+@media (width < 64rem) {
+    #crisp-chatbox:not(:has([class*="--full-view"])) [data-chat-status] {
+        top: auto !important;
+        right: 1rem !important;
+        bottom: 1rem !important;
+        margin: 0 !important;
+        max-height: calc(100dvh - 2rem) !important;
+    }
+}
+
+/* Docked rail: Crisp's window opens beside it, bottom-aligned with the live chat icon. */
+@media (width >= 64rem) {
+    #crisp-chatbox [data-chat-status] {
+        top: auto !important;
+        left: var(--ag-live-chat-left, 24px) !important;
+        bottom: var(--ag-live-chat-bottom, 24px) !important;
+        margin: 0 !important;
+        /* Crisp sets its height inline with !important; max-height is the lever that still applies. */
+        max-height: calc(100dvh - var(--ag-live-chat-bottom, 24px) - 1rem) !important;
+    }
+}

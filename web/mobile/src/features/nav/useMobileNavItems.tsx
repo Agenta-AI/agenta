@@ -252,8 +252,9 @@ export const useMobileVersion = () => useAtomValue(versionAtom)
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] =>
-    useMemo(
+): SidebarConfig[] => {
+    const version = useMobileVersion()
+    return useMemo(
         () =>
             // The settings scope drops them: the rail IS settings there.
             includeSettingsLink
@@ -269,11 +270,19 @@ export const useMobileBottomNavItems = (
                           title: "Settings",
                           icon: createElement(GearIcon, {size: 16}),
                           link: `${projectURL}/settings`,
+                          suffix: version
+                              ? createElement(
+                                    "span",
+                                    {className: "text-[10px] leading-none text-colorTextTertiary"},
+                                    `v${version}`,
+                                )
+                              : undefined,
                       },
                   ]
                 : [],
-        [includeSettingsLink, projectURL],
+        [includeSettingsLink, projectURL, version],
     )
+}
 
 /**
  * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
