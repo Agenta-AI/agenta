@@ -592,6 +592,52 @@ async def test_relaying_through_a_named_standard_connection_uses_that_connection
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "name,model",
+    [
+        ("anthropic", "claude-haiku-4-5-20251001"),  # Claude Code's dated id
+        ("openrouter", "deepseek/deepseek-v4-flash:nitro"),  # a hand-typed variant
+    ],
+)
+async def test_a_standard_endpoint_relays_a_model_the_catalogue_does_not_list(
+    name, model
+):
+    """The caller's own key pays, so the provider judges the model, not the catalogue."""
+    adapter = _MockAdapter(
+        result=LLMRelayResult(
+            status_code=200, headers={}, body=_one_chunk_body(b'{"ok": true}')
+        )
+    )
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+
+    result = await _service(
+        resolver=_MockResolver(secret=_secret()), registry=registry
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.STANDARD,
+        name=name,
+        body=json.dumps({"model": model, "messages": []}).encode(),
+        headers={},
+    )
+
+    assert result.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_a_standard_endpoint_still_refuses_a_routing_field():
+    with pytest.raises(LLMRoutingFieldNotAllowedError):
+        await _service(resolver=_MockResolver(secret=_secret())).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.STANDARD,
+            name="openrouter",
+            body=json.dumps(
+                {"model": "x", "messages": [], "provider": {"order": ["a"]}}
+            ).encode(),
+            headers={},
+        )
+
+
+@pytest.mark.asyncio
 async def test_relaying_through_a_provider_family_still_scans_for_a_key():
     """The unnamed route is unchanged: no connection is named, so the family is the ref."""
     resolver = _MockResolver(secret=_secret())

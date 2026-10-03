@@ -748,7 +748,23 @@ class LLMGatewayService:
         endpoint allowing only `gpt-4o` and the forbidden fallback ran on the primary's
         failure. Exact-string matching was never the weakness and is untouched here; the
         second field was.
+
+        A `standard` endpoint's allowlist is the SDK catalogue, and the call spends the
+        caller's own key, so the model is left to the provider to judge. Harnesses name
+        models the catalogue does not list: Claude Code sends dated ids
+        (`claude-haiku-4-5-20251001`), and authors type OpenRouter variants
+        (`deepseek/deepseek-v4-flash:nitro`) and models newer than the catalogue.
         """
+        for field in _UNSUPPORTED_ROUTING_FIELDS:
+            # A JSON null names no routing, so only a field carrying a value is refused.
+            if payload.get(field) is not None:
+                raise LLMRoutingFieldNotAllowedError(
+                    field=field, namespace=target.namespace, name=target.name
+                )
+
+        if target.namespace == GatewayEndpointNamespace.STANDARD:
+            return
+
         if not target.models.allows(context.model):
             raise LLMModelNotAllowedError(
                 model=context.model, namespace=target.namespace, name=target.name
@@ -770,13 +786,6 @@ class LLMGatewayService:
                     raise LLMModelNotAllowedError(
                         model=fallback, namespace=target.namespace, name=target.name
                     )
-
-        for field in _UNSUPPORTED_ROUTING_FIELDS:
-            # A JSON null names no routing, so only a field carrying a value is refused.
-            if payload.get(field) is not None:
-                raise LLMRoutingFieldNotAllowedError(
-                    field=field, namespace=target.namespace, name=target.name
-                )
 
     @staticmethod
     def _check_builtin_capabilities(
