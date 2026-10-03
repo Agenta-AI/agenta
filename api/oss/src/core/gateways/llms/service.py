@@ -42,7 +42,7 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointProviderMissingError,
     LLMModelNotAllowedError,
     LLMRoutingFieldNotAllowedError,
-    LLMUpstreamError,
+    LLMUpstreamTimeoutError,
 )
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
@@ -576,11 +576,7 @@ class LLMGatewayService:
                 timeout=target.settings.timeout_seconds,
             )
         except asyncio.TimeoutError as e:
-            raise LLMUpstreamError(
-                provider_key=target.provider_key,
-                status_code=None,
-                detail="upstream timed out",
-            ) from e
+            raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
 
         # Both paths record after the drain, never before: every adapter fills
         # `result.usage` while its body generator runs, so reading usage here would record

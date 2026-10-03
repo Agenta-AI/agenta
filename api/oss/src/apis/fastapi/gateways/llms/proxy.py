@@ -33,6 +33,7 @@ from oss.src.core.gateways.llms.types import (
     LLMRoutingFieldNotAllowedError,
     LLMCapabilityNotAllowedError,
     LLMUpstreamError,
+    LLMUpstreamTimeoutError,
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
@@ -213,6 +214,15 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             message=exc.message,
             error_type="invalid_request_error",
             code="endpoint_not_found",
+        )
+    if isinstance(exc, LLMUpstreamTimeoutError):
+        # A 5xx, so the harness reads it as transient and tells the person to try again.
+        return _openai_error(
+            status_code=504,
+            message="The model provider did not answer in time.",
+            error_type="api_error",
+            code="upstream_timeout",
+            marked=False,
         )
     # This is a transport/adapter failure, not an upstream protocol response (those
     # are relayed as LLMRelayResult without reaching this mapper). Do not expose

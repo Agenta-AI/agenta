@@ -25,7 +25,7 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
     RelayLLMAdapter,
 )
-from oss.src.core.gateways.llms.types import LLMUpstreamError
+from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
 from oss.src.core.gateways.policy.dtos import (
     SecretOwner,
     SecretOwnerKind,
@@ -308,13 +308,13 @@ async def test_request_body_bytes_reach_transport_unchanged():
 
 
 @pytest.mark.asyncio
-async def test_timeout_raises_llm_upstream_error():
+async def test_timeout_raises_llm_upstream_timeout_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("timed out", request=request)
 
     adapter = _adapter(handler)
 
-    with pytest.raises(LLMUpstreamError) as excinfo:
+    with pytest.raises(LLMUpstreamTimeoutError) as excinfo:
         await adapter.relay_chat_completion(
             route=_route(),
             secret=None,

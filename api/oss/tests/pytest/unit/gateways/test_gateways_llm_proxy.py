@@ -21,6 +21,7 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMModelNotAllowedError,
     LLMUpstreamError,
+    LLMUpstreamTimeoutError,
 )
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
@@ -389,6 +390,11 @@ _DENIAL_CASES = [
         424,
         "upstream_error",
     ),
+    (
+        LLMUpstreamTimeoutError(provider_key="openai"),
+        504,
+        "upstream_timeout",
+    ),
 ]
 
 
@@ -439,7 +445,9 @@ async def test_typed_denials_carry_the_code_marker_in_message_except_upstream_er
 ):
     """WP25/OD18: `code` must survive in `message` alone, because Codex's own SDK
     (codex-rs's `extract_error_message`) discards every other field. `upstream_error`
-    is excluded — D16 forwards the upstream's own detail untouched."""
+    is excluded — D16 forwards the upstream's own detail untouched — and so is
+    `upstream_timeout`: both are provider failures, and a marker would make the runner read
+    them as an Agenta refusal that retrying cannot fix."""
     service = _MockLlmGatewayService(relay_exception=exc)
     proxy = LLMGatewayProxy(llm_gateway_service=service)
 
@@ -450,7 +458,7 @@ async def test_typed_denials_carry_the_code_marker_in_message_except_upstream_er
 
     message = json.loads(response.body)["error"]["message"]
     marker = f"⟦agenta_code:{expected_code}⟧"
-    if expected_code == "upstream_error":
+    if expected_code in ("upstream_error", "upstream_timeout"):
         assert marker not in message
     else:
         assert message.endswith(marker)

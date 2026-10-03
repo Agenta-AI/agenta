@@ -111,6 +111,13 @@ class LLMUpstreamError(GatewaysError):
         super().__init__(f"Upstream {provider_key} failed ({status_code})")
 
 
+class LLMUpstreamTimeoutError(LLMUpstreamError):
+    """The upstream did not answer in time: a transient failure, worth retrying."""
+
+    def __init__(self, *, provider_key: Optional[str]):
+        super().__init__(provider_key=provider_key, detail="upstream timed out")
+
+
 class LLMConnectionProviderRequiredError(GatewaysError):
     """A resolve request named neither a provider nor a connection, so nothing routes.
 
