@@ -69,6 +69,7 @@ import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
+import {PendingTaskError} from "./states/PendingTaskError"
 import {cancelledStopAction} from "./stopHereState"
 import {TranscriptTurns} from "./TranscriptTurns"
 import {mobileTurnRowClass} from "./turnRowClass"
@@ -901,45 +902,24 @@ export const LiveConversation = ({
                         </ContentRail>
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
-                            <ContentRail>
-                                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                                    <span role="alert" className="text-destructive">
-                                        The message was not sent.
-                                        {pendingTask?.failureReason
-                                            ? ` ${pendingTask.failureReason}`
-                                            : ""}{" "}
-                                        Your text and attachments are saved.
-                                    </span>
-                                    {pendingTask?.parts?.map((part, index) => (
-                                        <span
-                                            key={`${part.url}-${index}`}
-                                            className="text-muted-foreground"
-                                        >
-                                            {part.filename || "Attachment"}
-                                        </span>
-                                    ))}
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={
-                                            isHydrating ||
-                                            modelBlocked ||
-                                            (modelKeyLoading &&
-                                                modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
-                                        }
-                                        onClick={() =>
-                                            void sendPendingTask({
-                                                sessionId,
-                                                retry: true,
-                                                send: (task) =>
-                                                    send({text: task.text, parts: task.parts}),
-                                            })
-                                        }
-                                    >
-                                        Retry message
-                                    </Button>
-                                </div>
-                            </ContentRail>
+                            <PendingTaskError
+                                failureReason={pendingTask?.failureReason}
+                                filenames={pendingTask?.parts?.map(
+                                    (part) => part.filename || "Attachment",
+                                )}
+                                retryDisabled={
+                                    isHydrating ||
+                                    modelBlocked ||
+                                    (modelKeyLoading && modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
+                                }
+                                onRetry={() =>
+                                    void sendPendingTask({
+                                        sessionId,
+                                        retry: true,
+                                        send: (task) => send({text: task.text, parts: task.parts}),
+                                    })
+                                }
+                            />
                         ) : null}
                         <Composer
                             entityId={entityId}
