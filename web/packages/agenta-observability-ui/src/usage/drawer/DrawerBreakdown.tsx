@@ -155,7 +155,7 @@ const RunTable = ({
         )
     }
 
-    const grid = "grid grid-cols-[minmax(96px,1fr)_40px_54px_48px_60px_56px_72px_12px] gap-2"
+    const grid = "grid grid-cols-[minmax(96px,1fr)_40px_54px_60px_60px_64px_72px_12px] gap-2"
     return (
         <div className="-mx-1 overflow-x-auto">
             <div className="min-w-[480px] px-1">
@@ -164,7 +164,10 @@ const RunTable = ({
                     {RUN_COLUMNS.map((c) => (
                         <span
                             key={c.key}
-                            className={cn("text-right", c.key === sortKey && "text-foreground")}
+                            className={cn(
+                                "whitespace-nowrap text-right",
+                                c.key === sortKey && "text-foreground",
+                            )}
                         >
                             {c.label}
                             {c.key === sortKey ? " ↓" : ""}

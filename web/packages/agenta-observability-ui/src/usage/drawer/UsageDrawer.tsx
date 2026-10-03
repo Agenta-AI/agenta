@@ -146,7 +146,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                     <div className="flex gap-0.5">
                         <Button
                             variant="outline"
-                            size="icon-sm"
+                            size="icon-xs"
                             aria-label="Previous"
                             disabled={bucket <= 0}
                             onClick={() => go(bucket - 1)}
@@ -155,7 +155,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                         </Button>
                         <Button
                             variant="outline"
-                            size="icon-sm"
+                            size="icon-xs"
                             aria-label="Next"
                             disabled={bucket >= pageStarts.length - 1}
                             onClick={() => go(bucket + 1)}
