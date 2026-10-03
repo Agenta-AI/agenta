@@ -135,7 +135,14 @@ export const TimeChart = ({
         tooltip ? (
             <ChartTooltip
                 key="tooltip"
-                cursor={kind === "line" ? {strokeDasharray: "3 3"} : false}
+                cursor={
+                    kind === "line"
+                        ? {strokeDasharray: "3 3"}
+                        : {
+                              fill: "color-mix(in srgb, var(--foreground) 10%, transparent)",
+                              radius: 4,
+                          }
+                }
                 content={({active}) =>
                     active && hovered !== null ? <>{tooltip(hovered)}</> : null
                 }
@@ -160,6 +167,7 @@ export const TimeChart = ({
                             stackId="stack"
                             fill={s.color}
                             fillOpacity={1}
+                            activeBar={{style: {filter: "brightness(0.8)"}}}
                             radius={si === visible.length - 1 ? [3, 3, 0, 0] : 0}
                         />
                     ))}
