@@ -2,7 +2,7 @@
 
 import json
 import mimetypes
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -92,16 +92,41 @@ def _rewrite_vertex_chat(body: bytes) -> bytes:
     return json.dumps(payload).encode() if signed or inlined else body
 
 
+# Fields OpenAI clients send that Google's OpenAI-compatible endpoint refuses outright
+# ("Unknown name"). Pi's OpenAI client sends `store: false` on every call.
+_GOOGLE_OPENAI_UNKNOWN_FIELDS = ("store",)
+
+
+def _rewrite_google_chat(body: bytes) -> bytes:
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body
+    if not isinstance(payload, dict):
+        return body
+    dropped = [payload.pop(f) for f in _GOOGLE_OPENAI_UNKNOWN_FIELDS if f in payload]
+    messages = payload.get("messages")
+    signed = isinstance(messages, list) and _fill_thought_signatures(messages)
+    return json.dumps(payload).encode() if dropped or signed else body
+
+
 def apply_static_fields(
-    *, deployment_kind: LLMDeploymentKind, protocol: LLMProtocol, body: bytes
+    *,
+    deployment_kind: LLMDeploymentKind,
+    protocol: LLMProtocol,
+    body: bytes,
+    provider_key: Optional[str] = None,
 ) -> bytes:
     """Apply the deployment rewrite to Messages JSON without overwriting supplied values,
-    and make a Vertex chat completion one Gemini accepts: unsigned tool calls get the
-    signature it requires, and `file` parts become data URLs."""
-    if deployment_kind == LLMDeploymentKind.VERTEX and protocol == (
-        LLMProtocol.CHAT_COMPLETIONS
-    ):
-        return _rewrite_vertex_chat(body)
+    and make a Gemini chat completion one Gemini accepts: unsigned tool calls get the
+    signature it requires, on Vertex and on Google's own OpenAI-compatible endpoint; on
+    Vertex `file` parts become data URLs, and on Google's endpoint fields it refuses are
+    dropped."""
+    if protocol == LLMProtocol.CHAT_COMPLETIONS:
+        if deployment_kind == LLMDeploymentKind.VERTEX:
+            return _rewrite_vertex_chat(body)
+        if deployment_kind == LLMDeploymentKind.DIRECT and provider_key == "gemini":
+            return _rewrite_google_chat(body)
     if protocol != LLMProtocol.MESSAGES:
         return body
     rewrite = STATIC_FIELD_REWRITES.get(deployment_kind)

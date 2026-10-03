@@ -159,10 +159,11 @@ def test_table_entries_are_literal_data_only():
 
 def test_apply_static_fields_signature_cannot_see_request_semantics():
     """The function's signature is the proof (specs-wp27.md): only the table lookup keys
-    (`deployment_kind`, `protocol`) and the raw `body` — nothing that could carry a parsed
-    view of the request's content, so there is nothing for a future edit to read."""
+    (`deployment_kind`, `protocol`, and the route's `provider_key`) and the raw `body` —
+    nothing that could carry a parsed view of the request's content, so there is nothing for
+    a future edit to read."""
     params = list(inspect.signature(apply_static_fields).parameters)
-    assert params == ["deployment_kind", "protocol", "body"]
+    assert params == ["deployment_kind", "protocol", "body", "provider_key"]
 
 
 def _chat_with_tool_calls(*calls) -> bytes:
@@ -233,6 +234,52 @@ def test_other_deployments_keep_unsigned_tool_calls_as_they_are():
             deployment_kind=LLMDeploymentKind.DIRECT,
             protocol=LLMProtocol.CHAT_COMPLETIONS,
             body=body,
+            provider_key="openai",
+        )
+        is body
+    )
+
+
+def test_google_openai_endpoint_gives_an_unsigned_tool_call_the_skip_signature():
+    """A Gemini provider key reaches Google's OpenAI-compatible endpoint, which refuses an
+    unsigned tool call in the history as Vertex does."""
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.DIRECT,
+        protocol=LLMProtocol.CHAT_COMPLETIONS,
+        body=_chat_with_tool_calls(_call("call_1")),
+        provider_key="gemini",
+    )
+
+    calls = json.loads(result)["messages"][1]["tool_calls"]
+    assert calls[0]["extra_content"] == {
+        "google": {"thought_signature": "skip_thought_signature_validator"}
+    }
+
+
+def test_google_openai_endpoint_drops_the_store_field_it_refuses():
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.DIRECT,
+        protocol=LLMProtocol.CHAT_COMPLETIONS,
+        body=json.dumps(
+            {"model": "gemini-3.7-flash", "store": False, "messages": []}
+        ).encode(),
+        provider_key="gemini",
+    )
+
+    assert json.loads(result) == {"model": "gemini-3.7-flash", "messages": []}
+
+
+def test_google_openai_endpoint_leaves_a_file_part_as_it_came():
+    body = _chat_with_parts(
+        {"type": "file", "file": {"filename": "a.pdf", "file_data": "QUJD"}}
+    )
+
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.DIRECT,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=body,
+            provider_key="gemini",
         )
         is body
     )

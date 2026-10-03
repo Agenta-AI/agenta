@@ -417,6 +417,14 @@ class LLMGatewayService:
             # harness drives that surface as it drives any OpenAI-compatible custom route.
             resolved_provider = "openai"
             deployment_kind = LLMDeploymentKind.CUSTOM
+        elif target.provider_key == "gemini":
+            # The same for a Gemini provider key: behind the gateway it is Google's
+            # OpenAI-compatible endpoint. A harness that drives Gemini natively (Pi's `google`
+            # provider speaks generateContent) has no gateway route to reach it on. The model
+            # loses its catalogue prefix, which Google's endpoint does not accept.
+            resolved_provider = "openai"
+            deployment_kind = LLMDeploymentKind.CUSTOM
+            model = model.removeprefix("gemini/")
 
         return LLMGatewayConnectionResolution(
             namespace=target.namespace,

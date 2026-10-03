@@ -411,6 +411,25 @@ async def test_resolve_agent_connection_returns_standard_metadata_without_readin
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("model", ["gemini-3.7-flash", "gemini/gemini-3.7-flash"])
+async def test_a_gemini_provider_key_resolves_to_an_openai_compatible_route(model):
+    """Behind the gateway a Gemini key is Google's OpenAI-compatible endpoint. A harness that
+    speaks Gemini's own protocol would find no gateway route, so the route says `openai` +
+    `custom`, and the model loses the catalogue prefix Google's endpoint does not accept."""
+    resolved = await _service(
+        resolver=_MockResolver(secret=_secret())
+    ).resolve_agent_connection(
+        scope=_scope(), model=model, provider_key="gemini", connection_slug=None
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.STANDARD
+    assert resolved.name == "gemini"
+    assert resolved.provider_key == "openai"
+    assert resolved.deployment_kind == LLMDeploymentKind.CUSTOM
+    assert resolved.model == "gemini-3.7-flash"
+
+
+@pytest.mark.asyncio
 async def test_resolve_agent_connection_without_a_provider_or_a_slug_is_typed():
     """A bare `ValueError` here reached the caller as a generic 500 with nothing to act on.
 
