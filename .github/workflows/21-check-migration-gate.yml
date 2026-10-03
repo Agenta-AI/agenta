@@ -6,13 +6,12 @@ name: "21 - check migration gate"
 # the application back. It never rolls the database back. This job makes a
 # destructive revision visible, so that a reviewer decides it on purpose.
 
+# Runs on every pull request, not only on ones that touch a migration file. A
+# required status check must report on every pull request, or the ones it skips
+# can never merge. The job itself is cheap: it only inspects the diff.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths:
-      - "api/**/databases/postgres/migrations/**/versions/*.py"
-      - "api/scripts/migration_gate.py"
-      - ".github/workflows/21-check-migration-gate.yml"
   workflow_dispatch:
 
 permissions:
