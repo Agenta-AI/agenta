@@ -34,7 +34,7 @@ from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
 from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
     apply_static_fields,
 )
-from oss.src.core.gateways.llms.types import LLMUpstreamError
+from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
 # Default timeout for outbound LLM requests.
@@ -133,13 +133,14 @@ def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[Gateway
     cached = details.get("cached_tokens") if isinstance(details, dict) else None
     # OpenAI counts reasoning inside the output total; Vertex's OpenAI-compatible endpoint
     # leaves Gemini's reasoning out of it and counts it only in `total_tokens`. Reasoning is
-    # billed as output, so the output is whatever of the total is not prompt.
+    # billed as output, so the output is whatever of the total is not prompt. Vertex omits
+    # `completion_tokens` altogether when the answer is empty, as when reasoning used the
+    # whole token limit; the reasoning is still billed.
     total = usage.get("total_tokens")
     if (
         isinstance(total, int)
         and isinstance(prompt, int)
-        and isinstance(output, int)
-        and total - prompt > output
+        and total - prompt > (output if isinstance(output, int) else 0)
     ):
         output = total - prompt
     if isinstance(prompt, int) and isinstance(cached, int):
@@ -363,11 +364,7 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         try:
             response = await client.send(request, stream=True)
         except httpx.TimeoutException as exc:
-            raise LLMUpstreamError(
-                provider_key=route.provider_key,
-                status_code=None,
-                detail="upstream timed out",
-            ) from exc
+            raise LLMUpstreamTimeoutError(provider_key=route.provider_key) from exc
         except httpx.RequestError as exc:
             # The provider key is in these headers, and a refusal raised while building
             # the request quotes them (OR86).

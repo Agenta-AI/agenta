@@ -185,6 +185,33 @@ def test_gemini_cached_input_is_apart_from_fresh_input():
     )
 
 
+def test_gemini_reasoning_without_completion_tokens_is_measured_as_output():
+    # Vertex's usage when reasoning used the whole token limit: no `completion_tokens`.
+    usage = _usage_from_body(
+        json.dumps(
+            {
+                "usage": {
+                    "prompt_tokens": 12,
+                    "completion_tokens_details": {"reasoning_tokens": 121},
+                    "total_tokens": 133,
+                }
+            }
+        ).encode(),
+        LLMProtocol.CHAT_COMPLETIONS,
+    )
+
+    assert usage == GatewayUsage(input_tokens=12, output_tokens=121)
+
+
+def test_a_reply_with_no_output_at_all_reports_no_output():
+    usage = _usage_from_body(
+        json.dumps({"usage": {"prompt_tokens": 9, "total_tokens": 9}}).encode(),
+        LLMProtocol.CHAT_COMPLETIONS,
+    )
+
+    assert usage == GatewayUsage(input_tokens=9)
+
+
 def test_openai_reasoning_inside_completion_tokens_is_not_counted_twice():
     usage = _usage_from_body(
         json.dumps(
