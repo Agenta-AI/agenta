@@ -73,8 +73,8 @@ export const TURN_TIME_LIMIT_CODE: RunErrorCode = "turn_time_limit_reached";
 
 /** The line the user reads when the machine running their turn disappeared. */
 export const SANDBOX_GONE_MESSAGE =
-  "The sandbox running this session stopped responding, so the run was ended. " +
-  "Send the message again to start a fresh sandbox.";
+  "The agent stopped responding, so we ended this request. " +
+  "Send your message again to start a new one.";
 
 /** Why a shutdown ends the turns it interrupts. */
 export const RUNNER_SHUTDOWN_REASON = "the runner is shutting down";

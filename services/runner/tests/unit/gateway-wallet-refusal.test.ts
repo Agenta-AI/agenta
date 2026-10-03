@@ -14,9 +14,9 @@ import type { AgentEvent } from "../../src/protocol.ts";
 import { fakeHarness } from "../utils/sandbox-agent-harness.ts";
 
 const OUT_OF_CREDIT =
-  "Your organization has used all its credits, so we didn't start this request, and you weren't charged.";
+  "You've used all your organization's credits, so we didn't start this request and didn't charge you.";
 const NOT_ENABLED =
-  "The AI models included with Agenta aren't turned on for your organization yet. Choose a model that uses your own AI provider key, or contact us.";
+  "Agenta's included models aren't enabled for your organization. Use your own provider key, or contact us.";
 
 // Pi unwraps `error` before it reports, so its text carries the bare body.
 const piBody = (message: string, code: string) =>
@@ -68,6 +68,6 @@ describe("a person-facing gateway refusal keeps its own sentence and class", () 
       Extract<AgentEvent, { type: "error" }>
     >;
     assert.equal(error.code, "wallet_balance_exhausted");
-    assert.equal(error.message, "Your organization has used all its credits.");
+    assert.equal(error.message, "You've used all your organization's credits.");
   });
 });

@@ -34,12 +34,11 @@ def test_only_the_three_cloud_plans_are_capped():
     [
         (
             HOBBY,
-            "Your Free plan can run 2 agents at the same time, and 2 are already "
-            "working. We didn't start this request, and you weren't charged. Send it "
-            "again when one of them finishes, or upgrade to Pro to run 10 agents at "
-            "the same time.",
+            "Your Hobby plan allows 2 agents at a time, and 2 are running. We didn't "
+            "start this request or charge you. Resend when one finishes, or upgrade "
+            "to Pro for 10 at a time.",
         ),
-        (PRO, "upgrade to Business to run 25 agents at the same time."),
+        (PRO, "upgrade to Business for 25 at a time."),
         (BUSINESS, "contact us to raise the limit."),
     ],
 )
@@ -53,13 +52,12 @@ def test_the_concurrency_message(plan, expected):
     [
         (
             HOBBY,
-            "On the Free plan, an agent can work on one request for up to 30 minutes. "
-            "This request reached that limit, so we stopped it. Anything the agent "
-            "already saved is kept, and you only paid for the time it worked. Send a "
-            "new message to let it continue, or upgrade to Pro for requests up to 4 hours.",
+            "The Hobby plan limits a request to 30 minutes. This one reached it, so we "
+            "stopped it. Saved work is kept, and you paid only for the time used. Send "
+            "a message to continue, or upgrade to Pro for up to 4 hours.",
         ),
-        (PRO, "On the Pro plan, an agent can work on one request for up to 4 hours."),
-        (BUSINESS, "to let it continue, or split the work into smaller requests."),
+        (PRO, "The Pro plan limits a request to 4 hours."),
+        (BUSINESS, "to continue, or split the work into smaller requests."),
     ],
 )
 def test_the_turn_length_message(plan, expected):
@@ -84,7 +82,7 @@ def test_the_turn_length_message(plan, expected):
 def test_the_out_of_credit_message(plan, expected):
     message = credit_exhausted_message(plan)
     assert message.startswith(
-        "Your organization has used all its credits, so we didn't start this request"
+        "You've used all your organization's credits, so we didn't start this request"
     )
     assert expected in message
 

@@ -587,7 +587,9 @@ async def test_a_running_turn_finishes_after_its_balance_reaches_the_floor(
         assert response.status_code == 403
         error = json.loads(body)["error"]
         assert error["code"] == "wallet_balance_exhausted"
-        assert error["message"].startswith("Your organization has used all its credits")
+        assert error["message"].startswith(
+            "You've used all your organization's credits"
+        )
     # Held for the Hobby plan's turn limit, and let go when the turn ends.
     ttl = await redis_client.ttl(f"wallets:sessions:{organization_id}:sess-1")
     assert 30 * 60 - 5 <= ttl <= 30 * 60
@@ -818,7 +820,7 @@ async def test_an_organization_absent_from_the_wallet_rollout_is_refused_a_built
     error = json.loads(body)["error"]
     assert error["code"] == "builtin_models_not_enabled"
     assert error["message"].startswith(
-        "The AI models included with Agenta aren't turned on for your organization yet."
+        "Agenta's included models aren't enabled for your organization."
     )
     assert "wallet_balance" not in error["message"]
     assert chain.checks == 0

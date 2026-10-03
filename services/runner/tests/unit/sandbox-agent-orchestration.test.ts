@@ -3748,7 +3748,7 @@ describe("runTurn run-limits deadline (split path)", () => {
   it("a turn stopped at the plan's turn limit ends with the plan's message and its own class", async () => {
     const { calls, deps, events } = fakeHarness({ hangPrompt: true });
     const message =
-      "On the Free plan, an agent can work on one request for up to 30 minutes.";
+      "The Hobby plan limits a request to 30 minutes.";
 
     const result = await runSandboxAgent(
       { harness: "claude", messages: [{ role: "user", content: "hello" }] },

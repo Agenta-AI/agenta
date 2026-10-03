@@ -140,7 +140,7 @@ async def test_each_plan_runs_its_number_of_turns_at_once_and_refuses_the_next(
 
     assert refused.allowed is False
     assert refused.code == "concurrent_turns_limit"
-    assert f"can run {caps.concurrent_turns} agents at the same time" in refused.message
+    assert f"allows {caps.concurrent_turns} agents at a time" in refused.message
     assert refused.turn_limit is None and refused.slot_held is False
 
 

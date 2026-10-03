@@ -67,7 +67,7 @@ describe("admitSandboxTurn", () => {
     expect(await admitSandboxTurn("ApiKey k", "t-1", undefined, { ...deps, fetch: answer(200, { allowed: false }) })).toEqual({
       admitted: false,
       code: "wallet_balance_exhausted",
-      message: "Your organization has used all its credits, so we didn't start this request, and you weren't charged. Add credits to keep going.",
+      message: "You've used all your organization's credits, so we didn't start this request and didn't charge you. Add credits to keep going.",
     });
     expect(await admitSandboxTurn("ApiKey k", "t-1", undefined, { ...deps, fetch: answer(200, { allowed: true }) })).toEqual({
       admitted: true,
