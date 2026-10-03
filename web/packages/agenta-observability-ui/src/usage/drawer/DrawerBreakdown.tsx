@@ -1,4 +1,4 @@
-import {useEffect, useMemo} from "react"
+import {useMemo} from "react"
 
 import {
     formatCompact,
@@ -18,12 +18,6 @@ import {CaretRight} from "@phosphor-icons/react"
 
 import {SERIES_COLORS, usageColor} from "../colors"
 import {useUsageSplit, type UsageWindowData} from "../useUsageData"
-
-/** Rows the CSV export writes: a header row, then one row per key. */
-export interface BreakdownTable {
-    name: string
-    rows: string[][]
-}
 
 const LIMIT = 8
 const OTHER = "__other"
@@ -79,7 +73,6 @@ export interface DrawerBreakdownProps {
     unit: string
     onDim: (dim: UsageDimension) => void
     onDrill: (focus: UsageFocus, dim: UsageDimension) => void
-    onTable: (table: BreakdownTable | null) => void
 }
 
 export const DrawerBreakdown = (props: DrawerBreakdownProps) => (
@@ -111,7 +104,6 @@ const RunTable = ({
     metric,
     agentName,
     onDrill,
-    onTable,
 }: DrawerBreakdownProps & {dim: "agent" | "model"}) => {
     const runs = dim === "agent" ? data.agentRuns : data.modelRuns
     const failed = dim === "agent" ? data.agentFailed : data.modelFailed
@@ -154,28 +146,6 @@ const RunTable = ({
     )
     const shareTotal = sum(rows.map((r) => rowValue(r, shareKey) ?? 0))
     const pending = data.status.overview.pending || split.status.pending
-
-    useEffect(() => {
-        onTable({
-            name: `by-${dim}`,
-            rows: [
-                [
-                    dim === "agent" ? "Agent" : "Configured model",
-                    "Runs",
-                    "Failed",
-                    "Tokens",
-                    "Cost",
-                ],
-                ...sorted.map((r) => [
-                    r.label,
-                    String(r.runs),
-                    String(r.failed),
-                    String(r.tokens),
-                    r.cost.toFixed(6),
-                ]),
-            ],
-        })
-    }, [sorted, dim, onTable])
 
     if (!rows.length) {
         return (
@@ -280,7 +250,7 @@ const RunTable = ({
     )
 }
 
-const ToolTable = ({data, focus, filters, unit, onTable}: DrawerBreakdownProps) => {
+const ToolTable = ({data, focus, filters, unit}: DrawerBreakdownProps) => {
     const rows = useMemo(
         () => data.toolOrder.map((key) => ({key, calls: sum(data.toolCalls[key])})),
         [data.toolOrder, data.toolCalls],
@@ -288,13 +258,6 @@ const ToolTable = ({data, focus, filters, unit, onTable}: DrawerBreakdownProps) 
     const total = sum(rows.map((r) => r.calls))
     const buckets = data.starts.length || 1
     const narrowed = Boolean(focus) || filters.agent.length > 0 || filters.model.length > 0
-
-    useEffect(() => {
-        onTable({
-            name: "by-tool",
-            rows: [["Tool", "Calls"], ...rows.map((r) => [r.key, String(r.calls)])],
-        })
-    }, [rows, onTable])
 
     if (!rows.length) {
         return (

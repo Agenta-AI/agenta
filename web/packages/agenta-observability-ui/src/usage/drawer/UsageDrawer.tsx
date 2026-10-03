@@ -17,7 +17,7 @@ import {
     type UsagePoint,
 } from "@agenta/observability/usage"
 import {Button, Sheet, SheetContent, SheetDescription, SheetTitle, cn} from "@agenta/ui/ui"
-import {CaretLeft, CaretRight, DownloadSimple, X} from "@phosphor-icons/react"
+import {CaretLeft, CaretRight, X} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
@@ -26,8 +26,7 @@ import {usageColor} from "../colors"
 import {bucketUnit, fullLabel, shortLabel} from "../labels"
 import {useUsageWindowData} from "../useUsageData"
 
-import {downloadCsv} from "./csv"
-import {DrawerBreakdown, type BreakdownTable} from "./DrawerBreakdown"
+import {DrawerBreakdown} from "./DrawerBreakdown"
 import {DrawerRuns} from "./DrawerRuns"
 
 const METRIC_LABEL: Record<UsageMetric, string> = {
@@ -93,7 +92,6 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
     const range = useAtomValue(usageRangeAtom)
     const [filters, setFilters] = useAtom(usageFiltersAtom)
     const [hovered, setHovered] = useState<number | null>(null)
-    const [table, setTable] = useState<BreakdownTable | null>(null)
 
     const pageStarts = useMemo(() => bucketStarts(pageWindow), [pageWindow])
     const bucket = state?.bucket ?? null
@@ -349,7 +347,6 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                     unit={unit}
                     onDim={(dim) => setState({...state, dim})}
                     onDrill={(next, dim) => setState({...state, focus: next, dim})}
-                    onTable={setTable}
                 />
 
                 <DrawerRuns
@@ -367,31 +364,19 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                 />
             </div>
 
-            <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-border px-5 py-3">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!table}
-                    onClick={() =>
-                        table && downloadCsv(`agenta-usage-${table.name}.csv`, table.rows)
-                    }
-                >
-                    <DownloadSimple data-icon="inline-start" />
-                    Export CSV
-                </Button>
-                {focus && focus.dim !== "callModel" ? (
+            {focus && focus.dim !== "callModel" ? (
+                <div className="flex justify-end px-5 pb-4 pt-2">
                     <Button
                         size="sm"
                         onClick={() => {
-                            const key = focus.dim
-                            setFilters({...filters, [key]: [focus.key]})
+                            setFilters({...filters, [focus.dim]: [focus.key]})
                             setState(null)
                         }}
                     >
                         Apply as filter
                     </Button>
-                ) : null}
-            </div>
+                </div>
+            ) : null}
         </>
     )
 }
