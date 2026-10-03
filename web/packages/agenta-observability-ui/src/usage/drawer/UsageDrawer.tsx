@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useMemo, useRef, useState} from "react"
 
 import {
     USAGE_RANGE,
@@ -16,6 +16,7 @@ import {
     type UsageMetric,
     type UsagePoint,
 } from "@agenta/observability/usage"
+import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {Button, Sheet, SheetContent, SheetDescription, SheetTitle, cn} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, X} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
@@ -92,6 +93,8 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
     const range = useAtomValue(usageRangeAtom)
     const [filters, setFilters] = useAtom(usageFiltersAtom)
     const [hovered, setHovered] = useState<number | null>(null)
+    const scrollRef = useRef<HTMLDivElement>(null)
+    useScrollFadeEdges(scrollRef)
 
     const pageStarts = useMemo(() => bucketStarts(pageWindow), [pageWindow])
     const bucket = state?.bucket ?? null
@@ -179,189 +182,196 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                 </Button>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
-                {pageChips.length || focusLabel ? (
-                    <div className="flex flex-wrap gap-1.5">
-                        {pageChips.map((chip) => (
-                            <span
-                                key={chip}
-                                className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-xs"
-                            >
-                                {chip}
-                            </span>
-                        ))}
-                        {focusLabel ? (
-                            <span className="inline-flex h-6 items-center gap-1 rounded-md bg-accent pl-2 pr-1 text-xs">
-                                {focusLabel}
-                                <button
-                                    type="button"
-                                    aria-label="Remove"
-                                    onClick={() =>
-                                        setState({
-                                            ...state,
-                                            focus: null,
-                                            dim: focus?.dim === "model" ? "model" : "agent",
-                                        })
-                                    }
-                                    className="grid size-4 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:text-foreground"
+            <div ref={scrollRef} className="ag-scroll-fade min-h-0 flex-1 overflow-y-auto">
+                <div className="flex flex-col gap-4 px-5 py-4">
+                    {pageChips.length || focusLabel ? (
+                        <div className="flex flex-wrap gap-1.5">
+                            {pageChips.map((chip) => (
+                                <span
+                                    key={chip}
+                                    className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-xs"
                                 >
-                                    <X size={10} />
-                                </button>
-                            </span>
-                        ) : null}
-                    </div>
-                ) : null}
+                                    {chip}
+                                </span>
+                            ))}
+                            {focusLabel ? (
+                                <span className="inline-flex h-6 items-center gap-1 rounded-md bg-accent pl-2 pr-1 text-xs">
+                                    {focusLabel}
+                                    <button
+                                        type="button"
+                                        aria-label="Remove"
+                                        onClick={() =>
+                                            setState({
+                                                ...state,
+                                                focus: null,
+                                                dim: focus?.dim === "model" ? "model" : "agent",
+                                            })
+                                        }
+                                        className="grid size-4 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:text-foreground"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </span>
+                            ) : null}
+                        </div>
+                    ) : null}
 
-                <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1 sm:grid-cols-6">
-                    {TILES.map((m) => (
-                        <button
-                            key={m}
-                            type="button"
-                            disabled={m === "tools" && narrowed}
-                            title={
-                                m === "tools" && narrowed
-                                    ? "Tool calls do not record their agent or model yet"
+                    <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1 sm:grid-cols-6">
+                        {TILES.map((m) => (
+                            <button
+                                key={m}
+                                type="button"
+                                disabled={m === "tools" && narrowed}
+                                title={
+                                    m === "tools" && narrowed
+                                        ? "Tool calls do not record their agent or model yet"
+                                        : undefined
+                                }
+                                onClick={() => setState({...state, metric: m})}
+                                className={cn(
+                                    "flex min-w-0 cursor-pointer flex-col gap-1 rounded-lg border-0 px-3 py-2.5 text-left disabled:cursor-default disabled:opacity-50",
+                                    m === metric ? "bg-background shadow-sm" : "bg-transparent",
+                                )}
+                            >
+                                <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                                    <span
+                                        className="size-1.5 shrink-0 rounded-full"
+                                        style={{background: usageColor(m)}}
+                                    />
+                                    <span className="truncate">{TILE_LABEL[m]}</span>
+                                </span>
+                                <span className="truncate text-base font-semibold tabular-nums">
+                                    {m === "tools"
+                                        ? narrowed
+                                            ? "—"
+                                            : formatCount(totalTools)
+                                        : formatMetric(m, tileValue(m))}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <section className="rounded-xl bg-muted px-4 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium">
+                                {METRIC_LABEL[metric]} by{" "}
+                                {unit === "day" ? "day" : unit === "hour" ? "hour" : "5 minutes"}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                                {bucket === null
+                                    ? "Click a bar to zoom in"
+                                    : "Hover a bar for details"}
+                            </span>
+                        </div>
+                        <TimeChart
+                            kind={additive(metric) ? "bar" : "line"}
+                            labels={labels}
+                            series={[
+                                {
+                                    key: metric,
+                                    label: METRIC_LABEL[metric],
+                                    color: usageColor(metric),
+                                    values,
+                                },
+                            ]}
+                            formatTick={(v) => formatMetric(metric, v, true)}
+                            average={{
+                                value: average,
+                                label: `avg ${formatMetric(metric, average, true)}${additive(metric) ? ` / ${unit}` : ""}`,
+                            }}
+                            yMin={
+                                metric === "success"
+                                    ? Math.max(
+                                          0,
+                                          Math.floor((Math.min(...present, 100) - 5) / 10) * 10,
+                                      )
                                     : undefined
                             }
-                            onClick={() => setState({...state, metric: m})}
-                            className={cn(
-                                "flex min-w-0 cursor-pointer flex-col gap-1 rounded-lg border-0 px-3 py-2.5 text-left disabled:cursor-default disabled:opacity-50",
-                                m === metric ? "bg-background shadow-sm" : "bg-transparent",
-                            )}
-                        >
-                            <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                                <span
-                                    className="size-1.5 shrink-0 rounded-full"
-                                    style={{background: usageColor(m)}}
-                                />
-                                <span className="truncate">{TILE_LABEL[m]}</span>
-                            </span>
-                            <span className="truncate text-base font-semibold tabular-nums">
-                                {m === "tools"
-                                    ? narrowed
-                                        ? "—"
-                                        : formatCount(totalTools)
-                                    : formatMetric(m, tileValue(m))}
-                            </span>
-                        </button>
-                    ))}
-                </div>
+                            yMax={metric === "success" ? 100 : undefined}
+                            height={180}
+                            className="mt-2"
+                            hovered={hovered}
+                            onHover={setHovered}
+                            onSelect={
+                                bucket === null ? (i) => setState({...state, bucket: i}) : undefined
+                            }
+                            tooltip={(i) => {
+                                const p = data.overview.points[i]
+                                const v = values[i]
+                                const topModel = data.callModelOrder
+                                    .map((k) => ({k, n: data.callModels[k][i]}))
+                                    .sort((a, b) => b.n - a.n)[0]
+                                const busiest = data.agentOrder
+                                    .map((k) => ({k, n: data.agentRuns[k][i]}))
+                                    .sort((a, b) => b.n - a.n)[0]
+                                return (
+                                    <ChartTooltipPanel
+                                        title={fullLabels[i]}
+                                        runs={`${formatCount(p.runs)} runs`}
+                                        value={`${formatMetric(metric, v)} ${METRIC_LABEL[metric].toLowerCase()}`}
+                                        facts={[
+                                            {
+                                                label: "vs average",
+                                                value:
+                                                    v !== null && average
+                                                        ? `${v >= average ? "+" : ""}${Math.round(((v - average) / average) * 100)}%`
+                                                        : "—",
+                                            },
+                                            metric === "cost"
+                                                ? {
+                                                      label: "Avg cost per run",
+                                                      value: formatMoney(
+                                                          p.runs ? p.cost / p.runs : null,
+                                                      ),
+                                                  }
+                                                : {label: "Cost", value: formatMoney(p.cost)},
+                                            {label: "Failed runs", value: formatCount(p.failed)},
+                                            ...(narrowed
+                                                ? []
+                                                : [
+                                                      {
+                                                          label: "Top model",
+                                                          value: topModel?.n ? topModel.k : "—",
+                                                      },
+                                                  ]),
+                                            {
+                                                label: "Busiest agent",
+                                                value: busiest?.n ? agentName(busiest.k) : "—",
+                                            },
+                                        ]}
+                                    />
+                                )
+                            }}
+                        />
+                    </section>
 
-                <section className="rounded-xl bg-muted px-4 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium">
-                            {METRIC_LABEL[metric]} by{" "}
-                            {unit === "day" ? "day" : unit === "hour" ? "hour" : "5 minutes"}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground">
-                            {bucket === null ? "Click a bar to zoom in" : "Hover a bar for details"}
-                        </span>
-                    </div>
-                    <TimeChart
-                        kind={additive(metric) ? "bar" : "line"}
-                        labels={labels}
-                        series={[
-                            {
-                                key: metric,
-                                label: METRIC_LABEL[metric],
-                                color: usageColor(metric),
-                                values,
-                            },
-                        ]}
-                        formatTick={(v) => formatMetric(metric, v, true)}
-                        average={{
-                            value: average,
-                            label: `avg ${formatMetric(metric, average, true)}${additive(metric) ? ` / ${unit}` : ""}`,
-                        }}
-                        yMin={
-                            metric === "success"
-                                ? Math.max(0, Math.floor((Math.min(...present, 100) - 5) / 10) * 10)
-                                : undefined
-                        }
-                        yMax={metric === "success" ? 100 : undefined}
-                        height={180}
-                        className="mt-2"
-                        hovered={hovered}
-                        onHover={setHovered}
-                        onSelect={
-                            bucket === null ? (i) => setState({...state, bucket: i}) : undefined
-                        }
-                        tooltip={(i) => {
-                            const p = data.overview.points[i]
-                            const v = values[i]
-                            const topModel = data.callModelOrder
-                                .map((k) => ({k, n: data.callModels[k][i]}))
-                                .sort((a, b) => b.n - a.n)[0]
-                            const busiest = data.agentOrder
-                                .map((k) => ({k, n: data.agentRuns[k][i]}))
-                                .sort((a, b) => b.n - a.n)[0]
-                            return (
-                                <ChartTooltipPanel
-                                    title={fullLabels[i]}
-                                    runs={`${formatCount(p.runs)} runs`}
-                                    value={`${formatMetric(metric, v)} ${METRIC_LABEL[metric].toLowerCase()}`}
-                                    facts={[
-                                        {
-                                            label: "vs average",
-                                            value:
-                                                v !== null && average
-                                                    ? `${v >= average ? "+" : ""}${Math.round(((v - average) / average) * 100)}%`
-                                                    : "—",
-                                        },
-                                        metric === "cost"
-                                            ? {
-                                                  label: "Avg cost per run",
-                                                  value: formatMoney(
-                                                      p.runs ? p.cost / p.runs : null,
-                                                  ),
-                                              }
-                                            : {label: "Cost", value: formatMoney(p.cost)},
-                                        {label: "Failed runs", value: formatCount(p.failed)},
-                                        ...(narrowed
-                                            ? []
-                                            : [
-                                                  {
-                                                      label: "Top model",
-                                                      value: topModel?.n ? topModel.k : "—",
-                                                  },
-                                              ]),
-                                        {
-                                            label: "Busiest agent",
-                                            value: busiest?.n ? agentName(busiest.k) : "—",
-                                        },
-                                    ]}
-                                />
-                            )
-                        }}
+                    <DrawerBreakdown
+                        data={data}
+                        window={window}
+                        filters={filters}
+                        focus={focus}
+                        dim={state.dim}
+                        metric={metric}
+                        agentName={agentName}
+                        unit={unit}
+                        onDim={(dim) => setState({...state, dim})}
+                        onDrill={(next, dim) => setState({...state, focus: next, dim})}
                     />
-                </section>
 
-                <DrawerBreakdown
-                    data={data}
-                    window={window}
-                    filters={filters}
-                    focus={focus}
-                    dim={state.dim}
-                    metric={metric}
-                    agentName={agentName}
-                    unit={unit}
-                    onDim={(dim) => setState({...state, dim})}
-                    onDrill={(next, dim) => setState({...state, focus: next, dim})}
-                />
-
-                <DrawerRuns
-                    key={`${window.oldest}-${focus?.dim ?? ""}-${focus?.key ?? ""}`}
-                    window={window}
-                    filters={filters}
-                    focus={focus}
-                    total={totals.runs}
-                    failed={totals.failed}
-                    failedOnly={state.failedOnly}
-                    onFailedOnly={(failedOnly) => setState({...state, failedOnly})}
-                    agentName={agentName}
-                    showDate={bucket === null && window.interval >= 24 * 60}
-                    onOpenTrace={onOpenTrace}
-                />
+                    <DrawerRuns
+                        key={`${window.oldest}-${focus?.dim ?? ""}-${focus?.key ?? ""}`}
+                        window={window}
+                        filters={filters}
+                        focus={focus}
+                        total={totals.runs}
+                        failed={totals.failed}
+                        failedOnly={state.failedOnly}
+                        onFailedOnly={(failedOnly) => setState({...state, failedOnly})}
+                        agentName={agentName}
+                        showDate={bucket === null && window.interval >= 24 * 60}
+                        onOpenTrace={onOpenTrace}
+                    />
+                </div>
             </div>
 
             {focus && focus.dim !== "callModel" ? (

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     fetchAllOrgsList,
@@ -28,6 +28,7 @@ import {
     useEntitlements,
 } from "@agenta/settings-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {THEME_OPTIONS, useThemeMode} from "@agenta/ui/theme"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
@@ -357,8 +358,16 @@ export const SettingsScreen = ({
         [router],
     )
 
+    // The Usage tab's long column fades at an edge with more to scroll, below the sticky header.
+    const scrollRef = useRef<HTMLDivElement>(null)
+    const fades = active === "usage"
+    useScrollFadeEdges(scrollRef, {enabled: fades, insetSelector: "header"})
+
     const content = (
-        <div className="min-w-0 flex-1 overflow-y-auto">
+        <div
+            ref={scrollRef}
+            className={`min-w-0 flex-1 overflow-y-auto${fades ? " ag-scroll-fade" : ""}`}
+        >
             {/* The shared page cap, same as every desktop Settings tab. It was escaped here when
                 this app was phone-only; `max-w-[1248px]` never binds below ~1490px of viewport,
                 so it costs phones nothing and stops the page sprawling edge to edge on the
