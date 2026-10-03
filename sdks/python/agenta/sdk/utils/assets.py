@@ -1,6 +1,9 @@
 from typing import Dict, Optional, Tuple
 
-from litellm import cost_calculator
+try:
+    from litellm import cost_calculator
+except Exception:
+    cost_calculator = None
 
 
 # A model is listed here once its provider still serves it. Ids whose provider has already
