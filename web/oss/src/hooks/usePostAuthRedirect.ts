@@ -83,6 +83,14 @@ const usePostAuthRedirect = () => {
                 // Preference migration must not block sign-in.
             }
             setOnboardingStorageUserId(profileUid)
+        } else {
+            // Keep sign-up writes scoped; UserListener migrates them once the profile lands.
+            try {
+                const sessionUserId = await Session.getUserId()
+                setOnboardingStorageUserId((current) => current ?? sessionUserId)
+            } catch {
+                // ignore user id lookup failures
+            }
         }
         await resetOrganizationData()
         await resetProjectData()
