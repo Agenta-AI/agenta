@@ -202,15 +202,77 @@ def _catalog_id(provider: Optional[str], model_id: str) -> str:
     return f"{provider.lower()}/{model_id}"
 
 
+# Provider spellings that name a deployment of a family the catalog spells differently: a
+# bridge can serve a model through a deployment while the catalog lists the model under the
+# family name (``vertex_ai`` serves Google's Gemini models, catalogued under ``gemini``).
+# The alias only widens an otherwise-missed lookup; it can never change a join that succeeds.
+_PROVIDER_FAMILY_ALIASES: Dict[str, str] = {
+    "vertex": "gemini",
+    "vertex_ai": "gemini",
+}
+
+
+def _strip_custom_provider_kind(model_id: str) -> str:
+    """Drop a custom-provider kind segment: ``<connection>/custom/<model>`` -> ``<model>``.
+
+    Custom-provider model keys carry the vault storage namespace plus a ``custom`` kind segment
+    (``Agenta/custom/gemini/gemini-3.7-flash``, legacy ``openai/<name>/custom/<model>``); the
+    tail after ``custom/`` is the catalog-spelled model id. No catalog id contains a ``custom``
+    segment, so the strip can never distort a direct spelling.
+    """
+    parts = model_id.split("/")
+    if "custom" in parts[:-1]:
+        return "/".join(parts[parts.index("custom") + 1 :])
+    return model_id
+
+
+def _pi_input_modalities(model_id: str, provider: Optional[str]) -> Optional[List[str]]:
+    catalog = pi_model_catalog()
+
+    def entry_for(catalog_id: str) -> Optional[ModelCatalogEntry]:
+        return next((item for item in catalog.models if item.id == catalog_id), None)
+
+    # The unchanged strict join first: every id that joins today keeps joining, including the
+    # multi-segment spellings (``openrouter/google/gemini-3.7-flash``) where ``provider``
+    # prefixes a provider-qualified model id.
+    entry = entry_for(_catalog_id(provider, model_id))
+    # A custom-provider/bridge run passes the CONNECTION's provider (e.g. the starter-credits
+    # bridge) while the model id already names its own family, so let the id speak for itself.
+    if entry is None:
+        entry = entry_for(_catalog_id(None, model_id))
+    # A bridge can also serve the model through a deployment spelling the catalog does not use.
+    # The alias applies to the deployment spelling itself: a qualified id must carry it as its
+    # own head, and an unqualified id takes it from ``provider``. An arbitrary qualified head
+    # (``unknown-x/gemini-3.7-flash``) stays unknown rather than resolving through the tail's
+    # model.
+    if entry is None:
+        head, separator, tail = model_id.partition("/")
+        if separator:
+            spellings = (head,) if head.lower() in _PROVIDER_FAMILY_ALIASES else ()
+        else:
+            spellings = (provider,)
+        for spelling in spellings:
+            family = _PROVIDER_FAMILY_ALIASES.get((spelling or "").lower())
+            if family is None:
+                continue
+            entry = entry_for(_catalog_id(family, tail if separator else model_id))
+            if entry is not None:
+                break
+    if entry is None or entry.modalities is None:
+        return None
+    return list(entry.modalities)
+
+
 def model_input_modalities(
     harness: Optional[str], model_id: str, *, provider: Optional[str] = None
 ) -> Optional[List[str]]:
     """Look up input modalities using the model id form accepted by ``harness``."""
     entry: Optional[ModelCatalogEntry]
     if harness == "pi_core":
-        catalog = pi_model_catalog()
-        catalog_id = _catalog_id(provider, model_id)
-    elif harness == "claude":
+        # A bridge/custom-provider spelling (`<connection>/custom/<model>`) addresses the
+        # catalog-spelled model in its tail, so strip the kind segment before joining.
+        return _pi_input_modalities(_strip_custom_provider_kind(model_id), provider)
+    if harness == "claude":
         catalog = claude_model_catalog()
         catalog_id = model_id
     elif harness == "codex":
