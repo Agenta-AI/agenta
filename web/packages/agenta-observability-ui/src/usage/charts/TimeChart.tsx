@@ -2,7 +2,17 @@ import {useMemo, type ReactNode} from "react"
 
 import {niceMax} from "@agenta/observability/usage"
 import {ChartContainer, ChartTooltip, cn, type ChartConfig} from "@agenta/ui/ui"
-import {Bar, BarChart, CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis, YAxis} from "recharts"
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    ComposedChart,
+    Line,
+    ReferenceLine,
+    XAxis,
+    YAxis,
+} from "recharts"
 
 export interface TimeSeries {
     key: string
@@ -36,6 +46,8 @@ export interface TimeChartProps {
 type Row = Record<string, number | string | null>
 
 const TICKS = 6
+// Top corners only; the bottom of a stack sits on the axis.
+const TOP_RADIUS: [number, number, number, number] = [3, 3, 0, 0]
 
 export const TimeChart = ({
     kind,
@@ -77,6 +89,11 @@ export const TimeChart = ({
         )
         return niceMax(Math.max(0, ...totals, average?.value ?? 0))
     }, [labels, visible, kind, average])
+    // Round only the top of each stack: the highest series with a value in that bucket.
+    const topSeries = useMemo(
+        () => labels.map((_, i) => visible.findLastIndex((s) => (s.values[i] ?? 0) > 0)),
+        [labels, visible],
+    )
     const low = yMin ?? 0
     const high = yMax ?? top
     const ticks = [low, low + (high - low) / 2, high]
@@ -173,8 +190,17 @@ export const TimeChart = ({
                             fill={s.color}
                             fillOpacity={1}
                             activeBar={{style: {filter: "brightness(0.8)"}}}
-                            radius={si === visible.length - 1 ? [3, 3, 0, 0] : 0}
-                        />
+                        >
+                            {labels.map((_, i) => (
+                                <Cell
+                                    key={i}
+                                    // Cell types radius as a number; the bar's Rectangle takes a tuple.
+                                    radius={
+                                        (topSeries[i] === si ? TOP_RADIUS : 0) as unknown as number
+                                    }
+                                />
+                            ))}
+                        </Bar>
                     ))}
                 </BarChart>
             ) : (
