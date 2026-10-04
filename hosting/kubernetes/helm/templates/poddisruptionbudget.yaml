@@ -5,20 +5,27 @@
 {{- $values := include "agenta.values" . | fromYaml }}
 {{- range $wl := include "agenta.workloads" $root | fromYamlArray }}
 {{- if eq (toString $wl.enabled) "true" }}
-{{- $cfg := default dict (default dict (get $values $wl.key)).pdb }}
+{{- /* The values key may be a dotted path (store.seaweedfs). */}}
+{{- $node := $values }}
+{{- range splitList "." $wl.key }}{{- $node = default dict (get $node .) }}{{- end }}
+{{- $cfg := default dict $node.pdb }}
 {{- $replicas := int $wl.replicas }}
 {{- /* Two or more replicas: one may go at a time. One replica: a budget
        only helps when the operator asks for it with protectSingleton,
        because minAvailable 1 on a single pod blocks every voluntary
        eviction of its node for the platform's grace period. */}}
+{{- /* hasKey, not truthiness: maxUnavailable 0 is a real setting (block
+       every voluntary eviction), not an unset one. */}}
+{{- $hasMax := hasKey $cfg "maxUnavailable" }}
+{{- $hasMin := hasKey $cfg "minAvailable" }}
 {{- $maxUnavailable := $cfg.maxUnavailable }}
 {{- $minAvailable := $cfg.minAvailable }}
-{{- if and (not $maxUnavailable) (not $minAvailable) }}
-{{- if gt $replicas 1 }}{{- $maxUnavailable = 1 }}
-{{- else if $cfg.protectSingleton }}{{- $minAvailable = 1 }}
+{{- if not (or $hasMax $hasMin) }}
+{{- if gt $replicas 1 }}{{- $maxUnavailable = 1 }}{{- $hasMax = true }}
+{{- else if $cfg.protectSingleton }}{{- $minAvailable = 1 }}{{- $hasMin = true }}
 {{- end }}
 {{- end }}
-{{- if or $maxUnavailable $minAvailable }}
+{{- if or $hasMax $hasMin }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -28,7 +35,7 @@ metadata:
     {{- include "agenta.labels" $root | nindent 4 }}
     app.kubernetes.io/component: {{ $wl.component }}
 spec:
-  {{- if $maxUnavailable }}
+  {{- if $hasMax }}
   maxUnavailable: {{ $maxUnavailable }}
   {{- else }}
   minAvailable: {{ $minAvailable }}

@@ -1611,7 +1611,7 @@ imagePullSecrets:
   replicas: 1
   enabled: {{ include "agenta.redisDurable.enabled" . }}
 - component: seaweedfs
-  key: seaweedfs
+  key: store.seaweedfs
   replicas: 1
   enabled: {{ include "agenta.seaweedfs.enabled" . }}
 {{- end }}

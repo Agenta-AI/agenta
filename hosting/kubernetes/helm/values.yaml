@@ -267,14 +267,25 @@ redisDurable:
 #                              #   agentRunner.fuse.enabled: false
 #                              #   agentRunner.providers.enabled: [daytona]
 #                              #   agentRunner.providers.default: daytona
+#   lifecycle:                 # default: a preStop exec hook that runs `sleep 10`. The default
+#                              # image (node:24-slim) has `sleep`. A custom image without it must
+#                              # set its own hook here, or the drain delay is skipped on shutdown.
 
 # ================================================================== #
-# Graceful rollouts — per-workload, all unset by default.
+# Graceful rollouts — per-workload.
 # A managed load balancer keeps sending requests to a pod for a few
 # seconds after Kubernetes removes it from the endpoints, so a pod that
 # exits at once answers them with 502. Hold the pod open with a preStop
 # hook, give it room with a grace period, and keep a spare pod during
 # the rollout with a strategy. See hosting/kubernetes/README.md.
+# Chart defaults when a key is unset:
+#   strategy: Recreate on agentRunner, cron and redisVolatile; RollingUpdate
+#     with maxUnavailable 0, maxSurge 1 on services, web, webMobile,
+#     workerStreams, workerQueues and supertokens; none on api.
+#   terminationGracePeriodSeconds: 300 on agentRunner, 120 on the two
+#     workers, 60 on services, web and webMobile.
+#   lifecycle: a preStop exec `sleep 10` on agentRunner, services, web and
+#     webMobile. Setting a key replaces its default.
 # The keys work on api, services, web, webMobile, cron, workerStreams,
 # workerQueues, agentRunner, supertokens, redisVolatile, redisDurable,
 # store.seaweedfs and alembic. `strategy` is for Deployments only.
