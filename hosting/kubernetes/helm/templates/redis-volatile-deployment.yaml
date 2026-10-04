@@ -13,6 +13,12 @@ spec:
   {{- with $redisVolatile.strategy }}
   strategy:
     {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Recreate: one cache, not two. A rolling update would briefly run a
+         second redis with an empty dataset, and half the clients would read
+         from it. The cost is a short gap, which a cache tolerates. */}}
+  strategy:
+    type: Recreate
   {{- end }}
   selector:
     matchLabels:
