@@ -84,6 +84,16 @@ spec:
                   name: {{ include "agenta.secretName" . }}
                   key: REDIS_VOLATILE_PASSWORD
           {{- end }}
+          {{- /* A startup probe, so a restart that has to replay the
+                 append-only file is not killed by liveness while it works.
+                 Liveness and readiness only begin once this passes. */}}
+          startupProbe:
+            exec:
+              command: ["redis-cli", "-p", {{ include "agenta.redisVolatile.port" . | quote }}, "ping"]
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
           livenessProbe:
             exec:
               command: ["redis-cli", "-p", {{ include "agenta.redisVolatile.port" . | quote }}, "ping"]

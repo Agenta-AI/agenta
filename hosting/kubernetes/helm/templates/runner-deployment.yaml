@@ -16,6 +16,15 @@ spec:
   {{- with $runner.strategy }}
   strategy:
     {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Recreate, not RollingUpdate: the api addresses the runner through one
+         Service with no session routing, so while two runner pods exist a
+         Stop, Cancel or follow-up message can reach the pod that does not own
+         the session. The owner answers 404 and the api can settle the command
+         as lost. One pod at a time makes that impossible. Revisit when the
+         api routes by session id; the plan is in the GCP production design. */}}
+  strategy:
+    type: Recreate
   {{- end }}
   selector:
     matchLabels:
@@ -31,6 +40,9 @@ spec:
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
       {{- if hasKey $runner "terminationGracePeriodSeconds" }}
       terminationGracePeriodSeconds: {{ $runner.terminationGracePeriodSeconds }}
+      {{- else }}
+      {{- /* Default 300 s: in-flight agent turns need room to finish. */}}
+      terminationGracePeriodSeconds: 300
       {{- end }}
       {{- with $runner.podSecurityContext }}
       securityContext:
@@ -221,6 +233,14 @@ spec:
           {{- with $runner.lifecycle }}
           lifecycle:
             {{- toYaml . | nindent 12 }}
+          {{- else }}
+          {{- /* Default: hold the container open for 10 s after Kubernetes
+                 sends the stop signal, so the load balancer finishes taking
+                 this pod out of rotation before the process goes away. */}}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "10"]
           {{- end }}
           {{- with $runner.resources }}
           resources:
@@ -249,5 +269,10 @@ spec:
       {{- with $runner.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $spread := include "agenta.topologySpreadConstraints" (dict "root" $ "component" "runner" "key" "agentRunner" "replicas" (include "agenta.agentRunner.replicas" .)) }}
+      {{- if $spread }}
+      topologySpreadConstraints:
+        {{- $spread | nindent 8 }}
       {{- end }}
 {{- end }}
