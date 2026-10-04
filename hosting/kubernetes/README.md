@@ -186,8 +186,9 @@ Ingress spec uses. Any non-empty list also switches the derived URLs to https.
 A managed load balancer keeps sending requests to a pod for a few seconds after
 Kubernetes removes it from the endpoints. On GKE the endpoint group needs that
 long to notice. A pod that exits as soon as it gets the TERM signal answers those
-requests with a 502, so every rollout drops a few requests. Three optional keys
-per workload close the window, and all three are unset by default:
+requests with a 502, so every rollout drops a few requests. Three keys per
+workload close the window. The chart sets defaults on most workloads (listed in
+`values.yaml` under "Graceful rollouts"), and a key you set replaces its default:
 
 ```yaml
 api:
@@ -213,7 +214,9 @@ Four things to get right:
   whatever the hook is still doing.
 - `preStop: {sleep: ...}` needs Kubernetes 1.30 or later. Below that, use
   `preStop: {exec: {command: ["sh", "-c", "sleep 10"]}}`, and note that the image
-  must have that shell.
+  must have that shell. The chart's own default hook is an exec `sleep 10` on
+  `agentRunner`, `services`, `web` and `webMobile`; a custom image without
+  `sleep` must set its own `lifecycle`.
 - `strategy` is for Deployments. The durable Redis and SeaweedFS are
   StatefulSets and the migration is a Job; neither has a `spec.strategy`, so the
   chart does not render one there. `lifecycle` and

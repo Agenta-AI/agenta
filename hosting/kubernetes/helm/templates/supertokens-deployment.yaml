@@ -13,6 +13,16 @@ spec:
   {{- with $supertokens.strategy }}
   strategy:
     {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Default: never take a pod down before its replacement is ready. The
+         Kubernetes default of 25% unavailable rounds to "the only pod" when a
+         workload runs one replica, which is a deliberate outage on every
+         rollout. */}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   {{- end }}
   selector:
     matchLabels:
@@ -131,5 +141,10 @@ spec:
       {{- with $supertokens.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $spread := include "agenta.topologySpreadConstraints" (dict "root" $ "component" "supertokens" "key" "supertokens" "replicas" (include "agenta.supertokens.replicas" .)) }}
+      {{- if $spread }}
+      topologySpreadConstraints:
+        {{- $spread | nindent 8 }}
       {{- end }}
 {{- end }}
