@@ -21,6 +21,17 @@ spec:
   {{- with $api.strategy }}
   strategy:
     {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Default: never take a pod down before its replacement is ready, the
+         same as every other Deployment here. The Kubernetes default of 25%
+         unavailable rounds to "the only pod" at one replica, and a
+         self-hosted install that never sets this key would take its only api
+         pod down on every rollout. */}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   {{- end }}
   selector:
     matchLabels:

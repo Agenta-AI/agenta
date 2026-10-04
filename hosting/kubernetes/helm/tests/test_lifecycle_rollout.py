@@ -130,6 +130,7 @@ ROLLING_NO_GAP = {
     "rollingUpdate": {"maxUnavailable": 0, "maxSurge": 1},
 }
 DEFAULT_STRATEGIES = {
+    "api": ROLLING_NO_GAP,
     "runner": {"type": "Recreate"},
     "cron": {"type": "Recreate"},
     "redis-volatile": {"type": "Recreate"},
