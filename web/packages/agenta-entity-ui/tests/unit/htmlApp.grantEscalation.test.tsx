@@ -263,6 +263,26 @@ describe("a stored change reaches the running app", () => {
         expect(host().setAccess).toHaveBeenLastCalledWith("read")
     })
 
+    it("a revoke stored while the write question is open wins over Allow", async () => {
+        const grants = createGrantStore()
+        grants.set("m1", DIR, {level: "read", writeRefused: false})
+        const {built} = await open({grants})
+        const write = await call(built(), "read-write")
+        act(() => grants.set("m1", DIR, {level: "none", writeRefused: false}))
+        await click(dialogButton("Allow"))
+        await expect(write.answer).resolves.toBe("none")
+        expect(grants.get("m1", DIR)).toEqual({level: "none", writeRefused: false})
+    })
+
+    it("a write refusal stored while the read question is open survives Allow", async () => {
+        const {grants, built} = await open()
+        const read = await call(built(), "read")
+        act(() => grants.set("m1", DIR, {level: null, writeRefused: true}))
+        await click(dialogButton("Allow"))
+        await expect(read.answer).resolves.toBe("read")
+        expect(grants.get("m1", DIR)).toEqual({level: "read", writeRefused: true})
+    })
+
     it("does not carry a question into another folder", async () => {
         const grants = createGrantStore()
         const first = await open({grants})

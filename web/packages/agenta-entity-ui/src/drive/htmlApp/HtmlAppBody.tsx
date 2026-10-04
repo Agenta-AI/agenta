@@ -210,18 +210,27 @@ export function HtmlAppBody({
             if (need === "read") {
                 if (record.level !== null || dismissed.read) return current
                 const allow = await ask("read")
+                // A level set while the question was open (another view of this app) wins.
+                const latest = grants.get(mountId, dir) ?? empty
+                if (latest.level !== record.level) {
+                    return effectiveAccess(latest.level, canEditMounts)
+                }
                 if (allow === null) {
                     dismissed.read = true
                     return "none"
                 }
                 const level: AppAccess = allow ? "read" : "none"
-                grants.set(mountId, dir, {...record, level})
+                grants.set(mountId, dir, {...latest, level})
                 return level
             }
             if (current === "read-write" || record.level === "none") return current
             // Never asked about writing where edits are off, after a refusal, or after a cancel.
             if (!canEditMounts || record.writeRefused || dismissed.write) return current
             const allow = await ask("write")
+            const latest = grants.get(mountId, dir) ?? empty
+            if (latest.level !== record.level) {
+                return effectiveAccess(latest.level, canEditMounts)
+            }
             if (allow === null) {
                 dismissed.write = true
                 return current
@@ -231,7 +240,7 @@ export function HtmlAppBody({
                 dir,
                 allow
                     ? {level: "read-write", writeRefused: false}
-                    : {...record, writeRefused: true},
+                    : {...latest, writeRefused: true},
             )
             return allow ? "read-write" : current
         }
