@@ -604,6 +604,7 @@ jobs:
         run: |
           uv run hosting/kubernetes/helm/tests/test_lifecycle_rollout.py
           uv run hosting/kubernetes/helm/tests/test_availability.py
+          uv run hosting/kubernetes/helm/tests/test_web_crisp.py
 
   run-runner-integration-tests:
     if: |

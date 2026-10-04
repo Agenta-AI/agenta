@@ -870,6 +870,13 @@ imagePullSecrets:
   value: {{ default "local" $runnerProviders.default | quote }}
 - name: POSTHOG_API_KEY
   value: {{ $posthog.apiKey | default "" | quote }}
+{{- /* The web entrypoint turns CRISP_WEBSITE_ID into the browser's NEXT_PUBLIC_CRISP_WEBSITE_ID.
+       commonEnv does not reach the web pods, so without it here the live chat never loads. */}}
+{{- $crisp := default dict .Values.crisp }}
+{{- if $crisp.websiteId }}
+- name: CRISP_WEBSITE_ID
+  value: {{ $crisp.websiteId | quote }}
+{{- end }}
 {{- with $secrets.oauth }}
 {{- range $key, $val := . }}
 - name: {{ $key }}
