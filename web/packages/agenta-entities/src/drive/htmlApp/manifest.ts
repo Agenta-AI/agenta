@@ -1,13 +1,4 @@
-/**
- * Agent HTML apps — `app.json` manifest (lane 0 contract).
- *
- * The manifest marks a drive folder as an app and tells the host what to render and what the app
- * may touch. Parsing is tolerant on purpose: agents write these files, so a stray field must not
- * hide the app. Only the four things the host cannot guess are strict (`agenta_app`, `name`, a
- * flat `entry`, valid JSON).
- */
-
-import type {GrantLevel} from "./protocol"
+/** Agent HTML apps — tolerant `app.json` parser; `agenta_app`, `name`, flat `entry` are strict. */
 
 export interface AppManifest {
     agenta_app: 1
@@ -18,8 +9,6 @@ export interface AppManifest {
     entry: string
     /** Starter the app came from, e.g. `board@1` or `agent:retro-board@2`. Stamped by `create_app`. */
     template?: string | null
-    /** Access the app asks for. Default `read`; the host may still narrow it. */
-    access: GrantLevel
     /** Data files (relative to the app dir) the app owns; `create_app --update` leaves them alone. */
     data?: string[]
     /** Config file (relative to the app dir) the app reads on boot. */
@@ -43,7 +32,6 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
     "icon",
     "entry",
     "template",
-    "access",
     "data",
     "config",
     "kit",
@@ -56,8 +44,6 @@ const isRecord = (x: unknown): x is Record<string, unknown> =>
 
 const isStringArray = (x: unknown): x is string[] =>
     Array.isArray(x) && x.every((item) => typeof item === "string")
-
-const isGrantLevel = (x: unknown): x is GrantLevel => x === "read" || x === "read-write"
 
 /**
  * Parse the text of an `app.json`. Returns null when the folder is not an app (bad JSON, wrong
@@ -87,7 +73,6 @@ export function parseManifest(text: string): AppManifest | null {
         agenta_app: 1,
         name: raw.name,
         entry,
-        access: isGrantLevel(raw.access) ? raw.access : "read",
         kit: typeof raw.kit === "boolean" ? raw.kit : true,
     }
 

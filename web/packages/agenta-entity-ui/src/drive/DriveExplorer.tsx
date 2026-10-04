@@ -3,7 +3,15 @@
  * (folder grid / list, the editors, or a preview). Its own module so hosts `next/dynamic`-import
  * it. A composition root: every concern lives in a sibling hook.
  */
-import {type KeyboardEvent, type ReactNode, useCallback, useMemo, useRef, useState} from "react"
+import {
+    type KeyboardEvent,
+    type ReactNode,
+    useCallback,
+    useContext,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {looksLikeFilePath} from "@agenta/entities/drive"
 import {type DriveId, type DriveScope} from "@agenta/entities/drive"
@@ -36,9 +44,9 @@ import {type SessionDriveData} from "@agenta/entities/drive"
 import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
-import {agentAppsEnabledAtom, projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom} from "@agenta/shared/state"
 import {InputAffix as Input} from "@agenta/ui/ui"
-import {Code, Eye, MagnifyingGlass, Play} from "@phosphor-icons/react"
+import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -61,6 +69,7 @@ import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
 import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
+import {dirOf, HtmlAppEnvContext, useAppAccessMenu} from "./htmlApp"
 import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDrivePasteUpload} from "./useDrivePasteUpload"
@@ -357,14 +366,29 @@ export function DriveExplorer({
     const editableMarkdown = markdownKind && (selectedFileSize ?? 0) <= DRIVE_MARKDOWN_EDIT_CAP
     const editableCode = codeKind && (selectedFileSize ?? 0) <= DRIVE_CODE_EDIT_CAP
     const tooLargeToEdit = (markdownKind || codeKind) && !editableMarkdown && !editableCode
-    // An editable HTML file shows its source or the rendered document (row 2 switches).
-    const htmlKind = editableCode && selectedKind === "html"
-    const agentAppsEnabled = useAtomValue(agentAppsEnabledAtom)
-    const [htmlView, setHtmlView] = useState<"source" | "preview" | "run">("source")
-    // Run needs the flag and a mount; without them a stale "run" falls back to Preview.
-    const htmlRunnable = htmlKind && agentAppsEnabled && !!selectedMount
-    const htmlPreview = htmlKind && htmlView !== "source"
-    const htmlBodyView = htmlView === "run" && htmlRunnable ? "run" : "preview"
+    // An HTML file on a mount opens as a running app; ⋯ shows its code.
+    const htmlApp = chrome && !selectedIsFolder && selectedKind === "html" && !!selectedMount
+    const htmlAppEnv = useContext(HtmlAppEnvContext)
+    // Row 2's slot for a running app's controls.
+    const [appControlsEl, setAppControlsEl] = useState<HTMLDivElement | null>(null)
+    // An app's access sheet stays inside this pane, so the chat beside it stays usable.
+    const paneHtmlAppEnv = useMemo(
+        () => ({...htmlAppEnv, sheetContainer: getPane, toolbarSlot: appControlsEl}),
+        [htmlAppEnv, getPane, appControlsEl],
+    )
+    // The app whose code is on screen; every other app opens running.
+    const [htmlCodePath, setHtmlCodePath] = useState<string | null>(null)
+    if (htmlCodePath !== null && htmlCodePath !== selectedPath) setHtmlCodePath(null)
+    const htmlCode = htmlApp && htmlCodePath === selectedPath
+    const htmlRunning = htmlApp && !htmlCode
+    const appDir = dirOf(selectedMountPath)
+    const appAccess = useAppAccessMenu({
+        mountId: htmlApp ? (selectedMount?.id ?? null) : null,
+        dir: appDir,
+        displayDir: dirOf(selectedPath ?? ""),
+        appName: appDir.split("/").pop() || nameOf(selectedPath ?? ""),
+        env: paneHtmlAppEnv,
+    })
     const editing = editableMarkdown || editableCode
     const editor = useDriveFileEditor(
         editing ? selectedMount : null,
@@ -589,35 +613,16 @@ export function DriveExplorer({
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
                 note={tooLargeToEdit ? "Read-only · too large to edit here" : undefined}
-                mode={
-                    htmlKind
+                appView={
+                    htmlApp
                         ? {
-                              value: htmlView,
-                              onChange: (v) => setHtmlView(v as "source" | "preview" | "run"),
-                              options: [
-                                  {
-                                      value: "source",
-                                      label: "Source",
-                                      icon: <Code className="size-3.5" />,
-                                  },
-                                  {
-                                      value: "preview",
-                                      label: "Preview",
-                                      icon: <Eye className="size-3.5" />,
-                                  },
-                                  ...(htmlRunnable
-                                      ? [
-                                            {
-                                                value: "run",
-                                                label: "Run",
-                                                icon: <Play className="size-3.5" />,
-                                            },
-                                        ]
-                                      : []),
-                              ],
+                              code: htmlCode,
+                              onToggle: () => setHtmlCodePath(htmlCode ? null : selectedPath),
+                              access: {label: appAccess.label, onOpen: appAccess.open},
                           }
                         : undefined
                 }
+                controlsRef={htmlRunning ? setAppControlsEl : undefined}
                 onCopyPath={onCopyCurrentPath}
                 onDownload={onDownloadCurrent}
             />
@@ -684,16 +689,15 @@ export function DriveExplorer({
                     onNavigate={select}
                     linkExists={linkExists}
                 />
-            ) : htmlPreview ? (
-                <DriveHtmlApp
-                    mount={selectedMount}
-                    path={selectedMountPath}
-                    displayPath={selectedPath}
-                    onNavigate={select}
-                    view={htmlBodyView}
-                    onViewChange={setHtmlView}
-                    linkExists={linkExists}
-                />
+            ) : htmlRunning ? (
+                <HtmlAppEnvContext.Provider value={paneHtmlAppEnv}>
+                    <DriveHtmlApp
+                        mount={selectedMount}
+                        path={selectedMountPath}
+                        displayPath={selectedPath}
+                        onNavigate={select}
+                    />
+                </HtmlAppEnvContext.Provider>
             ) : editableCode ? (
                 <DriveCodeEditor
                     mount={selectedMount}
@@ -846,6 +850,7 @@ export function DriveExplorer({
                     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onNavKeyDown}>
                         {body}
                     </div>
+                    {appAccess.dialog}
                 </div>
             ) : (
                 body

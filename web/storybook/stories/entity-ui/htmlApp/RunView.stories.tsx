@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {type FsRequest, type GrantLevel, type MockHtmlAppHostOptions} from "@agenta/entities/drive"
+import {type AppAccess, type FsRequest, type MockHtmlAppHostOptions} from "@agenta/entities/drive"
 import {KIT_CSS, RunView} from "@agenta/entity-ui/drive"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
@@ -18,13 +18,13 @@ import {
 
 /**
  * The Run tab on the mock host: the states a reviewer cannot click into on a live drive —
- * read-only vs read-write, a bridge rejection and a script error in the strip, a conflict
+ * read-only vs read-write, a bridge rejection and a script error on the badge, a conflict
  * retried, the agent editing a file underneath the app, a sibling-page navigation with the back
  * stack, `not_found` data, `too_large`.
  *
  * The app in the iframe runs on the real stub against the mock host. The driver buttons send what
  * the stub would (`host.handle(FsRequest)`, a nav href, a script error) so each state is one click
- * away, and the strip reacts as it does in the drive.
+ * away. The controls portal into a toolbar row, as they do in the drive's file toolbar.
  */
 const meta = {
     title: "@agenta/entity-ui/Drive/HtmlApp/RunView",
@@ -65,7 +65,7 @@ const RunStory = ({
     files: Record<string, string>
     dir?: string
     entry?: string
-    grant?: GrantLevel
+    grant?: AppAccess
     actions?: DriverAction[]
     latencyMs?: number
     failWith?: MockHtmlAppHostOptions["failWith"]
@@ -81,6 +81,7 @@ const RunStory = ({
     const io = useMemo(() => fixtureIo(host, dir), [host, dir])
     const [log, setLog] = useState<string[]>([])
     const [changed, setChanged] = useState<string[]>([])
+    const [slot, setSlot] = useState<HTMLDivElement | null>(null)
     // What `useChangedHint` does in the drive: the host's `changed` paths feed the pill.
     useEffect(() => host.onChanged?.(setChanged), [host])
 
@@ -94,17 +95,22 @@ const RunStory = ({
     return (
         <div className="flex flex-col gap-3 text-xs">
             <Frame>
+                <div className="flex h-9 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2.5 text-xs text-colorText">
+                    {entry}
+                    <span className="flex-1" />
+                    <div ref={setSlot} className="flex items-center gap-1" />
+                </div>
                 <RunView
                     host={host}
                     dir={dir}
                     entryPath={`${dir}/${entry}`}
                     entryContent={files[entry] ?? ""}
-                    grant={grant}
                     io={io}
                     kitCss={KIT_CSS}
                     changedPaths={changed}
                     onReload={() => setChanged([])}
                     onNavigate={(p) => setLog((prev) => [...prev, `→ drive: ${p}`].slice(-8))}
+                    controlsContainer={slot}
                 />
             </Frame>
             {actions.length > 0 ? (
@@ -130,7 +136,7 @@ const RunStory = ({
     )
 }
 
-/** Acceptance: a read grant — the strip says `read`, a write is refused with `read_only`. */
+/** Acceptance: a read grant — reads land, a write is refused with `read_only`. */
 export const RunningReadOnly: Story = {
     render: () => (
         <RunStory
@@ -147,7 +153,23 @@ export const RunningReadOnly: Story = {
     ),
 }
 
-/** Acceptance: a read-write grant — the strip says `read + write`, writes land. */
+/** No file access (never asked, or refused) — every call fails `unavailable`. */
+export const RunningNoAccess: Story = {
+    render: () => (
+        <RunStory
+            files={BOARD_APP}
+            grant="none"
+            actions={[
+                {
+                    label: "Read board.json (refused)",
+                    run: (h) => h.handle(req("readJSON", "board.json")),
+                },
+            ]}
+        />
+    ),
+}
+
+/** Acceptance: a read-write grant — writes land. */
 export const RunningReadWrite: Story = {
     render: () => (
         <RunStory
@@ -166,7 +188,7 @@ export const RunningReadWrite: Story = {
     ),
 }
 
-/** Acceptance: the error strip — a bridge rejection and a script error, expandable, copyable. */
+/** Acceptance: the error badge — a bridge rejection and a script error, expandable, copyable. */
 export const ErrorStrip: Story = {
     render: () => (
         <RunStory
@@ -225,7 +247,7 @@ export const ConflictRetried: Story = {
     ),
 }
 
-/** Acceptance: `changed` hint pending — the drive moved underneath the app; the strip offers
+/** Acceptance: `changed` hint pending — the drive moved underneath the app; the toolbar offers
  * Reload, and the mock queues the `changed` message for the iframe. */
 export const ChangedHintPending: Story = {
     render: () => (
@@ -268,7 +290,7 @@ export const NavigationBackStack: Story = {
 }
 
 /** Acceptance: `not_found` data — the board without `board.json` shows its own empty state, and
- * the read is reported in the strip. */
+ * the read is reported on the error badge. */
 export const NotFoundData: Story = {
     render: () => (
         <RunStory

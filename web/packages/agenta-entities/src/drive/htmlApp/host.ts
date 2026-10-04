@@ -5,19 +5,22 @@
  * and then serves every `FsRequest` that arrives on that port against the mounts API through
  * {@link createFsClient}. Nothing arriving on `window` is ever read: the port is the only channel.
  *
- * Per request, in this order: validate the shape → resolve scope (before any network) → enforce
- * the grant on write methods → body checks → the API call with the implicit `If-Match` from the
+ * Per request, in this order: validate the shape → resolve scope (before any network) → ask
+ * through `requestAccess` when the call needs more access → refuse without access → enforce the
+ * grant on write methods → body checks → the API call with the implicit `If-Match` from the
  * etag cache (skipped on `force`). Every result refreshes the cache; a successful write/remove
  * calls `onWrite` so the drive can revalidate. `notifyChanged` leaves the cache alone: a write the
  * app has not merged must conflict, not overwrite the agent's edit. Behaviour matches `createMockHtmlAppHost` rule for
  * rule — the mock's test table runs against this host with a fake client.
  */
 
+import {createAccessGate} from "./access"
 import {createEtagCache, type EtagCache} from "./etags"
 import {createFsClient, isFsClientError, type FsClient} from "./fsClient"
 import {
     isFsRequest,
     isIframeToParent,
+    NO_ACCESS_MESSAGE,
     WRITE_METHODS,
     type BridgeError,
     type ChangedMsg,
@@ -27,6 +30,7 @@ import {
     type FsRequest,
     type FsResponse,
     type FsResults,
+    type GrantLevel,
     type Hello,
     type HtmlAppHost,
     type HtmlAppHostError,
@@ -61,7 +65,14 @@ export function createHtmlAppHost(
     opts: HtmlAppHostOptions,
     deps: HtmlAppHostDeps = {},
 ): HtmlAppBridgeHost {
-    const {mountId, projectId, dir, grant} = opts
+    const {mountId, projectId, dir} = opts
+    const gate = createAccessGate({
+        grant: opts.grant,
+        requestAccess: opts.requestAccess,
+        onChange: (next) => post({v: 1, type: "access", canWrite: next === "read-write"}),
+    })
+    // Minted per call at the current level, so a downgrade is enforced server-side at once too.
+    const tokenGrant = (): GrantLevel => (gate.level === "read-write" ? "read-write" : "read")
     // The token the API uses to enforce the app dir server-side. This file resolves the path and
     // checks the grant; the token means a mistake in either is refused rather than served.
     const client: FsClient =
@@ -69,7 +80,7 @@ export function createHtmlAppHost(
         createFsClient({
             mountId,
             projectId,
-            scopeToken: () => getScopeToken(mountId, projectId, dir, grant),
+            scopeToken: () => getScopeToken(mountId, projectId, dir, tokenGrant()),
         })
     const etags = createEtagCache()
 
@@ -110,7 +121,12 @@ export function createHtmlAppHost(
         const full = resolved
         const relative = relativeOf(full)
 
-        if (WRITE_METHODS.has(method) && grant !== "read-write") {
+        const need: GrantLevel = WRITE_METHODS.has(method) ? "read-write" : "read"
+        await gate.settle(need)
+        if (gate.level === "none") {
+            return failure(id, {code: "unavailable", message: NO_ACCESS_MESSAGE})
+        }
+        if (need === "read-write" && gate.level !== "read-write") {
             return failure(id, {code: "read_only", message: "app has read-only access"})
         }
 
@@ -228,7 +244,7 @@ export function createHtmlAppHost(
             v: 1,
             type: "hello",
             dir,
-            canWrite: grant === "read-write",
+            canWrite: gate.level === "read-write",
             visible,
             tokens,
         }
@@ -288,5 +304,6 @@ export function createHtmlAppHost(
                 changedCbs.delete(cb)
             }
         },
+        setAccess: gate.set,
     }
 }

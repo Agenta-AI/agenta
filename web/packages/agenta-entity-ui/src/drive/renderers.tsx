@@ -310,30 +310,19 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     )
 }
 
-const HtmlBody = ({
+/** The running app, under the Files pane's toolbar (its ⋯ menu switches to the code). */
+export const DriveHtmlApp = ({
     mount,
     path,
     displayPath,
     onNavigate,
-    linkExists,
-    previewOnly = false,
-    controlledView,
-    onViewChange,
 }: {
     mount: Mount | null
     path: string
-    /** Presented path of THIS file (with any `agent-files/` prefix) — internal links resolve against
-     * its folder so drive navigation lands on the right node. */
+    /** Presented path of this file; links outside the app resolve against its folder. */
     displayPath?: string
-    /** Open another drive file (an internal link click resolves to its path). */
+    /** Open another drive file (a link outside the app resolves to its path). */
     onNavigate?: (path: string) => void
-    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
-    linkExists?: (path: string) => boolean
-    /** Just the rendered document; the host offers the source itself. */
-    previewOnly?: boolean
-    /** Host-owned tabs: the rendered document or the running app, no tab row. */
-    controlledView?: "preview" | "run"
-    onViewChange?: (view: "preview" | "run") => void
 }) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
@@ -351,7 +340,6 @@ const HtmlBody = ({
     if (typeof content !== "string")
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
 
-    // The Preview | Source body (and the assembler behind it) lives in ./htmlApp.
     return (
         <Inset flush>
             <HtmlAppBody
@@ -360,37 +348,9 @@ const HtmlBody = ({
                 content={content}
                 displayPath={displayPath}
                 onNavigate={onNavigate}
-                linkExists={linkExists}
-                previewOnly={previewOnly}
-                controlledView={controlledView}
-                onViewChange={onViewChange}
             />
         </Inset>
     )
-}
-
-/** The rendered HTML document on its own (the Files pane's Preview mode). */
-export const DriveHtmlPreview = (props: {
-    mount: Mount | null
-    path: string
-    displayPath?: string
-    onNavigate?: (path: string) => void
-    linkExists?: (path: string) => boolean
-}) => <HtmlBody {...props} previewOnly />
-
-/** Preview or Run under the Files pane's own Source | Preview | Run toolbar. */
-export const DriveHtmlApp = (props: {
-    mount: Mount | null
-    path: string
-    displayPath?: string
-    onNavigate?: (path: string) => void
-    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
-    linkExists?: (path: string) => boolean
-    view: "preview" | "run"
-    onViewChange: (view: "preview" | "run") => void
-}) => {
-    const {view, ...rest} = props
-    return <HtmlBody {...rest} controlledView={view} />
 }
 
 // ---- Media bodies (bytes endpoint → cached blob → object URL) --------------------------------
@@ -558,15 +518,7 @@ export function DriveFileBody({
         case "csv":
             return <CsvBody mount={mount} path={path} />
         case "html":
-            return (
-                <HtmlBody
-                    mount={mount}
-                    path={path}
-                    displayPath={displayPath}
-                    onNavigate={onNavigate}
-                    linkExists={linkExists}
-                />
-            )
+            return <CodeBody mount={mount} path={path} />
         case "image":
             return <ImageBody mount={mount} path={path} />
         case "pdf":

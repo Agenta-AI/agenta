@@ -115,7 +115,7 @@ const Row2Folder = () => {
     )
 }
 
-/** Row 2 in its three shapes: folder, markdown (clean / saving / failed save) and preview. */
+/** Row 2 in its shapes: folder, markdown (clean / saving / failed save), an HTML app and preview. */
 export const Row2: Story = {
     render: () => (
         <div className="flex flex-col gap-4">
@@ -152,6 +152,14 @@ export const Row2: Story = {
                     setMode={noop}
                     status="error"
                     onRetry={noop}
+                />
+            </Frame>
+            <Frame>
+                <DriveToolbar
+                    variant="other"
+                    path="apps/board/index.html"
+                    actions={FILE_ACTIONS}
+                    appView={{code: false, onToggle: noop, access: {label: "Read", onOpen: noop}}}
                 />
             </Frame>
             <Frame>
