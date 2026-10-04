@@ -170,6 +170,7 @@ export function SplitPane({
     const lastRef = React.useRef<{size: number; total: number}>({size: paneSize, total: 0})
     const [measuredTotal, setMeasuredTotal] = React.useState<number | null>(null)
 
+    /** Bounds a candidate pane size to `[paneMin, paneMax]`, further capped by the fill's reserved width. */
     const clamp = React.useCallback(
         (raw: number, total: number) => {
             const max = Math.max(0, Math.min(paneMax, total - fillMin))

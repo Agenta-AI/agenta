@@ -30,6 +30,7 @@ afterEach(() => {
     vi.unstubAllGlobals()
 })
 
+/** Simulates a container resize by updating the mocked width and firing the ResizeObserver callback. */
 const resize = (nextWidth: number) => {
     width = nextWidth
     act(() => notifyResize())
@@ -44,9 +45,11 @@ const props = {
     fill: <button>Close files</button>,
 }
 
+/** Reads the rendered pane's `flex-basis` style value. */
 const paneWidth = (container: HTMLElement) =>
     container.querySelector<HTMLElement>('[data-slot="split-pane-pane"]')!.style.flexBasis
 
+/** Finds the divider element rendered with `role="separator"`. */
 const separator = (container: HTMLElement) =>
     container.querySelector<HTMLElement>('[role="separator"]')!
 
