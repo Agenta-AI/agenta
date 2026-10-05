@@ -9,6 +9,7 @@ export {
     isEmailInvitationsEnabled,
     isMcpGatewayEnabled,
     isToolsEnabled,
+    isWalletsEnabled,
     getAgentaApiUrl,
     getAgentaWebUrl,
     isSandboxLocalEnabled,

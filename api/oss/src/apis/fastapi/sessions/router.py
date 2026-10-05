@@ -18,7 +18,6 @@ composing the individual reads already exposed here:
 
 import re
 from functools import wraps
-from secrets import compare_digest
 from uuid import UUID
 
 from fastapi import (
@@ -54,6 +53,7 @@ from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
@@ -700,7 +700,7 @@ class SessionStreamsRouter:
             raise FORBIDDEN_EXCEPTION
 
         if payload.release_owner:
-            _assert_runner_token(request)
+            assert_runner_token(request)
 
         heartbeat = await self._service.heartbeat(
             project_id=project_id,
@@ -2842,7 +2842,7 @@ class SessionControlRouter:
         command_id: UUID,
         payload: SessionControlOutcomeRequest,
     ) -> SessionControlOutcomeResponse:
-        _assert_runner_token(request)
+        assert_runner_token(request)
 
         report = await self._service.report_outcome(
             command_id=command_id,
@@ -2862,30 +2862,6 @@ class SessionControlRouter:
                 settled_at=report.command.settled_at,
             ),
             admitted=report.admitted,
-        )
-
-
-def _assert_runner_token(request: Request) -> None:
-    """The runner proves it is the platform runtime with the shared secret both sides hold.
-
-    Constant-time compare, so a wrong token leaks no length or prefix through timing. A missing
-    configured token fails closed: an unset secret must never mean "let everyone in".
-    """
-    expected = env.runner.token
-    if not expected:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="runner token is not configured on this deployment",
-        )
-    presented = request.headers.get("X-Agenta-Runner-Token") or ""
-    if not presented:
-        authorization = request.headers.get("Authorization") or ""
-        if authorization.lower().startswith("bearer "):
-            presented = authorization[7:].strip()
-    if not compare_digest(presented.encode("utf-8"), expected.encode("utf-8")):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized",
         )
 
 

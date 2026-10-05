@@ -78,7 +78,10 @@ import {
   classifyRunError,
   conciseError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
+  type RunErrorCode,
+  TURN_TIME_LIMIT_CODE,
   withinCredentialPropagationWindow,
+  withPublicCode,
 } from "./errors.ts";
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
 import { isUserStopAbort } from "../../sessions/stop-signal.ts";
@@ -134,6 +137,7 @@ import { appendSessionTurn } from "./session-continuity-durable.ts";
 import { nextTurnIndex, sessionContinuityStore } from "./session-continuity.ts";
 import {
   carriesGatewayRefusalMarker,
+  personFacingGatewayRefusal,
   errorEventWithDetail,
   parseGatewayErrorDetail,
 } from "../../gateway-error.ts";
@@ -435,6 +439,8 @@ export async function runTurn(
   );
   let runLimitTrip: (() => void) | undefined;
   let runLimitReason: string | undefined;
+  // The plan's turn limit ends the turn with a line written for the person in the chat.
+  let turnLimitError: Error | undefined;
   let outputLimitReason: string | undefined;
   // Which limit fired, when it was one of the run limits. Left undefined by the sandbox-liveness
   // probe below, which shares this trip path but is not a run limit: a dead sandbox is a real
@@ -446,6 +452,12 @@ export async function runTurn(
   runLimits.onTrip((reason, kind) => {
     runLimitReason = reason;
     runLimitKind = kind;
+    if (kind === "total" && resolvedRunLimits.turnLimitMessage) {
+      turnLimitError = withPublicCode(
+        new Error(resolvedRunLimits.turnLimitMessage),
+        TURN_TIME_LIMIT_CODE,
+      );
+    }
     runLimitTrip?.();
   });
 
@@ -1566,7 +1578,7 @@ export async function runTurn(
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
     if (raced === RUN_LIMIT_TRIPPED || outputLimitReason) {
-      throw new Error(runLimitReason ?? "run limit tripped");
+      throw turnLimitError ?? new Error(runLimitReason ?? "run limit tripped");
     }
     let stopReason =
       raced === CANCELLED
@@ -1842,12 +1854,13 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedGatewayRefusal) {
-      swallowedError = swallowedGatewayRefusal.message;
+      const personFacing = personFacingGatewayRefusal(visibleOutput);
+      swallowedError = personFacing?.message ?? swallowedGatewayRefusal.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({
         type: "error",
         message: swallowedError,
-        code: "runner_error",
+        code: (personFacing?.code as RunErrorCode | undefined) ?? "runner_error",
         detail: swallowedGatewayRefusal,
       });
     } else if (swallowedPiError) {
