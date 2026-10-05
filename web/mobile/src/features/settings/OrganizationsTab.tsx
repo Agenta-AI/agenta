@@ -23,10 +23,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
+import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
+
+import {groupByOrganization} from "../context/workspaceGroups"
 
 import {ConfirmModal} from "./ConfirmModal"
 import {NameDialog} from "./NameDialog"
+import {settingsUrlFor} from "./switchContext"
+
+import {fetchProjects} from "@/lib/context"
 
 const errorText = (error: unknown, fallback: string): string => {
     const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
@@ -51,6 +57,17 @@ export const OrganizationsTab = ({
     onChanged: () => void
 }) => {
     const router = useRouter()
+    // Every org's projects, the same list the nav switcher reads, to land on one when switching.
+    const allProjects = useQuery({
+        queryKey: ["mobile", "projects"],
+        queryFn: () => fetchProjects(),
+        staleTime: 30_000,
+    })
+    const groups = useMemo(
+        () =>
+            allProjects.data?.kind === "ok" ? groupByOrganization(allProjects.data.projects) : [],
+        [allProjects.data],
+    )
     const [creating, setCreating] = useState(false)
     const [transferring, setTransferring] = useState<Org | null>(null)
     const [deleting, setDeleting] = useState<Org | null>(null)
@@ -78,6 +95,18 @@ export const OrganizationsTab = ({
             loading={loading}
             selectedOrgId={selectedOrgId}
             currentUserId={currentUserId}
+            onSwitch={(org) => {
+                const group = groups.find((entry) => entry.organizationId === org.id)
+                const first = group?.projects[0]
+                if (!group || !first) return
+                void router.push(
+                    settingsUrlFor({
+                        workspaceId: group.workspaceId,
+                        projectId: first.project_id,
+                        tab: "organizationGeneral",
+                    }),
+                )
+            }}
             onCreate={() => {
                 setError(null)
                 setCreating(true)

@@ -11,8 +11,10 @@ import {
     AlertDialogTitle,
     Button,
 } from "@agenta/ui/ui"
+import {useRouter} from "next/router"
 
 import {NameDialog} from "./NameDialog"
+import {settingsUrlFor} from "./switchContext"
 
 interface Props {
     projects: ProjectsResponse[]
@@ -27,12 +29,22 @@ interface Props {
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
 export const ProjectsTab = ({projects, isLoading, workspaceId, projectId}: Props) => {
+    const router = useRouter()
     return (
         <ProjectsPage
             projects={projects}
             isLoading={isLoading}
             workspaceId={workspaceId}
             currentProjectId={projectId}
+            onSwitch={(project) =>
+                void router.push(
+                    settingsUrlFor({
+                        workspaceId: project.workspace_id ?? workspaceId,
+                        projectId: project.project_id,
+                        tab: "projects",
+                    }),
+                )
+            }
             renderCreateDialog={({open, onClose, onSubmit, pending}) => (
                 <NameDialog
                     open={open}

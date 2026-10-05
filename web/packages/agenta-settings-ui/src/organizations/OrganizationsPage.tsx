@@ -95,6 +95,13 @@ export const OrganizationsPage = ({
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 minWidth={0}
+                onOpenRow={
+                    onSwitch
+                        ? (record) => {
+                              if (record.id !== selectedOrgId) onSwitch(record)
+                          }
+                        : undefined
+                }
                 loading={loading && rows.length === 0}
                 hideHeader={!loading && rows.length === 0}
                 empty={
@@ -115,11 +122,6 @@ export const OrganizationsPage = ({
                                     value={name}
                                     editing={renamingId === record.id}
                                     ariaLabel="Organization name"
-                                    onStart={
-                                        isOwner(record) && onRename
-                                            ? () => setRenamingId(record.id)
-                                            : undefined
-                                    }
                                     onDone={() => setRenamingId(null)}
                                     onSave={(next) => onRename?.(record, next) ?? Promise.resolve()}
                                 />

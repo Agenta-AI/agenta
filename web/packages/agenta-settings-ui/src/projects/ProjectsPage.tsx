@@ -6,7 +6,14 @@ import {message} from "@agenta/ui/app-message"
 import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {Copy, FolderSimple, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {
+    ArrowsLeftRight,
+    Copy,
+    FolderSimple,
+    PencilSimpleLine,
+    Plus,
+    Trash,
+} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {SettingsPageActions} from "../SettingsPageShell"
@@ -53,6 +60,8 @@ export interface ProjectsPageProps {
     workspaceId?: string
     /** The project the reader is in now, marked Current. */
     currentProjectId?: string
+    /** Move into another project; the row click and a menu item both call it. */
+    onSwitch?: (project: ProjectsResponse) => void
     /** Create / delete dialogs — the host's. Rename happens in place on the row. */
     renderCreateDialog?: (state: ProjectDialogState<ProjectFormValues>) => React.ReactNode
     renderDeleteDialog?: (state: ProjectDialogState<void>) => React.ReactNode
@@ -63,6 +72,7 @@ export const ProjectsPage = ({
     isLoading,
     workspaceId,
     currentProjectId,
+    onSwitch,
     renderCreateDialog,
     renderDeleteDialog,
 }: ProjectsPageProps) => {
@@ -154,6 +164,13 @@ export const ProjectsPage = ({
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 minWidth={0}
+                onOpenRow={
+                    onSwitch
+                        ? (record) => {
+                              if (record.project_id !== currentProjectId) onSwitch(record)
+                          }
+                        : undefined
+                }
                 loading={isLoading && rows.length === 0}
                 hideHeader={!isLoading && rows.length === 0}
                 empty={
@@ -174,9 +191,6 @@ export const ProjectsPage = ({
                                 value={record.project_name}
                                 editing={canEdit && renamingId === record.project_id}
                                 ariaLabel="Project name"
-                                onStart={
-                                    canEdit ? () => setRenamingId(record.project_id) : undefined
-                                }
                                 onDone={() => setRenamingId(null)}
                                 onSave={(name) =>
                                     renameMutation
@@ -215,6 +229,13 @@ export const ProjectsPage = ({
                         <SettingsRowMenu
                             label="Project actions"
                             items={[
+                                {
+                                    key: "switch",
+                                    label: "Switch to this project",
+                                    icon: <ArrowsLeftRight size={14} />,
+                                    hidden: !onSwitch || record.project_id === currentProjectId,
+                                    onClick: () => onSwitch?.(record),
+                                },
                                 {
                                     key: "rename",
                                     label: "Rename",
