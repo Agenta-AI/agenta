@@ -369,17 +369,16 @@ export const SettingsScreen = ({
         [router],
     )
 
-    // The Analytics tab's long column fades at an edge with more to scroll.
+    // Every tab's body fades at an edge with more to scroll, top and bottom.
     const scrollRef = useRef<HTMLDivElement>(null)
-    const fades = active === "analytics"
-    useScrollFadeEdges(scrollRef, {enabled: fades})
+    useScrollFadeEdges(scrollRef)
 
     const content = (
         // Does not scroll: the shell keeps the title still and scrolls only its body.
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <SettingsPageShell
                 scrollRef={scrollRef}
-                scrollClassName={fades ? "ag-scroll-fade" : undefined}
+                scrollClassName="ag-scroll-fade"
                 variant={getSettingsTabVariant(active)}
                 title={getMobileSettingsTabLabel(active, access)}
                 description={getMobileSettingsTabDescription(active, access)}
