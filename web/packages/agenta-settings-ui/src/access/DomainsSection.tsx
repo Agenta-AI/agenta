@@ -6,6 +6,7 @@ import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, Globe, Plus, Trash} from "@phosphor-icons/react"
 
+import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
@@ -86,6 +87,7 @@ export const DomainsSection = ({
             <ListTable<OrganizationDomain>
                 columns={COLUMNS}
                 groups={[{key: "all", label: null, rows: domains}]}
+                wrapRow={hoverableRow}
                 rowKey={(record) => record.id}
                 minWidth={600}
                 loading={loading && domains.length === 0}

@@ -5,6 +5,7 @@ import {Alert, Button} from "@agenta/ui/ui"
 import {Key, Plus, Trash} from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "./SettingsPageShell"
+import {hoverableRow} from "./shared/hoverableRow"
 import {SettingsEmpty} from "./shared/SettingsEmpty"
 import {SettingsRowMenu} from "./shared/SettingsRowMenu"
 
@@ -76,6 +77,7 @@ export const ApiKeysPage = ({
             <ListTable<ApiKeyRow>
                 columns={COLUMNS}
                 groups={[{key: "keys", label: null, rows}]}
+                wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 loading={listing && rows.length === 0}
                 hideHeader={!listing && rows.length === 0}

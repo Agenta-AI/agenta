@@ -16,6 +16,7 @@ import {GithubLogo, PencilSimpleLine, Play, Plus, Trash, WebhooksLogo} from "@ph
 import {useAtom, useSetAtom} from "jotai"
 
 import {SettingsPageActions} from "../SettingsPageShell"
+import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -161,6 +162,7 @@ export const WebhooksPage = ({
             <ListTable<WebhookRow>
                 columns={COLUMNS}
                 groups={[{key: "webhooks", label: null, rows}]}
+                wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 minWidth={640}
                 loading={isLoading}

@@ -9,6 +9,7 @@ import {Button, IconTile} from "@agenta/ui/ui"
 import {LockKey, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "../SettingsPageShell"
+import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -93,6 +94,7 @@ export const NamedSecretTable = ({
                     className="ph-no-capture"
                     columns={COLUMNS}
                     groups={[{key: "secrets", label: null, rows}]}
+                    wrapRow={hoverableRow}
                     rowKey={(record) => record.key}
                     minWidth={620}
                     loading={loading && rows.length === 0}

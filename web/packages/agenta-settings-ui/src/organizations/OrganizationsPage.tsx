@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "../SettingsPageShell"
+import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -85,6 +86,7 @@ export const OrganizationsPage = ({
             <ListTable<OrgRow>
                 columns={COLUMNS}
                 groups={[{key: "all", label: null, rows}]}
+                wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 minWidth={640}
                 loading={loading && rows.length === 0}

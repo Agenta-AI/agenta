@@ -16,6 +16,7 @@ import {
 } from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "../SettingsPageShell"
+import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
@@ -134,6 +135,7 @@ export const MembersPage = ({
             <ListTable<MemberRow>
                 columns={columns}
                 groups={[{key: "all", label: null, rows}]}
+                wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 minWidth={renderRoleCell ? 700 : 580}
                 loading={loading && rows.length === 0}

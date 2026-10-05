@@ -10,6 +10,7 @@ import {CheckCircle, FolderSimple, PencilSimpleLine, Plus, Trash} from "@phospho
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {SettingsPageActions} from "../SettingsPageShell"
+import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -190,6 +191,7 @@ export const ProjectsPage = ({
             <ListTable<ProjectRow>
                 columns={COLUMNS}
                 groups={[{key: "projects", label: null, rows}]}
+                wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 minWidth={640}
                 loading={isLoading && rows.length === 0}
