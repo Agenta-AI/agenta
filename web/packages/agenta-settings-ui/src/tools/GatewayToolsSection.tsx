@@ -29,6 +29,7 @@ import {
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
+import {FinishConnectionDialog} from "./FinishConnectionDialog"
 import {useToolsIntegrations, type CatalogIntegrationItem} from "./hooks/useToolsIntegrations"
 import {IntegrationCatalog, IntegrationLogo} from "./IntegrationCatalog"
 
@@ -139,6 +140,12 @@ export default function GatewayToolsSection({
     // The search atom is module-level; leaving the page must not leave the catalog filtered.
     useEffect(() => () => setServerSearch(""), [setServerSearch])
     const [connectTarget, setConnectTarget] = useState<CatalogIntegrationItem | null>(null)
+    // A pending connection opens to finishing its sign-in, not to its tools.
+    const [finishing, setFinishing] = useState<{
+        connection: ToolConnection
+        name: string
+        integration?: CatalogIntegrationItem
+    } | null>(null)
     const [connectedCollapsed, setConnectedCollapsed] = useAtom(connectedCollapsedAtom)
 
     const openExecution = useCallback(
@@ -299,7 +306,11 @@ export default function GatewayToolsSection({
                             />
                         ),
                         ...connectionStatus(connection),
-                        onOpen: readOnly ? undefined : () => openExecution(connection),
+                        onOpen: readOnly
+                            ? undefined
+                            : isConnectionActive(connection) && !isConnectionValid(connection)
+                              ? () => setFinishing({connection, name, integration})
+                              : () => openExecution(connection),
                         menu: (
                             <SettingsRowMenu
                                 items={[
@@ -410,6 +421,22 @@ export default function GatewayToolsSection({
             </section>
 
             {readOnly ? null : <ToolExecutionDrawer />}
+            {finishing ? (
+                <FinishConnectionDialog
+                    open
+                    name={finishing.name}
+                    logo={
+                        <ConnectionLogo
+                            integrationKey={finishing.connection.integration_key ?? ""}
+                            known={finishing.integration}
+                            name={finishing.name}
+                        />
+                    }
+                    onAuthorize={() => onRefresh(finishing.connection)}
+                    onDelete={confirm ? () => confirmDelete(finishing.connection) : undefined}
+                    onClose={() => setFinishing(null)}
+                />
+            ) : null}
             {readOnly || !connectTarget ? null : (
                 <ConnectDrawer
                     open
