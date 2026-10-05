@@ -269,6 +269,49 @@ def period_from(
     return MeterPeriod()
 
 
+async def _subscription_data(organization_id) -> dict:
+    """The organization's plan and billing anchor, through the shared Redis cache."""
+    cache_key = {
+        "organization_id": str(organization_id),
+    }
+
+    subscription_data = await get_cache(
+        namespace="entitlements:subscription",
+        key=cache_key,
+    )
+
+    if subscription_data is None:
+        subscription = await _subscriptions_service().read(
+            organization_id=str(organization_id),
+        )
+
+        if not subscription or subscription.plan is None:
+            raise EntitlementsException(
+                f"No subscription found for organization [{organization_id}]"
+            )
+
+        subscription_data = {
+            "plan": subscription.plan,
+            "anchor": subscription.anchor,
+        }
+
+        await set_cache(
+            namespace="entitlements:subscription",
+            key=cache_key,
+            value=subscription_data,
+        )
+
+    return subscription_data
+
+
+async def plan_for(organization_id) -> Optional[str]:
+    """The organization's plan slug, or None when it has no subscription."""
+    try:
+        return (await _subscription_data(organization_id)).get("plan")
+    except EntitlementsException:
+        return None
+
+
 async def check_entitlements(
     *,
     key: Union[Flag, Counter, Gauge],
@@ -359,35 +402,7 @@ async def _check_entitlements(
     # 2. Load subscription data (cached)
     # -------------------------------------------------------------- #
 
-    cache_key = {
-        "organization_id": str(organization_id),
-    }
-
-    subscription_data = await get_cache(
-        namespace="entitlements:subscription",
-        key=cache_key,
-    )
-
-    if subscription_data is None:
-        subscription = await _subscriptions_service().read(
-            organization_id=str(organization_id),
-        )
-
-        if not subscription or subscription.plan is None:
-            raise EntitlementsException(
-                f"No subscription found for organization [{organization_id}]"
-            )
-
-        subscription_data = {
-            "plan": subscription.plan,
-            "anchor": subscription.anchor,
-        }
-
-        await set_cache(
-            namespace="entitlements:subscription",
-            key=cache_key,
-            value=subscription_data,
-        )
+    subscription_data = await _subscription_data(organization_id)
 
     plan = subscription_data.get("plan")
     anchor = subscription_data.get("anchor")

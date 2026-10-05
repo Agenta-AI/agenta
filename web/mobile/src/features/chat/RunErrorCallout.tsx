@@ -1,14 +1,16 @@
 import {
     ActivityNode,
     NOT_SENT_CODES,
+    OWN_KEY_CODES,
+    planLimitTitle,
+    refusalTitle,
     RETRYABLE_CODES,
-    STARTER_CREDIT_CODES,
     SUBSCRIPTION_LOGIN_CODES,
 } from "@agenta/chat/components"
 import {Alert, Button} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 
-import {describeRunError, type RunErrorView} from "./runError"
+import {describeRunError, withoutCodeMarkers, type RunErrorView} from "./runError"
 import {RunErrorDetails} from "./RunErrorDetails"
 
 /** The runner's class for an error the model provider returned itself (a refusal, a filter). */
@@ -30,6 +32,7 @@ export const RunErrorCallout = ({
     onRetry,
     onAddKey,
     onSignIn,
+    onOpenBilling,
     variant = "step",
 }: {
     text: string
@@ -42,13 +45,21 @@ export const RunErrorCallout = ({
     onAddKey?: () => void
     /** Where the reader signs in again; offered for the dead-subscription classes. */
     onSignIn?: () => void
+    /** Where the reader sees plans and buys credits; offered for the plan-limit classes. */
+    onOpenBilling?: () => void
     variant?: "step" | "card"
 }) => {
-    // A provider's own error arrives as the runner's finished sentences (what the provider said,
-    // then what to do), so it is shown whole rather than cut to its first sentence.
+    const limitTitle = planLimitTitle(code)
+    const title = refusalTitle(code)
+    // The gateway's `⟦agenta_code:…⟧` marker is for the runner, never for the reader.
+    const reason = withoutCodeMarkers(text)
+    // A provider's own error, a plan limit and a worded refusal arrive as finished sentences (what
+    // happened, then what to do), so they are shown whole rather than cut to their first sentence.
     const error: RunErrorView =
-        code === PROVIDER_ERROR_CODE ? {headline: text.trim(), raw: null} : describeRunError(text)
-    const offerOwnKey = !!onAddKey && !!code && STARTER_CREDIT_CODES.has(code)
+        code === PROVIDER_ERROR_CODE || title
+            ? {headline: reason, raw: null}
+            : describeRunError(reason)
+    const offerOwnKey = !!onAddKey && !!code && OWN_KEY_CODES.has(code)
     const offerSignIn = !!onSignIn && !!code && SUBSCRIPTION_LOGIN_CODES.has(code)
     // An admission refusal is not a run that failed: the message never left the composer, and
     // replaying it would be refused again.
@@ -70,6 +81,11 @@ export const RunErrorCallout = ({
                     Sign in again
                 </Button>
             ) : null}
+            {limitTitle && onOpenBilling ? (
+                <Button size="sm" variant="outline" onClick={onOpenBilling}>
+                    Plans and billing
+                </Button>
+            ) : null}
         </>
     )
 
@@ -82,7 +98,7 @@ export const RunErrorCallout = ({
                 className="max-w-[520px] px-3.5 py-3"
                 // Not "Couldn't start the run": a card only means no step was recorded before the
                 // failure, and most such runs did start (the model refused its first request).
-                message={notSent ? "Message not sent" : "The run stopped"}
+                message={title ?? (notSent ? "Message not sent" : "The run stopped")}
                 description={
                     <div className="flex flex-col gap-1.5">
                         {/* Not a <p>: the Alert gives every non-last paragraph a 16px margin. */}
@@ -111,7 +127,7 @@ export const RunErrorCallout = ({
             <div className="flex min-w-0 flex-1 flex-col gap-1 pt-0.5">
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <span className="text-sm font-medium text-colorText">
-                        {notSent ? "Message not sent" : "The run stopped"}
+                        {title ?? (notSent ? "Message not sent" : "The run stopped")}
                     </span>
                     {error.status ? (
                         <span className="font-mono text-[11px] text-colorTextTertiary">
