@@ -21,7 +21,7 @@ export const SettingsEmpty = ({
     description?: ReactNode
     action?: ReactNode
 }) => (
-    <Empty className="rounded-xl border border-solid border-border py-14">
+    <Empty className="py-14">
         <EmptyHeader>
             {icon ? (
                 <EmptyMedia
