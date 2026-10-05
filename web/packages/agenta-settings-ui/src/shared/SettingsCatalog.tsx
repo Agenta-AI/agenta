@@ -2,11 +2,11 @@ import type {KeyboardEvent, ReactNode} from "react"
 
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {SkeletonBlock, cn} from "@agenta/ui/ui"
-import {ArrowClockwise, Plus} from "@phosphor-icons/react"
+import {Plus} from "@phosphor-icons/react"
 
 /**
- * A row's state. Only the states that ask something of the user draw a trailing mark: broken
- * (`attention`) and one click from connecting (`available`). A row under Connected says the rest.
+ * A row's state. A broken row (`attention`) names its problem at the head of its subtitle; a row
+ * one click from connecting (`available`) draws a "+". A row under Connected says the rest.
  */
 export type SettingsCatalogStatus = "connected" | "attention" | "available"
 
@@ -17,7 +17,7 @@ export interface SettingsCatalogItem {
     name: ReactNode
     description?: ReactNode
     status: SettingsCatalogStatus
-    /** Accessible name of the trailing mark, e.g. "Needs attention" or "Connect GitHub". */
+    /** The problem on a broken row (shown in its subtitle), the verb on an available one. */
     statusLabel: string
     /** Opening the row: the connection's detail when connected, the connect flow when not. */
     onOpen?: () => void
@@ -40,25 +40,21 @@ const FOCUS_RING =
 /** Rows sit in two columns where they fit, one on a phone. */
 const ROW_GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-x-8 gap-y-0.5"
 
-const StatusMark = ({status, label}: {status: SettingsCatalogStatus; label: string}) =>
-    status === "connected" ? null : (
-        <span
-            title={label}
-            aria-label={label}
-            role="img"
-            className={cn(
-                "flex size-7 shrink-0 items-center justify-center rounded-md",
-                status === "attention" &&
-                    "border border-solid border-colorWarningBorder bg-colorWarningBg text-colorWarning",
-                status === "available" && "text-foreground",
-            )}
-        >
-            {status === "attention" ? <ArrowClockwise size={14} /> : <Plus size={15} />}
-        </span>
-    )
+/** The "+" on a row one click from connecting. Broken rows say their problem in the subtitle. */
+const ConnectMark = ({label}: {label: string}) => (
+    <span
+        title={label}
+        aria-label={label}
+        role="img"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground"
+    >
+        <Plus size={15} />
+    </span>
+)
 
 const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
     const open = item.onOpen
+    const attention = item.status === "attention"
     return (
         // Not a <button>: the row can carry a kebab of its own, and a button in a button is
         // invalid HTML.
@@ -89,13 +85,24 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
                 <span className="truncate text-[14.5px] font-medium leading-5 text-foreground">
                     {item.name}
                 </span>
-                {item.description ? (
+                {item.description || attention ? (
                     <span className="truncate text-[13px] leading-[18px] text-muted-foreground">
+                        {/* The problem leads the line, so truncation never hides it. */}
+                        {attention ? (
+                            <span className="font-medium text-colorWarning">
+                                <span
+                                    aria-hidden
+                                    className="mr-1.5 inline-block size-1.5 rounded-full bg-current align-middle"
+                                />
+                                {item.statusLabel}
+                                {item.description ? " · " : null}
+                            </span>
+                        ) : null}
                         {item.description}
                     </span>
                 ) : null}
             </span>
-            <StatusMark status={item.status} label={item.statusLabel} />
+            {item.status === "available" ? <ConnectMark label={item.statusLabel} /> : null}
             {item.menu}
         </div>
     )
