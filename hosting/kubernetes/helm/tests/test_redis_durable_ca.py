@@ -87,8 +87,14 @@ def docs(text: str) -> list[dict]:
     return [d for d in yaml.safe_load_all(text) if d]
 
 
-def carriers(parsed: list[dict]) -> tuple[set[str], set[str]]:
-    """Workloads whose pod spec has the volume, and whose containers have the mount."""
+def carriers(parsed: list[dict], expect_secret: str | None = None) -> tuple[set[str], set[str]]:
+    """Workloads whose pod spec has the volume, and whose containers have the mount.
+
+    The volume is checked end to end, not just by name. A Secret volume that projects a
+    named key refuses to mount when that key is absent, and every pod then fails to start.
+    So the Secret name, the projected key and the file it lands on all have to be right,
+    and the file has to be the one the connection string names.
+    """
     with_volume: set[str] = set()
     with_mount: set[str] = set()
     for d in parsed:
@@ -97,8 +103,24 @@ def carriers(parsed: list[dict]) -> tuple[set[str], set[str]]:
             continue
         ref = f"{kind}/{d['metadata']['name']}"
         spec = d["spec"]["template"]["spec"]
-        if any(v.get("name") == VOLUME for v in spec.get("volumes") or []):
+        for v in spec.get("volumes") or []:
+            if v.get("name") != VOLUME:
+                continue
             with_volume.add(ref)
+            secret = v.get("secret") or {}
+            if expect_secret is not None and secret.get("secretName") != expect_secret:
+                raise AssertionError(
+                    f"{ref} projects Secret {secret.get('secretName')!r}, want {expect_secret!r}"
+                )
+            items = secret.get("items") or []
+            if [i.get("key") for i in items] != [CA_KEY]:
+                raise AssertionError(
+                    f"{ref} projects keys {[i.get('key') for i in items]!r}, want [{CA_KEY!r}]"
+                )
+            if [i.get("path") for i in items] != ["ca.pem"]:
+                raise AssertionError(
+                    f"{ref} projects paths {[i.get('path') for i in items]!r}, want ['ca.pem']"
+                )
         for c in spec.get("containers") or []:
             for m in c.get("volumeMounts") or []:
                 if m.get("name") == VOLUME:
@@ -140,7 +162,8 @@ def main() -> int:
     code, out = render(KEY_ARGS + EXTERNAL_ARGS + ["--set-string", f"redisDurable.external.caCert={PEM}"])
     assert code == 0, out
     parsed = docs(out)
-    vols, mounts = carriers(parsed)
+    # The chart owns the Secret here, so the volume must read the chart's own name.
+    vols, mounts = carriers(parsed, expect_secret=f"{RELEASE}-agenta")
     check(vols == WANT, f"the volume lands on exactly the durable-Redis workloads (got {sorted(vols - WANT) or 'no extras'}, missing {sorted(WANT - vols) or 'none'})")
     check(mounts == WANT, f"the mount lands on exactly the same workloads (got {sorted(mounts - WANT) or 'no extras'}, missing {sorted(WANT - mounts) or 'none'})")
     check(CA_KEY in chart_secret_keys(parsed), "the chart Secret carries the certificate when the chart owns it")
@@ -156,7 +179,8 @@ def main() -> int:
     )
     assert code == 0, out
     parsed = docs(out)
-    vols, mounts = carriers(parsed)
+    # The operator owns the Secret here, so the volume must read theirs instead.
+    vols, mounts = carriers(parsed, expect_secret=EXISTING_SECRET)
     check(vols == WANT and mounts == WANT, "an existing Secret still mounts on every durable-Redis workload")
     check(not chart_secret_keys(parsed), "the chart writes no Secret of its own when one is supplied")
 
@@ -185,6 +209,13 @@ def main() -> int:
     check(
         code != 0 and "is set" in out and "never written anywhere" in out,
         "an inline certificate alongside an existing Secret fails the render",
+    )
+
+    # The connection string names a path. If the mount directory and the projected file
+    # name ever drift apart from it, every workload starts and then cannot connect.
+    check(
+        f"{MOUNT_DIR}/ca.pem" in " ".join(EXTERNAL_ARGS),
+        "the path the connection string names is the one the volume produces",
     )
 
     print(f"\n{total - len(failures)}/{total} checks passed")
