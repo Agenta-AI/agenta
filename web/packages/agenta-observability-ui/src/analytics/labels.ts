@@ -32,7 +32,9 @@ export const shortLabel = (window: AnalyticsWindow, start: number) =>
         ? lastDay(window, start)
         : isDaily(window)
           ? monthDay(midday(start))
-          : clock(start)
+          : window.newest - window.oldest > 24 * 60 * 60_000
+            ? `${monthDay(start)} ${clock(start)}`
+            : clock(start)
 
 /** Tooltip and drawer title for one bucket. */
 export const fullLabel = (window: AnalyticsWindow, start: number) => {

@@ -48,7 +48,7 @@ export interface GroupedCardProps {
 }
 
 const TOP = 4
-const OTHER_LISTED = 3
+const OTHER_LISTED = 2
 
 /** The top four keys of `series` and an "Other" remainder of `total`, labelled and colored. */
 export const stackSeries = (
@@ -98,31 +98,17 @@ export const GroupedCard = ({
     )
     const series: TimeSeries[] = stack.map((s) => ({...s, hidden: hidden[s.key]}))
 
-    // The biggest members of "Other" in one bucket, then a count of the rest.
-    const otherRows = (i: number, otherValue: number) => {
+    // One line naming the biggest members of "Other" in one bucket, so the tooltip stays short.
+    const otherNote = (i: number) => {
         const shown = new Set(stack.map((s) => s.key))
         const members = Object.keys(source.series)
             .filter((key) => !shown.has(key) && (source.series[key][i] ?? 0) > 0)
             .sort((a, b) => source.series[b][i] - source.series[a][i])
-        const listed = members.slice(0, OTHER_LISTED)
-        const rest = otherValue - sum(listed.map((key) => source.series[key][i]))
-        const restCount = members.length - listed.length
-        return [
-            ...listed.map((key) => ({
-                color: "transparent",
-                label: keyLabel(key),
-                value: formatValue(metric, source.series[key][i]),
-            })),
-            ...(rest > otherValue * 0.005
-                ? [
-                      {
-                          color: "transparent",
-                          label: restCount > 0 ? `${restCount} more` : "Others",
-                          value: formatValue(metric, rest),
-                      },
-                  ]
-                : []),
-        ]
+        const listed = members
+            .slice(0, OTHER_LISTED)
+            .map((key) => `${keyLabel(key)} ${formatValue(metric, source.series[key][i])}`)
+        const rest = members.length - listed.length
+        return [...listed, ...(rest > 0 ? [`+${rest} more`] : [])].join(" · ")
     }
 
     const bucketTotal = (i: number) =>
@@ -171,21 +157,16 @@ export const GroupedCard = ({
                     <ChartTooltipPanel
                         title={fullLabels[i]}
                         value={`${formatValue(metric, bucketTotal(i))}${unitWord(metric)}`}
-                        rowsTitle="Split"
                         rows={series
                             .filter((s) => !s.hidden && (s.values[i] ?? 0) > 0)
                             .sort((a, b) => (b.values[i] ?? 0) - (a.values[i] ?? 0))
-                            .flatMap((s) => {
-                                const row = {
-                                    color: s.color,
-                                    label: s.label,
-                                    value: formatValue(metric, s.values[i] ?? 0),
-                                    share: sharePercent(s.values[i] ?? 0, bucketTotal(i)),
-                                }
-                                return s.key === OTHER_KEY
-                                    ? [row, ...otherRows(i, s.values[i] ?? 0)]
-                                    : [row]
-                            })}
+                            .map((s) => ({
+                                color: s.color,
+                                label: s.label,
+                                value: formatValue(metric, s.values[i] ?? 0),
+                                share: sharePercent(s.values[i] ?? 0, bucketTotal(i)),
+                                note: s.key === OTHER_KEY ? otherNote(i) : undefined,
+                            }))}
                     />
                 )}
             />

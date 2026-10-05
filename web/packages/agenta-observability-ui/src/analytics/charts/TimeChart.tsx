@@ -1,4 +1,4 @@
-import {useMemo, type ReactNode} from "react"
+import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {niceMax} from "@agenta/observability/analytics"
 import {ChartContainer, ChartTooltip, cn, type ChartConfig} from "@agenta/ui/ui"
@@ -138,7 +138,24 @@ export const TimeChart = ({
     const low = yMin ?? 0
     const high = yMax ?? top
     const ticks = [low, low + (high - low) / 2, high]
-    const step = Math.max(1, Math.ceil(labels.length / TICKS))
+    const ref = useRef<HTMLDivElement>(null)
+    const [width, setWidth] = useState(0)
+    useEffect(() => {
+        const el = ref.current
+        if (!el) return
+        const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width))
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [])
+    // As many ticks as the longest label fits at the 11px axis font, up to TICKS.
+    const longest = Math.max(1, ...labels.map((l) => l.length))
+    const fit = width ? Math.max(2, Math.floor((width - 48) / (longest * 7 + 16))) : TICKS
+    const step = Math.max(1, Math.ceil(labels.length / Math.min(TICKS, fit)))
+    // Counted back from the latest bucket, so the axis always ends on now.
+    const xTicks = useMemo(
+        () => labels.map((_, i) => i).filter((i) => (labels.length - 1 - i) % step === 0),
+        [labels, step],
+    )
     // The tallest underlay bar reaches 38% of the plot, so it never crowds the line.
     const underlayTop = underlay ? Math.max(1, ...underlay.values) / 0.38 : 0
 
@@ -163,10 +180,13 @@ export const TimeChart = ({
         <CartesianGrid key="grid" vertical={false} strokeDasharray="0" />,
         <XAxis
             key="x"
-            dataKey="label"
+            // By index: two buckets can share a label (the same hour on two days).
+            dataKey="index"
+            tickFormatter={(i: number) => labels[i] ?? ""}
             tickLine={false}
             axisLine={false}
-            interval={step - 1}
+            ticks={xTicks}
+            interval={0}
             tickMargin={8}
             fontSize={11}
             // Lines put points on the plot edges; padding keeps edge dots and labels whole.
@@ -194,7 +214,7 @@ export const TimeChart = ({
                           }
                 }
                 // Pinned to the top of the plot beside the cursor, so it stays in the card.
-                position={{y: 0}}
+                position={{y: -8}}
                 content={({active}) =>
                     active && hovered !== null ? (
                         <div className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150">
@@ -223,6 +243,7 @@ export const TimeChart = ({
 
     return (
         <ChartContainer
+            ref={ref}
             config={config}
             className={cn("aspect-auto w-full", onSelect && "cursor-pointer", className)}
             style={{height}}

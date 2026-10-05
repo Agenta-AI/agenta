@@ -350,7 +350,9 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                     <ChartTooltipPanel
                         title={ctx.fullLabels[i]}
                         runs={`${formatCount(points[i].runs)} runs`}
-                        value={`${formatMetric("success", values[i])} success`}
+                        value={`${formatMetric("success", values[i])} success${
+                            points[i].failed ? ` · ${formatCount(points[i].failed)} failed` : ""
+                        }`}
                         rowsTitle={groupLines ? undefined : "Why they failed"}
                         rows={
                             groupLines
@@ -359,7 +361,6 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                                     color: l.color,
                                     label: l.label,
                                     value: formatMetric("success", l.values[i]),
-                                    share: `${formatCount(l.runs[i])} runs`,
                                 })) ??
                             ctx.failures
                                 .reasonsAt(i)
@@ -370,20 +371,16 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                                     value: formatCount(r.count),
                                 }))
                         }
-                        facts={[
-                            {
-                                label: "Failed runs",
-                                value: `${formatCount(points[i].failed)} of ${formatCount(points[i].runs)}`,
-                            },
-                            ...(ctx.failures.busiestAgent(i)
+                        facts={
+                            ctx.failures.busiestAgent(i)
                                 ? [
                                       {
                                           label: "Most failures",
                                           value: ctx.agentName(ctx.failures.busiestAgent(i)!),
                                       },
                                   ]
-                                : []),
-                        ]}
+                                : []
+                        }
                     />
                 )}
             />
@@ -456,7 +453,6 @@ const TokensChartCard = ({ctx}: {ctx: OverviewContext}) => {
                         title={ctx.fullLabels[i]}
                         runs={`${formatCount(points[i].runs)} runs`}
                         value={`${formatMetric("tokens", shown(i))} tokens`}
-                        rowsTitle="Split"
                         rows={series
                             .filter((s) => !s.hidden && (s.values[i] ?? 0) > 0)
                             .map((s) => ({

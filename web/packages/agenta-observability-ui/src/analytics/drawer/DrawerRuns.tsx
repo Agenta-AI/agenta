@@ -39,8 +39,9 @@ const byCost = (a: AnalyticsRun, b: AnalyticsRun) => (b.cost ?? -1) - (a.cost ??
 const FAILED_GRID =
     "grid grid-cols-[12px_minmax(0,1fr)_minmax(0,1.4fr)_92px_14px] items-center gap-2.5 px-1"
 
+// A phone drops Model and Tokens (`max-sm:hidden` cells), so Agent keeps room to read.
 const ROW_GRID =
-    "grid grid-cols-[12px_minmax(0,1.2fr)_minmax(0,1.1fr)_92px_56px_70px_14px] items-center gap-2.5 px-1"
+    "grid grid-cols-[12px_minmax(0,1.2fr)_minmax(0,1.1fr)_92px_56px_70px_14px] max-sm:grid-cols-[12px_minmax(0,1fr)_88px_70px_14px] items-center gap-2.5 px-1"
 
 export interface DrawerRunsProps {
     window: AnalyticsWindow
@@ -215,9 +216,9 @@ export const DrawerRuns = ({
                     >
                         <span />
                         <span>Agent</span>
-                        <span>Model</span>
+                        <span className="max-sm:hidden">Model</span>
                         <span>Started</span>
-                        <span>Tokens</span>
+                        <span className="max-sm:hidden">Tokens</span>
                         <span>Cost ↓</span>
                         <span />
                     </div>
@@ -345,7 +346,7 @@ const RunRow = ({
                 {failedView ? (
                     <span className="truncate text-muted-foreground">{category?.label ?? "—"}</span>
                 ) : (
-                    <span className="truncate text-xs text-muted-foreground">
+                    <span className="truncate text-xs text-muted-foreground max-sm:hidden">
                         {run.model ?? "—"}
                     </span>
                 )}
@@ -355,7 +356,7 @@ const RunRow = ({
                 </span>
                 {failedView ? null : (
                     <>
-                        <span className="text-right text-xs text-muted-foreground tabular-nums">
+                        <span className="text-right text-xs text-muted-foreground tabular-nums max-sm:hidden">
                             {formatCompact(run.tokens)}
                         </span>
                         <span className="text-right tabular-nums">

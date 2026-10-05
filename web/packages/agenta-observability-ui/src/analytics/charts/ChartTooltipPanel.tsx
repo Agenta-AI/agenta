@@ -3,6 +3,8 @@ export interface TooltipRow {
     label: string
     value: string
     share?: string
+    /** A muted line under the row. */
+    note?: string
 }
 
 export interface ChartTooltipPanelProps {
@@ -33,16 +35,26 @@ export const ChartTooltipPanel = ({
                 {rowsTitle ? <span className="text-muted-foreground">{rowsTitle}</span> : null}
                 {rows.map((row, i) => (
                     // Two keys can share a name (two agents called the same).
-                    <div key={`${i}-${row.label}`} className="flex items-center gap-1.5">
-                        <span
-                            className="size-2 shrink-0 rounded-full"
-                            style={{background: row.color}}
-                        />
-                        <span className="min-w-0 flex-1 truncate">{row.label}</span>
-                        <span className="font-medium tabular-nums">{row.value}</span>
-                        {row.share ? (
-                            <span className="w-8 text-right text-muted-foreground tabular-nums">
-                                {row.share}
+                    <div key={`${i}-${row.label}`} className="flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                            <span
+                                className="size-2 shrink-0 rounded-full"
+                                style={{background: row.color}}
+                            />
+                            <span className="min-w-0 flex-1 truncate">{row.label}</span>
+                            <span className="font-medium tabular-nums">{row.value}</span>
+                            {row.share ? (
+                                <span className="w-8 text-right text-muted-foreground tabular-nums">
+                                    {row.share}
+                                </span>
+                            ) : null}
+                        </div>
+                        {row.note ? (
+                            <span
+                                className="truncate pl-3.5 text-muted-foreground"
+                                title={row.note}
+                            >
+                                {row.note}
                             </span>
                         ) : null}
                     </div>
