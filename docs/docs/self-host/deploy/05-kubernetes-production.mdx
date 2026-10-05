@@ -1,0 +1,365 @@
+---
+title: Prepare a Kubernetes Deployment for Production
+slug: /self-host/guides/kubernetes-production
+sidebar_label: Kubernetes in production
+description: 'Make an Agenta Helm deployment survive a node going away, roll out without dropping requests, and run on a managed Kubernetes service. Covers replicas, PodDisruptionBudgets, topology spread, rollout settings, GKE, and GKE Autopilot.'
+---
+
+[Deploy on Kubernetes](/self-host/guides/deploy-to-kubernetes) gets a working release into your
+cluster. This page covers what you change before other people depend on it.
+
+The sections below are independent. Read the ones that describe your cluster.
+
+:::info Community-Maintained Beta
+The Agenta Helm chart is **community-maintained** and currently in **beta**. If you encounter
+issues or have suggestions, please
+[open a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose) or reach out in our
+[Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw).
+:::
+
+## Survive a node going away
+
+Kubernetes moves pods off a node whenever the platform needs that node. A node upgrade, a node
+repair, and a scale-down that packs pods onto fewer nodes all do this. On GKE Autopilot it happens
+with no warning, and it is not a fault.
+
+A workload with one replica is unreachable while its pod starts somewhere else. On one Agenta stage
+cluster that took about three minutes.
+
+### Step 1: give each public workload two replicas
+
+A second replica is the only thing that makes a workload survive the loss of its node. No other
+setting in this section does that.
+
+```yaml
+api:
+  replicas: 2
+web:
+  replicas: 2
+services:
+  replicas: 2
+```
+
+Two replicas are enough for the chart to add a PodDisruptionBudget and topology spread constraints
+to that workload. Both are described in the next step.
+
+`replicas` works on `api`, `web`, `webMobile`, `services`, `workerStreams`, `workerQueues` and
+`supertokens`.
+
+:::warning Do not give the agent runner two replicas
+`agentRunner.replicas` exists, but the API does not route a session to the runner pod that owns it.
+Two runner pods disagree about who owns a session. The chart defaults the runner to
+`strategy: Recreate` for the same reason.
+:::
+
+Four workloads ignore `replicas` and always run one pod. `cron` runs supercronic, which fires every
+schedule in every pod. `redisVolatile` is a cache, and two caches answer differently.
+`redisDurable` and `store.seaweedfs` hold state in a single volume. Each of those four is
+unavailable while its pod restarts.
+
+`webMobile` has no `enabled` switch. The mobile web app always deploys, and `/m` always routes.
+
+### Step 2: read back what the chart added
+
+The chart renders two objects per workload, and both are on by default.
+
+A **PodDisruptionBudget** tells the platform how many pods of a workload may be down at once for a
+voluntary disruption. A voluntary disruption is one the platform chooses, such as a node drain. A
+node that fails outright is not voluntary, and no budget applies to it.
+
+**topologySpreadConstraints** keep the replicas of one workload on different nodes and in different
+zones.
+
+| Replicas | PodDisruptionBudget | topologySpreadConstraints |
+|---|---|---|
+| 1 | none, unless you set `<workload>.pdb.protectSingleton: true` | none |
+| 2 or more | `maxUnavailable: 1` | one pod per node (hard), even spread over zones (soft) |
+
+The generated constraints are scoped to one Deployment revision. A rolling update is therefore not
+blocked by the pods it replaces.
+
+Check both after an upgrade:
+
+```bash
+kubectl -n agenta get poddisruptionbudgets
+kubectl -n agenta get deployment agenta-api \
+  -o jsonpath='{.spec.template.spec.topologySpreadConstraints}'
+```
+
+### What the defaults do not give you
+
+Four limits apply:
+
+- A budget over a single pod does not keep that workload up. It defers the eviction of its node,
+  then the pod still moves.
+- GKE Autopilot respects a budget for one hour during a node upgrade and then proceeds anyway.
+- No budget applies to a node that fails outright.
+- The bundled PostgreSQL gets a `maxUnavailable: 1` budget from the Bitnami subchart, over a single
+  primary. That is the deferral case above. Use a managed database if the deployment must survive
+  the loss of the database node. See
+  [External PostgreSQL](/self-host/guides/deploy-to-kubernetes#external-postgresql).
+
+### Step 3: decide what to do about the single-pod data stores
+
+`redisVolatile`, `redisDurable` and `supertokens` carry
+`cluster-autoscaler.kubernetes.io/safe-to-evict: "false"`. A cluster autoscaler then leaves their
+node alone during consolidation. The annotation does not stop an operator drain.
+
+On GKE Autopilot the annotation also delays automatic node upgrades for that node, and GKE can
+evict the pod anyway after about seven days. The annotation is therefore a delay, not a guarantee.
+Back up the single-pod data stores whatever the annotation says.
+
+To let the autoscaler consolidate the node of one of them:
+
+```yaml
+redisVolatile:
+  safeToEvict: true
+```
+
+To defer the eviction of a single pod that has no replica, ask for a budget over it:
+
+```yaml
+agentRunner:
+  pdb:
+    protectSingleton: true
+```
+
+### Step 4: override a budget or a constraint, if you need to
+
+`<workload>.pdb.maxUnavailable` and `<workload>.pdb.minAvailable` replace the generated budget. Set
+one of the two, not both. `<workload>.topologySpreadConstraints` replaces the generated constraint
+list with the list you give.
+
+```yaml
+api:
+  replicas: 3
+  pdb:
+    minAvailable: 2
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: agenta
+          app.kubernetes.io/component: api
+```
+
+An empty list does not switch the constraints off. The chart reads an empty list as "unset" and
+generates its own two constraints again. There is no per-workload off switch. To remove every
+generated object, turn the mechanism off for the whole release:
+
+```yaml
+podDisruptionBudgets:
+  enabled: false
+topologySpread:
+  enabled: false
+```
+
+The migration Job carries no budget in any case. A budget over it would block the node that runs
+it.
+
+## Keep a rollout from dropping requests
+
+A managed load balancer keeps sending requests to a pod for a few seconds after Kubernetes removes
+that pod from the endpoints. A pod that exits as soon as it gets the TERM signal answers those
+requests with 502.
+
+Three keys per workload close that window. `strategy` is rendered under the Deployment's
+`spec.strategy`. `lifecycle` is rendered under the container's `lifecycle`.
+`terminationGracePeriodSeconds` is rendered on the pod spec.
+
+These are the chart's defaults. A key you set replaces the default for that workload.
+
+| Workload | `strategy` | `terminationGracePeriodSeconds` | `lifecycle.preStop` |
+|---|---|---|---|
+| `api` | none | none | none |
+| `services` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | 60 | exec `sleep 10` |
+| `web` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | 60 | exec `sleep 10` |
+| `webMobile` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | 60 | exec `sleep 10` |
+| `workerStreams` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | 120 | none |
+| `workerQueues` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | 120 | none |
+| `supertokens` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | none | none |
+| `agentRunner` | `Recreate` | 300 | exec `sleep 10` |
+| `cron` | `Recreate` | none | none |
+| `redisVolatile` | `Recreate` | none | none |
+| `redisDurable` | none (a StatefulSet has no `spec.strategy`) | none | none |
+| `store.seaweedfs` | none (a StatefulSet has no `spec.strategy`) | none | none |
+
+The API takes public traffic and has none of the three. Set them:
+
+```yaml
+api:
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  terminationGracePeriodSeconds: 45
+  lifecycle:
+    preStop:
+      exec:
+        command: ["sh", "-c", "sleep 10"]
+```
+
+Three constraints on those values:
+
+- The grace period must be longer than the preStop delay plus the time the process needs to drain.
+  The KILL signal lands at the end of the grace period.
+- `preStop: {sleep: {seconds: 10}}` is shorter to write, and it needs Kubernetes 1.30 or later. Use
+  the exec hook above below 1.30. The exec hook needs a shell and a `sleep` binary in the image. The
+  Agenta images have both.
+- `maxUnavailable: 0` needs room for one more pod than you run today. On a full cluster the rollout
+  waits for a node instead of starting.
+
+## Lock down the bundled data stores
+
+By default no NetworkPolicy selects the bundled Redis instances or the bundled SeaweedFS, so any
+pod in the namespace can reach them. Turn one policy on per bundled store:
+
+```yaml
+networkPolicy:
+  enabled: true
+```
+
+The chart then renders one NetworkPolicy per bundled store it deploys. Each policy allows ingress
+only from pods of this release, in the same namespace, on that store's port.
+
+Two things to check before you count a store as locked down:
+
+- Policies are additive. A namespace-wide allow policy that also selects these pods still lets its
+  own sources in.
+- A cluster whose CNI does not implement NetworkPolicy accepts the objects and ignores them, with
+  no event and no warning. On GKE, turn on network policy enforcement or Dataplane V2.
+
+The bundled PostgreSQL is not covered. The Bitnami subchart renders its own policy, which allows
+every source on port 5432. Restrict it through the subchart's own values:
+
+```yaml
+postgresql:
+  primary:
+    networkPolicy:
+      allowExternal: false
+      extraIngress:
+        - ports:
+            - port: 5432
+          from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: '{{ .Release.Name }}'
+```
+
+`allowExternal: false` narrows the subchart's rule to pods labelled
+`<release>-postgresql-client: "true"`, which the Agenta workloads do not carry. The `extraIngress`
+entry above lets them back in.
+
+## Settings that are required on Google Kubernetes Engine
+
+These are not optional on GKE. Without them the Ingress never gets an address.
+
+### Route by annotation, not by class
+
+The GKE Ingress controller ignores `spec.ingressClassName`. It reacts only to the legacy
+`kubernetes.io/ingress.class` annotation. An Ingress that carries a class name the controller does
+not own gets no controller events and never gets an IP.
+
+Set `ingress.className` to an empty string so the chart leaves the field out, then route with the
+annotation:
+
+```yaml
+ingress:
+  enabled: true
+  className: ""
+  host: agenta.example.com
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: agenta-ip
+    networking.gke.io/managed-certificates: agenta-cert
+  paths:
+    api:       { path: /api,      pathType: ImplementationSpecific }
+    services:  { path: /services, pathType: ImplementationSpecific }
+    webMobile: { path: /m,        pathType: ImplementationSpecific }
+    web:       { path: /,         pathType: ImplementationSpecific }
+```
+
+An unset `ingress.className` still defaults to `traefik`, which is correct for the bundled stack.
+Only an explicit empty string omits the field.
+
+The GKE load balancer cannot rewrite a path. It forwards `/api` and `/services` verbatim. Both
+backends accept their own prefix, so nothing has to strip it. See
+[Path handling](/self-host/guides/deploy-to-kubernetes#path-prefix-stripping). Keep the mobile path
+at `/m`, because the mobile image is built with that basePath.
+
+### Set the NEG annotation on every routed Service
+
+The GCE Ingress controller reads two annotations off each Service. Set the NEG annotation yourself
+even on Autopilot, which adds it only when it creates the Service. A `helm upgrade --force`
+recreates Services without it.
+
+```yaml
+api:
+  service:
+    annotations:
+      cloud.google.com/neg: '{"ingress": true}'
+      cloud.google.com/backend-config: '{"default": "agenta-api"}'
+web:
+  service:
+    annotations:
+      cloud.google.com/neg: '{"ingress": true}'
+```
+
+`webMobile.service.annotations` and `services.service.annotations` work the same way. The
+BackendConfig objects are yours to create. Put them in `extraObjects` if you want the release to
+own them.
+
+## GKE Autopilot: turn off the local sandbox
+
+A local sandbox mounts the object store prefix on the node. The runner container therefore asks for
+the `SYS_ADMIN` capability and a hostPath mount of `/dev/fuse` whenever `store.enabled` and
+`agentRunner.fuse.enabled` are both true. Autopilot rejects both.
+
+On Autopilot, turn the mount off and run sandboxes on the Daytona provider:
+
+```yaml
+agentRunner:
+  fuse:
+    enabled: false
+  providers:
+    enabled: [daytona]
+    default: daytona
+    daytona:
+      apiKeySecretRef:
+        name: agenta-daytona
+        key: api-key
+```
+
+[Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) covers the Daytona
+account and the snapshot.
+
+## Check a values file before you install
+
+```bash
+helm lint hosting/kubernetes/helm -f my-values.yaml
+helm template agenta hosting/kubernetes/helm -f my-values.yaml
+```
+
+`values.schema.json` validates declared fields, and the chart's own validations fail the render
+with a message that names the key to fix. The root of the values file and the `postgresql` block
+accept unknown keys for subchart wiring, so a misspelled key there is accepted and the default
+applies. Read the rendered output back before you install.
+
+Three checks on the rendered output:
+
+```bash
+# Save the render once, then read it back.
+helm template agenta hosting/kubernetes/helm -f my-values.yaml > rendered.yaml
+
+# Count the budgets. One per workload with two or more replicas.
+grep -c 'kind: PodDisruptionBudget' rendered.yaml
+
+# Read the database URI back. A misspelled postgresql key is silently ignored.
+grep -A1 'name: POSTGRES_URI_CORE' rendered.yaml
+
+# On GKE, confirm the NEG annotation is on every routed Service.
+grep 'cloud.google.com/neg' rendered.yaml
+```

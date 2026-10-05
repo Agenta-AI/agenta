@@ -134,9 +134,12 @@ chart leaves the field out, and route with the annotation. An unset
 `ingress.className` still defaults to `traefik`, which is right for the bundled
 stack.
 
-Do not strip `/api`. The API is mounted at `/api` and its redirects keep the
-prefix. Do strip `/services`. Keep the mobile path at `/m`, because the mobile
-image is built with that basePath.
+You do not have to strip either prefix, and the GCE controller cannot. The API
+strips a leading `/api` itself, and the services backend strips a leading
+`/services`. Each strips in a loop, so a double prefix also routes, and neither
+emits a redirect. A controller that does strip the prefix also works, because
+after the strip the request arrives with no prefix. Keep the mobile path at
+`/m`, because the mobile image is built with that basePath.
 
 The GCE ingress controller reads two annotations off each Service, so set them
 per component. Set the NEG annotation yourself even on Autopilot, which adds it
@@ -227,6 +230,40 @@ Four things to get right:
 The keys work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
 `workerStreams`, `workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`,
 `redisDurable`, `store.seaweedfs` and `alembic`.
+
+## Availability under disruption
+
+The chart renders a PodDisruptionBudget and topologySpreadConstraints per
+workload, both on by default. A workload with two or more replicas gets
+`maxUnavailable: 1` and a hard one-pod-per-node constraint plus a soft
+one-per-zone constraint. A workload with one replica gets neither, unless you
+ask for a budget with `<workload>.pdb.protectSingleton: true`.
+
+```yaml
+podDisruptionBudgets:
+  enabled: true           # false removes every generated budget
+topologySpread:
+  enabled: true           # false removes every generated constraint
+api:
+  replicas: 2
+  pdb:
+    maxUnavailable: 1     # or minAvailable; replaces the default
+agentRunner:
+  pdb:
+    protectSingleton: true
+```
+
+Nothing here makes a single replica highly available. A budget over a single pod
+defers the eviction of its node; the pod still moves. Give any workload that
+must stay reachable `replicas: 2`.
+
+An empty `<workload>.topologySpreadConstraints` list does not switch the
+constraints off. The chart reads an empty list as unset and generates its own
+two again. Only `topologySpread.enabled: false` removes them.
+
+The block in `values.yaml` under "Availability under disruption" is the source of
+truth. The operator-facing guide is
+[Prepare a Kubernetes deployment for production](../../docs/docs/self-host/deploy/05-kubernetes-production.mdx).
 
 ## Restricting the bundled data stores
 
