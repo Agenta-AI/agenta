@@ -28,6 +28,7 @@ export interface AgentBuildPanelProps {
      */
     storage?: ReactNode
     storageHeader?: ReactNode
+    storageTitle?: string
     /**
      * Sticky section headers clear a sticky panel header above them. Pass 0 where the header
      * scrolls with the content (an embedded drawer, a phone) so they sit flush at the scroll top.
@@ -62,6 +63,7 @@ export const AgentBuildPanel = memo(
         header,
         storage,
         storageHeader,
+        storageTitle,
         stickyHeaderTop = 48,
         sticky = true,
         automationDrawer,
@@ -104,6 +106,7 @@ export const AgentBuildPanel = memo(
                         sticky={sticky}
                         storage={storage}
                         storageHeader={storageHeader}
+                        storageTitle={storageTitle}
                         automationDrawer={automationDrawer}
                         onOpenRunHistory={onOpenRunHistory}
                     />

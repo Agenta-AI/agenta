@@ -70,6 +70,55 @@ describe("resolveSessionPanes on a phone with the Files pane open", () => {
     })
 })
 
+describe("expanded files and responsive restoration", () => {
+    it("covers Settings and the sessions rail only while files are open", () => {
+        for (const chatMaximized of [true, false]) {
+            expect(
+                resolveSessionPanes({
+                    ...phone,
+                    twoPane: true,
+                    configCollapsed: false,
+                    filesOpen: true,
+                    filesExpanded: true,
+                    chatMaximized,
+                }),
+            ).toEqual({showConfig: false, showPane: false, showFiles: true})
+        }
+        expect(
+            resolveSessionPanes({
+                ...phone,
+                twoPane: true,
+                configCollapsed: false,
+                filesExpanded: true,
+            }),
+        ).toEqual({showConfig: true, showPane: true, showFiles: false})
+    })
+    it("temporarily suppresses Settings without replacing its retained intent", () => {
+        const input = {...phone, twoPane: true, configCollapsed: false, filesOpen: true}
+        expect(resolveSessionPanes({...input, suppressConfig: true})).toEqual({
+            showConfig: false,
+            showPane: false,
+            showFiles: true,
+        })
+        expect(resolveSessionPanes(input)).toEqual({
+            showConfig: true,
+            showPane: true,
+            showFiles: true,
+        })
+        expect(input.configCollapsed).toBe(false)
+    })
+    it("restores at the current breakpoint, including an originally hidden Settings pane", () => {
+        expect(resolveSessionPanes({...phone, filesOpen: true, filesExpanded: false})).toEqual({
+            showConfig: false,
+            showPane: false,
+            showFiles: true,
+        })
+        expect(
+            resolveSessionPanes({...phone, twoPane: true, filesOpen: true, filesExpanded: false}),
+        ).toEqual({showConfig: false, showPane: false, showFiles: true})
+    })
+})
+
 describe("resolveSessionPanes with two panes", () => {
     it("shows Files beside the configuration, not instead of it", () => {
         expect(

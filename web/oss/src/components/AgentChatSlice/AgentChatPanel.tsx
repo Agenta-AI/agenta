@@ -15,8 +15,10 @@ import {
     FILES_PANE_MAX,
     FILES_PANE_MIN,
     filesPaneWidthAtom,
+    phoneViewportAtom,
     sessionStatusAtomFamily,
     useCanPanesCoexist,
+    useFilesPaneLayout,
 } from "@agenta/chat/state"
 import {commandSessionStream} from "@agenta/entities/session"
 import {workflowMolecule} from "@agenta/entities/workflow"
@@ -254,6 +256,10 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // like the config pane on the other side: its divider runs to the top and the session bar
     // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
     const filesPane = useSessionFilesPane(activeId ?? "")
+    const filesLayout = useFilesPaneLayout(`w:${scope}`, activeId ?? "", filesPane.open)
+    const filesExpanded = filesLayout.expanded
+    const phoneViewport = useAtomValue(phoneViewportAtom)
+    const fullWidthFiles = filesExpanded || (phoneViewport && filesPane.open)
 
     useSessionShortcuts({
         sessions,
@@ -313,25 +319,47 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const prevFilesOpenRef = useRef(filesPane.open)
     useEffect(() => {
-        if (filesPane.open && !prevFilesOpenRef.current && !canPanesCoexist)
+        if (
+            !filesLayout.retaining &&
+            filesPane.open &&
+            !prevFilesOpenRef.current &&
+            !canPanesCoexist
+        )
             setConfigPanelCollapsed(true)
         prevFilesOpenRef.current = filesPane.open
-    }, [filesPane.open, canPanesCoexist, setConfigPanelCollapsed])
+    }, [filesPane.open, canPanesCoexist, setConfigPanelCollapsed, filesLayout.retaining])
     const closeFilesPane = filesPane.close
     const prevConfigCollapsedRef = useRef(configPanelCollapsed)
     useEffect(() => {
-        if (!configPanelCollapsed && prevConfigCollapsedRef.current && !canPanesCoexist)
+        if (
+            !filesLayout.retaining &&
+            !configPanelCollapsed &&
+            prevConfigCollapsedRef.current &&
+            !canPanesCoexist
+        )
             closeFilesPane()
         prevConfigCollapsedRef.current = configPanelCollapsed
-    }, [configPanelCollapsed, canPanesCoexist, closeFilesPane])
+    }, [configPanelCollapsed, canPanesCoexist, closeFilesPane, filesLayout.retaining])
     // Shrinking below the threshold with BOTH open: keep the Files pane (the content surface the
     // user opened deliberately) and collapse the config pane — the same choice opening Files makes.
     const prevCoexistRef = useRef(canPanesCoexist)
     useEffect(() => {
-        if (!canPanesCoexist && prevCoexistRef.current && filesPane.open && !configPanelCollapsed)
+        if (
+            !filesLayout.retaining &&
+            !canPanesCoexist &&
+            prevCoexistRef.current &&
+            filesPane.open &&
+            !configPanelCollapsed
+        )
             setConfigPanelCollapsed(true)
         prevCoexistRef.current = canPanesCoexist
-    }, [canPanesCoexist, filesPane.open, configPanelCollapsed, setConfigPanelCollapsed])
+    }, [
+        canPanesCoexist,
+        filesPane.open,
+        configPanelCollapsed,
+        setConfigPanelCollapsed,
+        filesLayout.retaining,
+    ])
 
     // A trigger test asks for a fresh session: create + activate one, then clear the flag so the
     // new session's conversation consumes the turn (the per-session consumer skips flagged runs).
@@ -378,13 +406,14 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         // revision drawer also hosts this panel with its own chat scope, and the rail must follow it.
         <SplitPane
             paneSide="start"
-            paneSize={chatMaximized ? railSize : 0}
+            paneSize={chatMaximized && !fullWidthFiles ? railSize : 0}
+            paneClassName={fullWidthFiles ? "hidden" : undefined}
             paneMin={chatMaximized ? RAIL_MIN_WIDTH : 0}
             paneMax={RAIL_MAX_WIDTH}
             fillMin={320}
-            resizable={chatMaximized}
-            animate={animateRailSplit}
-            barHidden={!chatMaximized}
+            resizable={chatMaximized && !fullWidthFiles}
+            animate={animateRailSplit && !filesLayout.retaining}
+            barHidden={!chatMaximized || fullWidthFiles}
             className="h-full min-h-0 min-w-0 w-full"
             onResize={(size) => {
                 if (chatMaximized) setRailSize(size)
@@ -393,7 +422,10 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 /* `inert` drops the clipped rail from tab order + a11y while collapsed. Flex-bounded
                    (not a plain h-full cascade) so the rail's session list actually scrolls — a bare
                    h-full chain through the fade wrapper grew with content and never bounded. */
-                <div className="flex h-full min-h-0 w-full flex-col" inert={!chatMaximized}>
+                <div
+                    className="flex h-full min-h-0 w-full flex-col"
+                    inert={!chatMaximized || fullWidthFiles}
+                >
                     {/* Rail pane is width-0 unless maximized, so no visible fallback is needed. */}
                     <Suspense fallback={null}>
                         {/* min-w matches RAIL_MIN_WIDTH (Tailwind needs the literal). */}
@@ -414,13 +446,20 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                    collapses to 0; the bar's "«" and the pane header's "»" both drive it. */
                 <RightPanelSplit
                     open={filesPane.open}
+                    expanded={fullWidthFiles}
                     widthAtom={filesPaneWidthAtom}
                     min={FILES_PANE_MIN}
                     max={FILES_PANE_MAX}
                     panel={
                         activeId ? (
                             <DriveSessionProvider sessionId={activeId} artifactId={artifactId}>
-                                <SessionFilesPane sessionId={activeId} />
+                                <SessionFilesPane
+                                    sessionId={activeId}
+                                    expanded={filesExpanded}
+                                    onToggleExpand={() =>
+                                        filesLayout.toggleExpand(configPanelCollapsed)
+                                    }
+                                />
                             </DriveSessionProvider>
                         ) : null
                     }

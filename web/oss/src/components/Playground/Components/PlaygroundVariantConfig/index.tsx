@@ -371,8 +371,13 @@ const PlaygroundVariantConfig: React.FC<
                                 scope={chatScopeKey}
                             />
                         }
+                        storageTitle="Recent files"
                         storageHeader={
-                            <StorageFilesHeader revisionId={variantId} sessionId={chatSessionId} />
+                            <StorageFilesHeader
+                                revisionId={variantId}
+                                sessionId={chatSessionId}
+                                scope={chatScopeKey}
+                            />
                         }
                         // One drawer for schedules and subscriptions alike — the same editor
                         // the automations screens render, in place of the two kind-specific

@@ -144,6 +144,7 @@ export default function StorageSection({
             // Bled past the inset so a row's mark and time sit on the title's and icon's lines.
             className={`-ml-2 -mr-1.5 flex flex-col gap-2 rounded-md transition-colors ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
             {...stageDropProps}
+            title="Latest items changed in this conversation. If there are no recorded changes, shows items from the drive root."
         >
             <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div

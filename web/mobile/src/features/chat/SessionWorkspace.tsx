@@ -9,11 +9,14 @@ import {
     FILES_PANE_MIN,
     filesPaneWidthAtom,
     phoneViewportAtom,
+    panesCoexistMinWindow,
     resolveConfigPanelCollapsed,
     RIGHT_PANEL_MAX,
     RIGHT_PANEL_MIN,
     rightPanelWidthAtom,
     useCanPanesCoexist,
+    useFilesPaneLayout,
+    usePaneContainerWidth,
 } from "@agenta/chat/state"
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
 import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
@@ -172,14 +175,28 @@ export const SessionWorkspace = ({
     useDriveDirtyGuard()
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
     const twoPane = useMediaQuery("(min-width: 768px)")
+    const filesLayout = useFilesPaneLayout(
+        `m:${workspaceId}:${projectId}:${filesScope}`,
+        sessionId,
+        filesOpen,
+    )
+    const filesExpanded = filesLayout.expanded
+    const {containerRef, containerWidth} = usePaneContainerWidth()
+    const suppressConfig =
+        filesLayout.retaining && filesOpen && (containerWidth ?? 0) < panesCoexistMinWindow(0)
+    const retainedConfigCollapsed = twoPane
+        ? (filesLayout.configCollapsed ?? configCollapsed)
+        : configCollapsed
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
     // pane replaces the conversation, so getting it wrong puts the composer out of reach.
     const {showConfig, showPane, showFiles} = resolveSessionPanes({
         chatMaximized,
-        configCollapsed,
+        configCollapsed: retainedConfigCollapsed,
         twoPane,
         hasEntity: Boolean(entityId),
         filesOpen,
+        filesExpanded,
+        suppressConfig,
     })
     // Live px during a drag, mirrored from the shared persisted width — which is written at
     // pointer-up, not per frame, so a drag does not hammer localStorage.
@@ -194,7 +211,7 @@ export const SessionWorkspace = ({
     // Both panes slide rather than snap, on the same shared mechanism the desktop uses. Without
     // it the pane's width flipped in one frame and its content unmounted before the flip, so
     // opening and hiding either panel jumped instead of moving.
-    const configSlide = usePaneSlide(showPane)
+    const configSlide = usePaneSlide(showPane || filesExpanded)
     const filesSlide = usePaneSlide(showFiles)
 
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
@@ -212,22 +229,34 @@ export const SessionWorkspace = ({
     const panesMustAlternate = twoPane && !canPanesCoexist
     const prevFilesOpenRef = useRef(filesOpen)
     useEffect(() => {
-        if (filesOpen && !prevFilesOpenRef.current && panesMustAlternate) setConfigCollapsed(true)
+        if (!filesLayout.retaining && filesOpen && !prevFilesOpenRef.current && panesMustAlternate)
+            setConfigCollapsed(true)
         prevFilesOpenRef.current = filesOpen
-    }, [filesOpen, panesMustAlternate, setConfigCollapsed])
+    }, [filesOpen, panesMustAlternate, setConfigCollapsed, filesLayout.retaining])
     const prevConfigCollapsedRef = useRef(configCollapsed)
     useEffect(() => {
-        if (!configCollapsed && prevConfigCollapsedRef.current && panesMustAlternate)
+        if (
+            !filesLayout.retaining &&
+            !configCollapsed &&
+            prevConfigCollapsedRef.current &&
+            panesMustAlternate
+        )
             closeFilesPane()
         prevConfigCollapsedRef.current = configCollapsed
-    }, [configCollapsed, panesMustAlternate, closeFilesPane])
+    }, [configCollapsed, panesMustAlternate, closeFilesPane, filesLayout.retaining])
     // Shrinking past the threshold with both open keeps Files, the surface opened deliberately.
     const prevAlternateRef = useRef(panesMustAlternate)
     useEffect(() => {
-        if (panesMustAlternate && !prevAlternateRef.current && filesOpen && !configCollapsed)
+        if (
+            !filesLayout.retaining &&
+            panesMustAlternate &&
+            !prevAlternateRef.current &&
+            filesOpen &&
+            !configCollapsed
+        )
             setConfigCollapsed(true)
         prevAlternateRef.current = panesMustAlternate
-    }, [panesMustAlternate, filesOpen, configCollapsed, setConfigCollapsed])
+    }, [panesMustAlternate, filesOpen, configCollapsed, setConfigCollapsed, filesLayout.retaining])
 
     // The SAME session shortcuts the desktop playground binds. The rail publishes the tabs it
     // renders, so `Alt+1…9` addresses exactly what is on screen. A phone sends no Alt chord, so
@@ -308,6 +337,7 @@ export const SessionWorkspace = ({
                     <ConfigPane
                         entityId={entityId}
                         sessionId={sessionId}
+                        filesScope={filesScope}
                         workspaceId={workspaceId}
                         projectId={projectId}
                     />
@@ -344,7 +374,7 @@ export const SessionWorkspace = ({
 
                     {/* One split at every width. On a phone the pane it does not show is CSS-hidden
                         rather than dropped, which is what keeps both halves mounted exactly once. */}
-                    <div className="min-h-0 min-w-0 flex-1">
+                    <div ref={containerRef} className="min-h-0 min-w-0 flex-1">
                         <SplitPane
                             paneSide="start"
                             paneSize={twoPane && showPane ? paneSize : 0}
@@ -354,38 +384,52 @@ export const SessionWorkspace = ({
                             // the pane under its own min.
                             fillMin={420}
                             // Phone: no divider, no drag, and the visible half takes the full width.
-                            animate={configSlide.animate}
+                            animate={!filesLayout.retaining && configSlide.animate}
                             barHidden={!twoPane || !showPane}
                             resizable={twoPane && showPane}
                             paneGrow={!twoPane && showPane}
-                            paneClassName={!twoPane && !showPane ? "hidden" : undefined}
+                            paneClassName={
+                                filesExpanded || suppressConfig || (!twoPane && !showPane)
+                                    ? "hidden"
+                                    : undefined
+                            }
                             fillClassName={!twoPane && showPane ? "hidden" : undefined}
                             // Controlled width: the drag must write through per tick, or the pane only
                             // snaps at pointer-up.
                             onResize={(size) => setPaneSize(size)}
                             onResizeEnd={(size) => setStoredPaneWidth(size)}
                             className="h-full"
-                            pane={pane}
+                            pane={
+                                <div className="h-full min-h-0" inert={!showPane}>
+                                    {pane}
+                                </div>
+                            }
                             fill={
                                 <SplitPane
                                     paneSide="end"
-                                    paneSize={twoPane && filesOpen ? filesPaneSize : 0}
+                                    paneSize={
+                                        twoPane && filesOpen && !filesExpanded ? filesPaneSize : 0
+                                    }
                                     paneMin={FILES_PANE_MIN}
                                     paneMax={FILES_PANE_MAX}
                                     // Lower than the desktop's chat floor for the same reason the
                                     // config split's is.
                                     fillMin={360}
-                                    animate={filesSlide.animate}
+                                    animate={!filesLayout.retaining && filesSlide.animate}
                                     // The reveal fades the content in with the width; on a phone
                                     // the width is the screen, so there is nothing to key it on.
-                                    revealContent={twoPane}
+                                    revealContent={twoPane && !filesExpanded}
                                     // Phone: Files takes the conversation's place, as the config
                                     // pane does — no divider, no drag, full width.
-                                    barHidden={!twoPane || !filesOpen}
-                                    resizable={twoPane && filesOpen}
-                                    paneGrow={!twoPane && showFiles}
+                                    barHidden={filesExpanded || !twoPane || !filesOpen}
+                                    resizable={!filesExpanded && twoPane && filesOpen}
+                                    paneGrow={filesExpanded || (!twoPane && showFiles)}
                                     paneClassName={!twoPane && !showFiles ? "hidden" : undefined}
-                                    fillClassName={!twoPane && showFiles ? "hidden" : undefined}
+                                    fillClassName={
+                                        filesExpanded || (!twoPane && showFiles)
+                                            ? "hidden"
+                                            : undefined
+                                    }
                                     // Controlled width, so the drag must write through per tick or the
                                     // pane only moves at pointer-up.
                                     onResize={(size) => setFilesPaneSize(size)}
@@ -400,11 +444,18 @@ export const SessionWorkspace = ({
                                                 // phone that bar is off screen with it, so the
                                                 // pane's own control does.
                                                 closeControl={twoPane ? "none" : "back"}
+                                                expanded={filesExpanded}
+                                                onToggleExpand={() =>
+                                                    filesLayout.toggleExpand(configCollapsed)
+                                                }
                                             />
                                         ) : null
                                     }
                                     fill={
-                                        <div className="ag-canvas flex h-full min-h-0">
+                                        <div
+                                            className="ag-canvas flex h-full min-h-0"
+                                            inert={filesExpanded || (!twoPane && showFiles)}
+                                        >
                                             {/* Where the collapsed pane went, on a surface with no
                                                 tab rail to carry its reveal — the empty column
                                                 becomes the pane's own edge instead of dead canvas.

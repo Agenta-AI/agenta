@@ -30,11 +30,13 @@ import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 export const ConfigPane = ({
     entityId,
     sessionId,
+    filesScope,
     workspaceId,
     projectId,
 }: {
     entityId: string
     sessionId: string
+    filesScope: string
     workspaceId: string
     projectId: string
 }) => {
@@ -55,17 +57,20 @@ export const ConfigPane = ({
                 <AgentBuildPanel
                     revisionId={entityId}
                     stickyHeaderTop={48}
+                    storageTitle="Recent files"
                     storage={
                         <StorageSection
                             revisionId={entityId}
                             sessionId={sessionId}
-                            // Mobile shows one conversation at a time, so the session IS the
-                            // pane scope (desktop keys it by chat panel, which has tabs).
-                            scope={sessionId}
+                            scope={filesScope}
                         />
                     }
                     storageHeader={
-                        <StorageFilesHeader revisionId={entityId} sessionId={sessionId} />
+                        <StorageFilesHeader
+                            revisionId={entityId}
+                            sessionId={sessionId}
+                            scope={filesScope}
+                        />
                     }
                     // The same automations editor the /m screens render, so a schedule opened
                     // from an agent's panel is the surface it is opened from anywhere else.
