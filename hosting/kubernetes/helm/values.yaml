@@ -286,6 +286,21 @@ redisDurable:
 #     workers, 60 on services, web and webMobile.
 #   lifecycle: a preStop exec `sleep 10` on agentRunner, services, web and
 #     webMobile. Setting a key replaces its default.
+# Liveness probes: the chart sets none on cron, workerStreams or workerQueues. Each of
+# those runs its process as PID 1, so a process that exits takes the container with it and
+# the kubelet restarts it already. The probe that used to be here called `pgrep`, which is
+# not in the image, so it errored every period and never protected anything (agenta#7334).
+# Detecting a worker that is alive but no longer working needs a heartbeat from the
+# application, which does not exist yet. Until it does, supply your own probe if you have a
+# signal worth checking:
+#
+#   workerQueues:
+#     livenessProbe:
+#       exec:
+#         command: ["sh", "-c", "test -f /tmp/heartbeat && [ $(( $(date +%s) - $(stat -c %Y /tmp/heartbeat) )) -lt 120 ]"]
+#       periodSeconds: 30
+#       failureThreshold: 3
+#
 # The keys work on api, services, web, webMobile, cron, workerStreams,
 # workerQueues, agentRunner, supertokens, redisVolatile, redisDurable,
 # store.seaweedfs and alembic. `strategy` is for Deployments only.

@@ -80,13 +80,20 @@ spec:
           envFrom:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- /* No liveness probe by default. The one that used to be here ran `pgrep`,
+                 which is not in the image, so it could never start: the kubelet reported
+                 "Liveness probe errored and resulted in unknown state" every period. It
+                 would add nothing even if it ran, because the queue worker is PID 1 in this
+                 container, and a container whose PID 1 exits is restarted already.
+
+                 A probe that catches the failure that matters here, a process that is
+                 alive and no longer working, needs a heartbeat from the application. There
+                 is none yet (agenta#7334). Until then, supply your own probe if you have a
+                 signal to check. */}}
+          {{- with $workerQueues.livenessProbe }}
           livenessProbe:
-            exec:
-              command: ["pgrep", "-f", "entrypoints.worker_queues"]
-            initialDelaySeconds: 15
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 3
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $workerQueues.lifecycle }}
           lifecycle:
             {{- toYaml . | nindent 12 }}
