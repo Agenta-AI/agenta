@@ -16,15 +16,7 @@ import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
-import {
-    ArrowClockwise,
-    MagnifyingGlass,
-    Play,
-    Plugs,
-    Plus,
-    Trash,
-    XCircle,
-} from "@phosphor-icons/react"
+import {ArrowClockwise, MagnifyingGlass, Play, Plugs, Trash, XCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
@@ -110,34 +102,6 @@ const ConnectionDescription = ({
     return <>{[entry?.name ?? integrationKey, auth].filter(Boolean).join(" · ")}</>
 }
 
-/** The connect flow for an integration already connected, once its catalog entry resolves. */
-const AnotherConnection = ({
-    integrationKey,
-    known,
-    onClose,
-    onSuccess,
-}: {
-    integrationKey: string
-    known?: CatalogIntegrationItem
-    onClose: () => void
-    onSuccess: () => void
-}) => {
-    const entry = useCatalogEntry(integrationKey, known)
-    if (!entry) return null
-    return (
-        <ConnectDrawer
-            open
-            integrationKey={entry.key}
-            integrationName={entry.name}
-            integrationLogo={entry.logo ?? undefined}
-            integrationDescription={entry.description ?? undefined}
-            authSchemes={entry.auth_schemes ?? []}
-            onClose={onClose}
-            onSuccess={onSuccess}
-        />
-    )
-}
-
 export interface GatewayToolsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
     confirm?: ConfirmDestructive
@@ -171,8 +135,6 @@ export default function GatewayToolsSection({
     // The search atom is module-level; leaving the page must not leave the catalog filtered.
     useEffect(() => () => setServerSearch(""), [setServerSearch])
     const [connectTarget, setConnectTarget] = useState<CatalogIntegrationItem | null>(null)
-    // A second connection to an integration already connected, e.g. another account.
-    const [anotherKey, setAnotherKey] = useState<string | null>(null)
 
     const openExecution = useCallback(
         (record: ToolConnection) => {
@@ -297,10 +259,6 @@ export default function GatewayToolsSection({
     )
 
     const term = searchTerm.trim().toLowerCase()
-    const connectedKeys = useMemo(
-        () => new Set((connections ?? []).map((connection) => connection.integration_key)),
-        [connections],
-    )
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
         const matches = (texts: (string | null | undefined)[]) =>
             !term || texts.some((text) => text?.toLowerCase().includes(term))
@@ -361,14 +319,6 @@ export default function GatewayToolsSection({
                                         hidden: !confirm,
                                         onClick: () => confirmRevoke(connection),
                                     },
-                                    {
-                                        key: "another",
-                                        hidden: readOnly,
-                                        label: "Add another connection",
-                                        icon: <Plus size={14} />,
-                                        onClick: () =>
-                                            setAnotherKey(connection.integration_key ?? null),
-                                    },
                                     {type: "divider"},
                                     {
                                         key: "delete",
@@ -415,7 +365,6 @@ export default function GatewayToolsSection({
                             <IntegrationCatalog
                                 term={term}
                                 connectedMatches={groups[0]?.items.length ?? 0}
-                                connectedKeys={connectedKeys}
                                 onConnect={setConnectTarget}
                                 onClearSearch={() => search.onChange("")}
                                 noMatch={copy.noMatch}
@@ -444,14 +393,6 @@ export default function GatewayToolsSection({
                 />
             </section>
 
-            {readOnly || !anotherKey ? null : (
-                <AnotherConnection
-                    integrationKey={anotherKey}
-                    known={integrations.find((integration) => integration.key === anotherKey)}
-                    onClose={() => setAnotherKey(null)}
-                    onSuccess={refetch}
-                />
-            )}
             {readOnly ? null : <ToolExecutionDrawer />}
             {readOnly || !connectTarget ? null : (
                 <ConnectDrawer

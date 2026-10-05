@@ -67,18 +67,13 @@ const useNearScreen = () => {
     return {ref, near}
 }
 
+/** Connected apps stay listed: one app can hold several connections, e.g. two accounts. */
 interface CatalogProps {
-    /** Integrations already connected; the catalog offers the rest. */
-    connectedKeys: Set<string | null | undefined>
     onConnect: (integration: CatalogIntegrationItem) => void
 }
 
 /** One category: a six-app preview that expands in place; it loads once near the screen. */
-const CategorySection = ({
-    category,
-    connectedKeys,
-    onConnect,
-}: CatalogProps & {category: ToolCatalogCategory}) => {
+const CategorySection = ({category, onConnect}: CatalogProps & {category: ToolCatalogCategory}) => {
     const {ref, near} = useNearScreen()
     const [expanded, setExpanded] = useState(false)
     const query = useInfiniteQuery({
@@ -102,15 +97,14 @@ const CategorySection = ({
         return (query.data?.pages ?? [])
             .flatMap((page) => page.integrations ?? [])
             .filter((integration) => {
-                if (seen.has(integration.key) || connectedKeys.has(integration.key)) return false
+                if (seen.has(integration.key)) return false
                 seen.add(integration.key)
                 return true
             })
-    }, [query.data?.pages, connectedKeys])
+    }, [query.data?.pages])
 
     const total = query.data?.pages[0]?.total
     const loaded = !query.isPending
-    // A category whose every app is already connected has nothing to offer.
     if (loaded && integrations.length === 0 && !query.hasNextPage) return null
 
     const shown = expanded ? integrations : integrations.slice(0, PREVIEW)
@@ -152,7 +146,6 @@ const FlatCatalog = ({
     label,
     term,
     connectedMatches,
-    connectedKeys,
     onConnect,
     onClearSearch,
     noMatch,
@@ -170,12 +163,11 @@ const FlatCatalog = ({
     const items = available.integrations
         .filter(
             (integration) =>
-                !connectedKeys.has(integration.key) &&
-                (serverSearched ||
-                    !term ||
-                    [integration.name, integration.description].some((text) =>
-                        text?.toLowerCase().includes(term),
-                    )),
+                serverSearched ||
+                !term ||
+                [integration.name, integration.description].some((text) =>
+                    text?.toLowerCase().includes(term),
+                ),
         )
         .map((integration) => toRow(integration, onConnect))
     const fetching = available.isLoading || available.isFetchingNextPage
@@ -241,7 +233,6 @@ export const IntegrationCatalog = (
                 <CategorySection
                     key={category.id}
                     category={category}
-                    connectedKeys={props.connectedKeys}
                     onConnect={props.onConnect}
                 />
             ))}
