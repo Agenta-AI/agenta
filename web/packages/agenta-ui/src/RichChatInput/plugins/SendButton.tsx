@@ -16,7 +16,7 @@ interface SendButtonProps {
     disabled?: boolean
     /** Tooltip shown when a caller blocks submit. */
     disabledReason?: ReactNode
-    /** Keep Stop accessible for the in-flight stream, beside Send when a draft exists. */
+    /** A run is in flight: an empty composer shows Stop, a draft shows Send (which queues). */
     streaming?: boolean
     stopping?: boolean
     /** Request a durable stop — required for the `streaming` state. */
@@ -28,7 +28,8 @@ interface SendButtonProps {
 }
 
 /** Circular send button. Mirrors the Cmd/Ctrl+Enter path via the shared submit helper.
- * While a stream is in flight, an empty composer shows Stop; a draft shows Send beside Stop. */
+ * While a stream is in flight, an empty composer shows Stop and a draft shows Send in its place;
+ * Escape still stops (the host's `run.stop` shortcut). */
 export function SendButton({
     onSubmit,
     forceEnabled,
@@ -54,6 +55,7 @@ export function SendButton({
         submitEditorAsMarkdown(editor, onSubmit, forceEnabled)
     }
 
+    const hasDraft = !empty || !!forceEnabled
     if (streaming || busyActions?.length) {
         // A spinning ring (stream in progress) around a Stop square — one affordance that both
         // signals progress and stops the run on click. Two-layer ring: a faint neutral track under
@@ -74,7 +76,7 @@ export function SendButton({
                         {action.label}
                     </Button>
                 ))}
-                {streaming ? (
+                {streaming && !hasDraft ? (
                     <span className="relative inline-flex">
                         <span
                             aria-hidden
@@ -105,7 +107,7 @@ export function SendButton({
                         </Button>
                     </span>
                 ) : null}
-                {!empty || forceEnabled ? (
+                {hasDraft ? (
                     <ComposerSendButton
                         onClick={handleClick}
                         disabled={disabled}
