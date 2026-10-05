@@ -113,7 +113,6 @@ export const SettingsCatalog = ({
     groups,
     loading = false,
     empty,
-    toolbarActions,
     notice,
 }: {
     search?: {value: string; onChange: (next: string) => void; placeholder: string}
@@ -121,8 +120,6 @@ export const SettingsCatalog = ({
     loading?: boolean
     /** Drawn when every group is empty, e.g. a search with no match. */
     empty?: ReactNode
-    /** Right of the search: a reload control, never a second way to add. */
-    toolbarActions?: ReactNode
     /** Drawn between the search and the groups: a load error, a failed removal. */
     notice?: ReactNode
 }) => {
@@ -137,13 +134,6 @@ export const SettingsCatalog = ({
                             search={search.value}
                             onSearchChange={search.onChange}
                             searchPlaceholder={search.placeholder}
-                            actions={
-                                toolbarActions ? (
-                                    <div className="ml-auto flex shrink-0 items-center gap-2">
-                                        {toolbarActions}
-                                    </div>
-                                ) : undefined
-                            }
                         />
                     ) : null}
                     {notice}

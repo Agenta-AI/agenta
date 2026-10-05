@@ -15,7 +15,7 @@ import {CatalogDrawer, ConnectDrawer, ToolExecutionDrawer} from "@agenta/entity-
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 import {InitialsAvatar} from "@agenta/ui/components/presentational"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
     ArrowRight,
@@ -139,25 +139,8 @@ export default function GatewayToolsSection({
     const {integrations, isLoading: integrationsLoading} = useToolsIntegrations()
     const setCatalogOpen = useSetAtom(toolCatalogDrawerOpenAtom)
     const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
-    const [reloading, setReloading] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
     const [connectTarget, setConnectTarget] = useState<CatalogIntegrationItem | null>(null)
-
-    const reloadAll = useCallback(async () => {
-        setReloading(true)
-        try {
-            // Poll each connection individually to trigger Composio status sync
-            await Promise.allSettled(
-                connections
-                    .map((c) => c.id)
-                    .filter((id): id is string => typeof id === "string")
-                    .map((id) => fetchToolConnection(id)),
-            )
-            invalidateConnections()
-        } finally {
-            setReloading(false)
-        }
-    }, [connections, invalidateConnections])
 
     const openExecution = useCallback(
         (record: ToolConnection) => {
@@ -432,19 +415,6 @@ export default function GatewayToolsSection({
                     }}
                     groups={groups}
                     loading={isLoading || integrationsLoading}
-                    toolbarActions={
-                        <SimpleTooltip title="Reload all connections">
-                            <Button
-                                variant="outline"
-                                size="icon"
-                                aria-label="Reload all connections"
-                                disabled={reloading}
-                                onClick={reloadAll}
-                            >
-                                <ArrowClockwise size={14} />
-                            </Button>
-                        </SimpleTooltip>
-                    }
                     empty={
                         term ? (
                             <SettingsEmpty
