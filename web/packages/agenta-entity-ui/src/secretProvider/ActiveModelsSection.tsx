@@ -39,14 +39,6 @@ export interface ActiveModelsSectionProps {
 
 // How many rows mount before "Show all N", and whether it belongs: `modelListView`.
 
-/**
- * The floor the list never shrinks below — three rows.
- *
- * On a viewport too short for the card's fixed sections, this is what forces the DRAWER BODY to
- * scroll instead of squeezing the list to nothing.
- */
-const MIN_LIST_HEIGHT = 96
-
 const ActiveModelsSection = ({
     options,
     onToggle,
@@ -84,7 +76,7 @@ const ActiveModelsSection = ({
     }
 
     return (
-        <section className="flex min-h-0 flex-1 flex-col gap-2">
+        <section className="flex shrink-0 flex-col gap-2">
             <div className="flex shrink-0 items-baseline justify-between gap-2">
                 <span className="font-medium text-colorText">
                     Active models{" "}
@@ -120,15 +112,13 @@ const ActiveModelsSection = ({
                 }}
             />
 
-            <div
-                className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-solid border-colorBorderSecondary"
-                style={{minHeight: MIN_LIST_HEIGHT}}
-            >
+            {/* Sized to its rows, so a short list leaves no empty box; a long one scrolls. */}
+            <div className="flex max-h-[min(320px,45vh)] flex-col overflow-hidden rounded-md border border-solid border-colorBorderSecondary">
                 {canAdd ? (
                     <button
                         type="button"
                         onClick={addTerm}
-                        className="flex w-full shrink-0 cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorSplit bg-transparent px-3 py-2 text-left text-field-sm text-colorText hover:bg-colorFillQuaternary"
+                        className="mx-1 mt-1 flex shrink-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-2 text-left text-field-sm text-colorText hover:bg-colorFillQuaternary"
                     >
                         <Plus size={14} className="shrink-0 text-colorTextTertiary" />
                         <span className="min-w-0 truncate">
@@ -147,11 +137,11 @@ const ActiveModelsSection = ({
                         </p>
                     )
                 ) : (
-                    <ScrollScrim>
+                    <ScrollScrim className="p-1">
                         {visible.map((option) => (
                             <label
                                 key={option.id}
-                                className="flex cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorSplit px-3 py-1.5 last:border-b-0 hover:bg-colorFillQuaternary"
+                                className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-2 hover:bg-colorFillQuaternary"
                             >
                                 <Checkbox
                                     checked={option.checked}
@@ -168,7 +158,9 @@ const ActiveModelsSection = ({
                                     ) : null}
                                 </span>
                                 {option.isDefault ? (
-                                    <Tag size="small" tone="default" label="recommended" />
+                                    <span className="shrink-0 text-field-xs text-colorTextTertiary">
+                                        Recommended
+                                    </span>
                                 ) : null}
                                 {option.unavailable ? (
                                     <Tag size="small" tone="warning" label="unavailable" />
