@@ -7,9 +7,13 @@ import {
     formatCount,
     formatMetric,
     formatMoney,
+    rankKeys,
+    sharePercent,
     successRate,
     sum,
+    topSeries,
     analyticsDrawerAtom,
+    analyticsGroupAtom,
     analyticsFiltersAtom,
     analyticsRangeAtom,
     analyticsWindowAtom,
@@ -22,10 +26,15 @@ import {CaretLeft, CaretRight, X} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
-import {TimeChart} from "../charts/TimeChart"
+import {TimeChart, type TimeSeries} from "../charts/TimeChart"
 import {analyticsColor} from "../colors"
 import {bucketUnit, fullLabel, shortLabel} from "../labels"
-import {useAnalyticsWindowData} from "../useAnalyticsData"
+import {
+    SPLIT_KEYS,
+    useAnalyticsSplit,
+    useAnalyticsWindowData,
+    type KeyColor,
+} from "../useAnalyticsData"
 
 import {DrawerBreakdown} from "./DrawerBreakdown"
 import {DrawerRuns} from "./DrawerRuns"
@@ -48,6 +57,8 @@ const TILE_LABEL: Record<AnalyticsMetric, string> = {
     avgcost: "Avg / run",
 }
 
+const STACKABLE: AnalyticsMetric[] = ["cost", "runs", "tokens"]
+
 const additive = (metric: AnalyticsMetric) => metric !== "success" && metric !== "avgcost"
 
 const pointValue = (metric: AnalyticsMetric, p: AnalyticsPoint, tools: number): number | null => {
@@ -69,10 +80,12 @@ const pointValue = (metric: AnalyticsMetric, p: AnalyticsPoint, tools: number): 
 
 export interface AnalyticsDrawerProps {
     agentName: (id: string) => string
+    /** The page's color per agent or model, so a key reads the same in the drawer. */
+    keyColor: KeyColor
     onOpenTrace?: (traceId: string) => void
 }
 
-export const AnalyticsDrawer = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
+export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
     const [state, setState] = useAtom(analyticsDrawerAtom)
     return (
         <Sheet open={state !== null} onOpenChange={(open) => !open && setState(null)}>
@@ -81,13 +94,19 @@ export const AnalyticsDrawer = ({agentName, onOpenTrace}: AnalyticsDrawerProps) 
                 className="flex flex-col gap-0 p-0 [--ag-sheet-responsive-width:640px]"
                 aria-describedby={undefined}
             >
-                {state ? <DrawerBody agentName={agentName} onOpenTrace={onOpenTrace} /> : null}
+                {state ? (
+                    <DrawerBody
+                        agentName={agentName}
+                        keyColor={keyColor}
+                        onOpenTrace={onOpenTrace}
+                    />
+                ) : null}
             </SheetContent>
         </Sheet>
     )
 }
 
-const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
+const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
     const [state, setState] = useAtom(analyticsDrawerAtom)
     const pageWindow = useAtomValue(analyticsWindowAtom)
     const range = useAtomValue(analyticsRangeAtom)
@@ -106,6 +125,17 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
     const focus = state?.focus ?? null
     const data = useAnalyticsWindowData(window, filters, focus)
     const toolsPerBucket = useToolsPerBucket(data)
+    // The page's group-by stacks the chart too, unless the drawer is already on one key of it.
+    const group = useAtomValue(analyticsGroupAtom)
+    const stackDim = group !== "none" && focus?.dim !== group ? group : null
+    const stackSplit = useAnalyticsSplit(
+        stackDim ?? "agent",
+        (stackDim === "model" ? data.modelOrder : data.agentOrder).slice(0, SPLIT_KEYS),
+        window,
+        filters,
+        Boolean(stackDim) && (state?.metric === "cost" || state?.metric === "tokens"),
+        focus,
+    )
     if (!state) return null
     // Tool spans carry no agent or model, so a narrowed drawer cannot count them.
     const narrowed = Boolean(focus) || filters.agent.length > 0 || filters.model.length > 0
@@ -126,6 +156,26 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
             ? sum(present) / values.length
             : 0
         : (tileValue(metric) ?? 0)
+
+    const stackSource =
+        !stackDim || !STACKABLE.includes(metric)
+            ? null
+            : metric === "runs"
+              ? stackDim === "agent"
+                  ? data.agentRuns
+                  : data.modelRuns
+              : stackSplit.status.pending
+                ? null
+                : stackSplit[metric as "cost" | "tokens"]
+    const stacked: TimeSeries[] | null =
+        stackDim && stackSource
+            ? topSeries(stackSource, rankKeys(stackSource), 4, values as number[]).map((s) => ({
+                  key: s.key,
+                  label: s.other ? "Other" : stackDim === "agent" ? agentName(s.key) : s.key,
+                  color: s.other ? analyticsColor("other") : keyColor(stackDim, s.key),
+                  values: s.values,
+              }))
+            : null
 
     const title =
         bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : ANALYTICS_RANGE[range].label
@@ -264,14 +314,16 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
                         <TimeChart
                             kind={additive(metric) ? "bar" : "line"}
                             labels={labels}
-                            series={[
-                                {
-                                    key: metric,
-                                    label: METRIC_LABEL[metric],
-                                    color: analyticsColor(metric),
-                                    values,
-                                },
-                            ]}
+                            series={
+                                stacked ?? [
+                                    {
+                                        key: metric,
+                                        label: METRIC_LABEL[metric],
+                                        color: analyticsColor(metric),
+                                        values,
+                                    },
+                                ]
+                            }
                             formatTick={(v) => formatMetric(metric, v, true)}
                             average={{
                                 value: average,
@@ -316,6 +368,15 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
                                         title={fullLabels[i]}
                                         runs={`${formatCount(p.runs)} runs`}
                                         value={`${formatMetric(metric, v)} ${METRIC_LABEL[metric].toLowerCase()}`}
+                                        rows={stacked
+                                            ?.filter((row) => (row.values[i] ?? 0) > 0)
+                                            .sort((a, b) => (b.values[i] ?? 0) - (a.values[i] ?? 0))
+                                            .map((row) => ({
+                                                color: row.color,
+                                                label: row.label,
+                                                value: formatMetric(metric, row.values[i]),
+                                                share: sharePercent(row.values[i] ?? 0, v ?? 0),
+                                            }))}
                                         facts={[
                                             {
                                                 label: "vs average",
@@ -360,6 +421,7 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
                         dim={state.dim}
                         metric={metric}
                         agentName={agentName}
+                        keyColor={keyColor}
                         unit={unit}
                         onDim={(dim) => setState({...state, dim})}
                         onDrill={(next, dim) => setState({...state, focus: next, dim})}

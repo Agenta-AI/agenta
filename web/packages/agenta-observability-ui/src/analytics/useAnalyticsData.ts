@@ -14,11 +14,13 @@ import {
     type KeyedSeries,
     type AnalyticsFilters,
     type AnalyticsFocus,
+    type AnalyticsGroup,
     type AnalyticsQueryName,
     type AnalyticsWindow,
 } from "@agenta/observability/analytics"
 import {useAtomValue} from "jotai"
 
+import {SERIES_COLORS, analyticsColor} from "./colors"
 import {UNKNOWN_AGENT} from "./labels"
 
 export interface QueryStatus {
@@ -121,4 +123,50 @@ export const useAnalyticsSplit = (
 export const useAgentNames = (ids: string[]) => {
     const names = useAtomValue(analyticsAgentNamesAtomFamily(ids))
     return useCallback((id: string) => names[id] ?? UNKNOWN_AGENT, [names])
+}
+
+/** Cost and tokens split for the page window cost one request per key, so splits stop here. */
+export const SPLIT_KEYS = 25
+
+export type KeyColor = (dim: "agent" | "model", key: string) => string
+
+/**
+ * The page window's data, its agent and model splits, and one color per key that the page and
+ * the drawer share. Colors go to the keys any main card shows, so a key reads the same everywhere.
+ */
+export const usePageAnalytics = (
+    window: AnalyticsWindow,
+    filters: AnalyticsFilters,
+    group: AnalyticsGroup,
+) => {
+    const data = useAnalyticsWindowData(window, filters)
+    const agentSplit = useAnalyticsSplit(
+        "agent",
+        data.agentOrder.slice(0, SPLIT_KEYS),
+        window,
+        filters,
+    )
+    const modelSplit = useAnalyticsSplit(
+        "model",
+        data.modelOrder.slice(0, SPLIT_KEYS),
+        window,
+        filters,
+        group === "model",
+    )
+    const keyColor = useMemo<KeyColor>(() => {
+        const shown = (...series: KeyedSeries[]) => [
+            ...new Set(series.flatMap((s) => rankKeys(s).slice(0, 4))),
+        ]
+        const orders = {
+            agent: shown(data.agentRuns, agentSplit.cost, agentSplit.tokens),
+            model: shown(data.modelRuns, modelSplit.cost, modelSplit.tokens),
+        }
+        return (dim, key) => {
+            const index = orders[dim].indexOf(key)
+            return index < 0
+                ? analyticsColor("other")
+                : analyticsColor(SERIES_COLORS[index % SERIES_COLORS.length])
+        }
+    }, [data.agentRuns, data.modelRuns, agentSplit, modelSplit])
+    return {data, agentSplit, modelSplit, keyColor}
 }

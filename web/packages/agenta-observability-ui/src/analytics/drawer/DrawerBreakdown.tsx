@@ -17,7 +17,7 @@ import {Segmented, cn} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {SERIES_COLORS, analyticsColor} from "../colors"
-import {useAnalyticsSplit, type AnalyticsWindowData} from "../useAnalyticsData"
+import {useAnalyticsSplit, type AnalyticsWindowData, type KeyColor} from "../useAnalyticsData"
 
 const LIMIT = 8
 const OTHER = "__other"
@@ -70,6 +70,7 @@ export interface DrawerBreakdownProps {
     dim: AnalyticsDimension
     metric: AnalyticsMetric
     agentName: (id: string) => string
+    keyColor: KeyColor
     unit: string
     onDim: (dim: AnalyticsDimension) => void
     onDrill: (focus: AnalyticsFocus, dim: AnalyticsDimension) => void
@@ -103,6 +104,7 @@ const RunTable = ({
     dim,
     metric,
     agentName,
+    keyColor,
     onDrill,
 }: DrawerBreakdownProps & {dim: "agent" | "model"}) => {
     const runs = dim === "agent" ? data.agentRuns : data.modelRuns
@@ -199,11 +201,10 @@ const RunTable = ({
                                 <span
                                     className="size-2 shrink-0 rounded-full"
                                     style={{
-                                        background: analyticsColor(
+                                        background:
                                             row.key === OTHER
-                                                ? "other"
-                                                : SERIES_COLORS[i % SERIES_COLORS.length],
-                                        ),
+                                                ? analyticsColor("other")
+                                                : keyColor(dim, row.key),
                                     }}
                                 />
                                 <span className="truncate">{row.label}</span>

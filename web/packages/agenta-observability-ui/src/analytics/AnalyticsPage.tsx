@@ -12,7 +12,6 @@ import {
     analyticsNowAtom,
     analyticsRangeAtom,
     analyticsWindowAtom,
-    rankKeys,
     type AnalyticsFocus,
     type AnalyticsMetric,
     type AnalyticsRetention,
@@ -33,10 +32,10 @@ import {
     type GroupedData,
     type OverviewContext,
 } from "./cards/OverviewCards"
-import {ANALYTICS_COLOR_CSS, SERIES_COLORS, analyticsColor} from "./colors"
+import {ANALYTICS_COLOR_CSS} from "./colors"
 import {AnalyticsDrawer} from "./drawer/AnalyticsDrawer"
 import {bucketUnit, fullLabel, shortLabel} from "./labels"
-import {useAgentNames, useAnalyticsSplit, useAnalyticsWindowData} from "./useAnalyticsData"
+import {useAgentNames, usePageAnalytics} from "./useAnalyticsData"
 
 export interface AnalyticsPageProps {
     /** The plan's trace retention; null keeps every range open (OSS, custom plans). */
@@ -46,9 +45,6 @@ export interface AnalyticsPageProps {
     /** Opens a run's trace from the drawer's runs list. */
     onOpenTrace?: (traceId: string) => void
 }
-
-// Without a group-by, cost and tokens per key cost one request each, so splits stop here.
-const SPLIT_KEYS = 25
 
 export const AnalyticsPage = ({
     retention,
@@ -86,21 +82,7 @@ export const AnalyticsPage = ({
         if (isRangeLocked(ANALYTICS_RANGE[range], retention)) setRange(defaultRange(retention))
     }, [range, retention, setRange])
 
-    const data = useAnalyticsWindowData(window, filters)
-    // Every agent up to the cap, so a costly agent with few runs is not lost to "Other".
-    const agentSplit = useAnalyticsSplit(
-        "agent",
-        data.agentOrder.slice(0, SPLIT_KEYS),
-        window,
-        filters,
-    )
-    const modelSplit = useAnalyticsSplit(
-        "model",
-        data.modelOrder.slice(0, SPLIT_KEYS),
-        window,
-        filters,
-        group === "model",
-    )
+    const {data, agentSplit, modelSplit, keyColor} = usePageAnalytics(window, filters, group)
 
     const agentName = useAgentNames(
         useMemo(
@@ -140,20 +122,15 @@ export const AnalyticsPage = ({
     )
     const grouped = useMemo<GroupedData | null>(() => {
         if (group === "none") return null
-        const byAgent = group === "agent"
+        const dim = group
+        const byAgent = dim === "agent"
         const split = byAgent ? agentSplit : modelSplit
         const keyCount = (byAgent ? data.agentOrder : data.modelOrder).length
         const points = data.overview.points
         const runs = byAgent ? data.agentRuns : data.modelRuns
-        // Colors go to the keys any card shows, in that order, so a key keeps one color.
-        const shown = [
-            ...new Set([runs, split.cost, split.tokens].flatMap((s) => rankKeys(s).slice(0, 4))),
-        ]
-        const keyColor = (key: string) =>
-            analyticsColor(SERIES_COLORS[Math.max(0, shown.indexOf(key)) % SERIES_COLORS.length])
         return {
             keyLabel: byAgent ? agentName : (key: string) => key,
-            keyColor,
+            keyColor: (key: string) => keyColor(dim, key),
             failed: byAgent ? data.agentFailed : data.modelFailed,
             runs: {
                 series: runs,
@@ -173,7 +150,7 @@ export const AnalyticsPage = ({
                 status: split.status,
             },
         }
-    }, [group, agentSplit, modelSplit, data, agentName])
+    }, [group, agentSplit, modelSplit, data, agentName, keyColor])
     const ctx: OverviewContext = {
         data,
         labels,
@@ -269,7 +246,7 @@ export const AnalyticsPage = ({
                     })
                 }
             />
-            <AnalyticsDrawer agentName={agentName} onOpenTrace={onOpenTrace} />
+            <AnalyticsDrawer agentName={agentName} keyColor={keyColor} onOpenTrace={onOpenTrace} />
         </div>
     )
 }
