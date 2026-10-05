@@ -26,7 +26,9 @@ const maskContent = (record: NamedSecretRow): string => {
         return keys.length ? `{ ${keys.join(", ")} }` : "{ }"
     }
     const text = typeof content === "string" ? content : ""
-    if (text.length <= 6) return text ? "•••" : "-"
+    // The vault does not return a stored value, so an empty one is masked, not "-".
+    if (!text) return "••••••••"
+    if (text.length <= 6) return "•••"
     return `${text.slice(0, 3)}...${text.slice(-3)}`
 }
 
