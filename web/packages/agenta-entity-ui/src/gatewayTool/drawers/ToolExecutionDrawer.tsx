@@ -353,7 +353,6 @@ function ActionDetailStep({
     onBack: () => void
 }) {
     const schemaFormRef = useRef<SchemaFormHandle>(null)
-    const scrollRef = useRef<HTMLDivElement>(null)
     const {action, isLoading: detailLoading} = useToolActionDetail(integrationKey, actionKey)
     const {execute, isExecuting, result, error} = useToolExecution()
     const [viewMode, setViewMode] = useState<"form" | "json">("form")
@@ -449,10 +448,7 @@ function ActionDetailStep({
             </div>
 
             {/* Scrollable content */}
-            <div
-                ref={scrollRef}
-                className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 relative"
-            >
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 relative">
                 {detailLoading ? (
                     <ActionRowsSkeleton rows={3} />
                 ) : (
@@ -507,8 +503,6 @@ function ActionDetailStep({
                         </div>
                     </div>
                 )}
-
-                <ScrollToTopButton scrollRef={scrollRef} />
             </div>
 
             {/* Run sits in a footer so it stays in reach on a long form. */}
