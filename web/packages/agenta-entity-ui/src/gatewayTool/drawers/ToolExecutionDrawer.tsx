@@ -250,7 +250,7 @@ function ActionPickerStep({
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Sticky header */}
-            <div className="flex flex-col gap-3 px-6 pt-4 pb-3 shrink-0">
+            <div className="flex flex-col gap-3 px-4 pt-4 pb-3 shrink-0">
                 <div className="flex min-w-0 flex-col gap-1">
                     <span className="truncate text-base font-medium leading-snug text-foreground">
                         Choose an action to run
@@ -275,7 +275,7 @@ function ActionPickerStep({
             {/* Scrollable content */}
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto overscroll-contain px-6 py-3 relative"
+                className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 relative"
             >
                 {isLoading && actions.length === 0 ? (
                     <ActionRowsSkeleton />
@@ -402,21 +402,19 @@ function ActionDetailStep({
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
-            {/* Sticky header */}
-            <div className="flex flex-col gap-2 px-6 pt-4 pb-3 shrink-0">
+            <div className="flex shrink-0 flex-col gap-1.5 px-4 pb-3 pt-3">
+                {canGoBack && (
+                    <button
+                        type="button"
+                        onClick={onBack}
+                        className="-ml-1 mb-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                        <ArrowLeft size={12} />
+                        All actions
+                    </button>
+                )}
                 <div className="flex items-center gap-3">
-                    {canGoBack && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Go back"
-                            onClick={onBack}
-                            className="shrink-0"
-                        >
-                            <ArrowLeft size={16} />
-                        </Button>
-                    )}
-                    <span className="truncate flex-1 text-base font-medium">
+                    <span className="min-w-0 flex-1 truncate text-base font-medium text-foreground">
                         {detailLoading ? "Loading…" : displayName}
                     </span>
                     <Segmented
@@ -438,19 +436,22 @@ function ActionDetailStep({
                     />
                 </div>
                 {action?.description && (
-                    <p className="m-0 line-clamp-3 text-sm text-colorTextDescription">
+                    <p className="m-0 line-clamp-3 text-[13px] leading-5 text-colorTextDescription">
                         {action.description}
                     </p>
                 )}
-                <span className="text-xs text-colorTextDescription">
-                    Connection · {connectionSlug}
+                <span className="flex min-w-0 items-center gap-1.5 text-xs text-colorTextDescription">
+                    Connection
+                    <span className="truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                        {connectionSlug}
+                    </span>
                 </span>
             </div>
 
             {/* Scrollable content */}
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto overscroll-contain px-6 py-3 relative"
+                className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 relative"
             >
                 {detailLoading ? (
                     <ActionRowsSkeleton rows={3} />
@@ -465,7 +466,7 @@ function ActionDetailStep({
                                 {!jsonMode && (
                                     <Button
                                         variant="ghost"
-                                        size="icon"
+                                        size="icon-sm"
                                         aria-label="Copy inputs"
                                         onClick={handleCopyInputs}
                                     >
@@ -494,7 +495,7 @@ function ActionDetailStep({
                                     jsonMode={jsonMode}
                                 />
                             ) : (
-                                <div className="flex flex-col items-center gap-1 rounded-[10px] border border-dashed border-border px-4 py-8 text-center">
+                                <div className="flex flex-col items-center gap-1 rounded-[10px] border border-dashed border-border px-4 py-6 text-center">
                                     <Play size={18} className="text-muted-foreground" />
                                     <span className="text-sm text-foreground">No output yet</span>
                                     <span className="text-xs text-colorTextDescription">
@@ -512,7 +513,7 @@ function ActionDetailStep({
 
             {/* Run sits in a footer so it stays in reach on a long form. */}
             {!detailLoading && (
-                <div className="flex shrink-0 justify-end border-0 border-t border-solid border-border px-6 py-3">
+                <div className="flex shrink-0 justify-end border-0 border-t border-solid border-border px-4 py-3">
                     <LoadingButton loading={isExecuting} onClick={handleExecute}>
                         {!isExecuting && <Play size={14} />}
                         Run action
