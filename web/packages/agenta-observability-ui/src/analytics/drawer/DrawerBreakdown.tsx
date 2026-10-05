@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
 import {
     formatCompact,
@@ -18,6 +18,7 @@ import {CaretRight} from "@phosphor-icons/react"
 
 import {SERIES_COLORS, analyticsColor} from "../colors"
 import {
+    SPLIT_KEYS,
     useAnalyticsSplit,
     type AnalyticsTools,
     type AnalyticsWindowData,
@@ -113,7 +114,9 @@ const RunTable = ({
     const runs = dim === "agent" ? data.agentRuns : data.modelRuns
     const failed = dim === "agent" ? data.agentFailed : data.modelFailed
     const order = dim === "agent" ? data.agentOrder : data.modelOrder
-    const top = useMemo(() => order.slice(0, LIMIT), [order])
+    const [showAll, setShowAll] = useState(false)
+    const limit = showAll ? SPLIT_KEYS : LIMIT
+    const top = useMemo(() => order.slice(0, limit), [order, limit])
     const split = useAnalyticsSplit(dim, top, window, filters, true, focus)
     const totals = data.overview.totals
 
@@ -128,7 +131,7 @@ const RunTable = ({
         }))
         const rest = {
             key: OTHER,
-            label: order.length > LIMIT ? `Other (${order.length - LIMIT})` : "Unattributed",
+            label: order.length > limit ? `Other (${order.length - limit})` : "Unattributed",
             runs: totals.runs - sum(out.map((r) => r.runs)),
             failed: totals.failed - sum(out.map((r) => r.failed)),
             cost: Math.max(0, totals.cost - sum(out.map((r) => r.cost))),
@@ -136,7 +139,7 @@ const RunTable = ({
         }
         if (rest.runs > 0) out.push(rest)
         return out
-    }, [top, order.length, runs, failed, split.cost, split.tokens, totals, dim, agentName])
+    }, [top, limit, order.length, runs, failed, split.cost, split.tokens, totals, dim, agentName])
 
     const sortKey = RUN_COLUMNS.some((c) => c.key === metric) ? metric : "cost"
     const shareKey: AnalyticsMetric = metric === "runs" || metric === "tokens" ? metric : "cost"
@@ -240,6 +243,17 @@ const RunTable = ({
                     )
                 })}
             </div>
+            {order.length > LIMIT ? (
+                <button
+                    type="button"
+                    onClick={() => setShowAll(!showAll)}
+                    className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-xs text-muted-foreground hover:text-foreground"
+                >
+                    {showAll
+                        ? `Show top ${LIMIT}`
+                        : `Show all ${Math.min(order.length, SPLIT_KEYS)}`}
+                </button>
+            ) : null}
         </div>
     )
 }
