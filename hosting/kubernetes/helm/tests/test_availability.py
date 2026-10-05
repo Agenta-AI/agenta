@@ -205,6 +205,25 @@ def the_switches_turn_everything_off() -> None:
     assert spread_of(docs, "api") is None
 
 
+def redis_probes_fail_on_an_error_reply() -> None:
+    """`redis-cli ping` must exit non-zero when the server answers with an error.
+
+    Without -e, redis-cli exits 0 on an error REPLY and only fails on a connection
+    problem. A Redis answering LOADING during an AOF replay therefore passed its probe
+    and took traffic before it had its data. Measured in a running pod: `redis-cli get`
+    with no argument exits 0 without -e and 1 with it.
+    """
+    docs = render()
+    for component in ("redis-durable", "redis-volatile"):
+        wl = workload(docs, component)
+        container = wl["spec"]["template"]["spec"]["containers"][0]
+        for probe in ("startupProbe", "livenessProbe", "readinessProbe"):
+            command = container[probe]["exec"]["command"]
+            assert "-e" in command, (
+                f"{component}.{probe} runs {command!r}, which exits 0 on an error reply"
+            )
+
+
 def redis_has_a_startup_probe() -> None:
     docs = render()
     for component in ("redis-volatile", "redis-durable"):
@@ -275,6 +294,7 @@ def main() -> int:
     protect_singleton_is_opt_in()
     the_switches_turn_everything_off()
     redis_has_a_startup_probe()
+    redis_probes_fail_on_an_error_reply()
     an_empty_spread_list_removes_the_constraints()
     the_mobile_app_keeps_its_budget_when_the_desktop_app_is_off()
     a_typo_in_either_switch_is_refused()

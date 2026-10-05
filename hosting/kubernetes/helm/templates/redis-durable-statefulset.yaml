@@ -96,23 +96,28 @@ spec:
           {{- /* A startup probe, so a restart that has to replay the
                  append-only file is not killed by liveness while it works.
                  Liveness and readiness only begin once this passes. */}}
+          {{- /* -e makes redis-cli exit non-zero on an error REPLY, not just on a
+                 connection failure. Without it `ping` exits 0 while the server answers
+                 LOADING during an AOF replay, so a probe reported a loading instance as
+                 healthy. Measured in a running pod: `redis-cli get` with no argument
+                 exits 0 without -e and 1 with it. */}}
           startupProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
+              command: ["redis-cli", "-e", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
             initialDelaySeconds: 2
             periodSeconds: 5
             timeoutSeconds: 5
             failureThreshold: 60
           livenessProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
+              command: ["redis-cli", "-e", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 5
           readinessProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
+              command: ["redis-cli", "-e", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
