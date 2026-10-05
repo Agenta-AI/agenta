@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {isValidEmailAddress} from "@agenta/auth"
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {
     fetchAllWorkspaceRoles,
@@ -63,6 +64,7 @@ export const MembersTab = ({
     const [inviteOpen, setInviteOpen] = useState(false)
     const [email, setEmail] = useState("")
     const [role, setRole] = useState("")
+    const [emailTouched, setEmailTouched] = useState(false)
     const [pendingRemoval, setPendingRemoval] = useState<WorkspaceMember | null>(null)
     const [error, setError] = useState<string | null>(null)
     const queryClient = useQueryClient()
@@ -78,10 +80,16 @@ export const MembersTab = ({
         enabled: inviteOpen,
     })
 
+    const emailValid = isValidEmailAddress(email.trim())
+    const showEmailError = emailTouched && Boolean(email.trim()) && !emailValid
+    // A role is required wherever the API offers roles; still loading counts as offered.
+    const roleMissing = (roles.isPending || Boolean(roles.data?.length)) && !role
+
     const closeInvite = () => {
         setInviteOpen(false)
         setEmail("")
         setRole("")
+        setEmailTouched(false)
         setError(null)
     }
 
@@ -151,8 +159,15 @@ export const MembersTab = ({
                             type="email"
                             value={email}
                             onChange={(event) => setEmail(event.target.value)}
+                            onBlur={() => setEmailTouched(true)}
+                            aria-invalid={showEmailError || undefined}
                             placeholder="name@company.com"
                         />
+                        {showEmailError ? (
+                            <p className="m-0 text-sm text-colorError">
+                                Enter a valid email address
+                            </p>
+                        ) : null}
                         {roles.data?.length ? (
                             <Select value={role} onValueChange={setRole}>
                                 {/* Full width, like the field above it — the trigger's
@@ -180,7 +195,7 @@ export const MembersTab = ({
                             Cancel
                         </Button>
                         <Button
-                            disabled={!email.trim() || inviteMutation.isPending}
+                            disabled={!emailValid || roleMissing || inviteMutation.isPending}
                             onClick={() => {
                                 setError(null)
                                 inviteMutation.mutate()
