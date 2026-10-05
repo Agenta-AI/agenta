@@ -16,7 +16,7 @@ const ManageProvidersRow = ({onClick}: ManageProvidersRowProps) => (
         <button
             type="button"
             onClick={onClick}
-            className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-3 py-1.5 text-left text-xs text-colorText hover:bg-muted"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-3 py-1.5 text-left text-xs text-colorText hover:bg-accent"
         >
             <Faders size={14} className="shrink-0 text-colorTextTertiary" />
             Manage model providers
