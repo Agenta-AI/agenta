@@ -7,7 +7,7 @@ import {
     inviteToWorkspace,
     removeFromWorkspace,
 } from "@agenta/entities/organization"
-import {updateUsername} from "@agenta/entities/profile"
+import {updateUsername, useProfile} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -34,28 +34,20 @@ import {
 } from "@agenta/ui/ui"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 
+import type {SettingsTabProps} from "./settingsTabProps"
+import {useSettingsOrg} from "./useSettingsOrg"
+
 const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
 
-interface Props {
-    members: WorkspaceMember[]
-    loading: boolean
-    signedInUser: {id?: string | null; username?: string | null; email?: string | null} | null
-    ownerId?: string | null
-    organizationId?: string | null
-    workspaceId?: string | null
-    onChanged: () => void
-}
-
 /** Mobile binding for Members: invite and remove as dialogs, your own name renamed in place. */
-export const MembersTab = ({
-    members,
-    loading,
-    signedInUser,
-    ownerId,
-    organizationId,
-    workspaceId,
-    onChanged,
-}: Props) => {
+export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) => {
+    const {user: signedInUser} = useProfile()
+    const {projects, organizationId, org} = useSettingsOrg(routeWorkspaceId)
+    const members = org.data?.default_workspace?.members ?? []
+    const loading = projects.isPending || org.isPending
+    const ownerId = org.data?.owner_id
+    const workspaceId = org.data?.default_workspace?.id
+    const onChanged = () => void org.refetch()
     const [inviteOpen, setInviteOpen] = useState(false)
     const [email, setEmail] = useState("")
     const [role, setRole] = useState("")

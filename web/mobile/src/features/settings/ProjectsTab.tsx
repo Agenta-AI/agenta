@@ -1,4 +1,3 @@
-import type {ProjectsResponse} from "@agenta/entities/project"
 import {ProjectsPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -14,26 +13,22 @@ import {
 import {useRouter} from "next/router"
 
 import {NameDialog} from "./NameDialog"
+import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
-
-interface Props {
-    projects: ProjectsResponse[]
-    isLoading: boolean
-    workspaceId: string
-    projectId?: string
-}
+import {useSettingsOrg} from "./useSettingsOrg"
 
 /**
  * Mobile binding: the shared projects table, with create / delete as modals; rename is inline
  * (the desktop uses antd modals — same verbs, each app's own idiom). The mutations live in
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
-export const ProjectsTab = ({projects, isLoading, workspaceId, projectId}: Props) => {
+export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const router = useRouter()
+    const {projects: query} = useSettingsOrg(workspaceId)
     return (
         <ProjectsPage
-            projects={projects}
-            isLoading={isLoading}
+            projects={query.data ?? []}
+            isLoading={query.isPending}
             workspaceId={workspaceId}
             currentProjectId={projectId}
             onSwitch={(project) =>

@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {deleteAccount} from "@agenta/entities/profile"
+import {deleteAccount, useProfile} from "@agenta/entities/profile"
 import {AccountPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -21,11 +21,8 @@ import {useLogout} from "../auth/useLogout"
  * Mobile binding: the shared account page, with this app's delete call and its confirm as an
  * alert dialog — the same typed-email gate the desktop uses.
  */
-export const AccountTab = ({
-    user,
-}: {
-    user: {username?: string | null; email?: string | null} | null
-}) => {
+export const AccountTab = () => {
+    const {user} = useProfile()
     const logout = useLogout()
     const [error, setError] = useState<string | null>(null)
 

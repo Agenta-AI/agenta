@@ -15,6 +15,8 @@ import {
 import {useProjectPermission} from "../context/useProjectPermission"
 
 import {ConfirmModal} from "./ConfirmModal"
+import type {SettingsTabProps} from "./settingsTabProps"
+import {useMobileSettingsAccess} from "./settingsTabs"
 
 /**
  * Mobile binding: the shared keys table with this app's delete confirm and the one-time reveal
@@ -24,15 +26,8 @@ import {ConfirmModal} from "./ConfirmModal"
  * action the desktop's role table resolves — rather than an optimistic flag, because a key is a
  * credential and the buttons should not appear for a member who cannot mint one.
  */
-export const ApiKeysTab = ({
-    workspaceId,
-    projectId,
-    canView,
-}: {
-    workspaceId: string
-    projectId: string
-    canView: boolean
-}) => {
+export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const canView = useMobileSettingsAccess().canViewApiKeys
     const canEdit = useProjectPermission(projectId, "edit_api_keys")
     const [pendingDelete, setPendingDelete] = useState<{resolve: (ok: boolean) => void} | null>(
         null,

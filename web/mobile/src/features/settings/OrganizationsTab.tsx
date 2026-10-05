@@ -3,11 +3,13 @@ import {useEffect, useMemo, useState} from "react"
 import {
     createOrganization,
     deleteOrganization,
+    fetchAllOrgsList,
     transferOrganizationOwnership,
     updateOrganization,
     type Org,
     type WorkspaceMember,
 } from "@agenta/entities/organization"
+import {useProfile} from "@agenta/entities/profile"
 import {OrganizationsPage} from "@agenta/settings-ui"
 import {
     Button,
@@ -30,7 +32,9 @@ import {groupByOrganization} from "../context/workspaceGroups"
 
 import {ConfirmModal} from "./ConfirmModal"
 import {NameDialog} from "./NameDialog"
+import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
+import {useSettingsOrg} from "./useSettingsOrg"
 
 import {fetchProjects} from "@/lib/context"
 
@@ -40,23 +44,18 @@ const errorText = (error: unknown, fallback: string): string => {
 }
 
 /** Mobile binding: create, rename in place, transfer ownership and delete for organizations. */
-export const OrganizationsTab = ({
-    organizations,
-    loading,
-    selectedOrgId,
-    currentUserId,
-    members,
-    onChanged,
-}: {
-    organizations: Org[]
-    loading: boolean
-    selectedOrgId?: string | null
-    currentUserId?: string | null
-    /** The current organization's members, the only ones ownership can pass to. */
-    members: WorkspaceMember[]
-    onChanged: () => void
-}) => {
+export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
     const router = useRouter()
+    const {user} = useProfile()
+    const {organizationId: selectedOrgId, org} = useSettingsOrg(workspaceId)
+    const orgs = useQuery({queryKey: ["orgs"], queryFn: () => fetchAllOrgsList()})
+    const currentUserId = user?.id
+    // Ownership can only pass to a member of the current organization.
+    const members = org.data?.default_workspace?.members ?? []
+    const onChanged = () => {
+        void orgs.refetch()
+        void org.refetch()
+    }
     // Every org's projects, the same list the nav switcher reads, to land on one when switching.
     const allProjects = useQuery({
         queryKey: ["mobile", "projects"],
@@ -91,8 +90,8 @@ export const OrganizationsTab = ({
 
     return (
         <OrganizationsPage
-            organizations={organizations}
-            loading={loading}
+            organizations={orgs.data ?? []}
+            loading={orgs.isPending}
             selectedOrgId={selectedOrgId}
             currentUserId={currentUserId}
             onSwitch={(org) => {
