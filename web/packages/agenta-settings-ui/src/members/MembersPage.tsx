@@ -2,7 +2,7 @@ import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {formatDay} from "@agenta/shared/utils/dateTime"
-import {InitialsAvatar, StatusIndicator, Tag} from "@agenta/ui/components/presentational"
+import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash, Users} from "@phosphor-icons/react"
@@ -10,6 +10,7 @@ import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash, Users} from "@phosph
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
 import {InlineName} from "../shared/InlineName"
+import {NameAvatar} from "../shared/NameAvatar"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -128,7 +129,7 @@ export const MembersPage = ({
                     return (
                         <>
                             <div className="flex min-w-0 items-center gap-2.5">
-                                <InitialsAvatar name={name} />
+                                <NameAvatar name={name} />
                                 <div className="flex min-w-0 flex-col">
                                     <div className="flex min-w-0 items-center gap-2">
                                         <InlineName
