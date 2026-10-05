@@ -76,7 +76,7 @@ const catalogDescription = (entry: ProviderCatalogEntry): string | undefined =>
 
 const ProviderLogo = ({kind}: {kind: string}) => {
     const Icon = providerIconFor(kind)
-    return <Icon className="size-[22px]" />
+    return <Icon className="size-[18px]" />
 }
 
 const CHATGPT_NAME = subscriptionProviderName("chatgpt")

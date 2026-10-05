@@ -8,6 +8,7 @@ import {
     toolExecutionDrawerAtom,
     useToolConnectionActions,
     useToolConnectionsQuery,
+    useToolIntegrationDetail,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {CatalogDrawer, ConnectDrawer, ToolExecutionDrawer} from "@agenta/entity-ui/gatewayTool"
@@ -77,6 +78,41 @@ const authLabel = (connection: ToolConnection): string | undefined => {
 
 const IntegrationLogo = ({src, name}: {src?: string | null; name: string}) =>
     src ? <img src={src} alt="" aria-hidden /> : <InitialsAvatar size="small" name={name} />
+
+/**
+ * A connection's catalog entry: the first catalog page has the popular ones, the rest come from
+ * their own (cached) detail lookup, so every connected row gets its real logo and name.
+ */
+const useCatalogEntry = (integrationKey: string, known?: CatalogIntegrationItem) => {
+    const {integration} = useToolIntegrationDetail(known ? "" : integrationKey)
+    return known ?? integration
+}
+
+const ConnectionLogo = ({
+    integrationKey,
+    known,
+    name,
+}: {
+    integrationKey: string
+    known?: CatalogIntegrationItem
+    name: string
+}) => {
+    const entry = useCatalogEntry(integrationKey, known)
+    return <IntegrationLogo src={entry?.logo} name={name} />
+}
+
+const ConnectionDescription = ({
+    integrationKey,
+    known,
+    auth,
+}: {
+    integrationKey: string
+    known?: CatalogIntegrationItem
+    auth?: string
+}) => {
+    const entry = useCatalogEntry(integrationKey, known)
+    return <>{[entry?.name ?? integrationKey, auth].filter(Boolean).join(" · ")}</>
+}
 
 export interface GatewayToolsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
@@ -280,12 +316,21 @@ export default function GatewayToolsSection({
                             connection.slug ??
                             connection.integration_key ??
                             `tool-${index}`,
-                        logo: <IntegrationLogo src={integration?.logo} name={name} />,
+                        logo: (
+                            <ConnectionLogo
+                                integrationKey={connection.integration_key ?? ""}
+                                known={integration}
+                                name={name}
+                            />
+                        ),
                         name,
-                        description:
-                            [integration?.name ?? connection.integration_key, authLabel(connection)]
-                                .filter(Boolean)
-                                .join(" · ") || undefined,
+                        description: (
+                            <ConnectionDescription
+                                integrationKey={connection.integration_key ?? ""}
+                                known={integration}
+                                auth={authLabel(connection)}
+                            />
+                        ),
                         ...connectionStatus(connection),
                         onOpen: readOnly ? undefined : () => openExecution(connection),
                         menu: (

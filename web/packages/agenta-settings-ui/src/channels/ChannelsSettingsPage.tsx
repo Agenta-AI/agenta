@@ -138,7 +138,7 @@ export const ChannelsSettingsPage = ({
                 const {title, detail} = connectionRowText(connection, hostedHandle)
                 return {
                     key: connection.connectionId ?? `${connection.platform}-${index}`,
-                    logo: platformLogo(connection.platform, 22),
+                    logo: platformLogo(connection.platform, 18),
                     name: title,
                     description: `${agentText(connection)} · ${detail}`,
                     ...connectionStatus(connection),
@@ -151,7 +151,7 @@ export const ChannelsSettingsPage = ({
         const platforms = CHANNEL_PLATFORMS.map(
             (platform): SettingsCatalogItem => ({
                 key: platform,
-                logo: platformLogo(platform, 22),
+                logo: platformLogo(platform, 18),
                 name: platformLabel(platform),
                 description: PLATFORM_DESCRIPTIONS[platform],
                 status: "available",

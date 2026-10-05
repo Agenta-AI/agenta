@@ -85,7 +85,7 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
                 open && FOCUS_RING,
             )}
         >
-            <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-solid border-border bg-background shadow-xs [&_img]:size-[22px] [&_img]:object-contain">
+            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs [&_img]:size-[18px] [&_img]:object-contain [&_svg]:size-[18px]">
                 {item.logo}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-px">
@@ -159,7 +159,7 @@ export const SettingsCatalog = ({
                     <div className={ROW_GRID}>
                         {[0, 1, 2, 3].map((index) => (
                             <div key={index} className="flex items-center gap-3.5 py-2.5">
-                                <SkeletonBlock active className="size-10 shrink-0 rounded-[10px]" />
+                                <SkeletonBlock active className="size-8 shrink-0 rounded-lg" />
                                 <div className="flex flex-1 flex-col gap-1.5">
                                     <SkeletonBlock active className="h-4 w-1/3 rounded" />
                                     <SkeletonBlock active className="h-3.5 w-2/3 rounded" />
