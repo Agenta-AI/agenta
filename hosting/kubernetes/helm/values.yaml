@@ -290,9 +290,11 @@ redisDurable:
 # those runs its process as PID 1, so a process that exits takes the container with it and
 # the kubelet restarts it already. The probe that used to be here called `pgrep`, which is
 # not in the image, so it errored every period and never protected anything (agenta#7334).
-# Detecting a worker that is alive but no longer working needs a heartbeat from the
-# application, which does not exist yet. Until it does, supply your own probe if you have a
-# signal worth checking:
+# Detecting a worker that is alive but no longer working needs a progress signal from the
+# application. There is a partial one, run_worker_heartbeat in the evaluations runtime, but
+# it runs on its own timer rather than with task progress, it only exists when that queue is
+# enabled, it covers neither the stream loops nor cron, and nothing consumes it. Until a
+# signal covers all three workloads, supply your own probe if you have one worth checking:
 #
 #   workerQueues:
 #     livenessProbe:

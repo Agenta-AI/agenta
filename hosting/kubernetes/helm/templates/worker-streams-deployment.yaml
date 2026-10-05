@@ -87,9 +87,13 @@ spec:
                  container, and a container whose PID 1 exits is restarted already.
 
                  A probe that catches the failure that matters here, a process that is
-                 alive and no longer working, needs a heartbeat from the application. There
-                 is none yet (agenta#7334). Until then, supply your own probe if you have a
-                 signal to check. */}}
+                 alive and no longer working, needs a progress signal from the application.
+                 There is a partial one: run_worker_heartbeat in the evaluations runtime,
+                 started by entrypoints/worker_queues.py. It is not enough to probe on. It
+                 runs on its own timer rather than with task progress, it only exists when
+                 that queue is enabled, and it covers neither the stream loops nor cron.
+                 Nothing consumes it. Until a signal covers all three workloads, supply
+                 your own probe if you have one worth checking (agenta#7334). */}}
           {{- with $workerStreams.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
