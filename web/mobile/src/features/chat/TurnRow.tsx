@@ -259,6 +259,8 @@ const TurnRowInner = ({
                 <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
                 </span>
+            ) : turn.status.stopped && !turn.status.hasAnswer && !live ? (
+                <span className="text-xs italic text-colorTextSecondary">Stopped</span>
             ) : null}
             {/* The turn's meta line sits under the answer, revealed on hover or focus like the
                 desktop's; the row keeps its height so nothing shifts when it appears. Not while
