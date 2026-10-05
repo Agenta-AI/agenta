@@ -6,7 +6,6 @@ import {
     isConnectionValid,
     toolExecutionDrawerAtom,
     toolIntegrationsSearchAtom,
-    useToolCatalogIntegrations,
     useToolConnectionActions,
     useToolConnectionsQuery,
     useToolIntegrationDetail,
@@ -15,9 +14,7 @@ import {
 import {ConnectDrawer, ToolExecutionDrawer} from "@agenta/entity-ui/gatewayTool"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {ScrollSentinel} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {InitialsAvatar} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
@@ -40,6 +37,7 @@ import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 import {useToolsIntegrations, type CatalogIntegrationItem} from "./hooks/useToolsIntegrations"
+import {IntegrationCatalog, IntegrationLogo} from "./IntegrationCatalog"
 
 const AUTH_SCHEME_LABELS: Record<string, string> = {
     oauth: "OAuth",
@@ -76,9 +74,6 @@ const authLabel = (connection: ToolConnection): string | undefined => {
     const scheme = connection.data?.auth_scheme
     return typeof scheme === "string" ? (AUTH_SCHEME_LABELS[scheme] ?? scheme) : undefined
 }
-
-const IntegrationLogo = ({src, name}: {src?: string | null; name: string}) =>
-    src ? <img src={src} alt="" aria-hidden /> : <InitialsAvatar size="small" name={name} />
 
 /**
  * A connection's catalog entry: the first catalog page has the popular ones, the rest come from
@@ -175,8 +170,6 @@ export default function GatewayToolsSection({
     const searchTerm = search.value
     // The search atom is module-level; leaving the page must not leave the catalog filtered.
     useEffect(() => () => setServerSearch(""), [setServerSearch])
-    // The whole catalog, a page at a time as the reader scrolls.
-    const available = useToolCatalogIntegrations()
     const [connectTarget, setConnectTarget] = useState<CatalogIntegrationItem | null>(null)
     // A second connection to an integration already connected, e.g. another account.
     const [anotherKey, setAnotherKey] = useState<string | null>(null)
@@ -304,6 +297,10 @@ export default function GatewayToolsSection({
     )
 
     const term = searchTerm.trim().toLowerCase()
+    const connectedKeys = useMemo(
+        () => new Set((connections ?? []).map((connection) => connection.integration_key)),
+        [connections],
+    )
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
         const matches = (texts: (string | null | undefined)[]) =>
             !term || texts.some((text) => text?.toLowerCase().includes(term))
@@ -388,57 +385,10 @@ export default function GatewayToolsSection({
                 ]
             },
         )
-        if (readOnly) return [{key: "connected", label: "Connected", items: connected}]
-
-        const connectedKeys = new Set((connections ?? []).map((c) => c.integration_key))
-        // The server searches from three characters; below that, narrow what has loaded.
-        const serverSearched = term.length >= 3
-        const rows = available.integrations
-            .filter(
-                (integration) =>
-                    !connectedKeys.has(integration.key) &&
-                    (serverSearched || matches([integration.name, integration.description])),
-            )
-            .map(
-                (integration): SettingsCatalogItem => ({
-                    key: integration.key,
-                    logo: <IntegrationLogo src={integration.logo} name={integration.name} />,
-                    name: integration.name,
-                    description: integration.description ?? undefined,
-                    status: "available",
-                    statusLabel: `Connect ${integration.name}`,
-                    onOpen: () => setConnectTarget(integration),
-                }),
-            )
-        const fetching = available.isLoading || available.isFetchingNextPage
-
-        return [
-            {key: "connected", label: "Connected", items: connected},
-            {
-                key: "available",
-                label: "Available",
-                items: rows,
-                // Rows load a page at a time, so a count of what has loaded would mislead.
-                count: null,
-                pendingRows: fetching ? 4 : 0,
-                // Only while more pages exist: a footer keeps an empty group on screen.
-                footer: available.hasNextPage ? (
-                    <ScrollSentinel
-                        onVisible={available.requestMore}
-                        hasMore
-                        isFetching={fetching}
-                    />
-                ) : undefined,
-            },
-        ]
+        return [{key: "connected", label: "Connected", items: connected}]
     }, [
         term,
         integrations,
-        available.integrations,
-        available.isLoading,
-        available.isFetchingNextPage,
-        available.hasNextPage,
-        available.requestMore,
         connections,
         readOnly,
         copy,
@@ -460,6 +410,18 @@ export default function GatewayToolsSection({
                     }}
                     groups={groups}
                     loading={isLoading || integrationsLoading}
+                    after={
+                        readOnly ? undefined : (
+                            <IntegrationCatalog
+                                term={term}
+                                connectedMatches={groups[0]?.items.length ?? 0}
+                                connectedKeys={connectedKeys}
+                                onConnect={setConnectTarget}
+                                onClearSearch={() => search.onChange("")}
+                                noMatch={copy.noMatch}
+                            />
+                        )
+                    }
                     empty={
                         term ? (
                             <SettingsEmpty

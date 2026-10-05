@@ -1,4 +1,4 @@
-import type {KeyboardEvent, ReactNode} from "react"
+import type {KeyboardEvent, ReactNode, Ref} from "react"
 
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {SkeletonBlock, cn} from "@agenta/ui/ui"
@@ -36,6 +36,8 @@ export interface SettingsCatalogGroup {
     pendingRows?: number
     /** Drawn under the group's rows, e.g. an infinite-scroll sentinel. */
     footer?: ReactNode
+    /** Right of the heading, e.g. "Show all". */
+    action?: ReactNode
 }
 
 const FOCUS_RING =
@@ -134,6 +136,39 @@ const SkeletonGroup = ({rows}: {rows: number}) => (
     </section>
 )
 
+/** One catalog group, exported for hosts that load groups on their own via `after`. */
+export const SettingsCatalogSection = ({
+    group,
+    sectionRef,
+}: {
+    group: Omit<SettingsCatalogGroup, "key">
+    /** For a host that loads the group once it nears the screen. */
+    sectionRef?: Ref<HTMLElement>
+}) => (
+    <section ref={sectionRef} className="flex flex-col gap-3">
+        <div className="flex min-h-6 items-center gap-1.5">
+            <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
+                {group.label}
+            </h2>
+            {group.count === null ? null : (
+                <span className="text-[13px] text-muted-foreground/60">
+                    {group.count ?? group.items.length}
+                </span>
+            )}
+            {group.action ? <div className="ml-auto flex">{group.action}</div> : null}
+        </div>
+        {group.items.length || group.pendingRows ? (
+            <div className={ROW_GRID}>
+                {group.items.map((item) => (
+                    <CatalogRow key={item.key} item={item} />
+                ))}
+                {skeletonRows(group.pendingRows ?? 0)}
+            </div>
+        ) : null}
+        {group.footer}
+    </section>
+)
+
 /**
  * A Settings page that is a catalog of things to connect: AI providers, integrations, channels.
  *
@@ -147,6 +182,7 @@ export const SettingsCatalog = ({
     loading = false,
     empty,
     notice,
+    after,
 }: {
     search?: {value: string; onChange: (next: string) => void; placeholder: string}
     groups: SettingsCatalogGroup[]
@@ -155,6 +191,8 @@ export const SettingsCatalog = ({
     empty?: ReactNode
     /** Drawn between the search and the groups: a load error, a failed removal. */
     notice?: ReactNode
+    /** Drawn after the groups, in their rhythm: sections a host loads on its own. */
+    after?: ReactNode
 }) => {
     const shown = groups.filter(
         (group) => group.items.length > 0 || group.pendingRows || group.footer,
@@ -182,33 +220,14 @@ export const SettingsCatalog = ({
                     <SkeletonGroup rows={4} />
                     <SkeletonGroup rows={6} />
                 </div>
-            ) : shown.length === 0 ? (
+            ) : shown.length === 0 && !after ? (
                 empty
             ) : (
                 <div className="flex flex-col gap-8">
-                    {shown.map((group) => (
-                        <section key={group.key} className="flex flex-col gap-3">
-                            <div className="flex items-baseline gap-1.5">
-                                <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
-                                    {group.label}
-                                </h2>
-                                {group.count === null ? null : (
-                                    <span className="text-[13px] text-muted-foreground/60">
-                                        {group.count ?? group.items.length}
-                                    </span>
-                                )}
-                            </div>
-                            {group.items.length || group.pendingRows ? (
-                                <div className={ROW_GRID}>
-                                    {group.items.map((item) => (
-                                        <CatalogRow key={item.key} item={item} />
-                                    ))}
-                                    {skeletonRows(group.pendingRows ?? 0)}
-                                </div>
-                            ) : null}
-                            {group.footer}
-                        </section>
+                    {shown.map(({key, ...group}) => (
+                        <SettingsCatalogSection key={key} group={group} />
                     ))}
+                    {after}
                 </div>
             )}
         </div>
