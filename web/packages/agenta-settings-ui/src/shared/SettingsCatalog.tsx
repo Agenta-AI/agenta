@@ -2,9 +2,12 @@ import type {KeyboardEvent, ReactNode} from "react"
 
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {SkeletonBlock, cn} from "@agenta/ui/ui"
-import {ArrowClockwise, Check, Plus} from "@phosphor-icons/react"
+import {ArrowClockwise, Plus} from "@phosphor-icons/react"
 
-/** What a row's trailing mark says: in use, in use but broken, or one click from connecting. */
+/**
+ * A row's state. Only the states that ask something of the user draw a trailing mark: broken
+ * (`attention`) and one click from connecting (`available`). A row under Connected says the rest.
+ */
 export type SettingsCatalogStatus = "connected" | "attention" | "available"
 
 export interface SettingsCatalogItem {
@@ -14,7 +17,7 @@ export interface SettingsCatalogItem {
     name: ReactNode
     description?: ReactNode
     status: SettingsCatalogStatus
-    /** Accessible name of the trailing mark, e.g. "Connected" or "Connect GitHub". */
+    /** Accessible name of the trailing mark, e.g. "Needs attention" or "Connect GitHub". */
     statusLabel: string
     /** Opening the row: the connection's detail when connected, the connect flow when not. */
     onOpen?: () => void
@@ -37,28 +40,22 @@ const FOCUS_RING =
 /** Rows sit in two columns where they fit, one on a phone. */
 const ROW_GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-x-8 gap-y-0.5"
 
-const StatusMark = ({status, label}: {status: SettingsCatalogStatus; label: string}) => (
-    <span
-        title={label}
-        aria-label={label}
-        role="img"
-        className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-md",
-            status === "connected" && "text-colorSuccess",
-            status === "attention" &&
-                "border border-solid border-colorWarningBorder bg-colorWarningBg text-colorWarning",
-            status === "available" && "text-foreground",
-        )}
-    >
-        {status === "connected" ? (
-            <Check size={14} weight="bold" />
-        ) : status === "attention" ? (
-            <ArrowClockwise size={14} />
-        ) : (
-            <Plus size={15} />
-        )}
-    </span>
-)
+const StatusMark = ({status, label}: {status: SettingsCatalogStatus; label: string}) =>
+    status === "connected" ? null : (
+        <span
+            title={label}
+            aria-label={label}
+            role="img"
+            className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-md",
+                status === "attention" &&
+                    "border border-solid border-colorWarningBorder bg-colorWarningBg text-colorWarning",
+                status === "available" && "text-foreground",
+            )}
+        >
+            {status === "attention" ? <ArrowClockwise size={14} /> : <Plus size={15} />}
+        </span>
+    )
 
 const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
     const open = item.onOpen
