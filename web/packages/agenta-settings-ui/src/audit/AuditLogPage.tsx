@@ -92,6 +92,8 @@ export const AuditLogPage = ({
                 eventId={selectedEventId}
                 open={drawerOpen}
                 onOpenChange={setDrawerOpen}
+                members={members}
+                currentUserId={currentUserId}
             />
         </div>
     )

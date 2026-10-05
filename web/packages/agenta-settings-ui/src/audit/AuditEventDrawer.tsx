@@ -6,10 +6,10 @@
  * is always a row currently loaded in the table, so no fetch is needed.
  */
 
-import type {ReactNode} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import {eventByIdAtomFamily} from "@agenta/entities/event"
-import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import type {WorkspaceMember} from "@agenta/entities/organization"
 import {dayjs} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {
@@ -21,6 +21,9 @@ import {
     SheetTitle,
 } from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
+
+import {ActorCell} from "./AuditEventCells"
+import {eventTypeLabel} from "./eventTypeLabels"
 
 const Section = ({
     title,
@@ -89,10 +92,31 @@ export interface AuditEventDrawerProps {
     eventId: string | null
     open: boolean
     onOpenChange: (open: boolean) => void
+    /** The roster that names the event's user, as in the table. */
+    members?: WorkspaceMember[]
+    currentUserId?: string | null
 }
 
-export const AuditEventDrawer = ({eventId, open, onOpenChange}: AuditEventDrawerProps) => {
+export const AuditEventDrawer = ({
+    eventId,
+    open,
+    onOpenChange,
+    members,
+    currentUserId,
+}: AuditEventDrawerProps) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId ?? ""))
+    const names = useMemo(
+        () =>
+            new Map(
+                (members ?? [])
+                    .filter((member) => member.user?.id)
+                    .map((member) => [
+                        member.user.id,
+                        member.user.username || member.user.email || member.user.id,
+                    ]),
+            ),
+        [members],
+    )
 
     // Actor/count live in `attributes`; the top-level request fields are left unset by the backend.
     const actor = typeof event?.attributes?.user_id === "string" ? event.attributes.user_id : null
@@ -105,11 +129,12 @@ export const AuditEventDrawer = ({eventId, open, onOpenChange}: AuditEventDrawer
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="w-full sm:max-w-[560px]">
                 <SheetHeader>
-                    <SheetTitle className="truncate font-mono text-[15px]">
-                        {event?.event_type ?? "Event details"}
+                    <SheetTitle className="truncate">
+                        {event ? eventTypeLabel(event.event_type) : "Event details"}
                     </SheetTitle>
-                    {at ? (
+                    {event && at ? (
                         <SheetDescription title={at.format("YYYY-MM-DD HH:mm:ss.SSS")}>
+                            <span className="font-mono">{event.event_type}</span> ·{" "}
                             {at.format("MMM D, YYYY · HH:mm:ss")} · {at.fromNow()}
                         </SheetDescription>
                     ) : null}
@@ -123,11 +148,10 @@ export const AuditEventDrawer = ({eventId, open, onOpenChange}: AuditEventDrawer
                                     <Row label="Actor">
                                         {actor ? (
                                             <>
-                                                <UserAuthorLabel
-                                                    userId={actor}
-                                                    showAvatar
-                                                    showYouLabel
-                                                    fallback={actor}
+                                                <ActorCell
+                                                    eventId={eventId ?? ""}
+                                                    names={names}
+                                                    currentUserId={currentUserId}
                                                 />
                                                 <Copy text={actor} label="Copy user ID" />
                                             </>
