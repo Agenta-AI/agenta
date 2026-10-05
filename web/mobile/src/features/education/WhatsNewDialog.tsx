@@ -167,14 +167,13 @@ export const WhatsNewDialog = () => {
                     ) : null}
                 </div>
 
-                <div className="relative order-first flex min-w-0 flex-col px-4 pb-4 pt-11 md:order-none md:p-5">
-                    {/* Phones: the sheet leaves little backdrop to tap, so it gets its own close. */}
+                <div className="relative order-first flex min-w-0 flex-col px-4 pb-4 pt-11 md:order-none md:px-5 md:pb-5 md:pt-12">
                     <DialogClose asChild>
                         <Button
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Close"
-                            className="absolute right-2 top-2 md:hidden"
+                            className="absolute right-2 top-2 text-muted-foreground md:right-3 md:top-3"
                         >
                             <X />
                         </Button>
