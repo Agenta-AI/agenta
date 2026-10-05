@@ -15,14 +15,7 @@ import {ScrollSentinel, ScrollToTopButton, message} from "@agenta/ui"
 import {Tag} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, InputAffix, LoadingButton, SkeletonBlock} from "@agenta/ui/ui"
-import {
-    ArrowLeft,
-    CaretRight,
-    CopySimple,
-    MagnifyingGlass,
-    Play,
-    Wrench,
-} from "@phosphor-icons/react"
+import {ArrowLeft, CaretRight, MagnifyingGlass, Play, Wrench} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -363,18 +356,6 @@ function ActionDetailStep({
     const outputSchema = detailedAction?.schemas?.outputs ?? null
     const displayName = action?.name ?? actionName ?? actionKey
 
-    const handleCopyInputs = useCallback(() => {
-        try {
-            // Raw, unvalidated snapshot — was `form.getFieldsValue(true)` on the antd
-            // form instance this drawer used to own; the handle exposes it now.
-            const values = schemaFormRef.current?.getRawValues() ?? {}
-            navigator.clipboard.writeText(JSON.stringify(values, null, 2))
-            message.success("Copied to clipboard")
-        } catch {
-            message.error("Failed to copy")
-        }
-    }, [])
-
     const handleExecute = useCallback(async () => {
         try {
             const values = await schemaFormRef.current?.getValues()
@@ -432,19 +413,9 @@ function ActionDetailStep({
                     <div className="flex flex-col gap-6">
                         {/* Inputs section */}
                         <div className="flex flex-col gap-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[13px] font-medium text-muted-foreground">
-                                    Inputs
-                                </span>
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label="Copy inputs"
-                                    onClick={handleCopyInputs}
-                                >
-                                    <CopySimple size={14} />
-                                </Button>
-                            </div>
+                            <span className="text-[13px] font-medium text-muted-foreground">
+                                Inputs
+                            </span>
                             <SchemaForm
                                 ref={schemaFormRef}
                                 schema={inputSchema as Record<string, unknown> | null}
