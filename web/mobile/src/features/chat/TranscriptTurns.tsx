@@ -3,7 +3,7 @@ import type {TurnViewModel} from "@agenta/chat/model"
 
 import {PendingTurn} from "./PendingTurn"
 import {TurnRow} from "./TurnRow"
-import {isFirstResponse, runIdFor} from "./turnStatus"
+import {runIdFor} from "./turnStatus"
 
 /** The transcript's turns, and the placeholder turn while a run has nothing to show yet. */
 export const TranscriptTurns = ({
@@ -39,14 +39,12 @@ export const TranscriptTurns = ({
                 waitingOnUser={waitingOnUser}
                 resuming={resuming}
                 runId={runIdFor(turns, i)}
-                firstTurn={isFirstResponse(turns, i)}
             />
         ))}
         {pending ? (
             <PendingTurn
                 sessionId={sessionId}
                 runId={runIdFor(turns, turns.length)}
-                firstTurn={isFirstResponse(turns, turns.length)}
             />
         ) : null}
     </>

@@ -71,7 +71,6 @@ const TurnRowInner = ({
     waitingOnUser = false,
     resuming = false,
     runId,
-    firstTurn = false,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -90,8 +89,6 @@ const TurnRowInner = ({
     resuming?: boolean
     /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
-    /** The session's first response: the one that narrates the agent's startup. */
-    firstTurn?: boolean
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -233,7 +230,6 @@ const TurnRowInner = ({
                 resuming={turn.isLast && resuming}
                 traceId={traceId}
                 streamedHere={streamedHereRef.current}
-                firstTurn={firstTurn}
                 renderClientTool={renderClientTool}
             />
             {activity.answer ? (

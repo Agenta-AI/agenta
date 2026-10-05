@@ -104,10 +104,10 @@ describe("ChatComposer running controls", () => {
 })
 
 describe("queued row Send Now", () => {
-    it("targets the chosen row and retains every row when admission fails", async () => {
-        const sendNow = vi.fn().mockRejectedValue(new Error("unavailable"))
+    it("targets the chosen row and shows the error its host puts on it", () => {
+        const sendNow = vi.fn()
         const remove = vi.fn()
-        render(
+        const {rerender} = render(
             <QueuedMessagesDock
                 queued={[
                     {id: "older", text: "older message", source: "server"},
@@ -119,12 +119,28 @@ describe("queued row Send Now", () => {
             />,
         )
         fireEvent.click(screen.getAllByRole("button", {name: "Send Now"})[1])
-        expect(await screen.findByRole("alert")).toBeTruthy()
         expect(sendNow).toHaveBeenCalledWith("selected")
         expect(remove).not.toHaveBeenCalled()
+        rerender(
+            <QueuedMessagesDock
+                queued={[
+                    {id: "older", text: "older message", source: "server"},
+                    {
+                        id: "selected",
+                        text: "chosen message",
+                        source: "server",
+                        error: "Couldn't send this message now. Try again.",
+                    },
+                ]}
+                onSendNow={sendNow}
+                onRemove={remove}
+                touch
+            />,
+        )
+        expect(screen.getByRole("alert").textContent).toBe(
+            "Couldn't send this message now. Try again.",
+        )
         expect(screen.getByText("older message")).toBeTruthy()
-        expect(screen.getByText("chosen message")).toBeTruthy()
-        sendNow.mockResolvedValueOnce(undefined)
         fireEvent.click(screen.getAllByRole("button", {name: "Send Now"})[1])
         expect(sendNow).toHaveBeenCalledTimes(2)
     })

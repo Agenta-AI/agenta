@@ -139,6 +139,7 @@ export const Composer = ({
         closePicker()
         richInputRef.current?.insertText("/")
     }, [closePicker, richInputRef])
+    // Held from Enter until the draft and tray have left the composer, not for the send itself.
     const sending = useRef(false)
     const presets = useMotionPresets()
     const stoppable = isComposerRunStoppable({
@@ -157,9 +158,21 @@ export const Composer = ({
         policy: "queue" | "steer" = "queue",
     ): Promise<boolean> => {
         // Enter and the send button (and a voice take completing) can all fire while an upload
-        // is still in flight; a second pass would re-send the same staged tray.
-        if (sending.current) return false
+        // is still in flight; a second pass would re-send the same staged tray. The editor clears
+        // itself after this returns, so a blocked message goes back on the next frame.
+        if (sending.current) {
+            if (text) requestAnimationFrame(() => void richInputRef.current?.setMarkdown(text))
+            if (extraFiles.length) attachments.addFiles(extraFiles)
+            return false
+        }
         sending.current = true
+        // Once only: a later send may hold the lock by the time this one settles.
+        let held = true
+        const release = () => {
+            if (!held) return
+            held = false
+            sending.current = false
+        }
         // The message is written; anything still coming in belongs to no draft.
         voice.endDictation()
         // Close the on-screen keyboard. It covered the transcript while you typed, and the reply
@@ -168,16 +181,17 @@ export const Composer = ({
         // pop the keyboard straight back up.
         dismissSoftKeyboardAfterSend(() => richInputRef.current?.blur())
         try {
-            return await runSubmit(text, extraFiles, policy)
+            return await runSubmit(text, extraFiles, policy, release)
         } finally {
-            sending.current = false
+            release()
         }
     }
 
     const runSubmit = async (
         text: string,
-        extraFiles: File[] = [],
-        policy: "queue" | "steer" = "queue",
+        extraFiles: File[],
+        policy: "queue" | "steer",
+        release: () => void,
     ): Promise<boolean> => {
         const staged = attachments.files
         const uploadedExtras = extraFiles.length
@@ -197,6 +211,8 @@ export const Composer = ({
             // holding the chips until admission read as "the attachment didn't go" (#6777).
             draft.clearDraft()
             attachments.clearAttachments(staged.map((file) => file.uid))
+            // Nothing left to send twice, so the next message need not wait for this admission.
+            release()
             if (policy === "steer" && onSteer) await onSteer({text, parts, stagedFiles: outbound})
             else await onSend({text, parts, stagedFiles: outbound})
             return true

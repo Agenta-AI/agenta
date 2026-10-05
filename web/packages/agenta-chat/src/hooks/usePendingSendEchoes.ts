@@ -35,6 +35,9 @@ export interface PendingSendEchoes {
     dockCoveredIds: ReadonlySet<string>
     /** Docked echoes, as rows for the queue dock until the server lists them. */
     dockRows: QueuedMessage[]
+    /** Inputs whose echo just retired because their saved row landed: the transcript shows them
+     *  now, while the dock's snapshot may still list them. Set only until the store is pruned. */
+    retiredParkedIds: ReadonlySet<string>
     /** Show a send immediately, before its request leaves. */
     add: (input: PendingSendEchoInput) => void
     /** The server named the turn this send started; from here it retires on that id alone. */
@@ -188,6 +191,18 @@ export const usePendingSendEchoes = ({
         [visible],
     )
     const inFlight = useMemo(() => pendingSendsInFlight(visible), [visible])
+    const retiredParkedIds = useMemo(() => {
+        const ids = new Set<string>()
+        const live = new Set(visible.map((item) => item.id))
+        for (const item of echoes) {
+            const parked = item.parkedInputId
+            if (!parked || item.failed || live.has(item.id)) continue
+            // A queued echo that retired because the dock lists it was handed to the dock.
+            if (item.policy !== "steer" && dockedInputIds.has(parked)) continue
+            ids.add(parked)
+        }
+        return ids
+    }, [echoes, visible, dockedInputIds])
     const dockCoveredIds = useMemo(() => echoedDockInputIds(visible), [visible])
 
     return {
@@ -195,6 +210,7 @@ export const usePendingSendEchoes = ({
         inFlight,
         dockCoveredIds,
         dockRows,
+        retiredParkedIds,
         add,
         markAccepted,
         markStarted,

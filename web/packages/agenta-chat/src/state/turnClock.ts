@@ -2,24 +2,41 @@ import {atom, useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
+import type {TurnStage} from "../assets/startupPhases"
+
 /**
- * Current startup label for sessions whose startup is being narrated (#6047).
+ * The stage of the turn each session is waiting on (#6047): a send on its way, an admitted turn,
+ * or a runner startup phase. The line before the first step narrates it.
  *
- * An entry existing IS the decision to narrate, so a warm turn must CLEAR rather than merely skip:
- * an entry the last turn left behind would otherwise narrate this one off a stale start.
+ * Each send that opens a turn replaces the entry with `sending`, so a stage the last turn left
+ * behind never narrates this one.
  */
 
 /** The map is the source of truth and keeps the key set enumerable. */
-const turnStartMapAtom = atom<Record<string, string>>({})
+const turnStartMapAtom = atom<Record<string, TurnStage>>({})
+
+/** When each session's current stage began, so its words rotate on the clock, not per mount. */
+const turnStageSinceMapAtom = atom<Record<string, number>>({})
+
+export const turnStageSinceAtomFamily = atomFamily((sessionId: string) =>
+    selectAtom(turnStageSinceMapAtom, (m): number | undefined => m[sessionId]),
+)
 
 /** Scoped read: a session's indicator re-renders only when ITS turn starts or settles. */
 export const turnStartAtomFamily = atomFamily((sessionId: string) =>
-    selectAtom(turnStartMapAtom, (m): string | undefined => m[sessionId]),
+    selectAtom(turnStartMapAtom, (m): TurnStage | undefined => m[sessionId]),
 )
 
-/** Always replaces so a runner event advances the visible label immediately. */
-export const startTurnClockAtom = atom(null, (get, set, sessionId: string, label: string) => {
-    set(turnStartMapAtom, {...get(turnStartMapAtom), [sessionId]: label})
+/**
+ * Always replaces, so a runner event advances the visible words immediately. `started` only
+ * advances a `sending` entry: it must never rewind a startup phase that arrived first.
+ */
+export const startTurnClockAtom = atom(null, (get, set, sessionId: string, stage: TurnStage) => {
+    const current = get(turnStartMapAtom)
+    if (stage === "started" && current[sessionId] !== "sending") return
+    if (current[sessionId] === stage) return
+    set(turnStartMapAtom, {...current, [sessionId]: stage})
+    set(turnStageSinceMapAtom, {...get(turnStageSinceMapAtom), [sessionId]: Date.now()})
 })
 
 /** Clear the label. Every settle path calls this, and several can race. */
@@ -29,11 +46,18 @@ export const clearTurnClockAtom = atom(null, (get, set, sessionId: string) => {
     const next = {...current}
     delete next[sessionId]
     set(turnStartMapAtom, next)
+    const since = {...get(turnStageSinceMapAtom)}
+    delete since[sessionId]
+    set(turnStageSinceMapAtom, since)
 })
 
-/** The latest observed startup label for a session, or null when no turn is being narrated. */
-export const useStartupPhase = (sessionId: string): string | null =>
+/** The stage of the turn a session is waiting on, or null when this tab is narrating none. */
+export const useTurnStage = (sessionId: string): TurnStage | null =>
     useAtomValue(turnStartAtomFamily(sessionId)) ?? null
+
+/** When the session's current stage began, or null when this tab is narrating none. */
+export const useTurnStageSince = (sessionId: string): number | null =>
+    useAtomValue(turnStageSinceAtomFamily(sessionId)) ?? null
 
 /**
  * How long each turn worked, measured on this client; only turns streamed here have one.
