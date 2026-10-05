@@ -438,6 +438,80 @@ def test_opus_5_5_is_a_prompt_model_and_a_default():
     assert "anthropic/claude-fable-5-1" in PROVIDER_DEFAULT_MODELS["anthropic"]
 
 
+@pytest.mark.parametrize(
+    "model_id,provider,expected",
+    [
+        ("vertex_ai/gemini-3.7-flash", "openai", ["text", "image"]),
+        ("vertex_ai/gemini-3.7-flash", "OpenAI", ["text", "image"]),
+        ("openai/vertex_ai/gemini-3.7-flash", None, ["text", "image"]),
+        ("Agenta/custom/vertex_ai/gemini-3.7-flash", None, ["text", "image"]),
+        ("Agenta/custom/vertex_ai/gemini-3.7-flash", "Agenta", ["text", "image"]),
+        ("Agenta/custom/vertex_ai/gemini-3.6-flash", "openai", ["text", "image"]),
+        ("vertex_ai/gemini-3.6-flash", "openai", ["text", "image"]),
+        ("vertex/gemini-3.7-flash", None, ["text", "image"]),
+        ("vertex_ai/gemini-3.7-flash", "vertex_ai", ["text", "image"]),
+        ("vertex/gemini-3.7-flash", "vertex", ["text", "image"]),
+        ("Agenta/custom/mistral/codestral-latest", "openai", ["text"]),
+        ("gemini/gemini-3.7-flash", "openai", ["text", "image"]),
+        ("anthropic/claude-sonnet-5-5", "openai", ["text", "image"]),
+        ("openrouter/google/gemini-3.7-flash", "openai", ["text", "image"]),
+        ("Agenta/custom/vertex_ai/unknown-model", None, None),
+        ("Agenta/custom/company-vision-v2", None, None),
+        ("Agenta/custom/custom/vertex_ai/gemini-3.7-flash", None, None),
+        ("vertex_ai/unknown-model", "openai", None),
+        ("company-vision-v2", "openai", None),
+        ("other/gemini-3.7-flash", "openai", None),
+        ("vertex_ai/gemini-3.7-flash", "anthropic", None),
+    ],
+)
+def test_custom_input_modalities_use_only_catalog_facts(model_id, provider, expected):
+    assert model_input_modalities("pi_core", model_id, provider=provider) == expected
+
+
+@pytest.mark.parametrize("modalities", [["text"], None])
+def test_bridge_alias_uses_catalog_facts(monkeypatch, modalities):
+    catalog = model_catalog_module.ModelCatalog(
+        models=[
+            ModelCatalogEntry(
+                id="gemini/gemini-3.7-flash",
+                provider="gemini",
+                source="curated",
+                modalities=modalities,
+            )
+        ]
+    )
+    monkeypatch.setattr(model_catalog_module, "_PI_CATALOG", catalog)
+    assert (
+        model_input_modalities(
+            "pi_core", "vertex_ai/gemini-3.7-flash", provider="openai"
+        )
+        == modalities
+    )
+
+
+def test_bridge_alias_does_not_override_an_exact_entry(monkeypatch):
+    catalog = model_catalog_module.ModelCatalog(
+        models=[
+            ModelCatalogEntry(
+                id="openai/vertex_ai/gemini-3.7-flash",
+                provider="openai",
+                source="curated",
+                modalities=["text"],
+            ),
+            ModelCatalogEntry(
+                id="gemini/gemini-3.7-flash",
+                provider="gemini",
+                source="curated",
+                modalities=["text", "image"],
+            ),
+        ]
+    )
+    monkeypatch.setattr(model_catalog_module, "_PI_CATALOG", catalog)
+    assert model_input_modalities(
+        "pi_core", "vertex_ai/gemini-3.7-flash", provider="openai"
+    ) == ["text"]
+
+
 def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_generated_model():
     from agenta.sdk.utils.assets import supported_llm_models
 

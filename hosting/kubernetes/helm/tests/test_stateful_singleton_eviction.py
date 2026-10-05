@@ -1,7 +1,9 @@
 """Rendered-chart coverage: the single-replica stateful workloads resist autoscaler scale-down.
 
 `redisVolatile`, `redisDurable` and `supertokens` each run one replica and hold state. A cluster
-autoscaler consolidating their node takes the component down. On GKE Autopilot that happened in
+autoscaler consolidating their node takes the component down. On Autopilot the annotation also
+delays automatic node upgrades and can be overridden by GKE after about seven days; it lowers the
+odds of an eviction, it does not remove them. On GKE Autopilot that happened in
 production traffic on 2026-09-27: the autoscaler evicted redis-volatile and supertokens, and every
 agent turn was refused for about 15 s while the replacement pod started
 (Agenta-AI/agenta_cloud#1684).

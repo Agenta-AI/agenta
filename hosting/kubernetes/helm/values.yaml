@@ -182,7 +182,9 @@ global:
 # `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` so a cluster autoscaler does not
 # remove its node during consolidation. Set `safeToEvict: true` on a component to opt out, or
 # set `podAnnotations` to override the annotation outright. Neither key affects an operator
-# drain or a node upgrade.
+# drain. On GKE Autopilot the annotation also delays automatic node upgrades for that node,
+# and GKE may evict the pod anyway after about seven days: treat it as a strong preference,
+# not a guarantee, and keep the single-replica data stores backed up regardless.
 #   redisVolatile:
 #     safeToEvict: false        # default; true lets the autoscaler consolidate the node
 #     podAnnotations: {}        # merged over the default, so a key set here wins
@@ -265,14 +267,25 @@ redisDurable:
 #                              #   agentRunner.fuse.enabled: false
 #                              #   agentRunner.providers.enabled: [daytona]
 #                              #   agentRunner.providers.default: daytona
+#   lifecycle:                 # default: a preStop exec hook that runs `sleep 10`. The default
+#                              # image (node:24-slim) has `sleep`. A custom image without it must
+#                              # set its own hook here, or the drain delay is skipped on shutdown.
 
 # ================================================================== #
-# Graceful rollouts — per-workload, all unset by default.
+# Graceful rollouts — per-workload.
 # A managed load balancer keeps sending requests to a pod for a few
 # seconds after Kubernetes removes it from the endpoints, so a pod that
 # exits at once answers them with 502. Hold the pod open with a preStop
 # hook, give it room with a grace period, and keep a spare pod during
 # the rollout with a strategy. See hosting/kubernetes/README.md.
+# Chart defaults when a key is unset:
+#   strategy: Recreate on agentRunner, cron and redisVolatile; RollingUpdate
+#     with maxUnavailable 0, maxSurge 1 on services, web, webMobile,
+#     workerStreams, workerQueues and supertokens; none on api.
+#   terminationGracePeriodSeconds: 300 on agentRunner, 120 on the two
+#     workers, 60 on services, web and webMobile.
+#   lifecycle: a preStop exec `sleep 10` on agentRunner, services, web and
+#     webMobile. Setting a key replaces its default.
 # The keys work on api, services, web, webMobile, cron, workerStreams,
 # workerQueues, agentRunner, supertokens, redisVolatile, redisDurable,
 # store.seaweedfs and alembic. `strategy` is for Deployments only.
@@ -301,6 +314,50 @@ redisDurable:
 #         cidr: 130.211.0.0/22   # Google Cloud health checkers
 #     - ipBlock:
 #         cidr: 35.191.0.0/16
+
+# ================================================================== #
+# Availability under disruption
+#
+# Kubernetes moves pods off a node whenever the platform needs that node: an
+# upgrade, a repair, or a scale-down that packs pods onto fewer nodes. On GKE
+# Autopilot that happens with no warning and is not a fault. A workload with
+# one replica is unreachable while its pod starts somewhere else, which took
+# about three minutes on a stage cluster on 2026-10-03.
+#
+# The chart answers that with two objects, both on by default:
+#
+#   * a PodDisruptionBudget per workload. Two or more replicas get
+#     `maxUnavailable: 1`. One replica gets a budget only when you ask for it
+#     with `<workload>.pdb.protectSingleton: true`, because a budget over a
+#     single pod defers every voluntary eviction of its node rather than
+#     keeping the workload up. Autopilot honours a budget for one hour during
+#     a node upgrade and never for a node that fails outright.
+#   * topologySpreadConstraints for every workload with two or more replicas:
+#     one pod per node (hard) and an even spread over zones (soft), scoped to
+#     one revision so a rolling update is not blocked by the pods it replaces.
+#
+# NOTHING here makes a single replica highly available. Give any workload that
+# must stay reachable `replicas: 2`.
+#
+#   podDisruptionBudgets:
+#     enabled: true          # false removes every budget
+#   topologySpread:
+#     enabled: true          # false removes every generated constraint
+#
+#   api:
+#     replicas: 2
+#     pdb:
+#       maxUnavailable: 1    # or minAvailable; overrides the default
+#   agentRunner:
+#     pdb:
+#       protectSingleton: true        # defer eviction of the only runner pod
+#     topologySpreadConstraints: []   # replace the generated list entirely
+#
+# The runner, cron and the volatile redis default to `strategy: Recreate`. The
+# runner, because the api has no session routing yet and two runner pods can
+# disagree about who owns a session. Cron, because supercronic fires every
+# schedule in every pod. Redis, because two caches serve different answers.
+# ================================================================== #
 
 # ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md

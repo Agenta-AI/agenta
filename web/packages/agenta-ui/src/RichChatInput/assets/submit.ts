@@ -14,19 +14,21 @@ export function $isBlankMessage(): boolean {
 
 /**
  * Serialize the editor to markdown, hand it to `onSubmit`, then reset to an empty
- * paragraph. No-ops (returns false) when the message is blank (see `$isBlankMessage`).
- * Shared by plain Enter and the send button so both behave identically.
+ * paragraph. A blank message (see `$isBlankMessage`) goes out as "" only when `forceEnabled`
+ * says something else carries it (staged attachments or quotes); otherwise it no-ops and
+ * returns false. Shared by plain Enter and the send button so both behave identically.
  */
 export function submitEditorAsMarkdown(
     editor: LexicalEditor,
     onSubmit: (markdown: string) => void,
+    forceEnabled = false,
 ): boolean {
     let markdown = ""
     editor.getEditorState().read(() => {
         markdown = $convertToMarkdownString(CHAT_TRANSFORMERS)
     })
     const trimmed = markdown.trim()
-    if (!trimmed) return false
+    if (!trimmed && !forceEnabled) return false
 
     onSubmit(trimmed)
     editor.update(() => {

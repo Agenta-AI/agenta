@@ -25,8 +25,10 @@ spec:
       {{- /* A single-replica pod that holds state: the cluster autoscaler consolidating its node
              takes the whole component down. On GKE it evicted redis-volatile and supertokens
              mid-traffic and every agent turn was refused until the replacement pod was ready.
-             The annotation makes the autoscaler skip that node. It does not block an operator
-             drain or a node upgrade, and it is inert where no autoscaler runs. Set
+             The annotation makes the autoscaler skip that node for scale-down. It does not
+             block an operator drain. On GKE Autopilot it also DELAYS automatic node upgrades
+             for that node, and GKE may evict the pod anyway after about seven days, so it is a
+             strong preference, not a guarantee. It is inert where no autoscaler runs. Set
              `$redisDurable.safeToEvict: true` to opt out, or override the key through
              `$redisDurable.podAnnotations`. */}}
       {{- $annotations := dict "cluster-autoscaler.kubernetes.io/safe-to-evict" (ternary "true" "false" (default false $redisDurable.safeToEvict)) -}}
@@ -91,6 +93,16 @@ spec:
                   name: {{ include "agenta.secretName" . }}
                   key: REDIS_DURABLE_PASSWORD
           {{- end }}
+          {{- /* A startup probe, so a restart that has to replay the
+                 append-only file is not killed by liveness while it works.
+                 Liveness and readiness only begin once this passes. */}}
+          startupProbe:
+            exec:
+              command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
           livenessProbe:
             exec:
               command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]

@@ -9,6 +9,7 @@
     "start:prod": "docusaurus start --port 5000 --host 0.0.0.0",
     "build": "docusaurus build",
     "build:worker": "docusaurus build --out-dir dist/docs && node scripts/stage-worker-assets.mjs",
+    "test:worker-routing": "node --test scripts/worker-routing.test.mjs",
     "build:dev": "docusaurus build --config docusaurus.config.dev.ts",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",

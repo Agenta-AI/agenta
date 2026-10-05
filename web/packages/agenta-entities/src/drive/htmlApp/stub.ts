@@ -42,6 +42,7 @@ interface StubPortData {
     visible?: unknown
     paths?: unknown
     tokens?: unknown
+    canWrite?: unknown
 }
 
 interface StubError extends Error {
@@ -230,6 +231,8 @@ function bridgeStub(): void {
         } else if (data.type === "theme") {
             applyTokens(data.tokens)
             emit("theme", {tokens: data.tokens || {}})
+        } else if (data.type === "access") {
+            agenta.canWrite = data.canWrite === true
         }
     }
 

@@ -155,10 +155,10 @@ export const Composer = ({
         text: string,
         extraFiles: File[] = [],
         policy: "queue" | "steer" = "queue",
-    ) => {
+    ): Promise<boolean> => {
         // Enter and the send button (and a voice take completing) can all fire while an upload
         // is still in flight; a second pass would re-send the same staged tray.
-        if (sending.current) return
+        if (sending.current) return false
         sending.current = true
         // The message is written; anything still coming in belongs to no draft.
         voice.endDictation()
@@ -168,7 +168,7 @@ export const Composer = ({
         // pop the keyboard straight back up.
         dismissSoftKeyboardAfterSend(() => richInputRef.current?.blur())
         try {
-            await runSubmit(text, extraFiles, policy)
+            return await runSubmit(text, extraFiles, policy)
         } finally {
             sending.current = false
         }
@@ -178,13 +178,13 @@ export const Composer = ({
         text: string,
         extraFiles: File[] = [],
         policy: "queue" | "steer" = "queue",
-    ) => {
+    ): Promise<boolean> => {
         const staged = attachments.files
         const uploadedExtras = extraFiles.length
             ? await attachments.uploadExtraFiles(extraFiles)
             : []
         // A failed upload adopts the take into the tray; hold the send so nothing is lost.
-        if (!uploadedExtras) return
+        if (!uploadedExtras) return false
         const outbound = [...staged, ...uploadedExtras]
         try {
             // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
@@ -199,6 +199,7 @@ export const Composer = ({
             attachments.clearAttachments(staged.map((file) => file.uid))
             if (policy === "steer" && onSteer) await onSteer({text, parts, stagedFiles: outbound})
             else await onSend({text, parts, stagedFiles: outbound})
+            return true
         } catch (error: unknown) {
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
             // uncaught rejection would leave the user with no message, no error, and no idea a
@@ -209,6 +210,7 @@ export const Composer = ({
             void richInputRef.current?.setMarkdown(text)
             attachments.restoreAttachments(outbound)
             attachments.setRejections(refusedSendRejections(error))
+            return false
         }
     }
 

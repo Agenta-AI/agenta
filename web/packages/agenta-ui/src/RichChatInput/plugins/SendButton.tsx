@@ -51,11 +51,7 @@ export function SendButton({
 
     const handleClick = () => {
         if (disabled) return
-        if (empty) {
-            if (forceEnabled) onSubmit("")
-            return
-        }
-        submitEditorAsMarkdown(editor, onSubmit)
+        submitEditorAsMarkdown(editor, onSubmit, forceEnabled)
     }
 
     if (streaming || busyActions?.length) {
@@ -71,13 +67,9 @@ export function SendButton({
                         size="sm"
                         variant="ghost"
                         disabled={disabled || (empty && !forceEnabled)}
-                        onClick={() => {
-                            if (empty) {
-                                if (forceEnabled) action.onSubmit("")
-                                return
-                            }
-                            submitEditorAsMarkdown(editor, action.onSubmit)
-                        }}
+                        onClick={() =>
+                            submitEditorAsMarkdown(editor, action.onSubmit, forceEnabled)
+                        }
                     >
                         {action.label}
                     </Button>
