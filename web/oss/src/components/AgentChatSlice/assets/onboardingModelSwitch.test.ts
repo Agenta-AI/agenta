@@ -15,6 +15,7 @@ const model = (overrides: Partial<PickerConnectionRow["models"][number]> = {}) =
     harnessLabel: "Pi",
     mode: "agenta" as const,
     slug: "openrouter",
+    namespace: null,
     provider: "openrouter",
     connectionKey: "new",
     connectionName: "OpenRouter",
@@ -52,6 +53,7 @@ describe("onboardingModelSwitch", () => {
             provider: "openrouter",
             mode: "agenta",
             slug: "openrouter",
+            namespace: null,
             harness: "pi_core",
         })
     })

@@ -675,6 +675,32 @@ DEFAULT_ENTITLEMENTS = {
 }
 
 
+class AgentTurnCaps(BaseModel):
+    """How far one organization's agents may run on the platform's sandboxes at once."""
+
+    concurrent_turns: int
+    max_turn_seconds: int
+
+    model_config = ConfigDict(frozen=True)
+
+
+# DECIDED 2026-10-02 (release plan step 1.5). They bound how far a balance can go below zero
+# while the wallet is on: a turn is never stopped for its balance, so only these stop it.
+# A plan not listed here (internal, self-hosted, custom) has no caps: the runner keeps its own
+# deadline. The Business turn equals the runner's default deadline.
+HOBBY_AGENT_TURN_CAPS = AgentTurnCaps(concurrent_turns=2, max_turn_seconds=30 * 60)
+PRO_AGENT_TURN_CAPS = AgentTurnCaps(concurrent_turns=10, max_turn_seconds=4 * 60 * 60)
+BUSINESS_AGENT_TURN_CAPS = AgentTurnCaps(
+    concurrent_turns=25, max_turn_seconds=11 * 60 * 60
+)
+
+AGENT_TURN_CAPS: dict[str, AgentTurnCaps] = {
+    DefaultPlan.CLOUD_V0_HOBBY.value: HOBBY_AGENT_TURN_CAPS,
+    DefaultPlan.CLOUD_V0_PRO.value: PRO_AGENT_TURN_CAPS,
+    DefaultPlan.CLOUD_V0_BUSINESS.value: BUSINESS_AGENT_TURN_CAPS,
+}
+
+
 # Internal Counter/Gauge slug -> Stripe-side meter slot name. Membership in
 # this map doubles as the "reportable to Stripe" set: a meter is reported iff
 # its key is present here (`key in REPORTS`), and the value is the Stripe-side
