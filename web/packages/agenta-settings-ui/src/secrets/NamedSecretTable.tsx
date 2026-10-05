@@ -97,6 +97,14 @@ export const NamedSecretTable = ({
                     wrapRow={hoverableRow}
                     rowKey={(record) => record.key}
                     minWidth={0}
+                    onOpenRow={
+                        renderConfigureDialog
+                            ? (record) => {
+                                  setSelectedSecret(record)
+                                  setIsConfigModalOpen(true)
+                              }
+                            : undefined
+                    }
                     loading={loading && rows.length === 0}
                     hideHeader={!loading && rows.length === 0}
                     empty={

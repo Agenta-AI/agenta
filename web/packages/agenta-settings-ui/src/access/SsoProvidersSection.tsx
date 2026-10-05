@@ -91,6 +91,7 @@ export const SsoProvidersSection = ({
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.id}
                 minWidth={0}
+                onOpenRow={onEdit}
                 loading={loading && providers.length === 0}
                 hideHeader={!loading && providers.length === 0}
                 empty={
