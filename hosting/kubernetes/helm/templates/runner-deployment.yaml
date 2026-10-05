@@ -98,16 +98,29 @@ spec:
               value: {{ join "," $enabledProviders | quote }}
             - name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
               value: {{ default "local" $providers.default | quote }}
-            {{- /* Stable replica id for a single-runner install: a local-sandbox session is
-                   owned by the pod that created it, and a pod restart with a fresh random id
-                   would orphan those sessions for the owner TTL. A fixed value (the service
-                   name) is safe only at one replica; with several pods a shared id would make
-                   every pod claim every session, so we set it only when replicas == 1. Local
-                   multi-replica is unsupported anyway (no sticky routing); scale with Daytona.
-                   A Deployment renames the pod on restart, so a fixed value beats the pod name. */}}
-            {{- if and (eq (include "agenta.agentRunner.replicas" . | int) 1) (not (hasKey (default dict $runner.env) "AGENTA_RUNNER_REPLICA_ID")) }}
+            {{- /* Each pod is its own replica: the API binds every turn to the pod that first
+                   beats it and refuses any other pod for that turn, so two pods must never
+                   share an id. The pod name is unique per pod and appears in the logs. */}}
+            {{- if not (hasKey (default dict $runner.env) "AGENTA_RUNNER_REPLICA_ID") }}
             - name: AGENTA_RUNNER_REPLICA_ID
-              value: {{ include "agenta.agentRunner.serviceName" . | quote }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- end }}
+            {{- /* The address the API posts a Stop to for this pod's turns. Kubernetes expands
+                   $(POD_IP) only from a variable defined earlier in this list. The API must be
+                   able to reach pod IPs on the runner port: a NetworkPolicy that blocks api to
+                   runner traffic breaks Stop. An IPv6 single-stack pod IP needs brackets in a
+                   URL, so such a cluster sets AGENTA_RUNNER_REPLICA_ADDRESS in agentRunner.env. */}}
+            {{- if not (hasKey (default dict $runner.env) "POD_IP") }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            {{- end }}
+            {{- if not (hasKey (default dict $runner.env) "AGENTA_RUNNER_REPLICA_ADDRESS") }}
+            - name: AGENTA_RUNNER_REPLICA_ADDRESS
+              value: "http://$(POD_IP):{{ include "agenta.agentRunner.port" . }}"
             {{- end }}
             {{- if not (hasKey (default dict $runner.env) "PI_CODING_AGENT_DIR") }}
             - name: PI_CODING_AGENT_DIR

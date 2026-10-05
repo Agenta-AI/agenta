@@ -53,7 +53,10 @@ from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
-from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
+from oss.src.apis.fastapi.shared.runner_auth import (
+    assert_runner_token,
+    has_valid_runner_token,
+)
 
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
@@ -700,12 +703,10 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        if payload.release_owner:
-            assert_runner_token(request)
-
         heartbeat = await self._service.heartbeat(
             project_id=project_id,
             request=payload,
+            runner_verified=has_valid_runner_token(request),
         )
         return heartbeat.model_copy(
             update={"stream": sanitize_session_stream(heartbeat.stream)}

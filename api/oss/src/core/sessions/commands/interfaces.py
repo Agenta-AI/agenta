@@ -58,8 +58,16 @@ class ControlDeliveryPort(ABC):
     """How the API reaches the runner that holds a session. Transport only."""
 
     @abstractmethod
-    async def deliver(self, *, command: SessionCommand) -> DeliveryReceipt:
+    async def deliver(
+        self,
+        *,
+        command: SessionCommand,
+        runner_address: Optional[str] = None,
+    ) -> DeliveryReceipt:
         """Make `command` reachable by whoever holds its session, promptly.
+
+        `runner_address` is the URL of the pod bound to the command's target turn, when one is
+        known. Without it the transport reaches the runner through its Service URL.
 
         Best effort: a failure here never fails admission, because the command is already
         durable.

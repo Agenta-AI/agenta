@@ -852,6 +852,7 @@ export async function runWithKeepalive(
       klog(
         `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
       );
+      env.parkedTurnId = request.turnId;
       if (!(await seat(config.approvalTtlMs, "awaiting_approval"))) {
         await drop("park-refused", "failed-turn");
       } else {
@@ -908,6 +909,7 @@ export async function runWithKeepalive(
       klog(
         `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
       );
+      env.parkedTurnId = request.turnId;
       if (
         !(await pool.repark(
           live,

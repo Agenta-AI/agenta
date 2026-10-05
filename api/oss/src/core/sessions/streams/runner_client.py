@@ -103,15 +103,19 @@ async def cancel_runner_execution(
     target_turn_id: Optional[str],
     created_at: str,
     timeout_seconds: float = _CANCEL_TIMEOUT_SECONDS,
+    base_url: Optional[str] = None,
 ) -> RunnerCancelResponse:
     """POST the runner's `/cancel`. Returns the acknowledgement and the answering replica.
 
     Never raises. The command row is already committed when this runs, so a failure here costs
     promptness, not the Stop: a later claim or the settlement sweep still reaches it.
 
+    `base_url` is the address of the pod that holds the target turn. Without one the call goes
+    to the Service URL, which picks any pod.
+
     The body is camelCase because the runner's own HTTP surface is (see its `/kill`).
     """
-    base_url = env.runner.internal_url
+    base_url = base_url or env.runner.internal_url
     token = env.runner.token
     if not base_url or not token:
         log.warning(

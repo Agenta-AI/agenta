@@ -14,7 +14,6 @@
 export const ALIVE_TTL_SECONDS = 3600;
 export const RUNNING_TTL_SECONDS = 3600;
 export const ATTACHED_TTL_SECONDS = 60;
-export const OWNER_TTL_SECONDS = 120;
 export const HEARTBEAT_INTERVAL_SECONDS = 30;
 export const HEARTBEAT_WRITE_THRESHOLD_SECONDS = 60;
 
@@ -37,10 +36,6 @@ export function runningKey(projectId: string, sessionId: string): string {
 
 export function attachedKey(projectId: string, sessionId: string): string {
   return `attached:${projectId}:session:${sessionId}`;
-}
-
-export function ownerKey(projectId: string, sessionId: string): string {
-  return `owner:${projectId}:session:${sessionId}`;
 }
 
 export function displacedChannel(projectId: string, sessionId: string): string {

@@ -23,12 +23,12 @@ The three resume cells:
              cold replay. Expect a NEW tool-call id, the tool still running, and the codeword
              from turn 1 surviving.
   ask-cold2  The runner process itself is replaced. Forced by SIGKILLing the runner container (see
-             `replace_runner_replica` for why SIGKILL, and why it then waits out the session-owner
-             key), so the resuming replica is not the one that parked. On LOCAL this must REFUSE:
-             a local sandbox lives inside the runner, so another replica cannot adopt it, and the
-             single-owner guard says so. On DAYTONA the sandbox outlives the replica, so the new
-             replica adopts the session and completes the call. Expect a NEW tool-call id there:
-             this is a cold replay, so the model re-issues.
+             `replace_runner_replica` for why SIGKILL), so the resuming replica is not the one
+             that parked. Nothing refuses the session on the new replica: the API binds the
+             resume, a new turn, to whichever replica beats it first. The new replica never
+             adopts a sandbox it did not create, so on LOCAL and DAYTONA alike it rebuilds the
+             session cold and completes the call. Expect a NEW tool-call id: this is a cold
+             replay, so the model re-issues.
 
 Run the cells ONE AT A TIME when a result matters. Back to back, an earlier cell's sessions stay
 in the keep-alive pool and can push a parked approval out of it, which turns a warm resume into a
@@ -59,8 +59,6 @@ MODEL = os.environ.get("MODEL", "gpt-5.6-luna")
 # approval plane is identical on both — the patched bridge raises the same native gates — so the
 # matrix runs on either; CONNECTION_MODE=self_managed re-proves it on the subscription path.
 CONNECTION_MODE = os.environ.get("CONNECTION_MODE", "agenta")
-# Mirrors OWNER_TTL_SECONDS in services/runner/src/sessions/contract.ts.
-OWNER_TTL_SECONDS = 120
 
 CODEWORD = "FLAMINGO-42"
 TOOL = "list_connections"
@@ -245,17 +243,10 @@ def replace_runner_replica():
         if probe.stdout.strip() == "healthy":
             break
         time.sleep(2)
-    time.sleep(3)
-    # Then wait out the session OWNER key (OWNER_TTL_SECONDS = 120, sessions/contract.ts). The
-    # killed replica never released it, and `claim_owner` deliberately never steals from an owner
-    # that still looks live, so until the key lapses the new replica cannot take the session. Its
-    # heartbeat comes back `is_current_turn: false`, the runner reads that as "interrupted" and
-    # aborts its own fresh turn, and on Daytona that abort kills the in-sandbox shim upload — which
-    # surfaces as a confusing "shim could not be delivered" error rather than an ownership message.
-    # Resuming before the key lapses therefore measures that window, not cross-replica resume.
-    wait = OWNER_TTL_SECONDS + 20
-    print(f">>> waiting {wait}s for the dead replica's session-owner key to lapse...")
-    time.sleep(wait)
+    # A healthy probe can answer before the replacement accepts runs, so give it a margin. There
+    # is no lease to wait out: the resume is a new turn, and the API binds it to this replica on
+    # its first beat.
+    time.sleep(20)
 
 
 def run_allow(sandbox):
@@ -359,25 +350,16 @@ def run_ask_cold2(sandbox):
     replace_runner_replica()
     t = invoke(sid, [user_msg(TURN1), approval_part(call, True)], "ask", sandbox)
     show("cold 2 resume", t)
-    owner_refusal = any("single runner" in e for e in t["errors"])
-    if sandbox == "local":
-        # A local sandbox lives inside the runner process, so a different replica genuinely
-        # cannot adopt it. Refusing loudly is the correct outcome, not a completed resume.
-        check(
-            "local/ask-cold2: refuses with the single-owner guard (correct for a local sandbox)",
-            owner_refusal,
-            t["errors"][0][:160] if t["errors"] else "no error surfaced",
-        )
-    else:
-        check(
-            f"{sandbox}/ask-cold2: no owner refusal (a remote sandbox outlives the replica)",
-            not owner_refusal,
-        )
-        check(
-            f"{sandbox}/ask-cold2: tool executed",
-            any(o["type"] == "tool-output-available" for o in t["tool_outputs"]),
-        )
-        check(f"{sandbox}/ask-cold2: codeword survived", CODEWORD in t["reply"])
+    check(
+        f"{sandbox}/ask-cold2: no error on the replacement replica",
+        not t["errors"],
+        t["errors"][0][:160] if t["errors"] else "",
+    )
+    check(
+        f"{sandbox}/ask-cold2: tool executed",
+        any(o["type"] == "tool-output-available" for o in t["tool_outputs"]),
+    )
+    check(f"{sandbox}/ask-cold2: codeword survived", CODEWORD in t["reply"])
 
 
 CELLS = {

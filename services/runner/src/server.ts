@@ -105,11 +105,7 @@ import {
   SESSION_TURN_IN_USE_MESSAGE,
   SESSION_ADMISSION_UNCONFIRMED_MESSAGE,
 } from "./sessions/admission.ts";
-import {
-  REPLICA_ID,
-  releaseOwnedSessions,
-  startAliveWatchdog,
-} from "./sessions/alive.ts";
+import { REPLICA_ID, startAliveWatchdog } from "./sessions/alive.ts";
 import {
   applyCommand,
   holdsSession,
@@ -961,8 +957,9 @@ async function runAndStreamWithApiBaseResolved(
             `No pool resolve, no eviction.\n`,
         );
         // Stops the heartbeat interval and releases the credential lease. Its final
-        // `is_running: false` beat is owner-scoped server-side, so it cannot clear the live
-        // turn's `running` lock or stamp its own turn id on the session row.
+        // `is_running: false` beat is turn-scoped server-side, and refused outright when the
+        // turn is bound to another replica, so it cannot clear the live turn's `running` lock
+        // or stamp its own turn id on the session row.
         await watchdog.release().catch(() => {});
         unregisterExecution(sessionId, turnId);
         liveEmit({
@@ -1386,6 +1383,7 @@ function parkedSessionControl(
     const parked = pool.get(key);
     if (!parked || parked.state !== "awaiting_approval") continue;
     return {
+      turnId: parked.environment.parkedTurnId,
       stop: async () => {
         // Checkout makes the transition exclusive: a racing request cannot consume the same
         // permission gate while Stop is releasing it.
@@ -1775,14 +1773,6 @@ if (isEntrypoint(import.meta.url)) {
         (provider) => provider.settle(Math.min(timeoutMs ?? 20_000, 20_000)),
         () => {},
       );
-      // LAST, and only after the sandboxes are gone: hand back the `owner:session:<id>`
-      // affinity keys this replica holds. Nothing else releases them, and `claim_owner` never
-      // steals, so without this the replacement replica is refused every message on those
-      // sessions for the rest of the 120-second lease. It runs last because a session whose
-      // sandbox is still being destroyed should not yet look free to another replica, and it
-      // is bounded so it can never hold the process past the SIGTERM grace period. A SIGKILL
-      // reaches no handler at all; the lease stays the fallback for that.
-      await releaseOwnedSessions(timeoutMs);
     },
   });
 

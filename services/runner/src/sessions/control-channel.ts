@@ -67,6 +67,8 @@ export interface ControlOutcome {
 
 /** The control operation exposed by one approval-parked session. */
 export interface ParkedSessionControl {
+  /** The turn that parked on the approval, which is the only turn a Stop here may end. */
+  turnId: string | undefined;
   /** Release every gate and return the same environment to the pool as idle. */
   stop(): Promise<void> | void;
 }
@@ -219,6 +221,14 @@ function decideOutcome(
 ): ControlOutcome {
   if (!live) {
     if (parked) {
+      if (command.target.turnId && command.target.turnId !== parked.turnId) {
+        // A delayed Stop for an older turn. The approval parked here belongs to a newer turn
+        // the user never asked to stop.
+        return {
+          result: "obsolete",
+          execution: { id: command.target.turnId, state: "not_running" },
+        };
+      }
       return {
         result: "applied",
         execution: { id: command.target.turnId, state: "stopped" },

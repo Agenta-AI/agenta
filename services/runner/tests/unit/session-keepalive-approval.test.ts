@@ -124,6 +124,7 @@ interface DispatchFakeEnv {
   /** Stamped at acquire from the credentials this env "mounted", as the real helpers do. */
   installedMountExpiries: InstalledMountExpiries;
   parkedApproval?: ParkedApproval;
+  parkedTurnId?: string;
   approvalGateCount: number;
   nonParkablePauseCount: number;
   clearTurn: () => void;
@@ -908,12 +909,22 @@ describe("runWithKeepalive: approval park + resume", () => {
       { toolCallId: "tc-1", toolName: "read_a" },
       { toolCallId: "tc-2", toolName: "read_b" },
     ];
-    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
-
-    const partialRequest = approveResumeMulti(
-      [{ toolCallId: "tc-1", toolName: "read_a", approved: true }],
-      parkedCalls,
+    await runWithKeepalive(
+      { ...pauseTurn(), turnId: "t-pause" },
+      undefined,
+      undefined,
+      ctx,
     );
+    // A Stop compares its target turn with this id, so each park records the parking turn.
+    assert.equal(calls.acquiredEnvs[0].parkedTurnId, "t-pause");
+
+    const partialRequest = {
+      ...approveResumeMulti(
+        [{ toolCallId: "tc-1", toolName: "read_a", approved: true }],
+        parkedCalls,
+      ),
+      turnId: "t-partial",
+    };
     assert.deepEqual(
       staleInteractionExemptTokens(
         partialRequest,
@@ -939,6 +950,11 @@ describe("runWithKeepalive: approval park + resume", () => {
       { permissionId: "perm-1", reply: "once", toolCallId: "tc-1" },
     ]);
     assert.equal(ctx.pool.get(POOL_KEY)?.state, "awaiting_approval");
+    assert.equal(
+      calls.acquiredEnvs[0].parkedTurnId,
+      "t-partial",
+      "the re-park on resume records the resume's turn, the turn that holds the gate",
+    );
     assert.deepEqual(
       [...calls.acquiredEnvs[0].parkedApprovals.keys()],
       ["tc-2"],

@@ -18,24 +18,24 @@ from oss.src.dbs.redis.sessions.contract import (
     ALIVE_TTL_SECONDS,
     ACQUIRE_ALIVE_WITH_START_LUA,
     ATTACHED_TTL_SECONDS,
-    CLAIM_OWNER_LUA,
     DISPLACE_TURNS_LUA,
-    OWNER_TTL_SECONDS,
     RECONCILE_STOPPED_TURN_LUA,
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
     SUPERSEDED_TTL_SECONDS,
+    TURN_BOUND_TTL_SECONDS,
     TURN_STARTED_TTL_SECONDS,
     WATCHDOG_RELEASE_TURN_LUA,
+    TurnBinding,
     alive_key,
     attached_key,
     displaced_channel,
     make_displacement_payload,
-    make_owner_value,
-    owner_replica_id,
-    owner_key,
+    make_turn_binding_value,
+    parse_turn_binding_value,
     running_key,
     superseded_key,
+    turn_bound_key,
     turn_started_key,
     validate_session_id,  # noqa: F401 — re-exported for callers that import from locks
 )
@@ -284,21 +284,18 @@ async def release_watchdog_turn(
     project_id: str,
     session_id: str,
     turn_id: Optional[str],
-    owner_value: Optional[str],
-) -> Tuple[bool, bool, bool]:
-    """Atomically release only the swept turn and its observed replica owner."""
+) -> Tuple[bool, bool]:
+    """Atomically release only the swept turn's `alive` and `running`, and tombstone it."""
     result = await engine.eval(
         WATCHDOG_RELEASE_TURN_LUA,
-        4,
+        3,
         alive_key(project_id, session_id).encode(),
         running_key(project_id, session_id).encode(),
-        owner_key(project_id, session_id).encode(),
         superseded_key(project_id, session_id, turn_id or "").encode(),
         (turn_id or "").encode(),
-        (owner_value or "").encode(),
         SUPERSEDED_TTL_SECONDS,
     )
-    return bool(int(result[0])), bool(int(result[1])), bool(int(result[2]))
+    return bool(int(result[0])), bool(int(result[1]))
 
 
 # ---------------------------------------------------------------------------
@@ -583,135 +580,62 @@ async def get_attached_owner(
 
 
 # ---------------------------------------------------------------------------
-# Owner key — session → replica affinity
+# Turn binding — "which runner pod holds this turn"
+#
+# Written by the heartbeat, read by Stop delivery. A turn never moves between pods, so the
+# binding is write-once: the first pod to beat a turn holds it for the turn's life, and any
+# other pod beating the same turn id is refused.
 # ---------------------------------------------------------------------------
 
 
-async def get_owner(
+async def bind_turn(
     engine: LockEngine,
     *,
     project_id: str,
     session_id: str,
-) -> Optional[str]:
-    """Return the replica id currently owning this session, or None."""
-    current = await get_owner_value(
-        engine, project_id=project_id, session_id=session_id
-    )
-    return owner_replica_id(current) if current else None
-
-
-async def get_owner_value(
-    engine: LockEngine,
-    *,
-    project_id: str,
-    session_id: str,
-) -> Optional[str]:
-    """Return the full replica + turn-generation owner value, or None."""
-    key = owner_key(project_id, session_id)
-    current = await engine.get(key)
-    return current.decode() if current else None
-
-
-async def claim_owner_value(
-    engine: LockEngine,
-    *,
-    project_id: str,
-    session_id: str,
+    turn_id: str,
     replica_id: str,
-    turn_id: Optional[str] = None,
-) -> str:
-    """Atomically claim ownership and return the full observed owner generation.
+    replica_address: str,
+) -> Tuple[TurnBinding, bool]:
+    """Bind turn_id to the calling replica unless one is bound already.
 
-    Never steals from a live different owner: if another replica holds it, its id is
-    returned with its turn generation so a later compare-and-delete cannot clear a refresh.
+    Returns the stored binding and whether this call wrote it. Only the bound replica's beat
+    refreshes the TTL, so a refused replica cannot keep a binding alive that is not its own.
+
+    No script: SET NX is atomic across api processes, so exactly one caller writes the key and
+    every other caller reads back the winner. A key that expires between the failed NX and the
+    read-back gets one more NX attempt, so the turn is never left unbound.
     """
-    key = owner_key(project_id, session_id)
-    owner_value = make_owner_value(replica_id=replica_id, turn_id=turn_id)
-    result = await engine.eval(
-        CLAIM_OWNER_LUA,
-        1,
-        key.encode(),
-        owner_value.encode(),
-        str(OWNER_TTL_SECONDS).encode(),
-    )
-    actual = result.decode() if isinstance(result, (bytes, bytearray)) else str(result)
-    return actual
+    key = turn_bound_key(project_id, session_id, turn_id)
+    proposed = TurnBinding(replica_id=replica_id, replica_address=replica_address)
+    value = make_turn_binding_value(
+        replica_id=replica_id, replica_address=replica_address
+    ).encode()
+    current = None
+    for _ in range(2):
+        if await engine.set(key, value, nx=True, ex=TURN_BOUND_TTL_SECONDS) is not None:
+            return proposed, True
+        current = await engine.get(key)
+        if current is not None:
+            break
+    if current is None:
+        return proposed, False
+    binding = parse_turn_binding_value(current.decode())
+    if binding.replica_id == replica_id:
+        await engine.expire(key, TURN_BOUND_TTL_SECONDS)
+    return binding, False
 
 
-async def claim_owner(
+async def get_turn_binding(
     engine: LockEngine,
     *,
     project_id: str,
     session_id: str,
-    replica_id: str,
-    turn_id: Optional[str] = None,
-) -> str:
-    """Claim ownership and return the actual owner's replica id."""
-    actual = await claim_owner_value(
-        engine,
-        project_id=project_id,
-        session_id=session_id,
-        replica_id=replica_id,
-        turn_id=turn_id,
-    )
-    return owner_replica_id(actual)
-
-
-async def release_owner_value(
-    engine: LockEngine,
-    *,
-    project_id: str,
-    session_id: str,
-    owner_value: str,
-) -> bool:
-    """Remove the owner key only if its full replica + turn generation still matches."""
-    key = owner_key(project_id, session_id)
-    result = await engine.eval(
-        RELEASE_IF_OWNER_LUA,
-        1,
-        key.encode(),
-        owner_value.encode(),
-    )
-    return result == 1
-
-
-async def clear_owner(
-    engine: LockEngine,
-    *,
-    project_id: str,
-    session_id: str,
-    replica_id: str,
-) -> bool:
-    """Remove the owner key if replica_id is still the owner."""
-    owner_value = await get_owner_value(
-        engine, project_id=project_id, session_id=session_id
-    )
-    if owner_value is None or owner_replica_id(owner_value) != replica_id:
-        return False
-    return await release_owner_value(
-        engine,
-        project_id=project_id,
-        session_id=session_id,
-        owner_value=owner_value,
-    )
-
-
-async def force_clear_owner(
-    engine: LockEngine,
-    *,
-    project_id: str,
-    session_id: str,
-) -> Optional[str]:
-    """Forcibly delete the owner key. Returns the previous owner, or None.
-
-    The unconditional twin of `clear_owner`, for kill: the session is being destroyed, so
-    affinity must drop whichever replica held it. Without this the non-stealing `claim_owner`
-    would lock the session out of every other replica for the remaining OWNER_TTL_SECONDS.
-    """
-    key = owner_key(project_id, session_id)
-    current = await engine.get(key)
-    await engine.delete(key)
-    return owner_replica_id(current.decode()) if current else None
+    turn_id: str,
+) -> Optional[TurnBinding]:
+    """The runner pod that holds turn_id, or None when no pod has beaten it yet."""
+    current = await engine.get(turn_bound_key(project_id, session_id, turn_id))
+    return parse_turn_binding_value(current.decode()) if current else None
 
 
 # ---------------------------------------------------------------------------

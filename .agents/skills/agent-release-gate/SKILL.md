@@ -238,9 +238,9 @@ mechanism-blind cell from scratch, to avoid duplicating scaffolding.
 ## Session control cells
 
 `resources/session_control.py` is a second, standalone driver: sixteen cells that cover Stop,
-durable commands, and the runner's recovery paths (owner release, park/resume, watchdog
-quarantine). It drives the same product endpoint and asserts on the same wire, but it needs its
-own account bootstrap, so it runs as a separate process rather than as `qa_product.py` cells. See
+durable commands, and the runner's recovery paths (park/resume, watchdog quarantine). It drives
+the same product endpoint and asserts on the same wire, but it needs its own account bootstrap,
+so it runs as a separate process rather than as `qa_product.py` cells. See
 `resources/path_triggers.py` for the exact mandatory-cell mechanism.
 
 **These cells are MANDATORY** — run them, not just the standing gate — whenever the release diff

@@ -308,6 +308,11 @@ redisDurable:
 #                              # itself defaults to 127.0.0.1, which the kubelet cannot reach, so
 #                              # the health probes fail forever and the pod never becomes ready.
 #   liveFrames: true           # AGENTA_RUNNER_LIVE_FRAMES; set false to disable live-frame relay
+#   env:
+#     AGENTA_RUNNER_REPLICA_ADDRESS: ""  # chart default http://$(POD_IP):<port>, where the api
+#                              # sends Stop for this pod's turns. On an IPv6 single-stack cluster
+#                              # the pod IP needs brackets in a URL: set
+#                              # "http://[$(POD_IP)]:8765" here.
 #   providers:
 #     enabled: [local]        # AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS (rendered comma-joined)
 #     default: local          # AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER (must be one of enabled)

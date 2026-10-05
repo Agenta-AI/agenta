@@ -45,9 +45,9 @@ AGENT_TOOLS = ("matrix_t9_agent_tools.py",)
 CUSTOM_SECRETS = ("matrix_s1_custom_secrets.py",)
 
 # The standing session-control regression cells: Stop, durable commands, and the runner's
-# recovery paths (owner release, park/resume, watchdog quarantine). A separate standalone driver
-# because it needs its own account bootstrap and, for most cells, a docker-compose project name —
-# see resources/session_control.py and SKILL.md "Session control cells".
+# recovery paths (park/resume, watchdog quarantine). A separate standalone driver because it
+# needs its own account bootstrap and, for most cells, a docker-compose project name — see
+# resources/session_control.py and SKILL.md "Session control cells".
 SESSION_CONTROL = ("session_control.py",)
 
 # The cells that run a REMOTE sandbox and need no extra flag. A release that touches the sandbox
@@ -165,9 +165,9 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     # entry that would silently drop the Daytona rule.
     "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS + SESSION_CONTROL,
     "services/runner/src/providers/daytona*": DAYTONA_CELLS,
-    # Session control: Stop, durable commands, park/resume, and the owner-release and watchdog
-    # sweeps. A change here can silently break a warm resume or leave a command stuck, and
-    # nothing in the fixed matrix drives Stop at all. See qa-audit-2026-09-03.md section 4.
+    # Session control: Stop, durable commands, park/resume, and the watchdog sweep. A change
+    # here can silently break a warm resume or leave a command stuck, and nothing in the fixed
+    # matrix drives Stop at all. See qa-audit-2026-09-03.md section 4.
     "services/runner/src/sessions/**": SESSION_CONTROL,
     "api/oss/src/core/sessions/**": SESSION_CONTROL,
     "api/oss/src/tasks/asyncio/sessions/**": SESSION_CONTROL,
