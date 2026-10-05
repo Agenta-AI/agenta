@@ -110,6 +110,15 @@ describe("the sidebar credits meter", () => {
 
         expect(shown).toBe("")
     })
+    it("does not read the summary while the sidebar is collapsed", async () => {
+        api.summary.mockResolvedValue(summary("enforce"))
+        const shown = await render(
+            <CreditsRemainingWidget projectId="proj-1" settingsURL="/settings" collapsed />,
+        )
+
+        expect(shown).toBe("")
+        expect(api.summary).not.toHaveBeenCalled()
+    })
 })
 
 describe("the Credits tab", () => {

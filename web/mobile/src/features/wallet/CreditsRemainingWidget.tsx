@@ -17,9 +17,15 @@ export const CreditsRemainingWidget = ({
     projectId: string
     settingsURL: string
     collapsed: boolean
-}) => {
+}) =>
+    // Not mounted while collapsed, so a hidden meter does not poll the summary.
+    !isWalletsEnabled() || collapsed ? null : (
+        <CreditsMeter projectId={projectId} settingsURL={settingsURL} />
+    )
+
+const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL: string}) => {
     const summary = useWalletSummary(projectId)
-    if (!isWalletsEnabled() || collapsed || summary.data?.mode !== "enforce") return null
+    if (summary.data?.mode !== "enforce") return null
 
     const remaining = Math.max(0, summary.data.spendable_musd ?? 0)
     const total = summary.data.active_credit_total_musd
