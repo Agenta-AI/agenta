@@ -1,4 +1,4 @@
-import {type ReactNode, useCallback, useMemo, useState} from "react"
+import {createElement, type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {
     activeModelsSummary,
@@ -20,7 +20,7 @@ import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {
     ProviderDrawer,
     providerIconFor,
-    SubscriptionConnectionCard,
+    SubscriptionSignInDialog,
 } from "@agenta/entity-ui/secretProvider"
 import {PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -31,6 +31,8 @@ import {
     type SettingsCatalogItem,
 } from "../shared/SettingsCatalog"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+
+import {type SubscriptionPlan, SubscriptionsBanner} from "./SubscriptionsBanner"
 
 /** The capability map is global; the key only records which surface asked for it. */
 const HARNESS_CATALOG_KEY = "agenta:settings:ai-providers"
@@ -74,10 +76,8 @@ const catalogDescription = (entry: ProviderCatalogEntry): string | undefined =>
     entry.subtitle ??
     (entry.secretKind === SecretKind.ProviderKey ? "API key" : FORM_FIELDS_BY_KIND[entry.kind])
 
-const ProviderLogo = ({kind}: {kind: string}) => {
-    const Icon = providerIconFor(kind)
-    return <Icon className="size-[18px]" />
-}
+const ProviderLogo = ({kind}: {kind: string}) =>
+    createElement(providerIconFor(kind), {className: "size-[18px]"})
 
 const CHATGPT_NAME = subscriptionProviderName("chatgpt")
 
@@ -92,7 +92,7 @@ export const AIProvidersPage = ({
     const deleteSecret = useSetAtom(deleteSecretAtom)
 
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
-    const [subscriptionPanelOpen, setSubscriptionPanelOpen] = useState(false)
+    const [signInOpen, setSignInOpen] = useState(false)
     const [pendingRemoval, setPendingRemoval] = useState<ProviderConnection | null>(null)
     const [removing, setRemoving] = useState(false)
     const [removeError, setRemoveError] = useState<string | null>(null)
@@ -185,40 +185,6 @@ export const AIProvidersPage = ({
             onOpen: () => setDrawerTarget({kind: entry.kind}),
         })
 
-        const subscriptionConnected = subscriptionIsReady(subscription?.subscription)
-        const loginState = subscription?.subscription?.loginState
-        // A sign-in that once worked and now does not needs attention, not a fresh connect.
-        const subscriptionBroken =
-            !subscriptionConnected && !!loginState && loginState !== "pending_login"
-        const chatgptRow: SettingsCatalogItem = {
-            key: "chatgpt",
-            logo: <ProviderLogo kind="openai" />,
-            name: CHATGPT_NAME,
-            description:
-                subscriptionStatusLine(subscription?.subscription) ||
-                `Sign in with your ${CHATGPT_NAME} subscription to run agents`,
-            status: subscriptionConnected
-                ? "connected"
-                : subscriptionBroken
-                  ? "attention"
-                  : "available",
-            statusLabel: subscriptionConnected
-                ? "Connected"
-                : subscriptionBroken
-                  ? "Sign in again"
-                  : `Connect ${CHATGPT_NAME}`,
-            onOpen: () => setSubscriptionPanelOpen((isOpen) => !isOpen),
-        }
-        const claudeRow: SettingsCatalogItem = {
-            key: "claude",
-            logo: <ProviderLogo kind="anthropic" />,
-            name: "Claude",
-            description: "Detected from your deployment's login folder",
-            status: "available",
-            statusLabel: "Set one up",
-            onOpen: () => window.open(subscriptionDocsUrl, "_blank", "noopener,noreferrer"),
-        }
-
         return [
             {key: "connected", label: "Connected", items: connectedRows},
             {
@@ -231,27 +197,43 @@ export const AIProvidersPage = ({
                 label: "Cloud platforms",
                 items: CLOUD_PLATFORMS.map(catalogRow),
             },
+        ]
+    }, [userConnections, capabilities, canRemove, requestRemoval])
+
+    const plans = useMemo<SubscriptionPlan[]>(() => {
+        const connected = subscriptionIsReady(subscription?.subscription)
+        const loginState = subscription?.subscription?.loginState
+        // A sign-in that once worked and now does not needs attention, not a fresh connect.
+        const broken = !connected && !!loginState && loginState !== "pending_login"
+        return [
             {
-                key: "subscriptions",
-                label: "Subscriptions",
-                items: [chatgptRow, claudeRow],
-                footer: subscriptionPanelOpen ? (
-                    <SubscriptionConnectionCard
-                        connection={subscription}
-                        onRemove={canRemove ? requestRemoval : undefined}
-                    />
-                ) : undefined,
+                key: "chatgpt",
+                logo: <ProviderLogo kind="openai" />,
+                name: CHATGPT_NAME,
+                detail:
+                    subscriptionStatusLine(subscription?.subscription) ||
+                    "Sign in with your account",
+                state: connected ? "connected" : broken ? "attention" : "available",
+                action: {
+                    label: connected ? "Manage" : broken ? "Sign in again" : "Connect",
+                    onClick: () => setSignInOpen(true),
+                },
+            },
+            {
+                key: "claude",
+                logo: <ProviderLogo kind="anthropic" />,
+                name: "Claude",
+                detail: "Read from your deployment's login",
+                state: "available",
+                action: {
+                    label: "Set up",
+                    external: true,
+                    onClick: () =>
+                        window.open(subscriptionDocsUrl, "_blank", "noopener,noreferrer"),
+                },
             },
         ]
-    }, [
-        userConnections,
-        capabilities,
-        subscription,
-        subscriptionPanelOpen,
-        subscriptionDocsUrl,
-        canRemove,
-        requestRemoval,
-    ])
+    }, [subscription, subscriptionDocsUrl])
 
     return (
         <div className="ph-no-capture">
@@ -259,12 +241,15 @@ export const AIProvidersPage = ({
                 groups={groups}
                 loading={loading && userConnections.length === 0}
                 notice={
-                    removeError ? (
-                        <span className="flex items-center gap-1 text-xs text-destructive">
-                            <WarningCircle size={14} />
-                            {removeError}
-                        </span>
-                    ) : null
+                    <>
+                        {removeError ? (
+                            <span className="flex items-center gap-1 text-xs text-destructive">
+                                <WarningCircle size={14} />
+                                {removeError}
+                            </span>
+                        ) : null}
+                        <SubscriptionsBanner plans={plans} />
+                    </>
                 }
             />
 
@@ -276,6 +261,14 @@ export const AIProvidersPage = ({
                 onConfirm: () => void removeConnection(),
                 onClose: () => setPendingRemoval(null),
             })}
+
+            <SubscriptionSignInDialog
+                open={signInOpen}
+                onClose={() => setSignInOpen(false)}
+                connection={subscription}
+                logo={<ProviderLogo kind="openai" />}
+                onRemove={canRemove ? requestRemoval : undefined}
+            />
 
             <ProviderDrawer
                 open={!!drawerTarget}
