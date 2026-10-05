@@ -8,6 +8,7 @@ import {
     isWebhookDrawerOpenAtom,
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -184,7 +185,7 @@ export const WebhooksPage = ({
                 onOpenRow={renderDrawer ? handleEdit : undefined}
                 empty={
                     <SettingsEmpty
-                        icon={<WebhooksLogo size={18} />}
+                        icon={getSettingsSidebarIcon("webhooks")}
                         title="No webhooks yet"
                         description="Subscribe an endpoint to receive workflow events as signed HTTP requests."
                         action={subscribe}

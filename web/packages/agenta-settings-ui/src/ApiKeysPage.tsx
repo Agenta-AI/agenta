@@ -1,8 +1,8 @@
-import type {ApiKeyRow} from "@agenta/settings"
+import {getSettingsSidebarIcon, type ApiKeyRow} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Alert, Button} from "@agenta/ui/ui"
-import {Key, Plus, Trash} from "@phosphor-icons/react"
+import {Plus, Trash} from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "./SettingsPageShell"
 import {hoverableRow} from "./shared/hoverableRow"
@@ -87,7 +87,7 @@ export const ApiKeysPage = ({
                 hideHeader={!listing && rows.length === 0}
                 empty={
                     <SettingsEmpty
-                        icon={<Key size={18} />}
+                        icon={getSettingsSidebarIcon("apiKeys")}
                         title="No API keys yet"
                         description="Generate a key to authenticate requests to the Agenta API from your code, CI jobs, and SDKs."
                         action={generate}

@@ -1,19 +1,12 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {Org} from "@agenta/entities/organization"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {
-    ArrowsLeftRight,
-    Buildings,
-    Copy,
-    PencilSimpleLine,
-    Plus,
-    SignOut,
-    Trash,
-} from "@phosphor-icons/react"
+import {ArrowsLeftRight, Copy, PencilSimpleLine, Plus, SignOut, Trash} from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
@@ -109,7 +102,7 @@ export const OrganizationsPage = ({
                 hideHeader={!loading && rows.length === 0}
                 empty={
                     <SettingsEmpty
-                        icon={<Buildings size={18} />}
+                        icon={getSettingsSidebarIcon("organizationGeneral")}
                         title="No organizations yet"
                         description="An organization groups your workspaces, projects and the people who work in them."
                         action={createButton("outline")}

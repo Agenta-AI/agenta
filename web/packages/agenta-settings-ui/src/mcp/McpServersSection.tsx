@@ -33,6 +33,7 @@ import {
     McpConnectionDetail,
     McpPermissionDrawer,
 } from "@agenta/entity-ui/mcpEndpoint"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
@@ -291,7 +292,7 @@ export default function McpServersSection({
                 onOpenRow={(record) => setViewing(record)}
                 empty={
                     <SettingsEmpty
-                        icon={<Plugs size={18} />}
+                        icon={getSettingsSidebarIcon("mcpEndpoints")}
                         title={copy.emptyTitle}
                         description={copy.emptyBody}
                         action={readOnly ? null : connect}

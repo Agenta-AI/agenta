@@ -1,11 +1,12 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash, Users} from "@phosphor-icons/react"
+import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
@@ -121,7 +122,7 @@ export const MembersPage = ({
                 hideHeader={!loading && rows.length === 0}
                 empty={
                     <SettingsEmpty
-                        icon={<Users size={18} />}
+                        icon={getSettingsSidebarIcon("workspace")}
                         title="No members yet"
                         description="Invite people to collaborate in this organization. Invitations appear here until they are accepted or expire."
                         action={inviteButton("outline")}

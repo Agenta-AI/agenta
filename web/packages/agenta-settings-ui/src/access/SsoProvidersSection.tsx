@@ -1,10 +1,11 @@
 import type {ReactNode} from "react"
 
 import type {OrganizationProvider} from "@agenta/entities/organization"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {PencilSimpleLine, Plus, ShieldCheck, Trash} from "@phosphor-icons/react"
+import {PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
@@ -99,7 +100,7 @@ export const SsoProvidersSection = ({
                 hideHeader={!loading && providers.length === 0}
                 empty={
                     <SettingsEmpty
-                        icon={<ShieldCheck size={18} />}
+                        icon={getSettingsSidebarIcon("organization")}
                         title="No SSO providers yet"
                         description="Add an OIDC provider to let members sign in with your identity provider."
                         action={addButton("outline")}

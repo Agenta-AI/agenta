@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {CustomSecretFormat, useVaultSecret, type NamedSecretRow} from "@agenta/entities/secret"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {Tag} from "@agenta/ui/components/presentational"
@@ -112,7 +113,7 @@ export const NamedSecretTable = ({
                     hideHeader={!loading && rows.length === 0}
                     empty={
                         <SettingsEmpty
-                            icon={<LockKey size={18} />}
+                            icon={getSettingsSidebarIcon("secrets")}
                             title="No secrets yet"
                             description="Store a named secret to reference credentials without exposing their values."
                             action={create}

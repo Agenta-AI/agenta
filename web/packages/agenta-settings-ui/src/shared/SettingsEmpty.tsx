@@ -45,7 +45,13 @@ export const SettingsEmpty = ({
     /** A plain icon instead of the ghost rows, for no-match and locked states. */
     plain?: boolean
 }) => (
-    <Empty className="py-12">
+    <Empty
+        className={
+            plain
+                ? "py-12"
+                : "rounded-2xl border border-solid border-border bg-[radial-gradient(var(--ag-colorBorder)_1px,transparent_1px)] bg-[size:16px_16px] py-12"
+        }
+    >
         <EmptyHeader className="max-w-md">
             {icon && !plain ? <GhostRows icon={icon} /> : null}
             {icon && plain ? (

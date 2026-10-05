@@ -2,18 +2,12 @@ import {useCallback, useMemo, useState} from "react"
 
 import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
 import type {ProjectsResponse} from "@agenta/entities/project"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {
-    ArrowsLeftRight,
-    Copy,
-    FolderSimple,
-    PencilSimpleLine,
-    Plus,
-    Trash,
-} from "@phosphor-icons/react"
+import {ArrowsLeftRight, Copy, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {SettingsPageActions} from "../SettingsPageShell"
@@ -183,7 +177,7 @@ export const ProjectsPage = ({
                 hideHeader={!isLoading && rows.length === 0}
                 empty={
                     <SettingsEmpty
-                        icon={<FolderSimple size={18} />}
+                        icon={getSettingsSidebarIcon("projects")}
                         title="No projects in this workspace yet"
                         description="Create a project to organize your agents, datasets, and deployments."
                         action={newProject}

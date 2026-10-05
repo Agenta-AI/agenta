@@ -1,10 +1,11 @@
 import type {ReactNode} from "react"
 
 import type {OrganizationDomain} from "@agenta/entities/organization"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {ArrowClockwise, Globe, Plus, Trash} from "@phosphor-icons/react"
+import {ArrowClockwise, Plus, Trash} from "@phosphor-icons/react"
 
 import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
@@ -97,7 +98,7 @@ export const DomainsSection = ({
                 hideHeader={!loading && domains.length === 0}
                 empty={
                     <SettingsEmpty
-                        icon={<Globe size={18} />}
+                        icon={getSettingsSidebarIcon("organization")}
                         title="No domains yet"
                         description="Add a domain and publish its DNS record to verify that you own it."
                         action={addButton("outline")}

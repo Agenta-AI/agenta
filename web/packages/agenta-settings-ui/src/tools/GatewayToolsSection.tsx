@@ -12,11 +12,12 @@ import {
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {ConnectDrawer, ToolExecutionDrawer} from "@agenta/entity-ui/gatewayTool"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
-import {ArrowClockwise, MagnifyingGlass, Play, Plugs, Trash, XCircle} from "@phosphor-icons/react"
+import {ArrowClockwise, MagnifyingGlass, Play, Trash, XCircle} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -427,7 +428,7 @@ export default function GatewayToolsSection({
                             />
                         ) : (
                             <SettingsEmpty
-                                icon={<Plugs size={18} />}
+                                icon={getSettingsSidebarIcon("tools")}
                                 title={copy.emptyTitle}
                                 description={copy.emptyBody}
                             />
