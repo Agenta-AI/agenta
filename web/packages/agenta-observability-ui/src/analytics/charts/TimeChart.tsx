@@ -46,6 +46,11 @@ export interface TimeChartProps {
 type Row = Record<string, number | string | null>
 
 const TICKS = 6
+const ENTER_MS = 450
+
+// Read once: charts animate in, and tooltips slide, unless the system asks for less motion.
+const prefersMotion = () =>
+    typeof window === "undefined" || !window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
 /** The average's label: a pill in the card color, right-aligned just above the line. */
 const AverageLabel = ({
@@ -100,6 +105,7 @@ export const TimeChart = ({
     tooltip,
     className,
 }: TimeChartProps) => {
+    const motion = useMemo(prefersMotion, [])
     const visible = useMemo(() => series.filter((s) => !s.hidden), [series])
     const data = useMemo<Row[]>(
         () =>
@@ -190,9 +196,15 @@ export const TimeChart = ({
                 // Pinned to the top of the plot beside the cursor, so it stays in the card.
                 position={{y: 0}}
                 content={({active}) =>
-                    active && hovered !== null ? <>{tooltip(hovered)}</> : null
+                    active && hovered !== null ? (
+                        <div className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150">
+                            {tooltip(hovered)}
+                        </div>
+                    ) : null
                 }
-                isAnimationActive={false}
+                isAnimationActive={motion}
+                animationDuration={180}
+                animationEasing="ease-out"
             />
         ) : null,
     ]
@@ -226,6 +238,9 @@ export const TimeChart = ({
                             fill={s.color}
                             fillOpacity={1}
                             activeBar={{style: {filter: "brightness(0.8)"}}}
+                            isAnimationActive={motion}
+                            animationDuration={ENTER_MS}
+                            animationEasing="ease-out"
                         >
                             {labels.map((_, i) => (
                                 <Cell
@@ -258,7 +273,9 @@ export const TimeChart = ({
                                   fill={underlay.color}
                                   radius={[3, 3, 0, 0]}
                                   activeBar={{style: {filter: "brightness(0.9)"}}}
-                                  isAnimationActive={false}
+                                  isAnimationActive={motion}
+                                  animationDuration={ENTER_MS}
+                                  animationEasing="ease-out"
                               />,
                           ]
                         : null}
@@ -277,7 +294,9 @@ export const TimeChart = ({
                             }
                             activeDot={{r: 4, fill: "var(--background)", strokeWidth: 2}}
                             connectNulls
-                            isAnimationActive={false}
+                            isAnimationActive={motion}
+                            animationDuration={ENTER_MS}
+                            animationEasing="ease-out"
                         />
                     ))}
                     {averageLine}
