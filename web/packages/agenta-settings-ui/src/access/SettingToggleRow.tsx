@@ -23,7 +23,10 @@ export interface SettingToggleRowProps {
     showSuccess?: boolean
 }
 
-/** One switchable policy: what it does, whether you may change it, and whether it just saved. */
+/**
+ * One switchable policy: what it does, whether you may change it, and whether it just saved.
+ * Sits inside a `SettingsSection`, which draws the rules between rows.
+ */
 export const SettingToggleRow = ({
     title,
     description,
@@ -36,13 +39,11 @@ export const SettingToggleRow = ({
     showSuccess,
 }: SettingToggleRowProps) => (
     <div
-        className={`flex items-start justify-between border-0 border-b border-solid border-colorBorderSecondary py-4 last:border-0 ${
-            disabled ? "opacity-60" : ""
-        }`}
+        className={`flex items-center justify-between gap-6 px-[18px] py-4 ${disabled ? "opacity-60" : ""}`}
     >
-        <div className="flex-1 pr-8">
+        <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-colorText">{title}</span>
+                <span className="font-medium text-colorText">{title}</span>
                 {/* Its own provider, like every other tooltip in this package: a host without
                     a global one (the mobile app) would otherwise throw on render. */}
                 {tooltip ? (
@@ -73,7 +74,7 @@ export const SettingToggleRow = ({
                 {/* antd's Switch drew its own loading spinner; the Radix one does not. */}
                 {loading ? <Spinner size="small" aria-label="Saving" /> : null}
             </div>
-            <p className="m-0 mt-0.5 text-xs text-colorTextSecondary">{description}</p>
+            <p className="m-0 mt-0.5 text-[13px] text-colorTextSecondary">{description}</p>
             {disabled && disabledReason ? (
                 <p className="m-0 mt-1 flex items-center gap-1 text-xs text-colorWarning">
                     <Lock size={14} />

@@ -11,6 +11,8 @@ import type {ReactNode} from "react"
 import {dayjs} from "@agenta/shared/utils"
 import {Button, Spinner} from "@agenta/ui/ui"
 
+import {SettingsRow, SettingsSection} from "../shared/SettingsSection"
+
 import type {BillingSubscription, BillingUsage} from "./types"
 import UsageProgressBar from "./UsageProgressBar"
 
@@ -19,15 +21,12 @@ const OWN_SECTION_METRICS = new Set(["users", "applications"])
 
 const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 
-const Section = ({children}: {children: ReactNode}) => (
-    <section className="flex w-full flex-col items-start gap-2 rounded-lg bg-colorFillQuaternary p-4">
-        {children}
-    </section>
+/** The padded body of a section card that is not a list of setting rows. */
+const CardBody = ({children}: {children: ReactNode}) => (
+    <div className="flex flex-col items-start gap-3 px-[18px] py-4">{children}</div>
 )
 
-const SectionTitle = ({children}: {children: ReactNode}) => (
-    <span className="text-xs font-medium text-colorText">{children}</span>
-)
+const METRIC_GRID = "grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
 
 /**
  * The tier out of a plan slug. Slugs are namespaced (`cloud_v0_hobby`) but need not be — a
@@ -116,7 +115,11 @@ export const BillingPage = ({
     const limits = Object.entries(usage ?? {}).filter(([key]) => !OWN_SECTION_METRICS.has(key))
     const users = usage?.users
 
-    const upgradeButton = onUpgrade ? <Button onClick={onUpgrade}>Upgrade plan</Button> : null
+    const upgradeButton = onUpgrade ? (
+        <Button size="sm" onClick={onUpgrade}>
+            Upgrade plan
+        </Button>
+    ) : null
 
     const renewsAt = periodEnd(subscription)
     // A subscription is worth showing even where nothing can be changed about it, so a host
@@ -125,119 +128,129 @@ export const BillingPage = ({
     const showPlanCard = billingEnabled || Boolean(subscription)
 
     return (
-        <section className="flex flex-col gap-4">
+        <div className="flex flex-col gap-8">
             {showPlanCard ? (
-                <Section>
-                    <SectionTitle>Current plan</SectionTitle>
-                    <span className="text-base font-bold capitalize text-colorText">
-                        <PlanSummary subscription={subscription} />
-                    </span>
-                    {/* Only with a real boundary from the backend: plans that never renew leave
-                        `period_end` unset, which used to render "Invalid Date". */}
-                    {!isOnFreePlan && renewsAt ? (
-                        <span className="text-colorTextSecondary">
-                            {subscription?.free_trial
-                                ? "Trial period will end on "
-                                : "Auto renews on "}
-                            <span className="font-medium text-colorText">
-                                {renewsAt.format("MMM D, YYYY")}
+                <SettingsSection title="Current plan">
+                    <CardBody>
+                        <span className="text-base font-semibold capitalize text-colorText">
+                            <PlanSummary subscription={subscription} />
+                        </span>
+                        {/* Only with a real boundary: plans that never renew leave `period_end` unset. */}
+                        {!isOnFreePlan && renewsAt ? (
+                            <span className="text-colorTextSecondary">
+                                {subscription?.free_trial
+                                    ? "Trial period will end on "
+                                    : "Auto renews on "}
+                                <span className="font-medium text-colorText">
+                                    {renewsAt.format("MMM D, YYYY")}
+                                </span>
                             </span>
-                        </span>
-                    ) : null}
+                        ) : null}
 
-                    {isCustomPlan ? (
-                        <span className="text-colorTextSecondary">
-                            For queries regarding your plan,{" "}
-                            <a href={CONTACT_URL} target="_blank" rel="noreferrer">
-                                click here to contact us
-                            </a>
-                        </span>
-                    ) : !isOnFreePlan ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                            {upgradeButton}
-                            {onCancelSubscription ? (
-                                <Button variant="link" onClick={onCancelSubscription}>
-                                    Cancel subscription
-                                </Button>
-                            ) : null}
-                        </div>
-                    ) : (
-                        upgradeButton
-                    )}
-                </Section>
+                        {isCustomPlan ? (
+                            <span className="text-colorTextSecondary">
+                                For queries regarding your plan,{" "}
+                                <a href={CONTACT_URL} target="_blank" rel="noreferrer">
+                                    click here to contact us
+                                </a>
+                            </span>
+                        ) : !isOnFreePlan ? (
+                            upgradeButton || onCancelSubscription ? (
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {upgradeButton}
+                                    {onCancelSubscription ? (
+                                        <Button
+                                            variant="link"
+                                            size="sm"
+                                            onClick={onCancelSubscription}
+                                        >
+                                            Cancel subscription
+                                        </Button>
+                                    ) : null}
+                                </div>
+                            ) : null
+                        ) : (
+                            upgradeButton
+                        )}
+                    </CardBody>
+                </SettingsSection>
             ) : null}
 
-            <Section>
-                <SectionTitle>Limits</SectionTitle>
+            <SettingsSection title="Limits">
+                <CardBody>
+                    <div className={METRIC_GRID}>
+                        {limits.map(([key, metric]) =>
+                            metric ? (
+                                <UsageProgressBar
+                                    key={`billing-${key}`}
+                                    label={key}
+                                    used={metric.value}
+                                    limit={metric.limit as number}
+                                    strict={metric.strict}
+                                    isUnlimited={metric.limit == null}
+                                    free={metric.free}
+                                    period={metric.period}
+                                    scope={metric.scope}
+                                />
+                            ) : null,
+                        )}
+                    </div>
+                </CardBody>
+            </SettingsSection>
 
-                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {limits.map(([key, metric]) =>
-                        metric ? (
+            <SettingsSection title="Members">
+                <CardBody>
+                    <div className={METRIC_GRID}>
+                        {/* Free seats only mean something against a paid tier. */}
+                        {billingEnabled ? (
                             <UsageProgressBar
-                                key={`billing-${key}`}
-                                label={key}
-                                used={metric.value}
-                                limit={metric.limit as number}
-                                strict={metric.strict}
-                                isUnlimited={metric.limit == null}
-                                free={metric.free}
-                                period={metric.period}
-                                scope={metric.scope}
+                                label="Free"
+                                used={users?.value ?? 0}
+                                limit={users?.free ?? 0}
+                                strict={users?.strict}
+                                isUnlimited={users?.limit == null}
+                                free={users?.free ?? 0}
                             />
-                        ) : null,
-                    )}
-                </div>
-            </Section>
+                        ) : null}
 
-            <Section>
-                <div className="flex items-center gap-2">
-                    <SectionTitle>Members</SectionTitle>
+                        <UsageProgressBar
+                            label="Total"
+                            used={users?.value ?? 0}
+                            limit={users?.limit as number}
+                            strict={users?.strict}
+                            isUnlimited={users?.limit == null}
+                            free={users?.free ?? 0}
+                        />
+                    </div>
                     {onViewMembers ? (
                         <Button variant="outline" size="sm" onClick={onViewMembers}>
                             View members
                         </Button>
                     ) : null}
-                </div>
-
-                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {/* Free seats only mean something against a paid tier. */}
-                    {billingEnabled ? (
-                        <UsageProgressBar
-                            label="Free"
-                            used={users?.value ?? 0}
-                            limit={users?.free ?? 0}
-                            strict={users?.strict}
-                            isUnlimited={users?.limit == null}
-                            free={users?.free ?? 0}
-                        />
-                    ) : null}
-
-                    <UsageProgressBar
-                        label="Total"
-                        used={users?.value ?? 0}
-                        limit={users?.limit as number}
-                        strict={users?.strict}
-                        isUnlimited={users?.limit == null}
-                        free={users?.free ?? 0}
-                    />
-                </div>
-            </Section>
+                </CardBody>
+            </SettingsSection>
 
             {billingEnabled && onOpenBillingPortal ? (
-                <Section>
-                    <SectionTitle>Billing information</SectionTitle>
-                    <Button
-                        variant="outline"
-                        onClick={onOpenBillingPortal}
-                        disabled={openingBillingPortal}
-                    >
-                        {openingBillingPortal ? "Opening…" : "Open billing portal"}
-                    </Button>
-                </Section>
+                <SettingsSection title="Billing">
+                    <SettingsRow
+                        title="Payment method, invoices and address"
+                        description="Managed in the Stripe billing portal."
+                        control={
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={onOpenBillingPortal}
+                                disabled={openingBillingPortal}
+                            >
+                                {openingBillingPortal ? "Opening…" : "Open billing portal"}
+                            </Button>
+                        }
+                    />
+                </SettingsSection>
             ) : null}
 
             {children}
-        </section>
+        </div>
     )
 }
 
