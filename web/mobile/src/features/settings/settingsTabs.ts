@@ -102,9 +102,13 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)) return "preferences"
     if (requested === "tools" && !access.canShowTools) return "preferences"
     if (requested === "billing" && !access.billingEnabled) return "preferences"
-    if (requested === "walletUsage" && !(access.walletsEnabled && access.walletDebug))
+    // The wallet routes are EE-only, whatever the mirrored wallet flag says.
+    if (
+        requested === "walletUsage" &&
+        !(access.isEE && access.walletsEnabled && access.walletDebug)
+    )
         return "preferences"
-    if (requested === "credits" && !access.walletsEnabled) return "preferences"
+    if (requested === "credits" && !(access.isEE && access.walletsEnabled)) return "preferences"
     // A deployment serving no MCP gateway refuses every route behind this tab, so a deep
     // link to it would render a surface whose every action fails.
     if (requested === "mcpEndpoints" && !access.canShowMcpEndpoints) return "preferences"
