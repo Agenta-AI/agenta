@@ -17,29 +17,29 @@ import {
     eventTimestampRangeFilterAtom,
     type EventTableRow,
 } from "@agenta/entities/event"
+import type {WorkspaceMember} from "@agenta/entities/organization"
 import {dayjs} from "@agenta/shared/utils"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {ClockCounterClockwise, Eye} from "@phosphor-icons/react"
+import {ClockCounterClockwise} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {SettingsEmpty} from "../shared/SettingsEmpty"
-import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 import {
     ActorCell,
     CountCell,
-    EventIdCell,
+    EventRowMenu,
     EventTimestampCell,
     EventTypeCell,
 } from "./AuditEventCells"
 import AuditLogFilters, {type AuditLogFiltersProps} from "./AuditLogFilters"
 import {AUDIT_LOG_PAGE_SIZE, AUDIT_LOG_SCOPE_ID} from "./constants"
 
-// The count has no heading of its own: the number reads alongside the Event column.
+// The count has no heading of its own; ids live in the drawer and the row menu.
 const COLUMNS: ListTableColumn[] = [
-    {key: "event_type", label: "Event", width: "minmax(0,2fr)"},
+    {key: "event_type", label: "Event", width: "minmax(0,2.2fr)"},
     {
         key: "count",
         label: "Count",
@@ -47,9 +47,8 @@ const COLUMNS: ListTableColumn[] = [
         width: "56px",
         headerClassName: "text-right",
     },
-    {key: "timestamp", label: "Timestamp", width: "minmax(0,1.2fr)"},
-    {key: "actor", label: "User", width: "minmax(0,1fr)"},
-    {key: "id", label: "ID", width: "minmax(0,2fr)"},
+    {key: "timestamp", label: "Time", width: "minmax(0,1fr)"},
+    {key: "actor", label: "User", width: "minmax(0,1.2fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
@@ -87,9 +86,30 @@ const recomputeRelativeTimestampRange = (preset?: string | null) => {
 export interface AuditLogTableProps {
     onSelectEvent: (eventId: string) => void
     renderDateRange?: AuditLogFiltersProps["renderDateRange"]
+    /** Names the User column by user id when the host has no registered member list. */
+    members?: WorkspaceMember[]
+    currentUserId?: string | null
 }
 
-export const AuditLogTable = ({onSelectEvent, renderDateRange}: AuditLogTableProps) => {
+export const AuditLogTable = ({
+    onSelectEvent,
+    renderDateRange,
+    members,
+    currentUserId,
+}: AuditLogTableProps) => {
+    const names = useMemo(
+        () =>
+            new Map(
+                (members ?? [])
+                    .filter((member) => member.user?.id)
+                    .map((member) => [
+                        member.user.id,
+                        member.user.username || member.user.email || member.user.id,
+                    ]),
+            ),
+        [members],
+    )
+
     const refreshEvents = useSetAtom(eventsPaginatedStore.actions.refresh)
     const clearEventsCache = useSetAtom(clearEventsCacheAtom)
     const timestampRange = useAtomValue(eventTimestampRangeFilterAtom)
@@ -160,19 +180,12 @@ export const AuditLogTable = ({onSelectEvent, renderDateRange}: AuditLogTablePro
                         <EventTypeCell eventId={record.id} />
                         <CountCell eventId={record.id} />
                         <EventTimestampCell eventId={record.id} />
-                        <ActorCell eventId={record.id} />
-                        <EventIdCell eventId={record.id} />
-                        <SettingsRowMenu
-                            label="Event actions"
-                            items={[
-                                {
-                                    key: "view",
-                                    label: "View details",
-                                    icon: <Eye size={14} />,
-                                    onClick: () => onSelectEvent(record.id),
-                                },
-                            ]}
+                        <ActorCell
+                            eventId={record.id}
+                            names={names}
+                            currentUserId={currentUserId}
                         />
+                        <EventRowMenu eventId={record.id} onView={() => onSelectEvent(record.id)} />
                     </>
                 )}
             />

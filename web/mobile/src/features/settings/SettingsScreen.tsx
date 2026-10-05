@@ -105,7 +105,10 @@ const TabBody = ({
         queryKey: ["selectedOrg", organizationId],
         queryFn: () => fetchSingleOrg({organizationId: organizationId!}),
         enabled:
-            (tab === "workspace" || tab === "organization" || tab === "organizationGeneral") &&
+            (tab === "workspace" ||
+                tab === "organization" ||
+                tab === "organizationGeneral" ||
+                tab === "auditLog") &&
             Boolean(organizationId),
     })
     const organizations = useQuery({
@@ -192,6 +195,8 @@ const TabBody = ({
                 <AuditLogPage
                     hasAudit={entitlements.hasAudit}
                     entitlementsLoading={entitlements.isLoading}
+                    members={org.data?.default_workspace?.members}
+                    currentUserId={user?.id}
                 />
             )
         case "billing":

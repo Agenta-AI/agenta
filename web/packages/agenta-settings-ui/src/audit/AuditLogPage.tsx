@@ -15,6 +15,7 @@
 
 import {useState, type ReactNode} from "react"
 
+import type {WorkspaceMember} from "@agenta/entities/organization"
 import {Spinner} from "@agenta/ui/ui"
 
 import {UpgradeNotice} from "../access/UpgradeNotice"
@@ -35,6 +36,10 @@ export interface AuditLogPageProps {
     renderDateRange?: AuditLogFiltersProps["renderDateRange"]
     /** The upgrade link on the locked state — routing and billing availability are the host's. */
     upgradeAction?: ReactNode
+    /** The roster that names each event's user. */
+    members?: WorkspaceMember[]
+    /** Marks your own events "(you)". */
+    currentUserId?: string | null
 }
 
 /**
@@ -48,6 +53,8 @@ export const AuditLogPage = ({
     entitlementsLoading = false,
     renderDateRange,
     upgradeAction,
+    members,
+    currentUserId,
 }: AuditLogPageProps) => {
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
     const [drawerOpen, setDrawerOpen] = useState(false)
@@ -74,6 +81,8 @@ export const AuditLogPage = ({
         <div className="flex min-h-0 flex-1 flex-col">
             <AuditLogTable
                 renderDateRange={renderDateRange}
+                members={members}
+                currentUserId={currentUserId}
                 onSelectEvent={(eventId) => {
                     setSelectedEventId(eventId)
                     setDrawerOpen(true)

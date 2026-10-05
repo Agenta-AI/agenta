@@ -13,10 +13,15 @@
 
 import type {Event} from "@agenta/entities/event"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
-import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {UserAuthorLabel, useIsCurrentUser, useUserDisplayName} from "@agenta/entities/shared/user"
 import {dayjs} from "@agenta/shared/utils"
-import {CopyButton} from "@agenta/ui/components/presentational"
+import {message} from "@agenta/ui/app-message"
+import {Copy, Eye} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+
+import {eventTypeLabel} from "./eventTypeLabels"
 
 export const Dash = () => <span className="text-xs text-muted-foreground">—</span>
 
@@ -32,54 +37,88 @@ const readCount = (event: Event): number | null => {
     return typeof value === "number" ? value : null
 }
 
-/** Timestamp of the event, formatted to second precision. */
+const shortId = (id: string) => (id.length > 13 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id)
+
+const copyId = (text: string, what: string) =>
+    void navigator.clipboard?.writeText(text).then(
+        () => message.success(`${what} copied`),
+        () => message.error("Couldn't copy the ID"),
+    )
+
+/** "Oct 5, 22:35:03" this year, "Oct 5 2025, 22:35" before; the full value is the title. */
 export const EventTimestampCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
-    // A `title` rather than a Tooltip: the row is clickable, and a hover card over
-    // every timestamp in a 50-row page fights the click target for no gain.
+    const time = dayjs(event.timestamp)
+    const short = time.isSame(dayjs(), "year")
+        ? time.format("MMM D, HH:mm:ss")
+        : time.format("MMM D YYYY, HH:mm")
     return (
         <span
-            className="truncate text-muted-foreground"
-            title={dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss.SSS")}
+            className="truncate tabular-nums text-muted-foreground"
+            title={time.format("YYYY-MM-DD HH:mm:ss.SSS")}
         >
-            {dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss")}
+            {short}
         </span>
     )
 }
 
-/** Dotted event-type identifier (e.g. `applications.revisions.committed`). */
+/** The event as a sentence, with its dotted type under it. */
 export const EventTypeCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
     return (
-        <span className="truncate font-mono text-[13px] text-foreground" title={event.event_type}>
-            {event.event_type}
-        </span>
+        <div className="flex min-w-0 flex-col">
+            <span className="truncate text-foreground">{eventTypeLabel(event.event_type)}</span>
+            <span
+                className="truncate font-mono text-[11.5px] text-muted-foreground"
+                title={event.event_type}
+            >
+                {event.event_type}
+            </span>
+        </div>
     )
 }
 
-/** Actor — the user who triggered the event, resolved to a name/avatar. */
-export const ActorCell = ({eventId}: {eventId: string}) => {
+export interface ActorCellProps {
+    eventId: string
+    /** Host-provided names by user id, for hosts that do not register a member list. */
+    names?: ReadonlyMap<string, string>
+    currentUserId?: string | null
+}
+
+/** Actor — the user who triggered the event, resolved to a name; a short id when unknown. */
+export const ActorCell = ({eventId, names, currentUserId}: ActorCellProps) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     const actor = event ? readActor(event) : null
+    const registeredName = useUserDisplayName(actor)
+    const registeredYou = useIsCurrentUser(actor)
+    const hostName = actor ? names?.get(actor) : undefined
 
-    // Falls back to the raw id rather than a dash: an actor who has left the workspace no
-    // longer resolves to a name, and on a host that never registers a member list nothing
-    // resolves at all — the id still says who.
-    // The wrapper does the ellipsizing: `truncate` needs a block box, and the resolved form
-    // is an inline-flex row, so it can't carry the rule itself.
+    if (!actor) return <Dash />
+    if (!registeredName && !hostName) {
+        return (
+            <span className="truncate font-mono text-xs text-muted-foreground" title={actor}>
+                {shortId(actor)}
+            </span>
+        )
+    }
+
+    const isYou = registeredYou || (Boolean(currentUserId) && actor === currentUserId)
+    // `truncate` needs a block box; the label itself is an inline-flex row.
     return (
-        <div className="min-w-0 truncate">
-            <UserAuthorLabel
-                userId={actor}
-                showAvatar
-                showYouLabel
-                fallback={actor ?? "—"}
-                className="min-w-0 [&_*]:truncate"
-            />
+        <div className="flex min-w-0 items-center gap-1" title={actor}>
+            <div className="min-w-0 truncate">
+                <UserAuthorLabel
+                    userId={actor}
+                    name={hostName}
+                    showAvatar
+                    className="min-w-0 [&_*]:truncate"
+                />
+            </div>
+            {isYou ? <span className="shrink-0 text-muted-foreground">(you)</span> : null}
         </div>
     )
 }
@@ -93,30 +132,40 @@ export const CountCell = ({eventId}: {eventId: string}) => {
     if (count === null) return <Dash />
 
     return (
-        <span className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+        <span
+            className="text-right font-mono text-xs tabular-nums text-muted-foreground"
+            title={`${count} ${count === 1 ? "item" : "items"}`}
+        >
             {count}
         </span>
     )
 }
 
-/** Event id (UUID) — the unique identifier of this audit event. */
-export const EventIdCell = ({eventId}: {eventId: string}) => {
+/** The row kebab: details, plus copying the ids the table no longer shows. */
+export const EventRowMenu = ({eventId, onView}: {eventId: string; onView: () => void}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
-    if (!event) return <Dash />
+    const requestId = event?.request_id ?? null
 
-    // stopPropagation: the row opens the drawer, and copying an id is not that.
     return (
-        <div className="flex min-w-0 items-center gap-1">
-            <span className="truncate font-mono text-xs">{event.event_id}</span>
-            <CopyButton
-                text={event.event_id || ""}
-                buttonText={null}
-                icon
-                stopPropagation
-                variant="ghost"
-                size="icon"
-                aria-label="Copy event id"
-            />
-        </div>
+        <SettingsRowMenu
+            label="Event actions"
+            items={[
+                {key: "view", label: "View details", icon: <Eye size={14} />, onClick: onView},
+                {type: "divider"},
+                {
+                    key: "copy-event-id",
+                    label: "Copy event ID",
+                    icon: <Copy size={14} />,
+                    onClick: () => copyId(event?.event_id || eventId, "Event ID"),
+                },
+                {
+                    key: "copy-request-id",
+                    label: "Copy request ID",
+                    icon: <Copy size={14} />,
+                    hidden: !requestId,
+                    onClick: () => requestId && copyId(requestId, "Request ID"),
+                },
+            ]}
+        />
     )
 }
