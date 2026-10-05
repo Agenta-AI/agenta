@@ -19,9 +19,10 @@ import {Skeleton} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {blobToDataUri, dirOf, type AssembleIo} from "./assemble"
-import {AccessQuestion} from "./GrantSheet"
+import {AccessQuestion, type AccessQuestionProps} from "./GrantSheet"
 import {KIT_CSS} from "./kit"
 import {RunView, resolveHostKitTokens} from "./RunView"
+import {useAppAccessMenu} from "./useAppAccessMenu"
 import {useAppManifest} from "./useAppManifest"
 import {useChangedHint} from "./useChangedHint"
 
@@ -69,6 +70,8 @@ export const defaultGrants: GrantStore = {
 /** What a stored level lets the app do here; write is capped to read where edits are off. */
 export const effectiveAccess = (level: AppAccess | null, canEditMounts: boolean): AppAccess =>
     level === null ? "none" : level === "read-write" && !canEditMounts ? "read" : level
+
+const EMPTY_GRANT: GrantRecord = {level: null, writeRefused: false}
 
 export interface HtmlAppEnv {
     /** Bridge host factory; default `createHtmlAppHost` (stories inject the mock). */
@@ -168,11 +171,17 @@ export function HtmlAppBody({
     const {manifest, loaded: manifestLoaded} = useAppManifest(runnable ? io : null, dir)
     const appName = manifest?.name ?? (dir ? (dir.split("/").pop() ?? dir) : path)
     const canEditMounts = env.canEditMounts ?? !!mountId
+    const declared = manifest?.access
+    const displayDir = dirOf(displayPath ?? path)
+    const accessMenu = useAppAccessMenu({mountId, dir, displayDir, appName, env})
+    const openAccessSetting = accessMenu.open
 
     /** The open question: what the app tried that needs an answer. */
-    const [question, setQuestion] = useState<"read" | "write" | null>(null)
-    /** Allow (true), Don't allow (false), or closed without an answer (null). */
-    const answerRef = useRef<((answer: boolean | null) => void) | null>(null)
+    const [question, setQuestion] = useState<AccessQuestionProps["need"] | null>(null)
+    /** The level chosen, or null when closed without an answer. */
+    const answerRef = useRef<((answer: AppAccess | null) => void) | null>(null)
+    /** A write this run was refused because the app only has read. */
+    const [writeFailed, setWriteFailed] = useState(false)
     // Callers reuse this body across files without a key: show a host only for its own folder.
     const folder = `${mountId ?? ""}/${dir}`
     const [built, setBuilt] = useState<{host: HtmlAppHost; folder: string} | null>(null)
@@ -181,7 +190,35 @@ export function HtmlAppBody({
     if (hostFolder !== folder) {
         setHostFolder(folder)
         setQuestion(null)
+        setWriteFailed(false)
     }
+
+    const ask = useCallback(
+        (kind: AccessQuestionProps["need"]) =>
+            new Promise<AppAccess | null>((resolve) => {
+                answerRef.current = resolve
+                setQuestion(kind)
+            }),
+        [],
+    )
+
+    /** Asks for read and write at once and stores the answer; null when closed without one. */
+    const askReadWrite = useCallback(
+        async (record: GrantRecord): Promise<AppAccess | null> => {
+            if (!mountId) return null
+            const answer = await ask("read-write")
+            // A level set while the question was open (another view of this app) wins.
+            const latest = grants.get(mountId, dir) ?? EMPTY_GRANT
+            if (latest.level !== record.level) return effectiveAccess(latest.level, canEditMounts)
+            if (answer === null) return null
+            // Don't allow on an upgrade keeps the read the app already has.
+            const level = answer === "none" && record.level === "read" ? "read" : answer
+            // "Read only" refuses write, so a later write does not ask again.
+            grants.set(mountId, dir, {level, writeRefused: level !== "read-write"})
+            return level
+        },
+        [ask, mountId, dir, grants, canEditMounts],
+    )
 
     const hint = useChangedHint({
         mountId,
@@ -196,45 +233,50 @@ export function HtmlAppBody({
     // One host per folder, running at once with the stored answer; a call needing more asks.
     useEffect(() => {
         if (!runnable || !mountId || !manifestLoaded) return
-        const empty: GrantRecord = {level: null, writeRefused: false}
         // Closed without an answer: no more questions of that kind for this run.
         const dismissed = {read: false, write: false}
-        const ask = (kind: "read" | "write") =>
-            new Promise<boolean | null>((resolve) => {
-                answerRef.current = resolve
-                setQuestion(kind)
-            })
-        const requestAccess = async (need: GrantLevel): Promise<AppAccess> => {
-            const record = grants.get(mountId, dir) ?? empty
+        const decide = async (need: GrantLevel): Promise<AppAccess> => {
+            const record = grants.get(mountId, dir) ?? EMPTY_GRANT
             const current = effectiveAccess(record.level, canEditMounts)
+            // The manifest declares write: the first call asks for both at once.
+            if (declared === "read-write" && canEditMounts && record.level === null) {
+                if (dismissed.read) return current
+                const level = await askReadWrite(record)
+                if (level !== null) return level
+                dismissed.read = true
+                return "none"
+            }
             if (need === "read") {
                 if (record.level !== null || dismissed.read) return current
-                const allow = await ask("read")
-                // A level set while the question was open (another view of this app) wins.
-                const latest = grants.get(mountId, dir) ?? empty
+                const answer = await ask("read")
+                const latest = grants.get(mountId, dir) ?? EMPTY_GRANT
                 if (latest.level !== record.level) {
                     return effectiveAccess(latest.level, canEditMounts)
                 }
-                if (allow === null) {
+                if (answer === null) {
                     dismissed.read = true
                     return "none"
                 }
-                const level: AppAccess = allow ? "read" : "none"
+                const level: AppAccess = answer === "read" ? "read" : "none"
                 grants.set(mountId, dir, {...latest, level})
                 return level
             }
             if (current === "read-write" || record.level === "none") return current
-            // Never asked about writing where edits are off, after a refusal, or after a cancel.
-            if (!canEditMounts || record.writeRefused || dismissed.write) return current
-            const allow = await ask("write")
-            const latest = grants.get(mountId, dir) ?? empty
+            // Asking on a write is for apps that declare nothing; never where edits are off,
+            // after a refusal, or after a cancel.
+            if (declared || !canEditMounts || record.writeRefused || dismissed.write) {
+                return current
+            }
+            const answer = await ask("write")
+            const latest = grants.get(mountId, dir) ?? EMPTY_GRANT
             if (latest.level !== record.level) {
                 return effectiveAccess(latest.level, canEditMounts)
             }
-            if (allow === null) {
+            if (answer === null) {
                 dismissed.write = true
                 return current
             }
+            const allow = answer === "read-write"
             grants.set(
                 mountId,
                 dir,
@@ -243,6 +285,13 @@ export function HtmlAppBody({
                     : {...latest, writeRefused: true},
             )
             return allow ? "read-write" : current
+        }
+        let disposed = false
+        const requestAccess = async (need: GrantLevel): Promise<AppAccess> => {
+            const level = await decide(need)
+            // A question settled by this host's teardown must not mark the next folder.
+            if (!disposed && need === "read-write" && level === "read") setWriteFailed(true)
+            return level
         }
         const createHost = env.createHost ?? createHtmlAppHost
         const next = createHost({
@@ -263,6 +312,7 @@ export function HtmlAppBody({
         )
         setBuilt({host: next, folder: `${mountId}/${dir}`})
         return () => {
+            disposed = true
             unsubscribe()
             next.detach()
             answerRef.current?.(null)
@@ -276,17 +326,31 @@ export function HtmlAppBody({
         projectId,
         dir,
         manifestLoaded,
+        declared,
         grants,
         canEditMounts,
+        ask,
+        askReadWrite,
         env.createHost,
         env.resolveTokens,
     ])
 
-    const settleQuestion = useCallback((answer: boolean | null) => {
+    const settleQuestion = useCallback((answer: AppAccess | null) => {
         setQuestion(null)
         answerRef.current?.(answer)
         answerRef.current = null
     }, [])
+
+    // Read only where the app needs to write: offer the upgrade outside the app.
+    const canAllowEditing =
+        canEditMounts && accessMenu.level === "read" && (declared === "read-write" || writeFailed)
+    const allowEditing = useCallback(() => {
+        if (!mountId || answerRef.current) return
+        const record = grants.get(mountId, dir) ?? EMPTY_GRANT
+        // After a refusal the question is not raised again; the setting changes it.
+        if (record.writeRefused) openAccessSetting()
+        else void askReadWrite(record)
+    }, [mountId, dir, grants, openAccessSetting, askReadWrite])
 
     // `onNavigate` speaks presented paths; RunView resolves mount-relative ones.
     const toDisplayPath = useCallback(
@@ -319,6 +383,7 @@ export function HtmlAppBody({
                     onReload={hint.clear}
                     onNavigate={onNavigate}
                     toDisplayPath={toDisplayPath}
+                    onAllowEditing={canAllowEditing ? allowEditing : undefined}
                 />
             ) : (
                 <StartingSkeleton />
@@ -328,13 +393,15 @@ export function HtmlAppBody({
                 <AccessQuestion
                     open={question !== null}
                     appName={appName}
-                    dir={dirOf(displayPath ?? path)}
+                    dir={displayDir}
                     need={question ?? "read"}
+                    writeUnavailable={declared === "read-write" && !canEditMounts}
                     container={question ? env.sheetContainer?.() : null}
                     onAnswer={settleQuestion}
                     onCancel={() => settleQuestion(null)}
                 />
             ) : null}
+            {accessMenu.dialog}
         </>
     )
 }

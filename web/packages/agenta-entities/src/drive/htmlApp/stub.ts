@@ -233,6 +233,7 @@ function bridgeStub(): void {
             emit("theme", {tokens: data.tokens || {}})
         } else if (data.type === "access") {
             agenta.canWrite = data.canWrite === true
+            emit("access", {canWrite: agenta.canWrite})
         }
     }
 

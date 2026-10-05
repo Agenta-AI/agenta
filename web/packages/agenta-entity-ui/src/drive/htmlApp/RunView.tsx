@@ -8,8 +8,8 @@ import {
     type HtmlAppHost,
     type HtmlAppHostError,
 } from "@agenta/entities/drive"
-import {Button, Skeleton, cn} from "@agenta/ui/ui"
-import {ArrowsClockwise, CaretLeft, Copy, Warning} from "@phosphor-icons/react"
+import {Button, SimpleTooltip as Tooltip, Skeleton, cn} from "@agenta/ui/ui"
+import {ArrowsClockwise, CaretLeft, Copy, LockSimple, Warning} from "@phosphor-icons/react"
 import {createPortal} from "react-dom"
 
 import {ROW_ICON_BTN} from "../DriveHeader"
@@ -83,6 +83,8 @@ export interface RunViewProps {
     toDisplayPath?: (path: string) => string
     /** The host's toolbar slot the controls portal into; without one they sit above the app. */
     controlsContainer?: HTMLElement | null
+    /** Set while the app is read only but needs to write: shows "Read only · Allow editing". */
+    onAllowEditing?: () => void
     className?: string
 }
 
@@ -108,6 +110,7 @@ export function RunView({
     onNavigate,
     toDisplayPath = (p) => p,
     controlsContainer,
+    onAllowEditing,
     className,
 }: RunViewProps) {
     const frameRef = useRef<HTMLIFrameElement>(null)
@@ -275,6 +278,18 @@ export function RunView({
                 </Button>
             ) : null}
 
+            {onAllowEditing ? (
+                <button
+                    type="button"
+                    onClick={onAllowEditing}
+                    title="The app can read its files but not save changes"
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorBorder bg-colorFillTertiary px-2 text-[11px] text-colorTextSecondary hover:text-colorText"
+                >
+                    <LockSimple weight="bold" className="size-3" />
+                    Read only · Allow editing
+                </button>
+            ) : null}
+
             {changedPaths.length > 0 ? (
                 <button
                     type="button"
@@ -299,16 +314,17 @@ export function RunView({
                 </button>
             ) : null}
 
-            <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={reload}
-                aria-label="Refresh"
-                title="Refresh"
-                className={ROW_ICON_BTN}
-            >
-                <ArrowsClockwise size={14} />
-            </Button>
+            <Tooltip title="Refresh">
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={reload}
+                    aria-label="Refresh"
+                    className={ROW_ICON_BTN}
+                >
+                    <ArrowsClockwise size={14} />
+                </Button>
+            </Tooltip>
         </>
     )
 

@@ -22,19 +22,20 @@ it in a sandboxed page and shows it as a card in the chat. Do not build one for 
 ## Folder
 
 `apps/<slug>/` holds `app.json` (the manifest: `agenta_app: 1`, `name`, `entry`, `access`,
-`data`, `config`), `index.html`, and its data as sibling JSON files. The app owns what `data`
-names while it is open; you own config and the rest. You may write data too, but read it
-first: your writes are unconditional.
+`data`, `config`), `index.html`, and its data as sibling JSON files. Set `access` to
+`read-write` if the app saves anything, else `read`. The app owns what `data` names while it
+is open; you own config and the rest. You may write data too, but read it first: your writes
+are unconditional.
 
 ## Bridge
 
 The page gets `window.agenta`: `await agenta.ready` first; then `canWrite`, `visible`, `dir`,
 and `agenta.fs` with `read`, `readJSON`, `write`, `writeJSON`, `list`, `exists`, `stat`,
 `remove`. Paths are relative to `index.html` and cannot leave the folder. Events:
-`agenta.addEventListener("changed", cb)` when you or the person edit a file underneath the app,
-and `"visibilitychange"`. Failures reject with `error.code`: `not_found`, `read_only`, `scope`,
-`conflict`, `too_large`, `bad_request`, `unavailable`. Writes carry If-Match automatically: on
-`conflict`, re-read the file and reapply the change once.
+`agenta.addEventListener("changed", cb)` when a file changes underneath the app, `"access"`
+when `canWrite` changes, and `"visibilitychange"`. Failures reject with `error.code`:
+`not_found`, `read_only`, `scope`, `conflict`, `too_large`, `bad_request`, `unavailable`.
+Writes carry If-Match automatically.
 
 ## Custom app rules
 
@@ -42,8 +43,8 @@ and `"visibilitychange"`. Failures reject with `error.code`: `not_found`, `read_
   `ag-input`, `ag-select`, `ag-check`, `ag-card`, `ag-columns`, `ag-column`, `ag-list`,
   `ag-grid`, `ag-badge`, `ag-empty`, `ag-toast`. Inline CSS only for what they do not cover.
 - Keep assets self-contained. Do not assume network isolation or embed secrets.
-- Wait for `agenta.ready`; treat `not_found` as empty; respect `canWrite === false` by showing
-  edits as unsaved instead of failing.
+- Wait for `agenta.ready`; treat `not_found` as empty; while `canWrite` is false, show edits
+  as unsaved instead of failing; on `access`, re-render and save them.
 - Save whole files, debounced, after each change; handle `conflict` by re-read and reapply.
 
 ## Starters
@@ -56,8 +57,8 @@ and `"visibilitychange"`. Failures reject with `error.code`: `not_found`, `read_
 
 ## After
 
-Reply with the file card for `apps/<slug>/index.html`, say which access the app asks for
-(`read` or `read-write`), and tell the person to choose Run on the card to open it.
+Reply with the file card for `apps/<slug>/index.html` and say which access the app asks for
+(`read` or `read-write`).
 
 ## Agent-level layout: `agent-files/.apps/`
 

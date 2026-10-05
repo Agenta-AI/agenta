@@ -69,48 +69,70 @@ export interface AccessQuestionProps {
     appName: string
     /** App dir as presented to the user. */
     dir: string
-    /** What the app just tried: reading files, or changing them. */
-    need: "read" | "write"
+    /** What to ask: reading, changing (after a read), or both at once (the manifest declares it). */
+    need: "read" | "write" | "read-write"
+    /** The manifest asks for write but edits are off here: say so under the read question. */
+    writeUnavailable?: boolean
     /** A positioned pane to confine the dialog to; the rest of the page stays live. */
     container?: HTMLElement | null
-    /** Allow (true) or Don't allow (false). */
-    onAnswer: (allow: boolean) => void
+    /** The level chosen; Don't allow on the write question answers `read`. */
+    onAnswer: (level: AppAccess) => void
     /** Closed without an answer (Esc, ×): nothing is stored. */
     onCancel: () => void
 }
 
-/** "Let X read files in dir?" / "Let X change files in dir?" with Allow / Don't allow. */
+const QUESTION = {
+    read: {verb: "read", reason: "The app wants to read the files in this folder."},
+    write: {
+        verb: "change",
+        reason: "The app wants to create, change or delete files in this folder.",
+    },
+    "read-write": {verb: "read and change", reason: "This app needs to save your edits."},
+} as const
+
+/** "Let X read / change / read and change files in dir?" with the answers that fit. */
 export function AccessQuestion({
     open,
     appName,
     dir,
     need,
+    writeUnavailable = false,
     container,
     onAnswer,
     onCancel,
 }: AccessQuestionProps) {
+    const {verb, reason} = QUESTION[need]
     return (
         <AccessDialog open={open} container={container} onDismiss={onCancel} showCloseButton>
             <DialogHeader className="gap-1">
                 <DialogTitle className="pr-6 text-sm">
-                    Let {appName} {need === "read" ? "read" : "change"} files in{" "}
-                    <FolderCode dir={dir} />?
+                    Let {appName} {verb} files in <FolderCode dir={dir} />?
                 </DialogTitle>
                 <DialogDescription className="text-xs text-colorTextSecondary">
-                    {need === "read"
-                        ? "The app wants to read the files in this folder."
-                        : "The app wants to create, change or delete files in this folder."}
+                    {reason}
+                    {need === "read" && writeUnavailable
+                        ? " This app needs write access, but you can only read here."
+                        : null}
                 </DialogDescription>
             </DialogHeader>
 
             <p className="m-0 text-xs text-colorTextTertiary">{TRUST_NOTE}</p>
 
             <DialogFooter className="gap-2">
-                <Button variant="outline" size="sm" onClick={() => onAnswer(false)}>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onAnswer(need === "write" ? "read" : "none")}
+                >
                     Don't allow
                 </Button>
-                <Button size="sm" onClick={() => onAnswer(true)}>
-                    Allow
+                {need === "read-write" ? (
+                    <Button variant="outline" size="sm" onClick={() => onAnswer("read")}>
+                        Read only
+                    </Button>
+                ) : null}
+                <Button size="sm" onClick={() => onAnswer(need === "read" ? "read" : "read-write")}>
+                    {need === "read-write" ? "Allow read and write" : "Allow"}
                 </Button>
             </DialogFooter>
         </AccessDialog>

@@ -7,6 +7,8 @@ import {accessLabel, GrantSheet} from "./GrantSheet"
 import {defaultGrants, effectiveAccess, type HtmlAppEnv} from "./HtmlAppBody"
 
 export interface AppAccessMenu {
+    /** What the stored level lets the app do here; null when never answered. */
+    level: AppAccess | null
     /** The stored level as shown in the menu ("Read", "Not set", …). */
     label: string
     open: () => void
@@ -53,6 +55,7 @@ export function useAppAccessMenu({
     )
 
     return {
+        level,
         label: accessLabel(level),
         open: useCallback(() => setIsOpen(true), []),
         dialog:
