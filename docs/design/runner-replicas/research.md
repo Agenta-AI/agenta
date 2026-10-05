@@ -1425,3 +1425,143 @@ runner. Whether Daytona in practice counts proxy traffic is **unverified**; the 
 assumed the timer "resets on every turn's API activity"
 (`docs/design/agent-workflows/projects/warm-daytona-sessions/implementation-status.md:35-36`),
 and the SDK text contradicts that assumption for preview traffic.
+
+## 14. The send path, for routing a follow-up to the holder pod
+
+### 14.1 Who sends `/run` for a plain user message from the playground
+
+**The browser posts straight to the services `/invoke`. The api is not on that path.** The
+playground builds the request with `invocationUrl = \`${serviceUrl}/invoke\`` where
+`serviceUrl` is the workflow revision's stored `data.url` or is built from its `uri`
+(`web/packages/agenta-entities/src/workflow/state/runnableSetup.ts:240-260`). The chat hook hands
+`{api: req.invocationUrl, headers, body}` to the AI SDK transport
+(`web/packages/agenta-chat/src/hooks/useAgentConversation.ts:424-431`, `useChat` at `:519`). The
+body carries `session_id` and, for a shared stream, `flags: {detached: true}`
+(`web/packages/agenta-playground/src/state/execution/agentRequest.ts:445-449`). No non-generated
+browser code calls `POST /sessions/streams/` (grep of `web/packages/*/src` and `web/mobile/src`
+finds the route only in the generated Fern client,
+`web/packages/agenta-api-client/src/generated/api/resources/sessions/client/Client.ts:204`).
+
+On this path the services handler reads `turn_id` from `meta.run_id`, which the browser does not
+set, so the runner mints the turn id (`server.ts:257-259`). The runner's first heartbeat then
+takes `alive` from the previous turn through the handover branch (`streams/service.py:743-792`).
+The services handler also says so: "the playground posts a turn straight to this service, so
+`meta` is client input on the path the browser uses" (`sdks/python/agenta/sdk/agents/handler.py:540-546`).
+`_start_turn` is therefore not on the plain playground path. Its only callers are
+`SessionStreamsService.command` for `send` and `steer` (`streams/service.py:313`, `:328`), which
+the api route `POST /sessions/streams/` reaches (`router.py:537`) and which `channels/commands.py:181`
+uses only for cancel. Research 1.1 step 3 is corrected accordingly.
+
+**Continuation after an approval.** `respond_interactions` creates the continuation command, and
+delivery is `DirectControlDelivery.continue_interaction` → `interactions_dispatcher.respond_many`
+→ `invoke_workflow_detached(..., run_id=<continuation execution id>, control_command_id=...)`
+(`api/entrypoints/routers.py:1516-1527`; `interactions_dispatcher.py:461-480`). The api posts
+`{service_url}/invoke` with `meta.run_id`, `meta.project_id`, `meta.control_command_id`
+(`workflows/service.py:3315-3345`); `service_url` is the revision's `url` or
+`env.agenta.services_url` plus the path inferred from its `uri` (`:765-779`).
+
+**Queued input (`continue_input`).** Same hop: `routers.py:1527` wires `continue_input` to
+`invoke_workflow_detached`, and the queued-input start path calls it with
+`run_id=execution_id, strict_start=True` (`api/oss/src/core/sessions/starts/service.py:323-329`).
+Triggers, channel inbox and the queue workers also go through `invoke_workflow_detached`
+(`routers.py:1004`; `worker_queues.py:249,321,465`; `channels/inbox.py:1079`). None of these
+callers acquires `alive` first (grep for `_start_turn` and `acquire_alive` outside
+`streams/service.py` finds none in `starts/service.py`, `interactions_dispatcher.py`,
+`workflows/service.py`); the runner's first beat does.
+
+So there are two senders of `/invoke`: the browser (plain turn, approval resume from the
+playground) and the api (`invoke_workflow_detached`: continuations, queued inputs, triggers,
+channels). Both reach the same services handler and the same SDK transport.
+
+### 14.2 Where an address can ride
+
+**Api side.** `invoke_workflow_detached` is the only place the api stamps `meta`
+(`workflows/service.py:3317-3321`). A `runner_url` would be set there, next to `run_id`. It
+cannot be set on the browser path, because the api is not in it.
+
+**Services and SDK side.** `_meta_string(name)` reads `request.meta` (`handler.py:536-538`) and
+feeds `SessionConfig` (`:555-563`). The runner URL is fixed at backend construction:
+`SandboxAgentBackend(sandbox=..., url=runner_url(), cwd=...)` in `select_backend`
+(`services/oss/src/agent/app.py:86-92`), stored as `self._url`
+(`sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py:160-166`), and used by
+`_deliver_stream` → `deliver_http_stream(self._url, payload)` (`:228-229`). `select_backend` is
+called from the handler before the meta is read (`handler.py:436-438` versus `:555-563`), with
+only `agent_template` as input (`app.py:73-74`). A per-turn URL would need `select_backend` or
+the backend to receive it.
+
+**Trust.** On the browser path `meta` is client input (`handler.py:540-546`). The `/run` body
+carries plaintext provider credentials and bearer tokens (`server.ts:161-172`), so a client-supplied
+runner URL would let a caller redirect those to any host. The existing code refuses to read
+`meta.session_context` for the same reason (`handler.py:540-546`).
+
+**Transport fallback.** `deliver_http_stream` is one `httpx` streaming POST to
+`base_url + "/run"` with no retry and no second base URL (`ts_runner.py:189-213`). An HTTP status
+of 400 or more raises `RuntimeError` through `_transport_error` (`:197-203`, `:48-58`). A
+connection failure raises the `httpx` exception uncaught (no `try` around the `async with` at
+`:193-211`). A stream that ends without a `result` record raises `RuntimeError` (`:212-213`). The
+one-shot `deliver_http_result` is marked dev-only (`:60-66`). So a fallback to the Service URL
+on connection error does not exist today; it would be new code in this function or in the backend.
+
+**What the services layer already asks the api per turn.** `_bounded_session_context`
+(`handler.py:547-551`) runs `resolve_session_context`, which reads `GET /sessions/streams/`
+with `session_id` and `POST /sessions/turns/query` with `windowing: {limit: 1}`
+(`sdks/python/agenta/sdk/agents/platform/session_context.py:347-355`, under
+`_read_session_facts`). The second call returns a `session_turns` row, which already carries
+`turn_id` and `sandbox_id` (`turns/dbas.py:22,33`); the query's ordering is not specified there
+(`windowing: {limit: 1}` without `order`), so whether it returns the latest row is **unverified**.
+The call is bounded by a budget and every failure returns "no facts" (`:225-235`). This is the
+existing per-turn api read a `runner_url` could ride on, for both senders. The tool and
+connection resolution calls (`handler.py:447-470`) also reach the api, through other endpoints.
+
+### 14.3 Is the previous turn's id available at `_start_turn` time?
+
+**Reconciliation.** `_start_turn` refuses when `alive` is held (`streams/service.py:308-312`,
+`:1203-1213`), and `alive` outlives a turn for its 3600 second TTL (`:820-827`). Both are true.
+They do not conflict because `_start_turn` is not on the plain follow-up path (14.1). On the api
+send command, a plain `send` on a session whose previous turn ended within the hour is refused
+with 409 `SessionTurnInUse` (`router.py:296-303`); a `steer` (`force: true`) displaces and
+starts (`:326-339`). I did not find a client that uses `send` for a follow-up on a live session
+(unverified).
+
+**Plain follow-up from the playground.** The runner mints `T_new` and beats. In
+`_heartbeat_locked`, `refresh_alive(T_new)` fails because `alive == T_prev`;
+`acquire_alive_with_start` fails; the api reads `alive_owner = T_prev` and `running_owner =
+None`, releases `alive` for `T_prev`, tombstones `T_prev`, and acquires for `T_new`
+(`streams/service.py:731-792`, `alive_owner` at `:744-748`). So the api sees the previous turn
+id at the first beat, which is after the services layer has already posted `/run` to a runner.
+Before that beat, the api is not involved. The previous turn id is durable in two other places
+the api or the services layer can read before the invoke: `session_streams.turn_id` (the
+mirror written by the last beat, `streams/service.py:866`, `:883`, `:924`; column
+`streams/dbes.py:60`) and the latest `session_turns` row (`turns/dbas.py:22`). Redis `alive`
+also holds it for an hour.
+
+**First turn after a parked approval's continuation.** The parked turn `T_parked` holds `alive`
+with no `running` (research 13.3). The api creates the continuation execution with
+`parent_execution_id = T_parked` and the command with `expected_turn_id = T_parked`
+(`commands/service.py:797-822`), then invokes with `run_id = <continuation id>`. The runner's
+first beat for the continuation takes the same handover branch from `T_parked`. So on this path
+the api knows `T_parked` before the invoke: it is the command's `expected_turn_id`, the
+execution's `parent_execution_id`, the stream row's `turn_id`, and the `alive` owner.
+
+### 14.4 Liveness of the bound pod
+
+What exists today, in order of cost:
+
+- **No pod-level heartbeat.** Beats are per turn: `startAliveWatchdog` runs inside one `/run`
+  request and `release()` stops it at turn end (`alive.ts:298-407`; `server.ts:779`, `:1164`).
+  A parked or idle session beats nothing (`orphan_sweep.py:87-90`). The only pod-wide signals
+  are the graceful-shutdown `release_owner` beats (`alive.ts:467-484`) and `GET /health`, which
+  Kubernetes pulls (`runner-deployment.yaml:211-232`); nothing records `/health` results.
+- **The owner key TTL** (120 s) is refreshed only by beats of a running turn
+  (`streams/service.py:671-677`); it says nothing about an idle pod that holds a warm pool entry.
+  A `bound:` key with the same refresh rule would have the same limit.
+- **`session_streams.updated_at`** ages the same way; `_session_is_beating` reads it with a
+  two-interval window (`commands/service.py:1414-1427`).
+- **Fallback on connection error** does not exist in the transport (14.2). A pod that is gone
+  answers with a connection refusal or a DNS failure at the pod IP; a pod that is up but holds
+  nothing answers `/run` normally and takes the cold path (research 3.5), which is the behaviour
+  of the Service URL today.
+
+Nothing today tells the api whether a given pod is alive between turns. The durable facts it
+has are the last beat time and the owner or binding TTL, both of which stop moving when the turn
+ends.

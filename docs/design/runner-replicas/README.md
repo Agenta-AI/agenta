@@ -4,18 +4,18 @@ This folder holds the design for running the agent runner as two or more Kuberne
 answers GitHub issue [Agenta-AI/agenta#7322](https://github.com/Agenta-AI/agenta/issues/7322),
 "Runner cannot run two replicas".
 
-The design has two stages. Stage 1, the minimal design, makes two pods safe: each pod keeps the
-sandboxes it creates, and every control path reaches the right pod. Stage 2, design B, makes the
-pods interchangeable: any pod can adopt any sandbox. Both stages share five common changes.
-Design B is fully designed; the decision to build it comes at the end of stage 1, with measured
-data.
+The recommended design, the minimal design, makes two pods safe and keeps conversations warm:
+each pod keeps the sandboxes it creates, every control path reaches the right pod, and each
+follow-up goes to the pod that holds its conversation. A cold turn happens only when a pod dies,
+restarts, or is replaced by a deploy. Design B, which lets any pod adopt any sandbox, is fully
+designed but optional and not scheduled. Both share six common changes.
 
 ## Reading order
 
 | File | Read it to learn |
 | --- | --- |
 | [context.md](context.md) | Why the work exists, what a user sees today with one pod, what breaks with two pods, the goals and non-goals, and the constraints from earlier work. |
-| [plan.md](plan.md) | How the runner holds a session today, the five common changes, the minimal design, design B, the interface changes, what a user sees after each stage, the alternatives, the verification plan, the implementation order, and the four decisions. |
+| [plan.md](plan.md) | How the runner holds a session today, the six common changes, the minimal design, the interface changes, what a user sees after it ships, the alternatives, the optional design B, the verification plan, the implementation order, and the four decisions. |
 | [status.md](status.md) | Where the work stands, the open decisions as a checklist, and the history of the design. |
 | [research.md](research.md) | The verified map of the current code, with `path:line` citations. Other files cite it as "research.md section N". |
 | [github-context.md](github-context.md) | The related issues and pull requests, and what that history means for the design. |
@@ -89,7 +89,7 @@ defining them again.
 ### Turns and records
 
 - **turn**: one execution of one user message, from the prompt to the final reply, identified
-  by a `turn_id` that the api mints.
+  by a `turn_id`; the runner mints it for a browser message, the api for the messages it sends.
 - **session_turns row**: one Postgres row per turn, which records `turn_index`, `turn_id`,
   `sandbox_id`, and `agent_session_id`.
 - **durable session log**: the records that survive any pod: the Postgres session tables, the
@@ -100,6 +100,10 @@ defining them again.
   one turn run per session.
 - **turn binding**: a write-once Redis key, added by this design, that names the pod that runs
   a turn and that pod's address.
+- **holder pod**: the pod named in the binding of a session's last turn, which holds that
+  conversation's warm entry and its sandbox.
+- **fallback to the Service URL**: the one retry the services layer makes at the Service URL when
+  a post to the holder pod's address fails before the first byte of the answer.
 
 ### The per-pod cache
 

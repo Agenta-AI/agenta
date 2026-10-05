@@ -145,6 +145,11 @@ pending interactions that this pod does not hold (#7287). On pod B that set is e
 answered row must survive the step; it should, because its status is `responded`. A test must
 prove it.
 
+The api sends the continuation through the same services handler as a browser message
+(research.md section 14.1). "Send follow-ups to the holder pod" therefore sends it to pod A,
+which resumes the open prompt warm, as at one pod today. Only when pod A is gone does the
+continuation run cold on another pod, through the stored decision.
+
 ### Scenario 3: Ana's Stop reaches the other pod
 
 **Situation.** Ana's long turn runs on pod B. She presses Stop.
@@ -194,6 +199,13 @@ the labels `agenta.project` and `agenta.conversation`; a Daytona-path sandbox ca
 
 ## Goals
 
+**The warm requirement (Mahmoud, 2026-10-05).** Warm behaviour stays the same as today 99 percent
+of the time. A cold turn is acceptable only when a pod dies or restarts, a deploy included, and
+another pod continues the conversation. Everything keeps working on docker compose and on a
+one-pod self-hosted Helm install, and the local provider stays at one pod.
+
+The other goals:
+
 - The runner runs with two or more replicas on GKE. A pod move or a deploy does not stop new
   turns, because the other pod takes them.
 - A deploy or a node drain does not kill running turns. The leaving pod lets them finish first.
@@ -202,8 +214,10 @@ the labels `agenta.project` and `agenta.conversation`; a Daytona-path sandbox ca
 - No pod answers from a stale harness session, and no pod destroys or stops a sandbox that
   another pod uses.
 - One replica (compose, Railway, self-hosted Helm) keeps working with no setup change.
-- If design B ships as stage 2, a follow-up on another pod reuses the session's sandbox instead
-  of creating one. A restart then no longer costs each session a fresh sandbox.
+- A follow-up reaches the pod that holds its conversation while that pod lives, on either
+  sender's path: the browser's and the api's.
+- If design B ships, a follow-up on another pod reuses the session's sandbox instead of creating
+  one. A restart then no longer costs each session a fresh sandbox.
 
 ## Non-goals
 

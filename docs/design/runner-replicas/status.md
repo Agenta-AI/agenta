@@ -1,6 +1,7 @@
 # Status
 
-**State:** design revised 2026-10-05 after a second independent review. It awaits Mahmoud's four
+**State:** design revised 2026-10-05 for the warm requirement. It adds a sixth common change,
+"Send follow-ups to the holder pod", and makes design B optional. It awaits Mahmoud's four
 decisions. No code has changed.
 
 ## Decisions for Mahmoud
@@ -10,9 +11,10 @@ Each decision has its context, options, side effects, and recommendation in
 
 - [ ] Decision 1: route Stop by the turn's recorded pod address (recommended), or fan out to
       every pod. Heartbeat delivery is rejected.
-- [ ] Decision 2: ship stage 1, run the two spikes and the miss-cost measurement during it, and
-      decide on design B at its end (recommended); or commit to design B now; or add a routing
-      hint instead.
+- [ ] Decision 2: do we still want design B, and when? Not now, and revisit if the measured
+      restart cost hurts (recommended); or commit after the spikes; or never. An in-process-only
+      product direction, raised the same day and not decided, would shrink design B to
+      command-sandbox adoption.
 - [ ] Decision 3: at shutdown, drain, then cancel with a settled wait, then tear down
       (recommended), or keep today's shutdown.
 - [ ] Decision 4: hosted device login at two pods: move the attempt's state to the api if that
@@ -27,6 +29,11 @@ Each decision has its context, options, side effects, and recommendation in
   on every beat (research.md section 13.6).
 - Daytona's SDK documentation says preview traffic does not reset autostop, and the runner makes
   no SDK call during a turn (research.md section 13.9).
+- The browser posts a plain follow-up straight to the services layer, and the api is not on that
+  path. The services layer already reads `GET /sessions/streams/` from the api on every turn,
+  for both senders (research.md section 14).
+- Warm behaviour must stay as today 99 percent of the time, with a cold turn only when a pod dies,
+  restarts, or is replaced (Mahmoud, 2026-10-05).
 
 ## Disagreements between the brief and research.md or the code
 
@@ -36,10 +43,12 @@ The design follows research.md and the code on each point below. plan.md states 
    `started:<turn>` key. That key holds epoch milliseconds as a plain integer, and two readers
    parse it as a number (`locks.py:315-345`, `contract.py:277-283`). The binding is a sibling
    write-once key, `bound:<project>:session:<session>:turn:<turn>`.
-2. **Who writes the binding.** The brief had the first-beat acquire script write it. `_start_turn`
-   takes `alive` before any runner beats, so a normal first beat goes through `refresh_alive` and
-   never runs the acquire script (`streams/service.py:731`, `:1203`). The heartbeat handler writes
-   and checks the binding on every beat that names a turn.
+2. **Who writes the binding.** The brief had the first-beat acquire script write it. A normal
+   first beat never runs that script. On the browser path and on an api continuation, it takes
+   `alive` over from the previous turn through the handover branch (research.md section 14.3). On
+   the api's own send, `_start_turn` has already taken `alive`, and the beat goes through
+   `refresh_alive` (`streams/service.py:731`, `:1203`). The heartbeat handler writes and checks
+   the binding on every beat that names a turn.
 3. **Where the records-incomplete flag lives.** The brief named `session_streams.flags`. That
    field is a typed mirror of three Redis booleans that the api rebuilds on every beat and read
    (`streams/service.py:849-853, 977-994`), so a new value would be overwritten. The flag lives
@@ -106,3 +115,20 @@ The design follows research.md and the code on each point below. plan.md states 
     credential write on adoption, and takes stop-before-adopt as its baseline.
   - Decision 2 now recommends deciding on design B at the end of stage 1.
   - Four checks were added to the verification plan.
+- 2026-10-05: Mahmoud added the warm requirement: warm behaviour as today 99 percent of the time,
+  a cold turn only when a pod dies or restarts, and compose and one-pod Helm unchanged. The
+  minimal design as written sent half of all follow-ups cold at two pods, so it failed the
+  requirement. research.md section 14 mapped the send path. The design now:
+  - adds "Send follow-ups to the holder pod": the streams read returns the binding's address to
+    the services layer, and the SDK transport posts there, with one retry at the Service URL
+    before the first byte;
+  - returns `runner_address` only to a caller with the runner token, because browsers also call
+    the streams read and the pod IP is internal to the cluster;
+  - corrects the facts about the first beat: on the browser path the runner mints the turn id, and
+    the first beat takes `alive` over from the previous turn;
+  - makes design B optional, moves it after the alternatives, and rewrites decision 2;
+  - drops hash routing's one advantage from the trade-off table, and drops the routing hint from
+    the follow-ups.
+- 2026-10-05: the holder route also covers approval continuations and queued inputs, because the
+  api sends them through the same services handler (research.md section 14.1). An approval answer
+  now resumes warm on the parking pod while that pod lives.
