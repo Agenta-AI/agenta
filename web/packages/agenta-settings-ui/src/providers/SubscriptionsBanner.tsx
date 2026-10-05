@@ -24,8 +24,8 @@ const STATE_LABEL: Record<PlanState, string | null> = {
 const PlanTile = ({plan}: {plan: SubscriptionPlan}) => {
     const badge = STATE_LABEL[plan.state]
     return (
-        <div className="flex min-w-0 items-center gap-3 rounded-lg border border-solid border-border bg-background/70 p-3 backdrop-blur-sm">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-solid border-border bg-background shadow-xs [&_svg]:size-5">
+        <div className="flex min-w-0 items-center gap-3 rounded-lg border border-solid border-border bg-background/70 px-2.5 py-2 backdrop-blur-sm">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-solid border-border bg-background shadow-xs [&_svg]:size-[18px]">
                 {plan.logo}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -65,8 +65,8 @@ const PlanTile = ({plan}: {plan: SubscriptionPlan}) => {
 
 /** AI providers' lead: run agents on a plan the team already pays for, ahead of API keys. */
 export const SubscriptionsBanner = ({plans}: {plans: SubscriptionPlan[]}) => (
-    <section className="relative overflow-hidden rounded-xl border border-solid border-border bg-[radial-gradient(120%_140%_at_100%_0%,color-mix(in_srgb,var(--ag-colorPrimary)_12%,transparent),transparent_60%)] p-5">
-        <div className="flex flex-col gap-4">
+    <section className="relative overflow-hidden rounded-xl border border-solid border-border bg-[radial-gradient(120%_140%_at_100%_0%,color-mix(in_srgb,var(--ag-colorPrimary)_12%,transparent),transparent_60%)] p-4">
+        <div className="flex flex-col gap-3.5">
             <div className="flex flex-col gap-1">
                 <span className="flex items-center gap-1.5 text-[12px] font-medium text-colorPrimaryText">
                     <Sparkle size={13} weight="fill" />
@@ -79,7 +79,7 @@ export const SubscriptionsBanner = ({plans}: {plans: SubscriptionPlan[]}) => (
                     Sign in with a ChatGPT or Claude subscription instead of managing API keys.
                 </p>
             </div>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-3">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-2.5">
                 {plans.map((plan) => (
                     <PlanTile key={plan.key} plan={plan} />
                 ))}
