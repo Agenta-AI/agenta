@@ -6,14 +6,14 @@
  * harness that cannot reach this provider is shown disabled with the reason rather than hidden —
  * a missing row reads as a bug, a disabled one explains itself.
  *
- * Collapsed by default and always showing its value ("Harnesses · enabled in Pi"), so the card's
+ * Collapsed by default and always showing its value (the enabled harnesses' marks), so the card's
  * common path stays short without hiding what it decided.
  */
 import {useState} from "react"
 
 import {harnessSummary} from "@agenta/entities/secret"
 import {cn} from "@agenta/ui/styles"
-import {Checkbox} from "@agenta/ui/ui"
+import {Checkbox, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CaretDown, CaretUp} from "@phosphor-icons/react"
 
 import {harnessMarkFor} from "./harnessMark"
@@ -43,8 +43,9 @@ const HarnessesSection = ({
 }: HarnessesSectionProps) => {
     const [expanded, setExpanded] = useState(false)
 
+    const enabled = choices.filter((choice) => selected.includes(choice.id))
     const summary = harnessSummary(
-        choices.filter((choice) => selected.includes(choice.id)).map((choice) => choice.label),
+        enabled.map((choice) => choice.label),
         unrestricted,
     )
 
@@ -57,7 +58,33 @@ const HarnessesSection = ({
                 aria-expanded={expanded}
             >
                 <span className="font-medium text-colorText">Harnesses</span>
-                <span className="flex-1 text-colorTextSecondary">· {summary}</span>
+                {enabled.length ? (
+                    <TooltipProvider delayDuration={300}>
+                        <span className="flex flex-1 items-center gap-1" aria-label={summary}>
+                            {enabled.map((choice) => {
+                                const Mark = harnessMarkFor(choice.id)
+                                return (
+                                    <Tooltip key={choice.id}>
+                                        <TooltipTrigger asChild>
+                                            <span className="inline-flex">
+                                                {Mark ? (
+                                                    <Mark className="size-3.5 shrink-0" />
+                                                ) : (
+                                                    <span className="text-colorTextSecondary">
+                                                        {choice.label}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>{choice.label}</TooltipContent>
+                                    </Tooltip>
+                                )
+                            })}
+                        </span>
+                    </TooltipProvider>
+                ) : (
+                    <span className="flex-1 text-colorTextSecondary">· {summary}</span>
+                )}
                 {expanded ? (
                     <CaretUp size={14} className="text-colorTextTertiary" />
                 ) : (
