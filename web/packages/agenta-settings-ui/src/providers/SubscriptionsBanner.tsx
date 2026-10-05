@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
 import {Button, cn} from "@agenta/ui/ui"
-import {ArrowRight, ArrowSquareOut, Key} from "@phosphor-icons/react"
+import {ArrowRight, ArrowSquareOut} from "@phosphor-icons/react"
 
 type PlanState = "connected" | "attention" | "available"
 
@@ -99,10 +99,6 @@ export const SubscriptionsBanner = ({plans}: {plans: SubscriptionPlan[]}) => (
     <section className="rounded-2xl border border-solid border-border bg-background">
         <div className="grid grid-cols-1 items-center gap-2 p-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
             <div className="flex min-w-0 flex-col gap-1.5 px-2.5 py-1.5">
-                <span className="flex w-fit items-center gap-1.5 rounded-full border border-solid border-primary/35 bg-primary/10 px-2 py-px text-[11px] font-medium text-colorPrimaryText">
-                    <Key size={12} />
-                    No API key needed
-                </span>
                 <div className="flex flex-col gap-0.5">
                     <h2 className="m-0 text-[16px] font-semibold leading-6 tracking-[-0.01em] text-foreground">
                         Bring your own plan
