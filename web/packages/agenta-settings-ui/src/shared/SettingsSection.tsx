@@ -10,6 +10,7 @@ export const SettingsSection = ({
     title,
     description,
     danger = false,
+    framed = true,
     children,
     className,
     ...rest
@@ -18,6 +19,8 @@ export const SettingsSection = ({
     description?: ReactNode
     /** The red frame and heading of a section whose rows cannot be undone. */
     danger?: boolean
+    /** Off for content that draws its own surfaces, e.g. the theme cards. */
+    framed?: boolean
     children: ReactNode
 } & Omit<ComponentProps<"section">, "title">) => (
     <section className={cn("flex flex-col gap-3", className)} {...rest}>
@@ -34,16 +37,20 @@ export const SettingsSection = ({
                 <p className="m-0 text-[13px] text-muted-foreground">{description}</p>
             ) : null}
         </div>
-        <div
-            className={cn(
-                "flex flex-col divide-y divide-solid overflow-hidden rounded-[10px] border border-solid bg-background",
-                danger
-                    ? "border-colorErrorBorder divide-colorErrorBorder"
-                    : "border-border divide-border",
-            )}
-        >
-            {children}
-        </div>
+        {framed ? (
+            <div
+                className={cn(
+                    "flex flex-col divide-y divide-solid overflow-hidden rounded-[10px] border border-solid bg-background",
+                    danger
+                        ? "border-colorErrorBorder divide-colorErrorBorder"
+                        : "border-border divide-border",
+                )}
+            >
+                {children}
+            </div>
+        ) : (
+            children
+        )}
     </section>
 )
 

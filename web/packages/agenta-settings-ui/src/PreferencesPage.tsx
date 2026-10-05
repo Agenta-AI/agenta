@@ -119,11 +119,8 @@ export interface PreferencesPageProps {
  */
 export const PreferencesPage = ({theme, bindings = {}}: PreferencesPageProps) => (
     <div className="flex flex-col gap-8">
-        <SettingsSection title="Appearance">
-            <div className="flex flex-col gap-3 px-[18px] py-4">
-                <span className="font-medium text-foreground">Theme</span>
-                <ThemePicker {...theme} />
-            </div>
+        <SettingsSection title="Appearance" framed={false}>
+            <ThemePicker {...theme} />
         </SettingsSection>
 
         {PREFERENCE_SECTIONS.map((section) => {
