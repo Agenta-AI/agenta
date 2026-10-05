@@ -26,6 +26,7 @@ import {
 } from "../../src/server.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import type { KillSessionSandboxes } from "../../src/engines/sandbox_agent/kill-by-label.ts";
 import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
 import {
   liveExecutions,
@@ -86,13 +87,16 @@ const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
 async function listen(
   run: RunAgent,
   token: string | null = TEST_TOKEN,
+  // `/kill` lists sandboxes on Daytona when the loaded env enables it, so a test never lets it
+  // reach the real client.
+  killLabelledSandboxes: KillSessionSandboxes = async () => {},
 ): Promise<{ url: string; close: () => Promise<void> }> {
   // Force the configured token unconditionally (default TEST_TOKEN; `null` = leave the env
   // as the test set it, for the tokenless-boot case). A loaded dev env (`load-env` before
   // the suite) sets AGENTA_RUNNER_TOKEN=replace-me; a "set only if unset" guard would let
   // that leak in and 401 every AUTH request. afterEach restores the pre-suite value.
   if (token !== null) process.env[TOKEN_ENV] = token;
-  const server = createAgentServer(run);
+  const server = createAgentServer(run, killLabelledSandboxes);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   return {
@@ -329,6 +333,62 @@ describe("createAgentServer", () => {
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean };
       assert.equal(body.ok, true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill sweeps the session's labelled sandboxes with the request's scope, and only for a scoped request", async () => {
+    const swept: Array<{ projectId: string; sessionId: string }> = [];
+    const s = await listen(okRun, TEST_TOKEN, async (scope) => {
+      swept.push(scope);
+    });
+    try {
+      const unscoped = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1" }),
+      });
+      assert.equal(unscoped.status, 400);
+      assert.deepEqual(swept, []);
+
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: " sess-1 ", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(swept, [{ sessionId: "sess-1", projectId: "proj-1" }]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill drains the session's pool entry in every pool before it sweeps the labelled sandboxes", async () => {
+    const order: string[] = [];
+    vi.spyOn(SessionPool.prototype, "destroy").mockImplementation(
+      async (key: string, reason?: string) => {
+        // Yield so a sweep that did not wait for the drain would be recorded first.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        order.push(`drain:${key}:${reason}`);
+      },
+    );
+    const s = await listen(okRun, TEST_TOKEN, async () => {
+      order.push("sweep");
+    });
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(order, [
+        "drain:proj-1:sess-1:kill",
+        "drain:proj-1:sess-1:kill",
+        "drain:proj-1:sess-1:kill",
+        "sweep",
+      ]);
     } finally {
       await s.close();
     }

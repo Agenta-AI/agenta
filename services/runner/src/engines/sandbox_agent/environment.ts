@@ -155,6 +155,7 @@ import {
   routeSessionEventToActiveTurn,
 } from "./session-events.ts";
 import { buildSandboxProvider, daytonaNetworkFields } from "./provider.ts";
+import { sessionSandboxLabels } from "./sandbox-labels.ts";
 import { loadRunnerConfig, sandboxProviderTraits } from "../../config/runner-config.ts";
 import { readDaytonaSandboxResources } from "./daytona-provider.ts";
 import { sandboxUsageContext, startLeasedSandboxMeter } from "../../metering/sandbox-usage.ts";
@@ -800,7 +801,13 @@ async function acquireEnvironmentOnce(
             plan.credentials.modelEnvironment,
             plan.sandboxPermission,
             plan.credentials.daytonaSecretPlan,
-            inheritedLease ? { inheritedLease } : {},
+            {
+              ...(inheritedLease ? { inheritedLease } : {}),
+              sessionLabels: sessionSandboxLabels(
+                environment.projectScopeId,
+                sessionForMount,
+              ),
+            },
           ),
           signal,
           logger,

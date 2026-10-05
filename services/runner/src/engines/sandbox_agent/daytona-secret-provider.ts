@@ -110,6 +110,17 @@ function namesSandbox(requested: string, sandboxId: string): boolean {
   );
 }
 
+/**
+ * Whether this process holds a Secret allocation for the sandbox, in either id shape. Only the
+ * process that created a sandbox through the wrapper has one.
+ */
+export function holdsProcessLocalSecretAllocation(sandboxId: string): boolean {
+  for (const key of processLocalRegistry.keys()) {
+    if (namesSandbox(sandboxId, key)) return true;
+  }
+  return false;
+}
+
 function plansMatch(entry: RegistryEntry, createFingerprint: string): boolean {
   return entry.createFingerprint === createFingerprint;
 }

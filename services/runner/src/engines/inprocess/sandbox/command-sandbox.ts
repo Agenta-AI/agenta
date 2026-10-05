@@ -38,7 +38,6 @@ import { apiBase } from "../../../apiBase.ts";
 
 type Log = (message: string) => void;
 
-export const CONVERSATION_LABEL = "agenta.conversation";
 export const CREDENTIALS_LABEL = "agenta.credentials";
 
 export interface CommandSandboxSettings {

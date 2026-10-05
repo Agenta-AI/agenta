@@ -320,16 +320,23 @@ export function daytonaWithLifecycle(
       }
       throw new DaytonaReconnectTerminalError(sandboxId, state);
     },
-    async deleteSandbox(sandboxId: string): Promise<void> {
-      try {
-        const sandbox = await client.get(sandboxId);
-        await sandbox.delete();
-      } catch (error) {
-        if (isNotFound(error)) return;
-        throw error;
-      }
-    },
+    deleteSandbox: (sandboxId: string): Promise<void> =>
+      deleteDaytonaSandbox(client, sandboxId),
   };
+}
+
+/** Delete a sandbox by its raw id. A sandbox that is already gone is success. */
+export async function deleteDaytonaSandbox(
+  client: DaytonaClient,
+  sandboxId: string,
+): Promise<void> {
+  try {
+    const sandbox = await client.get(sandboxId);
+    await sandbox.delete();
+  } catch (error) {
+    if (isNotFound(error)) return;
+    throw error;
+  }
 }
 
 /** The vCPUs and GiB of memory Daytona reports for a sandbox, for metering what it really has. */

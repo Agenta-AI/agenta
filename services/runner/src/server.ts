@@ -146,6 +146,10 @@ import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
 import { applySandboxRouting } from "./engines/sandbox_agent/sandbox-routing.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
+import {
+  killSessionSandboxesByLabel,
+  type KillSessionSandboxes,
+} from "./engines/sandbox_agent/kill-by-label.ts";
 import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/turn-admission.ts";
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
@@ -1478,6 +1482,7 @@ export async function stopParkedApprovalSession(
 /** Build the HTTP request listener around a given engine runner (the testable seam). */
 export function createRequestListener(
   run: RunAgent,
+  killLabelledSandboxes: KillSessionSandboxes = killSessionSandboxesByLabel,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     try {
@@ -1552,6 +1557,9 @@ export function createRequestListener(
           5000,
           "kill",
         );
+        // The drain above reaches only what this pod holds. The labels reach the rest of the
+        // session's sandboxes, whichever pod created them.
+        await killLabelledSandboxes({ sessionId, projectId });
         return send(res, 200, { ok: true });
       }
 
@@ -1694,8 +1702,11 @@ export function createRequestListener(
 }
 
 /** Create the sidecar HTTP server. Defaults to the real engine dispatch; tests pass a fake. */
-export function createAgentServer(run: RunAgent = runAgent): Server {
-  return createServer(createRequestListener(run));
+export function createAgentServer(
+  run: RunAgent = runAgent,
+  killLabelledSandboxes?: KillSessionSandboxes,
+): Server {
+  return createServer(createRequestListener(run, killLabelledSandboxes));
 }
 
 /**
