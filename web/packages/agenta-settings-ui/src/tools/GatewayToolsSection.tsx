@@ -1,27 +1,30 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     fetchToolConnection,
     isConnectionActive,
     isConnectionValid,
-    toolCatalogDrawerOpenAtom,
     toolExecutionDrawerAtom,
+    toolIntegrationsSearchAtom,
+    useToolCatalogIntegrations,
     useToolConnectionActions,
     useToolConnectionsQuery,
     useToolIntegrationDetail,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
-import {CatalogDrawer, ConnectDrawer, ToolExecutionDrawer} from "@agenta/entity-ui/gatewayTool"
+import {ConnectDrawer, ToolExecutionDrawer} from "@agenta/entity-ui/gatewayTool"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
+import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {ScrollSentinel} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {InitialsAvatar} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
-    ArrowRight,
     MagnifyingGlass,
     Play,
     Plugs,
+    Plus,
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
@@ -47,7 +50,6 @@ const AUTH_SCHEME_LABELS: Record<string, string> = {
 export interface GatewayToolsSectionCopy {
     run: string
     searchPlaceholder: string
-    browseAll: string
     emptyTitle: string
     emptyBody: string
     noMatch: (term: string) => string
@@ -56,7 +58,6 @@ export interface GatewayToolsSectionCopy {
 const DEFAULT_COPY: GatewayToolsSectionCopy = {
     run: "Run tool",
     searchPlaceholder: "Search tools",
-    browseAll: "Browse all tools",
     emptyTitle: "No tools connected yet",
     emptyBody: "Connect a tool to let your agents call it.",
     noMatch: (term) => `No tools match “${term}”`,
@@ -114,10 +115,38 @@ const ConnectionDescription = ({
     return <>{[entry?.name ?? integrationKey, auth].filter(Boolean).join(" · ")}</>
 }
 
+/** The connect flow for an integration already connected, once its catalog entry resolves. */
+const AnotherConnection = ({
+    integrationKey,
+    known,
+    onClose,
+    onSuccess,
+}: {
+    integrationKey: string
+    known?: CatalogIntegrationItem
+    onClose: () => void
+    onSuccess: () => void
+}) => {
+    const entry = useCatalogEntry(integrationKey, known)
+    if (!entry) return null
+    return (
+        <ConnectDrawer
+            open
+            integrationKey={entry.key}
+            integrationName={entry.name}
+            integrationLogo={entry.logo ?? undefined}
+            integrationDescription={entry.description ?? undefined}
+            authSchemes={entry.auth_schemes ?? []}
+            onClose={onClose}
+            onSuccess={onSuccess}
+        />
+    )
+}
+
 export interface GatewayToolsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
     confirm?: ConfirmDestructive
-    /** Hides connect/run and skips the catalog drawer, whose schema form is still antd-backed. */
+    /** Hides connect, run and the Available catalog: the connect form is still antd-backed. */
     readOnly?: boolean
     /** Overrides the nouns; defaults to the "tool" wording oss/ee use. */
     copy?: Partial<GatewayToolsSectionCopy>
@@ -137,10 +166,20 @@ export default function GatewayToolsSection({
         useToolConnectionActions()
     // The catalog's first page: the logos, and the Popular rows.
     const {integrations, isLoading: integrationsLoading} = useToolsIntegrations()
-    const setCatalogOpen = useSetAtom(toolCatalogDrawerOpenAtom)
     const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
-    const [searchTerm, setSearchTerm] = useState("")
+    // One search for the page: it filters the connected rows here and the catalog on the server.
+    const setServerSearch = useSetAtom(toolIntegrationsSearchAtom)
+    const search = useDebouncedAtomSearch(
+        useCallback((value: string) => setServerSearch(value.trim()), [setServerSearch]),
+    )
+    const searchTerm = search.value
+    // The search atom is module-level; leaving the page must not leave the catalog filtered.
+    useEffect(() => () => setServerSearch(""), [setServerSearch])
+    // The whole catalog, a page at a time as the reader scrolls.
+    const available = useToolCatalogIntegrations()
     const [connectTarget, setConnectTarget] = useState<CatalogIntegrationItem | null>(null)
+    // A second connection to an integration already connected, e.g. another account.
+    const [anotherKey, setAnotherKey] = useState<string | null>(null)
 
     const openExecution = useCallback(
         (record: ToolConnection) => {
@@ -264,20 +303,6 @@ export default function GatewayToolsSection({
         [confirm, handleRevoke],
     )
 
-    const browseAll = useMemo(
-        () => (
-            <Button
-                variant="ghost"
-                className="text-muted-foreground"
-                onClick={() => setCatalogOpen(true)}
-            >
-                {copy.browseAll}
-                <ArrowRight data-icon="inline-end" />
-            </Button>
-        ),
-        [copy.browseAll, setCatalogOpen],
-    )
-
     const term = searchTerm.trim().toLowerCase()
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
         const matches = (texts: (string | null | undefined)[]) =>
@@ -339,6 +364,14 @@ export default function GatewayToolsSection({
                                         hidden: !confirm,
                                         onClick: () => confirmRevoke(connection),
                                     },
+                                    {
+                                        key: "another",
+                                        hidden: readOnly,
+                                        label: "Add another connection",
+                                        icon: <Plus size={14} />,
+                                        onClick: () =>
+                                            setAnotherKey(connection.integration_key ?? null),
+                                    },
                                     {type: "divider"},
                                     {
                                         key: "delete",
@@ -358,11 +391,13 @@ export default function GatewayToolsSection({
         if (readOnly) return [{key: "connected", label: "Connected", items: connected}]
 
         const connectedKeys = new Set((connections ?? []).map((c) => c.integration_key))
-        const popular = integrations
+        // The server searches from three characters; below that, narrow what has loaded.
+        const serverSearched = term.length >= 3
+        const rows = available.integrations
             .filter(
                 (integration) =>
                     !connectedKeys.has(integration.key) &&
-                    matches([integration.name, integration.description]),
+                    (serverSearched || matches([integration.name, integration.description])),
             )
             .map(
                 (integration): SettingsCatalogItem => ({
@@ -375,24 +410,35 @@ export default function GatewayToolsSection({
                     onOpen: () => setConnectTarget(integration),
                 }),
             )
+        const fetching = available.isLoading || available.isFetchingNextPage
 
         return [
             {key: "connected", label: "Connected", items: connected},
             {
-                key: "popular",
-                label: "Popular",
-                items: popular,
-                // The drawer holds the full catalog, its server search, and a second connection
-                // to an integration already connected.
-                footer:
-                    term && popular.length === 0 ? undefined : (
-                        <div className="-ml-2.5 flex">{browseAll}</div>
-                    ),
+                key: "available",
+                label: "Available",
+                items: rows,
+                // Rows load a page at a time, so a count of what has loaded would mislead.
+                count: null,
+                pendingRows: fetching ? 4 : 0,
+                // Only while more pages exist: a footer keeps an empty group on screen.
+                footer: available.hasNextPage ? (
+                    <ScrollSentinel
+                        onVisible={available.requestMore}
+                        hasMore
+                        isFetching={fetching}
+                    />
+                ) : undefined,
             },
         ]
     }, [
         term,
         integrations,
+        available.integrations,
+        available.isLoading,
+        available.isFetchingNextPage,
+        available.hasNextPage,
+        available.requestMore,
         connections,
         readOnly,
         copy,
@@ -401,7 +447,6 @@ export default function GatewayToolsSection({
         onRefresh,
         confirmRevoke,
         confirmDelete,
-        browseAll,
     ])
 
     return (
@@ -410,7 +455,7 @@ export default function GatewayToolsSection({
                 <SettingsCatalog
                     search={{
                         value: searchTerm,
-                        onChange: setSearchTerm,
+                        onChange: search.onChange,
                         placeholder: copy.searchPlaceholder,
                     }}
                     groups={groups}
@@ -421,12 +466,9 @@ export default function GatewayToolsSection({
                                 icon={<MagnifyingGlass size={18} />}
                                 title={copy.noMatch(searchTerm.trim())}
                                 action={
-                                    <div className="flex items-center gap-2">
-                                        <Button variant="outline" onClick={() => setSearchTerm("")}>
-                                            Clear search
-                                        </Button>
-                                        {readOnly ? null : browseAll}
-                                    </div>
+                                    <Button variant="outline" onClick={() => search.onChange("")}>
+                                        Clear search
+                                    </Button>
                                 }
                             />
                         ) : (
@@ -440,7 +482,14 @@ export default function GatewayToolsSection({
                 />
             </section>
 
-            {readOnly ? null : <CatalogDrawer onConnectionCreated={refetch} />}
+            {readOnly || !anotherKey ? null : (
+                <AnotherConnection
+                    integrationKey={anotherKey}
+                    known={integrations.find((integration) => integration.key === anotherKey)}
+                    onClose={() => setAnotherKey(null)}
+                    onSuccess={refetch}
+                />
+            )}
             {readOnly ? null : <ToolExecutionDrawer />}
             {readOnly || !connectTarget ? null : (
                 <ConnectDrawer

@@ -41,7 +41,6 @@ export const withMobileSettingsLabels = <T extends {key: SettingsTabKey; title: 
 export const INTEGRATIONS_SECTION_COPY = {
     run: "Run action",
     searchPlaceholder: "Search integrations",
-    browseAll: "Browse all integrations",
     emptyTitle: "No integrations connected yet",
     emptyBody: "Connect an integration to let your agents call it.",
     noMatch: (term: string) => `No integrations match “${term}”`,

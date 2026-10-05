@@ -30,7 +30,11 @@ export interface SettingsCatalogGroup {
     key: string
     label: string
     items: SettingsCatalogItem[]
-    /** Drawn under the group's rows, e.g. "Browse all integrations". */
+    /** The count beside the label. Defaults to the rows shown; `null` hides it. */
+    count?: number | null
+    /** Skeleton rows drawn after the real ones while more load, e.g. the next page. */
+    pendingRows?: number
+    /** Drawn under the group's rows, e.g. an infinite-scroll sentinel. */
     footer?: ReactNode
 }
 
@@ -108,6 +112,28 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
     )
 }
 
+/** A row's shape while it loads: the tile, the name, the subtitle. */
+const SkeletonRow = () => (
+    <div className="flex items-center gap-3.5 py-2.5" aria-hidden>
+        <SkeletonBlock active className="size-8 shrink-0 rounded-lg" />
+        <div className="flex flex-1 flex-col gap-1.5">
+            <SkeletonBlock active className="h-4 w-1/3 rounded" />
+            <SkeletonBlock active className="h-3.5 w-2/3 rounded" />
+        </div>
+    </div>
+)
+
+const skeletonRows = (count: number) =>
+    Array.from({length: count}, (_, index) => <SkeletonRow key={`skeleton-${index}`} />)
+
+/** A group's heading while it loads, the label's width roughly. */
+const SkeletonGroup = ({rows}: {rows: number}) => (
+    <section className="flex flex-col gap-3" aria-hidden>
+        <SkeletonBlock active className="h-[18px] w-24 rounded" />
+        <div className={ROW_GRID}>{skeletonRows(rows)}</div>
+    </section>
+)
+
 /**
  * A Settings page that is a catalog of things to connect: AI providers, integrations, channels.
  *
@@ -130,7 +156,9 @@ export const SettingsCatalog = ({
     /** Drawn between the search and the groups: a load error, a failed removal. */
     notice?: ReactNode
 }) => {
-    const shown = groups.filter((group) => group.items.length > 0 || group.footer)
+    const shown = groups.filter(
+        (group) => group.items.length > 0 || group.pendingRows || group.footer,
+    )
     return (
         // The search sits close to what it filters; groups keep their wider gap between them.
         <div className="flex flex-col gap-5">
@@ -149,20 +177,11 @@ export const SettingsCatalog = ({
             ) : null}
 
             {loading ? (
-                <section className="flex flex-col gap-3" aria-hidden>
-                    <SkeletonBlock active className="h-[18px] w-24 rounded" />
-                    <div className={ROW_GRID}>
-                        {[0, 1, 2, 3].map((index) => (
-                            <div key={index} className="flex items-center gap-3.5 py-2.5">
-                                <SkeletonBlock active className="size-8 shrink-0 rounded-lg" />
-                                <div className="flex flex-1 flex-col gap-1.5">
-                                    <SkeletonBlock active className="h-4 w-1/3 rounded" />
-                                    <SkeletonBlock active className="h-3.5 w-2/3 rounded" />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
+                // The page's own shape: what is connected, then what is available.
+                <div className="flex flex-col gap-8">
+                    <SkeletonGroup rows={4} />
+                    <SkeletonGroup rows={6} />
+                </div>
             ) : shown.length === 0 ? (
                 empty
             ) : (
@@ -173,15 +192,18 @@ export const SettingsCatalog = ({
                                 <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
                                     {group.label}
                                 </h2>
-                                <span className="text-[13px] text-muted-foreground/60">
-                                    {group.items.length}
-                                </span>
+                                {group.count === null ? null : (
+                                    <span className="text-[13px] text-muted-foreground/60">
+                                        {group.count ?? group.items.length}
+                                    </span>
+                                )}
                             </div>
-                            {group.items.length ? (
+                            {group.items.length || group.pendingRows ? (
                                 <div className={ROW_GRID}>
                                     {group.items.map((item) => (
                                         <CatalogRow key={item.key} item={item} />
                                     ))}
+                                    {skeletonRows(group.pendingRows ?? 0)}
                                 </div>
                             ) : null}
                             {group.footer}
