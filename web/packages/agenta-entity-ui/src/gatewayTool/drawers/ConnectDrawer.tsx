@@ -240,11 +240,7 @@ export default function ConnectDrawer({
 
                 {/* Form (explicitly controlled — no antd Form) */}
                 <div className="flex flex-col gap-4">
-                    <Field
-                        label="Name"
-                        description="How this connection is listed."
-                        error={nameError}
-                    >
+                    <Field label="Name" error={nameError}>
                         <Input
                             autoFocus
                             placeholder={`e.g. My ${integrationName} Account`}
