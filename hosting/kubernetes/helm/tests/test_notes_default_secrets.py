@@ -84,7 +84,9 @@ def render_notes(extra_args: list[str]) -> str:
     return result.stdout
 
 
-def check(name: str, extra_args: list[str], *, expect_banner: bool, expect: str = "") -> bool:
+def check(
+    name: str, extra_args: list[str], *, expect_banner: bool, expect: str = ""
+) -> bool:
     notes = render_notes(extra_args)
     shown = BANNER in notes
     if shown != expect_banner:
