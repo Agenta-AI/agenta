@@ -4,6 +4,7 @@ import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Alert, Button} from "@agenta/ui/ui"
 import {Key, Plus, Trash} from "@phosphor-icons/react"
 
+import {SettingsPageActions} from "./SettingsPageShell"
 import {SettingsEmpty} from "./shared/SettingsEmpty"
 import {SettingsRowMenu} from "./shared/SettingsRowMenu"
 import {SettingsToolbar} from "./shared/SettingsToolbar"
@@ -74,11 +75,11 @@ export const ApiKeysPage = ({
 
     return (
         <section className="flex flex-col">
+            <SettingsPageActions>{generate}</SettingsPageActions>
             <SettingsToolbar
                 onReload={onReload}
                 reloading={listing}
                 reloadLabel="Reload API keys"
-                actions={generate}
             />
             <ListTable<ApiKeyRow>
                 columns={COLUMNS}

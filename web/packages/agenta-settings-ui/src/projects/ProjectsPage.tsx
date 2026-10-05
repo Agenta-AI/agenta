@@ -16,6 +16,7 @@ import {
 } from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
+import {SettingsPageActions} from "../SettingsPageShell"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
@@ -203,13 +204,13 @@ export const ProjectsPage = ({
 
     return (
         <section className="flex flex-col">
+            <SettingsPageActions>{newProject}</SettingsPageActions>
             <SettingsToolbar
                 search={{
                     placeholder: "Search projects",
                     value: searchTerm,
                     onChange: setSearchTerm,
                 }}
-                actions={newProject}
             />
             <ListTable<ProjectRow>
                 columns={COLUMNS}

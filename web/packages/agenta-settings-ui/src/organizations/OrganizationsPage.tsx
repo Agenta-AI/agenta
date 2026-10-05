@@ -14,6 +14,7 @@ import {
     Trash,
 } from "@phosphor-icons/react"
 
+import {SettingsPageActions} from "../SettingsPageShell"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
@@ -93,13 +94,13 @@ export const OrganizationsPage = ({
 
     return (
         <div className="flex flex-col">
+            <SettingsPageActions>{createButton()}</SettingsPageActions>
             <SettingsToolbar
                 search={{
                     placeholder: "Search organizations",
                     value: searchTerm,
                     onChange: onSearchChange,
                 }}
-                actions={createButton()}
             />
             <ListTable<OrgRow>
                 columns={COLUMNS}

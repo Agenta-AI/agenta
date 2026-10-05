@@ -23,6 +23,7 @@ import {
 } from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 
+import {SettingsPageActions} from "../SettingsPageShell"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
@@ -184,6 +185,7 @@ export const WebhooksPage = ({
 
     return (
         <section className="flex flex-col">
+            <SettingsPageActions>{subscribe}</SettingsPageActions>
             <SettingsToolbar
                 search={{
                     placeholder: "Search webhooks",
@@ -193,7 +195,6 @@ export const WebhooksPage = ({
                 onReload={reloadAll}
                 reloading={reloading}
                 reloadLabel="Reload all webhooks"
-                actions={subscribe}
             />
             <ListTable<WebhookRow>
                 columns={COLUMNS}

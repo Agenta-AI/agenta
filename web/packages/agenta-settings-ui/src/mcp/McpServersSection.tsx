@@ -47,9 +47,9 @@ import {
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
+import {SettingsPageActions} from "../SettingsPageShell"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
-import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 /** Nouns for the rows; a host that calls them something else passes its own. */
 export interface McpServersSectionCopy {
@@ -267,7 +267,7 @@ export default function McpServersSection({
     return (
         <div className="flex flex-col">
             {/* The empty state carries the one button, so no screen offers the same action twice. */}
-            {readOnly || empty ? null : <SettingsToolbar actions={connect} />}
+            {readOnly || empty ? null : <SettingsPageActions>{connect}</SettingsPageActions>}
 
             <ListTable<MCPEndpoint>
                 columns={columns}

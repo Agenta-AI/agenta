@@ -8,6 +8,7 @@ import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button, IconTile} from "@agenta/ui/ui"
 import {LockKey, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
+import {SettingsPageActions} from "../SettingsPageShell"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
@@ -88,11 +89,11 @@ export const NamedSecretTable = ({
     return (
         <>
             <section className="flex flex-col">
+                <SettingsPageActions>{create}</SettingsPageActions>
                 <SettingsToolbar
                     onReload={mutate}
                     reloading={loading}
                     reloadLabel="Reload secrets"
-                    actions={create}
                 />
                 <ListTable<SecretRow>
                     className="ph-no-capture"
