@@ -26,13 +26,11 @@ export interface OverviewContext {
     rangeLabel: string
     agentName: (id: string) => string
     agentCost: KeyedSeries
-    /** Model and tool calls cannot be narrowed, so call-level facts hide under a filter. */
-    filtered: boolean
     emptyText: (what: string) => {text: string; onClear?: () => void}
     onExplore: (metric: AnalyticsMetric, bucket: number | null) => void
 }
 
-/** The two keys with the most of `series` in one bucket, as tooltip rows. */
+/** The two keys with the most of `series` in one bucket, plus "Other" for the rest of `total`. */
 const topRows = (
     series: KeyedSeries,
     index: number,
@@ -40,19 +38,28 @@ const topRows = (
     name: (key: string) => string,
     format: (value: number) => string,
     color: string,
-): TooltipRow[] =>
-    Object.keys(series)
+): TooltipRow[] => {
+    const top = Object.keys(series)
         .map((key) => ({key, value: series[key][index] ?? 0}))
         .filter((row) => row.value > 0)
         .sort((a, b) => b.value - a.value)
         .slice(0, 2)
-        .map((row, i) => ({
-            color,
-            label: name(row.key),
-            value: format(row.value),
-            share: sharePercent(row.value, total),
-            ...(i ? {color: `color-mix(in srgb, ${color} 55%, transparent)`} : {}),
-        }))
+    const rows: TooltipRow[] = top.map((row, i) => ({
+        color: i ? `color-mix(in srgb, ${color} 55%, transparent)` : color,
+        label: name(row.key),
+        value: format(row.value),
+        share: sharePercent(row.value, total),
+    }))
+    const rest = total - sum(top.map((row) => row.value))
+    if (top.length && rest > total * 0.005)
+        rows.push({
+            color: analyticsColor("other"),
+            label: "Other",
+            value: format(rest),
+            share: sharePercent(rest, total),
+        })
+    return rows
+}
 
 const useHover = () => useState<number | null>(null)
 
@@ -278,10 +285,13 @@ export const TokensCard = ({ctx}: {ctx: OverviewContext}) => {
         if (TOKEN_TYPES.every((t) => next[t.key])) return
         setHidden(next)
     }
-    const topCallModel = (i: number) =>
-        ctx.data.callModelOrder
-            .map((key) => ({key, value: ctx.data.callModels[key][i]}))
-            .sort((a, b) => b.value - a.value)[0]?.key ?? "—"
+    // The configured model with the most runs in the bucket; filters narrow it like every card.
+    const topModel = (i: number) => {
+        const top = ctx.data.modelOrder
+            .map((key) => ({key, value: ctx.data.modelRuns[key][i] ?? 0}))
+            .sort((a, b) => b.value - a.value)[0]
+        return top?.value ? top.key : "—"
+    }
     return (
         <AnalyticsCard
             title="Tokens by type"
@@ -318,7 +328,7 @@ export const TokensCard = ({ctx}: {ctx: OverviewContext}) => {
                                 value: formatMetric("tokens", s.values[i]),
                                 share: sharePercent(s.values[i] ?? 0, shown(i)),
                             }))}
-                        facts={ctx.filtered ? [] : [{label: "Top model", value: topCallModel(i)}]}
+                        facts={[{label: "Most used model", value: topModel(i)}]}
                     />
                 )}
             />

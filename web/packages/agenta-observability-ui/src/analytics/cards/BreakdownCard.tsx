@@ -41,7 +41,7 @@ export interface BreakdownCardProps {
     fullLabels: string[]
     rangeLabel: string
     keyLabel: (key: string) => string
-    /** Runs for agents; model and tool rows count calls. */
+    /** Runs for agents and configured models; tool rows count calls. */
     countWord: "runs" | "calls"
     note?: string
     empty: {text: string; onClear?: () => void} | null
@@ -114,7 +114,7 @@ export const BreakdownCard = ({
         setHidden(next)
     }
     const exploreMetric: AnalyticsMetric =
-        metric === "runs" ? (dim === "agent" ? "runs" : "tools") : metric
+        metric === "runs" ? (dim === "tool" ? "tools" : "runs") : metric
 
     return (
         <AnalyticsCard

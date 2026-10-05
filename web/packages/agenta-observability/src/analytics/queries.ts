@@ -21,15 +21,11 @@ export const PATH = {
     agentWorkflow: "attributes.ag.references.workflow.id",
     model: "attributes.ag.data.parameters.agent.llm.model",
     provider: "attributes.ag.data.parameters.agent.llm.provider",
-    callModel: "attributes.ag.meta.request.model",
-    callCost: "attributes.ag.metrics.costs.incremental.total",
-    callTokens: "attributes.ag.metrics.tokens.incremental.total",
     tool: "attributes.ag.meta.tool.name",
 } as const
 
 const MODEL_KEY = "ag.data.parameters.agent.llm.model"
 const PROVIDER_KEY = "ag.data.parameters.agent.llm.provider"
-const CALL_MODEL_KEY = "ag.meta.request.model"
 
 export type Condition = Record<string, unknown>
 
@@ -87,20 +83,14 @@ export const ANALYTICS_QUERIES = {
     models: {focus: "trace", runLevel: true, where: [], specs: [cat(PATH.model)]},
     modelsFailed: {focus: "trace", runLevel: true, where: [FAILED], specs: [cat(PATH.model)]},
     providers: {focus: "trace", runLevel: true, where: [], specs: [cat(PATH.provider)]},
-    calls: {
-        focus: "span",
-        runLevel: false,
-        where: [spanType("chat")],
-        specs: [cat(PATH.callModel), num(PATH.callCost), num(PATH.callTokens)],
-    },
     tools: {focus: "span", runLevel: false, where: [spanType("tool")], specs: [cat(PATH.tool)]},
 } satisfies Record<string, QueryDef>
 
 export type AnalyticsQueryName = keyof typeof ANALYTICS_QUERIES
 
-/** Narrows a query to one key: an agent, a configured model or its provider, or a called model. */
+/** Narrows a query to one key: an agent, a configured model, or its provider. */
 export interface AnalyticsFocus {
-    dim: "agent" | "model" | "provider" | "callModel"
+    dim: "agent" | "model" | "provider"
     key: string
 }
 
@@ -116,7 +106,7 @@ export const filterConditions = (filters: AnalyticsFilters): Condition[] => {
     return out
 }
 
-const FOCUS_KEY = {model: MODEL_KEY, provider: PROVIDER_KEY, callModel: CALL_MODEL_KEY}
+const FOCUS_KEY = {model: MODEL_KEY, provider: PROVIDER_KEY}
 
 export const focusCondition = (focus: AnalyticsFocus): Condition =>
     focus.dim === "agent"

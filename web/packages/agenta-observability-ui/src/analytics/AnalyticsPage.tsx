@@ -46,9 +46,8 @@ export interface AnalyticsPageProps {
     onOpenTrace?: (traceId: string) => void
 }
 
-const SPLIT_KEYS = 10
-
-const CALLS_NOTE = "Not narrowed by the filters: model calls do not record their agent yet."
+// Without a group-by, cost and tokens per key cost one request each, so splits stop here.
+const SPLIT_KEYS = 25
 
 export const AnalyticsPage = ({
     retention,
@@ -88,18 +87,18 @@ export const AnalyticsPage = ({
     }, [range, retention, setRange])
 
     const data = useAnalyticsWindowData(window, filters)
-    // Without a group-by, cost and tokens per agent cost one request each: the top 10 by runs.
+    // Every agent up to the cap, so a costly agent with few runs is not lost to "Other".
     const agentSplit = useAnalyticsSplit(
         "agent",
         data.agentOrder.slice(0, SPLIT_KEYS),
         window,
         filters,
     )
-    const callSplit = useAnalyticsSplit(
-        "callModel",
-        data.callModelOrder.slice(0, SPLIT_KEYS),
+    const modelSplit = useAnalyticsSplit(
+        "model",
+        data.modelOrder.slice(0, SPLIT_KEYS),
         window,
-        EMPTY_FILTERS,
+        filters,
         modelMetric !== "runs",
     )
 
@@ -141,7 +140,6 @@ export const AnalyticsPage = ({
         rangeLabel,
         agentName,
         agentCost: agentSplit.cost,
-        filtered,
         emptyText,
         onExplore,
     }
@@ -186,18 +184,22 @@ export const AnalyticsPage = ({
         },
     }[agentMetric]
     const modelSource = {
-        runs: {series: data.callModels, status: data.status.calls},
+        runs: {
+            series: data.modelRuns,
+            total: data.overview.points.map((p) => p.runs),
+            status: data.status.models,
+        },
         cost: {
-            series: callSplit.cost,
-            keyCount: data.callModelOrder.length,
-            total: data.callCost,
-            status: callSplit.status,
+            series: modelSplit.cost,
+            keyCount: data.modelOrder.length,
+            total: data.overview.points.map((p) => p.cost),
+            status: modelSplit.status,
         },
         tokens: {
-            series: callSplit.tokens,
-            keyCount: data.callModelOrder.length,
-            total: data.callTokens,
-            status: callSplit.status,
+            series: modelSplit.tokens,
+            keyCount: data.modelOrder.length,
+            total: data.overview.points.map((p) => p.tokens),
+            status: modelSplit.status,
         },
     }[modelMetric]
     const breakdownProps = {labels, fullLabels, rangeLabel}
@@ -252,13 +254,13 @@ export const AnalyticsPage = ({
                 agentName={agentName}
                 rangeLabel={rangeLabel}
                 emptyText={emptyText}
-                onSelectAgent={(id) =>
+                onSelectAgent={(id, failedOnly) =>
                     openDrawer({
                         bucket: null,
                         metric: "runs",
                         dim: "model",
                         focus: {dim: "agent", key: id} satisfies AnalyticsFocus,
-                        failedOnly: true,
+                        failedOnly,
                     })
                 }
             />
@@ -282,12 +284,9 @@ export const AnalyticsPage = ({
                 onMetricChange={setModelMetric}
                 source={modelSource}
                 keyLabel={(key) => key}
-                countWord="calls"
-                note={filtered ? CALLS_NOTE : undefined}
-                empty={{text: `No model calls in the ${rangeLabel.toLowerCase()}`}}
-                onExplore={(metric, bucket) =>
-                    onExplore(metric === "tools" ? "runs" : metric, bucket, "model")
-                }
+                countWord="runs"
+                empty={emptyText("runs")}
+                onExplore={(metric, bucket) => onExplore(metric, bucket, "model")}
             />
             <AnalyticsDrawer agentName={agentName} onOpenTrace={onOpenTrace} />
         </div>

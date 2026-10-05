@@ -75,7 +75,6 @@ export const analyticsSplitAtomFamily = atomFamily(
     (key: AnalyticsSplitKey) =>
         atomWithQuery((get) => {
             const projectId = get(projectIdAtom)
-            const name: AnalyticsQueryName = key.dim === "callModel" ? "calls" : "overview"
             return {
                 queryKey: ["analytics", "split", projectId, key],
                 queryFn: async ({signal}) => {
@@ -86,7 +85,7 @@ export const analyticsSplitAtomFamily = atomFamily(
                                     k,
                                     await fetchAnalyticsBuckets({
                                         projectId: projectId as string,
-                                        name,
+                                        name: "overview",
                                         window: key.window,
                                         filters: key.filters,
                                         focus: {dim: key.dim, key: k},

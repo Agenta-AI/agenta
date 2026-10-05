@@ -62,8 +62,7 @@ export const useAnalyticsWindowData = (
     const agentsFailedQ = useAnalyticsBuckets("agentsFailed", window, filters, focus)
     const modelsQ = useAnalyticsBuckets("models", window, filters, focus)
     const modelsFailedQ = useAnalyticsBuckets("modelsFailed", window, filters, focus)
-    // Call-level spans carry no agent reference, so neither filters nor focus narrow them.
-    const callsQ = useAnalyticsBuckets("calls", window, EMPTY_FILTERS)
+    // Tool spans carry no agent reference, so neither filters nor focus narrow them.
     const toolsQ = useAnalyticsBuckets("tools", window, EMPTY_FILTERS)
 
     return useMemo(() => {
@@ -71,7 +70,6 @@ export const useAnalyticsWindowData = (
             keyedSeries(window, data ?? [], paths)
         const agentRuns = keyed(agentsQ.data, AGENT_PATHS)
         const modelRuns = keyed(modelsQ.data, [PATH.model])
-        const callModels = keyed(callsQ.data, [PATH.callModel])
         const toolCalls = keyed(toolsQ.data, [PATH.tool])
         return {
             starts: bucketStarts(window),
@@ -82,21 +80,16 @@ export const useAnalyticsWindowData = (
             modelRuns,
             modelFailed: keyed(modelsFailedQ.data, [PATH.model]),
             modelOrder: rankKeys(modelRuns),
-            callModels,
-            callModelOrder: rankKeys(callModels),
-            callCost: numberSeries(window, callsQ.data ?? [], PATH.callCost),
-            callTokens: numberSeries(window, callsQ.data ?? [], PATH.callTokens),
             toolCalls,
             toolOrder: rankKeys(toolCalls),
             status: {
                 overview: statusOf(overviewQ, failedQ),
                 agents: statusOf(agentsQ, agentsFailedQ),
                 models: statusOf(modelsQ, modelsFailedQ),
-                calls: statusOf(callsQ),
                 tools: statusOf(toolsQ),
             },
         }
-    }, [window, overviewQ, failedQ, agentsQ, agentsFailedQ, modelsQ, modelsFailedQ, callsQ, toolsQ])
+    }, [window, overviewQ, failedQ, agentsQ, agentsFailedQ, modelsQ, modelsFailedQ, toolsQ])
 }
 
 export type AnalyticsWindowData = ReturnType<typeof useAnalyticsWindowData>
@@ -114,13 +107,11 @@ export const useAnalyticsSplit = (
         analyticsSplitAtomFamily({dim, keys: enabled ? keys : [], window, filters, scope}),
     )
     return useMemo(() => {
-        const costPath = dim === "callModel" ? PATH.callCost : PATH.cost
-        const tokensPath = dim === "callModel" ? PATH.callTokens : PATH.tokens
         const cost: KeyedSeries = {}
         const tokens: KeyedSeries = {}
         for (const [key, buckets] of Object.entries(query.data ?? {})) {
-            cost[key] = numberSeries(window, buckets, costPath)
-            tokens[key] = numberSeries(window, buckets, tokensPath)
+            cost[key] = numberSeries(window, buckets, PATH.cost)
+            tokens[key] = numberSeries(window, buckets, PATH.tokens)
         }
         return {cost, tokens, status: statusOf(query)}
     }, [dim, query, window])

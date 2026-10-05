@@ -216,17 +216,17 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
                         </div>
                     ) : null}
 
-                    <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1 sm:grid-cols-6">
-                        {TILES.map((m) => (
+                    <div
+                        className={cn(
+                            "grid grid-cols-3 gap-1 rounded-xl bg-muted p-1",
+                            narrowed ? "sm:grid-cols-5" : "sm:grid-cols-6",
+                        )}
+                    >
+                        {/* Tool spans record no agent or model, so a narrowed drawer drops the tile. */}
+                        {TILES.filter((m) => !(m === "tools" && narrowed)).map((m) => (
                             <button
                                 key={m}
                                 type="button"
-                                disabled={m === "tools" && narrowed}
-                                title={
-                                    m === "tools" && narrowed
-                                        ? "Tool calls do not record their agent or model yet"
-                                        : undefined
-                                }
                                 onClick={() => setState({...state, metric: m})}
                                 className={cn(
                                     "flex min-w-0 cursor-pointer flex-col gap-1 rounded-lg border-0 px-3 py-2.5 text-left disabled:cursor-default disabled:opacity-50",
@@ -242,9 +242,7 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
                                 </span>
                                 <span className="truncate text-base font-semibold tabular-nums">
                                     {m === "tools"
-                                        ? narrowed
-                                            ? "—"
-                                            : formatCount(totalTools)
+                                        ? formatCount(totalTools)
                                         : formatMetric(m, tileValue(m))}
                                 </span>
                             </button>
@@ -307,8 +305,8 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
                             tooltip={(i) => {
                                 const p = data.overview.points[i]
                                 const v = values[i]
-                                const topModel = data.callModelOrder
-                                    .map((k) => ({k, n: data.callModels[k][i]}))
+                                const topModel = data.modelOrder
+                                    .map((k) => ({k, n: data.modelRuns[k][i] ?? 0}))
                                     .sort((a, b) => b.n - a.n)[0]
                                 const busiest = data.agentOrder
                                     .map((k) => ({k, n: data.agentRuns[k][i]}))
@@ -335,11 +333,11 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
                                                   }
                                                 : {label: "Cost", value: formatMoney(p.cost)},
                                             {label: "Failed runs", value: formatCount(p.failed)},
-                                            ...(narrowed
+                                            ...(focus?.dim === "model"
                                                 ? []
                                                 : [
                                                       {
-                                                          label: "Top model",
+                                                          label: "Most used model",
                                                           value: topModel?.n ? topModel.k : "—",
                                                       },
                                                   ]),
@@ -383,7 +381,7 @@ const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
                 </div>
             </div>
 
-            {focus && focus.dim !== "callModel" ? (
+            {focus ? (
                 <div className="flex justify-end px-5 pb-4 pt-2">
                     <Button
                         size="sm"
