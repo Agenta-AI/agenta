@@ -1,5 +1,5 @@
 /**
- * Swapping the entry file while Run stays selected.
+ * Swapping the entry file while the app runs.
  *
  * The Run view keeps its own page: an app that navigated to a sub-page has `currentPath` pointing
  * there, not at the entry. Swapping the entry file underneath a live view therefore has to reset
@@ -60,19 +60,18 @@ afterEach(() => {
     container.remove()
 })
 
-describe("swapping the entry while Run is selected", () => {
+describe("swapping the entry while the app runs", () => {
     it("drops the page the previous app had navigated to", async () => {
         const sink: {fire?: (href: string) => void} = {}
         const seen: string[] = []
         const grants = createGrantStore()
-        grants.set("m1", DIR, "read", "read")
+        grants.set("m1", DIR, {level: "read", writeRefused: false})
 
         const render = async (path: string) => {
             await act(async () => {
                 root.render(
                     <HtmlAppEnvContext.Provider
                         value={{
-                            enabled: true,
                             io: io("read", seen),
                             createHost: () => navHost(sink),
                             grants,
@@ -92,12 +91,6 @@ describe("swapping the entry while Run is selected", () => {
         }
 
         await render(ENTRY)
-        const run = [...container.querySelectorAll("*")].find(
-            (el) => el.children.length === 0 && el.textContent?.trim() === "Run",
-        )
-        await act(async () => {
-            run?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
-        })
 
         // The app navigates to a sibling: the view is now on the sub-page, not the entry.
         expect(sink.fire, "the view should have registered a nav handler").toBeTypeOf("function")
@@ -109,7 +102,7 @@ describe("swapping the entry while Run is selected", () => {
         })
         expect(seen, "the sub-page should have been fetched").toContain(SUB)
 
-        // The reader picks a different entry in the drive while Run stays selected.
+        // The reader picks a different entry in the drive while the app runs.
         seen.length = 0
         await render(OTHER)
 

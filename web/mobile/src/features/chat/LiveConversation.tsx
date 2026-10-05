@@ -46,6 +46,7 @@ import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
@@ -68,6 +69,7 @@ import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
+import {PendingTaskError} from "./states/PendingTaskError"
 import {cancelledStopAction} from "./stopHereState"
 import {TranscriptTurns} from "./TranscriptTurns"
 import {mobileTurnRowClass} from "./turnRowClass"
@@ -135,6 +137,8 @@ export const LiveConversation = ({
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
     const composerRef = useRef<RichChatInputHandle | null>(null)
+    // Quote-to-reply anchors its pill and note box inside the transcript rail.
+    const quoteRootRef = useRef<HTMLDivElement>(null)
     // The composer's tray, owned here for the same reason: a refusal that arrives after the send
     // resolved has to put the files back from outside the composer's own submit.
     const attachments = useComposerAttachments({sessionId})
@@ -724,7 +728,11 @@ export const LiveConversation = ({
         body = <ChatLoading />
     } else {
         body = (
-            <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <ContentRail
+                ref={quoteRootRef}
+                className="relative flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            >
+                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={sessionId} touch />
                 {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
                     <div className={`${mobileTurnRowClass} justify-end`}>
@@ -894,45 +902,24 @@ export const LiveConversation = ({
                         </ContentRail>
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
-                            <ContentRail>
-                                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                                    <span role="alert" className="text-destructive">
-                                        The message was not sent.
-                                        {pendingTask?.failureReason
-                                            ? ` ${pendingTask.failureReason}`
-                                            : ""}{" "}
-                                        Your text and attachments are saved.
-                                    </span>
-                                    {pendingTask?.parts?.map((part, index) => (
-                                        <span
-                                            key={`${part.url}-${index}`}
-                                            className="text-muted-foreground"
-                                        >
-                                            {part.filename || "Attachment"}
-                                        </span>
-                                    ))}
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={
-                                            isHydrating ||
-                                            modelBlocked ||
-                                            (modelKeyLoading &&
-                                                modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
-                                        }
-                                        onClick={() =>
-                                            void sendPendingTask({
-                                                sessionId,
-                                                retry: true,
-                                                send: (task) =>
-                                                    send({text: task.text, parts: task.parts}),
-                                            })
-                                        }
-                                    >
-                                        Retry message
-                                    </Button>
-                                </div>
-                            </ContentRail>
+                            <PendingTaskError
+                                failureReason={pendingTask?.failureReason}
+                                filenames={pendingTask?.parts?.map(
+                                    (part) => part.filename || "Attachment",
+                                )}
+                                retryDisabled={
+                                    isHydrating ||
+                                    modelBlocked ||
+                                    (modelKeyLoading && modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
+                                }
+                                onRetry={() =>
+                                    void sendPendingTask({
+                                        sessionId,
+                                        retry: true,
+                                        send: (task) => send({text: task.text, parts: task.parts}),
+                                    })
+                                }
+                            />
                         ) : null}
                         <Composer
                             entityId={entityId}

@@ -878,6 +878,13 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
         run: uv run hosting/kubernetes/helm/tests/test_gateway_values.py
 
+      - name: Assert the rollout, shutdown and disruption defaults
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: |
+          uv run hosting/kubernetes/helm/tests/test_lifecycle_rollout.py
+          uv run hosting/kubernetes/helm/tests/test_availability.py
+          uv run hosting/kubernetes/helm/tests/test_web_crisp.py
+
   run-runner-integration-tests:
     if: |
       github.event_name == 'workflow_dispatch' ||

@@ -371,14 +371,30 @@ class SubscriptionsService:
                     f"Cannot switch plans without an existing subscription for organization ID: {organization_id}"
                 )
 
+            line_items = get_stripe_line_items(plan)
+
+            # Stripe rejects a subscription left with no items.
+            if not line_items:
+                raise SwitchException(
+                    f"Plan [{plan}] has no Stripe prices and cannot be switched to. Please contact support."
+                )
+
             try:
-                _subscription = stripe.Subscription.retrieve(
-                    id=subscription.subscription_id,
+                stripe.Subscription.modify(
+                    subscription.subscription_id,
+                    items=[
+                        {"id": item.id, "deleted": True}
+                        for item in stripe.SubscriptionItem.list(
+                            subscription=subscription.subscription_id,
+                        ).data
+                    ]
+                    + line_items,
+                    # Invoices snapshot this metadata, and the renewal's monthly credits
+                    # follow the plan it names (see BillingRouter._grant_period_credits).
+                    metadata={"plan": plan},
                 )
             except Exception as e:  # pylint: disable=too-broad-exception
-                log.warn(
-                    "Failed to retrieve subscription from Stripe: %s", subscription
-                )
+                log.warn("Failed to switch subscription in Stripe: %s", subscription)
 
                 raise EventException(
                     "Could not switch plans. Please try again or contact support.",
@@ -386,20 +402,6 @@ class SubscriptionsService:
 
             subscription.active = True
             subscription.plan = plan
-
-            stripe.Subscription.modify(
-                subscription.subscription_id,
-                items=[
-                    {"id": item.id, "deleted": True}
-                    for item in stripe.SubscriptionItem.list(
-                        subscription=subscription.subscription_id,
-                    ).data
-                ]
-                + get_stripe_line_items(plan),
-                # Invoices snapshot this metadata, and the renewal's monthly credits
-                # follow the plan it names (see BillingRouter._grant_period_credits).
-                metadata={"plan": plan},
-            )
 
             subscription = await self.update(subscription=subscription)
 

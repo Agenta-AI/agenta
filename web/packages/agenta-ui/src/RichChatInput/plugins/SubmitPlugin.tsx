@@ -8,6 +8,8 @@ import {submitEditorAsMarkdown} from "../assets/submit"
 interface SubmitPluginProps {
     onSubmit: (markdown: string) => void
     disabled?: boolean
+    /** Something besides the text is sendable (attachments, quotes): a blank Enter still sends. */
+    forceEnabled?: boolean
 }
 
 /**
@@ -17,7 +19,7 @@ interface SubmitPluginProps {
  * an exit-to-paragraph from an empty list item, a new line in code, a new paragraph in
  * text — and the caret lands at a block start so markdown shortcuts fire on it.
  */
-export function SubmitPlugin({onSubmit, disabled}: SubmitPluginProps) {
+export function SubmitPlugin({onSubmit, disabled, forceEnabled}: SubmitPluginProps) {
     const [editor] = useLexicalComposerContext()
 
     useEffect(() => {
@@ -41,14 +43,14 @@ export function SubmitPlugin({onSubmit, disabled}: SubmitPluginProps) {
                     return true
                 }
 
-                // Plain Enter → always send.
+                // Plain Enter → send, by the same rule as the send button.
                 event.preventDefault()
-                submitEditorAsMarkdown(editor, onSubmit)
+                submitEditorAsMarkdown(editor, onSubmit, forceEnabled)
                 return true
             },
             COMMAND_PRIORITY_HIGH,
         )
-    }, [disabled, editor, onSubmit])
+    }, [disabled, editor, forceEnabled, onSubmit])
 
     return null
 }

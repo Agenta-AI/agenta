@@ -2,8 +2,8 @@ apiVersion: v2
 name: agenta
 description: A Helm chart for deploying Agenta (OSS or EE) on Kubernetes
 type: application
-version: 0.121.7
-appVersion: "v0.121.7"
+version: 0.122.0
+appVersion: "v0.122.0"
 keywords:
   - agenta
   - llm

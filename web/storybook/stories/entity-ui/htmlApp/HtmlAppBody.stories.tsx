@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {type HtmlAppHostOptions} from "@agenta/entities/drive"
+import {type AppAccess, type HtmlAppHostOptions} from "@agenta/entities/drive"
 import {
     HtmlAppBody,
     HtmlAppEnvContext,
@@ -19,10 +19,9 @@ import {
 } from "../../../fixtures/htmlApp"
 
 /**
- * The HTML viewer body as `HtmlBody` renders it: Preview | Source today, plus Run when the
- * `agent-apps` flag is on. The flag, the mount io, the host factory and the grant store come
- * through `HtmlAppEnvContext`, so each story pins exactly one state without touching the shared
- * jotai store or localStorage.
+ * The HTML app body as `DriveHtmlApp` renders it: the app running in its folder. The mount io,
+ * the host factory and the grant store come through `HtmlAppEnvContext`, so each story pins
+ * exactly one state without touching the shared jotai store or sessionStorage.
  */
 const meta = {
     title: "@agenta/entity-ui/Drive/HtmlApp/HtmlAppBody",
@@ -42,22 +41,15 @@ const Frame = ({children}: {children: React.ReactNode}) => (
 
 /** One story = one env: the mock host is seeded with the board app; io serves its files. */
 const BodyStory = ({
-    enabled,
-    mount = STORY_MOUNT,
     latencyMs,
     canEditMounts = true,
     preGrant,
-    controlledView,
 }: {
-    /** The Files pane owns the tabs: the body follows this view and renders no tab row. */
-    controlledView?: "preview" | "run"
-    enabled: boolean
-    mount?: typeof STORY_MOUNT | null
-    /** Slow io: the assembling skeleton stays visible. */
+    /** Slow io: the starting skeleton stays visible. */
     latencyMs?: number
     canEditMounts?: boolean
-    /** Skip the sheet: the grant is already stored for this mount + dir. */
-    preGrant?: "read" | "read-write"
+    /** Skip the sheet: the answer is already stored for this mount + dir. */
+    preGrant?: AppAccess
 }) => {
     const env = useMemo<HtmlAppEnv>(() => {
         const seed = createStoryHost(BOARD_APP)
@@ -72,15 +64,19 @@ const BodyStory = ({
               }
             : baseIo
         const grants = createGrantStore()
-        if (preGrant && mount) grants.set(mount.id, APP_DIR, preGrant)
+        if (preGrant) grants.set(STORY_MOUNT.id, APP_DIR, {level: preGrant, writeRefused: false})
         return {
-            enabled,
             io,
             canEditMounts,
             kitCss: KIT_CSS,
             grants,
             createHost: (opts: HtmlAppHostOptions) =>
-                createStoryHost(BOARD_APP, {grant: opts.grant, dir: opts.dir, tokens: opts.tokens}),
+                createStoryHost(BOARD_APP, {
+                    grant: opts.grant,
+                    requestAccess: opts.requestAccess,
+                    dir: opts.dir,
+                    tokens: opts.tokens,
+                }),
         }
         // Fixtures are static per story.
     }, [])
@@ -88,46 +84,38 @@ const BodyStory = ({
         <HtmlAppEnvContext.Provider value={env}>
             <Frame>
                 <HtmlAppBody
-                    mount={mount}
+                    mount={STORY_MOUNT}
                     path={`${APP_DIR}/index.html`}
                     displayPath={`${APP_DIR}/index.html`}
                     content={BOARD_APP["index.html"]}
                     onNavigate={() => undefined}
-                    controlledView={controlledView}
                 />
             </Frame>
         </HtmlAppEnvContext.Provider>
     )
 }
 
-/** Acceptance: flag OFF — Preview | Source exactly as today; no Run, no sheet, no host. */
-export const FlagOff: Story = {
-    render: () => <BodyStory enabled={false} />,
+/** First visit: no access; the board's first read asks "read files?", its first write "change files?". */
+export const AsksOnFirstFileCall: Story = {
+    render: () => <BodyStory />,
 }
 
-/** Acceptance: flag ON — Run appears; picking it asks for the grant, then mounts RunView. */
-export const FlagOn: Story = {
-    render: () => <BodyStory enabled />,
+/** The grant is already stored: the app runs with it and never asks (what a second visit sees). */
+export const Granted: Story = {
+    render: () => <BodyStory preGrant="read-write" />,
 }
 
-/** Flag ON with the grant already stored — Run mounts straight away (what a second visit sees). */
-export const FlagOnGranted: Story = {
-    render: () => <BodyStory enabled preGrant="read-write" />,
+/** "Don't allow" is stored: the app runs with no file access and is not asked again. */
+export const Refused: Story = {
+    render: () => <BodyStory preGrant="none" />,
 }
 
-/** The Files pane path: the toolbar above owns Source | Preview | Run, so the body shows no tabs
- * and goes straight to Run (through the grant sheet when nothing is stored). */
-export const HostOwnedTabsRun: Story = {
-    render: () => <BodyStory enabled preGrant="read-write" controlledView="run" />,
+/** A drive without edits: the app is asked about reading only; its writes fail `read_only`. */
+export const ReadOnlyDrive: Story = {
+    render: () => <BodyStory canEditMounts={false} />,
 }
 
-/** Acceptance: loading — slow mount io keeps the assembling skeleton up (Preview and Run). */
+/** Slow mount io: the starting skeleton stays up while the manifest loads. */
 export const Loading: Story = {
-    render: () => <BodyStory enabled latencyMs={60_000} />,
-}
-
-/** Acceptance: unavailable — no drive behind the file (a composer attachment): Run is not
- * offered, Preview and Source still work. */
-export const Unavailable: Story = {
-    render: () => <BodyStory enabled mount={null} />,
+    render: () => <BodyStory preGrant="read-write" latencyMs={60_000} />,
 }

@@ -1,124 +1,121 @@
-/**
- * Agent HTML apps — grant store (lane A).
- *
- * Remembers, per `${mountId}|${dir}`, which access level the user gave an app so reopening it in
- * the same tab does not ask again. In-memory `Map` first; mirrored to `sessionStorage` under
- * {@link GRANTS_STORAGE_KEY} so a reload keeps the answer for the tab's lifetime. Every storage
- * access is wrapped: private windows, blocked storage or a quota error must never break the
- * drive — the store then simply forgets on reload.
- *
- * A record keeps BOTH levels: `level` is what the user chose, `asked` is what the manifest wanted
- * when they chose it. The pair is what makes "ask again when the app needs a higher level than
- * granted" possible without nagging: a user who was offered read-write and deliberately picked
- * read has `asked: "read-write"`, so reopening the same app never re-prompts, while an app whose
- * manifest LATER grows to read-write asks once, because `asked` is still `read`.
- */
+/** Agent HTML apps — per-user file-access answers, kept in localStorage per mount and folder. */
 
-import type {GrantLevel} from "./protocol"
+import {ACTIVE_USER_ID_KEY, userSettingsKey} from "@agenta/shared/state"
 
-export const GRANTS_STORAGE_KEY = "agenta:app-grants"
+import type {AppAccess} from "./protocol"
 
-/** What the user chose, and the level the app was asking for at the time. */
+/** The per-user settings key the map is stored under. */
+export const grantsStorageKey = (userId: string): string => userSettingsKey(userId, "app-grants")
+
+/** What the user answered for one app folder. */
 export interface GrantRecord {
-    level: GrantLevel
-    asked: GrantLevel
+    /** The access the user gave; null while the read question is unanswered. */
+    level: AppAccess | null
+    /** The user refused to let the app change files; its writes fail without asking. */
+    writeRefused: boolean
 }
 
-const grants = new Map<string, GrantRecord>()
-let hydrated = false
+const memory = new Map<string, Map<string, GrantRecord>>()
+const listeners = new Set<() => void>()
 
 const grantKey = (mountId: string, dir: string): string => `${mountId}|${dir}`
 
-const isGrantLevel = (x: unknown): x is GrantLevel => x === "read" || x === "read-write"
+const isAppAccess = (x: unknown): x is AppAccess =>
+    x === "none" || x === "read" || x === "read-write"
 
-/**
- * Read one mirrored entry. Accepts the pre-record shape (a bare level string) so a tab that was
- * open across the upgrade keeps its grant instead of re-prompting; those entries read as
- * `asked === level`, which is the safe reading — an escalation still asks.
- */
+/** Read one stored entry; anything malformed reads as unanswered. */
 const toRecord = (value: unknown): GrantRecord | null => {
-    if (isGrantLevel(value)) return {level: value, asked: value}
     if (typeof value !== "object" || value === null) return null
-    const {level, asked} = value as Record<string, unknown>
-    if (!isGrantLevel(level)) return null
-    return {level, asked: isGrantLevel(asked) ? asked : level}
+    const {level, writeRefused} = value as Record<string, unknown>
+    if (level !== null && !isAppAccess(level)) return null
+    return {level, writeRefused: writeRefused === true}
 }
-
-/** True when `want` is strictly more access than `have`. */
-export const exceedsGrant = (have: GrantLevel, want: GrantLevel): boolean =>
-    have === "read" && want === "read-write"
 
 const storage = (): Storage | null => {
     try {
-        if (typeof sessionStorage === "undefined") return null
-        return sessionStorage
+        if (typeof localStorage === "undefined") return null
+        return localStorage
     } catch {
         return null
     }
 }
 
-const hydrate = () => {
-    if (hydrated) return
-    hydrated = true
+const activeUserId = (): string | null => {
     try {
-        const raw = storage()?.getItem(GRANTS_STORAGE_KEY)
-        if (!raw) return
-        const parsed: unknown = JSON.parse(raw)
-        if (typeof parsed !== "object" || parsed === null) return
-        for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-            const record = toRecord(value)
-            if (record) grants.set(key, record)
-        }
+        return storage()?.getItem(ACTIVE_USER_ID_KEY) || null
     } catch {
-        // Corrupt or unreadable mirror: start empty.
+        return null
     }
 }
 
-const persist = () => {
+/** The current user's map: storage first (so another tab's answer is seen), memory otherwise. */
+const readMap = (userId: string | null): Map<string, GrantRecord> => {
+    const scope = userId ?? ""
+    const store = userId ? storage() : null
+    if (userId && store) {
+        try {
+            const raw = store.getItem(grantsStorageKey(userId))
+            const parsed: unknown = raw ? JSON.parse(raw) : {}
+            if (typeof parsed === "object" && parsed !== null) {
+                const map = new Map<string, GrantRecord>()
+                for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+                    const record = toRecord(value)
+                    if (record) map.set(key, record)
+                }
+                memory.set(scope, map)
+                return map
+            }
+        } catch {
+            // Corrupt or unreadable entry: fall back to what this page remembers.
+        }
+    }
+    let map = memory.get(scope)
+    if (!map) {
+        map = new Map()
+        memory.set(scope, map)
+    }
+    return map
+}
+
+const writeMap = (userId: string | null, map: Map<string, GrantRecord>) => {
+    memory.set(userId ?? "", map)
+    if (!userId) return
     try {
         const store = storage()
         if (!store) return
-        if (grants.size === 0) {
-            store.removeItem(GRANTS_STORAGE_KEY)
-            return
-        }
-        store.setItem(GRANTS_STORAGE_KEY, JSON.stringify(Object.fromEntries(grants)))
+        const key = grantsStorageKey(userId)
+        if (map.size === 0) store.removeItem(key)
+        else store.setItem(key, JSON.stringify(Object.fromEntries(map)))
     } catch {
-        // Quota or blocked storage: the in-memory map is still authoritative for this page.
+        // Quota or blocked storage: memory still holds the answer for this page.
     }
 }
 
-/** The grant the user gave this app, or null when never asked. */
+/** What the user answered for this app, or null when never asked. */
 export function getGrant(mountId: string, dir: string): GrantRecord | null {
-    hydrate()
-    return grants.get(grantKey(mountId, dir)) ?? null
+    return readMap(activeUserId()).get(grantKey(mountId, dir)) ?? null
 }
 
-/**
- * Store the user's answer. `asked` is the level the app was requesting when the sheet was shown;
- * it defaults to the granted level, which makes a later escalation ask.
- */
-export function setGrant(
-    mountId: string,
-    dir: string,
-    grant: GrantLevel,
-    asked: GrantLevel = grant,
-): void {
-    hydrate()
-    grants.set(grantKey(mountId, dir), {level: grant, asked})
-    persist()
+/** Store the user's answer for this app. */
+export function setGrant(mountId: string, dir: string, record: GrantRecord): void {
+    const userId = activeUserId()
+    const map = new Map(readMap(userId))
+    map.set(grantKey(mountId, dir), record)
+    writeMap(userId, map)
+    for (const listener of listeners) listener()
 }
 
-/** Forget every grant (memory and the sessionStorage mirror). */
+/** Called after any answer is stored on this page; returns the unsubscribe. */
+export function subscribeGrants(listener: () => void): () => void {
+    listeners.add(listener)
+    return () => {
+        listeners.delete(listener)
+    }
+}
+
+/** Forget the current user's answers (storage and memory). */
 export function clearGrants(): void {
-    hydrated = true
-    grants.clear()
-    persist()
-}
-
-/** Drop the in-memory map and re-read the mirror (another tab-local writer, or a test seed). */
-export function reloadGrants(): void {
-    grants.clear()
-    hydrated = false
-    hydrate()
+    writeMap(activeUserId(), new Map())
+    memory.clear()
+    for (const listener of listeners) listener()
 }

@@ -5,10 +5,10 @@
 """Rendered-chart coverage for the graceful-rollout keys.
 
 `<component>.strategy`, `<component>.lifecycle` and
-`<component>.terminationGracePeriodSeconds` are opt-in per workload. This test
-checks that every workload reads its own three keys, that setting them on `api`
-reaches the api workload and nothing else, and that a default render still
-carries none of them.
+`<component>.terminationGracePeriodSeconds` are set per workload. This test
+checks that a default render carries the chart's per-workload defaults and
+nothing more, that every workload reads its own three keys, and that setting
+them on `api` reaches the api workload and leaves the others on their defaults.
 
 Run: uv run hosting/kubernetes/helm/tests/test_lifecycle_rollout.py
 Requires the `helm` binary on PATH.
@@ -123,6 +123,54 @@ ALL_WORKLOADS_ON = [
 ]
 
 
+# The chart's defaults when a key is unset, from the workload templates.
+# A component missing from a table renders no value for that key.
+ROLLING_NO_GAP = {
+    "type": "RollingUpdate",
+    "rollingUpdate": {"maxUnavailable": 0, "maxSurge": 1},
+}
+DEFAULT_STRATEGIES = {
+    "runner": {"type": "Recreate"},
+    "cron": {"type": "Recreate"},
+    "redis-volatile": {"type": "Recreate"},
+    "services": ROLLING_NO_GAP,
+    "web": ROLLING_NO_GAP,
+    "web-mobile": ROLLING_NO_GAP,
+    "worker-streams": ROLLING_NO_GAP,
+    "worker-queues": ROLLING_NO_GAP,
+    "supertokens": ROLLING_NO_GAP,
+}
+DEFAULT_GRACE_PERIODS = {
+    "runner": 300,
+    "worker-streams": 120,
+    "worker-queues": 120,
+    "services": 60,
+    "web": 60,
+    "web-mobile": 60,
+}
+SLEEP_10 = {"preStop": {"exec": {"command": ["sleep", "10"]}}}
+DEFAULT_LIFECYCLES = {
+    "runner": SLEEP_10,
+    "services": SLEEP_10,
+    "web": SLEEP_10,
+    "web-mobile": SLEEP_10,
+}
+
+
+def assert_default_rollout_keys(workload: dict) -> None:
+    """The workload carries its chart default for each key, or no value."""
+    name = component_of(workload)
+    assert workload["spec"].get("strategy") == DEFAULT_STRATEGIES.get(name), (
+        f"{name}: strategy {workload['spec'].get('strategy')}"
+    )
+    assert pod_spec(workload).get(
+        "terminationGracePeriodSeconds"
+    ) == DEFAULT_GRACE_PERIODS.get(name), name
+    lifecycles = [c["lifecycle"] for c in containers_with_lifecycle(workload)]
+    expected = DEFAULT_LIFECYCLES.get(name)
+    assert lifecycles == ([expected] if expected else []), f"{name}: {lifecycles}"
+
+
 def every_workload_reads_its_own_keys() -> None:
     """Set the three keys on all 13 workloads at once, in one render.
 
@@ -176,9 +224,9 @@ def every_workload_reads_its_own_keys() -> None:
 
 
 def main() -> int:
-    # --- A default render carries none of the three keys. ---
+    # --- A default render carries the chart defaults and nothing more. ---
     # Twice: once as the chart comes, and once with every workload on, so the
-    # two that are off by default are covered here too.
+    # one that is off by default is covered here too.
     for extra_args in ([], ALL_WORKLOADS_ON):
         default_workloads = workloads(render(extra_args))
         if extra_args:
@@ -186,10 +234,7 @@ def main() -> int:
         else:
             assert len(default_workloads) >= 11, default_workloads
         for workload in default_workloads:
-            name = component_of(workload)
-            assert "strategy" not in workload["spec"], name
-            assert "terminationGracePeriodSeconds" not in pod_spec(workload), name
-            assert containers_with_lifecycle(workload) == [], name
+            assert_default_rollout_keys(workload)
 
     # --- Every workload reads its own three keys. ---
     every_workload_reads_its_own_keys()
@@ -207,15 +252,28 @@ def main() -> int:
     assert len(api_containers) == 1, api_containers
     assert api_containers[0]["lifecycle"] == {"preStop": {"sleep": {"seconds": 10}}}
 
-    # --- Once, and nowhere else. ---
-    with_strategy = [w for w in workloads(docs) if "strategy" in w["spec"]]
-    with_grace = [
-        w for w in workloads(docs) if "terminationGracePeriodSeconds" in pod_spec(w)
+    # --- The api values reach api only; the rest keep their defaults. ---
+    for workload in workloads(docs):
+        if component_of(workload) != "api":
+            assert_default_rollout_keys(workload)
+
+    # --- A value set on a workload replaces its default. ---
+    override_docs = render(
+        [
+            "--set",
+            "agentRunner.terminationGracePeriodSeconds=30",
+            "--set",
+            "agentRunner.lifecycle.preStop.exec.command[0]=/bin/drain",
+            "--set",
+            "agentRunner.strategy.type=RollingUpdate",
+        ]
+    )
+    runner = next(w for w in workloads(override_docs) if component_of(w) == "runner")
+    assert runner["spec"]["strategy"] == {"type": "RollingUpdate"}
+    assert pod_spec(runner)["terminationGracePeriodSeconds"] == 30
+    assert [c["lifecycle"] for c in containers_with_lifecycle(runner)] == [
+        {"preStop": {"exec": {"command": ["/bin/drain"]}}}
     ]
-    with_lifecycle = [w for w in workloads(docs) if containers_with_lifecycle(w)]
-    assert [component_of(w) for w in with_strategy] == ["api"]
-    assert [component_of(w) for w in with_grace] == ["api"]
-    assert [component_of(w) for w in with_lifecycle] == ["api"]
 
     # --- A grace period of 0 is a real value, not an unset one. ---
     zero_docs = render(["--set", "cron.terminationGracePeriodSeconds=0"])
@@ -246,7 +304,7 @@ def main() -> int:
     assert "strategy" not in redis_durable["spec"]
 
     print(
-        "OK: strategy, lifecycle and grace period render per workload, and only there."
+        "OK: strategy, lifecycle and grace period render per workload, with the chart defaults elsewhere."
     )
     return 0
 

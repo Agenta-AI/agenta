@@ -13,12 +13,15 @@
  * guarded so importing this module in node never touches DOM globals at import time.
  */
 
+import {createAccessGate} from "./access"
 import {
     isFsRequest,
     isIframeToParent,
+    NO_ACCESS_MESSAGE,
     READ_CAP,
     WRITE_CAP,
     WRITE_METHODS,
+    type AppAccess,
     type BridgeError,
     type BridgeErrorCode,
     type ChangedMsg,
@@ -41,7 +44,9 @@ import {
 import {normalizeAppPath} from "./scope"
 
 export interface MockHtmlAppHostOptions {
-    grant?: GrantLevel
+    grant?: AppAccess
+    /** Asked when a call needs more access, as the real host does. */
+    requestAccess?: (need: GrantLevel) => Promise<AppAccess>
     dir?: string
     latencyMs?: number
     visible?: boolean
@@ -112,7 +117,11 @@ export function createMockHtmlAppHost(
     initialFiles: Record<string, string>,
     opts: MockHtmlAppHostOptions = {},
 ): MockHtmlAppHost {
-    const grant: GrantLevel = opts.grant ?? "read"
+    const gate = createAccessGate({
+        grant: opts.grant ?? "read",
+        requestAccess: opts.requestAccess,
+        onChange: (next) => post({v: 1, type: "access", canWrite: next === "read-write"}),
+    })
     const dir = opts.dir ?? "app"
     const latencyMs = opts.latencyMs ?? 0
     const failWith = opts.failWith ?? {}
@@ -217,7 +226,10 @@ export function createMockHtmlAppHost(
         const path = normalizeAppPath(req.path, {allowRoot: method === "list"})
         if (path === null) return failure(id, {code: "scope", message: FORCED_MESSAGES.scope})
 
-        if (WRITE_METHODS.has(method) && grant !== "read-write") {
+        if (gate.level === "none") {
+            return failure(id, {code: "unavailable", message: NO_ACCESS_MESSAGE})
+        }
+        if (WRITE_METHODS.has(method) && gate.level !== "read-write") {
             return failure(id, {code: "read_only", message: FORCED_MESSAGES.read_only})
         }
 
@@ -296,6 +308,9 @@ export function createMockHtmlAppHost(
     const handle = async (req: FsRequest): Promise<FsResponse | FsFailure> => {
         log.push(req)
         if (latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, latencyMs))
+        const inScope = normalizeAppPath(req.path, {allowRoot: req.method === "list"}) !== null
+        const need: GrantLevel = WRITE_METHODS.has(req.method) ? "read-write" : "read"
+        if (inScope && !failWith[req.method]) await gate.settle(need)
         const res = serve(req)
         if (!res.ok) {
             emitError({
@@ -342,7 +357,7 @@ export function createMockHtmlAppHost(
             v: 1,
             type: "hello",
             dir,
-            canWrite: grant === "read-write",
+            canWrite: gate.level === "read-write",
             visible,
             tokens,
         }
@@ -414,6 +429,7 @@ export function createMockHtmlAppHost(
                 changedCbs.delete(cb)
             }
         },
+        setAccess: gate.set,
     }
 
     return host

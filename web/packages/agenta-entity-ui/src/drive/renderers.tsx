@@ -33,6 +33,7 @@ import {
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
 import {HtmlAppBody} from "./htmlApp"
+import {useQuotableFile} from "./quotable"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
@@ -141,6 +142,9 @@ const TextBody = ({
     const content = contentQuery.data
     // A link to a neighbouring file opens it here; the host's renderer keeps web links.
     const onClickCapture = useDriveAnchorClickCapture(displayPath ?? path, onNavigate, linkExists)
+    // Rendered markdown is not the file's lines; a quote from it gets a range only when its
+    // excerpt appears once, verbatim, in the source (see `locateQuote`).
+    const quotable = useQuotableFile(mount, path, displayPath, content)
 
     if (contentQuery.isPending)
         return (
@@ -161,7 +165,11 @@ const TextBody = ({
     if (kind === "markdown")
         return (
             <Inset flush>
-                <div className="min-h-0 flex-1 overflow-y-auto p-3" onClickCapture={onClickCapture}>
+                <div
+                    className="min-h-0 flex-1 overflow-y-auto p-3"
+                    onClickCapture={onClickCapture}
+                    {...quotable}
+                >
                     <DriveMarkdown content={content} className="!text-xs" />
                 </div>
             </Inset>
@@ -169,7 +177,10 @@ const TextBody = ({
     return (
         <Inset flush>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
+                <pre
+                    className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary"
+                    {...quotable}
+                >
                     {content}
                 </pre>
             </div>
@@ -179,9 +190,20 @@ const TextBody = ({
 
 /** Syntax-highlighted body for code (and structured-data) files — the same lexical/Shiki block
  * the playground drawers use, read-only, horizontal scroll (code must not soft-wrap). */
-const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const CodeBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
+    // The raw file, not the pretty print: line numbers are the file's. A selection maps onto it
+    // only while the pretty print moved nothing but whitespace (see `locateQuote`).
+    const quotable = useQuotableFile(mount, path, displayPath, content)
 
     const value = useMemo(() => {
         if (typeof content !== "string") return null
@@ -207,7 +229,10 @@ const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
     return (
         <Inset flush>
-            <div className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre">
+            <div
+                className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre"
+                {...quotable}
+            >
                 <LazyCodeBlock language={driveCodeLanguage(path)} value={value} />
             </div>
         </Inset>
@@ -285,30 +310,19 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     )
 }
 
-const HtmlBody = ({
+/** The running app, under the Files pane's toolbar (its ⋯ menu switches to the code). */
+export const DriveHtmlApp = ({
     mount,
     path,
     displayPath,
     onNavigate,
-    linkExists,
-    previewOnly = false,
-    controlledView,
-    onViewChange,
 }: {
     mount: Mount | null
     path: string
-    /** Presented path of THIS file (with any `agent-files/` prefix) — internal links resolve against
-     * its folder so drive navigation lands on the right node. */
+    /** Presented path of this file; links outside the app resolve against its folder. */
     displayPath?: string
-    /** Open another drive file (an internal link click resolves to its path). */
+    /** Open another drive file (a link outside the app resolves to its path). */
     onNavigate?: (path: string) => void
-    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
-    linkExists?: (path: string) => boolean
-    /** Just the rendered document; the host offers the source itself. */
-    previewOnly?: boolean
-    /** Host-owned tabs: the rendered document or the running app, no tab row. */
-    controlledView?: "preview" | "run"
-    onViewChange?: (view: "preview" | "run") => void
 }) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
@@ -326,7 +340,6 @@ const HtmlBody = ({
     if (typeof content !== "string")
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
 
-    // The Preview | Source body (and the assembler behind it) lives in ./htmlApp.
     return (
         <Inset flush>
             <HtmlAppBody
@@ -335,37 +348,9 @@ const HtmlBody = ({
                 content={content}
                 displayPath={displayPath}
                 onNavigate={onNavigate}
-                linkExists={linkExists}
-                previewOnly={previewOnly}
-                controlledView={controlledView}
-                onViewChange={onViewChange}
             />
         </Inset>
     )
-}
-
-/** The rendered HTML document on its own (the Files pane's Preview mode). */
-export const DriveHtmlPreview = (props: {
-    mount: Mount | null
-    path: string
-    displayPath?: string
-    onNavigate?: (path: string) => void
-    linkExists?: (path: string) => boolean
-}) => <HtmlBody {...props} previewOnly />
-
-/** Preview or Run under the Files pane's own Source | Preview | Run toolbar. */
-export const DriveHtmlApp = (props: {
-    mount: Mount | null
-    path: string
-    displayPath?: string
-    onNavigate?: (path: string) => void
-    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
-    linkExists?: (path: string) => boolean
-    view: "preview" | "run"
-    onViewChange: (view: "preview" | "run") => void
-}) => {
-    const {view, ...rest} = props
-    return <HtmlBody {...rest} controlledView={view} />
 }
 
 // ---- Media bodies (bytes endpoint → cached blob → object URL) --------------------------------
@@ -529,19 +514,11 @@ export function DriveFileBody({
             )
         case "code":
         case "json":
-            return <CodeBody mount={mount} path={path} />
+            return <CodeBody mount={mount} path={path} displayPath={displayPath} />
         case "csv":
             return <CsvBody mount={mount} path={path} />
         case "html":
-            return (
-                <HtmlBody
-                    mount={mount}
-                    path={path}
-                    displayPath={displayPath}
-                    onNavigate={onNavigate}
-                    linkExists={linkExists}
-                />
-            )
+            return <CodeBody mount={mount} path={path} />
         case "image":
             return <ImageBody mount={mount} path={path} />
         case "pdf":

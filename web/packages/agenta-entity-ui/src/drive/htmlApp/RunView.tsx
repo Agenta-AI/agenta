@@ -1,37 +1,18 @@
-/**
- * The Run tab: the app in a sandboxed iframe under a status strip.
- *
- * Strip: a dot, `Running · read + write · <dir>`, a "‹ back" control once the app navigated to a
- * sibling page, a Refresh MENU (one item, "Reload files": re-assemble + re-attach), a "Files
- * changed" pill when the drive moved underneath the app, and an error badge that expands into the
- * list (with Copy). The host is attached on the frame's first load and detached on unmount; theme changes
- * (`.dark` / `data-theme` on the root, or the OS preference) re-resolve the kit tokens and reach
- * the app through `host.setTheme`.
- *
- * Navigation: the host reports `nav` hrefs. A target inside the app dir is fetched, assembled and
- * shown here (with the previous page pushed on the back stack); anything else goes to `onNavigate`,
- * exactly as the Preview tab routes internal links today.
- */
+/** The running app in a sandboxed iframe; its controls portal into the host's toolbar slot. */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     SANDBOX_FLAGS,
     buildRunFrame,
     isFrameNavigated,
-    type GrantLevel,
     type HtmlAppHost,
     type HtmlAppHostError,
 } from "@agenta/entities/drive"
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-    Skeleton,
-    cn,
-} from "@agenta/ui/ui"
-import {ArrowsClockwise, CaretDown, CaretLeft, Copy, Warning} from "@phosphor-icons/react"
+import {Button, Skeleton, cn} from "@agenta/ui/ui"
+import {ArrowsClockwise, CaretLeft, Copy, Warning} from "@phosphor-icons/react"
+import {createPortal} from "react-dom"
+
+import {ROW_ICON_BTN} from "../DriveHeader"
 
 import {
     assembleRunDocument,
@@ -82,7 +63,6 @@ export interface RunViewProps {
     entryPath: string
     /** The entry file's text (the caller owns the query). */
     entryContent: string
-    grant: GrantLevel
     io: AssembleIo | null
     /** Kit stylesheet; null when the manifest disables the kit. */
     kitCss: string | null
@@ -95,16 +75,16 @@ export interface RunViewProps {
     visible?: boolean
     /** Paths that changed underneath the app (from `useChangedHint`); shown as a pill. */
     changedPaths?: string[]
-    /** Called after "Reload files" (the caller may refetch the entry text and clear the hint). */
+    /** Called after Refresh (the caller may refetch the entry text and clear the hint). */
     onReload?: () => void
-    /** Navigation OUTSIDE the app dir — the Preview tab's behaviour (open that file in the drive). */
+    /** Navigation OUTSIDE the app dir: open that file in the drive. */
     onNavigate?: (path: string) => void
     /** Maps a mount-relative path to the presented one for `onNavigate` (default: identity). */
     toDisplayPath?: (path: string) => string
+    /** The host's toolbar slot the controls portal into; without one they sit above the app. */
+    controlsContainer?: HTMLElement | null
     className?: string
 }
-
-const GRANT_LABEL: Record<GrantLevel, string> = {read: "read", "read-write": "read + write"}
 
 const describeError = (e: HtmlAppHostError): string => {
     if (e.kind === "script") return `Script error${e.line ? ` (line ${e.line})` : ""}: ${e.message}`
@@ -117,7 +97,6 @@ export function RunView({
     dir,
     entryPath,
     entryContent,
-    grant,
     io,
     kitCss,
     bridgeStub,
@@ -128,6 +107,7 @@ export function RunView({
     onReload,
     onNavigate,
     toDisplayPath = (p) => p,
+    controlsContainer,
     className,
 }: RunViewProps) {
     const frameRef = useRef<HTMLIFrameElement>(null)
@@ -137,7 +117,7 @@ export function RunView({
     const [frameKey, setFrameKey] = useState(0)
     /** Bumped per assembled page, so every page gets a fresh iframe and a fresh first load. */
     const [docVersion, setDocVersion] = useState(0)
-    /** The app tried to load another document; it stays stopped until "Reload files". */
+    /** The app tried to load another document; it stays stopped until Refresh. */
     const [stopped, setStopped] = useState(false)
     const attachedFrameRef = useRef<HTMLIFrameElement | null>(null)
     const [errors, setErrors] = useState<string[]>([])
@@ -152,7 +132,7 @@ export function RunView({
     useEffect(() => host.onError((e) => pushError(describeError(e))), [host, pushError])
 
     // Assemble the current page. The entry uses the text the caller already holds; a sibling
-    // page is fetched through `io`. `frameKey` in the deps makes "Reload files" re-assemble.
+    // page is fetched through `io`. `frameKey` in the deps makes Refresh re-assemble.
     useEffect(() => {
         let alive = true
         setDoc(null)
@@ -203,7 +183,7 @@ export function RunView({
     const stopApp = useCallback(() => {
         host.detach()
         setStopped(true)
-        pushError("The app tried to load another page and was stopped. Reload files to restart it.")
+        pushError("The app tried to load another page and was stopped. Refresh to restart it.")
     }, [host, pushError])
 
     // Attach on the frame's FIRST load only; detach when the view goes away. The hello goes to
@@ -280,98 +260,70 @@ export function RunView({
         })
     }, [errors])
 
-    const pageLabel = useMemo(
-        () => (currentPath === entryPath ? null : currentPath.split("/").pop()),
-        [currentPath, entryPath],
+    const controls = (
+        <>
+            {backStack.length > 0 ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={goBack}
+                    aria-label="Back to the previous page"
+                    className="h-6 gap-0.5 px-1.5 text-xs"
+                >
+                    <CaretLeft weight="bold" className="size-3" />
+                    back
+                </Button>
+            ) : null}
+
+            {changedPaths.length > 0 ? (
+                <button
+                    type="button"
+                    onClick={reload}
+                    title={changedPaths.join("\n")}
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
+                >
+                    Files changed · Reload
+                </button>
+            ) : null}
+
+            {errors.length > 0 ? (
+                <button
+                    type="button"
+                    onClick={() => setErrorsOpen((v) => !v)}
+                    aria-expanded={errorsOpen}
+                    aria-label={`${errors.length} error${errors.length === 1 ? "" : "s"}`}
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
+                >
+                    <Warning weight="fill" className="size-3" />
+                    {errors.length}
+                </button>
+            ) : null}
+
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={reload}
+                aria-label="Refresh"
+                title="Refresh"
+                className={ROW_ICON_BTN}
+            >
+                <ArrowsClockwise size={14} />
+            </Button>
+        </>
     )
 
     return (
         <div className={cn("flex min-h-0 flex-1 flex-col text-xs", className)}>
-            <div
-                data-slot="run-status"
-                className="flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1 text-colorTextSecondary"
-            >
-                <span
-                    aria-hidden
-                    className={cn(
-                        "size-2 shrink-0 rounded-full",
-                        doc == null
-                            ? "bg-colorTextQuaternary"
-                            : stopped
-                              ? "bg-colorError"
-                              : "bg-colorSuccess",
-                    )}
-                />
-                <span className="truncate">
-                    <span className="text-colorText">
-                        {doc == null ? "Starting" : stopped ? "Stopped" : "Running"}
-                    </span>
-                    {" · "}
-                    {GRANT_LABEL[grant]}
-                    {" · "}
-                    <code className="text-[11px]">{dir || "/"}</code>
-                    {pageLabel ? (
-                        <span className="text-colorTextTertiary"> · {pageLabel}</span>
-                    ) : null}
-                </span>
-
-                <span className="ml-auto flex items-center gap-1">
-                    {backStack.length > 0 ? (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={goBack}
-                            aria-label="Back to the previous page"
-                            className="h-6 gap-0.5 px-1.5 text-xs"
-                        >
-                            <CaretLeft weight="bold" className="size-3" />
-                            back
-                        </Button>
-                    ) : null}
-
-                    {changedPaths.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={reload}
-                            title={changedPaths.join("\n")}
-                            className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
-                        >
-                            Files changed · Reload
-                        </button>
-                    ) : null}
-
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                aria-label="Refresh"
-                                className="h-6 gap-1 px-1.5 text-xs"
-                            >
-                                <ArrowsClockwise className="size-3" />
-                                Refresh
-                                <CaretDown weight="bold" className="size-2.5 opacity-70" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[160px]">
-                            <DropdownMenuItem onSelect={reload}>Reload files</DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    {errors.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={() => setErrorsOpen((v) => !v)}
-                            aria-expanded={errorsOpen}
-                            aria-label={`${errors.length} error${errors.length === 1 ? "" : "s"}`}
-                            className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
-                        >
-                            <Warning weight="fill" className="size-3" />
-                            {errors.length}
-                        </button>
-                    ) : null}
-                </span>
-            </div>
+            {controlsContainer ? (
+                createPortal(controls, controlsContainer)
+            ) : (
+                <div
+                    data-slot="run-controls"
+                    className="flex shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1"
+                >
+                    {controls}
+                </div>
+            )}
 
             {errorsOpen && errors.length > 0 ? (
                 <div
@@ -412,8 +364,8 @@ export function RunView({
                 </div>
             ) : stopped ? (
                 <div data-slot="run-stopped" className="min-h-0 flex-1 p-3 text-colorTextSecondary">
-                    The app tried to load another page and was stopped. Use Refresh, then Reload
-                    files, to start it again.
+                    The app tried to load another page and was stopped. Use Refresh to start it
+                    again.
                 </div>
             ) : (
                 // No allow-same-origin: the app is an opaque origin and reaches the drive only over

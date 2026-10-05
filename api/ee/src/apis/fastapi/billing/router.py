@@ -946,6 +946,10 @@ class BillingRouter:
                 detail="Invalid plan",
             )
 
+        # The free plan has no Stripe prices, so leaving a paid plan for it ends the subscription.
+        if plan == get_free_plan():
+            return await self.cancel_subscription(organization_id=organization_id)
+
         try:
             subscription = await self.subscription_service.process_event(
                 organization_id=organization_id,

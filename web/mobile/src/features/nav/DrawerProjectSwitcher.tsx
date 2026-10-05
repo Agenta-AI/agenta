@@ -15,9 +15,11 @@ import {fetchProjects, projectHomeUrl, writeLastContext} from "@/lib/context"
 
 import {useLogout} from "../auth/useLogout"
 import {groupByOrganization} from "../context/workspaceGroups"
+import {LiveChatNavButton} from "../support/LiveChatNavButton"
+import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
 import {CreateProjectSheet} from "./CreateProjectSheet"
-import {useMobileHelpItem, useMobileVersion} from "./useMobileNavItems"
+import {useMobileHelpItem} from "./useMobileNavItems"
 
 /**
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
@@ -41,7 +43,7 @@ export const DrawerProjectSwitcher = ({
     const helpItem = useMobileHelpItem({
         onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
     })
-    const version = useMobileVersion()
+    const liveChatEnabled = useLiveChatEnabled()
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
@@ -155,8 +157,12 @@ export const DrawerProjectSwitcher = ({
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
-                triggerMeta={version ? `v${version}` : undefined}
-                trailing={<SidebarIconMenu item={helpItem} />}
+                trailing={
+                    <>
+                        {liveChatEnabled ? <LiveChatNavButton /> : null}
+                        <SidebarIconMenu item={helpItem} />
+                    </>
+                }
             />
             <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <CreateProjectSheet

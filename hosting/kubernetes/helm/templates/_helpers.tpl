@@ -412,9 +412,19 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{/* ================================================================
    Redis defaults (maxmemory, eviction policy).
    ================================================================ */}}
-{{- define "agenta.redisVolatile.maxmemory" -}}{{ default "512mb" (default dict .Values.redisVolatile).maxmemory }}{{- end }}
+{{/* The dataset ceiling, which must stay BELOW the container memory limit:
+     redis needs room on top of its data for client buffers, replication
+     buffers and an append-only-file rewrite. The old default of 512mb
+     equalled the limit the production values set, so a full dataset left
+     nothing for that work and the kernel could kill the container. */}}
+{{- define "agenta.redisVolatile.maxmemory" -}}{{ default "384mb" (default dict .Values.redisVolatile).maxmemory }}{{- end }}
 {{- define "agenta.redisVolatile.maxmemoryPolicy" -}}{{ default "volatile-lru" (default dict .Values.redisVolatile).maxmemoryPolicy }}{{- end }}
-{{- define "agenta.redisDurable.maxmemory" -}}{{ default "512mb" (default dict .Values.redisDurable).maxmemory }}{{- end }}
+{{/* The dataset ceiling, which must stay BELOW the container memory limit:
+     redis needs room on top of its data for client buffers, replication
+     buffers and an append-only-file rewrite. The old default of 512mb
+     equalled the limit the production values set, so a full dataset left
+     nothing for that work and the kernel could kill the container. */}}
+{{- define "agenta.redisDurable.maxmemory" -}}{{ default "384mb" (default dict .Values.redisDurable).maxmemory }}{{- end }}
 {{- define "agenta.redisDurable.maxmemoryPolicy" -}}{{ default "noeviction" (default dict .Values.redisDurable).maxmemoryPolicy }}{{- end }}
 {{/* Bytes of corrupt AOF tail redis may auto-truncate at load instead of refusing to start. */}}
 {{- define "agenta.redisDurable.aofLoadCorruptTailMaxSize" -}}{{ default 1048576 (default dict .Values.redisDurable).aofLoadCorruptTailMaxSize }}{{- end }}
@@ -860,6 +870,13 @@ imagePullSecrets:
   value: {{ default "local" $runnerProviders.default | quote }}
 - name: POSTHOG_API_KEY
   value: {{ $posthog.apiKey | default "" | quote }}
+{{- /* The web entrypoint turns CRISP_WEBSITE_ID into the browser's NEXT_PUBLIC_CRISP_WEBSITE_ID.
+       commonEnv does not reach the web pods, so without it here the live chat never loads. */}}
+{{- $crisp := default dict .Values.crisp }}
+{{- if $crisp.websiteId }}
+- name: CRISP_WEBSITE_ID
+  value: {{ $crisp.websiteId | quote }}
+{{- end }}
 {{- with $secrets.oauth }}
 {{- range $key, $val := . }}
 - name: {{ $key }}
@@ -1521,5 +1538,134 @@ imagePullSecrets:
         sleep 2
       done
       echo "Redis Durable is ready."
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
+   Availability under disruption.
+
+   Kubernetes moves pods off a node whenever the platform needs that node:
+   an upgrade, a repair, or a scale-down that packs pods onto fewer nodes.
+   On GKE Autopilot that happens without warning and is not a fault. Two
+   objects decide what it costs:
+
+     * a PodDisruptionBudget, which tells the platform how many pods of a
+       workload may be down at once for a VOLUNTARY disruption. Autopilot
+       respects it for one hour during a node upgrade, then proceeds anyway,
+       and never for a node that fails outright.
+     * topologySpreadConstraints, which keep the replicas of a workload on
+       different nodes and zones, so one node carries at most one of them.
+
+   A workload with one replica cannot survive its node being cleared, with
+   or without a budget: the budget only defers the eviction. Give any
+   workload that must stay reachable two replicas.
+
+   `podDisruptionBudgets.enabled` (default true) and
+   `topologySpread.enabled` (default true) turn the whole mechanism off for
+   an install that manages placement itself. Per workload,
+   `<workload>.pdb.maxUnavailable`, `<workload>.pdb.minAvailable` and
+   `<workload>.pdb.protectSingleton` override the defaults, and
+   `<workload>.topologySpreadConstraints` replaces the generated list.
+   ================================================================ */}}
+
+{{/* Every schedulable workload: the component label, its values key, and
+     whether the chart enables it. The alembic Job is deliberately absent:
+     a migration is not a service, and a budget would block the node that
+     runs it. */}}
+{{- define "agenta.workloads" -}}
+- component: api
+  key: api
+  replicas: {{ include "agenta.api.replicas" . }}
+  enabled: {{ include "agenta.api.enabled" . }}
+- component: web
+  key: web
+  replicas: {{ include "agenta.web.replicas" . }}
+  enabled: {{ include "agenta.web.enabled" . }}
+- component: web-mobile
+  key: webMobile
+  replicas: {{ include "agenta.webMobile.replicas" . }}
+  enabled: {{ include "agenta.web.enabled" . }}
+- component: services
+  key: services
+  replicas: {{ include "agenta.services.replicas" . }}
+  enabled: {{ include "agenta.services.enabled" . }}
+- component: runner
+  key: agentRunner
+  replicas: {{ include "agenta.agentRunner.replicas" . }}
+  enabled: {{ include "agenta.agentRunner.enabled" . }}
+- component: worker-queues
+  key: workerQueues
+  replicas: {{ include "agenta.workerQueues.replicas" . }}
+  enabled: {{ include "agenta.workerQueues.enabled" . }}
+- component: worker-streams
+  key: workerStreams
+  replicas: {{ include "agenta.workerStreams.replicas" . }}
+  enabled: {{ include "agenta.workerStreams.enabled" . }}
+- component: cron
+  key: cron
+  replicas: {{ include "agenta.cron.replicas" . }}
+  enabled: {{ include "agenta.cron.enabled" . }}
+- component: supertokens
+  key: supertokens
+  replicas: {{ include "agenta.supertokens.replicas" . }}
+  enabled: {{ include "agenta.supertokens.enabled" . }}
+- component: redis-volatile
+  key: redisVolatile
+  replicas: 1
+  enabled: {{ include "agenta.redisVolatile.enabled" . }}
+- component: redis-durable
+  key: redisDurable
+  replicas: 1
+  enabled: {{ include "agenta.redisDurable.enabled" . }}
+- component: seaweedfs
+  key: store.seaweedfs
+  replicas: 1
+  enabled: {{ include "agenta.seaweedfs.enabled" . }}
+{{- end }}
+
+{{- define "agenta.podDisruptionBudgets.enabled" -}}
+{{- $v := default dict (include "agenta.values" . | fromYaml).podDisruptionBudgets -}}
+{{- if hasKey $v "enabled" }}{{ $v.enabled }}{{ else }}true{{ end }}
+{{- end }}
+
+{{- define "agenta.topologySpread.enabled" -}}
+{{- $v := default dict (include "agenta.values" . | fromYaml).topologySpread -}}
+{{- if hasKey $v "enabled" }}{{ $v.enabled }}{{ else }}true{{ end }}
+{{- end }}
+
+{{/* The spread constraints of one workload. Argument: a dict with `root`
+     (the chart context), `component` (the label value) and `replicas`.
+
+     One replica gets nothing: a constraint on a single pod only risks
+     leaving it unschedulable. Two or more get a hard constraint per node
+     and a soft one per zone, because a zone can be full while the cluster
+     is not. `matchLabelKeys: [pod-template-hash]` scopes both to one
+     revision, so the extra pod of a rolling update is not blocked by the
+     pods it replaces. */}}
+{{- define "agenta.topologySpreadConstraints" -}}
+{{- $root := .root -}}
+{{- $values := include "agenta.values" $root | fromYaml -}}
+{{- $wl := default dict (get $values .key) -}}
+{{- if $wl.topologySpreadConstraints -}}
+{{- toYaml $wl.topologySpreadConstraints }}
+{{- else if and (eq (include "agenta.topologySpread.enabled" $root) "true") (gt (int .replicas) 1) -}}
+- maxSkew: 1
+  topologyKey: kubernetes.io/hostname
+  whenUnsatisfiable: DoNotSchedule
+  matchLabelKeys:
+    - pod-template-hash
+  labelSelector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: {{ .component }}
+- maxSkew: 1
+  topologyKey: topology.kubernetes.io/zone
+  whenUnsatisfiable: ScheduleAnyway
+  matchLabelKeys:
+    - pod-template-hash
+  labelSelector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: {{ .component }}
 {{- end }}
 {{- end }}
