@@ -187,13 +187,10 @@ export const TimeChart = ({
                               radius: 4,
                           }
                 }
-                // Pinned above the plot, following the cursor sideways, so it never covers a bar.
+                // Pinned to the top of the plot beside the cursor, so it stays in the card.
                 position={{y: 0}}
-                allowEscapeViewBox={{x: false, y: true}}
                 content={({active}) =>
-                    active && hovered !== null ? (
-                        <div className="-translate-y-full pb-2">{tooltip(hovered)}</div>
-                    ) : null
+                    active && hovered !== null ? <>{tooltip(hovered)}</> : null
                 }
                 isAnimationActive={false}
             />

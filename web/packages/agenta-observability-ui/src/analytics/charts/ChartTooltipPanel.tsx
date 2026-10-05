@@ -52,9 +52,16 @@ export const ChartTooltipPanel = ({
         {facts.length ? (
             <div className="flex flex-col gap-1 border-0 border-t border-solid border-border pt-1.5">
                 {facts.map((fact) => (
-                    <div key={fact.label} className="flex justify-between gap-2">
-                        <span className="text-muted-foreground">{fact.label}</span>
-                        <span className="font-medium tabular-nums">{fact.value}</span>
+                    <div key={fact.label} className="flex min-w-0 justify-between gap-3">
+                        <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+                            {fact.label}
+                        </span>
+                        <span
+                            className="min-w-0 truncate font-medium tabular-nums"
+                            title={fact.value}
+                        >
+                            {fact.value}
+                        </span>
                     </div>
                 ))}
             </div>
