@@ -481,6 +481,7 @@ const ProviderConnectionCard = ({
                                         />
                                     ) : secret ? (
                                         <PasswordInput
+                                            autoFocus={!connection && index === 0}
                                             placeholder={field.placeholder}
                                             className={FIELD_TYPE_SCALE}
                                             autoComplete="new-password"
@@ -490,6 +491,7 @@ const ProviderConnectionCard = ({
                                         />
                                     ) : (
                                         <InputAffix
+                                            autoFocus={!connection && index === 0}
                                             placeholder={field.placeholder}
                                             className={FIELD_TYPE_SCALE}
                                             autoComplete="off"
@@ -592,7 +594,16 @@ const ProviderConnectionCard = ({
                     onRefetch={() => void runProbe()}
                     refetching={probeMutation.isPending}
                 />
-            ) : null}
+            ) : (
+                // Says where the model list comes from instead of leaving the card blank.
+                <section className="flex shrink-0 flex-col gap-2">
+                    <span className="font-medium text-colorText">Active models</span>
+                    <p className="m-0 rounded-md border border-dashed border-colorBorderSecondary px-3 py-4 text-center text-colorTextTertiary">
+                        Enter the credential above to choose which {title} models this connection
+                        offers.
+                    </p>
+                </section>
+            )}
 
             <HarnessesSection
                 choices={harnessChoices}
