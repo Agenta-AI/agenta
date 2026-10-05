@@ -24,11 +24,11 @@ export interface SettingsPageShellProps {
     /** Optional tertiary docs link, rendered at the far right of the header. */
     docs?: {label: string; href: string}
     /**
-     * How wide the body runs. `table` fills the centered column; `form` caps the body at 640px
-     * inside it, so fields do not run the column; `full` drops the column cap for the Audit Log,
-     * whose timestamp + event type + full UUID row wants the whole monitor.
+     * How wide the page runs. `table` (every tab but one) is the centered 1040px column, and the
+     * body fills it at the header's width. `full` drops the cap for the Audit Log, whose
+     * timestamp + event type + full UUID row wants the whole monitor.
      */
-    variant?: "full" | "table" | "form"
+    variant?: "full" | "table"
     /**
      * Bound the page height so a table that scrolls internally does not grow the page.
      * Needed by tabs hosting a virtualized table.
@@ -100,13 +100,7 @@ const SettingsPageShell = ({
                 <p className="m-0 text-[14px] leading-5 text-colorTextSecondary">{description}</p>
             </header>
 
-            <div
-                className={clsx(
-                    "flex flex-col",
-                    fullHeight && "min-h-0 flex-1",
-                    variant === "form" && "max-w-[640px]",
-                )}
-            >
+            <div className={clsx("flex flex-col", fullHeight && "min-h-0 flex-1")}>
                 <HeaderActionsContext.Provider value={actionsSlot}>
                     {children}
                 </HeaderActionsContext.Provider>
