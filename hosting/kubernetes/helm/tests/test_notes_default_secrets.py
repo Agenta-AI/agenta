@@ -11,8 +11,11 @@ The banner used to fire anyway, so every correctly configured production install
 told in capital letters that it ships `authKey = "replace-me"`. That is the case this
 test pins.
 
-NOTES.txt is not part of `helm template` output, so these cases render with
-`helm install --dry-run=client` and read the notes section of the result.
+NOTES.txt is not part of `helm template` output. `helm install --dry-run=client` does
+render it, but Helm 3.18 still contacts the cluster there and fails with "Kubernetes
+cluster unreachable" on a runner that has none. So the test copies the chart, moves
+NOTES.txt into a named template, and renders that template as a JSON object with
+`helm template --show-only`. The notes logic is the chart's own, unchanged.
 
 Run: uv run hosting/kubernetes/helm/tests/test_notes_default_secrets.py
 Requires the `helm` binary on PATH.
@@ -20,8 +23,11 @@ Requires the `helm` binary on PATH.
 
 from __future__ import annotations
 
+import json
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 CHART_DIR = Path(__file__).resolve().parents[1]
@@ -62,14 +68,34 @@ EXISTING_SECRET_ARGS = [
 ]
 
 
+NOTES_MANIFEST = "notes-test.yaml"
+
+# A copy of the chart whose NOTES.txt is a named template, printed by an ordinary
+# manifest as a JSON object (valid YAML), so `helm template` renders it. Built once; the
+# chart on disk is not touched.
+_workdir = tempfile.TemporaryDirectory()
+NOTES_CHART_DIR = Path(_workdir.name) / "chart"
+shutil.copytree(CHART_DIR, NOTES_CHART_DIR, ignore=shutil.ignore_patterns("tests"))
+_templates = NOTES_CHART_DIR / "templates"
+_notes = (_templates / "NOTES.txt").read_text()
+(_templates / "NOTES.txt").unlink()
+(_templates / "_notes-test.tpl").write_text(
+    '{{- define "notes-test.notes" -}}' + _notes + "{{- end -}}"
+)
+(_templates / NOTES_MANIFEST).write_text(
+    '{{ dict "notes" (include "notes-test.notes" .) | toJson }}'
+)
+
+
 def render_notes(extra_args: list[str]) -> str:
     result = subprocess.run(
         [
             "helm",
-            "install",
+            "template",
             RELEASE,
-            str(CHART_DIR),
-            "--dry-run=client",
+            str(NOTES_CHART_DIR),
+            "--show-only",
+            f"templates/{NOTES_MANIFEST}",
             *URL_ARGS,
             *extra_args,
         ],
@@ -79,9 +105,15 @@ def render_notes(extra_args: list[str]) -> str:
     )
     if result.returncode != 0:
         raise AssertionError(
-            f"helm install --dry-run failed for args {extra_args}:\n{result.stderr}"
+            f"helm template failed for args {extra_args}:\n{result.stderr}"
         )
-    return result.stdout
+    # Helm prints `---`, a `# Source:` comment, then the JSON object.
+    lines = [
+        ln
+        for ln in result.stdout.splitlines()
+        if ln and not ln.startswith(("---", "#"))
+    ]
+    return json.loads("\n".join(lines))["notes"]
 
 
 def check(
