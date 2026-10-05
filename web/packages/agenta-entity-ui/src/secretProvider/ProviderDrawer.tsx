@@ -57,6 +57,8 @@ export interface ProviderDrawerProps {
     connections: ProviderConnection[]
     /** Open straight on this saved connection's card (a Settings table row click). */
     connection?: ProviderConnection | null
+    /** Open straight on a new connection card for this kind (a Settings catalog row click). */
+    kind?: string | null
     /** Called after a connection is saved, so the host can refetch the vault. */
     onSaved?: (savedConnectionId?: string) => void
     /** Where "configured in the deployment" points. */
@@ -114,6 +116,7 @@ const ProviderDrawer = ({
     context,
     connections,
     connection,
+    kind,
     onSaved,
     subscriptionDocsUrl = DEFAULT_SUBSCRIPTION_DOCS_URL,
     showSubscriptions = true,
@@ -149,15 +152,18 @@ const ProviderDrawer = ({
     }, [])
 
     // Opening is what decides the level: with a connection the drawer goes straight to its card
-    // (and shows no back arrow, because there is no list behind it); without one, the catalog.
+    // (and shows no back arrow, because there is no list behind it); with only a kind, to a new
+    // card for it; with neither, the catalog.
     useEffect(() => {
         if (!open) return
         showView(
             connection
                 ? {level: "connection", kind: connection.kind, connection, pushed: false}
-                : {level: "catalog"},
+                : kind
+                  ? {level: "connection", kind, connection: null, pushed: false}
+                  : {level: "catalog"},
         )
-    }, [open, connection, showView])
+    }, [open, connection, kind, showView])
 
     const onPickProvider = (entry: ProviderCatalogEntry) =>
         showView({level: "connection", kind: entry.kind, connection: null, pushed: true})
