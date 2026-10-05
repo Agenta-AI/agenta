@@ -11,17 +11,11 @@ The banner used to fire anyway, so every correctly configured production install
 told in capital letters that it ships `authKey = "replace-me"`. That is the case this
 test pins.
 
-NOTES.txt is not part of `helm template` output, and this chart cannot render it offline:
-`agenta.validateRedisDurablePersistenceToggle` calls `lookup`, which makes helm build a real
-client even for `--dry-run=client`. So this test has two modes and always runs one of them:
-
-* with a reachable cluster (a developer machine), it renders the real notes through
-  `helm install --dry-run=client` and asserts on the banner itself. That is the strong check.
-* with no cluster (CI), it asserts on the template source instead: the banner's condition must
-  still carry the `secrets.existingSecret` guard, and the banner must still name the three
-  values. Weaker, but it pins the thing that regressed.
-
-The mode is printed, so a run is never silently weaker than it looks.
+NOTES.txt is not part of `helm template` output. `helm install --dry-run=client` does
+render it, but Helm 3.18 still contacts the cluster there and fails with "Kubernetes
+cluster unreachable" on a runner that has none. So the test copies the chart, moves
+NOTES.txt into a named template, and renders that template as a JSON object with
+`helm template --show-only`. The notes logic is the chart's own, unchanged.
 
 Run: uv run hosting/kubernetes/helm/tests/test_notes_default_secrets.py
 Requires the `helm` binary on PATH.
@@ -29,8 +23,11 @@ Requires the `helm` binary on PATH.
 
 from __future__ import annotations
 
+import json
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 CHART_DIR = Path(__file__).resolve().parents[1]
@@ -71,74 +68,34 @@ EXISTING_SECRET_ARGS = [
 ]
 
 
-NOTES_PATH = CHART_DIR / "templates" / "NOTES.txt"
+NOTES_MANIFEST = "notes-test.yaml"
 
-
-def cluster_reachable() -> bool:
-    """Whether helm can talk to a cluster, which `helm install --dry-run` needs here."""
-    r = subprocess.run(
-        ["helm", "list", "--max", "1"], capture_output=True, text=True, check=False
-    )
-    return r.returncode == 0
-
-
-def check_source() -> tuple[int, int]:
-    """Offline mode: pin the guard in the template source. Returns (checks, failures)."""
-    text = NOTES_PATH.read_text()
-    failures = 0
-    ran = 0
-
-    def want(cond: bool, msg: str) -> None:
-        nonlocal failures, ran
-        ran += 1
-        print(("  ok   " if cond else "  FAIL ") + msg)
-        if not cond:
-            failures += 1
-
-    lines = text.splitlines()
-    start = next(
-        (i for i, ln in enumerate(lines) if 'eq ($agenta.authKey | toString) "replace-me"' in ln),
-        None,
-    )
-    want(start is not None, "the banner condition is still in NOTES.txt")
-    if start is None:
-        return ran, failures
-
-    want(
-        "not $secrets.existingSecret" in lines[start],
-        "the banner condition still skips when the operator brings their own Secret",
-    )
-
-    # Scope every other assertion to the warning block itself. NOTES.txt also carries an
-    # example values block naming the same three values, so searching the whole file would
-    # keep passing after a name disappeared from the warning. The block runs from the
-    # condition to the bottom edge of the drawn box.
-    end = next((i for i in range(start, len(lines)) if "\u255a" in lines[i]), None)
-    want(end is not None, "the warning box still has a bottom edge to bound the block")
-    block = "\n".join(lines[start : (end + 1) if end else len(lines)])
-    # Assert on the drawn lines a reader sees, not on the template conditions around them.
-    # Every condition in this block mentions its own value name, so searching the block as
-    # text keeps passing after the visible line is reworded. Only a row of the box counts.
-    drawn = [
-        ln for ln in block.splitlines() if ln.lstrip().startswith("\u2551") and "REPLACE" in ln
-    ]
-    want(bool(drawn), "the warning box still has rows telling the reader to replace a value")
-    for value in ("agenta.authKey", "agenta.cryptKey", "postgres.password"):
-        want(
-            any(value in ln for ln in drawn),
-            f"a visible warning row still names {value}",
-        )
-    return ran, failures
+# A copy of the chart whose NOTES.txt is a named template, printed by an ordinary
+# manifest as a JSON object (valid YAML), so `helm template` renders it. Built once; the
+# chart on disk is not touched.
+_workdir = tempfile.TemporaryDirectory()
+NOTES_CHART_DIR = Path(_workdir.name) / "chart"
+shutil.copytree(CHART_DIR, NOTES_CHART_DIR, ignore=shutil.ignore_patterns("tests"))
+_templates = NOTES_CHART_DIR / "templates"
+_notes = (_templates / "NOTES.txt").read_text()
+(_templates / "NOTES.txt").unlink()
+(_templates / "_notes-test.tpl").write_text(
+    '{{- define "notes-test.notes" -}}' + _notes + "{{- end -}}"
+)
+(_templates / NOTES_MANIFEST).write_text(
+    '{{ dict "notes" (include "notes-test.notes" .) | toJson }}'
+)
 
 
 def render_notes(extra_args: list[str]) -> str:
     result = subprocess.run(
         [
             "helm",
-            "install",
+            "template",
             RELEASE,
-            str(CHART_DIR),
-            "--dry-run=client",
+            str(NOTES_CHART_DIR),
+            "--show-only",
+            f"templates/{NOTES_MANIFEST}",
             *URL_ARGS,
             *extra_args,
         ],
@@ -148,12 +105,20 @@ def render_notes(extra_args: list[str]) -> str:
     )
     if result.returncode != 0:
         raise AssertionError(
-            f"helm install --dry-run failed for args {extra_args}:\n{result.stderr}"
+            f"helm template failed for args {extra_args}:\n{result.stderr}"
         )
-    return result.stdout
+    # Helm prints `---`, a `# Source:` comment, then the JSON object.
+    lines = [
+        ln
+        for ln in result.stdout.splitlines()
+        if ln and not ln.startswith(("---", "#"))
+    ]
+    return json.loads("\n".join(lines))["notes"]
 
 
-def check(name: str, extra_args: list[str], *, expect_banner: bool, expect: str = "") -> bool:
+def check(
+    name: str, extra_args: list[str], *, expect_banner: bool, expect: str = ""
+) -> bool:
     notes = render_notes(extra_args)
     shown = BANNER in notes
     if shown != expect_banner:
@@ -168,16 +133,6 @@ def check(name: str, extra_args: list[str], *, expect_banner: bool, expect: str 
 
 
 def main() -> int:
-    if not cluster_reachable():
-        print("  mode: no cluster reachable, asserting on the template source")
-        ran, failures = check_source()
-        print(f"\n{ran - failures}/{ran} source checks passed")
-        if failures:
-            return 1
-        print("OK: the banner still carries its existingSecret guard.")
-        return 0
-
-    print("  mode: cluster reachable, asserting on the rendered notes")
     results = [
         # The reachable real warning: the four required keys are set, but the bundled
         # PostgreSQL still runs on the default password.
