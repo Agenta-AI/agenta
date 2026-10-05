@@ -33,6 +33,8 @@ import {
 } from "@agenta/ui/ui"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 
+const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
+
 interface Props {
     members: WorkspaceMember[]
     loading: boolean
@@ -161,7 +163,7 @@ export const MembersTab = ({
                                 <SelectContent>
                                     {roles.data.map((entry) => (
                                         <SelectItem key={entry.role_name} value={entry.role_name}>
-                                            {entry.role_name}
+                                            {roleLabel(entry.role_name)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
