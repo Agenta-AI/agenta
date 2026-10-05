@@ -1,5 +1,3 @@
-import {useEffect, useState} from "react"
-
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {ProjectsPage} from "@agenta/settings-ui"
 import {
@@ -12,14 +10,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    Input,
 } from "@agenta/ui/ui"
+
+import {NameDialog} from "./NameDialog"
 
 interface Props {
     projects: ProjectsResponse[]
@@ -41,10 +34,11 @@ export const ProjectsTab = ({projects, isLoading, workspaceId, projectId}: Props
             workspaceId={workspaceId}
             currentProjectId={projectId}
             renderCreateDialog={({open, onClose, onSubmit, pending}) => (
-                <NameSheet
+                <NameDialog
                     open={open}
                     title="New project"
                     description="Projects group your agents, datasets and deployments."
+                    placeholder="Project name"
                     submitLabel="Create"
                     pending={pending}
                     onClose={onClose}
@@ -89,66 +83,5 @@ export const ProjectsTab = ({projects, isLoading, workspaceId, projectId}: Props
                 </AlertDialog>
             )}
         />
-    )
-}
-
-/**
- * Owns the draft itself, seeded from `initialValue` each time it opens. It used to render
- * `value || initialValue`, which meant clearing the field silently put the old name back —
- * uncleanable, and Save then sent the name the user had just deleted.
- */
-const NameSheet = ({
-    open,
-    title,
-    description,
-    submitLabel,
-    pending,
-    initialValue = "",
-    onClose,
-    onSubmit,
-}: {
-    open: boolean
-    title: string
-    description?: string
-    submitLabel: string
-    pending: boolean
-    initialValue?: string
-    onClose: () => void
-    onSubmit: (name: string) => void
-}) => {
-    const [value, setValue] = useState(initialValue)
-
-    useEffect(() => {
-        if (open) setValue(initialValue)
-    }, [open, initialValue])
-
-    return (
-        <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>{title}</DialogTitle>
-                    {description ? <DialogDescription>{description}</DialogDescription> : null}
-                </DialogHeader>
-                <div>
-                    <Input
-                        autoFocus
-                        value={value}
-                        onChange={(event) => setValue(event.target.value)}
-                        placeholder="Project name"
-                    />
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
-                    </Button>
-                    <Button
-                        disabled={pending || !value.trim()}
-                        onClick={() => onSubmit(value.trim())}
-                    >
-                        {submitLabel}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     )
 }

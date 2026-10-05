@@ -22,7 +22,6 @@ import {
     DomainsSection,
     GatewayToolsSection,
     McpServersSection,
-    OrganizationsPage,
     SsoProvidersSection,
     SettingsPageShell,
     useEntitlements,
@@ -32,17 +31,6 @@ import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {THEME_OPTIONS, useThemeMode} from "@agenta/ui/theme"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
-
-import {ContentRail} from "@/components/ContentRail"
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {billingUrl} from "@/lib/context"
-import {
-    getMobileSettingsTabDescription,
-    getMobileSettingsTabDocs,
-    getMobileSettingsTabLabel,
-    INTEGRATIONS_SECTION_COPY,
-} from "@/lib/integrationsCopy"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -58,6 +46,7 @@ import {ChannelsTab} from "./ChannelsTab"
 import {LlmProvidersTab} from "./LlmProvidersTab"
 import {MembersTab} from "./MembersTab"
 import {isNestedSettingsNavEnabled} from "./nestedNav"
+import {OrganizationsTab} from "./OrganizationsTab"
 import {PreferencesTab} from "./PreferencesTab"
 import {ProjectsTab} from "./ProjectsTab"
 import {SecretsTab} from "./SecretsTab"
@@ -67,6 +56,17 @@ import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
 import {OrganizationLoading, OrganizationNoFlags} from "./states/OrganizationStates"
 import {useConfirmModal} from "./useConfirmModal"
 import {WebhooksTab} from "./WebhooksTab"
+
+import {ContentRail} from "@/components/ContentRail"
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {billingUrl} from "@/lib/context"
+import {
+    getMobileSettingsTabDescription,
+    getMobileSettingsTabDocs,
+    getMobileSettingsTabLabel,
+    INTEGRATIONS_SECTION_COPY,
+} from "@/lib/integrationsCopy"
 
 /**
  * One tab's body. Every page comes from @agenta/settings-ui. Tabs with a *Tab wrapper bring
@@ -104,7 +104,9 @@ const TabBody = ({
     const org = useQuery({
         queryKey: ["selectedOrg", organizationId],
         queryFn: () => fetchSingleOrg({organizationId: organizationId!}),
-        enabled: (tab === "workspace" || tab === "organization") && Boolean(organizationId),
+        enabled:
+            (tab === "workspace" || tab === "organization" || tab === "organizationGeneral") &&
+            Boolean(organizationId),
     })
     const organizations = useQuery({
         queryKey: ["orgs"],
@@ -257,11 +259,16 @@ const TabBody = ({
             )
         case "organizationGeneral":
             return (
-                <OrganizationsPage
+                <OrganizationsTab
                     organizations={organizations.data ?? []}
                     loading={organizations.isPending}
                     selectedOrgId={organizationId}
                     currentUserId={user?.id}
+                    members={org.data?.default_workspace?.members ?? []}
+                    onChanged={() => {
+                        void organizations.refetch()
+                        void org.refetch()
+                    }}
                 />
             )
         case "organization": {

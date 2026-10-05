@@ -1,12 +1,14 @@
-import {useMemo, type ReactNode} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import type {Org} from "@agenta/entities/organization"
-import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
+import {message} from "@agenta/ui/app-message"
+import {InitialsAvatar, StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {
     ArrowsLeftRight,
     Buildings,
+    Copy,
     PencilSimpleLine,
     Plus,
     SignOut,
@@ -15,6 +17,7 @@ import {
 
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
+import {InlineName} from "../shared/InlineName"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -24,7 +27,7 @@ interface OrgRow extends Org {
 
 const COLUMNS: ListTableColumn[] = [
     {key: "name", label: "Organization", width: "minmax(0,2fr)"},
-    {key: "id", label: "Organization ID", width: "minmax(0,2fr)"},
+    {key: "status", label: "Status", width: "minmax(0,1fr)"},
     {key: "owner_id", label: "Your role", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
@@ -38,7 +41,8 @@ export interface OrganizationsPageProps {
     currentUserId?: string | null
     onSwitch?: (org: Org) => void
     onCreate?: () => void
-    onRename?: (org: Org) => void
+    /** Saves a new name typed in place on the row. */
+    onRename?: (org: Org, name: string) => Promise<unknown>
     onTransferOwnership?: (org: Org) => void
     onLeave?: (org: Org) => void
     onDelete?: (org: Org) => void
@@ -70,6 +74,7 @@ export const OrganizationsPage = ({
         [organizations],
     )
 
+    const [renamingId, setRenamingId] = useState<string | null>(null)
     const isOwner = (org: Org) => Boolean(currentUserId) && org.owner_id === currentUserId
 
     const createButton = (variant?: "outline") =>
@@ -105,15 +110,29 @@ export const OrganizationsPage = ({
                         <>
                             <div className="flex min-w-0 items-center gap-2.5">
                                 <InitialsAvatar name={name} />
-                                <span className="truncate font-medium text-foreground" title={name}>
-                                    {name}
-                                </span>
-                                {record.id === selectedOrgId ? (
-                                    <Tag className="shrink-0">Current</Tag>
-                                ) : null}
+                                <InlineName
+                                    value={name}
+                                    editing={renamingId === record.id}
+                                    ariaLabel="Organization name"
+                                    onStart={
+                                        isOwner(record) && onRename
+                                            ? () => setRenamingId(record.id)
+                                            : undefined
+                                    }
+                                    onDone={() => setRenamingId(null)}
+                                    onSave={(next) => onRename?.(record, next) ?? Promise.resolve()}
+                                />
                             </div>
-                            <span className="truncate font-mono text-[13px] text-muted-foreground">
-                                {record.id}
+                            <span className="flex min-w-0 items-center">
+                                {record.id === selectedOrgId ? (
+                                    <StatusIndicator
+                                        tone="success"
+                                        label="Current"
+                                        className="text-[13px]"
+                                    />
+                                ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                )}
                             </span>
                             <span className="truncate">{isOwner(record) ? "Owner" : "Member"}</span>
                             <SettingsRowMenu
@@ -131,7 +150,8 @@ export const OrganizationsPage = ({
                                         label: "Rename",
                                         icon: <PencilSimpleLine size={14} />,
                                         hidden: !isOwner(record) || !onRename,
-                                        onClick: () => onRename?.(record),
+                                        deferred: true,
+                                        onClick: () => setRenamingId(record.id),
                                     },
                                     {
                                         key: "transfer",
@@ -143,6 +163,16 @@ export const OrganizationsPage = ({
                                             record.id !== selectedOrgId ||
                                             !onTransferOwnership,
                                         onClick: () => onTransferOwnership?.(record),
+                                    },
+                                    {
+                                        key: "copy-id",
+                                        label: "Copy organization ID",
+                                        icon: <Copy size={14} />,
+                                        onClick: () =>
+                                            void navigator.clipboard?.writeText(record.id).then(
+                                                () => message.success("Organization ID copied"),
+                                                () => message.error("Couldn't copy the ID"),
+                                            ),
                                     },
                                     {type: "divider"},
                                     {
