@@ -10,6 +10,7 @@ import {
     AlertDialogTitle,
     Button,
 } from "@agenta/ui/ui"
+import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {NameDialog} from "./NameDialog"
@@ -24,6 +25,7 @@ import {useSettingsOrg} from "./useSettingsOrg"
  */
 export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const router = useRouter()
+    const queryClient = useQueryClient()
     const {projects: query} = useSettingsOrg(workspaceId)
     return (
         <ProjectsPage
@@ -31,6 +33,8 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
             isLoading={query.isPending}
             workspaceId={workspaceId}
             currentProjectId={projectId}
+            // The nav switcher reads its own projects list.
+            onChanged={() => void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})}
             onSwitch={(project) =>
                 switchSettingsContext(router, {
                     workspaceId: project.workspace_id ?? workspaceId,

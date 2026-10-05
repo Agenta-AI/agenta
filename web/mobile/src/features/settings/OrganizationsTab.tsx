@@ -11,6 +11,7 @@ import {
 } from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {OrganizationsPage} from "@agenta/settings-ui"
+import {message} from "@agenta/ui/app-message"
 import {
     Button,
     Dialog,
@@ -25,7 +26,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-import {useQuery} from "@tanstack/react-query"
+import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {groupByOrganization} from "../context/workspaceGroups"
@@ -46,6 +47,7 @@ const errorText = (error: unknown, fallback: string): string => {
 /** Mobile binding: create, rename in place, transfer ownership and delete for organizations. */
 export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
     const router = useRouter()
+    const queryClient = useQueryClient()
     const {user} = useProfile()
     const {organizationId: selectedOrgId, org} = useSettingsOrg(workspaceId)
     const orgs = useQuery({queryKey: ["orgs"], queryFn: () => fetchAllOrgsList()})
@@ -55,6 +57,8 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
     const onChanged = () => {
         void orgs.refetch()
         void org.refetch()
+        // The nav switcher and org switching read org names and projects from this list.
+        void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
     }
     // Every org's projects, the same list the nav switcher reads, to land on one when switching.
     const allProjects = useQuery({
@@ -97,7 +101,10 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
             onSwitch={(org) => {
                 const group = groups.find((entry) => entry.organizationId === org.id)
                 const first = group?.projects[0]
-                if (!group || !first) return
+                if (!group || !first) {
+                    message.info(`${org.name ?? "This organization"} has no project to open yet`)
+                    return
+                }
                 switchSettingsContext(router, {
                     workspaceId: group.workspaceId,
                     projectId: first.project_id,
