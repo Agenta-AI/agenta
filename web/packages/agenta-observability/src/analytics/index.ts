@@ -7,6 +7,8 @@ export {
     customRangeLabel,
     bucketWindow,
     bucketStarts,
+    bucketOf,
+    bucketEnd,
     numberSeries,
     keyedSeries,
     toOverview,

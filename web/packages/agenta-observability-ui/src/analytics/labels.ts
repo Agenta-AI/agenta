@@ -1,4 +1,4 @@
-import type {AnalyticsWindow} from "@agenta/observability/analytics"
+import {bucketEnd, type AnalyticsWindow} from "@agenta/observability/analytics"
 import {getProviderDisplayName} from "@agenta/ui/select-llm-provider"
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -22,14 +22,21 @@ const isDaily = (window: AnalyticsWindow) => window.interval >= 24 * 60
 // Across a DST change a daily start can fall at 23:00 the day before; the midpoint cannot.
 const midday = (start: number) => start + 12 * 60 * 60_000
 
+// A week's last day: the axis ends on today, and the tooltip reads as a span.
+const lastDay = (window: AnalyticsWindow, start: number) =>
+    monthDay(midday(bucketEnd(window, start) - 24 * 60 * 60_000))
+
 /** Axis label for one bucket. */
 export const shortLabel = (window: AnalyticsWindow, start: number) =>
-    isDaily(window) ? monthDay(midday(start)) : clock(start)
+    isWeekly(window)
+        ? lastDay(window, start)
+        : isDaily(window)
+          ? monthDay(midday(start))
+          : clock(start)
 
 /** Tooltip and drawer title for one bucket. */
 export const fullLabel = (window: AnalyticsWindow, start: number) => {
-    if (isWeekly(window))
-        return `${monthDay(midday(start))} – ${monthDay(midday(start + (window.interval - 24 * 60) * 60_000))}`
+    if (isWeekly(window)) return `${monthDay(midday(start))} – ${lastDay(window, start)}`
     return isDaily(window)
         ? `${WEEKDAYS[new Date(midday(start)).getDay()]}, ${monthDay(midday(start))}`
         : `${monthDay(start)}, ${clock(start)}`

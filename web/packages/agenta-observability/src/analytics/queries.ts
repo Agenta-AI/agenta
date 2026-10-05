@@ -149,7 +149,8 @@ export const fetchAnalyticsBuckets = async ({
     const res = await fetchSpansAnalytics({
         projectId,
         focus: def.focus,
-        interval: window.interval,
+        // The API has no weeks that end at `newest`; a weekly window fetches days and sums them.
+        interval: Math.min(window.interval, 24 * 60),
         oldest: new Date(window.oldest).toISOString(),
         newest: new Date(window.newest).toISOString(),
         filter: conditions.length ? {conditions} : undefined,

@@ -24,15 +24,16 @@ const WEEK = 7 * DAY
 /** Ranges longer than a month read by the week; a bar per day would be a hairline. */
 const WEEKLY_AFTER_DAYS = 31
 
-/** Daily, or whole weeks ending at `newest` (so a range can start up to six days earlier). */
-const dayWindow = (oldest: number, newest: number): AnalyticsWindow =>
-    newest - oldest > WEEKLY_AFTER_DAYS * DAY
-        ? {
-              oldest: newest - Math.ceil((newest - oldest) / WEEK) * WEEK,
-              newest,
-              interval: 7 * 24 * 60,
-          }
-        : {oldest, newest, interval: 24 * 60}
+/** Daily, or weeks ending at `newest`; the oldest week is short when the days do not divide by 7. */
+const dayWindow = (oldest: number, newest: number): AnalyticsWindow => {
+    if (newest - oldest <= WEEKLY_AFTER_DAYS * DAY) return {oldest, newest, interval: 24 * 60}
+    // Whole days back from `newest`, so the API's day buckets line up with the weeks across DST.
+    return {
+        oldest: newest - Math.round((newest - oldest) / DAY) * DAY,
+        newest,
+        interval: 7 * 24 * 60,
+    }
+}
 
 /** Hourly buckets ending at the next full hour for 24h; local-midnight days or weeks otherwise. */
 export const rangeWindow = (range: AnalyticsRangeKey, now: number): AnalyticsWindow => {
@@ -56,7 +57,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 /** "Sep 3 – Sep 18", with years when the span crosses one or is not this year. */
 export const customRangeLabel = (range: AnalyticsCustomRange, now: number): string => {
-    const first = new Date(customWindow(range).oldest)
+    const first = new Date(range.oldest)
     // `newest` is the midnight after the last day; the midpoint of that day is safe across DST.
     const last = new Date(range.newest - DAY / 2)
     const withYear =
@@ -69,22 +70,42 @@ export const customRangeLabel = (range: AnalyticsCustomRange, now: number): stri
         : `${day(first)} – ${day(last)}`
 }
 
-/** The window one bucket covers, split finer: a week by day, a day by hour, an hour by five minutes. */
-export const bucketWindow = (window: AnalyticsWindow, index: number): AnalyticsWindow => {
-    const width = window.interval * MINUTE
-    const oldest = window.oldest + index * width
-    const interval = window.interval > 24 * 60 ? 24 * 60 : window.interval === 24 * 60 ? 60 : 5
-    return {oldest, newest: oldest + width, interval}
-}
+const isWeekly = (window: AnalyticsWindow) => window.interval > 24 * 60
 
 export const bucketStarts = (window: AnalyticsWindow): number[] => {
     const width = window.interval * MINUTE
-    const count = Math.max(1, Math.round((window.newest - window.oldest) / width))
-    return Array.from({length: count}, (_, i) => window.oldest + i * width)
+    const span = (window.newest - window.oldest) / width
+    if (!isWeekly(window)) {
+        const count = Math.max(1, Math.round(span))
+        return Array.from({length: count}, (_, i) => window.oldest + i * width)
+    }
+    const count = Math.max(1, Math.ceil(span))
+    return Array.from({length: count}, (_, i) =>
+        Math.max(window.oldest, window.newest - (count - i) * width),
+    )
+}
+
+/** The bucket a time falls in; out of range below 0 or at the bucket count and above. */
+export const bucketOf = (window: AnalyticsWindow, time: number) => {
+    const width = window.interval * MINUTE
+    if (!isWeekly(window)) return Math.floor((time - window.oldest) / width)
+    if (time < window.oldest) return -1
+    return bucketStarts(window).length - Math.ceil((window.newest - time) / width)
 }
 
 const bucketIndex = (window: AnalyticsWindow, timestamp: string) =>
-    Math.floor((Date.parse(timestamp) - window.oldest) / (window.interval * MINUTE))
+    bucketOf(window, Date.parse(timestamp))
+
+/** Where the bucket that starts at `start` ends. */
+export const bucketEnd = (window: AnalyticsWindow, start: number) =>
+    bucketStarts(window).find((s) => s > start) ?? window.newest
+
+/** The window one bucket covers, split finer: a week by day, a day by hour, an hour by five minutes. */
+export const bucketWindow = (window: AnalyticsWindow, index: number): AnalyticsWindow => {
+    const oldest = bucketStarts(window)[index]
+    const interval = isWeekly(window) ? 24 * 60 : window.interval === 24 * 60 ? 60 : 5
+    return {oldest, newest: bucketEnd(window, oldest), interval}
+}
 
 type Blob = Record<string, unknown> | null | undefined
 

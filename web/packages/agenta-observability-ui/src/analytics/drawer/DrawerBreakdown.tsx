@@ -283,9 +283,7 @@ const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) =>
             <div className={cn(grid, "h-7 items-center text-[11px] text-muted-foreground")}>
                 <span>Tool</span>
                 <span className="text-right text-foreground">Calls ↓</span>
-                <span className="text-right">
-                    Per {unit === "day" ? "day" : unit === "hour" ? "hour" : "slot"}
-                </span>
+                <span className="text-right">Per {unit === "5 minutes" ? "slot" : unit}</span>
                 <span className="text-right">Share</span>
             </div>
             {rows.map((row, i) => (

@@ -322,8 +322,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                     <section className="rounded-xl bg-muted px-4 py-3">
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-sm font-medium">
-                                {METRIC_LABEL[metric]} by{" "}
-                                {unit === "day" ? "day" : unit === "hour" ? "hour" : "5 minutes"}
+                                {METRIC_LABEL[metric]} by {unit}
                             </span>
                             <span className="text-[11px] text-muted-foreground">
                                 {bucket === null

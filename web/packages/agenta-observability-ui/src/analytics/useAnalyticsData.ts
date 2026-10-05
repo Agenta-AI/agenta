@@ -3,6 +3,7 @@ import {useCallback, useMemo} from "react"
 import {
     EMPTY_FILTERS,
     PATH,
+    bucketOf,
     bucketStarts,
     keyedSeries,
     numberSeries,
@@ -246,7 +247,6 @@ export const useFailureReasons = (
         }),
     )
     return useMemo(() => {
-        const width = window.interval * 60_000
         const size = bucketStarts(window).length
         const byReason: KeyedSeries = {}
         const bucketAgents = Array.from({length: size}, () => ({}) as Record<string, number>)
@@ -258,7 +258,7 @@ export const useFailureReasons = (
                 const reasons = (agentReasons[run.agentId] ??= {})
                 reasons[label] = (reasons[label] ?? 0) + 1
             }
-            const i = Math.floor((run.startedAt - window.oldest) / width)
+            const i = bucketOf(window, run.startedAt)
             if (i < 0 || i >= size) continue
             ;(byReason[label] ??= Array.from({length: size}, () => 0))[i] += 1
             if (run.agentId) bucketAgents[i][run.agentId] = (bucketAgents[i][run.agentId] ?? 0) + 1
