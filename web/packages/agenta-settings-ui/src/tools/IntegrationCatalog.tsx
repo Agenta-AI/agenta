@@ -7,11 +7,11 @@ import {
     type ToolCatalogCategory,
 } from "@agenta/entities/gatewayTool"
 import {ScrollSentinel} from "@agenta/ui"
-import {InitialsAvatar} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useInfiniteQuery} from "@tanstack/react-query"
 
+import {NameAvatar} from "../shared/NameAvatar"
 import {SettingsCatalogSection, type SettingsCatalogItem} from "../shared/SettingsCatalog"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 
@@ -23,7 +23,11 @@ const PREVIEW = 6
 const PAGE = 12
 
 export const IntegrationLogo = ({src, name}: {src?: string | null; name: string}) =>
-    src ? <img src={src} alt="" aria-hidden /> : <InitialsAvatar size="small" name={name} />
+    src ? (
+        <img src={src} alt="" aria-hidden />
+    ) : (
+        <NameAvatar name={name} className="size-[18px] rounded-[4px] text-[11px]" />
+    )
 
 const toRow = (
     integration: CatalogIntegrationItem,

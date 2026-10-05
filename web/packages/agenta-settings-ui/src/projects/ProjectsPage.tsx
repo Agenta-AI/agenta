@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {message} from "@agenta/ui/app-message"
-import {InitialsAvatar, StatusIndicator, Tag} from "@agenta/ui/components/presentational"
+import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {Copy, FolderSimple, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
@@ -12,6 +12,7 @@ import {useMutation, useQueryClient} from "@tanstack/react-query"
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
 import {InlineName} from "../shared/InlineName"
+import {NameAvatar} from "../shared/NameAvatar"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -168,7 +169,7 @@ export const ProjectsPage = ({
                         <span className="flex min-w-0 items-center gap-2.5">
                             {/* The identity column carries an avatar on every other settings
                                 table; the extraction dropped it here and on Organizations. */}
-                            <InitialsAvatar name={record.project_name} />
+                            <NameAvatar name={record.project_name} />
                             <InlineName
                                 value={record.project_name}
                                 editing={canEdit && renamingId === record.project_id}

@@ -2,7 +2,7 @@ import {useMemo, useState, type ReactNode} from "react"
 
 import type {Org} from "@agenta/entities/organization"
 import {message} from "@agenta/ui/app-message"
-import {InitialsAvatar, StatusIndicator} from "@agenta/ui/components/presentational"
+import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {
@@ -18,6 +18,7 @@ import {
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
 import {InlineName} from "../shared/InlineName"
+import {NameAvatar} from "../shared/NameAvatar"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -109,7 +110,7 @@ export const OrganizationsPage = ({
                     return (
                         <>
                             <div className="flex min-w-0 items-center gap-2.5">
-                                <InitialsAvatar name={name} />
+                                <NameAvatar name={name} />
                                 <InlineName
                                     value={name}
                                     editing={renamingId === record.id}
