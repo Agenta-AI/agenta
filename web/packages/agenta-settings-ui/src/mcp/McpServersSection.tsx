@@ -12,7 +12,7 @@
  * each one authenticates. What a server may actually do is a property of an agent, not of the
  * connection, so permissions are reachable from here only read-only ("View tools").
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     connectionNameProblem,
@@ -37,7 +37,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, cn, IconTile, Input, touchTargetExpansion} from "@agenta/ui/ui"
+import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     LinkBreak,
@@ -51,6 +51,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
 import {SettingsPageActions} from "../SettingsPageShell"
+import {InlineName} from "../shared/InlineName"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -116,106 +117,6 @@ export interface McpServersSectionProps {
     copy?: Partial<McpServersSectionCopy>
 }
 
-/** The name cell, which swaps for an input while renaming in place. */
-const McpNameCell = ({
-    record,
-    renaming,
-    names,
-    onStart,
-    onDone,
-}: {
-    record: MCPEndpoint
-    renaming: boolean
-    names: string[]
-    onStart: () => void
-    onDone: (saved: boolean) => void
-}) => {
-    const projectId = useAtomValue(projectIdAtom)
-    const current = record.name || record.slug || ""
-    const [draft, setDraft] = useState(current)
-    // Blur fires before a keydown's commit lands; one save per edit.
-    const doneRef = useRef(false)
-
-    useEffect(() => {
-        if (!renaming) return
-        doneRef.current = false
-        setDraft(current)
-    }, [renaming, current])
-
-    const commit = async () => {
-        if (doneRef.current) return
-        doneRef.current = true
-        const name = draft.trim()
-        if (!name || name === current || !record.id) return onDone(false)
-        const problem = connectionNameProblem({
-            name,
-            existingNames: names,
-            currentName: record.name,
-        })
-        if (problem) {
-            message.error(problem)
-            return onDone(false)
-        }
-        try {
-            // A full replace: the edit route writes what it is given rather than merging.
-            await editMcpEndpoint(
-                {
-                    id: record.id,
-                    name,
-                    description: record.description,
-                    auth_mode: record.auth_mode,
-                    secret_id: record.secret_id,
-                    data: record.data,
-                    flags: record.flags,
-                },
-                projectId,
-            )
-            onDone(true)
-        } catch (error) {
-            message.error((error as Error)?.message || "The connection could not be renamed.")
-            onDone(false)
-        }
-    }
-
-    if (renaming)
-        return (
-            <span
-                className="min-w-0 flex-1"
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => event.stopPropagation()}
-            >
-                <Input
-                    autoFocus
-                    aria-label="Connection name"
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    onBlur={() => void commit()}
-                    onKeyDown={(event) => {
-                        if (event.key === "Enter") void commit()
-                        if (event.key === "Escape") {
-                            doneRef.current = true
-                            onDone(false)
-                        }
-                    }}
-                    className="h-7"
-                />
-            </span>
-        )
-
-    return (
-        <span
-            data-testid="mcp-connection-name"
-            className="truncate font-medium"
-            onDoubleClick={(event) => {
-                event.stopPropagation()
-                onStart()
-            }}
-        >
-            {current}
-        </span>
-    )
-}
-
 export default function McpServersSection({
     confirm,
     readOnly,
@@ -245,6 +146,7 @@ export default function McpServersSection({
     /** "View tools", tracked by key for the same reason as the connection above. */
     const [toolsKey, setToolsKey] = useState<string | null>(null)
     const [renamingKey, setRenamingKey] = useState<string | null>(null)
+    const projectId = useAtomValue(projectIdAtom)
 
     const rows = useMemo(() => endpoints ?? [], [endpoints])
     const names = useMemo(() => rows.map((row) => row.name), [rows])
@@ -407,14 +309,38 @@ export default function McpServersSection({
                                 >
                                     <Plugs />
                                 </IconTile>
-                                <McpNameCell
-                                    record={record}
-                                    renaming={!readOnly && renamingKey === rowKey(record)}
-                                    names={names}
-                                    onStart={() => !readOnly && setRenamingKey(rowKey(record))}
-                                    onDone={(saved) => {
-                                        setRenamingKey(null)
-                                        if (saved) void refresh()
+                                <InlineName
+                                    value={record.name || record.slug || ""}
+                                    editing={!readOnly && renamingKey === rowKey(record)}
+                                    ariaLabel="Connection name"
+                                    testId="mcp-connection-name"
+                                    onStart={
+                                        readOnly ? undefined : () => setRenamingKey(rowKey(record))
+                                    }
+                                    onDone={() => setRenamingKey(null)}
+                                    validate={(name) =>
+                                        connectionNameProblem({
+                                            name,
+                                            existingNames: names,
+                                            currentName: record.name,
+                                        })
+                                    }
+                                    onSave={async (name) => {
+                                        if (!record.id) return
+                                        // A full replace: the edit route writes what it is given.
+                                        await editMcpEndpoint(
+                                            {
+                                                id: record.id,
+                                                name,
+                                                description: record.description,
+                                                auth_mode: record.auth_mode,
+                                                secret_id: record.secret_id,
+                                                data: record.data,
+                                                flags: record.flags,
+                                            },
+                                            projectId,
+                                        )
+                                        void refresh()
                                     }}
                                 />
                             </span>
