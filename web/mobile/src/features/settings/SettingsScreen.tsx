@@ -79,7 +79,8 @@ export const SettingsScreen = ({
 
     // Every tab's body fades at an edge with more to scroll, top and bottom.
     const scrollRef = useRef<HTMLDivElement>(null)
-    useScrollFadeEdges(scrollRef)
+    // A pinned catalog search keeps its colour; the top fade starts below it.
+    useScrollFadeEdges(scrollRef, {insetSelector: "[data-sticky-search]"})
 
     const content = (
         // Does not scroll: the shell keeps the title still and scrolls only its body.

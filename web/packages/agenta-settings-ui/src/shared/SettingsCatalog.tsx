@@ -217,19 +217,18 @@ export const SettingsCatalog = ({
     return (
         // The search sits close to what it filters; groups keep their wider gap between them.
         <div className="flex flex-col gap-5">
-            {search || notice ? (
-                <div className="flex flex-col gap-3">
-                    {search ? (
-                        <ListTableToolbar
-                            className="mb-0"
-                            search={search.value}
-                            onSearchChange={search.onChange}
-                            searchPlaceholder={search.placeholder}
-                        />
-                    ) : null}
-                    {notice}
+            {search ? (
+                // Pinned to the body's top while the catalog scrolls; the host's fade starts below it.
+                <div data-sticky-search className="sticky top-0 z-10 -mb-3 bg-background pb-3">
+                    <ListTableToolbar
+                        className="mb-0"
+                        search={search.value}
+                        onSearchChange={search.onChange}
+                        searchPlaceholder={search.placeholder}
+                    />
                 </div>
             ) : null}
+            {notice}
 
             {loading ? (
                 // The page's own shape: what is connected, then what is available.
