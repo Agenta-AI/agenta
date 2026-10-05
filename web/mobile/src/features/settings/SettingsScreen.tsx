@@ -235,7 +235,12 @@ const TabBody = ({
                 </>
             )
         case "channels":
-            return <ChannelsTab />
+            return (
+                <>
+                    <ChannelsTab confirm={confirm} />
+                    {confirmModal}
+                </>
+            )
         case "projects":
             return (
                 <ProjectsTab

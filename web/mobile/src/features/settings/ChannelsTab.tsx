@@ -5,6 +5,7 @@ import {
     ChannelsPanelSheet,
     ChannelsSettingsPage,
     type ChannelsPanelRenderProps,
+    type ConfirmDestructive,
 } from "@agenta/settings-ui"
 import {useAtomValue} from "jotai"
 
@@ -14,7 +15,7 @@ import {useAgentChannels} from "../agents/useAgentChannels"
  * Settings > Channels: every connection in the project. The panel acts for one agent at a
  * time, so the channels actions are rebuilt whenever the user picks another.
  */
-export const ChannelsTab = () => {
+export const ChannelsTab = ({confirm}: {confirm?: ConfirmDestructive}) => {
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo(
         () =>
@@ -50,6 +51,7 @@ export const ChannelsTab = () => {
             onRetry={() => actions.reload().then(() => undefined)}
             actions={actions}
             renderPanel={(props: ChannelsPanelRenderProps) => <ChannelsPanelSheet {...props} />}
+            confirm={confirm}
         />
     )
 }

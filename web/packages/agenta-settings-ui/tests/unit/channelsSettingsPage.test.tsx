@@ -159,23 +159,18 @@ describe("ChannelsSettingsPage", () => {
         expect(byTestId("manage-s-orphan")).toBeNull()
     })
 
-    it("opens a pending link on the hub without minting a new one", async () => {
-        const connectHostedTelegram = vi.fn()
-        await act(async () =>
-            root.render(
-                <Host rows={[PENDING]} actions={{...NOOP_ACTIONS, connectHostedTelegram}} />,
-            ),
-        )
+    it("opens a pending link on its linking step, past the hub", async () => {
+        await act(async () => root.render(<Host rows={[PENDING]} />))
         await clickTestId("channels-card-t-pending")
-        expect(byTestId("channels-hub")).not.toBeNull()
-        expect(connectHostedTelegram).not.toHaveBeenCalled()
+        expect(byTestId("channels-hub")).toBeNull()
+        expect(byTestId("channels-connection-list")).toBeNull()
     })
 
-    it("starts a new connection with the agent picker", async () => {
+    it("starts a new connection with the agent picker, then opens that platform", async () => {
         await act(async () => root.render(<Host rows={[SLACK_A2]} />))
         await clickTestId("channels-platform-slack")
         expect(byTestId("channels-agent-picker")).not.toBeNull()
         await clickTestId("channels-agent-a2")
-        expect(byTestId("channels-hub")).not.toBeNull()
+        expect(byTestId("channels-connection-list")).not.toBeNull()
     })
 })

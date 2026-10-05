@@ -1,12 +1,15 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/ui/ui"
+import {GearSix, LinkBreak} from "@phosphor-icons/react"
 
+import type {ConfirmDestructive} from "../confirm"
 import {
     SettingsCatalog,
     type SettingsCatalogGroup,
     type SettingsCatalogItem,
 } from "../shared/SettingsCatalog"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 import {connectionsForAgent} from "./actions"
 import {
@@ -45,6 +48,8 @@ export interface ChannelsSettingsPageProps {
     actions?: ChannelsActions
     renderPanel: (props: ChannelsPanelRenderProps) => React.ReactNode
     hostedHandle?: string
+    /** Confirms a disconnect; without it the row menu offers no Disconnect. */
+    confirm?: ConfirmDestructive
 }
 
 const PLATFORM_DESCRIPTIONS: Record<ChannelPlatform, string> = {
@@ -85,6 +90,7 @@ export const ChannelsSettingsPage = ({
     actions = NOOP_ACTIONS,
     renderPanel,
     hostedHandle = "@agenta",
+    confirm,
 }: ChannelsSettingsPageProps) => {
     const [retrying, setRetrying] = useState(false)
     const agentName = agents.find((agent) => agent.id === agentId)?.name
@@ -130,7 +136,10 @@ export const ChannelsSettingsPage = ({
         },
         [agents, agentId, onAgentChange, openRoute, openPanelConnection],
     )
-    const startConnect = useCallback(() => openRoute({view: "agents"}), [openRoute])
+    const startConnect = useCallback(
+        (platform: ChannelPlatform) => openRoute({view: "agents", platform}),
+        [openRoute],
+    )
 
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
         const connected = (connections.allConnections ?? []).map(
@@ -143,6 +152,44 @@ export const ChannelsSettingsPage = ({
                     description: `${agentText(connection)} · ${detail}`,
                     ...connectionStatus(connection),
                     onOpen: () => openConnection(connection),
+                    menu: (
+                        <SettingsRowMenu
+                            label="Channel actions"
+                            items={[
+                                {
+                                    key: "manage",
+                                    label:
+                                        connection.status === "pending"
+                                            ? "Finish linking"
+                                            : "Manage",
+                                    icon: <GearSix size={14} />,
+                                    onClick: () => openConnection(connection),
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "disconnect",
+                                    label: "Disconnect",
+                                    icon: <LinkBreak size={14} />,
+                                    danger: true,
+                                    hidden: !confirm || !connection.connectionId,
+                                    onClick: () =>
+                                        confirm?.({
+                                            title: "Disconnect channel",
+                                            message: `${title} stops answering on ${platformLabel(connection.platform)}. You can connect it again later.`,
+                                            okText: "Disconnect",
+                                            danger: true,
+                                            onOk: async () => {
+                                                await actions.disconnect(
+                                                    connection.platform,
+                                                    connection.connectionId as string,
+                                                )
+                                                await actions.reload()
+                                            },
+                                        }),
+                                },
+                            ]}
+                        />
+                    ),
                     testId: `channels-card-${connection.connectionId}`,
                 }
             },
@@ -156,7 +203,7 @@ export const ChannelsSettingsPage = ({
                 description: PLATFORM_DESCRIPTIONS[platform],
                 status: "available",
                 statusLabel: `Connect ${platformLabel(platform)}`,
-                onOpen: startConnect,
+                onOpen: () => startConnect(platform),
                 testId: `channels-platform-${platform}`,
             }),
         )
@@ -165,7 +212,7 @@ export const ChannelsSettingsPage = ({
             {key: "connected", label: "Connected", items: connected},
             {key: "platforms", label: "Messaging platforms", items: platforms},
         ]
-    }, [connections.allConnections, hostedHandle, openConnection, startConnect])
+    }, [actions, confirm, connections.allConnections, hostedHandle, openConnection, startConnect])
 
     const retry = async () => {
         setRetrying(true)
