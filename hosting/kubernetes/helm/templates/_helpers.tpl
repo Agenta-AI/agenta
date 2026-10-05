@@ -782,6 +782,71 @@ imagePullSecrets:
 {{- end }}
 
 {{/* ================================================================
+   Worker and cron liveness, from a heartbeat file
+
+   cron and the two workers each run their process as PID 1, so the container
+   lifecycle already restarts a process that exits. What nothing caught was a
+   process that is alive and no longer making progress: the probes that used to
+   be here ran `pgrep` against that same PID 1, and `pgrep` is not in the image
+   (agenta#7334).
+
+   So the application records the time on every turn of its loop, and the probe
+   fails when that file goes stale. One value decides both the path the
+   application writes and the path the probe reads, so they cannot disagree.
+
+   What each workload proves is NOT the same:
+     * workerStreams writes once per loop turn, so a wedged loop is caught.
+     * workerQueues hands its loop to taskiq, so a sibling task writes on an
+       interval. That catches a blocked event loop, not a receiver that polls
+       and consumes nothing.
+     * cron writes from a crontab entry, so it proves schedules still fire,
+       which is the cron failure that matters.
+
+   `heartbeat.enabled: false` removes the variable and the probes together.
+   ================================================================ */}}
+{{- define "agenta.heartbeat.enabled" -}}
+{{- $v := (default dict .Values.heartbeat).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+
+{{- define "agenta.heartbeat.path" -}}
+{{- $hb := default dict .Values.heartbeat -}}
+{{- default "/tmp/agenta-heartbeat" $hb.path }}
+{{- end }}
+
+{{- define "agenta.heartbeat.staleSeconds" -}}
+{{- $hb := default dict .Values.heartbeat -}}
+{{- default 120 $hb.staleSeconds }}
+{{- end }}
+
+{{- /* The env var the application and the crontab both read. Empty means off,
+       and then nothing writes and nothing probes. */ -}}
+{{- define "agenta.heartbeatEnv" -}}
+{{- if eq (include "agenta.heartbeat.enabled" .) "true" }}
+- name: AGENTA_HEARTBEAT_FILE
+  value: {{ include "agenta.heartbeat.path" . | quote }}
+{{- end }}
+{{- end }}
+
+{{- /* The probe. `-lt` on an integer difference, so a missing or empty file
+       fails rather than reading as fresh. */ -}}
+{{- define "agenta.heartbeatProbe" -}}
+{{- if eq (include "agenta.heartbeat.enabled" .) "true" }}
+{{- $p := include "agenta.heartbeat.path" . -}}
+{{- $stale := include "agenta.heartbeat.staleSeconds" . -}}
+exec:
+  command:
+    - sh
+    - -c
+    - test -s {{ $p }} && [ $(( $(date +%s) - $(cat {{ $p }}) )) -lt {{ $stale }} ]
+initialDelaySeconds: {{ $stale }}
+periodSeconds: 30
+timeoutSeconds: 5
+failureThreshold: 3
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
    SuperTokens connection URI
    ================================================================ */}}
 {{- define "agenta.supertokensUri" -}}
@@ -1083,6 +1148,7 @@ imagePullSecrets:
       name: {{ include "agenta.secretName" . }}
       key: REDIS_DURABLE_PASSWORD
 {{- end }}
+{{- include "agenta.heartbeatEnv" . }}
 - name: AGENTA_WEB_URL
   value: {{ include "agenta.webUrlEffective" . | quote }}
 - name: AGENTA_SERVICES_URL

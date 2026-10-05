@@ -30,6 +30,7 @@ from typing import Dict, List, Optional, Tuple
 from redis.asyncio import Redis
 
 from oss.src.tasks.taskiq.shared.broker import stable_consumer_name
+from oss.src.utils import heartbeat
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -420,6 +421,13 @@ class StreamConsumer:
 
         while True:
             try:
+                # One write per turn, before any work. `read_batch` blocks for at most
+                # max_block_ms and then returns empty, so an idle loop still turns and
+                # still reports. A loop wedged inside a batch, or blocked on a socket
+                # with no timeout, stops reporting and its liveness probe fails. Writing
+                # is a no-op unless AGENTA_HEARTBEAT_FILE is set, and it never raises.
+                heartbeat.touch()
+
                 batch = await self.reclaim_batch()
                 if not batch:
                     batch = await self.read_batch()

@@ -32,6 +32,10 @@ from uuid import UUID, uuid4
 
 from taskiq import AsyncBroker, TaskiqEvents
 from taskiq.receiver import Receiver
+
+from contextlib import suppress
+
+from oss.src.utils import heartbeat
 from taskiq.cli.worker.run import shutdown_broker
 
 from oss.src.tasks.taskiq.shared.broker import (
@@ -618,8 +622,20 @@ async def main_async() -> int:
             broker, max_async_tasks = _BUILDERS[name]()
             tasks.append(_run_receiver(name, broker, max_async_tasks, shutdown_event))
 
+        # taskiq owns the receive loop, so there is no per-turn place to report from
+        # here as there is in the stream consumers. This sibling task reports on an
+        # interval instead. It proves the event loop is still turning, which is what
+        # catches a blocked loop; it does not prove tasks are being consumed. A no-op
+        # unless AGENTA_HEARTBEAT_FILE is set.
+        liveness = asyncio.create_task(heartbeat.ticker())
+
         log.info("[QUEUES] Starting worker-queues", selected=queues)
-        await asyncio.gather(*tasks)
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            liveness.cancel()
+            with suppress(asyncio.CancelledError):
+                await liveness
 
         return 0
 

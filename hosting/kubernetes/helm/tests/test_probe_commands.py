@@ -14,8 +14,9 @@ What this pins:
 
 * no exec probe anywhere in the chart calls a program the api image does not carry. The
   deny list holds what we measured missing, not a guess.
-* cron, workerStreams and workerQueues render no liveness probe by default. Each runs its
-  process as PID 1, so the container lifecycle already covers a process that exits.
+* cron, workerStreams and workerQueues probe a progress signal rather than process
+  presence. Each runs its process as PID 1, so the container lifecycle already covers a
+  process that exits, and only a progress signal adds anything.
 * an operator who has a real signal can still supply a probe through values, and it reaches
   the container as written.
 
@@ -40,9 +41,11 @@ RELEASE = "probe-test"
 # what you have checked in the image, so a failure here always means something real.
 ABSENT_FROM_IMAGE = ("pgrep", "ps")
 
-# The workloads whose process is PID 1 in their own container, so a process-presence probe
-# tells the kubelet nothing it does not already know.
-NO_DEFAULT_LIVENESS = {
+# The workloads whose process is PID 1 in their own container. A process-presence probe
+# tells the kubelet nothing it does not already know about these, so whatever probe they
+# carry must read a progress signal instead. They now read the heartbeat file, which
+# tests/test_heartbeat_liveness.py pins end to end.
+PROGRESS_PROBED = {
     f"Deployment/{RELEASE}-agenta-cron",
     f"Deployment/{RELEASE}-agenta-worker-streams",
     f"Deployment/{RELEASE}-agenta-worker-queues",
@@ -121,14 +124,19 @@ def main() -> int:
         + ("" if not offenders else f" (found: {offenders})"),
     )
 
-    # --- the three PID-1 workloads carry no liveness probe by default --------
-    with_liveness = {
-        ref for ref, c in workloads(parsed) if c.get("livenessProbe") and ref in NO_DEFAULT_LIVENESS
+    # --- the three PID-1 workloads probe progress, not process presence -----
+    # `workloads` yields init containers too, and those carry no liveness probe by
+    # design, so judge each workload by whether ANY of its containers probes progress.
+    with_progress = {
+        ref
+        for ref, c in workloads(parsed)
+        if "heartbeat" in " ".join(((c.get("livenessProbe") or {}).get("exec") or {}).get("command") or [])
     }
+    missing = sorted(PROGRESS_PROBED - with_progress)
     check(
-        not with_liveness,
-        "cron and the two workers render no liveness probe by default"
-        + ("" if not with_liveness else f" (found on {sorted(with_liveness)})"),
+        not missing,
+        "cron and the two workers probe a progress signal"
+        + ("" if not missing else f" (missing on {missing})"),
     )
 
     # --- an operator-supplied probe reaches the container as written ---------
@@ -154,7 +162,7 @@ def main() -> int:
     print(f"\n{total - len(failures)}/{total} checks passed")
     if failures:
         return 1
-    print("OK: no probe calls a missing program, and the PID-1 workloads set none by default.")
+    print("OK: no probe calls a missing program, and the PID-1 workloads probe progress.")
     return 0
 
 
