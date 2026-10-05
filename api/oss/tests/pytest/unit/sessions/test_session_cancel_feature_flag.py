@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from oss.src.apis.fastapi.sessions import router as router_module
 from oss.src.apis.fastapi.sessions.router import SessionControlRouter
+from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 from oss.src.core.sessions.commands.dtos import SessionCommandState
 from oss.src.utils.env import env
 from oss.src.utils.env import _parse_sessions_late_output
@@ -73,7 +74,7 @@ def test_runner_token_rejects_non_ascii_credentials_as_unauthorized(monkeypatch)
     request = SimpleNamespace(headers={"X-Agenta-Runner-Token": "nøt-the-token"})
 
     with pytest.raises(HTTPException) as exc_info:
-        router_module._assert_runner_token(request)
+        assert_runner_token(request)
 
     assert exc_info.value.status_code == 401
 

@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.121.8"
+version = "0.122.0"
 description = "Agenta API"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -53,6 +53,7 @@ dependencies = [
     "stream-zip>=0.0.83,<0.1",
     "puremagic>=1.30,<2",
     "pyyaml>=6,<7",
+    "google-auth>=2.40",
 ]
 
 [dependency-groups]

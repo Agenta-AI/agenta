@@ -36,6 +36,7 @@ import {useRouter} from "next/router"
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {billingUrl} from "@/lib/context"
 import {
     getMobileSettingsTabDescription,
     getMobileSettingsTabDocs,
@@ -46,6 +47,8 @@ import {
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {CreditsTab} from "../wallet/CreditsTab"
+import {WalletUsageTab} from "../wallet/WalletUsageTab"
 
 import {AccountTab} from "./AccountTab"
 import {AnalyticsTab} from "./AnalyticsTab"
@@ -193,6 +196,17 @@ const TabBody = ({
             )
         case "billing":
             return <BillingTab projectId={projectId} />
+        case "credits":
+            if (!access.walletsEnabled) return null
+            return (
+                <CreditsTab
+                    projectId={projectId}
+                    billingURL={billingUrl({workspaceId, projectId})}
+                />
+            )
+        case "walletUsage":
+            if (!access.walletDebug) return null
+            return <WalletUsageTab projectId={projectId} />
         case "webhooks":
             return <WebhooksTab />
         // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry
