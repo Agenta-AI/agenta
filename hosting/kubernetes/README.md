@@ -111,6 +111,10 @@ one in every phase, because it exists before the install starts.
 ## A managed ingress (GKE)
 
 ```yaml
+agenta:
+  webUrl: "https://agenta.example.com"
+  apiUrl: "https://agenta.example.com/api"
+  servicesUrl: "https://agenta.example.com/services"
 ingress:
   enabled: true
   className: ""            # see the note below: GKE ignores this field
@@ -119,12 +123,14 @@ ingress:
     kubernetes.io/ingress.class: gce
     kubernetes.io/ingress.global-static-ip-name: agenta-ip
     networking.gke.io/managed-certificates: agenta-cert
-  paths:
-    api:       { path: /api,      pathType: ImplementationSpecific }
-    services:  { path: /services, pathType: ImplementationSpecific }
-    webMobile: { path: /m,        pathType: ImplementationSpecific }
-    web:       { path: /,         pathType: ImplementationSpecific }
+    networking.gke.io/v1beta1.FrontendConfig: agenta-https
 ```
+
+Set the three public URLs yourself. A Google-managed certificate leaves
+`ingress.tls` empty, and the chart then derives `http://` URLs. Keep the default paths, which use `pathType: Prefix`. With `ImplementationSpecific`
+GKE treats `/api` as an exact path, and `/api/...` never reaches the API. The
+static IP, the ManagedCertificate and the FrontendConfig are yours to create; see
+[Prepare a Kubernetes deployment for production](../../docs/docs/self-host/deploy/05-kubernetes-production.mdx).
 
 The GKE ingress controller ignores `spec.ingressClassName`. An Ingress carrying
 `className: gce` gets no controller events and never gets an IP, even with an
@@ -134,9 +140,12 @@ chart leaves the field out, and route with the annotation. An unset
 `ingress.className` still defaults to `traefik`, which is right for the bundled
 stack.
 
-Do not strip `/api`. The API is mounted at `/api` and its redirects keep the
-prefix. Do strip `/services`. Keep the mobile path at `/m`, because the mobile
-image is built with that basePath.
+You do not have to strip either prefix, and the GCE controller cannot. The API
+strips a leading `/api` itself, and the services backend strips a leading
+`/services`. Each strips in a loop, so a double prefix also routes, and neither
+emits a redirect. A controller that does strip the prefix also works, because
+after the strip the request arrives with no prefix. Keep the mobile path at
+`/m`, because the mobile image is built with that basePath.
 
 The GCE ingress controller reads two annotations off each Service, so set them
 per component. Set the NEG annotation yourself even on Autopilot, which adds it
@@ -227,6 +236,39 @@ Four things to get right:
 The keys work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
 `workerStreams`, `workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`,
 `redisDurable`, `store.seaweedfs` and `alembic`.
+
+## Availability under disruption
+
+The chart renders a PodDisruptionBudget and topologySpreadConstraints per
+workload, both on by default. A workload with two or more replicas gets
+`maxUnavailable: 1` and a hard one-pod-per-node constraint plus a soft
+one-per-zone constraint. A workload with one replica gets neither, unless you
+ask for a budget with `<workload>.pdb.protectSingleton: true`.
+
+```yaml
+podDisruptionBudgets:
+  enabled: true           # false removes every generated budget
+topologySpread:
+  enabled: true           # false removes every generated constraint
+api:
+  replicas: 2
+  pdb:
+    maxUnavailable: 1     # or minAvailable; replaces the default
+agentRunner:
+  pdb:
+    protectSingleton: true
+```
+
+Nothing here makes a single replica highly available. A budget over a single pod
+defers the eviction of its node; the pod still moves. Give any workload that
+must stay reachable `replicas: 2`.
+
+An empty `<workload>.topologySpreadConstraints` list removes the constraints for
+that workload. `topologySpread.enabled: false` removes them for every workload.
+
+The block in `values.yaml` under "Availability under disruption" is the source of
+truth. The operator-facing guide is
+[Prepare a Kubernetes deployment for production](../../docs/docs/self-host/deploy/05-kubernetes-production.mdx).
 
 ## Restricting the bundled data stores
 
