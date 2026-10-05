@@ -49,24 +49,34 @@ WANT = {
 }
 
 URL_ARGS = [
-    "--set", "agenta.webUrl=https://agenta.example.com",
-    "--set", "agenta.apiUrl=https://agenta.example.com/api",
-    "--set", "agenta.servicesUrl=https://agenta.example.com/services",
+    "--set",
+    "agenta.webUrl=https://agenta.example.com",
+    "--set",
+    "agenta.apiUrl=https://agenta.example.com/api",
+    "--set",
+    "agenta.servicesUrl=https://agenta.example.com/services",
 ]
 
 KEY_ARGS = [
-    "--set", "agenta.authKey=0000000000000000000000000000000000000000000000000000000000000000",
-    "--set", "agenta.cryptKey=1111111111111111111111111111111111111111111111111111111111111111",
-    "--set", "agenta.servicesInternalKey=2222222222222222222222222222222222222222222222222222222222222222",
-    "--set", "agenta.runnerToken=3333333333333333333333333333333333333333333333333333333333333333",
-    "--set", "postgres.password=a-real-password",
+    "--set",
+    "agenta.authKey=0000000000000000000000000000000000000000000000000000000000000000",
+    "--set",
+    "agenta.cryptKey=1111111111111111111111111111111111111111111111111111111111111111",
+    "--set",
+    "agenta.servicesInternalKey=2222222222222222222222222222222222222222222222222222222222222222",
+    "--set",
+    "agenta.runnerToken=3333333333333333333333333333333333333333333333333333333333333333",
+    "--set",
+    "postgres.password=a-real-password",
 ]
 
 PEM = "-----BEGIN CERTIFICATE-----\nTESTONLY\n-----END CERTIFICATE-----\n"
 
 EXTERNAL_ARGS = [
-    "--set", "redisDurable.enabled=false",
-    "--set", "redisDurable.password=from-existing-secret",
+    "--set",
+    "redisDurable.enabled=false",
+    "--set",
+    "redisDurable.password=from-existing-secret",
     "--set",
     "redisDurable.external.uri=rediss://:$(REDIS_DURABLE_PASSWORD)@10.0.0.1:6378/0"
     f"?ssl_ca_certs={MOUNT_DIR}/ca.pem",
@@ -80,14 +90,18 @@ def render(extra: list[str]) -> tuple[int, str]:
         text=True,
         check=False,
     )
-    return result.returncode, (result.stdout if result.returncode == 0 else result.stderr)
+    return result.returncode, (
+        result.stdout if result.returncode == 0 else result.stderr
+    )
 
 
 def docs(text: str) -> list[dict]:
     return [d for d in yaml.safe_load_all(text) if d]
 
 
-def carriers(parsed: list[dict], expect_secret: str | None = None) -> tuple[set[str], set[str]]:
+def carriers(
+    parsed: list[dict], expect_secret: str | None = None
+) -> tuple[set[str], set[str]]:
     """Workloads whose pod spec has the volume, and whose containers have the mount.
 
     The volume is checked end to end, not just by name. A Secret volume that projects a
@@ -126,7 +140,9 @@ def carriers(parsed: list[dict], expect_secret: str | None = None) -> tuple[set[
                 if m.get("name") == VOLUME:
                     with_mount.add(ref)
                     if m.get("mountPath") != MOUNT_DIR:
-                        raise AssertionError(f"{ref} mounts at {m.get('mountPath')}, want {MOUNT_DIR}")
+                        raise AssertionError(
+                            f"{ref} mounts at {m.get('mountPath')}, want {MOUNT_DIR}"
+                        )
                     if not m.get("readOnly"):
                         raise AssertionError(f"{ref} mounts the certificate writable")
     return with_volume, with_mount
@@ -156,54 +172,93 @@ def main() -> int:
     parsed = docs(out)
     vols, mounts = carriers(parsed)
     check(not vols and not mounts, "bundled durable Redis mounts no certificate")
-    check(CA_KEY not in chart_secret_keys(parsed), "bundled durable Redis writes no certificate key")
+    check(
+        CA_KEY not in chart_secret_keys(parsed),
+        "bundled durable Redis writes no certificate key",
+    )
 
     # --- external with the PEM inline ----------------------------------------
-    code, out = render(KEY_ARGS + EXTERNAL_ARGS + ["--set-string", f"redisDurable.external.caCert={PEM}"])
+    code, out = render(
+        KEY_ARGS
+        + EXTERNAL_ARGS
+        + ["--set-string", f"redisDurable.external.caCert={PEM}"]
+    )
     assert code == 0, out
     parsed = docs(out)
     # The chart owns the Secret here, so the volume must read the chart's own name.
     vols, mounts = carriers(parsed, expect_secret=f"{RELEASE}-agenta")
-    check(vols == WANT, f"the volume lands on exactly the durable-Redis workloads (got {sorted(vols - WANT) or 'no extras'}, missing {sorted(WANT - vols) or 'none'})")
-    check(mounts == WANT, f"the mount lands on exactly the same workloads (got {sorted(mounts - WANT) or 'no extras'}, missing {sorted(WANT - mounts) or 'none'})")
-    check(CA_KEY in chart_secret_keys(parsed), "the chart Secret carries the certificate when the chart owns it")
+    check(
+        vols == WANT,
+        f"the volume lands on exactly the durable-Redis workloads (got {sorted(vols - WANT) or 'no extras'}, missing {sorted(WANT - vols) or 'none'})",
+    )
+    check(
+        mounts == WANT,
+        f"the mount lands on exactly the same workloads (got {sorted(mounts - WANT) or 'no extras'}, missing {sorted(WANT - mounts) or 'none'})",
+    )
+    check(
+        CA_KEY in chart_secret_keys(parsed),
+        "the chart Secret carries the certificate when the chart owns it",
+    )
 
     # --- external, certificate supplied through an existing Secret -----------
     code, out = render(
         EXTERNAL_ARGS
         + [
-            "--set", f"secrets.existingSecret={EXISTING_SECRET}",
-            "--set", f"global.postgresql.auth.existingSecret={EXISTING_SECRET}",
-            "--set", "redisDurable.external.caCert=from-existing-secret",
+            "--set",
+            f"secrets.existingSecret={EXISTING_SECRET}",
+            "--set",
+            f"global.postgresql.auth.existingSecret={EXISTING_SECRET}",
+            "--set",
+            "redisDurable.external.caCert=from-existing-secret",
         ]
     )
     assert code == 0, out
     parsed = docs(out)
     # The operator owns the Secret here, so the volume must read theirs instead.
     vols, mounts = carriers(parsed, expect_secret=EXISTING_SECRET)
-    check(vols == WANT and mounts == WANT, "an existing Secret still mounts on every durable-Redis workload")
-    check(not chart_secret_keys(parsed), "the chart writes no Secret of its own when one is supplied")
+    check(
+        vols == WANT and mounts == WANT,
+        "an existing Secret still mounts on every durable-Redis workload",
+    )
+    check(
+        not chart_secret_keys(parsed),
+        "the chart writes no Secret of its own when one is supplied",
+    )
 
     # --- the unimplemented case fails loudly ---------------------------------
-    code, out = render(KEY_ARGS + ["--set-string", f"redisVolatile.external.caCert={PEM}"])
-    check(code != 0 and "not implemented" in out, "a certificate on the cache Redis fails the render")
+    code, out = render(
+        KEY_ARGS + ["--set-string", f"redisVolatile.external.caCert={PEM}"]
+    )
+    check(
+        code != 0 and "not implemented" in out,
+        "a certificate on the cache Redis fails the render",
+    )
 
     # --- the two combinations that could never mount -------------------------
     # The volume names REDIS_DURABLE_CA_CERT explicitly, and Kubernetes refuses to mount a
     # Secret volume whose named key is absent. Both of these would render happily and then
     # leave every durable-Redis workload unable to start, so they must fail at render time.
-    code, out = render(KEY_ARGS + EXTERNAL_ARGS + ["--set", "redisDurable.external.caCert=from-existing-secret"])
+    code, out = render(
+        KEY_ARGS
+        + EXTERNAL_ARGS
+        + ["--set", "redisDurable.external.caCert=from-existing-secret"]
+    )
     check(
-        code != 0 and "from-existing-secret" in out and "secrets.existingSecret is not set" in out,
+        code != 0
+        and "from-existing-secret" in out
+        and "secrets.existingSecret is not set" in out,
         "the placeholder without an existing Secret fails the render",
     )
 
     code, out = render(
         EXTERNAL_ARGS
         + [
-            "--set", f"secrets.existingSecret={EXISTING_SECRET}",
-            "--set", f"global.postgresql.auth.existingSecret={EXISTING_SECRET}",
-            "--set-string", f"redisDurable.external.caCert={PEM}",
+            "--set",
+            f"secrets.existingSecret={EXISTING_SECRET}",
+            "--set",
+            f"global.postgresql.auth.existingSecret={EXISTING_SECRET}",
+            "--set-string",
+            f"redisDurable.external.caCert={PEM}",
         ]
     )
     check(
@@ -221,7 +276,9 @@ def main() -> int:
     print(f"\n{total - len(failures)}/{total} checks passed")
     if failures:
         return 1
-    print("OK: the durable-Redis certificate mounts where it is needed and nowhere else.")
+    print(
+        "OK: the durable-Redis certificate mounts where it is needed and nowhere else."
+    )
     return 0
 
 
