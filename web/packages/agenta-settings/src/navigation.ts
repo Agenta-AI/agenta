@@ -62,18 +62,8 @@ export interface SettingsTabDefinition {
 
 const DOCS_BASE = "https://docs.agenta.ai"
 
+/** In sidebar order: each scope lists its tabs in the order they appear here. */
 export const SETTINGS_TABS: SettingsTabDefinition[] = [
-    {
-        key: "apiKeys",
-        scope: "project",
-        description: "Manage API keys used to authenticate requests.",
-        docs: {label: "Using the API", href: `${DOCS_BASE}/reference/api-guide/overview`},
-    },
-    {
-        key: "secrets",
-        scope: "project",
-        description: "Store credentials your agents use at runtime.",
-    },
     {
         key: "llms",
         scope: "project",
@@ -81,15 +71,27 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         docs: {label: "Provider setup", href: `${DOCS_BASE}/faq/integrations/llm-providers`},
     },
     {
-        key: "analytics",
+        key: "apiKeys",
         scope: "project",
-        description: "See what your agents cost, how often they run, and how reliably they finish.",
+        description: "Manage API keys used to authenticate requests.",
+        docs: {label: "Using the API", href: `${DOCS_BASE}/reference/api-guide/overview`},
     },
     {
         key: "tools",
         scope: "project",
         description: "Configure integrations your agents can use.",
         docs: {label: "About tools", href: `${DOCS_BASE}/concepts/tools-and-integrations`},
+    },
+    {
+        key: "secrets",
+        scope: "project",
+        description: "Store credentials your agents use at runtime.",
+    },
+    {
+        key: "mcpEndpoints",
+        scope: "project",
+        description:
+            "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
     },
     {
         key: "channels",
@@ -104,19 +106,19 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
             "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
     },
     {
-        key: "mcpEndpoints",
+        key: "analytics",
         scope: "project",
-        description:
-            "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
+        description: "See what your agents cost, how often they run, and how reliably they finish.",
     },
     {
-        key: "organizationGeneral",
+        key: "billing",
         scope: "organization",
-        description: "Every organization you belong to.",
-        docs: {
-            label: "About organizations",
-            href: `${DOCS_BASE}/administration/access-control/organizations`,
-        },
+        getLabel: ({billingEnabled}) => (billingEnabled ? "Usage & Billing" : "Usage"),
+        description: "Track how much of your plan you have used.",
+        getDescription: ({billingEnabled}) =>
+            billingEnabled
+                ? "Track how much of your plan you have used, and manage your subscription."
+                : "Track how much of your plan you have used.",
     },
     {
         key: "workspace",
@@ -125,6 +127,15 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         docs: {
             label: "Roles and permissions",
             href: `${DOCS_BASE}/administration/access-control/rbac`,
+        },
+    },
+    {
+        key: "organizationGeneral",
+        scope: "organization",
+        description: "Every organization you belong to.",
+        docs: {
+            label: "About organizations",
+            href: `${DOCS_BASE}/administration/access-control/organizations`,
         },
     },
     {
@@ -147,16 +158,6 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         key: "auditLog",
         scope: "organization",
         description: "Review changes made across your organization.",
-    },
-    {
-        key: "billing",
-        scope: "organization",
-        getLabel: ({billingEnabled}) => (billingEnabled ? "Usage & Billing" : "Usage"),
-        description: "Track how much of your plan you have used.",
-        getDescription: ({billingEnabled}) =>
-            billingEnabled
-                ? "Track how much of your plan you have used, and manage your subscription."
-                : "Track how much of your plan you have used.",
     },
     {
         key: "credits",
