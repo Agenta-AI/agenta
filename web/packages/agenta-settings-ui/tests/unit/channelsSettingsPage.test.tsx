@@ -8,6 +8,7 @@ vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children?: React.ReactNode}) => <div>{children}</div>
     return {
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
+        cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
         Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
             <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
@@ -36,6 +37,23 @@ vi.mock("@agenta/ui/ui", () => {
         Switch: () => <span />,
     }
 })
+vi.mock("@agenta/ui/list-table", () => ({
+    ListTableToolbar: ({
+        search,
+        onSearchChange,
+        searchPlaceholder,
+    }: {
+        search: string
+        onSearchChange: (next: string) => void
+        searchPlaceholder: string
+    }) => (
+        <input
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            aria-label={searchPlaceholder}
+        />
+    ),
+}))
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))
 vi.mock("../../src/channels/qr", () => ({QrCode: () => null}))
 vi.mock("../../src/channels/AgentMark", () => ({AgentMark: () => null}))
@@ -141,7 +159,7 @@ const byTestId = (id: string) => container.querySelector(`[data-testid="${id}"]`
 const clickTestId = async (id: string) => act(async () => (byTestId(id) as HTMLElement).click())
 
 describe("ChannelsSettingsPage", () => {
-    it("opens a card's manage view under the agent it answers as", async () => {
+    it("opens a connection's manage view under the agent it answers as", async () => {
         const onAgentChange = vi.fn()
         await act(async () => root.render(<Host rows={[SLACK_A2]} onAgentChange={onAgentChange} />))
         await clickTestId("channels-card-s-a2")
@@ -172,15 +190,17 @@ describe("ChannelsSettingsPage", () => {
 
     it("starts a new connection with the agent picker", async () => {
         await act(async () => root.render(<Host rows={[SLACK_A2]} />))
-        await clickTestId("channels-settings-connect")
+        await clickTestId("channels-platform-slack")
         expect(byTestId("channels-agent-picker")).not.toBeNull()
         await clickTestId("channels-agent-a2")
         expect(byTestId("channels-hub")).not.toBeNull()
     })
 
-    it("filters the cards by search and says when nothing matches", async () => {
+    it("filters the connections by search and says when nothing matches", async () => {
         await act(async () => root.render(<Host rows={[SLACK_A2, ORPHAN]} />))
-        const input = byTestId("channels-settings-search") as HTMLInputElement
+        const input = container.querySelector(
+            'input[aria-label="Search channels"]',
+        ) as HTMLInputElement
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
         const type = async (value: string) =>
             act(async () => {
@@ -191,6 +211,7 @@ describe("ChannelsSettingsPage", () => {
         await type("growth")
         expect(byTestId("channels-card-s-a2")).not.toBeNull()
         expect(byTestId("channels-card-s-orphan")).toBeNull()
+        expect(byTestId("channels-platform-slack")).toBeNull()
 
         await type("nothing-like-this")
         expect(container.textContent).toContain("No channels found")
