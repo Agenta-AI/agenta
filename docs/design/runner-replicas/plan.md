@@ -6,18 +6,19 @@ user sees today, and the four failure scenarios are in [context.md](context.md).
 The plan has two stages:
 
 - **Stage 1, the minimal design (private sandboxes).** Five common changes, plus one rule: a pod
-  never deletes a sandbox it did not create. Two pods become safe. A follow-up on the other pod
-  still costs a fresh sandbox.
-- **Stage 2, design B (any pod adopts any sandbox).** The sandbox carries the facts that a pod
-  needs to adopt it, and Daytona alone stops idle sandboxes. A follow-up on the other pod costs
-  seconds, and a restart no longer costs a fresh sandbox.
+  reconnects only to a sandbox it created, and deletes another pod's sandbox only through Kill.
+  Two pods become safe. A follow-up on the other pod still costs a fresh sandbox.
+- **Stage 2, design B (any pod adopts any sandbox).** No pod stops a shared sandbox, and the
+  sandbox carries the facts that a pod needs to adopt it. A follow-up on the other pod costs
+  seconds, and a restart no longer costs a fresh sandbox. The decision on design B comes at the
+  end of stage 1, with measured data.
 
 The five common changes are needed by both designs and by every alternative:
 
 1. Bind the turn to its pod.
 2. Stop goes to the turn's pod.
 3. Verify the warm cache before use.
-4. Kill every recorded sandbox.
+4. Kill by label inventory.
 5. Drain, then cancel, then tear down.
 
 ## How the runner holds a session today
@@ -193,8 +194,9 @@ Two pods are safe when four things hold:
 
 The five common changes establish the first, second, and fourth conditions. The third condition
 has two answers. The minimal design keeps every sandbox private to its pod, so no pod ever uses
-another pod's sandbox. Design B lets every pod use every sandbox, and takes the power to stop
-one away from all pods.
+another pod's sandbox. Kill is the one exception, and it acts only after the session's turns have
+ended. Design B lets every pod use every sandbox, and allows a stop or a delete only inside a
+pod's own admitted turn, or through Kill.
 
 ## Changes common to both designs
 
@@ -210,35 +212,62 @@ It also fails at its one job. Two pods that beat the same `turn_id` are both adm
 departed-owner path treats a matching turn id as the caller's own lock. So the key passes between
 the two pods on every beat, and neither turn is interrupted (research.md section 13.6).
 
+Two more facts shape the change:
+
+- **The first beat does not run the acquire script.** `_start_turn` takes `alive` for the turn
+  before any runner beats (`streams/service.py:1203`). The runner's first beat therefore finds
+  its own turn in `alive` and goes through `refresh_alive` (`streams/service.py:731`). The
+  acquire script runs only when that refresh fails.
+- **A normal beat carries the invoke caller's credential.** The heartbeat route checks the
+  project permission. It checks the runner token only on the `release_owner` beat
+  (`router.py:686-704`; `alive.ts:163`).
+
 #### The change
 
-1. **The first heartbeat binds the turn to the pod.** The script that admits a turn on its first
-   beat (`ACQUIRE_ALIVE_WITH_START_LUA`, `api/oss/src/dbs/redis/sessions/contract.py:248-259`)
-   also writes a new write-once key:
-   `bound:<project_id>:session:<session_id>:turn:<turn_id>`, with the value
-   `<replica_id>\x1f<replica_address>`. It writes the key with `NX`.
-2. **A second pod is refused.** When the key already exists and names a different replica id,
-   the script refuses the beat with `is_current_turn: false`. The runner already reads that
-   answer on the first beat as a refused admission and stops before it touches the sandbox
-   (`services/runner/src/sessions/alive.ts:385`).
-3. **The binding lives as long as the turn.** The key has the TTL of `alive` (3600 seconds) and
-   is refreshed with it. So it still names the pod of a parked turn, which holds `alive` without
-   `running`.
-4. **The runner reports its address.** The heartbeat request gains `replica_address`. On
-   Kubernetes it is `http://<pod IP>:8765`. The chart passes the pod IP through the downward API
-   (`status.podIP`). On compose and Railway the field is empty, and the api reads an empty
-   address as "use the Service URL".
-5. **The replica id becomes the pod name.** The chart sets `AGENTA_RUNNER_REPLICA_ID` from
+1. **The heartbeat handler binds the turn on every beat that names it.** On a beat with a
+   `turn_id`, the handler sets the key `bound:<project_id>:session:<session_id>:turn:<turn_id>`
+   with `NX` to `<replica_id>\x1f<replica_address>`. It then reads the key back.
+2. **A different replica is refused, and changes nothing.** When the stored replica id differs
+   from the caller's, the handler answers `is_current_turn: false`. It changes no lock and no
+   row. This holds for a running beat and for the final `is_running: false` beat. A refused pod
+   still sends that final beat (`server.ts:942`), and today that beat releases `running` for the
+   turn id it names (`streams/service.py:820-837`). With the binding, it cannot clear the
+   admitted pod's `running`.
+3. **The runner already stops on the refusal.** It reads `false` on the first beat as a refused
+   admission and stops before it touches the sandbox (`alive.ts:385`).
+4. **The binding lives as long as the turn.** The key has the TTL of `alive` (3600 seconds). Only
+   a beat from the bound replica refreshes it. So it still names the pod of a parked turn, which
+   holds `alive` without `running`.
+5. **The address is authenticated as runner infrastructure.** The runner sends
+   `X-Agenta-Runner-Token` on every beat, next to the project authorization it sends today. The
+   api stores `replica_address` only when that token validates. Without a valid token, it binds
+   the turn with an empty address and logs a warning.
+6. **The runner reports its address.** The heartbeat request gains `replica_address`. On
+   Kubernetes it is `http://<pod IP>:<runner port>`. The chart passes the pod IP through the
+   downward API (`status.podIP`) and the configured runner port (`_helpers.tpl:160-163`). On
+   compose and Railway the field is empty, and the api reads an empty address as "use the
+   Service URL".
+7. **The replica id becomes the pod name.** The chart sets `AGENTA_RUNNER_REPLICA_ID` from
    `metadata.name` at every replica count. The id stays a label and the claim identity in
    `session_commands.claimed_by`.
-6. **The owner key goes.** Delete the key and every piece of code that exists for it. The orphan
-   sweep keeps its turn-scoped release and the `superseded` record, and drops the owner compare.
+8. **The owner key goes, with the local-provider affinity probe.** Delete the key and every
+   piece of code that exists for it. On the runner that includes the whole probe:
+   - `LocalSandboxNotOwnerError`;
+   - `claimSessionOwnership` (`alive.ts:235`) and its caller in `runtime-policy.ts:329`;
+   - the guard in `environment-setup.ts:93-115`;
+   - the reader of the owner in the heartbeat answer.
+
+   The chart enforces one runner for the local provider instead (see "Drain, then cancel, then
+   tear down").
+9. **The alive handover and the `superseded` tombstone stay.** The orphan sweep keeps its
+   turn-scoped release and the tombstone. It drops only the owner compare, which protected the
+   owner key's own deletion and nothing else (`contract.py:228`).
 
 The binding is a new key, not a new value inside `started:<turn>`. The `started` key holds epoch
-milliseconds as a plain integer string. Two readers parse it as a number:
-`record_turn_start` (`locks.py:315-345`) and the late-Stop guard in `DISPLACE_TURNS_LUA`
-(`contract.py:277-283`). The binding also has a different role: `started` is a time that a guard
-compares, the binding is a route.
+milliseconds as a plain integer string. Two readers parse it as a number: `record_turn_start`
+(`locks.py:315-345`) and the late-Stop guard in `DISPLACE_TURNS_LUA` (`contract.py:277-283`). The
+binding also has a different role: `started` is a time that a guard compares, the binding is a
+route.
 
 #### Why this and not the alternatives
 
@@ -247,6 +276,10 @@ session, and a session is the wrong unit: a session moves between pods by design
 should. One write-once record per turn gives the api an exact address for Stop. It needs no
 renewal of its own, no expiry of its own, and no takeover rule.
 
+The handler writes the binding on every beat, not in the acquire script, because the first beat
+of a normal turn never reaches the acquire script. Writing on every beat with `NX` costs one
+`SET` that does nothing after the first time.
+
 The alternatives:
 
 - **Keep the owner key and add the address to it.** The key would still be a session-level
@@ -254,7 +287,7 @@ The alternatives:
   still let two pods run one turn.
 - **Store the address in the session_turns row.** The runner appends that row after it acquires
   the environment, which is seconds after admission. A Stop in that window would find no
-  address. A Postgres column would also outlive the turn and need clearing.
+  address. A project caller can also write that row, so it cannot carry a trusted address.
 - **Share one replica id across pods.** Every pod then claims every session (#5404).
 
 #### Deleted
@@ -262,34 +295,48 @@ The alternatives:
 - Redis: the `owner:` key, its claim script, `claim_owner_value`, and the claim helpers in
   `contract.py` and `locks.py`.
 - Api: `_reclaim_affinity_from_a_departed_replica` and the owner branches of the heartbeat in
-  `streams/service.py`; the owner force-clear in Kill; the request field `release_owner` and the
-  response field `replica_id`; the owner compare in the orphan sweep.
-- Runner: `ownedSessions` and the shutdown release in `alive.ts`; `LocalSandboxNotOwnerError`.
+  `streams/service.py`; the owner force-clear in Kill; the request field `release_owner`; the
+  owner compare in the orphan sweep.
+- Api, one release later: the response field `replica_id`. A runner of the previous version
+  reads it, so it stays for one release.
+- Runner: `ownedSessions` and the shutdown release in `alive.ts`; the local-provider affinity
+  probe listed in step 8.
 - Chart: the `replicas == 1` condition around `AGENTA_RUNNER_REPLICA_ID`.
 - Tests: the owner-key tests listed in research.md section 9.
 
+The `/cancel` response field `replicaId` stays. Command settlement writes it to
+`session_commands.claimed_by`.
+
 #### Added
 
-The `bound:` key in the admission script, the `replica_address` field, two downward-API entries
-in the runner Deployment (`metadata.name`, `status.podIP`), and one runner setting for the
-address (`AGENTA_RUNNER_REPLICA_ADDRESS`).
+The `bound:` key in the heartbeat handler, the `replica_address` field, the runner token on
+every beat, two downward-API entries in the runner Deployment (`metadata.name`,
+`status.podIP`), and one runner setting for the address (`AGENTA_RUNNER_REPLICA_ADDRESS`).
 
 #### Costs and side effects
 
-- **The api trusts an address that a pod reports.** The runner is trusted infrastructure: it
-  already authenticates its outcome reports with the runner token. The address is internal to
-  the cluster.
+- **The api trusts an address that a pod reports, and the runner token is the reason.** The api
+  sends the shared runner token to the bound address on every Stop (`runner_client.py:123`). A
+  project caller with only a project credential could otherwise record a URL of its choice and
+  receive that token. The api therefore stores an address only from a beat that carries a valid
+  runner token. The address is internal to the cluster.
+- **Every beat now carries the runner token.** The token already travels on the outcome report
+  and the shutdown beat. One more header on the beat adds no new holder of the token.
 - **A pod IP can be reused.** After a crash, Kubernetes can give the same IP to a later pod. A
   Stop to that pod gets 404 `not_held`, which the existing path handles.
 - **The local provider loses its runtime refusal on a second runner.** The chart makes that state
-  impossible to deploy instead (see "Drain, then cancel, then tear down"). The release gate
-  matches the text "is not the owner of session", and a Codex QA script matches "single runner"
-  (#6446). The same pull request updates both.
-- **One more key per turn in the volatile Redis.** It is small and expires with `alive`.
+  impossible to deploy instead. The release gate matches the text "is not the owner of session",
+  and a Codex QA script matches "single runner" (#6446). The same pull request updates both.
+- **One more key per turn in the volatile Redis,** and one `SET` and one `GET` per beat. The key
+  is small and expires with `alive`.
 
 #### Verification
 
-- Api unit test: a first beat from a second replica for the same turn is refused.
+- Api unit test: a beat from a second replica for the same turn is refused, on the first beat and
+  on a later one.
+- Api unit test: a refused replica's final `is_running: false` beat leaves the admitted pod's
+  `running` in place.
+- Api unit test: a beat without a valid runner token binds an empty address.
 - Api unit test: the heartbeat works with no owner key, and a parked turn keeps its binding.
 - Runner unit test: a refused first beat stops the turn before the sandbox is touched.
 - Release gate: the `cold2` journey replaces a runner with SIGKILL and must pass without waiting
@@ -299,56 +346,78 @@ address (`AGENTA_RUNNER_REPLICA_ADDRESS`).
 
 #### Today
 
-The api posts `/cancel` to the Service URL, which picks a pod at random. A 404 means `not_held`.
-Three failed deliveries settle the command `lost` (#6634; the fix, #6780, is open). What the
-Stop does once it reaches the right pod is correct, and it stays:
+The api posts `/cancel` to the Service URL, which picks a pod at random. The delivery goes
+through one boundary: `_deliver` (`commands/service.py:1216`), which calls the direct adapter
+(`control_delivery_direct.py:96`). The first delivery and every redelivery from the sweep use it.
+
+The adapter maps the answer to a receipt:
+
+- **202** means `accepted`.
+- **404** means `not_held`. The api settles the command at once (`_settle_not_held`).
+- **A transport failure** means `unreachable`. The command follows the abandoned-command path:
+  the sweep delivers it again while the turn beats, up to three times, and then settles it
+  `lost` (#6634; the fix, #6780, is open).
+
+What the Stop does once it reaches the right pod is correct, and it stays:
 
 - the immediate abort through `applyCommand`;
 - the outcome report;
 - the parked Stop, which rejects the gates and waits for the cancel to settle.
 
+One gap sits in the parked case. `decideOutcome` (`control-channel.ts:214-231`) accepts a parked
+session before it checks the command's target turn. A delayed Stop for an old turn can therefore
+cancel a newer parked approval on the same session.
+
 #### The change
 
-1. `request_cancel` resolves the target turn, as today.
-2. It reads that turn's binding.
-3. It posts `/cancel` to `replica_address` instead of the Service URL.
-
-Everything after the address is unchanged. `cancel_runner_execution` and `kill_runner_sandbox`
-(`api/oss/src/core/sessions/streams/runner_client.py:32,98`) read `env.runner.internal_url`
-today and take no URL. Each gains an optional `base_url` that falls back to the Service URL.
+1. **Resolve the address at the delivery boundary.** `_deliver` reads the target turn's binding
+   and passes its `replica_address` to the direct adapter. The first delivery and every
+   redelivery use the same rule.
+2. **Post to the bound pod.** `cancel_runner_execution` (`runner_client.py:98`) gains an
+   optional `base_url`. With an address, it posts there; with none, it posts to the Service URL.
+3. **Keep the receipts distinct.** A 404 stays `not_held` and settles at once. A transport
+   failure stays `unreachable` and follows the abandoned-command path. Once #6780 merges, an
+   undeliverable Stop on a beating turn is parked instead of settled `lost`.
+4. **Check the target turn for a parked session.** The parked branch of `decideOutcome` compares
+   `command.target.turnId` with the parked turn's id. On a mismatch it answers `obsolete`, as the
+   live branch does. `ParkedSessionControl` gains the parked turn's id for this.
 
 The edge cases:
 
-- **A Stop on a parked approval.** The binding still names the pod that holds the parked
-  prompt, so `parked.stop()` runs there as today.
-- **The address is empty** (compose, Railway). The api posts to the Service URL, which is the
-  one pod.
-- **No binding exists.** Either no pod has admitted the turn yet, or a runner of the previous
-  version admitted it during a deploy. The api posts to the Service URL, as today. In the first
-  case every pod answers 404 `not_held`, which is also today's answer for that moment.
-- **The pod is gone.** The post fails, and the api treats it as `not_held`. The existing
-  redelivery and `lost` path runs. Once #6780 merges, an undeliverable Stop on a beating turn
-  is parked instead.
+- **A Stop on a parked approval.** The binding still names the pod that holds the parked prompt,
+  so `parked.stop()` runs there as today.
+- **The pod of a parked approval is dead.** It held the only live copy of the prompt, so nothing
+  is left to cancel. The delivery fails as `unreachable`. The outcome comes from the durable
+  records: the interaction rows and the execution row.
+- **The address is empty** (compose, Railway). The api posts to the Service URL, which is the one
+  pod.
+- **No binding exists.** Either no pod has beaten for the turn yet, or a runner of the previous
+  version admitted it during the deploy. The api posts to the Service URL, as today.
+
+The Service URL fallback is for compose, Railway, and the deploy transition only. At two replicas
+an unbound turn cannot be routed reliably. So the chart must not set `replicas: 2` until every
+runner pod runs the version that binds turns.
 
 The address is reachable as the chart stands. The runner listens on `0.0.0.0`
 (`hosting/kubernetes/helm/templates/_helpers.tpl:160-163`). The chart's only NetworkPolicy
-covers the bundled data stores, is off by default, and does not select the runner pod. So
-`http://<pod IP>:8765` is reachable from an api pod.
+covers the bundled data stores, is off by default, and does not select the runner pod.
 
 #### Why this and not the alternatives
 
 The only new fact a Stop needs is "which pod". The binding records it at admission. The change
 adds no fan-out, no DNS discovery, no hash, and no proxy, and it does not change what Stop does.
+Putting the lookup in `_deliver` keeps one rule for every attempt, so a redelivery cannot drift
+back to the Service URL.
 
 The alternatives:
 
 - **Send Stop to every pod.** The api resolves every pod address through a headless Service and
-  posts to each. Stop keeps its meaning, but the api gains pod discovery and partial-failure
+  posts to each. Stop keeps its meaning. But the api gains pod discovery and partial-failure
   handling, and every Stop costs one request per pod.
 - **Deliver Stop through the heartbeat.** Rejected; see "Stop delivered through the heartbeat"
   under the alternatives.
-- **Hash the session id to a pod.** Two code bases need the same resolver, and it picks the
-  wrong pod whenever the set of pods changes.
+- **Hash the session id to a pod.** Two code bases need the same resolver, and it picks the wrong
+  pod whenever the set of pods changes.
 
 #### Deleted
 
@@ -356,19 +425,27 @@ Nothing.
 
 #### Added
 
-One Redis read in `request_cancel`, and the `base_url` parameter on the two runner-client calls.
+One Redis read in `_deliver`, the `base_url` parameter on `cancel_runner_execution`, and the
+target-turn check in the parked branch of `decideOutcome`.
 
 #### Costs and side effects
 
 - **The api must reach pod IPs.** Inside one cluster it can. A NetworkPolicy that blocks api to
   runner traffic would break Stop; the chart documentation must say so.
-- **Compose and Railway see no change**, because the address is empty there.
+- **A delayed Stop no longer cancels a newer parked approval.** It settles `obsolete`. That is the
+  intended meaning, but it changes an outcome that a client may have seen before.
+- **The chart rollout waits for the runner rollout.** Two replicas come only after every runner
+  binds turns.
+- **Compose and Railway see no change,** because the address is empty there.
 
 #### Verification
 
-- Api unit test: Stop posts to the recorded address.
-- Api unit test: an unreachable address falls into the `not_held` path.
+- Api unit test: the first delivery and a redelivery both post to the recorded address.
+- Api unit test: a 404 settles `not_held` at once; a transport failure follows the
+  abandoned-command path.
 - Api unit test: a Stop on a parked approval goes to the pod that parked it.
+- Runner unit test: a delayed Stop whose target is an older turn answers `obsolete` against a
+  newer parked approval.
 - Release gate: a Stop of a turn that runs on pod B, sent while pod A also runs.
 
 ### Verify the warm cache before use
@@ -380,9 +457,14 @@ The warm-hit decision compares fingerprints of the incoming request with the poo
 only the last user message, so the history fingerprint check is skipped for it (research.md
 section 12.7).
 
-The turn-start write of the session_turns row ignores every failure, including a 409 for a
-duplicate `turn_index` (research.md section 12.3). An approval resume legitimately appends the
-same index as its paused turn, so its 409 is expected (research.md section 13.8).
+The turn-start write of the session_turns row ignores every failure: a 409 for a duplicate
+`turn_index`, any other error status, and a network failure
+(`session-continuity-durable.ts:262-269`). An approval resume legitimately appends the same
+index as its paused turn. Its 409 is expected, and the row keeps the paused turn's `turn_id`
+(research.md section 13.8).
+
+When a continuation throws, the coordinator evicts the entry as `failed-turn` and retries the turn
+once on the cold path (`session-coordinator.ts:1134-1140`).
 
 The marker that stops a pod from rebuilding history from a record log with a hole is a set in
 one pod's memory (research.md section 13.2). Another pod does not see it.
@@ -393,26 +475,32 @@ one pod's memory (research.md section 13.2). Another pod does not see it.
 approval-resume branch in `services/runner/src/lifecycle/session-coordinator.ts`.
 
 1. Read the latest session_turns row with the existing query, using the turn's authorization.
-2. Compare the row's `turn_id` with the turn that parked this entry.
-3. On a mismatch, evict the entry with the existing reason `continuity-invalid` and take the
-   cold path.
-4. On a match, or when the read fails, take the warm hit as today.
+2. Compare the row's `turn_index` with the entry's `continuityTurnIndex`. They are equal exactly
+   when no other pod appended a turn since this pod parked.
+3. On a mismatch, evict the entry with the existing reason `continuity-invalid` and take the cold
+   path.
+4. On a match, take the warm hit.
+5. When the read fails, refuse the warm hit and fail the turn with an error that names the cause:
+   the runner could not confirm that its warm session is current. The entry stays in the pool.
+
+The compare uses `turn_index`, not `turn_id`. An approval resume reuses its paused turn's index,
+and its benign 409 leaves the row with the paused turn's `turn_id`. A `turn_id` compare would
+evict a valid warm entry after every resume.
 
 The check has no race. It runs inside the pod's own admitted turn, which holds `alive` and
 `running`, so no other pod can append a row until this turn ends.
 
 **Make the 409 benign only for a resume.** The runner knows before the append whether the turn
-is a resume (`opts.resume`, `settleApprovalsThenPrompt`, `carriesApprovalReplyOnly`;
-research.md section 13.8).
+is a resume (`opts.resume`, `settleApprovalsThenPrompt`, `carriesApprovalReplyOnly`; research.md
+section 13.8).
 
 - For a resume, the 409 stays silent, as today.
-- For a fresh prompt, the runner logs an error and fails the turn with an error that names the
-  cause: another runner already wrote this turn index. It does not run the `failed-turn` cleanup
-  that deletes the environment.
+- For a fresh prompt, the runner logs an error and ends the turn with an error that names the
+  cause: another runner already wrote this turn index. It evicts the entry as
+  `continuity-invalid`. It does not take the coordinator's `failed-turn` eviction and cold retry.
 
-The append happens before the prompt (research.md section 12.3), so a failed fresh append
-never sends a stale prompt. After the read above, a fresh-prompt 409 means either a failed read
-or a bug.
+The append happens before the prompt (research.md section 12.3), so a refused fresh append never
+sends a stale prompt.
 
 **Make "records incomplete" durable.** When a record ingest fails all its retries, the runner
 also posts the fact to the api. The api stores it with the record log, and the records query
@@ -429,14 +517,20 @@ alternatives:
   session", with renewal, expiry, and takeover: the owner key again.
 - **Trust the history fingerprint.** The playground sends one message, so the fingerprint has
   nothing to compare.
-- **Read the turn log.** It already records which turn came last, and it is the record every
-  pod writes.
+- **Read the turn log.** It already records which turn came last, and it is the record every pod
+  writes.
 
-The design reads the turn log. On a failed read it takes the warm hit, because the 409 then
-catches a stale entry before the prompt. On a mismatch it uses the existing eviction reason, so
-the teardown follows today's rules for that reason. What that teardown does to the sandbox
-differs by design: the minimal design stops the pod's own sandbox, and design B touches no
-sandbox at all.
+The design reads the turn log. A failed read fails closed. The append that follows also swallows
+network failures, so a failed read plus a failed append would otherwise let a stale prompt
+through. The first-beat admission already fails closed when the api does not answer, so this is
+the same rule.
+
+On a mismatch the design uses the existing eviction reason, so the teardown follows today's rules
+for that reason. What that teardown does to the sandbox differs by design: the minimal design
+stops the pod's own sandbox, and design B touches no sandbox at all.
+
+A fresh-prompt 409 skips the cold retry because the retry would hide the cause. The user sees one
+clear error, and the next message takes the cold path from the latest row.
 
 #### Deleted
 
@@ -451,6 +545,8 @@ read, and the api route and column for the flag.
 #### Costs and side effects
 
 - **One more api round trip per warm hit,** a few milliseconds.
+- **An api failure at that moment now fails the turn.** Today the warm hit would go ahead. The
+  window is narrow, because the turn's first beat has just reached the api.
 - **A fresh-prompt 409 now shows the user an error.** Today the user gets a reply from the wrong
   history instead.
 - **The incomplete flag adds one write on a rare path.** If that write also fails, only the pod
@@ -458,60 +554,70 @@ read, and the api route and column for the flag.
 
 #### Verification
 
-- Runner unit test: the latest row is this pod's turn, so the turn is a warm hit.
-- Runner unit test: the latest row is another pod's turn, so the pod evicts and takes the cold
-  path.
-- Runner unit test: the read fails, so the turn is a warm hit.
-- Runner unit test: a resume 409 is silent; a fresh 409 fails the turn and deletes nothing.
+- Runner unit test: the latest row's `turn_index` equals the entry's, so the turn is a warm hit.
+- Runner unit test: an approval resume after a benign 409 is still a warm hit.
+- Runner unit test: another pod appended a row, so the pod evicts and takes the cold path.
+- Runner unit test: the read fails, so the turn fails with the named error and the entry stays.
+- Runner unit test: a resume 409 is silent; a fresh 409 ends the turn, evicts as
+  `continuity-invalid`, deletes nothing, and makes no cold retry.
 - Runner unit test: a flag written on one pod stops a reconstruct on another pod.
 - Implementer check: confirm that `EntityCreationConflict` maps to HTTP 409. research.md section
   12.3 did not read that line.
 
-### Kill every recorded sandbox
+### Kill by label inventory
 
 #### Today
 
-`POST /kill` drains the receiving pod's pool entry and answers 200, whether or not it found
-anything (research.md section 6.3). The api never reads `session_turns.sandbox_id` (research.md
-section 6.4).
+`POST /kill` drains the receiving pod's pool entry and its in-flight sandboxes, and answers 200
+whether or not it found anything (research.md section 6.3). The api never reads
+`session_turns.sandbox_id` and never calls Daytona (research.md section 6.4).
 
-Two gaps sit under that. The in-process command sandbox is created on the first tool call, and
-its id is never written to the row of the turn that created it (research.md section 13.7). And
-the two providers store different shapes in one column: `daytona/<raw>` on the Daytona path and
-`<raw>` on the in-process path.
+The turn rows are not a usable list of a session's sandboxes:
+
+- **A project caller can write `sandbox_id`.** The turn append route accepts it from any caller
+  with the project permission (`router.py:1966-1980`). A row is not a safe authority to delete a
+  Daytona sandbox.
+- **The column misses sandboxes.** The in-process path creates its command sandbox on the first
+  tool call, after the row exists, and never writes the id back (research.md section 13.7). It
+  can also replace that sandbox mid-session when its credentials change
+  (`command-sandbox.ts:361-370`), and a write-once column cannot record the replacement.
+
+Labels already exist on one path. The in-process command sandbox carries `agenta.project` and
+`agenta.conversation` (`conversation-registry.ts:74-77`). The Daytona-path create request sets
+no labels (`provider.ts:95-124`).
 
 #### The change
 
-1. **Record the sandbox id when it is allocated.** When the in-process path creates a command
-   sandbox, the runner writes its id onto the current turn row. Both providers store one shape,
-   `daytona/<raw>`, which the reconnect already requires.
-2. **The api collects every id.** Kill reads the distinct `sandbox_id` values across all the
-   session's rows. A session can own several sandboxes over time: in the minimal design, each
-   move between pods creates one.
-3. **The api sends the list to the turn's pod first.** It reads the binding of the session's
-   `alive` turn before it ends the turns. It posts `/kill` with `sessionId`, `projectId`, and
-   `sandboxIds` to that `replica_address`, so the holder drains its pool. If that call fails, or
-   no binding exists, it posts the same body to the Service URL.
-4. **The receiving pod deletes each id.** It drains its local entry and its in-flight sandboxes
-   as today. Then it deletes every id in the list. For an id whose Secret allocation it holds,
-   it runs the Secret-aware cleanup. For any other id, it deletes the sandbox by id
-   (`daytonaWithLifecycle.deleteSandbox`, `daytona-provider.ts:318-326`). Not-found counts as
-   success.
+1. **Label every Daytona-path sandbox at create.** The create request gains two labels,
+   `agenta.project` and `agenta.conversation`, after `envVars` (`provider.ts:113`). The create
+   fingerprint excludes them (see "The Daytona labels" below).
+2. **The api kill does not change.** It posts `/kill` with today's body to the Service URL.
+3. **The receiving pod drains, then lists, then deletes.** It drains its own pool entry and
+   in-flight sandboxes as today. It then lists sandboxes with both labels set to the request's
+   `projectId` and `sessionId`. It deletes each one. For a sandbox whose Secret allocation it
+   holds, it also deletes the Secrets. Not-found counts as success.
 
-In design B, Kill finds the sandboxes by their labels instead, and deletes their Secrets by
-derived name (see "The sandbox describes itself").
+This is the label inventory: the labels answer both "which sandboxes belong to this session" and
+"may this request delete them".
+
+Kill is the one exception to the rule "a pod never deletes a sandbox it did not create". The api
+has already ended the session's turns, so no other pod can start a turn on these sandboxes. A pod
+that still holds one in its pool learns of the delete when its timer fires or its next turn hits
+the sandbox-gone check.
+
+Sandboxes created before the labels have no inventory. Only the pod that owns them deletes them,
+from its pool, as today. That set shrinks to nothing within one autodelete cycle of the deploy.
 
 #### Why this and not the alternatives
 
-- **Let the api call Daytona.** The api has no Daytona client and no Daytona credentials. The
-  runner has both.
+- **Read the ids from the turn rows.** A project caller can write the column, and the column
+  misses replaced and late-created command sandboxes.
+- **Let the api call Daytona.** The api has no Daytona client and no Daytona credentials.
 - **Send `/kill` to every pod.** This needs pod discovery in the api, and it still misses a
   sandbox that no pod holds, such as a stopped one.
-- **Delete only the latest row's sandbox.** It misses the older sandboxes that pod moves leave
-  behind.
 
-The api sends the ids because it owns the turn log. At `/kill`, the runner holds only the runner
-token, and the turns query needs a project credential.
+The labels are written by the runner at create, from the request it serves, so they carry the same
+trust as the sandbox itself. One list query covers both providers.
 
 #### Deleted
 
@@ -519,27 +625,29 @@ Nothing.
 
 #### Added
 
-- The id write at allocation.
-- A one-time data migration that adds the `daytona/` prefix to ids without one.
-- The distinct-id read in the api and the `sandboxIds` field.
-- The delete loop in the runner.
+Two labels on the Daytona-path create, and the list-and-delete step in the runner's `/kill`.
 
 #### Costs and side effects
 
-- **Kill becomes best-effort over a list.** One failed delete does not stop the others. The
-  failure is logged, and Daytona's autostop and autodelete remove the sandbox later.
-- **A sandbox still being created has no row yet.** Its pod's own lifecycle or Daytona removes
-  it.
-- **Secrets of a sandbox deleted by another pod stay orphaned.** Only the creating pod knows
-  them. They remain until design B's derivable names, or #6438.
+- **Kill becomes a Daytona list call plus one delete per sandbox.** A failed delete does not stop
+  the others. The failure is logged, and Daytona's autostop and autodelete remove the sandbox
+  later.
+- **Secrets of a sandbox that another pod created stay orphaned.** Only the creating pod knows
+  them. They remain until design B's slot manifest, or #6438.
+- **Pre-label sandboxes are deleted only by their owner.** A Kill that reaches another pod leaves
+  them to Daytona's timers.
+- **A sandbox still being created may not be listed yet.** Its pod's own lifecycle or Daytona
+  removes it.
+- **List latency is unknown.** The second spike measures it.
 
 #### Verification
 
-- Runner unit test: a pod with no entry deletes every listed id.
-- Runner unit test: not-found counts as success.
-- Runner unit test: the in-process path records its command sandbox id at create.
-- Api unit test: Kill sends every distinct id, to the bound pod first.
-- Release gate: Kill sent to the pod that does not hold the session leaves no sandbox.
+- Runner unit test: a pod with no entry deletes every sandbox the label list returns.
+- Runner unit test: not-found counts as success; a failed delete does not stop the loop.
+- Runner unit test: Secrets are deleted only for sandboxes whose allocation this pod holds.
+- Runner unit test: the create fingerprint is the same with and without labels.
+- Implementer check: the in-process `conversationId` equals the session id.
+- Release gate: Kill sent to the pod that does not hold the session leaves no labelled sandbox.
 
 ### Drain, then cancel, then tear down
 
@@ -547,7 +655,8 @@ Nothing.
 
 At SIGTERM the runner (research.md sections 12.5 and 13.5):
 
-1. Interrupts in-process turns within 5 seconds.
+1. Interrupts in-process turns within 5 seconds. Only in-process turns register in the
+   `active-turns` set that this step reads.
 2. Stops the sandboxes of idle entries, and deletes the sandboxes of busy and parked entries.
 3. Deletes the sandboxes of turns in flight.
 4. Sends the `release_owner` beats.
@@ -563,11 +672,15 @@ The chart uses `strategy: Recreate`, so no runner pod exists during a restart. I
 
 The runner, at SIGTERM:
 
-1. **Drain.** Set a flag. `/run` answers 503 from now on. Kubernetes removes the pod from the
-   Service endpoints on its own schedule, so the pod must refuse new work itself.
-2. **Wait.** Let running turns finish, for at most the grace period minus a margin. The chart
-   passes the limit, for example 230 seconds out of 300.
+1. **Drain.** Set a flag. The one handler behind `/run` and `/stream` (`server.ts:1601-1606`)
+   answers 503 from now on. `/cancel` and `/kill` stay available, so a Stop or a Kill still
+   reaches the turns this pod runs. Kubernetes removes the pod from the Service endpoints on its
+   own schedule, so the pod must refuse new work itself.
+2. **Wait.** Let every admitted execution finish, Daytona and in-process alike, for at most the
+   grace period minus a margin. The wait reads the execution registry, not the in-process
+   `active-turns` set. The chart passes the limit, for example 230 seconds out of 300.
 3. **Cancel.** Cancel what still runs with `cancelHarnessTurn`, and wait for the settled result.
+   Give each parked prompt the same explicit cancel and wait for it to settle.
 4. **Tear down.** In the minimal design, delete every sandbox the pod holds. In design B, delete
    a sandbox whose cancel did not settle, and leave every other sandbox running. Daytona stops it
    after its idle interval, and any pod can adopt it before or after that.
@@ -576,23 +689,23 @@ The runner, at SIGTERM:
 The 5-second budgets of today's shutdown grow to fit step 2.
 
 The minimal design deletes everything at step 4, idle and parked sandboxes included. No other
-process can adopt a sandbox, so a stopped one would only wait 30 minutes for autodelete. The
+process can reconnect to them, so a stopped one would only wait 30 minutes for autodelete. The
 settled wait still matters there: it lets the harness finish writing its transcript to the
 mount, so the next pod's session/load finds a complete history.
 
-Design B does not stop sandboxes at shutdown, for the reason given in "Daytona does all the
-stopping": another pod may already use the sandbox, and a stop would end that pod's turn.
+Design B does not stop sandboxes at shutdown. Another pod may already use the sandbox, and a
+stop would end that pod's turn (see "Daytona does all the stopping").
 
 The chart:
 
-- `strategy: RollingUpdate` with `maxSurge: 1` and `maxUnavailable: 0` when only remote
-  providers are enabled. Kubernetes starts a new pod and waits until it is ready before it stops
-  an old one.
+- `strategy: RollingUpdate` with `maxSurge: 1` and `maxUnavailable: 0` when only remote providers
+  are enabled. Kubernetes starts a new pod and waits until it is ready before it stops an old one.
 - `strategy: Recreate` stays when the local provider is enabled, and the template fails to render
   when `agentRunner.replicas` is greater than 1 with the local provider.
 - `AGENTA_RUNNER_REPLICA_ID` from `metadata.name`, and the pod IP from `status.podIP`, at every
   replica count.
-- `agentRunner.replicas: 2` in the GKE values. The chart default stays 1.
+- `agentRunner.replicas: 2` in the GKE values, only after every runner binds turns (see "Stop goes
+  to the turn's pod"). The chart default stays 1.
 - The PodDisruptionBudget stays.
 
 #### Why this and not the alternatives
@@ -601,6 +714,9 @@ Today a deploy cancels every running turn within seconds. With one pod there was
 for new turns to go, so waiting gained nothing. With two pods, the other pod takes new turns
 while the leaving pod finishes its own. The 300-second grace period exists for this purpose
 (#7320).
+
+The control endpoints stay open during the drain because the turns are still running there. A
+user who presses Stop during a deploy must reach the pod that runs the turn.
 
 The alternatives:
 
@@ -616,8 +732,9 @@ The `release_owner` step, the `replicas == 1` condition, and the chart comment t
 
 #### Added
 
-The drain flag, the wait with its setting, the settled cancel at shutdown, the disposition by
-design, and about ten lines of chart.
+The drain flag, the wait over the execution registry with its setting, the settled cancel of
+running turns and parked prompts at shutdown, the disposition by design, and about ten lines of
+chart.
 
 #### Costs and side effects
 
@@ -628,41 +745,49 @@ design, and about ten lines of chart.
 - **A late request gets a 503.** A request that reaches the pod after SIGTERM and before
   Kubernetes removes it from the endpoints fails. The 10-second `preStop` delay makes the window
   small. The SDK transport does not retry a 503 today (`ts_runner.py:198`).
-- **A parked approval still loses its live prompt.** The prompt dies with the pod. The user's
-  answer runs on the cold path through the stored decision, as today.
-- **Hosted device login breaks at two pods.** A login attempt lives in one pod's memory, and a
-  poll can reach the other pod. The fourth decision covers it.
+- **A parked approval still loses its live prompt.** The prompt is cancelled at shutdown. The
+  user's answer runs on the cold path through the stored decision, as today.
 - **In design B, a leaving pod's sandboxes run a little longer.** They run until Daytona's idle
   interval stops them, 2 or 3 minutes.
-- **Compose keeps its own grace.** Docker's default stop timeout is 10 seconds, so on compose
-  the wait is as short as the compose file allows.
+- **Hosted device login breaks at two pods.** A login attempt lives in one pod's memory, and a
+  poll can reach the other pod. The fourth decision covers it.
+- **Compose keeps its own grace.** Docker's default stop timeout is 10 seconds, so on compose the
+  wait is as short as the compose file allows.
 
 #### Verification
 
-- Runner unit test: after SIGTERM, `/run` answers 503.
-- Runner unit test: the handler waits, then cancels, then tears down. In design B a settled
-  cancel leaves the sandbox running, and an unsettled one deletes it.
+- Runner unit test: after SIGTERM, `/run` and `/stream` answer 503, and `/cancel` and `/kill`
+  still work.
+- Runner unit test: the wait covers a Daytona turn, not only in-process turns.
+- Runner unit test: a parked prompt gets a settled cancel before teardown.
+- Runner unit test: in design B a settled cancel leaves the sandbox running, and an unsettled one
+  deletes it; in the minimal design every sandbox is deleted.
 - Chart test: `Recreate` renders with the local provider, and the render fails for the local
   provider with `replicas > 1`.
 - Live check on the GKE stage: a rolling deploy during a turn; the turn finishes.
 
 ## The minimal design: private sandboxes
 
-The minimal design is the five common changes plus one rule in the Secrets wrapper: **a pod
-never deletes a sandbox it did not create.**
+The minimal design is the five common changes plus one rule. **A pod reconnects only to a
+sandbox it created. It never deletes a sandbox it did not create, except through Kill.**
 
 ### The rule
 
-- The wrapper's no-entry branch (`daytona-secret-provider.ts:429-439`) reports the failure
-  without deleting the sandbox.
-- The reconnect steps skip the Daytona reconnect for a sandbox id that this process does not
-  hold in its registry. They go straight to a fresh create.
-- The other sandbox is left to its owner's pool timer, and to Daytona's autostop (15 minutes
-  after the last SDK call) and autodelete (30 minutes after the stop).
+- **Reconnect only to your own sandbox.** Each process keeps a set of the sandbox ids it created.
+  The reconnect steps reconnect only to an id in that set. For any other id they create a fresh
+  sandbox. This holds whether or not the Secrets wrapper runs. With opaque Secrets turned off,
+  the wrapper does not run, and the plain reconnect would otherwise adopt another pod's sandbox.
+- **Never delete another pod's sandbox.** The wrapper's no-entry branch
+  (`daytona-secret-provider.ts:429-439`) reports the failure without deleting the sandbox.
+- **Kill is the exception.** "Kill by label inventory" deletes every labelled sandbox of the
+  session, whichever pod created it.
+- **The other sandbox is left to its owner.** Its owner's pool timer stops it, or Daytona's
+  autostop (15 minutes after the last SDK call) and autodelete (30 minutes after the stop) remove
+  it.
 
-With this rule, a pod only ever uses, stops, or deletes its own sandboxes. That is why the warm
-cache check can evict with a normal teardown: the sandbox it stops is its own, and no other pod
-uses it.
+With this rule, a pod only ever uses, stops, or deletes its own sandboxes outside Kill. That is
+why the warm cache check can evict with a normal teardown: the sandbox it stops is its own, and no
+other pod uses it.
 
 ### What a user gets
 
@@ -677,34 +802,109 @@ creates another.
 
 ### Deleted and added
 
-Nothing is deleted beyond the owner key of the common changes. The rule itself is a few lines in
-the wrapper and in the reconnect steps.
+Nothing is deleted beyond the owner key of the common changes. The rule adds a process-local set
+of created ids, a check in the reconnect steps, and the removal of the delete in the wrapper's
+no-entry branch.
 
 ### Costs and side effects
 
 - **The miss cost.** A full create on half of all follow-ups at two pods.
-- **Two sandboxes per moved session for a while.** The first pod's copy runs until its pool
-  timer stops it (120 seconds), or until Daytona autostop when that pod is gone.
+- **Two sandboxes per moved session for a while.** The first pod's copy runs until its pool timer
+  stops it (120 seconds), or until Daytona autostop when that pod is gone.
 - **New Daytona Secrets on every move.** Each fresh create allocates its own Secrets.
 - **A crashed pod's sandboxes live up to 45 minutes.** They run until autostop (15 minutes) and
   stay stopped until autodelete (30 minutes). Their Secrets stay orphaned.
-- **Park-to-stopped still does not survive a restart.** The restart cost of today stays.
+- **Park-to-stopped still does not survive a restart.** A new process has an empty set of created
+  ids, so it creates fresh. The restart cost of today stays, but the old sandbox is no longer
+  deleted on contact; Daytona removes it.
 
 The minimal design does not make pods interchangeable. It makes them safe.
 
 ### Verification
 
+- Runner unit test: the reconnect steps create fresh for an id this process did not create, with
+  opaque Secrets on and with them off.
 - Runner unit test: the wrapper never deletes a sandbox without a registry entry.
-- Runner unit test: the reconnect steps create fresh for an id this process does not hold.
 - Two-process test: park on A, continue on B, and check that A's sandbox is untouched.
 
 ## Design B: any pod adopts any sandbox
 
 ### The goal
 
-A follow-up on another pod reconnects to the running sandbox and calls session/load, which takes
-seconds. The pod that leaves destroys nothing. A stopped sandbox survives a restart again. Design B
-has two parts and two spikes that come before any code.
+A follow-up on another pod reuses the session's sandbox instead of creating one. The pod that
+leaves destroys nothing. A stopped sandbox survives a restart again.
+
+Design B has two parts, deployed in this order:
+
+1. **"Daytona does all the stopping" (B2).** No pod stops a shared sandbox. It ships to every pod
+   first, while adoption is still off.
+2. **"The sandbox describes itself" (B1).** A pod can prove a sandbox's Secrets and adopt it. It
+   ships in a later release, after every process of the earlier version has exited.
+
+Two spikes come before any code.
+
+### The invariant
+
+**No pod stops or deletes a sandbox outside three cases: its own admitted turn's failure path,
+the stop before adoption in its own admitted turn, and Kill.**
+
+Every other stop and delete goes. That includes the pool's park-to-stopped. It also includes
+the Secrets wrapper's own paths that stop or delete: its `pause()` and cleanup timer
+(`daytona-secret-provider.ts:496`), its cleanup retries, and its failure teardown.
+
+### Daytona does all the stopping (B2)
+
+#### Today
+
+The pool timer stops a sandbox at the idle TTL (120 seconds) and deletes it for non-parkable
+reasons. The Secrets wrapper adds its own stop and cleanup paths. Daytona's autostop (15 minutes)
+removes what the runner leaves. With shared sandboxes, a stale pod's stop would hit a sandbox
+that another pod now uses: scenario 1 of context.md, made worse.
+
+#### The change
+
+1. **Eviction releases local resources only.** It closes the client, forgets the entry, and
+   removes local folders. It sends no stop and no delete.
+2. **The wrapper follows the invariant.** Its `pause()`, its cleanup timer, its cleanup retries,
+   and its failure teardown stop or delete a sandbox only in the three allowed cases.
+3. **Daytona's autostop becomes the idle bound.** Set `autoStopInterval` to 2 or 3 minutes. It
+   must stay above the pool's idle TTL, so that a warm hit never finds a stopped sandbox.
+4. **The runner feeds Daytona activity during a turn.** Every 30 seconds, with the liveness probe,
+   the runner calls `refreshActivity`, which is an SDK `get`. This also fixes the 15-minute
+   autostop risk of a long turn (research.md section 13.9).
+5. **Any pod starts a stopped sandbox.** The reconnect steps already do this.
+6. **The park-to-stopped code goes.** The timer-driven `pauseSandbox` and the split between
+   parkable reasons for the stop case are deleted. Deletes stay for the non-parkable reasons in the
+   pod's own admitted turn: `failed-turn` and `aborted`.
+
+Before adoption ships, this part changes only who stops a sandbox. The minimal rule still sends a
+follow-up on another pod to a fresh create.
+
+#### Why this and not the alternatives
+
+With shared sandboxes, no pod can know that its stop is safe. Between its check and its stop,
+another pod can start a turn on the same sandbox. The simplest rule is that no pod stops anything
+outside its own turn. Daytona already has the idle timer; the runner only has to feed it during
+turns.
+
+The alternative is a check before every stop, as in "Verify the warm cache before use". It leaves
+a window between the check and the stop, and a stop that lands in that window ends another pod's
+turn.
+
+This part ships before adoption so that, when adoption begins, no running process still has the
+old stop paths.
+
+#### Costs and side effects
+
+- **The idle bound moves from 120 seconds to Daytona's interval,** 2 or 3 minutes. A delay on
+  Daytona's side adds billed minutes.
+- **The design leans on one SDK sentence.** The SDK says that SDK interactions reset autostop.
+  Whether a read such as `get` counts is not stated; the runner's own comment says "believed". The
+  second spike verifies it on a live sandbox.
+- **A long turn now depends on the in-turn refresh.** Today it depends on nothing, and by the SDK
+  documentation it can lose its sandbox after 15 minutes.
+- **Reverting it while adoption is on is unsafe.** The old stop paths would stop sandboxes that
+  other pods have adopted. Revert adoption first.
 
 ### The sandbox describes itself (B1)
 
@@ -712,124 +912,95 @@ has two parts and two spikes that come before any code.
 
 The registry entry holds the Secret allocation (research.md section 13.1). It has the map from
 environment variable to Secret name, the placeholders, and the created Secret records with their
-Daytona ids. It also has the plan, the create fingerprint, and a generation counter. The
-wrapper allocates every Secret before it creates the sandbox. It gives each Secret its own
-random name, `agenta_<36 hex>_<ordinal>` (`daytona-secrets.ts:255-260`). Nothing of this is on
-Daytona. The Daytona-path create request sets no labels (`provider.ts:95-124`).
+Daytona ids. It also has the plan, the create fingerprint, and a generation counter. The wrapper
+allocates every Secret before it creates the sandbox. It gives each Secret its own random name,
+`agenta_<36 hex>_<ordinal>` (`daytona-secrets.ts:255-260`). Nothing of this is on Daytona.
+
+Two facts rule out rebuilding the allocation from the incoming request alone:
+
+- **Ordinals follow the request's iteration order** (`daytona-secret-plan.ts:238`). A later
+  request with the same credentials in another order would derive other names.
+- **The reconnect check compares slot sets** (`provider.ts:152`, `daytona-secret-provider.ts:460`).
+  If the pod rebuilt the slot set from the incoming request, the check would compare the request
+  with itself and always pass.
 
 #### The change
 
-1. **One allocation id per create.** Before it allocates the Secrets, the wrapper mints one
-   random allocation id. Every Secret of that create is named `agenta_<allocation id>_<ordinal>`.
-   The ordinal comes from the slot's position in the plan, which a pod derives from the request.
-   The names cannot use the sandbox id, because the Secrets exist before the sandbox does.
-2. **Labels on the sandbox.** The create request carries four labels (see "The Daytona labels"
-   below): `agenta.project`, `agenta.conversation`, `agenta.create_fingerprint`, and
-   `agenta.secret_allocation`. They go into the create request after `envVars`
-   (`provider.ts:113`).
-3. **Labels stay out of the fingerprint.** `daytonaCreateFingerprint` (`provider.ts:249`) hashes
-   the create request. Its input must exclude the labels. Otherwise the fingerprint label would
-   have to contain itself, and the session labels would change the hash for every session.
-4. **Adoption on reconnect.** A pod that has no registry entry for a sandbox:
-   1. reads the sandbox's labels;
+1. **An immutable slot manifest per sandbox.** At create, the wrapper writes a slot manifest with
+   the sandbox: for each slot, its slot key, its Secret name, its allowed hosts, and its
+   placeholder. It never changes after create. It is a label if Daytona's label limits allow;
+   otherwise a small object that the api stores, keyed by sandbox id. The second spike decides.
+2. **One allocation id per create.** The Secret names become `agenta_<allocation id>_<ordinal>`.
+   The retained-lease path, which reuses a lease for a replacement sandbox, keeps the allocation
+   id it inherits.
+3. **Two more labels.** The create request adds `agenta.create_fingerprint` next to the two
+   inventory labels of "Kill by label inventory". The create fingerprint excludes all labels.
+4. **Adoption on reconnect.** A pod with no registry entry for a sandbox, inside its own admitted
+   turn:
+   1. reads the sandbox's labels and slot manifest;
    2. checks that `agenta.project` and `agenta.conversation` match the request;
    3. computes the create fingerprint from its own request and compares it with the label;
-   4. derives the plan and the Secret names from the request and the allocation id;
+   4. compares the request's slot set with the manifest's slot set;
    5. lists the Daytona Secrets by name and keeps only exact matches, because the SDK's name
       filter matches parts of names;
-   6. rebuilds the registry entry and reconnects.
-5. **Mismatch or missing labels.** On a fingerprint mismatch, the pod has proven the Secrets, so
-   it deletes the sandbox and its Secrets and creates fresh, as the creating pod does today. A
-   sandbox without labels, created before this change, follows the minimal rule: fresh create,
-   no delete.
-6. **Kill by inventory.** Kill lists the session's sandboxes by the labels `agenta.project` and
-   `agenta.conversation`, and deletes their Secrets by derived name.
+   6. rebuilds the registry entry from the manifest and the Secret records;
+   7. writes the current credential values into those Secrets before the turn runs, through the
+      existing retained-lease path;
+   8. reconnects.
+5. **Stop before adopting, as the baseline.** If the daemon spike shows that a stop ends the old
+   pod's adapters, adoption first stops a running sandbox, then starts it. A miss then costs a
+   sandbox stop and start, which is still far cheaper than a create. Adoption of a running
+   sandbox without a stop comes only if the spike shows that it is safe.
+6. **Mismatch or missing manifest.** On a fingerprint or slot-set mismatch, the pod has proven the
+   Secrets from the manifest. It deletes the sandbox and its Secrets inside its own admitted turn
+   and creates fresh. A sandbox without a manifest, created before this change, follows the
+   minimal rule: fresh create, no delete.
+7. **Kill deletes the Secrets too.** Kill reads each listed sandbox's manifest and deletes its
+   Secrets by name, whichever pod created it.
 
-The registry becomes a cache of facts that any pod can derive. The delete-on-missing-entry
+The registry becomes a cache of facts that any pod can read back. The delete-on-missing-entry
 branch goes away.
 
 #### Why this and not the alternatives
 
-- **A durable allocation table in the api.** It is a second copy that must be written at create,
-  deleted at destroy, and reconciled after every crash. That reconciliation is the whole problem
-  of #6438.
-- **Derivable names plus labels.** The sandbox is the single source. Reconciliation becomes "list
-  sandboxes by label and Secrets by prefix".
+- **Derive the names from the request.** The order dependence and the circular slot-set check
+  above rule it out.
+- **A mutable allocation table in the api.** It must be written at create, updated on every
+  change, deleted at destroy, and reconciled after every crash. That reconciliation is the whole
+  problem of #6438.
+- **An immutable manifest written with the sandbox.** It is written once, never updated, and
+  describes one sandbox. On a label, the sandbox is its single source. In the api, it is a second
+  copy, but one that never changes and needs no reconciliation beyond deletion with the sandbox.
 
-The design chooses derivable names plus labels.
+The design chooses the manifest, on a label when it fits.
 
 #### Costs and side effects
 
+- **A manifest in the api, if labels are too small, is a second copy.** It must be deleted with
+  its sandbox, and a crash between create and the manifest write leaves a sandbox that no other
+  pod can adopt.
+- **Adoption writes Secrets before the turn runs.** That adds Daytona calls to the first turn on a
+  new pod.
 - **Secret names become predictable from the allocation id.** They still protect only the
   mapping. The values stay in Daytona and never reach the plain environment.
-- **Label limits are unknown.** The SDK documents no size or count limit. The second spike tests
-  it.
 - **Sandboxes created before this change are not adoptable.** The first deploy treats them as
   today: a fresh create on the next turn.
-- **The placeholders must come back from Daytona.** The adopting pod needs each Secret's
-  placeholder and allowed hosts. The second spike checks that the Secret list returns them.
-- **The Secrets wrapper is security-adjacent code,** and its naming scheme changes.
-
-### Daytona does all the stopping (B2)
-
-#### Today
-
-The pool timer stops a sandbox at the idle TTL (120 seconds) and deletes it for non-parkable
-reasons. Daytona's autostop (15 minutes) catches what the runner misses. With shared sandboxes,
-a stale pod's stop would hit a sandbox that another pod now uses: scenario 1 of context.md, made
-worse.
-
-#### The change
-
-1. **Eviction releases local resources only.** It closes the client, forgets the entry, and
-   removes local folders. It sends no stop and no delete.
-2. **Daytona's autostop becomes the idle bound.** Set `autoStopInterval` to 2 or 3 minutes. It
-   must stay above the pool's idle TTL, so that a warm hit never finds a stopped sandbox.
-3. **The runner feeds Daytona activity during a turn.** Every 30 seconds, with the liveness
-   probe, the runner calls `refreshActivity`, which is an SDK `get`. This also fixes the
-   15-minute autostop risk of a long turn (research.md section 13.9).
-4. **Any pod starts a stopped sandbox.** The reconnect steps already do this.
-5. **The park-to-stopped code goes.** The timer-driven `pauseSandbox` and the split between
-   parkable reasons for the stop case are deleted. Deletes stay for the non-parkable reasons on
-   the pod that runs the turn: `failed-turn`, `aborted`, and Kill.
-
-#### Why this and not the alternatives
-
-With shared sandboxes, no pod can know that its stop is safe. Between its check and its stop,
-another pod can start a turn on the same sandbox. The simplest rule is that no pod stops
-anything. Daytona already has the idle timer; the runner only has to feed it during turns.
-
-The alternative is a check before every stop, as in "Verify the warm cache before use". It
-leaves a window between the check and the stop, and a stop that lands in that window ends
-another pod's turn.
-
-#### Costs and side effects
-
-- **The idle bound moves from 120 seconds to Daytona's interval,** 2 or 3 minutes. A delay on
-  Daytona's side adds billed minutes.
-- **The design leans on one SDK sentence.** The SDK says that SDK interactions reset autostop.
-  Whether a read such as `get` counts is not stated; the runner's own comment says "believed".
-  The second spike verifies it on a live sandbox.
-- **A long turn now depends on the in-turn refresh.** Today it depends on nothing, and by the SDK
-  documentation it can lose its sandbox after 15 minutes.
-
-This part needs "The sandbox describes itself". Without it, a pod would adopt a sandbox whose
-Secrets it cannot verify.
+- **The Secrets wrapper is security-adjacent code,** and both its naming scheme and its cleanup
+  paths change.
 
 ### Two spikes that gate design B (B3)
 
 1. **The daemon with two ACP servers on one harness session.** Pod A parks a session. Pod B
    reconnects to the same sandbox and calls session/load on the same native session. Observe pod
    A's orphaned adapter: its memory, whether it writes to the transcript file, and what pod A's
-   later `session/cancel` or disconnect does to pod B's session. The daemon is upstream
-   `rivetdev/sandbox-agent` 0.5.0-rc.2 (research.md section 12.1). The outcome may add a cleanup
-   step, for example pod B asks the daemon to close other servers' sessions, if the daemon offers
-   that. Or it may force "stop the sandbox before adopting". Then a miss costs a sandbox start,
-   which is still far cheaper than a create.
+   later `session/cancel` or disconnect does to pod B's session. Then stop and start the sandbox
+   and check that no adapter of pod A survives. The daemon is upstream `rivetdev/sandbox-agent`
+   0.5.0-rc.2 (research.md section 12.1). The outcome decides between stop-before-adopt and live
+   adoption.
 2. **Daytona semantics.** Answer five questions on a live sandbox:
    1. Does an SDK `get` reset autostop?
    2. Does preview traffic reset it?
-   3. What size and count limits apply to labels?
+   3. What size and count limits apply to labels, and does a slot manifest fit?
    4. How long do a list by label and a list of Secrets by name take?
    5. Does the Secret list return each Secret's placeholder and allowed hosts?
 
@@ -838,23 +1009,29 @@ Secrets it cannot verify.
 **Gives:**
 
 - Pods are interchangeable.
-- A follow-up on another pod costs a reconnect and a session/load, which is seconds.
+- A follow-up on another pod costs a sandbox stop and start plus session/load with the baseline,
+  or a reconnect plus session/load with live adoption. Both are far cheaper than a create.
 - A leaving pod destroys nothing; it leaves its sandboxes for Daytona to stop or another pod to
   adopt.
 - A stopped sandbox survives a restart again, so a deploy no longer costs each session a fresh
   sandbox.
-- Orphaned Secrets (#6438) become findable by prefix.
-- The park-to-stopped timer code and the delete-on-missing-entry branch are removed.
+- Kill deletes the Secrets of every sandbox, and orphaned Secrets (#6438) become findable by
+  prefix.
+- The park-to-stopped timer code, the wrapper's own stop paths, and the delete-on-missing-entry
+  branch are removed.
 
 **Costs:**
 
-- Two spikes before any code.
-- The Secrets wrapper, a security-adjacent module, changes its naming scheme.
+- Two spikes before any code, and two releases to roll it out in a safe order.
+- The Secrets wrapper, a security-adjacent module, changes its naming scheme, its cleanup paths,
+  and its reconnect.
+- A slot manifest, possibly stored in the api, plus the credential write on adoption.
 - A migration window in which old sandboxes are not adoptable.
 - The idle bound depends on Daytona's timer.
 - The daemon's behaviour is outside this repository, so a fix upstream may be needed.
-- About 200 to 300 changed lines in the runner, close to zero net after the deletions (an
-  estimate). The risk sits in `daytona-secret-provider.ts`, `sandbox-lifecycle.ts`, and
+- About 400 to 600 changed lines in the runner, and more if the manifest lives in the api. The
+  deletions no longer balance the additions (an estimate). The risk sits in
+  `daytona-secret-provider.ts`, `daytona-secret-plan.ts`, `sandbox-lifecycle.ts`, and
   `session-pool.ts`.
 
 ## Interface changes, reviewed by semantic role
@@ -879,7 +1056,7 @@ bound:<project_id>:session:<session_id>:turn:<turn_id>   = "agenta-runner-6f9c7d
 | Field | What it is | Owner | Changes | Role |
 | --- | --- | --- | --- | --- |
 | `replica_id` | The pod name | Runner, from the chart | Per process | Identity, for logs and `claimed_by` |
-| `replica_address` | The URL that reaches this pod | Runner, from the chart | Per process | Routing |
+| `replica_address` | The URL that reaches this pod, empty when unauthenticated or on compose | Runner, from the chart; accepted only with the runner token | Per process | Routing |
 
 The reasons for this shape:
 
@@ -888,14 +1065,18 @@ The reasons for this shape:
 - **The same key layout as `started`,** so the key is found the same way and expires with the
   same rule. The name `bound` follows the past-participle style of `started` and `superseded`.
 - **The separator `\x1f`** is the one the owner key uses today (`contract.py:56-63`).
-- **Write-once.** A binding never changes during a turn, so `NX` makes a second writer a refusal,
-  not a takeover.
+- **Write-once, written by the heartbeat handler.** `NX` makes a second writer a refusal, not a
+  takeover. The handler writes it because the first beat of a normal turn never reaches the
+  acquire script.
 
 ### The heartbeat request and response
 
 **Request, before:**
 
-```json
+```http
+POST /sessions/streams/heartbeat
+Authorization: <project credential of the invoke caller>
+
 {
   "session_id": "019d952f-0000-0000-0000-000000000001",
   "replica_id": "5b1e0c9a-0000-0000-0000-000000000000",
@@ -907,7 +1088,11 @@ The reasons for this shape:
 
 **Request, after:**
 
-```json
+```http
+POST /sessions/streams/heartbeat
+Authorization: <project credential of the invoke caller>
+X-Agenta-Runner-Token: <runner token>
+
 {
   "session_id": "019d952f-0000-0000-0000-000000000001",
   "replica_id": "agenta-runner-6f9c7d5b8-x2lqp",
@@ -918,69 +1103,42 @@ The reasons for this shape:
 ```
 
 **Response, before:** `{"stream": {...}, "replica_id": "...", "is_current_turn": true}`.
-**Response, after:** `{"stream": {...}, "is_current_turn": true}`.
+**Response, after:** the same for one release, then `{"stream": {...}, "is_current_turn": true}`.
 
 The reasons:
 
+- **Two credentials, two roles.** The project credential authorizes the beat for this session,
+  as today. The runner token proves that the caller is runner infrastructure, which is what makes
+  its address safe to send the runner token to later. The token rides its existing header,
+  `X-Agenta-Runner-Token`, so the `Authorization` header keeps one meaning.
 - **`replica_address` sits next to `replica_id`, flat.** Both describe the calling pod and change
   only when the process changes. A nested `replica: {id, address}` object would read better, but
   it renames a field that every runner version sends, for no second consumer.
 - **The address is a URL, not a pod IP.** The URL is the stable concept. The pod IP is the
   Kubernetes mechanism, and compose has none. The runner reads it from
-  `AGENTA_RUNNER_REPLICA_ADDRESS`, which the chart builds as
-  `http://$(AGENTA_RUNNER_POD_IP):8765`.
+  `AGENTA_RUNNER_REPLICA_ADDRESS`, which the chart builds from the pod IP and the configured
+  runner port.
 - **An empty address means "use the Service URL".** Compose and Railway need no new setting.
-- **`release_owner` and the response `replica_id` go.** Both existed for the owner key.
-- **No new meaning for `is_current_turn: false`.** A refused first beat is already read as a
-  refused admission. The owner-mismatch meaning goes away with the owner key, so the field loses
-  one of its three meanings (#6765).
+- **`release_owner` goes now; the response `replica_id` goes one release later.** Both existed
+  for the owner key, and a runner of the previous version still reads the response field.
+- **No new meaning for `is_current_turn: false`.** A refusal by the binding is the same "this
+  turn is not yours" that the runner already reads. The owner-mismatch meaning goes away with the
+  owner key, so the field loses one of its three meanings (#6765).
 
-### The `/kill` body
+### The `/cancel` route
 
-**Before:**
+The body does not change. Two behaviours do:
 
-```json
-{ "sessionId": "019d952f-0000-0000-0000-000000000001", "projectId": "019d952f-0000-0000-0000-0000000000a1" }
-```
+- The api posts it to the bound pod's address, resolved in `_deliver`.
+- The runner's parked branch checks `target.turnId` against the parked turn.
 
-**After:**
+The response keeps `replicaId`, which command settlement writes to `claimed_by`.
 
-```json
-{
-  "sessionId": "019d952f-0000-0000-0000-000000000001",
-  "projectId": "019d952f-0000-0000-0000-0000000000a1",
-  "sandboxIds": ["daytona/sb-7f3", "daytona/sb-a21"]
-}
-```
+### The `/kill` route
 
-| Field | What it is | Owner | Changes | Role |
-| --- | --- | --- | --- | --- |
-| `sandboxIds` | Every distinct sandbox id in the session's turn rows | Api, from `session_turns` | Per Kill | Input: the targets |
-
-The reasons:
-
-- **A plural list.** A session can own several sandboxes over its life.
-- **The api owns the list.** It owns the turn log, and the runner has no project credential at
-  Kill.
-- **Each id keeps its provider prefix.** `daytona/<raw>` is the form the reconnect needs and the
-  form most rows already hold. The in-process path writes the same form, and a one-time migration
-  adds the prefix to the in-process rows that lack it. The runner strips the prefix for the
-  Daytona delete and skips any id with another prefix, such as the local provider's.
-- **No object per id.** Both Daytona-backed providers delete through the same call. A list of
-  objects can replace the strings if a second kind of sandbox ever needs different handling.
-
-### The turn row's sandbox id
-
-The in-process path writes the command sandbox id onto the current turn row when it creates the
-sandbox. The turns route gains one update, keyed like the existing complete call:
-
-```json
-POST /sessions/turns/sandbox
-{ "session_id": "019d952f-0000-0000-0000-000000000001", "turn_index": 1, "sandbox_id": "daytona/sb-c55" }
-```
-
-The api sets the column only when it is empty, so a later call cannot rewrite history. Role:
-data about the turn, owned by the runner, written once per turn.
+The body does not change: `{ "sessionId": "...", "projectId": "..." }`. The receiving pod lists
+the session's sandboxes by label instead of trusting any id it is sent. The route is the same, so
+no caller changes.
 
 ### The Daytona labels
 
@@ -989,7 +1147,18 @@ already carries `agenta.conversation` (the session id), `agenta.project`, `agent
 `agenta.owner`, and `agenta.deployment` (`command-sandbox.ts:417-423`,
 `conversation-registry.ts:74-77`).
 
-**After, on the Daytona path:**
+**After stage 1, on the Daytona path:**
+
+```json
+{
+  "labels": {
+    "agenta.project": "019d952f-0000-0000-0000-0000000000a1",
+    "agenta.conversation": "019d952f-0000-0000-0000-000000000001"
+  }
+}
+```
+
+**After design B, on the Daytona path:**
 
 ```json
 {
@@ -997,28 +1166,60 @@ already carries `agenta.conversation` (the session id), `agenta.project`, `agent
     "agenta.project": "019d952f-0000-0000-0000-0000000000a1",
     "agenta.conversation": "019d952f-0000-0000-0000-000000000001",
     "agenta.create_fingerprint": "3f1c9e0d0000000000000000000000000000000000000000000000000000a7b2",
-    "agenta.secret_allocation": "9c4e2a7b0000000000000000000000000000"
+    "agenta.secret_manifest": "<the slot manifest, if it fits>"
   }
 }
 ```
 
 | Label | What it is | Owner | Changes | Role |
 | --- | --- | --- | --- | --- |
-| `agenta.project` | The project id | Runner, from the request | Per sandbox | Inventory, for Kill and adoption |
-| `agenta.conversation` | The session id | Runner, from the request | Per sandbox | Inventory, for Kill and adoption |
+| `agenta.project` | The project id | Runner, from the request | Per sandbox | Inventory and ownership check, for Kill and adoption |
+| `agenta.conversation` | The session id | Runner, from the request | Per sandbox | Inventory and ownership check, for Kill and adoption |
 | `agenta.create_fingerprint` | The SHA-256 of the image and create request, labels excluded | Runner | Per sandbox | Integrity check before adoption |
-| `agenta.secret_allocation` | The random id shared by this sandbox's Secret names | Secrets wrapper | Per sandbox | Reference to the Secrets |
+| `agenta.secret_manifest` | The slot manifest | Secrets wrapper | Written once at create | Reference to the Secrets |
 
 The reasons:
 
 - **The same two inventory keys as the in-process path,** instead of one combined
   `agenta.session = <project>:<session>`. One list query then finds a session's sandboxes for
-  both providers, and each value is filterable without parsing. The implementer confirms that the
-  in-process `conversationId` equals the session id.
+  both providers, and each value is filterable without parsing.
+- **Labels stay out of the create fingerprint.** The fingerprint label would otherwise contain
+  itself, and the inventory labels would change the hash for every session.
 - **The fingerprint is a separate label,** because its role is a check, not an inventory key.
-- **The allocation id is a reference, not a secret.** It names the Secrets; it reveals no value.
+- **The manifest holds references, not secrets.** It names the Secrets and their placeholders;
+  it reveals no value.
 - **No `agenta.owner` on the Daytona path.** In design B any pod may adopt the sandbox, so a
   creating-pod label would mislead.
+
+### The slot manifest
+
+The manifest is one entry per Secret slot:
+
+```json
+{
+  "allocation": "9c4e2a7b0000000000000000000000000000",
+  "slots": [
+    {
+      "slot": "model:openai",
+      "secret": "agenta_9c4e2a7b0000000000000000000000000000_0",
+      "hosts": ["api.openai.com"],
+      "placeholder": "AGENTA_SECRET_PLACEHOLDER_0"
+    }
+  ]
+}
+```
+
+| Field | What it is | Owner | Changes | Role |
+| --- | --- | --- | --- | --- |
+| `allocation` | The id shared by this sandbox's Secret names | Secrets wrapper | Never after create | Reference |
+| `slots[].slot` | The slot key the plan uses | Secrets wrapper | Never after create | Identity of the slot |
+| `slots[].secret` | The Daytona Secret name | Secrets wrapper | Never after create | Reference to the Secret |
+| `slots[].hosts` | The hosts the Secret may be sent to | Secrets wrapper, from the plan | Never after create | Policy |
+| `slots[].placeholder` | The text that stands for the value inside the sandbox | Daytona, recorded by the wrapper | Never after create | Reference |
+
+The values are examples; the implementer takes the slot key and placeholder formats from
+`daytona-secret-plan.ts`. If labels are too small, the api stores the same object keyed by
+sandbox id, and the runner reads it with the runner token.
 
 ### The records-incomplete flag
 
@@ -1031,8 +1232,8 @@ POST /sessions/records/incomplete
 { "session_id": "019d952f-0000-0000-0000-000000000001", "turn_id": "019d952f-0000-0000-0000-000000000004" }
 ```
 
-The api stores the time in a new nullable column, `records_incomplete_at`, on the session's row in
-`session_sequence_cursors`. The records query returns it next to the records:
+The api stores the time in a new nullable column, `records_incomplete_at`, on the session's row
+in `session_sequence_cursors`. The records query returns it next to the records:
 
 ```json
 { "count": 42, "records": [ ... ], "records_incomplete": true }
@@ -1045,9 +1246,9 @@ The api stores the time in a new nullable column, `records_incomplete_at`, on th
 The reasons:
 
 - **Not in `session_streams.flags`.** That field is a typed mirror of three Redis booleans
-  (`is_alive`, `is_running`, `is_attached`). The api rebuilds it from Redis on every beat and every
-  read (`streams/service.py:849-853, 977-994`), so a fourth value would be overwritten. Its role,
-  liveness, also differs from this one.
+  (`is_alive`, `is_running`, `is_attached`). The api rebuilds it from Redis on every beat and
+  every read (`streams/service.py:849-853, 977-994`), so a fourth value would be overwritten. Its
+  role, liveness, also differs from this one.
 - **With the record log.** The fact describes the record log, and the reconstruct step already
   queries the record log. The flag arrives on the read it already makes.
 - **A timestamp in storage, a boolean on the wire.** The time helps an operator; the reader needs
@@ -1060,38 +1261,41 @@ The reasons:
 | Situation | What the user sees |
 | --- | --- |
 | A follow-up reaches the pod that holds the session | A warm hit, as today, plus one api round trip. |
+| The latest-row read fails at a warm hit | The turn fails with an error that names the cause. The next message can warm-hit again. |
 | A follow-up reaches the other pod, Daytona path | A correct reply after a fresh sandbox create and a session/load: tens of seconds, to be measured. |
 | A follow-up reaches the other pod, in-process path | A fast reply; the first tool call waits for a new command sandbox. |
 | The next message returns to the first pod | The pod sees the newer turn, evicts its entry, and creates a fresh sandbox again. No stale reply. |
 | Stop during a turn | The turn stops at once, from the api directly to the turn's pod. |
 | Stop on a parked approval | The approval closes at once, on the pod that holds the prompt. |
+| A delayed Stop meets a newer parked approval | The newer approval stays open; the Stop settles `obsolete`. |
 | An approval answer reaches the other pod | The call runs without a second question, after a fresh sandbox create. |
-| Kill | Every sandbox the session recorded is deleted. |
-| A deploy or node drain during a turn | The turn finishes, up to the wait limit. New turns go to the other pod. |
-| A deploy with a parked approval | The live prompt is lost. The answer runs on a fresh sandbox through the stored decision. |
+| Kill | Every labelled sandbox of the session is deleted, from any pod. A sandbox created before the labels is deleted only if Kill reaches its owner. |
+| A deploy or node drain during a turn | The turn finishes, up to the wait limit. New turns go to the other pod. Stop and Kill keep working on the leaving pod. |
+| A deploy with a parked approval | The live prompt is cancelled. The answer runs on a fresh sandbox through the stored decision. |
 | A pod crash during a turn | The turn is lost after 90 seconds, as today. The pod's sandboxes live up to 45 minutes. |
-| The same turn id reaches two pods | The second pod is refused at admission. |
+| The same turn id reaches two pods | The second pod is refused, and its final beat changes nothing. |
 
 ### After stage 2 (design B)
 
 | Situation | What the user sees |
 | --- | --- |
-| A follow-up reaches the other pod, Daytona path | A reply after a reconnect and a session/load: seconds. |
-| The next message returns to the first pod | The pod evicts its entry without touching the sandbox, reconnects, and loads: seconds. |
-| A deploy with a parked approval | The sandbox is kept. The answer reconnects to it on any pod and loads the session. |
-| The first turn after a restart | The new process adopts the stopped sandbox; no fresh create. |
+| A follow-up reaches the other pod, Daytona path | A reply after a sandbox stop and start plus a session/load with the baseline, or a reconnect plus a session/load with live adoption: seconds, not a create. |
+| The next message returns to the first pod | The pod evicts its entry without touching the sandbox and adopts it again. |
+| A deploy with a parked approval | The sandbox is kept. The answer adopts it on any pod and loads the session. |
+| The first turn after a restart | The new process adopts the sandbox; no fresh create. |
 | A turn longer than 15 minutes | Keeps its sandbox, because the runner refreshes Daytona activity during the turn. |
 | An idle session | Its sandbox stops after Daytona's interval, 2 or 3 minutes, instead of 120 seconds. |
-| Kill | Finds the sandboxes by label and deletes their Secrets too. |
+| Kill | Deletes every labelled sandbox and, from the manifest, its Secrets. |
 | A pod crash | Its sandboxes are adoptable by the next turn on any pod. |
 
 Rows not listed match stage 1.
 
 ### At one replica (compose, Railway, self-hosted Helm)
 
-Stage 1 changes nothing a user sees, except that a crashed runner's replacement no longer waits
-for an owner key. Stop goes to the same single URL. Stage 2 removes the fresh sandbox create
-after every restart.
+Stage 1 changes little that a user sees. A crashed runner's replacement no longer waits for an
+owner key. Stop goes to the same single URL. A failed latest-row read now fails a warm turn. Kill
+also deletes labelled sandboxes that no pool entry holds, such as a stopped one. Stage 2 removes
+the fresh sandbox create after every restart.
 
 ## Alternatives considered
 
@@ -1148,22 +1352,30 @@ The numbers in this table are estimates from the research, not measurements.
 | | Minimal (stage 1) | Design B (stage 2) | Hash routing (option A) |
 | --- | --- | --- | --- |
 | Correct at N pods | Yes | Yes | Only with the five common changes |
-| Follow-up on the other pod | Fresh sandbox, tens of seconds, half of follow-ups at 2 pods | Reconnect and load, seconds | Near zero while pods are stable; fresh sandbox when they change |
+| Follow-up on the other pod | Fresh sandbox, tens of seconds, half of follow-ups at 2 pods | Stop and start (baseline) or reconnect, plus load: seconds | Near zero while pods are stable; fresh sandbox when they change |
 | Stop | Direct to the turn's pod, immediate | Same | Direct, immediate; wrong pod when the set changes |
-| Code | About +200 lines; owner key removed | About +250 lines; park-to-stopped and delete-on-reconnect removed | About +200 lines, on top of the minimal design |
-| New dependencies | Pod IP reachable from the api | Daytona labels, SDK calls reset autostop, daemon behaviour | Headless Service, two resolvers |
-| Spikes | Measure the miss cost | Two | None |
-| Risk area | The admission script, `request_cancel` | Secrets wrapper, sandbox lifecycle | Resolvers that disagree |
+| Kill | Labelled sandboxes from any pod; pre-label ones only by their owner; Secrets only by their creator | Same, plus every sandbox's Secrets from the manifest | Same as stage 1 |
+| Failed freshness read | The turn fails with a clear error | Same | Same, because it needs the same check |
+| Code | About +250 lines; owner key and local probe removed | About +400 to +600 more; park-to-stopped, the wrapper's stop paths, and delete-on-reconnect removed | About +200 lines, on top of the minimal design |
+| New dependencies | Pod IP reachable from the api; runner token on every beat; Daytona list by label | Label limits or an api manifest store, SDK calls reset autostop, daemon behaviour | Headless Service, two resolvers |
+| Spikes | Measure the miss cost | Two, including the manifest size | None |
+| Rollout | Chart waits for every runner to bind turns | Two releases: no-stop rule first, adoption second | Resolver and chart together |
+| Risk area | The heartbeat handler, `_deliver` | Secrets wrapper, sandbox lifecycle | Resolvers that disagree |
 
 ## Recommendation and staging
 
 **Stage 1: correctness.** Ship the five common changes with the minimal rule. Two pods are safe.
-Stop is direct and exact. Kill reaches every recorded sandbox. Deploys stop killing running
-turns. Misses are expensive; measure them on the GKE stage.
+Stop is direct and exact. Kill reaches every labelled sandbox. Deploys stop killing running
+turns.
 
-**Stage 2: interchangeable pods.** Ship design B after its two spikes. It is the design the issue
-asked for, it removes code, and it fixes the restart cost that every session already pays.
-Commit to it now, and run the spikes in parallel with stage 1.
+**During stage 1: gather the data for design B.** Run the two spikes and measure the miss cost of
+stage 1 on the GKE stage. Design B stays fully designed in this plan.
+
+**At the end of stage 1: decide on design B with that data.** Design B is the design the issue
+asked for, and it removes the restart cost that every session already pays. It is also larger
+than it first looks. It needs a slot manifest, a credential write on adoption, a two-release
+rollout, and changes to every stop path of the Secrets wrapper. The miss cost and the spikes
+say whether that work pays for itself.
 
 Hash routing is not recommended. It still needs the five common changes, adds a resolver in two
 code bases, and hides the miss cost instead of removing it.
@@ -1172,9 +1384,10 @@ code bases, and hides the miss cost instead of removing it.
 
 ### Spikes and measurements first
 
-1. The daemon with two ACP servers (see "Two spikes that gate design B").
-2. Daytona semantics: autostop on SDK `get` and on preview traffic, label limits, list latency,
-   and whether the Secret list returns placeholders and hosts.
+1. The daemon with two ACP servers, and whether a stop ends the old pod's adapters (see "Two
+   spikes that gate design B").
+2. Daytona semantics: autostop on SDK `get` and on preview traffic, label limits and the
+   manifest size, list latency, and whether the Secret list returns placeholders and hosts.
 3. The miss cost of stage 1 on the GKE stage: time to first reply on a warm hit and on a fresh
    create.
 
@@ -1183,23 +1396,29 @@ code bases, and hides the miss cost instead of removing it.
 Runner tests use vitest under `services/runner/tests/`. Api tests use pytest under
 `api/oss/tests/pytest/unit/sessions/`.
 
-- The binding refuses a second replica on the first beat.
-- Stop posts to the recorded address, falls into `not_held` when the address is unreachable, and
-  a parked Stop goes to the parking pod.
-- The warm cache check: own turn gives a warm hit; another pod's turn gives an eviction and the
-  cold path; a failed read gives a warm hit.
-- A resume 409 is silent; a fresh 409 fails the turn and deletes nothing.
-- The minimal rule: the wrapper never deletes an unknown sandbox. Design B: the wrapper rebuilds
-  the entry from labels and derived names.
+- The binding: a second replica is refused on any beat; a refused replica's final beat leaves
+  `running` alone; a beat without a valid runner token binds an empty address.
+- Stop: the first delivery and redeliveries post to the bound address; a 404 settles at once; a
+  transport failure follows the abandoned-command path; a parked Stop goes to the parking pod.
+- A delayed Stop against a newer parked approval answers `obsolete`.
+- The warm cache check: equal `turn_index` gives a warm hit, including after an approval resume;
+  a newer row gives an eviction and the cold path; a failed read fails the turn.
+- A resume 409 is silent; a fresh 409 ends the turn, evicts as `continuity-invalid`, and makes
+  no cold retry.
+- The minimal rule: the reconnect steps create fresh for an id this process did not create, with
+  opaque Secrets on and off; the wrapper never deletes an unknown sandbox.
 - The incomplete flag written on one pod is read on another.
-- Kill deletes every recorded id, not-found is success, and the in-process id is recorded at
-  allocation.
-- Shutdown: the drain flag and the wait. In design B, a settled cancel keeps the sandbox and an
-  unsettled one deletes it. In the minimal design, everything is deleted.
+- Kill: deletes every labelled sandbox, not-found is success, and Secrets only for owned
+  allocations; labels do not change the create fingerprint.
+- Shutdown: `/run` and `/stream` answer 503 while `/cancel` and `/kill` work; the wait covers
+  Daytona turns; parked prompts get a settled cancel; the disposition follows the design.
 - The chart renders `Recreate` for the local provider and fails for the local provider with
   `replicas > 1`.
-- "Daytona does all the stopping": an eviction makes no stop call, and the in-turn refresh calls
-  the SDK on schedule.
+- Design B, "Daytona does all the stopping": an eviction makes no stop call; the wrapper's
+  `pause()`, cleanup timer, and retries make none either; the in-turn refresh calls the SDK on
+  schedule.
+- Design B, "The sandbox describes itself": the entry is rebuilt from the manifest, a slot-set
+  mismatch is caught, and the credential values are written before the turn runs.
 
 ### Two-process test
 
@@ -1210,14 +1429,37 @@ With a fake api and a fake daemon, run two runner processes:
 3. Send the next message back to A. A must evict and take the cold path.
 4. Press Stop while B runs. The Stop must reach B directly.
 5. Park an approval on A and press Stop. The Stop must reach A directly.
-6. Send Kill. Every recorded sandbox must be deleted.
+6. Park a newer approval on A, then deliver a delayed Stop for the older turn. The approval must
+   stay open.
+7. Send the same turn id to A and B. B must be refused, and B's final beat must leave A's
+   `running` in place.
+8. Send Kill to B. Every labelled sandbox must be deleted.
+
+### The in-process path from A to B to A
+
+The in-process path keeps more state in the pod: the native Pi session, the local transcript
+cache, and the command sandbox. Run the full path:
+
+1. Turn 1 on A, with a tool call, so A creates a command sandbox.
+2. Turn 2 on B. B must restore the transcript from the object store, select the native session
+   from the latest row, and create its own command sandbox.
+3. Turn 3 on A. A must evict its live Pi session, ignore its local transcript cache, restore the
+   transcript that B saved, and select the native session from the latest row.
+4. Check that the stored transcript holds turns 1, 2, and 3.
+
+### Approval recovery across pods
+
+Park an approval on A. Answer it so that the continuation reaches B. Check that B sees every
+earlier turn in the harness transcript before the model issues the call again, on the Daytona
+path and on the in-process path.
 
 ### Release gate
 
 The `agent-release-gate` skill names a two-replica journey as a follow-up
-(`.agents/skills/agent-release-gate/resources/qa_product.py:1592`). Add it, plus two cells:
+(`.agents/skills/agent-release-gate/resources/qa_product.py:1592`). Add it, plus these cells:
 
 - a duplicate `/run` with the same turn id on two pods, where the second is refused;
+- the final beat of the refused runner, which must not end the admitted turn;
 - the #7287 check: an answered approval row survives the turn-start sweep on a pod that holds
   nothing.
 
@@ -1225,9 +1467,9 @@ The `agent-release-gate` skill names a two-replica journey as a follow-up
 
 With `replicas: 2`:
 
-1. A rolling deploy during a turn: the turn finishes.
+1. A rolling deploy during a turn: the turn finishes, and a Stop sent during the drain reaches it.
 2. A node drain during a parked approval, then the answer.
-3. The miss cost in stage 1 and in stage 2.
+3. The miss cost in stage 1, and in stage 2 if it ships.
 4. Stop latency.
 5. Daytona autostop on a long turn.
 
@@ -1238,19 +1480,23 @@ Each step says what reverts it. Not every step is independent; the dependencies 
 1. **Spikes and measurements.** Run the two spikes for design B and measure the stage 1 miss cost
    on the GKE stage. File the autostop issue. Nothing to revert.
 2. **"Verify the warm cache before use" and the minimal rule.** Revert: a plain revert.
-3. **"Bind the turn to its pod" and "Stop goes to the turn's pod", together.** Stop routes by the
-   binding, so they ship as one pull request. A turn admitted before the deploy has no binding,
-   and its Stop goes to the Service URL as today. Revert: as a unit; the owner key and the
-   Service URL delivery return.
-4. **"Kill every recorded sandbox" and "Drain, then cancel, then tear down".** Revert: a plain
-   revert. The id-shape migration stays, because the code before this step already reads the
-   prefixed form.
-5. **Chart: `RollingUpdate` for remote providers, `replicas: 2` on GKE, the pod IP and pod name.**
-   This step needs steps 2 to 4 in production. The device-login decision must be settled first.
-   Revert: set `replicas: 1` and `Recreate` in the values.
-6. **Design B: "The sandbox describes itself", then "Daytona does all the stopping", as two pull
-   requests, after the spikes.** Revert: each pull request. "Daytona does all the stopping" needs
-   "The sandbox describes itself", so revert it first.
+3. **"Bind the turn to its pod" and "Stop goes to the turn's pod", together,** with the
+   target-turn check for a parked Stop. Stop routes by the binding, so they ship as one pull
+   request. A turn admitted before the deploy has no binding, and its Stop goes to the Service
+   URL as today. Revert: as a unit; the owner key and the Service URL delivery return.
+4. **Drop the heartbeat response field `replica_id`,** one release after step 3. Revert: a plain
+   revert.
+5. **"Kill by label inventory" and "Drain, then cancel, then tear down".** Revert: a plain revert.
+   Sandboxes created while the labels existed keep them, which does no harm.
+6. **Chart: `RollingUpdate` for remote providers, `replicas: 2` on GKE, the pod IP and pod name.**
+   This step needs steps 2, 3, and 5 in production. Every runner pod must run the version that
+   binds turns, and no turn that an older runner admitted may remain. The device-login decision must
+   be settled first. Revert: set `replicas: 1` and `Recreate` in the values.
+7. **If Mahmoud decides for design B: "Daytona does all the stopping",** in its own release,
+   with adoption still off. Revert: a plain revert, but only while adoption is off.
+8. **"The sandbox describes itself",** in a later release, after every process of the step 7
+   version has replaced the processes before it. Revert: a plain revert. Revert this step before
+   step 7, never the other way round, because the old stop paths would stop adopted sandboxes.
 
 ## Decisions for Mahmoud
 
@@ -1262,6 +1508,8 @@ half of all Stops reach the wrong pod and settle `lost`.
 **Option 1: route by the turn's recorded pod address.** The binding names the pod at admission,
 and the api posts to it. Stop stays direct and immediate, and its meaning does not change. Side
 effects: the api must reach pod IPs, and a NetworkPolicy that blocks that traffic breaks Stop.
+Every beat carries the runner token, so that the api can trust the address. The chart can set two
+replicas only after every runner binds turns.
 
 **Option 2: fan-out to every pod.** Stop stays direct and immediate. The api gains pod discovery
 through a headless Service and partial-failure handling, and every Stop costs one request per
@@ -1272,24 +1520,29 @@ Heartbeat delivery is not an option; it is rejected under "Alternatives consider
 **Recommendation: option 1.** It reaches the right pod with one request, and the binding it
 needs also fixes the double admission of one turn.
 
-### Decision 2: commit to design B as stage 2
+### Decision 2: when to decide on design B
 
-**Today.** Every restart costs each session a fresh sandbox, and a second pod would do the same
-on every move.
+**Today.** Every restart costs each session a fresh sandbox, and in stage 1 a second pod does the
+same on half of all follow-ups. Design B removes both costs. Its price is a slot manifest, a
+credential write on adoption, a two-release rollout, and changes to every stop path of the
+Secrets wrapper.
 
-**Option 1: commit to design B now.** Run its spikes in parallel with stage 1, then ship it as
-stage 2. Pods become interchangeable, the restart cost goes, and code is removed. Side effects:
-security-adjacent changes to the Secrets wrapper, a migration window, and a dependency on
-Daytona's autostop and on the upstream daemon.
+**Option 1: commit to design B now.** Plan its two releases behind stage 1. Pods become
+interchangeable as early as possible. Side effects: the larger work is committed before anyone
+has measured the miss cost. It is also committed before the spikes say whether stop-before-adopt
+is needed and whether the manifest fits on a label.
 
-**Option 2: stop at stage 1 and measure.** No new dependency. Half of follow-ups at two pods pay
-a fresh create, and every deploy keeps its restart cost. Decide on B after the measurement.
+**Option 2: ship stage 1, gather data during it, and decide on design B at its end.** Run the two
+spikes and measure the stage 1 miss cost on the GKE stage while stage 1 is built and rolled out.
+Design B stays fully designed in this plan. Side effects: the restart cost and the miss cost stay
+for the length of stage 1, and design B starts later if the data supports it.
 
 **Option 3: add a routing hint instead of B.** Follow-ups mostly reach the same pod while pods are
 stable. It adds a resolver in two code bases, and it does nothing for the restart cost.
 
-**Recommendation: option 1.** The spikes are cheap, and they run while stage 1 is built. Design B
-is also the only option that removes the restart cost that every session already pays.
+**Recommendation: option 2.** The spikes and the measurement run in parallel with stage 1, so the
+decision costs no calendar time. Design B is now larger than a naming change, and the data shows
+whether a miss costs enough to pay for it.
 
 ### Decision 3: shutdown order
 
@@ -1297,10 +1550,11 @@ is also the only option that removes the restart cost that every session already
 sandboxes of running turns and parked approvals.
 
 **Option 1: drain, then cancel with a settled wait, then tear down.** The pod refuses new turns
-and lets running turns finish, up to the grace period. It cancels the rest and waits for each
-cancel to settle. Stage 1 then deletes idle and parked sandboxes; stage 2 leaves them for
-Daytona to stop. Side effects: a rolling deploy takes up to about ten minutes at two pods, and a
-late request can get a 503.
+on `/run` and `/stream`, and keeps `/cancel` and `/kill` open. It lets every admitted execution
+finish, up to the grace period. It cancels the rest, parked prompts included, and waits for each
+cancel to settle. Stage 1 then deletes idle and parked sandboxes; stage 2 leaves them for Daytona
+to stop. Side effects: a rolling deploy takes up to about ten minutes at two pods, and a late
+request can get a 503.
 
 **Option 2: keep today's shutdown.** Every deploy and node drain kills running turns.
 

@@ -7,6 +7,8 @@ answers GitHub issue [Agenta-AI/agenta#7322](https://github.com/Agenta-AI/agenta
 The design has two stages. Stage 1, the minimal design, makes two pods safe: each pod keeps the
 sandboxes it creates, and every control path reaches the right pod. Stage 2, design B, makes the
 pods interchangeable: any pod can adopt any sandbox. Both stages share five common changes.
+Design B is fully designed; the decision to build it comes at the end of stage 1, with measured
+data.
 
 ## Reading order
 
@@ -55,6 +57,8 @@ defining them again.
   it lists sandboxes.
 - **autostop and autodelete**: two Daytona timers: one stops a sandbox after 15 minutes with no
   SDK call, the other deletes it 30 minutes after the stop.
+- **label inventory**: the list of a session's sandboxes that the runner gets by asking Daytona
+  for every sandbox labelled with the session's project and session ids.
 - **preview traffic**: requests that reach a sandbox through Daytona's preview proxy, such as
   the runner's ACP stream; Daytona's SDK documentation says they do not reset autostop.
 
@@ -75,6 +79,8 @@ defining them again.
   never appears in the sandbox's plain environment.
 - **Secret allocation**: the facts that tie one sandbox to its Daytona Secrets (their names,
   placeholders, and environment variables) plus the create fingerprint.
+- **slot manifest**: in design B, the fixed list written with a sandbox at create of its Secret
+  slots, each with its Secret name, allowed hosts, and placeholder.
 - **create fingerprint**: a SHA-256 hash of the image and the create request, which tells
   whether an existing sandbox still matches what a new request would create.
 - **the Secrets wrapper**: the runner layer that creates a sandbox's Daytona Secrets and keeps
@@ -92,8 +98,8 @@ defining them again.
   the earlier turns of a conversation.
 - **alive and running keys**: two Redis keys, held for the turn in progress, that let at most
   one turn run per session.
-- **turn binding**: a write-once Redis record, added by this design, that names the pod that
-  runs a turn and that pod's address.
+- **turn binding**: a write-once Redis key, added by this design, that names the pod that runs
+  a turn and that pod's address.
 
 ### The per-pod cache
 

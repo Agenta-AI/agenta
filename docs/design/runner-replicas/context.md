@@ -55,7 +55,9 @@ first turn after every deploy.
 **The same turn on two pods would be admitted twice.** If two pods beat the same `turn_id`, the
 api admits both. The owner key then passes between them on every beat, and neither turn is
 interrupted (research.md section 13.6). A plain `/run` retry with the same turn id can cause
-this. Today one pod hides the fault, because the second request reaches the same process.
+this. The second pod's final `is_running: false` beat can also release `running` for the turn
+that the first pod still runs. Today one pod hides the fault, because the second request reaches
+the same process.
 
 **A turn longer than 15 minutes may lose its sandbox.** Daytona's SDK documentation says that
 autostop counts SDK calls and state changes, and that preview traffic does not count. During a
@@ -184,8 +186,11 @@ sandbox costs money for that time and keeps the session's files.
 **Plain cause.** Kill acts only on the receiving pod's memory.
 
 **Status.** Confirmed in code. The same gap exists at one replica for a sandbox that no pool
-entry holds. On the in-process path, the first turn's row never records its command sandbox id
-(research.md section 13.7). So even a correct Kill could not find that sandbox.
+entry holds. The turn rows cannot serve as a list of the session's sandboxes. On the in-process
+path, the first turn's row never records its command sandbox id, and a replaced command sandbox
+is never recorded (research.md section 13.7). Any caller with the project permission can also
+write `sandbox_id` on a turn row (`router.py:1966-1980`). The in-process command sandbox carries
+the labels `agenta.project` and `agenta.conversation`; a Daytona-path sandbox carries no labels.
 
 ## Goals
 
@@ -193,12 +198,12 @@ entry holds. On the in-process path, the first turn's row never records its comm
   turns, because the other pod takes them.
 - A deploy or a node drain does not kill running turns. The leaving pod lets them finish first.
 - Stop acts at once on the pod that runs the turn, at any replica count.
-- Kill deletes every sandbox the session used, whichever pod receives it.
+- Kill deletes every labelled sandbox of the session, whichever pod receives it.
 - No pod answers from a stale harness session, and no pod destroys or stops a sandbox that
   another pod uses.
 - One replica (compose, Railway, self-hosted Helm) keeps working with no setup change.
-- In stage 2, a follow-up on another pod reconnects to the running sandbox instead of creating
-  one, and a restart no longer costs each session a fresh sandbox.
+- If design B ships as stage 2, a follow-up on another pod reuses the session's sandbox instead
+  of creating one. A restart then no longer costs each session a fresh sandbox.
 
 ## Non-goals
 
