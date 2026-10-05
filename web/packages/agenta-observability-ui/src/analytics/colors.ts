@@ -14,11 +14,11 @@ const LIGHT = {
     series4: "#88b0ad",
     series5: "#a995b3",
     other: "#d7d5d1",
-    // Failure-rate bars: above and below the overall rate.
-    failAbove: "#e3a9a5",
-    failBelow: "#ecd2cf",
-    // Failed-run bars under the success-rate line.
-    failedRuns: "#ecc3c0",
+    // Failure reasons by rank, most common darkest.
+    reason1: "#a32d2d",
+    reason2: "#e24b4a",
+    reason3: "#f09595",
+    reason4: "#f7c1c1",
     // Status dots and text.
     dotOk: "#88ad94",
     dotFailed: "#d94c4a",
@@ -30,8 +30,10 @@ const LIGHT = {
 const DARK: typeof LIGHT = {
     ...LIGHT,
     other: "#4b4a48",
-    failBelow: "#6b4442",
-    failedRuns: "#6b4442",
+    reason1: "#f7c1c1",
+    reason2: "#f09595",
+    reason3: "#e24b4a",
+    reason4: "#a32d2d",
     textBad: "#e5807e",
     textWarn: "#d7a75a",
     textGood: "#7fbf88",
@@ -40,6 +42,8 @@ const DARK: typeof LIGHT = {
 export type AnalyticsColor = keyof typeof LIGHT
 
 export const analyticsColor = (name: AnalyticsColor) => `var(--analytics-${name})`
+
+export const REASON_COLORS: AnalyticsColor[] = ["reason1", "reason2", "reason3", "reason4"]
 
 export const SERIES_COLORS: AnalyticsColor[] = [
     "series1",

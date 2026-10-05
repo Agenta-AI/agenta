@@ -1,11 +1,10 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     formatCount,
     formatMetric,
     formatMoney,
     sharePercent,
-    rankKeys,
     successRate,
     sum,
     type KeyedSeries,
@@ -14,11 +13,11 @@ import {
 
 import {ChartTooltipPanel, type TooltipRow} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
-import {SERIES_COLORS, analyticsColor} from "../colors"
+import {REASON_COLORS, SERIES_COLORS, analyticsColor} from "../colors"
 import type {AnalyticsWindowData, FailureReasons} from "../useAnalyticsData"
 
 import {ChartLegendRow, AnalyticsCard, type LegendItem} from "./AnalyticsCard"
-import {GroupedCard, type GroupedMetric, type GroupedSource} from "./GroupedCard"
+import {GroupedCard, stackSeries, type GroupedMetric, type GroupedSource} from "./GroupedCard"
 
 export interface GroupedData {
     keyLabel: (key: string) => string
@@ -253,185 +252,155 @@ const RunsChartCard = ({ctx}: {ctx: OverviewContext}) => {
     )
 }
 
+/** How many runs failed and why: failed runs per bucket, stacked by reason (or by group). */
 export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
     const [hovered, setHovered] = useHover()
     const {points, totals} = ctx.data.overview
-    const values = points.map((p) => successRate(p.runs, p.failed))
-    const overall = successRate(totals.runs, totals.failed)
-    const failedBars = useMemo(
-        () => ({
-            key: "failed",
-            color: analyticsColor("failedRuns"),
-            values: points.map((p) => p.failed),
-        }),
-        [points],
+    const {failures, grouped} = ctx
+    const failedPerBucket = useMemo(() => points.map((p) => p.failed), [points])
+    const reasonColor = useCallback(
+        (label: string) => {
+            const i = failures.order.indexOf(label)
+            return analyticsColor(i >= 0 && i < REASON_COLORS.length ? REASON_COLORS[i] : "other")
+        },
+        [failures.order],
     )
-    // Under a group-by: one rate line per top group, by runs.
-    const grouped = ctx.grouped
-    const groupLines = useMemo(
+    const series = useMemo(
         () =>
             grouped
-                ? rankKeys(grouped.runs.series)
-                      .slice(0, 4)
-                      .map((key) => ({
-                          key,
-                          label: grouped.keyLabel(key),
-                          color: grouped.keyColor(key),
-                          runs: grouped.runs.series[key],
-                          values: grouped.runs.series[key].map((n, b) =>
-                              successRate(n, grouped.failed[key]?.[b] ?? 0),
-                          ),
-                      }))
-                : null,
-        [grouped],
+                ? stackSeries(grouped.failed, failedPerBucket, grouped.keyLabel, grouped.keyColor)
+                : stackSeries(failures.byReason, failedPerBucket, (key) => key, reasonColor),
+        [grouped, failures.byReason, failedPerBucket, reasonColor],
     )
-    const present = (groupLines ? groupLines.flatMap((l) => l.values) : values).filter(
-        (v): v is number => v !== null,
-    )
-    const floor = present.length ? Math.max(0, Math.floor((Math.min(...present) - 5) / 10) * 10) : 0
     const status = ctx.data.status.overview
-    const caption = `succeeded · ${formatCount(totals.failed)} failed (${formatMetric(
-        "failrate",
-        totals.runs ? (totals.failed / totals.runs) * 100 : 0,
-    )})`
+
     return (
         <AnalyticsCard
             title="Success rate"
-            value={formatMetric("success", overall)}
-            caption={caption}
+            value={formatMetric("success", successRate(totals.runs, totals.failed))}
+            caption={`${formatCount(totals.failed)} of ${formatCount(totals.runs)} runs failed`}
             onExplore={() => ctx.onExplore("success", null)}
             loading={status.pending}
             error={status.error}
             onRetry={status.refetch}
             empty={totals.runs ? null : ctx.emptyText("runs")}
-            chartHeight={150}
-            note={
-                totals.failed ? (
-                    <FailureReasonsRow
-                        failures={ctx.failures}
-                        failed={totals.failed}
-                        onSelect={ctx.onFailureReason}
+            legend={
+                grouped && totals.failed ? (
+                    <ChartLegendRow
+                        items={series.map(({key, label, color}) => ({key, label, color}))}
                     />
                 ) : null
             }
-            legend={
-                <ChartLegendRow
-                    items={
-                        groupLines
-                            ? groupLines.map(({key, label, color}) => ({key, label, color}))
-                            : [
-                                  {
-                                      key: "success",
-                                      label: "Success rate",
-                                      color: analyticsColor("success"),
-                                  },
-                                  {
-                                      key: "failed",
-                                      label: `Failed runs (${formatCount(totals.failed)})`,
-                                      color: analyticsColor("failedRuns"),
-                                  },
-                              ]
-                    }
-                />
-            }
         >
-            <TimeChart
-                kind="line"
-                labels={ctx.labels}
-                series={
-                    groupLines ?? [
-                        {
-                            key: "success",
-                            label: "Success rate",
-                            color: analyticsColor("success"),
-                            values,
-                        },
-                    ]
-                }
-                formatTick={(v) => formatMetric("success", v, true)}
-                yMin={floor}
-                yMax={100}
-                underlay={groupLines ? null : failedBars}
-                height={150}
-                hovered={hovered}
-                onHover={setHovered}
-                onSelect={(i) => ctx.onExplore("success", i)}
-                tooltip={(i) => (
-                    <ChartTooltipPanel
-                        title={ctx.fullLabels[i]}
-                        runs={`${formatCount(points[i].runs)} runs`}
-                        value={`${formatMetric("success", values[i])} success`}
-                        rowsTitle={groupLines ? undefined : "Why they failed"}
-                        rows={
-                            groupLines
-                                ?.filter((l) => l.runs[i])
-                                .map((l) => ({
-                                    color: l.color,
-                                    label: l.label,
-                                    value: formatMetric("success", l.values[i]),
-                                    share: `${formatCount(l.runs[i])} runs`,
-                                })) ??
-                            ctx.failures.byBucket[i]?.reasons.slice(0, 3).map((r) => ({
-                                color: analyticsColor("failed"),
-                                label: r.label,
-                                value: formatCount(r.count),
-                            }))
-                        }
-                        facts={[
-                            {
-                                label: "Failed runs",
-                                value: `${formatCount(points[i].failed)} of ${formatCount(points[i].runs)}`,
-                            },
-                            ...(ctx.failures.byBucket[i]?.agent
-                                ? [
-                                      {
-                                          label: "Most failures",
-                                          value: ctx.agentName(ctx.failures.byBucket[i].agent!),
-                                      },
-                                  ]
-                                : []),
-                        ]}
-                    />
-                )}
-            />
+            {totals.failed ? (
+                <div className="@container">
+                    <div className="grid gap-6 @[560px]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] @[560px]:items-end">
+                        <TimeChart
+                            kind="bar"
+                            labels={ctx.labels}
+                            series={series}
+                            formatTick={(v) => formatMetric("runs", v, true)}
+                            height={150}
+                            hovered={hovered}
+                            onHover={setHovered}
+                            onSelect={(i) => ctx.onExplore("success", i)}
+                            tooltip={(i) => {
+                                const agent = failures.busiestAgent(i)
+                                return (
+                                    <ChartTooltipPanel
+                                        title={ctx.fullLabels[i]}
+                                        runs={`${formatCount(points[i].runs)} runs`}
+                                        value={`${formatCount(points[i].failed)} failed · ${formatMetric(
+                                            "success",
+                                            successRate(points[i].runs, points[i].failed),
+                                        )} success`}
+                                        rows={series
+                                            .filter((s) => (s.values[i] ?? 0) > 0)
+                                            .map((s) => ({
+                                                color: s.color,
+                                                label: s.label,
+                                                value: formatCount(s.values[i] ?? 0),
+                                            }))}
+                                        facts={
+                                            agent
+                                                ? [
+                                                      {
+                                                          label: "Most failures",
+                                                          value: ctx.agentName(agent),
+                                                      },
+                                                  ]
+                                                : []
+                                        }
+                                    />
+                                )
+                            }}
+                        />
+                        <FailureReasonList
+                            failures={failures}
+                            failed={totals.failed}
+                            color={grouped ? null : reasonColor}
+                            onSelect={ctx.onFailureReason}
+                        />
+                    </div>
+                </div>
+            ) : (
+                <p className="m-0 py-6 text-sm text-muted-foreground">
+                    No runs failed in the {ctx.rangeLabel.toLowerCase()}.
+                </p>
+            )}
         </AnalyticsCard>
     )
 }
 
-/** The range's top failure reasons; each opens the Failed runs filtered to it. */
-const FailureReasonsRow = ({
+const LISTED_REASONS = 4
+
+/** The range's failure reasons; each opens the Failed runs filtered to it. */
+const FailureReasonList = ({
     failures,
     failed,
+    color,
     onSelect,
 }: {
     failures: FailureReasons
     failed: number
+    color: ((label: string) => string) | null
     onSelect: (reason: string) => void
 }) => {
-    if (failures.status.pending) return <span>Reading failure reasons…</span>
-    if (!failures.top.length) return null
+    if (failures.status.pending)
+        return <span className="text-xs text-muted-foreground">Reading failure reasons…</span>
+    const listed = failures.top.slice(0, LISTED_REASONS)
+    const rest = failures.top.slice(LISTED_REASONS).reduce((n, r) => n + r.count, 0)
     return (
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            <span>Top reasons</span>
-            {failures.top.slice(0, 3).map((r) => (
+        <div className="flex flex-col">
+            <span className="pb-1 text-xs text-muted-foreground">Why runs failed</span>
+            {listed.map((r) => (
                 <button
                     key={r.label}
                     type="button"
                     onClick={() => onSelect(r.label)}
-                    className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-background px-2 text-xs text-foreground hover:bg-accent"
+                    className="flex h-8 cursor-pointer items-center gap-2 border-0 border-t border-solid border-border bg-transparent px-0 text-left text-sm text-foreground hover:text-muted-foreground"
                 >
-                    <span
-                        className="size-1.5 rounded-full"
-                        style={{background: analyticsColor("failed")}}
-                    />
-                    {r.label}
-                    <span className="text-muted-foreground tabular-nums">
-                        {formatCount(r.count)}
-                    </span>
+                    {color ? (
+                        <span
+                            className="size-2 shrink-0 rounded-sm"
+                            style={{background: color(r.label)}}
+                        />
+                    ) : null}
+                    <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                    <span className="tabular-nums">{formatCount(r.count)}</span>
                 </button>
             ))}
+            {rest ? (
+                <div className="flex h-8 items-center gap-2 border-0 border-t border-solid border-border text-sm text-muted-foreground">
+                    <span className="min-w-0 flex-1">Other reasons</span>
+                    <span className="tabular-nums">{formatCount(rest)}</span>
+                </div>
+            ) : null}
             {failures.sampled < failed ? (
-                <span>from the newest {formatCount(failures.sampled)} failed runs</span>
+                <span className="pt-1 text-xs text-muted-foreground">
+                    From the newest {formatCount(failures.sampled)} of {formatCount(failed)} failed
+                    runs
+                </span>
             ) : null}
         </div>
     )

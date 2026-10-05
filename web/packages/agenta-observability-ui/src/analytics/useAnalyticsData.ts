@@ -207,26 +207,33 @@ export const useFailureReasons = (
     )
     return useMemo(() => {
         const width = window.interval * 60_000
-        const buckets = bucketStarts(window).map(() => ({
-            reasons: {} as Record<string, number>,
-            agents: {} as Record<string, number>,
-        }))
+        const size = bucketStarts(window).length
+        const byReason: KeyedSeries = {}
+        const bucketAgents = Array.from({length: size}, () => ({}) as Record<string, number>)
+        const agentReasons: Record<string, Record<string, number>> = {}
         const total: Record<string, number> = {}
         const runs = query.data ?? []
         for (const run of runs) {
             const label = categorizeFailure(run.reason).label
             total[label] = (total[label] ?? 0) + 1
-            const bucket = buckets[Math.floor((run.startedAt - window.oldest) / width)]
-            if (!bucket) continue
-            bucket.reasons[label] = (bucket.reasons[label] ?? 0) + 1
-            if (run.agentId) bucket.agents[run.agentId] = (bucket.agents[run.agentId] ?? 0) + 1
+            if (run.agentId) {
+                const reasons = (agentReasons[run.agentId] ??= {})
+                reasons[label] = (reasons[label] ?? 0) + 1
+            }
+            const i = Math.floor((run.startedAt - window.oldest) / width)
+            if (i < 0 || i >= size) continue
+            ;(byReason[label] ??= Array.from({length: size}, () => 0))[i] += 1
+            if (run.agentId) bucketAgents[i][run.agentId] = (bucketAgents[i][run.agentId] ?? 0) + 1
         }
+        const top = ranked(total)
         return {
-            top: ranked(total),
-            byBucket: buckets.map((b) => ({
-                reasons: ranked(b.reasons),
-                agent: ranked(b.agents)[0]?.label ?? null,
-            })),
+            top,
+            /** Failed runs per bucket for each reason, keyed by reason label. */
+            byReason,
+            /** The most common reason first, so its color is the darkest. */
+            order: top.map((r) => r.label),
+            mainReason: (agentId: string) => ranked(agentReasons[agentId] ?? {})[0]?.label ?? null,
+            busiestAgent: (bucket: number) => ranked(bucketAgents[bucket] ?? {})[0]?.label ?? null,
             sampled: runs.length,
             status: statusOf(query),
         }

@@ -27,6 +27,9 @@ const COST_SAMPLE = 40
 // The spans endpoint orders by time only, so costly runs come from a cost floor, ranked here.
 const byCost = (a: AnalyticsRun, b: AnalyticsRun) => (b.cost ?? -1) - (a.cost ?? -1)
 
+const FAILED_GRID =
+    "grid grid-cols-[12px_minmax(0,1fr)_minmax(0,1.4fr)_92px_14px] items-center gap-2.5 px-1"
+
 const ROW_GRID =
     "grid grid-cols-[12px_minmax(0,1.2fr)_minmax(0,1.1fr)_92px_56px_70px_14px] items-center gap-2.5 px-1"
 
@@ -129,7 +132,6 @@ export const DrawerRuns = ({
         : failedOnly
           ? failed
           : total
-    const maxReason = reasons[0]?.count ?? 1
     // Segmented re-measures on every new options array, so it must stay stable.
     const runFilterOptions = useMemo(
         () => [
@@ -155,68 +157,52 @@ export const DrawerRuns = ({
             </div>
 
             {failedOnly && reasons.length ? (
-                <div className="flex flex-col gap-0.5 pb-3">
-                    <div className="flex items-center justify-between pb-1 text-xs text-muted-foreground">
-                        <span>
-                            Why runs failed · {formatCount(runs.length)} failed runs
-                            {failed > runs.length ? ` (newest ${formatCount(runs.length)})` : ""}
-                        </span>
-                        {reason ? (
-                            <button
-                                type="button"
-                                onClick={() => setReason(null)}
-                                className="cursor-pointer border-0 bg-transparent p-0 text-xs text-foreground underline underline-offset-2"
-                            >
-                                Show all
-                            </button>
-                        ) : null}
-                    </div>
-                    {reasons.map((r) => (
+                <div className="flex flex-wrap gap-1.5 pb-3">
+                    {[{label: null, count: runs.length, raw: ""}, ...reasons].map((r) => (
                         <button
-                            key={r.label}
+                            key={r.label ?? "all"}
                             type="button"
-                            title={r.raw}
-                            onClick={() => setReason(reason === r.label ? null : r.label)}
+                            title={r.raw || undefined}
+                            onClick={() => setReason(r.label)}
                             className={cn(
-                                "grid h-8 cursor-pointer grid-cols-[minmax(0,190px)_minmax(0,1fr)_36px_36px] items-center gap-2.5 rounded-md border-0 px-2 text-left text-sm",
-                                reason === r.label ? "bg-accent" : "bg-transparent hover:bg-accent",
-                                reason && reason !== r.label && "opacity-45",
+                                "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2.5 text-xs",
+                                reason === r.label
+                                    ? "border-border bg-background text-foreground"
+                                    : "border-transparent bg-transparent text-muted-foreground hover:text-foreground",
                             )}
                         >
-                            <span className="truncate">{r.label}</span>
-                            <span className="h-1.5 rounded-full bg-background">
-                                <span
-                                    className="block h-full rounded-full"
-                                    style={{
-                                        width: `${(r.count / maxReason) * 100}%`,
-                                        background: analyticsColor("failed"),
-                                    }}
-                                />
-                            </span>
-                            <span className="text-right tabular-nums">{formatCount(r.count)}</span>
-                            <span className="text-right text-xs text-muted-foreground tabular-nums">
-                                {Math.round((r.count / runs.length) * 100)}%
-                            </span>
+                            {r.label ?? "All"}
+                            <span className="tabular-nums">{formatCount(r.count)}</span>
                         </button>
                     ))}
                 </div>
             ) : null}
 
             {listed.length && !query.isPending && !query.error ? (
-                <div
-                    className={cn(
-                        ROW_GRID,
-                        "h-7 text-[11px] text-muted-foreground [&>span:nth-child(n+4)]:text-right",
-                    )}
-                >
-                    <span />
-                    <span>Agent</span>
-                    <span>Model</span>
-                    <span>Started</span>
-                    <span>Tokens</span>
-                    <span>{failedOnly ? "Cost" : "Cost ↓"}</span>
-                    <span />
-                </div>
+                failedOnly ? (
+                    <div className={cn(FAILED_GRID, "h-7 text-[11px] text-muted-foreground")}>
+                        <span />
+                        <span>Agent</span>
+                        <span>Reason</span>
+                        <span className="text-right">Started</span>
+                        <span />
+                    </div>
+                ) : (
+                    <div
+                        className={cn(
+                            ROW_GRID,
+                            "h-7 text-[11px] text-muted-foreground [&>span:nth-child(n+4)]:text-right",
+                        )}
+                    >
+                        <span />
+                        <span>Agent</span>
+                        <span>Model</span>
+                        <span>Started</span>
+                        <span>Tokens</span>
+                        <span>Cost ↓</span>
+                        <span />
+                    </div>
+                )
             ) : null}
             {query.isPending ? (
                 <div className="flex flex-col gap-2 py-2">
@@ -239,6 +225,7 @@ export const DrawerRuns = ({
                         tools={tools ? (tools[run.traceId] ?? {calls: 0, failed: []}) : undefined}
                         agentName={agentName}
                         showDate={showDate}
+                        failedView={failedOnly}
                         open={open === run.traceId}
                         onToggle={() => setOpen(open === run.traceId ? null : run.traceId)}
                         onOpenTrace={onOpenTrace}
@@ -250,9 +237,16 @@ export const DrawerRuns = ({
             {listed.length ? (
                 <div className="pt-2 text-[11px] text-muted-foreground">
                     {failedOnly
-                        ? matching > listed.length
-                            ? `Showing ${listed.length} of ${formatCount(matching)}`
-                            : null
+                        ? [
+                              matching > listed.length
+                                  ? `Showing ${listed.length} of ${formatCount(matching)}`
+                                  : null,
+                              failed > runs.length
+                                  ? `reasons from the newest ${formatCount(runs.length)} of ${formatCount(failed)} failed runs`
+                                  : null,
+                          ]
+                              .filter(Boolean)
+                              .join(" · ")
                         : hasCost
                           ? `Runs costing at least ${formatMoney(
                                 lowerFloor ? average : average * 2,
@@ -276,6 +270,7 @@ const RunRow = ({
     tools,
     agentName,
     showDate,
+    failedView,
     open,
     onToggle,
     onOpenTrace,
@@ -284,6 +279,8 @@ const RunRow = ({
     tools?: {calls: number; failed: string[]}
     agentName: (id: string) => string
     showDate: boolean
+    /** The Failed view: the reason gets its own column and cost columns drop. */
+    failedView: boolean
     open: boolean
     onToggle: () => void
     onOpenTrace?: (traceId: string) => void
@@ -304,7 +301,7 @@ const RunRow = ({
                 type="button"
                 onClick={onToggle}
                 className={cn(
-                    ROW_GRID,
+                    failedView ? FAILED_GRID : ROW_GRID,
                     "min-h-11 w-full cursor-pointer border-0 py-1.5 text-left text-sm",
                     open ? "bg-accent" : "bg-transparent hover:bg-accent",
                 )}
@@ -317,7 +314,7 @@ const RunRow = ({
                     <span className="truncate">
                         {run.agentId ? agentName(run.agentId) : "Unknown agent"}
                     </span>
-                    {subline ? (
+                    {subline && !failedView ? (
                         <span
                             className="truncate text-[11px] text-muted-foreground"
                             style={subColor ? {color: analyticsColor(subColor)} : undefined}
@@ -326,18 +323,28 @@ const RunRow = ({
                         </span>
                     ) : null}
                 </span>
-                <span className="truncate text-xs text-muted-foreground">{run.model ?? "—"}</span>
+                {failedView ? (
+                    <span className="truncate text-muted-foreground">{category?.label ?? "—"}</span>
+                ) : (
+                    <span className="truncate text-xs text-muted-foreground">
+                        {run.model ?? "—"}
+                    </span>
+                )}
                 <span className="text-right text-xs text-muted-foreground tabular-nums">
                     {showDate ? `${monthDay(run.startedAt)}, ` : ""}
                     {clock(run.startedAt)}
                 </span>
-                <span className="text-right text-xs text-muted-foreground tabular-nums">
-                    {formatCompact(run.tokens)}
-                </span>
-                <span className="text-right tabular-nums">
-                    {run.subscription && run.cost !== null ? "≈ " : ""}
-                    {formatMoney(run.cost)}
-                </span>
+                {failedView ? null : (
+                    <>
+                        <span className="text-right text-xs text-muted-foreground tabular-nums">
+                            {formatCompact(run.tokens)}
+                        </span>
+                        <span className="text-right tabular-nums">
+                            {run.subscription && run.cost !== null ? "≈ " : ""}
+                            {formatMoney(run.cost)}
+                        </span>
+                    </>
+                )}
                 <CaretRight
                     size={12}
                     className={cn(

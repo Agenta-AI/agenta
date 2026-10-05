@@ -343,15 +343,6 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                     : undefined
                             }
                             yMax={metric === "success" ? 100 : undefined}
-                            underlay={
-                                metric === "success"
-                                    ? {
-                                          key: "failed",
-                                          color: analyticsColor("failedRuns"),
-                                          values: data.overview.points.map((p) => p.failed),
-                                      }
-                                    : null
-                            }
                             height={180}
                             className="mt-2"
                             hovered={hovered}

@@ -250,22 +250,22 @@ export const AnalyticsPage = ({
             <CostCard ctx={ctx} />
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] gap-4">
                 <RunsCard ctx={ctx} />
-                <SuccessCard ctx={ctx} />
+                <TokensCard ctx={ctx} />
             </div>
-            <TokensCard ctx={ctx} />
-
+            <SuccessCard ctx={ctx} />
             <FailureRateCard
                 data={data}
+                failures={failures}
                 agentName={agentName}
                 rangeLabel={rangeLabel}
                 emptyText={emptyText}
-                onSelectAgent={(id, failedOnly) =>
+                onSelectAgent={(id) =>
                     openDrawer({
                         bucket: null,
                         metric: "runs",
                         dim: "model",
                         focus: {dim: "agent", key: id} satisfies AnalyticsFocus,
-                        failedOnly,
+                        failedOnly: true,
                     })
                 }
             />
