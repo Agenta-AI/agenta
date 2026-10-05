@@ -218,6 +218,56 @@ def redis_has_a_startup_probe() -> None:
         assert probe["periodSeconds"] * probe["failureThreshold"] >= 300, component
 
 
+
+def an_empty_spread_list_removes_the_constraints() -> None:
+    """`topologySpreadConstraints: []` must mean none, which is what values.yaml promises.
+
+    An empty list is falsy in Go templates, so the guard used to fall through to the
+    generated block and quietly regenerate the two constraints the operator had just
+    asked to remove. The documented escape hatch did nothing.
+    """
+    docs = render(["--set", "web.replicas=2", "--set-json", "web.topologySpreadConstraints=[]"])
+    assert spread_of(docs, "web") is None, (
+        "an empty list must remove the constraints, not regenerate them"
+    )
+    # The same render must leave another workload's generated constraints alone.
+    docs = render(["--set", "web.replicas=2", "--set", "services.replicas=2",
+                   "--set-json", "web.topologySpreadConstraints=[]"])
+    assert spread_of(docs, "web") is None
+    assert len(spread_of(docs, "services") or []) == 2
+
+
+def the_mobile_app_keeps_its_budget_when_the_desktop_app_is_off() -> None:
+    """web-mobile renders unconditionally, so its budget must not depend on web.enabled.
+
+    agenta.workloads tied the mobile entry's `enabled` to the desktop app. Turning the
+    desktop app off therefore removed the mobile budget while the mobile Deployment kept
+    rendering, so the workload that was still serving lost its protection.
+    """
+    docs = render(["--set", "web.enabled=false", "--set", "webMobile.replicas=2"])
+    names = [d["metadata"]["name"] for d in docs if d.get("kind") == "Deployment"]
+    assert any("web-mobile" in n for n in names), "the mobile Deployment should still render"
+    assert "web-mobile" in budgets(docs), "the mobile app should still have a budget"
+
+
+def a_typo_in_either_switch_is_refused() -> None:
+    """Both switches are declared in the schema, so a misspelling fails the render.
+
+    The chart root is additionalProperties: true, so an undeclared key is accepted and
+    silently ignored. `podDisruptionBudgets.enabledd: false` would have looked like it
+    turned the budgets off and changed nothing.
+    """
+    for bad in ("podDisruptionBudgets.enabledd=false", "topologySpread.enabledd=false"):
+        result = subprocess.run(
+            ["helm", "template", "availability-test", str(CHART_DIR), *BASE_ARGS, "--set", bad],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0, f"{bad} should fail the render"
+        assert "is not allowed" in result.stderr, f"{bad} should be refused by the schema"
+
+
 def main() -> int:
     single_replicas_get_nothing()
     two_replicas_get_a_budget_and_a_spread()
@@ -225,6 +275,9 @@ def main() -> int:
     protect_singleton_is_opt_in()
     the_switches_turn_everything_off()
     redis_has_a_startup_probe()
+    an_empty_spread_list_removes_the_constraints()
+    the_mobile_app_keeps_its_budget_when_the_desktop_app_is_off()
+    a_typo_in_either_switch_is_refused()
     print(
         "OK: disruption budgets, topology spread and redis startup probes render as designed."
     )
