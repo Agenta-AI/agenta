@@ -1,21 +1,21 @@
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// Not exported from @agenta/observability-ui/usage — import direct.
-import {UsageCard} from "../../../packages/agenta-observability-ui/src/usage/cards/UsageCard"
-import {USAGE_COLOR_CSS} from "../../../packages/agenta-observability-ui/src/usage/colors"
-import {UsageEmptyState} from "../../../packages/agenta-observability-ui/src/usage/UsageEmptyState"
+// Not exported from @agenta/observability-ui/analytics — import direct.
+import {AnalyticsCard} from "../../../packages/agenta-observability-ui/src/analytics/cards/AnalyticsCard"
+import {ANALYTICS_COLOR_CSS} from "../../../packages/agenta-observability-ui/src/analytics/colors"
+import {AnalyticsEmptyState} from "../../../packages/agenta-observability-ui/src/analytics/AnalyticsEmptyState"
 
 /**
- * The Usage tab's states a reviewer cannot reach by clicking on a project with data: a project
+ * The Analytics tab's states a reviewer cannot reach by clicking on a project with data: a project
  * with no agents yet, and a card that is loading, failed, or matches no runs.
  */
 const meta = {
-    title: "@agenta/observability-ui/Usage/States",
+    title: "@agenta/observability-ui/Analytics/States",
     parameters: {layout: "padded"},
     decorators: [
         (Story) => (
             <div className="max-w-[880px]">
-                <style>{USAGE_COLOR_CSS}</style>
+                <style>{ANALYTICS_COLOR_CSS}</style>
                 <Story />
             </div>
         ),
@@ -26,16 +26,18 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const NoAgentsYet: Story = {
-    render: () => <UsageEmptyState onCreateAgent={() => undefined} />,
+    render: () => <AnalyticsEmptyState onCreateAgent={() => undefined} />,
 }
 
 export const CardLoading: Story = {
-    render: () => <UsageCard title="Cost" onExplore={() => undefined} loading chartHeight={210} />,
+    render: () => (
+        <AnalyticsCard title="Cost" onExplore={() => undefined} loading chartHeight={210} />
+    ),
 }
 
 export const CardError: Story = {
     render: () => (
-        <UsageCard
+        <AnalyticsCard
             title="Cost"
             onExplore={() => undefined}
             error={new Error("Request failed")}
@@ -47,7 +49,7 @@ export const CardError: Story = {
 
 export const CardNoMatch: Story = {
     render: () => (
-        <UsageCard
+        <AnalyticsCard
             title="Cost"
             value="$0.000"
             caption="Last 30 days"
@@ -60,7 +62,7 @@ export const CardNoMatch: Story = {
 
 export const CardNothingInRange: Story = {
     render: () => (
-        <UsageCard
+        <AnalyticsCard
             title="Tokens by type"
             value="0"
             caption="Last 24 hours"

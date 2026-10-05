@@ -2,18 +2,18 @@ import {useMemo, useState} from "react"
 
 import {
     PATH,
-    USAGE_RANGE,
-    USAGE_RANGES,
+    ANALYTICS_RANGE,
+    ANALYTICS_RANGES,
     isRangeLocked,
     keyedSeries,
     rankKeys,
     sum,
-    usageModelProvidersAtomFamily,
-    type UsageFilters,
-    type UsageRangeKey,
-    type UsageRetention,
-    type UsageWindow,
-} from "@agenta/observability/usage"
+    analyticsModelProvidersAtomFamily,
+    type AnalyticsFilters,
+    type AnalyticsRangeKey,
+    type AnalyticsRetention,
+    type AnalyticsWindow,
+} from "@agenta/observability/analytics"
 import {FilterMenu, type FilterMenuOption, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {getProviderDisplayName, getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {
@@ -27,9 +27,9 @@ import {
 import {CalendarBlank, CaretDown, Check, LockSimple, Robot, Sparkle, X} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {useAgentNames, useUsageBuckets} from "./useUsageData"
+import {useAgentNames, useAnalyticsBuckets} from "./useAnalyticsData"
 
-type FilterDim = keyof UsageFilters
+type FilterDim = keyof AnalyticsFilters
 
 const ICON = 14
 
@@ -38,20 +38,20 @@ const DIMS: {key: FilterDim; label: string; plural: string; icon: typeof Robot}[
     {key: "model", label: "Model", plural: "models", icon: Sparkle},
 ]
 
-export interface UsageToolbarProps {
-    range: UsageRangeKey
-    onRangeChange: (range: UsageRangeKey) => void
-    retention: UsageRetention | null
+export interface AnalyticsToolbarProps {
+    range: AnalyticsRangeKey
+    onRangeChange: (range: AnalyticsRangeKey) => void
+    retention: AnalyticsRetention | null
     onUpgrade?: () => void
-    filters: UsageFilters
-    onFiltersChange: (filters: UsageFilters) => void
-    window: UsageWindow
+    filters: AnalyticsFilters
+    onFiltersChange: (filters: AnalyticsFilters) => void
+    window: AnalyticsWindow
     agentName: (id: string) => string
     rangeOpen: boolean
     onRangeOpenChange: (open: boolean) => void
 }
 
-export const UsageToolbar = ({
+export const AnalyticsToolbar = ({
     range,
     onRangeChange,
     retention,
@@ -62,7 +62,7 @@ export const UsageToolbar = ({
     agentName,
     rangeOpen,
     onRangeOpenChange,
-}: UsageToolbarProps) => {
+}: AnalyticsToolbarProps) => {
     const active = DIMS.filter((d) => filters[d.key].length)
     const label = (dim: FilterDim, key: string) => (dim === "agent" ? agentName(key) : key)
 
@@ -72,12 +72,12 @@ export const UsageToolbar = ({
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm">
                         <CalendarBlank data-icon="inline-start" />
-                        {USAGE_RANGE[range].label}
+                        {ANALYTICS_RANGE[range].label}
                         <CaretDown data-icon="inline-end" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-[230px]">
-                    {USAGE_RANGES.map((option) => {
+                    {ANALYTICS_RANGES.map((option) => {
                         const locked = isRangeLocked(option, retention)
                         return (
                             <DropdownMenuItem
@@ -95,7 +95,7 @@ export const UsageToolbar = ({
                             </DropdownMenuItem>
                         )
                     })}
-                    {retention && USAGE_RANGES.some((o) => isRangeLocked(o, retention)) ? (
+                    {retention && ANALYTICS_RANGES.some((o) => isRangeLocked(o, retention)) ? (
                         <>
                             <DropdownMenuSeparator />
                             <div className="flex flex-col gap-2 px-2 py-1.5">
@@ -114,7 +114,7 @@ export const UsageToolbar = ({
                 </DropdownMenuContent>
             </DropdownMenu>
 
-            <UsageFilterMenu
+            <AnalyticsFilterMenu
                 filters={filters}
                 onChange={onFiltersChange}
                 window={window}
@@ -150,9 +150,9 @@ export const UsageToolbar = ({
 }
 
 /** Counts per value, ignoring the dimension's own filter so every option stays pickable. */
-const useFilterCounts = (dim: FilterDim, filters: UsageFilters, window: UsageWindow) => {
+const useFilterCounts = (dim: FilterDim, filters: AnalyticsFilters, window: AnalyticsWindow) => {
     const others = useMemo(() => ({...filters, [dim]: []}), [dim, filters])
-    const query = useUsageBuckets(dim === "agent" ? "agents" : "models", window, others)
+    const query = useAnalyticsBuckets(dim === "agent" ? "agents" : "models", window, others)
     return useMemo(() => {
         const paths = dim === "agent" ? [PATH.agentApp, PATH.agentWorkflow] : [PATH.model]
         const series = keyedSeries(window, query.data ?? [], paths)
@@ -208,22 +208,27 @@ const modelOptions = (
         })
 }
 
-const useModelProviders = (window: UsageWindow, filters: UsageFilters, enabled: boolean) => {
+const useModelProviders = (
+    window: AnalyticsWindow,
+    filters: AnalyticsFilters,
+    enabled: boolean,
+) => {
     const others = useMemo(() => ({...filters, model: []}), [filters])
     return (
-        useAtomValue(usageModelProvidersAtomFamily({window, filters: others, enabled})).data ?? null
+        useAtomValue(analyticsModelProvidersAtomFamily({window, filters: others, enabled})).data ??
+        null
     )
 }
 
-const UsageFilterMenu = ({
+const AnalyticsFilterMenu = ({
     filters,
     onChange,
     window,
     label,
 }: {
-    filters: UsageFilters
-    onChange: (filters: UsageFilters) => void
-    window: UsageWindow
+    filters: AnalyticsFilters
+    onChange: (filters: AnalyticsFilters) => void
+    window: AnalyticsWindow
     label: (dim: FilterDim, key: string) => string
 }) => {
     const [open, setOpen] = useState(false)

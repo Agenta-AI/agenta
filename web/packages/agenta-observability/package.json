@@ -22,7 +22,7 @@
         "./trace": "./src/trace/index.ts",
         "./dto": "./src/dto/index.ts",
         "./traceDrawer": "./src/traceDrawer/index.ts",
-        "./usage": "./src/usage/index.ts"
+        "./analytics": "./src/analytics/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

@@ -2,25 +2,27 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     EMPTY_FILTERS,
-    USAGE_RANGE,
+    ANALYTICS_RANGE,
     defaultRange,
     isRangeLocked,
-    usageDrawerAtom,
-    usageFiltersAtom,
-    usageHasAgentsAtom,
-    usageNowAtom,
-    usageRangeAtom,
-    usageWindowAtom,
-    type UsageDimension,
-    type UsageFocus,
-    type UsageMetric,
-    type UsageRetention,
-} from "@agenta/observability/usage"
+    analyticsDrawerAtom,
+    analyticsFiltersAtom,
+    analyticsHasAgentsAtom,
+    analyticsNowAtom,
+    analyticsRangeAtom,
+    analyticsWindowAtom,
+    type AnalyticsDimension,
+    type AnalyticsFocus,
+    type AnalyticsMetric,
+    type AnalyticsRetention,
+} from "@agenta/observability/analytics"
 import {projectIdAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
 import {FunnelSimple} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {AnalyticsEmptyState} from "./AnalyticsEmptyState"
+import {AnalyticsToolbar} from "./AnalyticsToolbar"
 import {BreakdownCard, type BreakdownMetric} from "./cards/BreakdownCard"
 import {FailureRateCard} from "./cards/FailureRateCard"
 import {
@@ -30,16 +32,14 @@ import {
     TokensCard,
     type OverviewContext,
 } from "./cards/OverviewCards"
-import {USAGE_COLOR_CSS} from "./colors"
-import {UsageDrawer} from "./drawer/UsageDrawer"
+import {ANALYTICS_COLOR_CSS} from "./colors"
+import {AnalyticsDrawer} from "./drawer/AnalyticsDrawer"
 import {bucketUnit, fullLabel, shortLabel} from "./labels"
-import {UsageEmptyState} from "./UsageEmptyState"
-import {UsageToolbar} from "./UsageToolbar"
-import {useAgentNames, useUsageSplit, useUsageWindowData} from "./useUsageData"
+import {useAgentNames, useAnalyticsSplit, useAnalyticsWindowData} from "./useAnalyticsData"
 
-export interface UsagePageProps {
+export interface AnalyticsPageProps {
     /** The plan's trace retention; null keeps every range open (OSS, custom plans). */
-    retention: UsageRetention | null
+    retention: AnalyticsRetention | null
     onUpgrade?: () => void
     onCreateAgent?: () => void
     /** Opens a run's trace from the drawer's runs list. */
@@ -51,18 +51,23 @@ const SPLIT_KEYS = 10
 const CALLS_NOTE =
     "Not narrowed by the filters: model and tool calls do not record their agent yet."
 
-export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: UsagePageProps) => {
-    const [range, setRange] = useAtom(usageRangeAtom)
-    const [filters, setFilters] = useAtom(usageFiltersAtom)
-    const window = useAtomValue(usageWindowAtom)
-    const agents = useAtomValue(usageHasAgentsAtom)
-    const openDrawer = useSetAtom(usageDrawerAtom)
+export const AnalyticsPage = ({
+    retention,
+    onUpgrade,
+    onCreateAgent,
+    onOpenTrace,
+}: AnalyticsPageProps) => {
+    const [range, setRange] = useAtom(analyticsRangeAtom)
+    const [filters, setFilters] = useAtom(analyticsFiltersAtom)
+    const window = useAtomValue(analyticsWindowAtom)
+    const agents = useAtomValue(analyticsHasAgentsAtom)
+    const openDrawer = useSetAtom(analyticsDrawerAtom)
     const [agentMetric, setAgentMetric] = useState<BreakdownMetric>("runs")
     const [modelMetric, setModelMetric] = useState<BreakdownMetric>("runs")
     const [rangeOpen, setRangeOpen] = useState(false)
 
     // Without a tick the window freezes at first read: runs after `newest` would never show.
-    const setNow = useSetAtom(usageNowAtom)
+    const setNow = useSetAtom(analyticsNowAtom)
     useEffect(() => {
         setNow(Date.now())
         const timer = setInterval(() => setNow(Date.now()), 60_000)
@@ -80,13 +85,18 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
 
     // A plan that keeps less history than the open range moves the page to what it keeps.
     useEffect(() => {
-        if (isRangeLocked(USAGE_RANGE[range], retention)) setRange(defaultRange(retention))
+        if (isRangeLocked(ANALYTICS_RANGE[range], retention)) setRange(defaultRange(retention))
     }, [range, retention, setRange])
 
-    const data = useUsageWindowData(window, filters)
+    const data = useAnalyticsWindowData(window, filters)
     // Without a group-by, cost and tokens per agent cost one request each: the top 10 by runs.
-    const agentSplit = useUsageSplit("agent", data.agentOrder.slice(0, SPLIT_KEYS), window, filters)
-    const callSplit = useUsageSplit(
+    const agentSplit = useAnalyticsSplit(
+        "agent",
+        data.agentOrder.slice(0, SPLIT_KEYS),
+        window,
+        filters,
+    )
+    const callSplit = useAnalyticsSplit(
         "callModel",
         data.callModelOrder.slice(0, SPLIT_KEYS),
         window,
@@ -101,7 +111,7 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
         ),
     )
     const filtered = filters.agent.length > 0 || filters.model.length > 0
-    const rangeLabel = USAGE_RANGE[range].label
+    const rangeLabel = ANALYTICS_RANGE[range].label
     const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), [setFilters])
     const emptyText = useCallback(
         (what: string) =>
@@ -111,7 +121,7 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
         [filtered, clearFilters, rangeLabel],
     )
     const onExplore = useCallback(
-        (metric: UsageMetric, bucket: number | null, dim: UsageDimension = "agent") =>
+        (metric: AnalyticsMetric, bucket: number | null, dim: AnalyticsDimension = "agent") =>
             openDrawer({bucket, metric, dim, focus: null, failedOnly: false}),
         [openDrawer],
     )
@@ -138,8 +148,8 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
     }
 
     const overviewStatus = data.status.overview
-    // Archived agents keep their history, so "no agents" alone does not mean "no usage".
-    const noUsageYet =
+    // Archived agents keep their history, so "no agents" alone does not mean "no runs".
+    const noAnalyticsYet =
         !agents.pending &&
         !agents.failed &&
         !agents.hasAgents &&
@@ -147,11 +157,11 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
         !overviewStatus.error &&
         data.overview.totals.runs === 0 &&
         !filtered
-    if (noUsageYet) {
+    if (noAnalyticsYet) {
         return (
             <>
-                <style>{USAGE_COLOR_CSS}</style>
-                <UsageEmptyState onCreateAgent={onCreateAgent} />
+                <style>{ANALYTICS_COLOR_CSS}</style>
+                <AnalyticsEmptyState onCreateAgent={onCreateAgent} />
             </>
         )
     }
@@ -195,8 +205,8 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
 
     return (
         <div className="flex flex-col gap-4 pb-10">
-            <style>{USAGE_COLOR_CSS}</style>
-            <UsageToolbar
+            <style>{ANALYTICS_COLOR_CSS}</style>
+            <AnalyticsToolbar
                 range={range}
                 onRangeChange={setRange}
                 retention={retention}
@@ -248,7 +258,7 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
                         bucket: null,
                         metric: "runs",
                         dim: "model",
-                        focus: {dim: "agent", key: id} satisfies UsageFocus,
+                        focus: {dim: "agent", key: id} satisfies AnalyticsFocus,
                         failedOnly: true,
                     })
                 }
@@ -291,7 +301,7 @@ export const UsagePage = ({retention, onUpgrade, onCreateAgent, onOpenTrace}: Us
                 empty={{text: `No tool calls in the ${rangeLabel.toLowerCase()}`}}
                 onExplore={(_, bucket) => onExplore("tools", bucket, "tool")}
             />
-            <UsageDrawer agentName={agentName} onOpenTrace={onOpenTrace} />
+            <AnalyticsDrawer agentName={agentName} onOpenTrace={onOpenTrace} />
         </div>
     )
 }

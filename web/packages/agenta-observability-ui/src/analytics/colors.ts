@@ -1,6 +1,6 @@
 /**
- * Every color the Usage tab draws with, in one place. Edit a value here to restyle the tab;
- * components read them only as `var(--usage-*)`, which `USAGE_COLOR_CSS` defines.
+ * Every color the Analytics tab draws with, in one place. Edit a value here to restyle the tab;
+ * components read them only as `var(--analytics-*)`, which `ANALYTICS_COLOR_CSS` defines.
  */
 const LIGHT = {
     cost: "#7e90a4",
@@ -40,15 +40,21 @@ const DARK: typeof LIGHT = {
     textGood: "#7fbf88",
 }
 
-export type UsageColor = keyof typeof LIGHT
+export type AnalyticsColor = keyof typeof LIGHT
 
-export const usageColor = (name: UsageColor) => `var(--usage-${name})`
+export const analyticsColor = (name: AnalyticsColor) => `var(--analytics-${name})`
 
-export const SERIES_COLORS: UsageColor[] = ["series1", "series2", "series3", "series4", "series5"]
+export const SERIES_COLORS: AnalyticsColor[] = [
+    "series1",
+    "series2",
+    "series3",
+    "series4",
+    "series5",
+]
 
 const declarations = (palette: typeof LIGHT) =>
     Object.entries(palette)
-        .map(([name, value]) => `--usage-${name}:${value};`)
+        .map(([name, value]) => `--analytics-${name}:${value};`)
         .join("")
 
-export const USAGE_COLOR_CSS = `:root{${declarations(LIGHT)}}.dark{${declarations(DARK)}}`
+export const ANALYTICS_COLOR_CSS = `:root{${declarations(LIGHT)}}.dark{${declarations(DARK)}}`

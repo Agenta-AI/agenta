@@ -1,10 +1,10 @@
 export const DEFAULT_SETTINGS_TAB = "workspace"
 
 export type SettingsTabKey =
-    | "usage"
     | "apiKeys"
     | "secrets"
     | "llms"
+    | "analytics"
     | "tools"
     | "channels"
     | "webhooks"
@@ -56,11 +56,6 @@ const DOCS_BASE = "https://docs.agenta.ai"
 
 export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
-        key: "usage",
-        scope: "project",
-        description: "See what your agents cost, how often they run, and how reliably they finish.",
-    },
-    {
         key: "apiKeys",
         scope: "project",
         description: "Manage API keys used to authenticate requests.",
@@ -76,6 +71,11 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "project",
         description: "Connect the AI providers your agents, prompts, and evaluations run on.",
         docs: {label: "Provider setup", href: `${DOCS_BASE}/faq/integrations/llm-providers`},
+    },
+    {
+        key: "analytics",
+        scope: "project",
+        description: "See what your agents cost, how often they run, and how reliably they finish.",
     },
     {
         key: "tools",
@@ -171,11 +171,11 @@ export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
 ]
 
 const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
-    usage: "Usage",
     apiKeys: "API Keys",
     secrets: "Secrets",
     // The tab key stays `llms` so existing `?tab=llms` links keep working.
     llms: "AI providers",
+    analytics: "Analytics",
     tools: "Tools",
     channels: "Channels",
     webhooks: "Webhooks",

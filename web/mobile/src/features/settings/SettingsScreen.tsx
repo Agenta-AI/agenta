@@ -48,6 +48,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AccountTab} from "./AccountTab"
+import {AnalyticsTab} from "./AnalyticsTab"
 import {ApiKeysTab} from "./ApiKeysTab"
 import {BillingTab} from "./BillingTab"
 import {ChannelsTab} from "./ChannelsTab"
@@ -61,7 +62,6 @@ import {useSettingsNavScope} from "./settingsNavScope"
 import {SettingsTabRail} from "./SettingsTabRail"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
 import {OrganizationLoading, OrganizationNoFlags} from "./states/OrganizationStates"
-import {UsageTab} from "./UsageTab"
 import {useConfirmModal} from "./useConfirmModal"
 import {WebhooksTab} from "./WebhooksTab"
 
@@ -164,8 +164,8 @@ const TabBody = ({
     }
 
     switch (tab) {
-        case "usage":
-            return <UsageTab workspaceId={workspaceId} projectId={projectId} />
+        case "analytics":
+            return <AnalyticsTab workspaceId={workspaceId} projectId={projectId} />
         case "preferences":
             return <PreferencesTab theme={theme} />
         case "account":
@@ -358,9 +358,9 @@ export const SettingsScreen = ({
         [router],
     )
 
-    // The Usage tab's long column fades at an edge with more to scroll, below the sticky header.
+    // The Analytics tab's long column fades at an edge with more to scroll, below the sticky header.
     const scrollRef = useRef<HTMLDivElement>(null)
-    const fades = active === "usage"
+    const fades = active === "analytics"
     useScrollFadeEdges(scrollRef, {enabled: fades, insetSelector: "header"})
 
     const content = (

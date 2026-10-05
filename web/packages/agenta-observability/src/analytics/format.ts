@@ -1,4 +1,4 @@
-import type {UsageMetric} from "./types"
+import type {AnalyticsMetric} from "./types"
 
 const grouped = (value: number, digits = 0) =>
     value.toLocaleString("en-US", {minimumFractionDigits: digits, maximumFractionDigits: digits})
@@ -24,7 +24,7 @@ export const formatCount = (value: number) => grouped(Math.round(value))
 
 /** `short` is for axis ticks and chart labels. */
 export const formatMetric = (
-    metric: UsageMetric | "failrate",
+    metric: AnalyticsMetric | "failrate",
     value: number | null | undefined,
     short = false,
 ) => {

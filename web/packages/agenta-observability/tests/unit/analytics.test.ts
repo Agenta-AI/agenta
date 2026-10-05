@@ -1,20 +1,20 @@
 import type {MetricsBucket, TraceSpan} from "@agenta/entities/trace"
 import {describe, expect, it} from "vitest"
 
-import {categorizeFailure} from "../../src/usage/failureReasons"
-import {formatMetric, niceMax} from "../../src/usage/format"
-import {filterConditions} from "../../src/usage/queries"
-import {defaultRange, planRetention} from "../../src/usage/ranges"
+import {categorizeFailure} from "../../src/analytics/failureReasons"
+import {formatMetric, niceMax} from "../../src/analytics/format"
+import {filterConditions} from "../../src/analytics/queries"
+import {defaultRange, planRetention} from "../../src/analytics/ranges"
 import {
     OTHER_KEY,
     bucketWindow,
     keyedSeries,
     rangeWindow,
     toOverview,
-    toUsageRun,
+    toAnalyticsRun,
     toolsByRun,
     topSeries,
-} from "../../src/usage/transform"
+} from "../../src/analytics/transform"
 
 const DAY = 86_400_000
 const window = {oldest: Date.UTC(2026, 9, 1), newest: Date.UTC(2026, 9, 4), interval: 1440}
@@ -156,7 +156,7 @@ describe("runs", () => {
     } as unknown as TraceSpan
 
     it("reads a root span into a run", () => {
-        expect(toUsageRun(root)).toEqual({
+        expect(toAnalyticsRun(root)).toEqual({
             traceId: "t1",
             agentId: "agent-1",
             model: "sonnet",

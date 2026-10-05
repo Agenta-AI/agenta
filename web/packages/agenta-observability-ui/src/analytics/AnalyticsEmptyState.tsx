@@ -20,7 +20,7 @@ const GhostCard = ({height}: {height: number}) => (
 )
 
 /** A project with no agents yet: placeholder charts behind one call to action. */
-export const UsageEmptyState = ({onCreateAgent}: {onCreateAgent?: () => void}) => (
+export const AnalyticsEmptyState = ({onCreateAgent}: {onCreateAgent?: () => void}) => (
     <div className="relative">
         <div className="flex flex-col gap-4 opacity-70">
             <GhostCard height={210} />
@@ -31,7 +31,7 @@ export const UsageEmptyState = ({onCreateAgent}: {onCreateAgent?: () => void}) =
                 <span className="grid size-11 place-items-center rounded-xl bg-muted">
                     <ChartBar size={20} />
                 </span>
-                <span className="text-lg font-semibold">Your usage will show up here</span>
+                <span className="text-lg font-semibold">Your analytics will show up here</span>
                 <p className="m-0 text-sm text-muted-foreground">
                     Once your agents start running, you’ll see what they cost, how often they run,
                     and how reliably they finish.

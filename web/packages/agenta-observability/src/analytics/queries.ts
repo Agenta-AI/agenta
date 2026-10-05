@@ -6,7 +6,7 @@ import {
     type TraceSpan,
 } from "@agenta/entities/trace"
 
-import type {UsageFilters, UsageWindow} from "./types"
+import type {AnalyticsFilters, AnalyticsWindow} from "./types"
 
 export const PATH = {
     cost: "attributes.ag.metrics.costs.cumulative.total",
@@ -69,7 +69,7 @@ const RUN_TOTALS = [
     cat(PATH.trace),
 ]
 
-export const USAGE_QUERIES = {
+export const ANALYTICS_QUERIES = {
     overview: {focus: "trace", runLevel: true, where: [], specs: RUN_TOTALS},
     failed: {focus: "trace", runLevel: true, where: [FAILED], specs: [cat(PATH.trace)]},
     agents: {
@@ -96,15 +96,15 @@ export const USAGE_QUERIES = {
     tools: {focus: "span", runLevel: false, where: [spanType("tool")], specs: [cat(PATH.tool)]},
 } satisfies Record<string, QueryDef>
 
-export type UsageQueryName = keyof typeof USAGE_QUERIES
+export type AnalyticsQueryName = keyof typeof ANALYTICS_QUERIES
 
 /** Narrows a query to one key: an agent, a configured model or its provider, or a called model. */
-export interface UsageFocus {
+export interface AnalyticsFocus {
     dim: "agent" | "model" | "provider" | "callModel"
     key: string
 }
 
-export const filterConditions = (filters: UsageFilters): Condition[] => {
+export const filterConditions = (filters: AnalyticsFilters): Condition[] => {
     const out: Condition[] = []
     if (filters.agent.length)
         out.push({
@@ -118,23 +118,23 @@ export const filterConditions = (filters: UsageFilters): Condition[] => {
 
 const FOCUS_KEY = {model: MODEL_KEY, provider: PROVIDER_KEY, callModel: CALL_MODEL_KEY}
 
-export const focusCondition = (focus: UsageFocus): Condition =>
+export const focusCondition = (focus: AnalyticsFocus): Condition =>
     focus.dim === "agent"
         ? {field: "references", operator: "in", value: [{id: focus.key}]}
         : anyOf(FOCUS_KEY[focus.dim], [focus.key])
 
-export interface UsageQueryParams {
+export interface AnalyticsQueryParams {
     projectId: string
-    name: UsageQueryName
-    window: UsageWindow
-    filters: UsageFilters
-    focus?: UsageFocus | null
+    name: AnalyticsQueryName
+    window: AnalyticsWindow
+    filters: AnalyticsFilters
+    focus?: AnalyticsFocus | null
     /** A second narrowing, e.g. the agent a drawer drilled into while splitting by model. */
-    scope?: UsageFocus | null
+    scope?: AnalyticsFocus | null
     signal?: AbortSignal
 }
 
-export const fetchUsageBuckets = async ({
+export const fetchAnalyticsBuckets = async ({
     projectId,
     name,
     window,
@@ -142,12 +142,12 @@ export const fetchUsageBuckets = async ({
     focus,
     scope,
     signal,
-}: UsageQueryParams): Promise<MetricsBucket[]> => {
-    const def: QueryDef = USAGE_QUERIES[name]
+}: AnalyticsQueryParams): Promise<MetricsBucket[]> => {
+    const def: QueryDef = ANALYTICS_QUERIES[name]
     const conditions = [
         ...def.where,
         ...(def.runLevel ? [INVOCATION, ...filterConditions(filters)] : []),
-        ...[focus, scope].filter((f): f is UsageFocus => Boolean(f)).map(focusCondition),
+        ...[focus, scope].filter((f): f is AnalyticsFocus => Boolean(f)).map(focusCondition),
     ]
     const res = await fetchSpansAnalytics({
         projectId,
@@ -163,11 +163,11 @@ export const fetchUsageBuckets = async ({
     return res?.buckets ?? []
 }
 
-export interface UsageRunsParams {
+export interface AnalyticsRunsParams {
     projectId: string
-    window: UsageWindow
-    filters: UsageFilters
-    focus?: UsageFocus | null
+    window: AnalyticsWindow
+    filters: AnalyticsFilters
+    focus?: AnalyticsFocus | null
     failedOnly?: boolean
     limit: number
 }
@@ -181,14 +181,14 @@ const spansOf = (res: Awaited<ReturnType<typeof fetchAllPreviewTraces>>): TraceS
     res && "spans" in res ? (res.spans as TraceSpan[]) : []
 
 /** Root spans (one per run), newest first. Every root is a `workflow` span. */
-export const fetchUsageRunSpans = async ({
+export const fetchAnalyticsRunSpans = async ({
     projectId,
     window,
     filters,
     focus,
     failedOnly,
     limit,
-}: UsageRunsParams): Promise<TraceSpan[]> => {
+}: AnalyticsRunsParams): Promise<TraceSpan[]> => {
     const conditions = [
         spanType("workflow"),
         INVOCATION,
@@ -208,11 +208,11 @@ export const fetchUsageRunSpans = async ({
         "",
         projectId,
     )
-    return spansOf(throwIfNull(res, "[usage runs]"))
+    return spansOf(throwIfNull(res, "[analytics runs]"))
 }
 
 /** Tool spans for a set of runs, to count calls and failures per run. */
-export const fetchUsageToolSpans = async (
+export const fetchAnalyticsToolSpans = async (
     projectId: string,
     traceIds: string[],
 ): Promise<TraceSpan[]> => {
@@ -231,5 +231,5 @@ export const fetchUsageToolSpans = async (
         "",
         projectId,
     )
-    return spansOf(throwIfNull(res, "[usage tool spans]"))
+    return spansOf(throwIfNull(res, "[analytics tool spans]"))
 }

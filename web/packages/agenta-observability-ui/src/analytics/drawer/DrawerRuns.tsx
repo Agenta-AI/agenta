@@ -5,18 +5,18 @@ import {
     formatCompact,
     formatCount,
     formatMoney,
-    usageRunToolsAtomFamily,
-    usageRunsAtomFamily,
-    type UsageFilters,
-    type UsageFocus,
-    type UsageRun,
-    type UsageWindow,
-} from "@agenta/observability/usage"
+    analyticsRunToolsAtomFamily,
+    analyticsRunsAtomFamily,
+    type AnalyticsFilters,
+    type AnalyticsFocus,
+    type AnalyticsRun,
+    type AnalyticsWindow,
+} from "@agenta/observability/analytics"
 import {Button, Segmented, SkeletonBlock, cn} from "@agenta/ui/ui"
 import {ArrowSquareOut, CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {usageColor} from "../colors"
+import {analyticsColor} from "../colors"
 import {clock, monthDay} from "../labels"
 
 const SHOWN = 15
@@ -24,9 +24,9 @@ const SHOWN = 15
 const REASON_SAMPLE = 500
 
 export interface DrawerRunsProps {
-    window: UsageWindow
-    filters: UsageFilters
-    focus: UsageFocus | null
+    window: AnalyticsWindow
+    filters: AnalyticsFilters
+    focus: AnalyticsFocus | null
     total: number
     failed: number
     failedOnly: boolean
@@ -51,7 +51,7 @@ export const DrawerRuns = ({
     const [reason, setReason] = useState<string | null>(null)
     const [open, setOpen] = useState<string | null>(null)
     const query = useAtomValue(
-        usageRunsAtomFamily({
+        analyticsRunsAtomFamily({
             window,
             filters,
             focus,
@@ -84,7 +84,7 @@ export const DrawerRuns = ({
         [runs, reason],
     )
     const traceIds = useMemo(() => listed.map((run) => run.traceId), [listed])
-    const toolsQuery = useAtomValue(usageRunToolsAtomFamily(traceIds))
+    const toolsQuery = useAtomValue(analyticsRunToolsAtomFamily(traceIds))
     const tools = toolsQuery.data
     const matching = reason
         ? (reasons.find((r) => r.label === reason)?.count ?? 0)
@@ -151,7 +151,7 @@ export const DrawerRuns = ({
                                     className="block h-full rounded-full"
                                     style={{
                                         width: `${(r.count / maxReason) * 100}%`,
-                                        background: usageColor("failed"),
+                                        background: analyticsColor("failed"),
                                     }}
                                 />
                             </span>
@@ -211,7 +211,7 @@ const RunRow = ({
     onToggle,
     onOpenTrace,
 }: {
-    run: UsageRun
+    run: AnalyticsRun
     tools?: {calls: number; failed: string[]}
     agentName: (id: string) => string
     showDate: boolean
@@ -241,7 +241,7 @@ const RunRow = ({
             >
                 <span
                     className="size-2 rounded-full"
-                    style={{background: usageColor(run.failed ? "dotFailed" : "dotOk")}}
+                    style={{background: analyticsColor(run.failed ? "dotFailed" : "dotOk")}}
                 />
                 <span className="flex min-w-0 flex-col">
                     <span className="truncate">
@@ -250,7 +250,7 @@ const RunRow = ({
                     {subline ? (
                         <span
                             className="truncate text-[11px] text-muted-foreground"
-                            style={subColor ? {color: usageColor(subColor)} : undefined}
+                            style={subColor ? {color: analyticsColor(subColor)} : undefined}
                         >
                             {subline}
                         </span>

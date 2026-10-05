@@ -1,17 +1,17 @@
 import type {MetricsBucket, TraceSpan} from "@agenta/entities/trace"
 
 import {PATH} from "./queries"
-import {USAGE_RANGE} from "./ranges"
+import {ANALYTICS_RANGE} from "./ranges"
 import type {
     KeyedSeries,
-    UsageOverview,
-    UsagePoint,
-    UsageRangeKey,
-    UsageRun,
-    UsageRunTools,
-    UsageSeries,
-    UsageTotals,
-    UsageWindow,
+    AnalyticsOverview,
+    AnalyticsPoint,
+    AnalyticsRangeKey,
+    AnalyticsRun,
+    AnalyticsRunTools,
+    AnalyticsSeries,
+    AnalyticsTotals,
+    AnalyticsWindow,
 } from "./types"
 
 const MINUTE = 60_000
@@ -19,7 +19,7 @@ const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
 /** Hourly buckets ending at the next full hour for 24h; local-midnight days otherwise. */
-export const rangeWindow = (range: UsageRangeKey, now: number): UsageWindow => {
+export const rangeWindow = (range: AnalyticsRangeKey, now: number): AnalyticsWindow => {
     if (range === "24h") {
         const end = Math.ceil(now / HOUR) * HOUR
         return {oldest: end - DAY, newest: end, interval: 60}
@@ -27,23 +27,23 @@ export const rangeWindow = (range: UsageRangeKey, now: number): UsageWindow => {
     const today = new Date(now)
     today.setHours(0, 0, 0, 0)
     const end = today.getTime() + DAY
-    return {oldest: end - USAGE_RANGE[range].days * DAY, newest: end, interval: 24 * 60}
+    return {oldest: end - ANALYTICS_RANGE[range].days * DAY, newest: end, interval: 24 * 60}
 }
 
 /** The window one bucket covers, split finer: a day by hour, an hour by five minutes. */
-export const bucketWindow = (window: UsageWindow, index: number): UsageWindow => {
+export const bucketWindow = (window: AnalyticsWindow, index: number): AnalyticsWindow => {
     const width = window.interval * MINUTE
     const oldest = window.oldest + index * width
     return {oldest, newest: oldest + width, interval: window.interval >= 24 * 60 ? 60 : 5}
 }
 
-export const bucketStarts = (window: UsageWindow): number[] => {
+export const bucketStarts = (window: AnalyticsWindow): number[] => {
     const width = window.interval * MINUTE
     const count = Math.max(1, Math.round((window.newest - window.oldest) / width))
     return Array.from({length: count}, (_, i) => window.oldest + i * width)
 }
 
-const bucketIndex = (window: UsageWindow, timestamp: string) =>
+const bucketIndex = (window: AnalyticsWindow, timestamp: string) =>
     Math.floor((Date.parse(timestamp) - window.oldest) / (window.interval * MINUTE))
 
 type Blob = Record<string, unknown> | null | undefined
@@ -55,7 +55,7 @@ const field = (blob: Blob, name: string) => {
 
 /** One numeric field of one metric, per bucket of the window (zero where a bucket is missing). */
 export const numberSeries = (
-    window: UsageWindow,
+    window: AnalyticsWindow,
     buckets: MetricsBucket[],
     path: string,
     name: "sum" | "count" = "sum",
@@ -70,7 +70,7 @@ export const numberSeries = (
 
 /** Value counts of categorical metrics per bucket; several paths merge (e.g. two ref keys). */
 export const keyedSeries = (
-    window: UsageWindow,
+    window: AnalyticsWindow,
     buckets: MetricsBucket[],
     paths: string[],
 ): KeyedSeries => {
@@ -94,7 +94,7 @@ export const keyedSeries = (
 
 export const sum = (values: number[]) => values.reduce((total, value) => total + value, 0)
 
-export const emptyTotals = (): UsageTotals => ({
+export const emptyTotals = (): AnalyticsTotals => ({
     cost: 0,
     runs: 0,
     failed: 0,
@@ -106,10 +106,10 @@ export const emptyTotals = (): UsageTotals => ({
 })
 
 export const toOverview = (
-    window: UsageWindow,
+    window: AnalyticsWindow,
     overview: MetricsBucket[],
     failed: MetricsBucket[],
-): UsageOverview => {
+): AnalyticsOverview => {
     const series = {
         cost: numberSeries(window, overview, PATH.cost),
         runs: numberSeries(window, overview, PATH.trace, "count"),
@@ -120,8 +120,8 @@ export const toOverview = (
         cacheWrite: numberSeries(window, overview, PATH.cacheWrite),
         tokens: numberSeries(window, overview, PATH.tokens),
     }
-    const keys = Object.keys(series) as (keyof UsageTotals)[]
-    const points: UsagePoint[] = bucketStarts(window).map((start, i) => {
+    const keys = Object.keys(series) as (keyof AnalyticsTotals)[]
+    const points: AnalyticsPoint[] = bucketStarts(window).map((start, i) => {
         const point = {start, ...emptyTotals()}
         for (const key of keys) point[key] = series[key][i]
         return point
@@ -146,9 +146,9 @@ export const topSeries = (
     order: string[],
     limit: number,
     total?: number[],
-): UsageSeries[] => {
+): AnalyticsSeries[] => {
     const top = order.slice(0, limit).filter((key) => series[key])
-    const out: UsageSeries[] = top.map((key) => ({key, values: series[key]}))
+    const out: AnalyticsSeries[] = top.map((key) => ({key, values: series[key]}))
     const size = Object.values(series)[0]?.length ?? total?.length ?? 0
     const rest = Array.from({length: size}, (_, i) =>
         total
@@ -174,7 +174,7 @@ const dig = (source: Attributes, path: string[]): unknown =>
 const asNumber = (value: unknown) =>
     typeof value === "number" && Number.isFinite(value) ? value : null
 
-export const toUsageRun = (span: TraceSpan): UsageRun => {
+export const toAnalyticsRun = (span: TraceSpan): AnalyticsRun => {
     const attributes = span.attributes as Attributes
     const refs = dig(attributes, ["ag", "references"]) as Attributes
     const agentId =
@@ -195,8 +195,8 @@ export const toUsageRun = (span: TraceSpan): UsageRun => {
     }
 }
 
-export const toolsByRun = (spans: TraceSpan[]): Record<string, UsageRunTools> => {
-    const out: Record<string, UsageRunTools> = {}
+export const toolsByRun = (spans: TraceSpan[]): Record<string, AnalyticsRunTools> => {
+    const out: Record<string, AnalyticsRunTools> = {}
     for (const span of spans) {
         const row = (out[span.trace_id] ??= {calls: 0, failed: []})
         row.calls += 1

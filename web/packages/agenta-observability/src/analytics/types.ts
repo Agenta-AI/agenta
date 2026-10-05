@@ -1,23 +1,23 @@
-export type UsageRangeKey = "24h" | "7d" | "30d" | "90d"
+export type AnalyticsRangeKey = "24h" | "7d" | "30d" | "90d"
 
-export type UsageDimension = "agent" | "model" | "tool"
+export type AnalyticsDimension = "agent" | "model" | "tool"
 
-export type UsageMetric = "cost" | "runs" | "success" | "tokens" | "tools" | "avgcost"
+export type AnalyticsMetric = "cost" | "runs" | "success" | "tokens" | "tools" | "avgcost"
 
 /** Agent ids and configured model names; both narrow the root-span (run) queries. */
-export interface UsageFilters {
+export interface AnalyticsFilters {
     agent: string[]
     model: string[]
 }
 
 /** A bucketed time window. `interval` is the bucket width in minutes. */
-export interface UsageWindow {
+export interface AnalyticsWindow {
     oldest: number
     newest: number
     interval: number
 }
 
-export interface UsageTotals {
+export interface AnalyticsTotals {
     cost: number
     runs: number
     failed: number
@@ -28,25 +28,25 @@ export interface UsageTotals {
     tokens: number
 }
 
-export interface UsagePoint extends UsageTotals {
+export interface AnalyticsPoint extends AnalyticsTotals {
     start: number
 }
 
-export interface UsageOverview {
-    points: UsagePoint[]
-    totals: UsageTotals
+export interface AnalyticsOverview {
+    points: AnalyticsPoint[]
+    totals: AnalyticsTotals
 }
 
 /** Per-key values over the window's buckets, e.g. runs per agent per day. */
 export type KeyedSeries = Record<string, number[]>
 
-export interface UsageSeries {
+export interface AnalyticsSeries {
     key: string
     values: number[]
     other?: boolean
 }
 
-export interface UsageRun {
+export interface AnalyticsRun {
     traceId: string
     agentId: string | null
     model: string | null
@@ -58,7 +58,7 @@ export interface UsageRun {
     subscription: boolean
 }
 
-export interface UsageRunTools {
+export interface AnalyticsRunTools {
     calls: number
     failed: string[]
 }

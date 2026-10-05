@@ -8,15 +8,15 @@ import {
     numberSeries,
     rankKeys,
     toOverview,
-    usageAgentNamesAtomFamily,
-    usageBucketsAtomFamily,
-    usageSplitAtomFamily,
+    analyticsAgentNamesAtomFamily,
+    analyticsBucketsAtomFamily,
+    analyticsSplitAtomFamily,
     type KeyedSeries,
-    type UsageFilters,
-    type UsageFocus,
-    type UsageQueryName,
-    type UsageWindow,
-} from "@agenta/observability/usage"
+    type AnalyticsFilters,
+    type AnalyticsFocus,
+    type AnalyticsQueryName,
+    type AnalyticsWindow,
+} from "@agenta/observability/analytics"
 import {useAtomValue} from "jotai"
 
 import {UNKNOWN_AGENT} from "./labels"
@@ -41,30 +41,30 @@ const statusOf = (...queries: QueryLike[]) => ({
     refetch: () => queries.forEach((q) => void q.refetch()),
 })
 
-export const useUsageBuckets = (
-    name: UsageQueryName,
-    window: UsageWindow,
-    filters: UsageFilters,
-    focus: UsageFocus | null = null,
-) => useAtomValue(usageBucketsAtomFamily({name, window, filters, focus}))
+export const useAnalyticsBuckets = (
+    name: AnalyticsQueryName,
+    window: AnalyticsWindow,
+    filters: AnalyticsFilters,
+    focus: AnalyticsFocus | null = null,
+) => useAtomValue(analyticsBucketsAtomFamily({name, window, filters, focus}))
 
 const AGENT_PATHS = [PATH.agentApp, PATH.agentWorkflow]
 
 /** Everything the page and the drawer chart from one window: totals, and counts per key. */
-export const useUsageWindowData = (
-    window: UsageWindow,
-    filters: UsageFilters,
-    focus: UsageFocus | null = null,
+export const useAnalyticsWindowData = (
+    window: AnalyticsWindow,
+    filters: AnalyticsFilters,
+    focus: AnalyticsFocus | null = null,
 ) => {
-    const overviewQ = useUsageBuckets("overview", window, filters, focus)
-    const failedQ = useUsageBuckets("failed", window, filters, focus)
-    const agentsQ = useUsageBuckets("agents", window, filters, focus)
-    const agentsFailedQ = useUsageBuckets("agentsFailed", window, filters, focus)
-    const modelsQ = useUsageBuckets("models", window, filters, focus)
-    const modelsFailedQ = useUsageBuckets("modelsFailed", window, filters, focus)
+    const overviewQ = useAnalyticsBuckets("overview", window, filters, focus)
+    const failedQ = useAnalyticsBuckets("failed", window, filters, focus)
+    const agentsQ = useAnalyticsBuckets("agents", window, filters, focus)
+    const agentsFailedQ = useAnalyticsBuckets("agentsFailed", window, filters, focus)
+    const modelsQ = useAnalyticsBuckets("models", window, filters, focus)
+    const modelsFailedQ = useAnalyticsBuckets("modelsFailed", window, filters, focus)
     // Call-level spans carry no agent reference, so neither filters nor focus narrow them.
-    const callsQ = useUsageBuckets("calls", window, EMPTY_FILTERS)
-    const toolsQ = useUsageBuckets("tools", window, EMPTY_FILTERS)
+    const callsQ = useAnalyticsBuckets("calls", window, EMPTY_FILTERS)
+    const toolsQ = useAnalyticsBuckets("tools", window, EMPTY_FILTERS)
 
     return useMemo(() => {
         const keyed = (data: typeof overviewQ.data, paths: string[]): KeyedSeries =>
@@ -99,19 +99,19 @@ export const useUsageWindowData = (
     }, [window, overviewQ, failedQ, agentsQ, agentsFailedQ, modelsQ, modelsFailedQ, callsQ, toolsQ])
 }
 
-export type UsageWindowData = ReturnType<typeof useUsageWindowData>
+export type AnalyticsWindowData = ReturnType<typeof useAnalyticsWindowData>
 
 /** Cost and tokens per key, one filtered request per key. */
-export const useUsageSplit = (
-    dim: UsageFocus["dim"],
+export const useAnalyticsSplit = (
+    dim: AnalyticsFocus["dim"],
     keys: string[],
-    window: UsageWindow,
-    filters: UsageFilters,
+    window: AnalyticsWindow,
+    filters: AnalyticsFilters,
     enabled = true,
-    scope: UsageFocus | null = null,
+    scope: AnalyticsFocus | null = null,
 ) => {
     const query = useAtomValue(
-        usageSplitAtomFamily({dim, keys: enabled ? keys : [], window, filters, scope}),
+        analyticsSplitAtomFamily({dim, keys: enabled ? keys : [], window, filters, scope}),
     )
     return useMemo(() => {
         const costPath = dim === "callModel" ? PATH.callCost : PATH.cost
@@ -128,6 +128,6 @@ export const useUsageSplit = (
 
 /** A name lookup for agent ids; unknown ids read as "Unknown agent" until they resolve. */
 export const useAgentNames = (ids: string[]) => {
-    const names = useAtomValue(usageAgentNamesAtomFamily(ids))
+    const names = useAtomValue(analyticsAgentNamesAtomFamily(ids))
     return useCallback((id: string) => names[id] ?? UNKNOWN_AGENT, [names])
 }

@@ -8,16 +8,16 @@ import {
     sum,
     topSeries,
     type KeyedSeries,
-    type UsageDimension,
-    type UsageMetric,
-} from "@agenta/observability/usage"
+    type AnalyticsDimension,
+    type AnalyticsMetric,
+} from "@agenta/observability/analytics"
 
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
 import {TimeChart, type TimeSeries} from "../charts/TimeChart"
-import {SERIES_COLORS, usageColor} from "../colors"
-import type {QueryStatus} from "../useUsageData"
+import {SERIES_COLORS, analyticsColor} from "../colors"
+import type {QueryStatus} from "../useAnalyticsData"
 
-import {ChartLegendRow, Pills, UsageCard} from "./UsageCard"
+import {ChartLegendRow, Pills, AnalyticsCard} from "./AnalyticsCard"
 
 export type BreakdownMetric = "runs" | "cost" | "tokens"
 
@@ -32,7 +32,7 @@ export interface BreakdownSource {
 }
 
 export interface BreakdownCardProps {
-    dim: UsageDimension
+    dim: AnalyticsDimension
     metric: BreakdownMetric
     metrics?: BreakdownMetric[]
     onMetricChange?: (metric: BreakdownMetric) => void
@@ -45,10 +45,10 @@ export interface BreakdownCardProps {
     countWord: "runs" | "calls"
     note?: string
     empty: {text: string; onClear?: () => void} | null
-    onExplore: (metric: UsageMetric, bucket: number | null) => void
+    onExplore: (metric: AnalyticsMetric, bucket: number | null) => void
 }
 
-const DIM_LABEL: Record<UsageDimension, string> = {agent: "agent", model: "model", tool: "tool"}
+const DIM_LABEL: Record<AnalyticsDimension, string> = {agent: "agent", model: "model", tool: "tool"}
 const TOP = 4
 
 const metricLabel = (metric: BreakdownMetric, countWord: "runs" | "calls") =>
@@ -90,7 +90,9 @@ export const BreakdownCard = ({
     const series: TimeSeries[] = top.map((s, i) => ({
         key: s.key,
         label: s.other ? (restCount ? `Other (${restCount})` : "Unattributed") : keyLabel(s.key),
-        color: s.other ? usageColor("other") : usageColor(SERIES_COLORS[i % SERIES_COLORS.length]),
+        color: s.other
+            ? analyticsColor("other")
+            : analyticsColor(SERIES_COLORS[i % SERIES_COLORS.length]),
         values: s.values,
         hidden: hidden[s.key],
     }))
@@ -111,11 +113,11 @@ export const BreakdownCard = ({
         if (series.every((s) => next[s.key])) return
         setHidden(next)
     }
-    const exploreMetric: UsageMetric =
+    const exploreMetric: AnalyticsMetric =
         metric === "runs" ? (dim === "agent" ? "runs" : "tools") : metric
 
     return (
-        <UsageCard
+        <AnalyticsCard
             title={`${metricLabel(metric, countWord)} by ${DIM_LABEL[dim]}`}
             controls={
                 metrics && onMetricChange ? (
@@ -184,6 +186,6 @@ export const BreakdownCard = ({
                     />
                 )}
             />
-        </UsageCard>
+        </AnalyticsCard>
     )
 }

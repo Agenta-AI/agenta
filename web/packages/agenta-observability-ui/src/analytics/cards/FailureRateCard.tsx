@@ -1,17 +1,17 @@
 import {useMemo, useState} from "react"
 
-import {formatCount, formatMetric, niceMax, sum} from "@agenta/observability/usage"
+import {formatCount, formatMetric, niceMax, sum} from "@agenta/observability/analytics"
 import {Input, cn} from "@agenta/ui/ui"
 
-import {usageColor} from "../colors"
-import type {UsageWindowData} from "../useUsageData"
+import {analyticsColor} from "../colors"
+import type {AnalyticsWindowData} from "../useAnalyticsData"
 
-import {UsageCard} from "./UsageCard"
+import {AnalyticsCard} from "./AnalyticsCard"
 
 const VISIBLE = 6
 
 export interface FailureRateCardProps {
-    data: UsageWindowData
+    data: AnalyticsWindowData
     agentName: (id: string) => string
     rangeLabel: string
     emptyText: (what: string) => {text: string; onClear?: () => void}
@@ -53,7 +53,7 @@ export const FailureRateCard = ({
     const empty = totals.failed ? null : emptyText("failed runs")
 
     return (
-        <UsageCard
+        <AnalyticsCard
             title="Failure rate by agent"
             caption={
                 totals.failed
@@ -96,7 +96,7 @@ export const FailureRateCard = ({
                                         className="absolute inset-y-0 left-0 rounded-full"
                                         style={{
                                             width: `${Math.max(row.failed ? 1 : 0, (row.rate / scale) * 100)}%`,
-                                            background: usageColor(
+                                            background: analyticsColor(
                                                 above ? "failAbove" : "failBelow",
                                             ),
                                         }}
@@ -163,6 +163,6 @@ export const FailureRateCard = ({
                     ) : null}
                 </div>
             </div>
-        </UsageCard>
+        </AnalyticsCard>
     )
 }

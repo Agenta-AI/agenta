@@ -16,7 +16,7 @@
         ".": "./src/index.ts",
         "./traceDrawer": "./src/traceDrawer/index.ts",
         "./drillIn": "./src/drillIn/index.ts",
-        "./usage": "./src/usage/index.ts"
+        "./analytics": "./src/analytics/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

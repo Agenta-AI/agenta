@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import {Button, SkeletonBlock, cn} from "@agenta/ui/ui"
 import {CaretRight, ChartBar, WarningCircle} from "@phosphor-icons/react"
 
-export interface UsageCardProps {
+export interface AnalyticsCardProps {
     title: ReactNode
     value?: ReactNode
     caption?: ReactNode
@@ -22,7 +22,7 @@ export interface UsageCardProps {
     children?: ReactNode
 }
 
-export const UsageCard = ({
+export const AnalyticsCard = ({
     title,
     value,
     caption,
@@ -37,7 +37,7 @@ export const UsageCard = ({
     chartHeight,
     className,
     children,
-}: UsageCardProps) => (
+}: AnalyticsCardProps) => (
     <section className={cn("flex min-w-0 flex-col rounded-xl bg-muted px-5 pb-4 pt-4", className)}>
         <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap items-center gap-2.5">

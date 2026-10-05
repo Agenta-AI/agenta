@@ -1,7 +1,7 @@
 import {useMemo, useRef, useState} from "react"
 
 import {
-    USAGE_RANGE,
+    ANALYTICS_RANGE,
     bucketStarts,
     bucketWindow,
     formatCount,
@@ -9,13 +9,13 @@ import {
     formatMoney,
     successRate,
     sum,
-    usageDrawerAtom,
-    usageFiltersAtom,
-    usageRangeAtom,
-    usageWindowAtom,
-    type UsageMetric,
-    type UsagePoint,
-} from "@agenta/observability/usage"
+    analyticsDrawerAtom,
+    analyticsFiltersAtom,
+    analyticsRangeAtom,
+    analyticsWindowAtom,
+    type AnalyticsMetric,
+    type AnalyticsPoint,
+} from "@agenta/observability/analytics"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {Button, Sheet, SheetContent, SheetDescription, SheetTitle, cn} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, X} from "@phosphor-icons/react"
@@ -23,14 +23,14 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
-import {usageColor} from "../colors"
+import {analyticsColor} from "../colors"
 import {bucketUnit, fullLabel, shortLabel} from "../labels"
-import {useUsageWindowData} from "../useUsageData"
+import {useAnalyticsWindowData} from "../useAnalyticsData"
 
 import {DrawerBreakdown} from "./DrawerBreakdown"
 import {DrawerRuns} from "./DrawerRuns"
 
-const METRIC_LABEL: Record<UsageMetric, string> = {
+const METRIC_LABEL: Record<AnalyticsMetric, string> = {
     cost: "Cost",
     runs: "Runs",
     success: "Success rate",
@@ -39,18 +39,18 @@ const METRIC_LABEL: Record<UsageMetric, string> = {
     avgcost: "Avg cost per run",
 }
 
-const TILES: UsageMetric[] = ["cost", "runs", "success", "tokens", "avgcost", "tools"]
+const TILES: AnalyticsMetric[] = ["cost", "runs", "success", "tokens", "avgcost", "tools"]
 
 /** Tile labels stay on one line in a sixth of the drawer. */
-const TILE_LABEL: Record<UsageMetric, string> = {
+const TILE_LABEL: Record<AnalyticsMetric, string> = {
     ...METRIC_LABEL,
     success: "Success",
     avgcost: "Avg / run",
 }
 
-const additive = (metric: UsageMetric) => metric !== "success" && metric !== "avgcost"
+const additive = (metric: AnalyticsMetric) => metric !== "success" && metric !== "avgcost"
 
-const pointValue = (metric: UsageMetric, p: UsagePoint, tools: number): number | null => {
+const pointValue = (metric: AnalyticsMetric, p: AnalyticsPoint, tools: number): number | null => {
     switch (metric) {
         case "cost":
             return p.cost
@@ -67,13 +67,13 @@ const pointValue = (metric: UsageMetric, p: UsagePoint, tools: number): number |
     }
 }
 
-export interface UsageDrawerProps {
+export interface AnalyticsDrawerProps {
     agentName: (id: string) => string
     onOpenTrace?: (traceId: string) => void
 }
 
-export const UsageDrawer = ({agentName, onOpenTrace}: UsageDrawerProps) => {
-    const [state, setState] = useAtom(usageDrawerAtom)
+export const AnalyticsDrawer = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
+    const [state, setState] = useAtom(analyticsDrawerAtom)
     return (
         <Sheet open={state !== null} onOpenChange={(open) => !open && setState(null)}>
             <SheetContent
@@ -87,11 +87,11 @@ export const UsageDrawer = ({agentName, onOpenTrace}: UsageDrawerProps) => {
     )
 }
 
-const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
-    const [state, setState] = useAtom(usageDrawerAtom)
-    const pageWindow = useAtomValue(usageWindowAtom)
-    const range = useAtomValue(usageRangeAtom)
-    const [filters, setFilters] = useAtom(usageFiltersAtom)
+const DrawerBody = ({agentName, onOpenTrace}: AnalyticsDrawerProps) => {
+    const [state, setState] = useAtom(analyticsDrawerAtom)
+    const pageWindow = useAtomValue(analyticsWindowAtom)
+    const range = useAtomValue(analyticsRangeAtom)
+    const [filters, setFilters] = useAtom(analyticsFiltersAtom)
     const [hovered, setHovered] = useState<number | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(scrollRef)
@@ -104,7 +104,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
         [pageWindow, bucket],
     )
     const focus = state?.focus ?? null
-    const data = useUsageWindowData(window, filters, focus)
+    const data = useAnalyticsWindowData(window, filters, focus)
     const toolsPerBucket = useToolsPerBucket(data)
     if (!state) return null
     // Tool spans carry no agent or model, so a narrowed drawer cannot count them.
@@ -114,7 +114,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
     const values = data.overview.points.map((p, i) => pointValue(metric, p, toolsPerBucket[i]))
     const totals = data.overview.totals
     const totalTools = sum(toolsPerBucket)
-    const tileValue = (m: UsageMetric) => pointValue(m, {start: 0, ...totals}, totalTools)
+    const tileValue = (m: AnalyticsMetric) => pointValue(m, {start: 0, ...totals}, totalTools)
     const labels = data.starts.map((s) => shortLabel(window, s))
     const fullLabels = data.starts.map((s) =>
         bucket === null ? fullLabel(window, s) : shortLabel(window, s),
@@ -128,7 +128,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
         : (tileValue(metric) ?? 0)
 
     const title =
-        bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : USAGE_RANGE[range].label
+        bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : ANALYTICS_RANGE[range].label
     const sub = `${unit === "day" ? "Day by day" : unit === "hour" ? "Hour by hour" : "5-minute view"} · ${formatCount(totals.runs)} runs`
     const focusName = focus ? (focus.dim === "agent" ? agentName(focus.key) : focus.key) : null
     const focusLabel = focus ? `${focus.dim === "agent" ? "Agent" : "Model"}: ${focusName}` : null
@@ -236,7 +236,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                                 <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                                     <span
                                         className="size-1.5 shrink-0 rounded-full"
-                                        style={{background: usageColor(m)}}
+                                        style={{background: analyticsColor(m)}}
                                     />
                                     <span className="truncate">{TILE_LABEL[m]}</span>
                                 </span>
@@ -270,7 +270,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                                 {
                                     key: metric,
                                     label: METRIC_LABEL[metric],
-                                    color: usageColor(metric),
+                                    color: analyticsColor(metric),
                                     values,
                                 },
                             ]}
@@ -292,7 +292,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
                                 metric === "success"
                                     ? {
                                           key: "failed",
-                                          color: usageColor("failedRuns"),
+                                          color: analyticsColor("failedRuns"),
                                           values: data.overview.points.map((p) => p.failed),
                                       }
                                     : null
@@ -400,7 +400,7 @@ const DrawerBody = ({agentName, onOpenTrace}: UsageDrawerProps) => {
     )
 }
 
-const useToolsPerBucket = (data: ReturnType<typeof useUsageWindowData>) =>
+const useToolsPerBucket = (data: ReturnType<typeof useAnalyticsWindowData>) =>
     useMemo(
         () =>
             data.starts.map((_, i) =>

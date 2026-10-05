@@ -8,18 +8,18 @@ import {
     successRate,
     sum,
     type KeyedSeries,
-    type UsageMetric,
-} from "@agenta/observability/usage"
+    type AnalyticsMetric,
+} from "@agenta/observability/analytics"
 
 import {ChartTooltipPanel, type TooltipRow} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
-import {SERIES_COLORS, usageColor} from "../colors"
-import type {UsageWindowData} from "../useUsageData"
+import {SERIES_COLORS, analyticsColor} from "../colors"
+import type {AnalyticsWindowData} from "../useAnalyticsData"
 
-import {ChartLegendRow, UsageCard, type LegendItem} from "./UsageCard"
+import {ChartLegendRow, AnalyticsCard, type LegendItem} from "./AnalyticsCard"
 
 export interface OverviewContext {
-    data: UsageWindowData
+    data: AnalyticsWindowData
     labels: string[]
     fullLabels: string[]
     unit: string
@@ -29,7 +29,7 @@ export interface OverviewContext {
     /** Model and tool calls cannot be narrowed, so call-level facts hide under a filter. */
     filtered: boolean
     emptyText: (what: string) => {text: string; onClear?: () => void}
-    onExplore: (metric: UsageMetric, bucket: number | null) => void
+    onExplore: (metric: AnalyticsMetric, bucket: number | null) => void
 }
 
 /** The two keys with the most of `series` in one bucket, as tooltip rows. */
@@ -63,7 +63,7 @@ export const CostCard = ({ctx}: {ctx: OverviewContext}) => {
     const avg = values.length ? totals.cost / values.length : 0
     const status = ctx.data.status.overview
     return (
-        <UsageCard
+        <AnalyticsCard
             title="Cost"
             value={formatMoney(totals.cost)}
             caption={ctx.rangeLabel}
@@ -77,7 +77,7 @@ export const CostCard = ({ctx}: {ctx: OverviewContext}) => {
             <TimeChart
                 kind="bar"
                 labels={ctx.labels}
-                series={[{key: "cost", label: "Cost", color: usageColor("cost"), values}]}
+                series={[{key: "cost", label: "Cost", color: analyticsColor("cost"), values}]}
                 formatTick={(v) => formatMetric("cost", v, true)}
                 average={{
                     value: avg,
@@ -98,7 +98,7 @@ export const CostCard = ({ctx}: {ctx: OverviewContext}) => {
                             values[i],
                             ctx.agentName,
                             formatMoney,
-                            usageColor("cost"),
+                            analyticsColor("cost"),
                         )}
                         facts={[
                             {
@@ -111,7 +111,7 @@ export const CostCard = ({ctx}: {ctx: OverviewContext}) => {
                     />
                 )}
             />
-        </UsageCard>
+        </AnalyticsCard>
     )
 }
 
@@ -121,7 +121,7 @@ export const RunsCard = ({ctx}: {ctx: OverviewContext}) => {
     const values = points.map((p) => p.runs)
     const status = ctx.data.status.overview
     return (
-        <UsageCard
+        <AnalyticsCard
             title="Runs"
             value={formatCount(totals.runs)}
             caption={ctx.rangeLabel}
@@ -135,7 +135,7 @@ export const RunsCard = ({ctx}: {ctx: OverviewContext}) => {
             <TimeChart
                 kind="bar"
                 labels={ctx.labels}
-                series={[{key: "runs", label: "Runs", color: usageColor("runs"), values}]}
+                series={[{key: "runs", label: "Runs", color: analyticsColor("runs"), values}]}
                 formatTick={(v) => formatMetric("runs", v, true)}
                 height={150}
                 hovered={hovered}
@@ -151,7 +151,7 @@ export const RunsCard = ({ctx}: {ctx: OverviewContext}) => {
                             values[i],
                             ctx.agentName,
                             formatCount,
-                            usageColor("runs"),
+                            analyticsColor("runs"),
                         )}
                         facts={[
                             {
@@ -162,7 +162,7 @@ export const RunsCard = ({ctx}: {ctx: OverviewContext}) => {
                     />
                 )}
             />
-        </UsageCard>
+        </AnalyticsCard>
     )
 }
 
@@ -174,7 +174,11 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
     const present = values.filter((v): v is number => v !== null)
     const floor = present.length ? Math.max(0, Math.floor((Math.min(...present) - 5) / 10) * 10) : 0
     const failedBars = useMemo(
-        () => ({key: "failed", color: usageColor("failedRuns"), values: points.map((p) => p.failed)}),
+        () => ({
+            key: "failed",
+            color: analyticsColor("failedRuns"),
+            values: points.map((p) => p.failed),
+        }),
         [points],
     )
     const status = ctx.data.status.overview
@@ -183,7 +187,7 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
         totals.runs ? (totals.failed / totals.runs) * 100 : 0,
     )})`
     return (
-        <UsageCard
+        <AnalyticsCard
             title="Success rate"
             value={formatMetric("success", overall)}
             caption={caption}
@@ -196,11 +200,11 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
             legend={
                 <ChartLegendRow
                     items={[
-                        {key: "success", label: "Success rate", color: usageColor("success")},
+                        {key: "success", label: "Success rate", color: analyticsColor("success")},
                         {
                             key: "failed",
                             label: `Failed runs (${formatCount(totals.failed)})`,
-                            color: usageColor("failedRuns"),
+                            color: analyticsColor("failedRuns"),
                         },
                     ]}
                 />
@@ -213,7 +217,7 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                     {
                         key: "success",
                         label: "Success rate",
-                        color: usageColor("success"),
+                        color: analyticsColor("success"),
                         values,
                     },
                 ]}
@@ -239,7 +243,7 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                     />
                 )}
             />
-        </UsageCard>
+        </AnalyticsCard>
     )
 }
 
@@ -258,7 +262,7 @@ export const TokensCard = ({ctx}: {ctx: OverviewContext}) => {
     const series = TOKEN_TYPES.map((type, i) => ({
         key: type.key,
         label: type.label,
-        color: usageColor(SERIES_COLORS[i]),
+        color: analyticsColor(SERIES_COLORS[i]),
         values: points.map((p) => p[type.key]),
         hidden: hidden[type.key],
     }))
@@ -279,7 +283,7 @@ export const TokensCard = ({ctx}: {ctx: OverviewContext}) => {
             .map((key) => ({key, value: ctx.data.callModels[key][i]}))
             .sort((a, b) => b.value - a.value)[0]?.key ?? "—"
     return (
-        <UsageCard
+        <AnalyticsCard
             title="Tokens by type"
             value={formatMetric("tokens", totals.tokens)}
             caption={ctx.rangeLabel}
@@ -318,6 +322,6 @@ export const TokensCard = ({ctx}: {ctx: OverviewContext}) => {
                     />
                 )}
             />
-        </UsageCard>
+        </AnalyticsCard>
     )
 }

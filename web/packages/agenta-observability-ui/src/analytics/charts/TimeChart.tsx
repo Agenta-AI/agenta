@@ -1,6 +1,6 @@
 import {useMemo, type ReactNode} from "react"
 
-import {niceMax} from "@agenta/observability/usage"
+import {niceMax} from "@agenta/observability/analytics"
 import {ChartContainer, ChartTooltip, cn, type ChartConfig} from "@agenta/ui/ui"
 import {
     Bar,

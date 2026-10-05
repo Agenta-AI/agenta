@@ -7,17 +7,17 @@ import {
     formatMoney,
     successRate,
     sum,
-    type UsageDimension,
-    type UsageFilters,
-    type UsageFocus,
-    type UsageMetric,
-    type UsageWindow,
-} from "@agenta/observability/usage"
+    type AnalyticsDimension,
+    type AnalyticsFilters,
+    type AnalyticsFocus,
+    type AnalyticsMetric,
+    type AnalyticsWindow,
+} from "@agenta/observability/analytics"
 import {Segmented, cn} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
-import {SERIES_COLORS, usageColor} from "../colors"
-import {useUsageSplit, type UsageWindowData} from "../useUsageData"
+import {SERIES_COLORS, analyticsColor} from "../colors"
+import {useAnalyticsSplit, type AnalyticsWindowData} from "../useAnalyticsData"
 
 const LIMIT = 8
 const OTHER = "__other"
@@ -31,7 +31,7 @@ interface RunRow {
     tokens: number
 }
 
-const RUN_COLUMNS: {key: UsageMetric; label: string}[] = [
+const RUN_COLUMNS: {key: AnalyticsMetric; label: string}[] = [
     {key: "runs", label: "Runs"},
     {key: "success", label: "Success"},
     {key: "tokens", label: "Tokens"},
@@ -39,7 +39,7 @@ const RUN_COLUMNS: {key: UsageMetric; label: string}[] = [
     {key: "avgcost", label: "Avg / run"},
 ]
 
-const rowValue = (row: RunRow, metric: UsageMetric): number | null => {
+const rowValue = (row: RunRow, metric: AnalyticsMetric): number | null => {
     switch (metric) {
         case "runs":
             return row.runs
@@ -63,16 +63,16 @@ const DIM_OPTIONS = [
 ]
 
 export interface DrawerBreakdownProps {
-    data: UsageWindowData
-    window: UsageWindow
-    filters: UsageFilters
-    focus: UsageFocus | null
-    dim: UsageDimension
-    metric: UsageMetric
+    data: AnalyticsWindowData
+    window: AnalyticsWindow
+    filters: AnalyticsFilters
+    focus: AnalyticsFocus | null
+    dim: AnalyticsDimension
+    metric: AnalyticsMetric
     agentName: (id: string) => string
     unit: string
-    onDim: (dim: UsageDimension) => void
-    onDrill: (focus: UsageFocus, dim: UsageDimension) => void
+    onDim: (dim: AnalyticsDimension) => void
+    onDrill: (focus: AnalyticsFocus, dim: AnalyticsDimension) => void
 }
 
 export const DrawerBreakdown = (props: DrawerBreakdownProps) => (
@@ -84,7 +84,7 @@ export const DrawerBreakdown = (props: DrawerBreakdownProps) => (
                     size="sm"
                     options={DIM_OPTIONS}
                     value={props.dim}
-                    onChange={(value) => props.onDim(value as UsageDimension)}
+                    onChange={(value) => props.onDim(value as AnalyticsDimension)}
                 />
             </div>
             {props.dim !== "tool" ? (
@@ -109,7 +109,7 @@ const RunTable = ({
     const failed = dim === "agent" ? data.agentFailed : data.modelFailed
     const order = dim === "agent" ? data.agentOrder : data.modelOrder
     const top = useMemo(() => order.slice(0, LIMIT), [order])
-    const split = useUsageSplit(dim, top, window, filters, true, focus)
+    const split = useAnalyticsSplit(dim, top, window, filters, true, focus)
     const totals = data.overview.totals
 
     const rows = useMemo<RunRow[]>(() => {
@@ -134,7 +134,7 @@ const RunTable = ({
     }, [top, order.length, runs, failed, split.cost, split.tokens, totals, dim, agentName])
 
     const sortKey = RUN_COLUMNS.some((c) => c.key === metric) ? metric : "cost"
-    const shareKey: UsageMetric = metric === "runs" || metric === "tokens" ? metric : "cost"
+    const shareKey: AnalyticsMetric = metric === "runs" || metric === "tokens" ? metric : "cost"
     const sorted = useMemo(
         () =>
             [...rows].sort(
@@ -199,7 +199,7 @@ const RunTable = ({
                                 <span
                                     className="size-2 shrink-0 rounded-full"
                                     style={{
-                                        background: usageColor(
+                                        background: analyticsColor(
                                             row.key === OTHER
                                                 ? "other"
                                                 : SERIES_COLORS[i % SERIES_COLORS.length],
@@ -213,7 +213,7 @@ const RunTable = ({
                                 className="text-right tabular-nums"
                                 style={
                                     rate !== null && rate < 90
-                                        ? {color: usageColor("textBad")}
+                                        ? {color: analyticsColor("textBad")}
                                         : undefined
                                 }
                             >
@@ -232,7 +232,7 @@ const RunTable = ({
                                         className="block h-full rounded-full"
                                         style={{
                                             width: `${share * 100}%`,
-                                            background: usageColor(
+                                            background: analyticsColor(
                                                 shareKey === "cost" ? "cost" : shareKey,
                                             ),
                                         }}
@@ -297,7 +297,7 @@ const ToolTable = ({data, focus, filters, unit}: DrawerBreakdownProps) => {
                         <span
                             className="size-2 shrink-0 rounded-full"
                             style={{
-                                background: usageColor(SERIES_COLORS[i % SERIES_COLORS.length]),
+                                background: analyticsColor(SERIES_COLORS[i % SERIES_COLORS.length]),
                             }}
                         />
                         <span className="truncate">{row.key}</span>
@@ -312,7 +312,7 @@ const ToolTable = ({data, focus, filters, unit}: DrawerBreakdownProps) => {
                                 className="block h-full rounded-full"
                                 style={{
                                     width: `${total ? (row.calls / total) * 100 : 0}%`,
-                                    background: usageColor("tools"),
+                                    background: analyticsColor("tools"),
                                 }}
                             />
                         </span>
