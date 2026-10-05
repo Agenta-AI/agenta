@@ -132,7 +132,8 @@ export const SettingsCatalog = ({
 }) => {
     const shown = groups.filter((group) => group.items.length > 0 || group.footer)
     return (
-        <div className="flex flex-col gap-8">
+        // The search sits close to what it filters; groups keep their wider gap between them.
+        <div className="flex flex-col gap-5">
             {search || notice ? (
                 <div className="flex flex-col gap-3">
                     {search ? (
@@ -165,26 +166,28 @@ export const SettingsCatalog = ({
             ) : shown.length === 0 ? (
                 empty
             ) : (
-                shown.map((group) => (
-                    <section key={group.key} className="flex flex-col gap-3">
-                        <div className="flex items-baseline gap-1.5">
-                            <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
-                                {group.label}
-                            </h2>
-                            <span className="text-[13px] text-muted-foreground/60">
-                                {group.items.length}
-                            </span>
-                        </div>
-                        {group.items.length ? (
-                            <div className={ROW_GRID}>
-                                {group.items.map((item) => (
-                                    <CatalogRow key={item.key} item={item} />
-                                ))}
+                <div className="flex flex-col gap-8">
+                    {shown.map((group) => (
+                        <section key={group.key} className="flex flex-col gap-3">
+                            <div className="flex items-baseline gap-1.5">
+                                <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
+                                    {group.label}
+                                </h2>
+                                <span className="text-[13px] text-muted-foreground/60">
+                                    {group.items.length}
+                                </span>
                             </div>
-                        ) : null}
-                        {group.footer}
-                    </section>
-                ))
+                            {group.items.length ? (
+                                <div className={ROW_GRID}>
+                                    {group.items.map((item) => (
+                                        <CatalogRow key={item.key} item={item} />
+                                    ))}
+                                </div>
+                            ) : null}
+                            {group.footer}
+                        </section>
+                    ))}
+                </div>
             )}
         </div>
     )
