@@ -594,8 +594,6 @@ const ProviderConnectionCard = ({
                 />
             ) : null}
 
-            <div className="shrink-0 border-0 border-t border-solid border-colorSplit" />
-
             <HarnessesSection
                 choices={harnessChoices}
                 selected={effectiveHarnesses}
