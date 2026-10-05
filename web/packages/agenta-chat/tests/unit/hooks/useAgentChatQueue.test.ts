@@ -7,6 +7,7 @@ import {
     useAgentChatQueue,
     type QueuedMessage,
     type ServerQueueAdapter,
+    type ServerQueueWriteResult,
 } from "../../../src/hooks/useAgentChatQueue"
 
 // The pure predicates (`isHitlPending`, `approvalContinuationSettled`) are unit-tested in the
@@ -132,6 +133,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -167,6 +169,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -200,6 +203,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -231,6 +235,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -251,6 +256,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockRejectedValue(new Error("admission unavailable")),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -273,6 +279,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockRejectedValue(new Error("not ready")),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -295,6 +302,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn(async (message, _policy, watcher) => {
                 if (message.text === "refused") watcher?.onFailed?.()
                 else watcher?.onAccepted?.("exec-1")
@@ -339,6 +347,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockRejectedValue(new Error("steer refused")),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -447,7 +456,12 @@ describe("useAgentChatQueue", () => {
             viewSeq: 1,
             submit: vi.fn(),
             remove: vi.fn(),
-            sendNow: vi.fn(() => new Promise((resolve) => (finish = resolve))),
+            sendNow: vi.fn(
+                () =>
+                    new Promise<ServerQueueWriteResult & {executionId: string | null}>(
+                        (resolve) => (finish = resolve),
+                    ),
+            ),
         }
         const {result} = setup({...settledEmpty, server})
         act(() => result.current.sendQueuedNow?.("input-1"))
@@ -518,6 +532,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [{id: "one", text: "one", source: "server"}],
+            viewSeq: 0,
             submit: vi.fn(),
             remove: vi.fn(),
             edit: vi.fn(),
@@ -541,6 +556,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [{id: "one", text: "one", source: "server"}],
+            viewSeq: 0,
             submit: vi.fn(),
             remove: vi.fn(),
             edit: vi.fn().mockResolvedValue({outcome: "applied", settledSeq: 0}),
@@ -594,6 +610,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockRejectedValue(new Error("unavailable")),
             remove: vi.fn(),
             edit: vi.fn(),
@@ -623,9 +640,7 @@ describe("Send Now over a stop that is still pending", () => {
             viewSeq: 1,
             submit: vi.fn(),
             remove: vi.fn(),
-            sendNow: vi
-                .fn()
-                .mockResolvedValue({outcome: "busy", settledSeq: 1, executionId: null}),
+            sendNow: vi.fn().mockResolvedValue({outcome: "busy", settledSeq: 1, executionId: null}),
         }
         const {result} = setup({...settledEmpty, server})
         act(() => result.current.sendQueuedNow?.("input-2"))
@@ -702,7 +717,9 @@ describe("a steer the transcript took over", () => {
             messages: [userTurn("u1", "skip that")],
             server: {...listing, queued: [row], viewSeq: 3},
         })
-        await waitFor(() => expect(result.current.queued.map((item) => item.id)).toEqual(["input-1"]))
+        await waitFor(() =>
+            expect(result.current.queued.map((item) => item.id)).toEqual(["input-1"]),
+        )
     })
 })
 
@@ -720,6 +737,60 @@ describe("a queued input that starts on its own", () => {
         const {result, rerender} = setup({...settledEmpty, server: listing})
         rerender({...settledEmpty, messages: [userTurn("u1", "next")], server: listing})
         rerender({...settledEmpty, messages: [userTurn("u1", "next")], server: server([], 2)})
+        expect(result.current.queued).toEqual([])
+    })
+})
+
+describe("a promoted queued input the listing drops", () => {
+    const promoted: QueuedMessage = {
+        id: "input-1",
+        text: "next",
+        source: "server",
+        promotedExecutionId: "turn-2",
+    }
+    const saved = {...userTurn("u2", "next"), metadata: {turnId: "turn-2"}} as UIMessage
+    const server = (queued: QueuedMessage[], viewSeq: number): ServerQueueAdapter => ({
+        busy: true,
+        queued,
+        viewSeq,
+        submit: vi.fn(),
+        remove: vi.fn(),
+    })
+
+    it("stays in the dock, button-less, until its own turn's user row lands", () => {
+        const {result, rerender} = setup({...settledEmpty, server: server([promoted], 1)})
+        rerender({...settledEmpty, server: server([], 2)})
+        expect(result.current.queued).toEqual([
+            expect.objectContaining({id: "input-1", source: "local", editable: false}),
+        ])
+        rerender({...settledEmpty, messages: [saved], server: server([], 2)})
+        expect(result.current.queued).toEqual([])
+    })
+
+    it("is never shown again once its user row has landed", () => {
+        const {result, rerender} = setup({...settledEmpty, server: server([promoted], 1)})
+        rerender({...settledEmpty, messages: [saved], server: server([promoted], 1)})
+        rerender({...settledEmpty, messages: [saved], server: server([], 2)})
+        expect(result.current.queued).toEqual([])
+    })
+
+    it("lets go after the time limit when the user row never lands", () => {
+        vi.useFakeTimers()
+        try {
+            const {result, rerender} = setup({...settledEmpty, server: server([promoted], 1)})
+            rerender({...settledEmpty, server: server([], 2)})
+            expect(result.current.queued).toHaveLength(1)
+            act(() => void vi.advanceTimersByTime(2_000))
+            expect(result.current.queued).toEqual([])
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("does not hold a steer, which its echo already shows", () => {
+        const steer = {...promoted, policy: "steer" as const}
+        const {result, rerender} = setup({...settledEmpty, server: server([steer], 1)})
+        rerender({...settledEmpty, server: server([], 2)})
         expect(result.current.queued).toEqual([])
     })
 })
@@ -756,7 +827,9 @@ describe("promoted inputs", () => {
 describe("durable queued edits", () => {
     it("shows the new text and closes at once; a failure keeps the edit on the row", async () => {
         let finish!: (result: {outcome: "applied" | "failed"; settledSeq: number}) => void
-        const edit = vi.fn(() => new Promise((resolve) => (finish = resolve)))
+        const edit = vi.fn(
+            () => new Promise<ServerQueueWriteResult>((resolve) => (finish = resolve)),
+        )
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [
@@ -873,7 +946,9 @@ it.each([false, true])(
     "does not overwrite a newer edit when an older save settles (failure=%s)",
     async (failure) => {
         let finish!: (result: {outcome: "applied" | "failed"; settledSeq: number}) => void
-        const edit = vi.fn(() => new Promise((resolve) => (finish = resolve)))
+        const edit = vi.fn(
+            () => new Promise<ServerQueueWriteResult>((resolve) => (finish = resolve)),
+        )
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [

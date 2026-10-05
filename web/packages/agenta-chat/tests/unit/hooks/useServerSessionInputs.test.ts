@@ -262,6 +262,9 @@ const setupRunningElsewhereAdmission = async ({
         if (requestCount === 1) {
             const body = new ReadableStream({
                 start(controller) {
+                    // Name the turn as the runner does; the next send waits for it.
+                    const named = {type: "message-metadata", messageMetadata: {turnId: "turn-fresh"}}
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(named)}\n\n`))
                     let closed = false
                     closeFreshResponse = () => {
                         if (closed) return

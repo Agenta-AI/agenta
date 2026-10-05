@@ -16,11 +16,7 @@ import {buildRequestWithinDeadline, PREPARE_NOT_READY_MESSAGE} from "../assets/b
 import {outboundUserParts} from "../assets/displayContent"
 import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
-import {
-    startupPhaseFromDataPart,
-    type StartupPhase,
-    type TurnStage,
-} from "../assets/startupPhases"
+import {startupPhaseFromDataPart, type StartupPhase, type TurnStage} from "../assets/startupPhases"
 import {readSendRefusal} from "../model/error"
 
 import type {QueuedMessage, ServerQueueWriteResult} from "./useAgentChatQueue"
@@ -53,7 +49,7 @@ export interface ServerInputWatcher {
     onTurnStage?: (stage: TurnStage) => void
     /** The send will likely start a turn rather than park, so its stage is narrated. */
     opensTurn?: boolean
-    /** The runner admitted this send's turn, so a later send parks behind it. */
+    /** The runner admitted this send's turn, or its run stream ended: a later send may go now. */
     onTurnNamed?: () => void
 }
 
@@ -467,6 +463,7 @@ export const useServerSessionInputs = ({
                 },
             })
                 .then(async ({accepted, ended}) => {
+                    watcher?.onTurnNamed?.()
                     if (!mount.isCurrent(generation)) return
                     await refresh({fresh: true})
                     if (!mount.isCurrent(generation)) return
@@ -486,7 +483,7 @@ export const useServerSessionInputs = ({
                     // Settling on any of them would put "wasn't sent" under a message that was.
                     if (accepted && ended && reconciled !== false) watcher?.onSettled?.()
                 })
-                .catch(() => undefined)
+                .catch(() => watcher?.onTurnNamed?.())
             return "running"
         },
         [mount, refresh, scope, sessionId],

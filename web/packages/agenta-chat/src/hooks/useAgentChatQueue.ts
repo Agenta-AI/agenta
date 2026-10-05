@@ -141,6 +141,9 @@ export const CONTINUATION_HOLD_MAX_MS = 45_000
 /** Longest the next send waits for this one's turn to be named before it is admitted anyway. */
 const ADMISSION_NAME_MAX_MS = 10_000
 
+/** Longest a started row stays in the dock while its user row is on its way. */
+const RELEASE_HOLD_MAX_MS = 2_000
+
 /**
  * Admits every composer send through the durable session queue, keeps an echo row for each send
  * until the transcript or the dock owns it, and edits the server-held queue.
@@ -315,6 +318,49 @@ export const useAgentChatQueue = ({
         if (handoff?.untilSeq != null && server.viewSeq >= handoff.untilSeq) setHandoff(null)
     }, [handoff, server.viewSeq])
 
+    // A promoted row the server stops listing stays, button-less, until its turn's user row lands.
+    const [held, setHeld] = useState<{row: QueuedMessage; turnId: string; until: number}[]>([])
+    const queuedKey = server.queued
+        .map((row) => `${row.id}:${row.promotedExecutionId ?? ""}`)
+        .join()
+    const [lastQueued, setLastQueued] = useState({key: queuedKey, rows: server.queued})
+    if (lastQueued.key !== queuedKey) {
+        setLastQueued({key: queuedKey, rows: server.queued})
+        const listed = new Set(server.queued.map((item) => item.id))
+        const until = Date.now() + RELEASE_HOLD_MAX_MS
+        const started = lastQueued.rows.flatMap((row) => {
+            const turnId = row.promotedExecutionId
+            if (!turnId || transcriptTurnIds.has(turnId) || listed.has(row.id)) return []
+            if (row.policy === "steer" || row.id === editingId || ops[row.id]) return []
+            return [{row: {...row, source: "local" as const, editable: false}, turnId, until}]
+        })
+        if (started.length) {
+            const ids = new Set(started.map((item) => item.row.id))
+            setHeld((current) => [...current.filter((item) => !ids.has(item.row.id)), ...started])
+        }
+    }
+    const heldRows = useMemo(() => {
+        const listed = new Set(server.queued.map((item) => item.id))
+        return held
+            .filter(
+                (item) =>
+                    Date.now() < item.until &&
+                    !transcriptTurnIds.has(item.turnId) &&
+                    !listed.has(item.row.id),
+            )
+            .map((item) => item.row)
+    }, [held, server.queued, transcriptTurnIds])
+    // The time limit needs a render of its own once nothing else changes.
+    useEffect(() => {
+        if (!held.length) return
+        const next = Math.min(...held.map((item) => item.until)) - Date.now()
+        const timer = setTimeout(
+            () => setHeld((current) => current.filter((item) => Date.now() < item.until)),
+            Math.max(next, 0),
+        )
+        return () => clearTimeout(timer)
+    }, [held])
+
     // A steer this tab sent is on its way INTO the running turn, not held behind it, so while its
     // echo is on screen the dock leaves the row out rather than showing the same message twice.
     // Derived from the live echoes, so the row comes back the moment the echo stops covering it —
@@ -329,6 +375,7 @@ export const useAgentChatQueue = ({
             echoes.retiredParkedIds.has(item.id) ||
             !!handoff?.ids.has(item.id)
         return [
+            ...heldRows,
             ...applyQueueOps(server.queued, ops, rowErrors).filter(
                 (item) =>
                     !echoes.dockCoveredIds.has(item.id) &&
@@ -340,6 +387,7 @@ export const useAgentChatQueue = ({
                 .map((item) => ({...item, removable: true})),
         ]
     }, [
+        heldRows,
         server.queued,
         ops,
         rowErrors,
