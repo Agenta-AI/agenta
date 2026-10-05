@@ -246,12 +246,6 @@ export {
 } from "./touch-target"
 export {cn} from "./utils"
 export {
-    DataTable,
-    type DataTableProps,
-    type DataTableColumn,
-    type DataTableAction,
-} from "./data-table"
-export {
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
