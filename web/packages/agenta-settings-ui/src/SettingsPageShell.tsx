@@ -38,17 +38,17 @@ const columnClassName = (variant: SettingsPageShellProps["variant"]) =>
         variant !== "full" && "mx-auto max-w-[1040px]",
     )
 
-const DocsLink = ({docs, className}: {docs: {label: string; href: string}; className: string}) => (
+/** On a phone the label folds to its icon, so the title keeps its room. */
+const DocsLink = ({docs}: {docs: {label: string; href: string}}) => (
     <a
-        className={clsx(
-            "shrink-0 items-center gap-1.5 text-[13px] text-colorTextSecondary no-underline hover:text-colorText",
-            className,
-        )}
+        className="flex shrink-0 items-center gap-1.5 text-[13px] text-colorTextSecondary no-underline hover:text-colorText"
         href={docs.href}
         target="_blank"
         rel="noopener noreferrer"
+        aria-label={docs.label}
+        title={docs.label}
     >
-        {docs.label}
+        <span className="hidden sm:inline">{docs.label}</span>
         <ArrowSquareOut size={13} />
     </a>
 )
@@ -85,7 +85,7 @@ const SettingsPageShell = ({
                     </h1>
 
                     <div className="flex shrink-0 items-center gap-4">
-                        {docs ? <DocsLink docs={docs} className="hidden sm:flex" /> : null}
+                        {docs ? <DocsLink docs={docs} /> : null}
                         <div
                             ref={setActionsSlot}
                             className="flex items-center gap-2 empty:hidden"
@@ -93,8 +93,6 @@ const SettingsPageShell = ({
                     </div>
                 </div>
                 <p className="m-0 text-[14px] leading-5 text-colorTextSecondary">{description}</p>
-                {/* A phone's title row has room for the action only. */}
-                {docs ? <DocsLink docs={docs} className="flex self-start sm:hidden" /> : null}
             </header>
 
             <div
