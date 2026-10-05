@@ -147,7 +147,6 @@ export const AnalyticsToolbar = ({
                 onChange={onGroupChange}
                 label={group === "none" ? "Group" : `Group: ${GROUP_LABEL[group]}`}
                 icon={<Rows size={ICON} />}
-                active={group !== "none"}
             />
 
             {active.map((dim) => {
