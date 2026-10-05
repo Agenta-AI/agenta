@@ -14,13 +14,11 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton, message} from "@agenta/ui"
 import {Tag} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, InputAffix, LoadingButton, Segmented, SkeletonBlock} from "@agenta/ui/ui"
+import {Button, InputAffix, LoadingButton, SkeletonBlock} from "@agenta/ui/ui"
 import {
     ArrowLeft,
-    BracketsRound,
     CaretRight,
     CopySimple,
-    ListDashes,
     MagnifyingGlass,
     Play,
     Wrench,
@@ -355,7 +353,6 @@ function ActionDetailStep({
     const schemaFormRef = useRef<SchemaFormHandle>(null)
     const {action, isLoading: detailLoading} = useToolActionDetail(integrationKey, actionKey)
     const {execute, isExecuting, result, error} = useToolExecution()
-    const [viewMode, setViewMode] = useState<"form" | "json">("form")
 
     // The fetch endpoint always returns the detailed variant; narrow so we
     // can reach `schemas`. The wider union exists because Fern reuses the
@@ -365,7 +362,6 @@ function ActionDetailStep({
     const inputSchema = detailedAction?.schemas?.inputs ?? null
     const outputSchema = detailedAction?.schemas?.outputs ?? null
     const displayName = action?.name ?? actionName ?? actionKey
-    const jsonMode = viewMode === "json"
 
     const handleCopyInputs = useCallback(() => {
         try {
@@ -412,28 +408,9 @@ function ActionDetailStep({
                         All actions
                     </button>
                 )}
-                <div className="flex items-center gap-3">
-                    <span className="min-w-0 flex-1 truncate text-base font-medium text-foreground">
-                        {detailLoading ? "Loading…" : displayName}
-                    </span>
-                    <Segmented
-                        size="sm"
-                        value={viewMode}
-                        onChange={(v) => setViewMode(v as "form" | "json")}
-                        options={[
-                            {
-                                value: "form",
-                                icon: <ListDashes size={14} />,
-                                "aria-label": "Form view",
-                            },
-                            {
-                                value: "json",
-                                icon: <BracketsRound size={14} />,
-                                "aria-label": "JSON view",
-                            },
-                        ]}
-                    />
-                </div>
+                <span className="truncate text-base font-medium text-foreground">
+                    {detailLoading ? "Loading…" : displayName}
+                </span>
                 {action?.description && (
                     <p className="m-0 line-clamp-3 text-[13px] leading-5 text-colorTextDescription">
                         {action.description}
@@ -459,22 +436,19 @@ function ActionDetailStep({
                                 <span className="text-[13px] font-medium text-muted-foreground">
                                     Inputs
                                 </span>
-                                {!jsonMode && (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label="Copy inputs"
-                                        onClick={handleCopyInputs}
-                                    >
-                                        <CopySimple size={14} />
-                                    </Button>
-                                )}
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Copy inputs"
+                                    onClick={handleCopyInputs}
+                                >
+                                    <CopySimple size={14} />
+                                </Button>
                             </div>
                             <SchemaForm
                                 ref={schemaFormRef}
                                 schema={inputSchema as Record<string, unknown> | null}
                                 disabled={isExecuting}
-                                jsonMode={jsonMode}
                             />
                         </div>
 
@@ -488,7 +462,6 @@ function ActionDetailStep({
                                     result={result}
                                     error={error}
                                     outputSchema={outputSchema as Record<string, unknown> | null}
-                                    jsonMode={jsonMode}
                                 />
                             ) : (
                                 <div className="flex flex-col items-center gap-1 rounded-[10px] border border-dashed border-border px-4 py-6 text-center">
