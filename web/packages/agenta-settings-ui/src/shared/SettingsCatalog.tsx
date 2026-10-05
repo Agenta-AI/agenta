@@ -4,7 +4,7 @@ import {ListTableToolbar} from "@agenta/ui/list-table"
 import {SkeletonBlock, cn} from "@agenta/ui/ui"
 import {CaretRight, Plus} from "@phosphor-icons/react"
 
-/** A row's state: `attention` names its problem in the subtitle, `available` draws a "+". */
+/** A row's state: `attention` names its problem beside the name, `available` draws a "+". */
 export type SettingsCatalogStatus = "connected" | "attention" | "available"
 
 export interface SettingsCatalogItem {
@@ -14,7 +14,7 @@ export interface SettingsCatalogItem {
     name: ReactNode
     description?: ReactNode
     status: SettingsCatalogStatus
-    /** The problem on a broken row (shown in its subtitle), the verb on an available one. */
+    /** The problem on a broken row (shown beside its name), the verb on an available one. */
     statusLabel: string
     /** Opening the row: the connection's detail when connected, the connect flow when not. */
     onOpen?: () => void
@@ -46,7 +46,7 @@ const FOCUS_RING =
 /** Rows sit in two columns where they fit, one on a phone. */
 const ROW_GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-x-8 gap-y-0.5"
 
-/** The "+" on a row one click from connecting. Broken rows say their problem in the subtitle. */
+/** The "+" on a row one click from connecting. Broken rows say their problem beside the name. */
 const ConnectMark = ({label}: {label: string}) => (
     <span
         title={label}
@@ -87,22 +87,20 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
                 {item.logo}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className="truncate text-[14.5px] font-medium leading-5 text-foreground">
-                    {item.name}
+                <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-[14.5px] font-medium leading-5 text-foreground">
+                        {item.name}
+                    </span>
+                    {/* Beside the name and never truncated, so the problem always shows. */}
+                    {attention ? (
+                        <span className="flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-colorWarning">
+                            <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                            {item.statusLabel}
+                        </span>
+                    ) : null}
                 </span>
-                {item.description || attention ? (
+                {item.description ? (
                     <span className="truncate text-[13px] leading-[18px] text-muted-foreground">
-                        {/* The problem leads the line, so truncation never hides it. */}
-                        {attention ? (
-                            <span className="font-medium text-colorWarning">
-                                <span
-                                    aria-hidden
-                                    className="mr-1.5 inline-block size-1.5 rounded-full bg-current align-middle"
-                                />
-                                {item.statusLabel}
-                                {item.description ? " · " : null}
-                            </span>
-                        ) : null}
                         {item.description}
                     </span>
                 ) : null}
