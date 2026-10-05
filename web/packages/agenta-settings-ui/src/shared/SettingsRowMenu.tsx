@@ -55,13 +55,13 @@ export const SettingsRowMenu = ({
                 <DropdownMenuTrigger asChild>
                     <Button
                         type="button"
-                        size="icon-xs"
+                        size="icon"
                         variant="ghost"
                         aria-label={label}
                         // The row already hovers to accent; an accent button on it would not show.
                         className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                     >
-                        <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                        <DotsThreeVertical aria-hidden weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[180px]">

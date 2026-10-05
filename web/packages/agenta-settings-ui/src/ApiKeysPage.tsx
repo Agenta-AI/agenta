@@ -26,7 +26,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "created_at", label: "Created", width: "minmax(96px,1fr)"},
     {key: "expiration_date", label: "Expires", width: "minmax(96px,1fr)"},
     {key: "last_used_at", label: "Last used", width: "minmax(140px,1.4fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
 const ExpiresCell = ({value}: {value?: string | null}) => {
@@ -65,7 +65,7 @@ export const ApiKeysPage = ({
     }
 
     const generate = canEdit ? (
-        <Button size="sm" disabled={creating || listing} onClick={onCreate}>
+        <Button disabled={creating || listing} onClick={onCreate}>
             <Plus size={14} />
             Generate key
         </Button>

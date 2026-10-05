@@ -285,7 +285,6 @@ export default function GatewayToolsSection({
         () => (
             <Button
                 variant="ghost"
-                size="sm"
                 className="text-muted-foreground"
                 onClick={() => setCatalogOpen(true)}
             >
@@ -437,7 +436,7 @@ export default function GatewayToolsSection({
                         <SimpleTooltip title="Reload all connections">
                             <Button
                                 variant="outline"
-                                size="icon-sm"
+                                size="icon"
                                 aria-label="Reload all connections"
                                 disabled={reloading}
                                 onClick={reloadAll}
@@ -453,11 +452,7 @@ export default function GatewayToolsSection({
                                 title={copy.noMatch(searchTerm.trim())}
                                 action={
                                     <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setSearchTerm("")}
-                                        >
+                                        <Button variant="outline" onClick={() => setSearchTerm("")}>
                                             Clear search
                                         </Button>
                                         {readOnly ? null : browseAll}

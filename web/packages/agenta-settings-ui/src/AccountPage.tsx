@@ -112,7 +112,6 @@ export const AccountPage = ({
                         control={
                             <Button
                                 variant="destructive"
-                                size="sm"
                                 disabled={!address}
                                 onClick={() => setOpen(true)}
                             >

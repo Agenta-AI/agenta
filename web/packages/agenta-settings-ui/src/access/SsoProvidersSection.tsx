@@ -16,7 +16,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "callback_url", label: "Callback URL", width: "minmax(220px,2.4fr)"},
     {key: "status", label: "Status", width: "minmax(96px,1fr)"},
     {key: "enable", label: "Enable", srOnly: true, width: "72px"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
 export interface SsoProvidersSectionProps {
@@ -65,7 +65,7 @@ export const SsoProvidersSection = ({
 }: SsoProvidersSectionProps) => {
     const addButton = (variant?: "outline") =>
         onAdd ? (
-            <Button size="sm" variant={variant} onClick={onAdd} disabled={loading}>
+            <Button variant={variant} onClick={onAdd} disabled={loading}>
                 <Plus size={14} />
                 {addLabel}
             </Button>
@@ -129,11 +129,7 @@ export const SsoProvidersSection = ({
                             )}
                             <span className="flex justify-end">
                                 {(!isEnabled(record) || !isValid(record)) && onEnable ? (
-                                    <Button
-                                        size="sm"
-                                        disabled={enabling}
-                                        onClick={() => onEnable(record)}
-                                    >
+                                    <Button disabled={enabling} onClick={() => onEnable(record)}>
                                         Enable
                                     </Button>
                                 ) : null}

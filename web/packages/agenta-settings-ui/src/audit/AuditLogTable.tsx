@@ -50,7 +50,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "timestamp", label: "Timestamp", width: "minmax(160px,1.2fr)"},
     {key: "actor", label: "User", width: "minmax(140px,1fr)"},
     {key: "id", label: "ID", width: "minmax(240px,2fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
 // Mirror the relative presets offered by the host's date-range picker, so Refresh can

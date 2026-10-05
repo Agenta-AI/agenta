@@ -19,7 +19,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "expires_at", label: "Expiration", width: "minmax(160px,1.4fr)"},
     {key: "is_verified", label: "Status", width: "minmax(96px,1fr)"},
     {key: "verify", label: "Verify", srOnly: true, width: "72px"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
 const ExpirationCell = ({domain}: {domain: OrganizationDomain}) => {
@@ -66,7 +66,7 @@ export const DomainsSection = ({
 }: DomainsSectionProps) => {
     const addButton = (variant?: "outline") =>
         onAdd ? (
-            <Button size="sm" variant={variant} onClick={onAdd} disabled={loading}>
+            <Button variant={variant} onClick={onAdd} disabled={loading}>
                 <Plus size={14} />
                 Add domain
             </Button>
@@ -119,11 +119,7 @@ export const DomainsSection = ({
                             )}
                             <span className="flex justify-end">
                                 {!verified && onVerify ? (
-                                    <Button
-                                        size="sm"
-                                        disabled={verifying}
-                                        onClick={() => onVerify(record)}
-                                    >
+                                    <Button disabled={verifying} onClick={() => onVerify(record)}>
                                         Verify
                                     </Button>
                                 ) : null}

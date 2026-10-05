@@ -114,7 +114,7 @@ export const EventIdCell = ({eventId}: {eventId: string}) => {
                 icon
                 stopPropagation
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 aria-label="Copy event id"
             />
         </div>

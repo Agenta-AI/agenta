@@ -115,11 +115,7 @@ export const BillingPage = ({
     const limits = Object.entries(usage ?? {}).filter(([key]) => !OWN_SECTION_METRICS.has(key))
     const users = usage?.users
 
-    const upgradeButton = onUpgrade ? (
-        <Button size="sm" onClick={onUpgrade}>
-            Upgrade plan
-        </Button>
-    ) : null
+    const upgradeButton = onUpgrade ? <Button onClick={onUpgrade}>Upgrade plan</Button> : null
 
     const renewsAt = periodEnd(subscription)
     // A subscription is worth showing even where nothing can be changed about it, so a host
@@ -159,11 +155,7 @@ export const BillingPage = ({
                                 <div className="flex flex-wrap items-center gap-2">
                                     {upgradeButton}
                                     {onCancelSubscription ? (
-                                        <Button
-                                            variant="link"
-                                            size="sm"
-                                            onClick={onCancelSubscription}
-                                        >
+                                        <Button variant="link" onClick={onCancelSubscription}>
                                             Cancel subscription
                                         </Button>
                                     ) : null}
@@ -223,7 +215,7 @@ export const BillingPage = ({
                         />
                     </div>
                     {onViewMembers ? (
-                        <Button variant="outline" size="sm" onClick={onViewMembers}>
+                        <Button variant="outline" onClick={onViewMembers}>
                             View members
                         </Button>
                     ) : null}
@@ -238,7 +230,6 @@ export const BillingPage = ({
                         control={
                             <Button
                                 variant="outline"
-                                size="sm"
                                 onClick={onOpenBillingPortal}
                                 disabled={openingBillingPortal}
                             >

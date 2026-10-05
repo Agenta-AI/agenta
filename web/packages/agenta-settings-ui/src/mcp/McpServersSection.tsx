@@ -102,7 +102,7 @@ const ACTIONS_COLUMN: ListTableColumn = {
     key: "actions",
     label: "Actions",
     srOnly: true,
-    width: "24px",
+    width: "32px",
 }
 
 export interface McpServersSectionProps {
@@ -258,7 +258,7 @@ export default function McpServersSection({
     const empty = !isPending && rows.length === 0
 
     const connect = (
-        <Button size="sm" data-testid="mcp-connect-open" onClick={openConnect}>
+        <Button data-testid="mcp-connect-open" onClick={openConnect}>
             <Plus size={14} />
             {copy.connect}
         </Button>
@@ -346,6 +346,7 @@ export default function McpServersSection({
                                 {status !== "connected" && !readOnly ? (
                                     <Button
                                         variant="link"
+                                        // An inline link in a dense status cell: kept at the 24px step its touch target is built on.
                                         size="xs"
                                         // No `h-auto`: the size's own height is the control scale, and
                                         // the invisible expansion lifts the 24px to a 44px touch target.

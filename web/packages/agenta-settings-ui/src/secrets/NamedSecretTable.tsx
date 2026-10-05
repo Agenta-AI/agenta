@@ -52,7 +52,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "content", label: "Value", width: "minmax(120px,1fr)"},
     {key: "format", label: "Format", width: "minmax(72px,0.6fr)"},
     {key: "created_at", label: "Created", width: "minmax(130px,1fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
 export const NamedSecretTable = ({
@@ -80,7 +80,7 @@ export const NamedSecretTable = ({
 
     // The form is the host's; without one this would open nothing, so it is absent rather than dead.
     const create = renderConfigureDialog ? (
-        <Button size="sm" disabled={loading} onClick={openCreate}>
+        <Button disabled={loading} onClick={openCreate}>
             <Plus size={14} />
             Create secret
         </Button>

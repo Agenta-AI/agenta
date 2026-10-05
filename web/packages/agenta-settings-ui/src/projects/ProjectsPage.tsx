@@ -33,7 +33,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "project_name", label: "Project", width: "minmax(200px,2fr)"},
     {key: "project_id", label: "Project ID", width: "minmax(240px,2fr)"},
     {key: "user_role", label: "Your role", width: "minmax(96px,1fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
 export interface ProjectDialogState<T> {
@@ -179,7 +179,7 @@ export const ProjectsPage = ({
     }, [])
 
     const newProject = canEdit ? (
-        <Button size="sm" onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
+        <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
             <Plus size={14} />
             New project
         </Button>

@@ -36,7 +36,7 @@ export const SettingsToolbar = ({
                     <SimpleTooltip title={reloadLabel}>
                         <Button
                             variant="outline"
-                            size="icon-sm"
+                            size="icon"
                             aria-label={reloadLabel}
                             disabled={reloading}
                             onClick={() => onReload()}

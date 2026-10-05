@@ -26,7 +26,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "name", label: "Organization", width: "minmax(200px,2fr)"},
     {key: "id", label: "Organization ID", width: "minmax(220px,2fr)"},
     {key: "owner_id", label: "Your role", width: "minmax(96px,1fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
 export interface OrganizationsPageProps {
@@ -74,7 +74,7 @@ export const OrganizationsPage = ({
 
     const createButton = (variant?: "outline") =>
         onCreate ? (
-            <Button size="sm" variant={variant} onClick={onCreate} disabled={loading}>
+            <Button variant={variant} onClick={onCreate} disabled={loading}>
                 <Plus size={14} />
                 New organization
             </Button>

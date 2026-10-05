@@ -190,7 +190,7 @@ export const ChannelsSettingsPage = ({
                             className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-[13px] text-error"
                         >
                             <span className="min-w-0">{loadError}</span>
-                            <Button variant="outline" size="sm" disabled={retrying} onClick={retry}>
+                            <Button variant="outline" disabled={retrying} onClick={retry}>
                                 {retrying ? "Retrying…" : "Try again"}
                             </Button>
                         </div>

@@ -66,7 +66,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "url", label: "Target", width: "minmax(180px,2fr)"},
     {key: "events", label: "Events", width: "minmax(140px,1.4fr)"},
     {key: "status", label: "Status", width: "minmax(96px,0.8fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
 export interface WebhooksPageProps {
@@ -150,7 +150,7 @@ export const WebhooksPage = ({
     }, [webhooks])
 
     const subscribe = renderDrawer ? (
-        <Button size="sm" onClick={handleCreate} disabled={isLoading}>
+        <Button onClick={handleCreate} disabled={isLoading}>
             <Plus size={14} />
             Subscribe
         </Button>

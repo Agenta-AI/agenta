@@ -34,7 +34,7 @@ const ROLE_COLUMN: ListTableColumn = {key: "roles", label: "Role", width: "minma
 const TAIL_COLUMNS: ListTableColumn[] = [
     {key: "status", label: "Status", width: "minmax(96px,1fr)"},
     {key: "created_at", label: "Added", width: "minmax(96px,1fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
 const usernameFromEmail = (email?: string | null) => (email ? email.split("@")[0] : "")
@@ -114,7 +114,7 @@ export const MembersPage = ({
 
     const inviteButton = (variant?: "outline") =>
         canInviteMembers && onInvite ? (
-            <Button size="sm" variant={variant} onClick={onInvite} disabled={loading}>
+            <Button variant={variant} onClick={onInvite} disabled={loading}>
                 <Plus size={14} />
                 Invite members
             </Button>
@@ -146,11 +146,7 @@ export const MembersPage = ({
                             icon={<MagnifyingGlass size={18} />}
                             title={`No members match “${searchTerm.trim()}”`}
                             action={
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => onSearchChange("")}
-                                >
+                                <Button variant="outline" onClick={() => onSearchChange("")}>
                                     Clear search
                                 </Button>
                             }
