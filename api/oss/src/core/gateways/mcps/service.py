@@ -21,7 +21,6 @@ from oss.src.core.gateways.dtos import (
 from oss.src.core.gateways.mcps.dtos import (
     AGENTA_PROVIDER,
     COMPOSIO_PROVIDER,
-    MANAGED_PROVIDER,
     MOCK_PROVIDER,
     MCPBrokeredAuth,
     MCPCallContext,
@@ -45,9 +44,7 @@ from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthRefresherInterfa
 from oss.src.core.gateways.mcps.oauth.storage import grant_settings_expired
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
-from oss.src.core.gateways.mcps.providers.managed.adapter import ManagedMCPAdapter
-from oss.src.core.gateways.run_claims import gateway_run_id, gateway_run_labels
-from oss.src.core.managed_tools.dtos import ManagedActionContext
+from oss.src.core.gateways.run_claims import gateway_run_id
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
@@ -232,7 +229,6 @@ class MCPGatewayService:
         connections_service: ConnectionsService,
         agenta_tools_router: Optional[Any] = None,
         oauth_refresher: Optional[MCPOAuthRefresherInterface] = None,
-        managed_tools: Optional[ManagedMCPAdapter] = None,
     ) -> None:
         self.mcp_endpoints_dao = mcp_endpoints_dao
         self.policy = policy
@@ -243,8 +239,6 @@ class MCPGatewayService:
         # Absent only in tests that never resolve an OAuth endpoint; a deployment wires
         # the connect service, which is what knows how to spend a refresh token.
         self.oauth_refresher = oauth_refresher
-        # Wired only in EE with the wallet on: managed actions spend Agenta's accounts.
-        self.managed_tools = managed_tools
 
     # Management
 
@@ -444,7 +438,6 @@ class MCPGatewayService:
             *self._agenta_endpoints(),
             *builtin,
             *self._mock_endpoints(),
-            *self._managed_endpoints(),
             *standard,
             *custom,
         ]
@@ -476,20 +469,6 @@ class MCPGatewayService:
                 auth_mode=MCPAuthScheme.NONE,
                 namespace=GatewayEndpointNamespace.BUILTIN,
                 provider_key=MOCK_PROVIDER,
-                data=MCPEndpointData(route=MCPEndpointRoute()),
-            )
-        ]
-
-    def _managed_endpoints(self) -> List[MCPEndpoint]:
-        if self.managed_tools is None:
-            return []
-        return [
-            MCPEndpoint(
-                slug=MANAGED_PROVIDER,
-                name="Managed Tools",
-                auth_mode=MCPAuthScheme.NONE,
-                namespace=GatewayEndpointNamespace.BUILTIN,
-                provider_key=MANAGED_PROVIDER,
                 data=MCPEndpointData(route=MCPEndpointRoute()),
             )
         ]
@@ -709,26 +688,6 @@ class MCPGatewayService:
             )
             return result
 
-        # Managed actions dial no gateway upstream either. The executor admits and bills
-        # each `tools/call`; the context comes from the credential, never the body.
-        if provider == MANAGED_PROVIDER and self.managed_tools is not None:
-            labels = gateway_run_labels(request) or {}
-            result = await self.managed_tools.relay(
-                context=ManagedActionContext(
-                    organization_id=scope.organization_id,
-                    project_id=scope.project_id,
-                    user_id=scope.user_id,
-                    run_id=run_id,
-                    session_id=labels.get("session_id"),
-                    agent_id=labels.get("agent_id"),
-                ),
-                body=body,
-            )
-            await record(
-                self._outcome_for(result=result, auth=MCPDirectAuth(secret=None))
-            )
-            return result
-
         # Resolve the endpoint credentials.
         auth = await self._resolve_auth(scope=scope, target=target)
 
@@ -842,19 +801,6 @@ class MCPGatewayService:
         ):
             endpoint = next(
                 (e for e in self._agenta_endpoints() if e.slug == name), None
-            )
-            if endpoint is None:
-                raise MCPEndpointNotFoundError(namespace=namespace, name=name)
-            return _ResolvedTarget(
-                namespace=namespace, name=name, provider=provider, endpoint=endpoint
-            )
-
-        if (
-            namespace == GatewayEndpointNamespace.BUILTIN
-            and provider == MANAGED_PROVIDER
-        ):
-            endpoint = next(
-                (e for e in self._managed_endpoints() if e.slug == name), None
             )
             if endpoint is None:
                 raise MCPEndpointNotFoundError(namespace=namespace, name=name)

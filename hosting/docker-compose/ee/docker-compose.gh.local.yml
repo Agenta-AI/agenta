@@ -356,9 +356,6 @@ services:
             # admit the run and then strand it inside the sandbox. Default off; see
             # docs/docs/self-host/reference/01-configuration.mdx.
             AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED: ${AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED:-}
-            # The API's wallet switch, mirrored: on, the runner asks the wallet before a Daytona
-            # turn and reports its sandbox seconds; off, it makes neither call.
-            AGENTA_WALLETS_ENABLED: ${AGENTA_WALLETS_ENABLED:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -595,7 +592,7 @@ services:
                 --forward-to,
                 http://api:8000/billing/stripe/events/,
                 --events,
-                "customer.subscription.created,customer.subscription.deleted,invoice.updated,invoice.upcoming,invoice.payment_failed,invoice.payment_succeeded,checkout.session.completed",
+                "customer.subscription.created,customer.subscription.deleted,invoice.updated,invoice.upcoming,invoice.payment_failed,invoice.payment_succeeded",
             ]
         # === CONFIGURATION ======================================== #
         env_file:

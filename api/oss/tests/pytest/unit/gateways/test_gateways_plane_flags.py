@@ -36,7 +36,6 @@ from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
 from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import LLMGatewayConnectionResolution
-from oss.src.core.gateways.types import BUILTIN_MODELS_NOT_ENABLED_MESSAGE
 from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
 
@@ -200,9 +199,6 @@ def test_llm_resolve_refuses_with_a_code_the_sdk_can_branch_on(
     assert envelope["code"] == "llm_gateway_disabled"
     assert envelope["retryable"] is False
     assert envelope["details"] == {"flag": LLM_FLAG}
-    # People read the message; the switch to change is logged, not sent.
-    assert envelope["message"] == BUILTIN_MODELS_NOT_ENABLED_MESSAGE
-    assert "next_step" not in envelope
     # The SDK reads this to decide it may resolve from the vault instead, so the refusal
     # must arrive before anything resolves.
     assert service.calls == []
@@ -257,8 +253,6 @@ async def test_the_llm_relay_refuses_in_the_shape_an_openai_client_reads(llm_gat
     assert error["type"] == "invalid_request_error"
     # A harness that keeps only the message still recovers the code from the marker.
     assert "llm_gateway_disabled" in error["message"]
-    assert BUILTIN_MODELS_NOT_ENABLED_MESSAGE in error["message"]
-    assert LLM_FLAG not in error["message"]
 
 
 @pytest.mark.asyncio

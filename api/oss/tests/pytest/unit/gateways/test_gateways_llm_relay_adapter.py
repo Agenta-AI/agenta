@@ -25,7 +25,7 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
     RelayLLMAdapter,
 )
-from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
+from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import (
     SecretOwner,
     SecretOwnerKind,
@@ -308,13 +308,13 @@ async def test_request_body_bytes_reach_transport_unchanged():
 
 
 @pytest.mark.asyncio
-async def test_timeout_raises_llm_upstream_timeout_error():
+async def test_timeout_raises_llm_upstream_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("timed out", request=request)
 
     adapter = _adapter(handler)
 
-    with pytest.raises(LLMUpstreamTimeoutError) as excinfo:
+    with pytest.raises(LLMUpstreamError) as excinfo:
         await adapter.relay_chat_completion(
             route=_route(),
             secret=None,
@@ -324,25 +324,6 @@ async def test_timeout_raises_llm_upstream_timeout_error():
         )
 
     assert excinfo.value.status_code is None
-
-
-@pytest.mark.asyncio
-async def test_a_body_that_times_out_after_the_headers_raises_llm_upstream_timeout_error():
-    class _StallingBody(httpx.AsyncByteStream):
-        async def __aiter__(self):
-            raise httpx.ReadTimeout("timed out")
-            yield b""  # pragma: no cover
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, stream=_StallingBody())
-
-    adapter = _adapter(handler)
-    result = await adapter.relay_chat_completion(
-        route=_route(), secret=None, context=_context(), body=_body(), headers={}
-    )
-
-    with pytest.raises(LLMUpstreamTimeoutError):
-        await anext(result.body)
 
 
 @pytest.mark.asyncio

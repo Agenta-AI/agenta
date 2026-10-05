@@ -29,7 +29,6 @@ from pydantic import BaseModel, Field, field_serializer, model_validator
 # subscription connection whose stored OAuth login Agenta delivers to the run). "The project
 # default" is just ``agenta`` with no slug; there is no separate ``default`` mode.
 ConnectionMode = Literal["agenta", "self_managed"]
-ConnectionNamespace = Literal["standard", "custom", "builtin"]
 
 # Where a resolved credential comes from, as seen by the harness adapter. ``env`` ships one
 # provider's vars; ``runtime_provided`` injects nothing (the harness owns auth, e.g. an OAuth
@@ -128,16 +127,6 @@ class Connection(BaseModel):
     slug: Optional[str] = (
         None  # the secret's name, never a db id; optional in both modes
     )
-    # The gateway namespace ``slug`` was picked from. Omitted, the gateway infers it from the
-    # slug; set, it is taken as given, because a custom endpoint may share a builtin endpoint's
-    # name and the two differ in who pays for the call.
-    namespace: Optional[ConnectionNamespace] = None
-
-    @model_validator(mode="after")
-    def _namespace_names_a_slug(self) -> "Connection":
-        if self.namespace is not None and (self.mode != "agenta" or not self.slug):
-            raise ValueError("a connection namespace requires mode 'agenta' and a slug")
-        return self
 
 
 class Endpoint(BaseModel):
@@ -495,7 +484,3 @@ class RuntimeAuthContext(BaseModel):
     backend: Optional[str] = (
         None  # sandbox-agent local / daytona / in-process / local SDK
     )
-    # Labels for the gateway's usage record, never authorization: the gateway credential
-    # carries them so a platform-funded call's measurement names its session and agent.
-    session_id: Optional[str] = None
-    agent_id: Optional[str] = None

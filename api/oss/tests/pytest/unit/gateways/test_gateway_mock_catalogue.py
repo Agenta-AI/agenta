@@ -10,6 +10,7 @@ from oss.tests.pytest.acceptance.gateways.mock_matrix import (
 
 def test_gateway_mock_matrix_has_every_declared_dev_case():
     assert {case.key for case in GATEWAY_MOCK_CASES} == {
+        "llm_builtin_agenta",
         "llm_builtin_mock",
         "llm_standard_mock",
         "llm_custom_mock",
@@ -33,7 +34,7 @@ def test_gateway_mock_matrix_keeps_each_namespace_and_auth_boundary_visible():
     }
 
 
-def test_each_plane_has_its_builtin_mock_case():
+def test_provider_variants_are_not_collapsed_into_one_builtin_case():
     builtin_llm = {
         case.provider
         for case in GATEWAY_MOCK_CASES
@@ -45,6 +46,5 @@ def test_each_plane_has_its_builtin_mock_case():
         if case.plane is GatewayPlane.MCP and case.namespace is GatewayNamespace.BUILTIN
     }
 
-    # `builtin/agenta` is the platform's real Vertex account, never a mock.
-    assert builtin_llm == {"mock"}
+    assert builtin_llm == {"agenta", "mock"}
     assert builtin_mcp == {"mock"}

@@ -10,9 +10,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
-    BUILTIN_LLM_PROVIDERS,
     builtin_llm_endpoint,
-    builtin_llm_secret,
     standard_llm_endpoint,
     standard_llm_endpoints,
 )
@@ -36,13 +34,12 @@ from oss.src.core.gateways.llms.interfaces import (
 )
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
 from oss.src.core.gateways.llms.types import (
-    LLMCapabilityNotAllowedError,
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
     LLMModelNotAllowedError,
     LLMRoutingFieldNotAllowedError,
-    LLMUpstreamTimeoutError,
+    LLMUpstreamError,
 )
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
@@ -54,16 +51,10 @@ from oss.src.core.gateways.policy.dtos import (
     PolicyDecision,
     ProviderKeyRef,
     ResolvedSecret,
-    SecretOrigin,
 )
 from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.service import GatewayPolicyService
-from oss.src.core.gateways.policy.types import (
-    CeilingExceededError,
-    EntitlementDeniedError,
-    PolicyDeniedError,
-    SpendRefusedError,
-)
+from oss.src.core.gateways.policy.types import CeilingExceededError, PolicyDeniedError
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
@@ -92,7 +83,6 @@ class _ResolvedLlmTarget:
             plane=GatewayPlane.LLM,
             namespace=self.namespace,
             name=self.name,
-            provider=self.provider_key,
             endpoint_id=self.endpoint_id,
             model=model,
         )
@@ -121,71 +111,6 @@ class _ResolvedLlmTarget:
             extras=self.route_data.extras,
             settings=self.settings,
         )
-
-
-# How long the gateway keeps reading a platform-funded stream after its caller disconnected,
-# to reach the usage on its last frame.
-STREAM_DRAIN_AFTER_DISCONNECT_SECONDS = 120.0
-
-
-_END = object()
-
-
-class _UpstreamReader:
-    """Reads an upstream body in a task of its own and hands its chunks over a queue.
-
-    Cancelling the consumer, which is what a client disconnect does, does not reach the
-    task, so the upstream is read to its end and the adapter fills the call's usage. The
-    queue is bounded, so a slow consumer slows the read instead of buffering the response.
-    Once the consumer has left, queued chunks are dropped and new ones discarded.
-    """
-
-    _BUFFERED_CHUNKS = 64
-
-    def __init__(self, body: AsyncIterator[bytes]) -> None:
-        self._queue: "asyncio.Queue[Any]" = asyncio.Queue(maxsize=self._BUFFERED_CHUNKS)
-        self._abandoned = False
-        self._task = asyncio.ensure_future(self._read(body))
-
-    async def _read(self, body: AsyncIterator[bytes]) -> None:
-        try:
-            async for chunk in body:
-                if not self._abandoned:
-                    await self._queue.put(chunk)
-        finally:
-            # A connected consumer must see the end even when the last chunk filled the
-            # queue; `finish` empties the queue on abandonment, which unblocks this put.
-            if not self._abandoned:
-                await self._queue.put(_END)
-
-    async def chunks(self) -> AsyncIterator[bytes]:
-        while True:
-            chunk = await self._queue.get()
-            if chunk is _END:
-                break
-            yield chunk
-        # The read is over; this raises what the upstream raised, as a direct read would.
-        await self._task
-
-    async def finish(self, *, timeout: float) -> None:
-        """Wait for the read to end, at most `timeout`, then stop it and wait for its
-        cleanup. Never raises: a failed or overlong upstream is recorded with whatever
-        usage it reached."""
-        self._abandoned = True
-        while not self._queue.empty():
-            self._queue.get_nowait()  # frees a reader blocked on a full queue
-        try:
-            await asyncio.wait_for(asyncio.shield(self._task), timeout=timeout)
-        except Exception:  # pylint: disable=broad-except
-            pass
-        if not self._task.done():
-            self._task.cancel()
-        try:
-            await self._task
-        except (Exception, asyncio.CancelledError):  # pylint: disable=broad-except
-            # Its outcome is read here, so asyncio does not log it as unhandled; the
-            # caller already received any error the read raised while it was reading.
-            pass
 
 
 async def _replay_body(payload: bytes) -> AsyncIterator[bytes]:
@@ -228,14 +153,6 @@ _UNSUPPORTED_ROUTING_FIELDS: Tuple[str, ...] = (
     "provider",  # OpenRouter provider preferences: order / only / ignore / allow_fallbacks
     "preset",  # OpenRouter preset: a stored model-and-provider routing configuration
     "fallbacks",  # proxy-style fallback lists (LiteLLM and the gateways modelled on it)
-)
-
-
-# Fields that turn on what a provider bills beyond the reported tokens. A `builtin` call is
-# charged from its tokens alone, so these are refused there (`_check_builtin_capabilities`).
-_UNPRICED_BUILTIN_FIELDS: Tuple[str, ...] = (
-    "web_search_options",  # OpenAI's web search; Vertex maps it to Google Search grounding
-    "extra_body",  # Vertex's `google` extensions, cached content and grounding among them
 )
 
 
@@ -348,11 +265,7 @@ class LLMGatewayService:
         )
 
     async def list_endpoints(self, *, scope: AuthScope) -> List[LLMEndpoint]:
-        """List generated standard and builtin endpoints and persisted custom endpoints.
-
-        A builtin endpoint is listed only where this deployment serves it (its credential
-        is configured, or, for the mock, the development switch is on); that is what lets an
-        agent picker offer a platform-funded model.
+        """List generated standard endpoints and persisted custom endpoints.
 
         Takes the scope rather than a bare project_id (R14): existence is a per-owner fact
         the moment user-owned secrets ship, and fabricating an AuthScope to satisfy the port
@@ -365,13 +278,8 @@ class LLMGatewayService:
             for endpoint in standard_llm_endpoints()
             if endpoint.provider_key in provider_keys
         ]
-        builtin = [
-            endpoint
-            for provider_key in BUILTIN_LLM_PROVIDERS
-            if (endpoint := builtin_llm_endpoint(provider_key=provider_key)) is not None
-        ]
         custom = await self.llm_endpoints_dao.query_endpoints(project_id=project_id)
-        return generated + builtin + custom
+        return generated + custom
 
     async def resolve_agent_connection(
         self,
@@ -380,7 +288,6 @@ class LLMGatewayService:
         model: str,
         provider_key: Optional[str],
         connection_slug: Optional[str],
-        connection_namespace: Optional[GatewayEndpointNamespace] = None,
     ) -> LLMGatewayConnectionResolution:
         """Resolve an agent connection to public gateway route metadata.
 
@@ -389,10 +296,7 @@ class LLMGatewayService:
         with nothing to act on. `LLMGatewayConnectionResolution.provider_key` stays a required
         field, so the invariant no construction path can dodge is still enforced underneath.
         """
-        if connection_slug and connection_namespace:
-            namespace = connection_namespace
-            name = connection_slug
-        elif connection_slug:
+        if connection_slug:
             namespace = await self._namespace_of_slug(scope=scope, slug=connection_slug)
             name = connection_slug
         elif provider_key:
@@ -408,29 +312,14 @@ class LLMGatewayService:
             raise LLMEndpointProviderMissingError(
                 namespace=target.namespace, name=target.name
             )
-        deployment_kind = target.deployment_kind
-        if deployment_kind == LLMDeploymentKind.MOCK:
+        if target.deployment_kind == LLMDeploymentKind.MOCK:
             resolved_provider = "anthropic" if model.startswith("claude-") else "openai"
-        elif target.namespace == GatewayEndpointNamespace.BUILTIN:
-            # A real `builtin` endpoint answers the harness on one OpenAI-compatible
-            # chat-completions surface, whatever upstream serves it behind the gateway. The
-            # harness drives that surface as it drives any OpenAI-compatible custom route.
-            resolved_provider = "openai"
-            deployment_kind = LLMDeploymentKind.CUSTOM
-        elif target.provider_key == "gemini":
-            # The same for a Gemini provider key: behind the gateway it is Google's
-            # OpenAI-compatible endpoint. A harness that drives Gemini natively (Pi's `google`
-            # provider speaks generateContent) has no gateway route to reach it on. The model
-            # loses its catalogue prefix, which Google's endpoint does not accept.
-            resolved_provider = "openai"
-            deployment_kind = LLMDeploymentKind.CUSTOM
-            model = model.removeprefix("gemini/")
 
         return LLMGatewayConnectionResolution(
             namespace=target.namespace,
             name=target.name,
             provider_key=resolved_provider,
-            deployment_kind=deployment_kind,
+            deployment_kind=target.deployment_kind,
             model=model,
         )
 
@@ -476,8 +365,6 @@ class LLMGatewayService:
         body: bytes,
         headers: Dict[str, str],
         protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
-        run_id: Optional[str] = None,
-        run_labels: Optional[Dict[str, str]] = None,
     ) -> LLMRelayResult:
         """Relay one request for the specified protocol."""
         target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
@@ -489,11 +376,9 @@ class LLMGatewayService:
         # vault read, and the refusal reason must be the allowlist, never a coincidental
         # secret gap.
         self._check_allowlist(target=target, context=context, payload=payload)
-        self._check_builtin_capabilities(target=target, payload=payload)
         body = self._enforce_ceilings(
             target=target, context=context, body=body, payload=payload
         )
-        body = self._request_stream_usage(target=target, context=context, body=body)
 
         policy_target = target.as_policy_target(model=context.model)
         decision = await self.policy.authorize(
@@ -509,60 +394,19 @@ class LLMGatewayService:
                 target=policy_target,
                 decision=decision,
                 outcome=GatewayOutcome(status_code=403),
-                run_id=run_id,
             )
             raise PolicyDeniedError(
                 permission=Permission.USE_LLM_ENDPOINTS, target=target.target_path()
             )
 
-        # Spend admission, only where we pay: a `builtin` call runs on the platform's
-        # account, while `standard` and `custom` spend the customer's own credential and
-        # are never refused for our balance. After permission, so a caller who may not call
-        # at all never has a balance consulted; before the secret and the dispatch, so a
-        # refused call costs nothing.
-        if target.namespace == GatewayEndpointNamespace.BUILTIN:
-            # The session label names the agent turn a call belongs to; a turn the runner
-            # admitted is served to its end (`WalletSpendAdmission`).
-            admission = await self.policy.admit(
-                scope=scope,
-                target=policy_target,
-                session_id=(run_labels or {}).get("session_id"),
+        ref = target.secret_ref()
+        secret = (
+            await self.resolver.resolve(
+                scope=scope, ref=ref, mode=SecretMode.PROJECT_ONLY
             )
-            if not admission.allowed:
-                await self.policy.record(
-                    scope=scope,
-                    target=policy_target,
-                    decision=PolicyDecision(
-                        allowed=False,
-                        permission=decision.permission,
-                        reason="entitlement_denied",
-                    ),
-                    outcome=GatewayOutcome(status_code=403),
-                    run_id=run_id,
-                )
-                if admission.reason and admission.message:
-                    raise SpendRefusedError(
-                        code=admission.reason,
-                        message=admission.message,
-                        target=target.target_path(),
-                    )
-                raise EntitlementDeniedError(
-                    key="wallet_balance", target=target.target_path()
-                )
-
-        # A `builtin` endpoint authenticates with the platform's own credential, never one
-        # from the project's vault.
-        if target.namespace == GatewayEndpointNamespace.BUILTIN:
-            secret = builtin_llm_secret(provider_key=target.name)
-        else:
-            ref = target.secret_ref()
-            secret = (
-                await self.resolver.resolve(
-                    scope=scope, ref=ref, mode=SecretMode.PROJECT_ONLY
-                )
-                if ref is not None
-                else None
-            )
+            if ref is not None
+            else None
+        )
 
         adapter = self.upstream_registry.get(
             select_upstream(target.provider_key, target.deployment_kind)
@@ -584,7 +428,11 @@ class LLMGatewayService:
                 timeout=target.settings.timeout_seconds,
             )
         except asyncio.TimeoutError as e:
-            raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
+            raise LLMUpstreamError(
+                provider_key=target.provider_key,
+                status_code=None,
+                detail="upstream timed out",
+            ) from e
 
         # Both paths record after the drain, never before: every adapter fills
         # `result.usage` while its body generator runs, so reading usage here would record
@@ -600,8 +448,6 @@ class LLMGatewayService:
                 decision=decision,
                 result=result,
                 secret=secret,
-                run_id=run_id,
-                run_labels=run_labels,
             )
             return result
 
@@ -619,8 +465,6 @@ class LLMGatewayService:
             decision=decision,
             result=result,
             secret=secret,
-            run_id=run_id,
-            run_labels=run_labels,
         )
         return result
 
@@ -756,23 +600,7 @@ class LLMGatewayService:
         endpoint allowing only `gpt-4o` and the forbidden fallback ran on the primary's
         failure. Exact-string matching was never the weakness and is untouched here; the
         second field was.
-
-        A `standard` endpoint's allowlist is the SDK catalogue, and the call spends the
-        caller's own key, so the model is left to the provider to judge. Harnesses name
-        models the catalogue does not list: Claude Code sends dated ids
-        (`claude-haiku-4-5-20251001`), and authors type OpenRouter variants
-        (`deepseek/deepseek-v4-flash:nitro`) and models newer than the catalogue.
         """
-        for field in _UNSUPPORTED_ROUTING_FIELDS:
-            # A JSON null names no routing, so only a field carrying a value is refused.
-            if payload.get(field) is not None:
-                raise LLMRoutingFieldNotAllowedError(
-                    field=field, namespace=target.namespace, name=target.name
-                )
-
-        if target.namespace == GatewayEndpointNamespace.STANDARD:
-            return
-
         if not target.models.allows(context.model):
             raise LLMModelNotAllowedError(
                 model=context.model, namespace=target.namespace, name=target.name
@@ -795,34 +623,12 @@ class LLMGatewayService:
                         model=fallback, namespace=target.namespace, name=target.name
                     )
 
-    @staticmethod
-    def _check_builtin_capabilities(
-        *, target: _ResolvedLlmTarget, payload: Dict[str, Any]
-    ) -> None:
-        """Refuse what a `builtin` endpoint's provider bills beyond the reported tokens.
-
-        Only function tools pass. A provider-side tool (Google Search grounding through
-        `web_search_options` or a non-function `tools` entry) and the provider extension
-        object `extra_body` are refused, so nothing runs on the platform's account that the
-        rate card does not price.
-        """
-        if target.namespace != GatewayEndpointNamespace.BUILTIN:
-            return
-        for field in _UNPRICED_BUILTIN_FIELDS:
+        for field in _UNSUPPORTED_ROUTING_FIELDS:
+            # A JSON null names no routing, so only a field carrying a value is refused.
             if payload.get(field) is not None:
-                raise LLMCapabilityNotAllowedError(
+                raise LLMRoutingFieldNotAllowedError(
                     field=field, namespace=target.namespace, name=target.name
                 )
-        tools = payload.get("tools")
-        if tools is None:
-            return
-        if not isinstance(tools, list) or any(
-            not isinstance(tool, dict) or tool.get("type") != "function"
-            for tool in tools
-        ):
-            raise LLMCapabilityNotAllowedError(
-                field="tools", namespace=target.namespace, name=target.name
-            )
 
     def _enforce_ceilings(
         self,
@@ -875,52 +681,14 @@ class LLMGatewayService:
         rewritten[aliases[0]] = ceiling
         return json.dumps(rewritten).encode()
 
-    @staticmethod
-    def _request_stream_usage(
-        *, target: _ResolvedLlmTarget, context: LLMCallContext, body: bytes
-    ) -> bytes:
-        """Ask a streamed `builtin` chat completion to report its usage.
-
-        A `builtin` call is charged from the usage the upstream reports, and an OpenAI-style
-        stream reports none unless asked. Asked here, the usage rides the stream's last
-        frame, so a stream cut off before that frame still reports nothing; the gateway
-        cannot measure what the upstream never sent. Every other request relays unchanged.
-        """
-        if (
-            target.namespace != GatewayEndpointNamespace.BUILTIN
-            or not context.stream
-            or context.protocol != LLMProtocol.CHAT_COMPLETIONS
-        ):
-            return body
-        payload = _json_object(body)
-        options = payload.get("stream_options")
-        if isinstance(options, dict) and options.get("include_usage") is True:
-            return body
-        payload["stream_options"] = {
-            **(options if isinstance(options, dict) else {}),
-            "include_usage": True,
-        }
-        return json.dumps(payload).encode()
-
     def _outcome_from(
-        self,
-        *,
-        result: LLMRelayResult,
-        secret: Optional[ResolvedSecret],
-        target: GatewayTarget,
+        self, *, result: LLMRelayResult, secret: Optional[ResolvedSecret]
     ) -> GatewayOutcome:
-        # The payer follows the namespace (D30): a `builtin` call runs on the platform's
-        # account whatever credential, if any, answered it. A `builtin` target resolves no
-        # customer secret, so without this stamp its payer would read as unknown.
-        if target.namespace == GatewayEndpointNamespace.BUILTIN:
-            origin: Optional[SecretOrigin] = SecretOrigin.LOCAL
-        else:
-            origin = secret.origin if secret is not None else None
         return GatewayOutcome(
             status_code=result.status_code,
             usage=result.usage,
             owner=secret.owner if secret is not None else None,
-            origin=origin,
+            origin=secret.origin if secret is not None else None,
         )
 
     async def _drain_now_and_record(
@@ -932,8 +700,6 @@ class LLMGatewayService:
         decision: PolicyDecision,
         result: LLMRelayResult,
         secret: Optional[ResolvedSecret],
-        run_id: Optional[str],
-        run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
         """Consume a non-streaming body now, record the call, and hand back the bytes.
 
@@ -955,11 +721,7 @@ class LLMGatewayService:
                     scope=scope,
                     target=target,
                     decision=decision,
-                    outcome=self._outcome_from(
-                        result=result, secret=secret, target=target
-                    ),
-                    run_id=run_id,
-                    run_labels=run_labels,
+                    outcome=self._outcome_from(result=result, secret=secret),
                 )
             )
         return _replay_body(b"".join(chunks))
@@ -973,25 +735,10 @@ class LLMGatewayService:
         decision: PolicyDecision,
         result: LLMRelayResult,
         secret: Optional[ResolvedSecret],
-        run_id: Optional[str],
-        run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
-        # A platform-funded stream is read by a task of its own (`_UpstreamReader`), so a
-        # client disconnect cancels only this generator and never the upstream read: the
-        # usage on the stream's last frame still arrives. Any other stream is read here and
-        # closes with its caller, as before.
-        reader = (
-            _UpstreamReader(body)
-            if target.namespace == GatewayEndpointNamespace.BUILTIN
-            else None
-        )
         try:
-            if reader is None:
-                async for chunk in body:
-                    yield chunk
-            else:
-                async for chunk in reader.chunks():
-                    yield chunk
+            async for chunk in body:
+                yield chunk
         finally:
             # Fires on natural exhaustion and on a mid-stream break alike — usage is
             # whatever the adapter had populated by then, None if the crash pre-dated it.
@@ -999,47 +746,11 @@ class LLMGatewayService:
             # `finally` as a cancellation of the whole task: a bare `await` here would
             # raise before the record was made and the call would leave no trace at all
             # (OR48). Shielded, the record completes and the cancellation still propagates.
-            # One shielded step, because the first shielded await re-raises the
-            # cancellation and nothing after it in this `finally` would run.
             await run_shielded(
-                self._finish_and_record(
-                    reader=reader,
+                self.policy.record(
                     scope=scope,
                     target=target,
                     decision=decision,
-                    result=result,
-                    secret=secret,
-                    run_id=run_id,
-                    run_labels=run_labels,
+                    outcome=self._outcome_from(result=result, secret=secret),
                 )
             )
-
-    async def _finish_and_record(
-        self,
-        *,
-        reader: Optional["_UpstreamReader"],
-        scope: AuthScope,
-        target: GatewayTarget,
-        decision: PolicyDecision,
-        result: LLMRelayResult,
-        secret: Optional[ResolvedSecret],
-        run_id: Optional[str],
-        run_labels: Optional[Dict[str, str]],
-    ) -> None:
-        """Record the call; first let a platform-funded stream the caller left run out.
-
-        Usage rides a stream's last frame. A caller that disconnects before it would
-        otherwise receive the model's output and leave no usage behind, so a `builtin`
-        call nobody pays for. The reader keeps reading and discards what it reads, up to
-        `STREAM_DRAIN_AFTER_DISCONNECT_SECONDS`, so the usage is measured.
-        """
-        if reader is not None:
-            await reader.finish(timeout=STREAM_DRAIN_AFTER_DISCONNECT_SECONDS)
-        await self.policy.record(
-            scope=scope,
-            target=target,
-            decision=decision,
-            outcome=self._outcome_from(result=result, secret=secret, target=target),
-            run_id=run_id,
-            run_labels=run_labels,
-        )

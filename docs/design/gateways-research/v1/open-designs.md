@@ -859,19 +859,6 @@ only, as no comparable header exists at that step.
 
 ## Closed in this pass
 
-- **Standard endpoints and the model allowlist** (2026-10-03). A `standard` endpoint's
-  allowlist was the SDK catalogue, and the relay refused any other model with
-  `model_not_allowed`. Harness traffic names models the catalogue does not list: Claude Code
-  sends dated ids (`claude-haiku-4-5-20251001`), so every Claude Code turn on a provider key
-  failed once an organization was on the gateway, and Pi authors type OpenRouter variants
-  (`deepseek/deepseek-v4-flash:nitro`) and models newer than the catalogue. A `standard` call
-  spends the caller's own key, so the relay no longer checks its model; the provider answers an
-  unknown one with its own error. The listing (`/v1/models`) still answers from the catalogue,
-  and the routing-field refusals (OR44) still apply. Options rejected: adding dated ids and
-  variants to the catalogue (it can never be complete), and mapping dated ids to aliases
-  (a second catalogue to keep in sync). `custom` and `builtin` endpoints keep their
-  allowlists: there the allowlist is a configured or priced set.
-
 - **MCP endpoint shape** — one URL per server, namespaced identifier, transparent pass-through
   (D16). A merged endpoint with renamed tools was rejected.
 - **Step-up scopes** — scope selection at connect time plus an interaction at step-up (D17).

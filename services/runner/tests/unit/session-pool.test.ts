@@ -966,7 +966,7 @@ describe("poolKeyFor", () => {
         { sessionId: "s1", runContext: { project: { id: "rc-proj" } } },
         "mount-proj",
       ),
-      { key: "rc-proj:s1", projectId: "rc-proj", source: "run-context" },
+      { key: "rc-proj:s1", source: "run-context" },
     );
   });
   it("uses the run-context project scope even when there is no mount scope", () => {
@@ -975,24 +975,21 @@ describe("poolKeyFor", () => {
         { sessionId: "s1", runContext: { project: { id: "rc-proj" } } },
         undefined,
       ),
-      { key: "rc-proj:s1", projectId: "rc-proj", source: "run-context" },
+      { key: "rc-proj:s1", source: "run-context" },
     );
   });
   it("falls back to the mount scope when the run context has no project", () => {
     assert.deepEqual(poolKeyFor({ sessionId: "s1" }, "mount-proj"), {
       key: "mount-proj:s1",
-      projectId: "mount-proj",
       source: "mount",
     });
-    // A session id may contain a colon; the project is carried, never parsed from the key.
-    assert.equal(poolKeyFor({ sessionId: "chat:42" }, "p")?.projectId, "p");
     // An empty/whitespace run-context id does not count as a scope: fall back to the mount.
     assert.deepEqual(
       poolKeyFor(
         { sessionId: "s1", runContext: { project: { id: "  " } } },
         "mount-proj",
       ),
-      { key: "mount-proj:s1", projectId: "mount-proj", source: "mount" },
+      { key: "mount-proj:s1", source: "mount" },
     );
   });
   it("is null when neither source yields a project scope (never park)", () => {

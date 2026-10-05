@@ -3745,36 +3745,6 @@ describe("runTurn run-limits deadline (split path)", () => {
     assert.equal(calls.sandboxDisposed, 1);
   });
 
-  it("a turn stopped at the plan's turn limit ends with the plan's message and its own class", async () => {
-    const { calls, deps, events } = fakeHarness({ hangPrompt: true });
-    const message =
-      "The Hobby plan limits a request to 30 minutes.";
-
-    const result = await runSandboxAgent(
-      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
-      undefined,
-      undefined,
-      {
-        ...deps,
-        resolveRunLimits: () => ({
-          totalMs: 20,
-          idleMs: 1_000,
-          ttfbMs: 1_000,
-          toolCallMs: 1_000,
-          turnLimitMessage: message,
-        }),
-      },
-    );
-
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.equal(result.error, message);
-    const error = events.find((event) => event.type === "error") as any;
-    assert.equal(error?.code, "turn_time_limit_reached");
-    assert.equal(error?.message, message);
-    assert.equal(calls.sandboxDestroyed, 1);
-  });
-
   it("does NOT trip a turn that paused for human input, even past every deadline window", async () => {
     // A gated tool call parks the turn (pause path), which retires the deadlines via notePaused.
     // With tiny limits a wedged turn WOULD trip almost immediately — so a clean `paused` finish

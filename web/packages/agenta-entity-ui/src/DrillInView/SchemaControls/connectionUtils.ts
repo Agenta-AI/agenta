@@ -20,11 +20,7 @@
  * list) and provider-model-auth/design.md (Concern 1: ModelRef; Concern 3b: per-harness gating).
  */
 
-import {
-    bareModelId,
-    connectionNamespaceFrom,
-    type AgentConnectionNamespace,
-} from "@agenta/entities/secret"
+import {bareModelId} from "@agenta/entities/secret"
 import type {
     HarnessCapabilities,
     HarnessCapabilitiesMap,
@@ -52,8 +48,6 @@ export interface ConnectionFields {
      * uses whatever login the deployment mounted, which is the pre-subscription behaviour.
      */
     slug: string | null
-    /** The gateway namespace an `agenta` slug was picked from; null lets the gateway infer it. */
-    namespace: AgentConnectionNamespace | null
 }
 
 /** The structured `agent.llm` object shape (a subset; extra keys round-trip untouched). */
@@ -61,7 +55,7 @@ interface ModelRefObject {
     provider?: string | null
     model?: string | null
     extras?: Record<string, unknown>
-    connection?: {mode?: string | null; slug?: string | null; namespace?: string | null} | null
+    connection?: {mode?: string | null; slug?: string | null} | null
     [key: string]: unknown
 }
 
@@ -98,10 +92,9 @@ export function connectionFromConfig(model: unknown): ConnectionFields {
             provider: typeof model.provider === "string" ? model.provider : null,
             mode: coerceMode(connection.mode),
             slug: typeof connection.slug === "string" ? connection.slug : null,
-            namespace: connectionNamespaceFrom(connection.namespace),
         }
     }
-    return {provider: null, mode: "agenta", slug: null, namespace: null}
+    return {provider: null, mode: "agenta", slug: null}
 }
 
 export interface ComposeModelValueArgs {
@@ -109,8 +102,6 @@ export interface ComposeModelValueArgs {
     provider: string | null
     mode: ConnectionMode
     slug: string | null
-    /** Written only beside an `agenta` slug; omitted, the gateway infers it from the slug. */
-    namespace?: AgentConnectionNamespace | null
     /**
      * The prior `agent.llm` value. When it is a structured object, its extra keys (notably
      * `extras`, set via the raw-JSON hatch) are carried through so a form edit never silently
@@ -135,7 +126,6 @@ export function composeModelValue({
     provider,
     mode,
     slug,
-    namespace,
     existing,
 }: ComposeModelValueArgs): Record<string, unknown> {
     const id = modelId ?? ""
@@ -156,7 +146,6 @@ export function composeModelValue({
     if (!isDefaultConnection) {
         const connection: Record<string, unknown> = {mode}
         if (slug) connection.slug = slug
-        if (slug && mode === "agenta" && namespace) connection.namespace = namespace
         result.connection = connection
     }
 

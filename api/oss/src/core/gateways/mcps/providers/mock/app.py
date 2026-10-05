@@ -185,7 +185,7 @@ def _key_accepted(request: Request) -> bool:
 
     An endpoint that registers a `credential_header` sends the stored value verbatim under
     that name; one that registers none falls back to `Authorization: Bearer <value>`
-    (`providers/http/adapter.py::credential_headers`). A mock that took only one of them
+    (`providers/http/adapter.py::_credential_headers`). A mock that took only one of them
     would refuse a correctly configured connection for a reason that is not the product.
     """
     expected = env.mock_gateways.mcp_key_value

@@ -307,8 +307,7 @@ export async function runWithKeepalive(
   // Tell the transport which project this run belongs to. Until this lands, a control command
   // cannot tell one tenant's session from another's, because the request itself often carries
   // no project and the scope was only just derived from the signed mount.
-  // The project itself, not parsed from the key: a session id may contain a colon.
-  ctx.onScopeResolved?.(scope.projectId);
+  ctx.onScopeResolved?.(scope.key.slice(0, scope.key.lastIndexOf(":")));
 
   // The mount may be null here (store unconfigured, 503, ephemeral fallback) or undefined (the
   // sign attempt threw) when the run-context scope produced the key. A mount-less session still

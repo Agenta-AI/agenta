@@ -1,1 +1,0 @@
-{"parameters":[{"name":"key","in":"path","required":true,"schema":{"type":"string","title":"Key"}},{"name":"version","in":"query","required":false,"schema":{"anyOf":[{"type":"string","minLength":1,"maxLength":128},{"type":"null"}],"title":"Version"}}]}

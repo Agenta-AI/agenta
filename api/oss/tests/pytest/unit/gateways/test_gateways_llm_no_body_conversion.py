@@ -26,9 +26,6 @@ _ALLOWED = {
     # every URL inside it can be checked against the egress boundary before google-auth
     # dials one.
     "providers/passthrough/auth.py",
-    # Decodes the platform's own Vertex service-account document from configuration, for
-    # the `builtin/agenta` endpoint. Not a request or a response.
-    "catalog.py",
 }
 
 _JSON_LOADS = re.compile(r"\bjson\.loads\(")

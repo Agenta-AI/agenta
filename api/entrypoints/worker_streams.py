@@ -1,19 +1,12 @@
 """
 worker_streams - list-parameterized entrypoint hosting the stream consumer
-loops (records, events, spans, sessions, and — EE only — measurements, debits)
-in one process.
+loops (records, events, spans, sessions) in one process.
 
-Reads AGENTA_WORKER_STREAMS (subset of ALL_STREAMS); empty or unset selects
-every stream for the running edition. Each selected loop keeps its own stream
-name, consumer group, and StreamConsumer subclass unchanged (see
+Reads AGENTA_WORKER_STREAMS (subset of {records, events, spans, sessions});
+empty or unset selects all four. Each selected loop keeps its own stream name,
+consumer group, and StreamConsumer subclass unchanged (see
 oss/src/tasks/asyncio/shared/consumer.py) — this entrypoint only decides which
 loops share this process, via asyncio.gather.
-
-`measurements`/`debits` are wallet streams (EE only, and only when
-AGENTA_WALLETS_ENABLED is on): they are omitted from ALL_STREAMS entirely
-otherwise, so an unset AGENTA_WORKER_STREAMS never tries to build a worker that
-needs ee.* imports, and naming one explicitly while the wallet is off is
-rejected rather than silently started.
 
 Replaces the removed single-loop stream entrypoints; this is now the sole
 stream-consumer entrypoint.
@@ -80,21 +73,10 @@ from oss.src.utils.logging import get_module_logger
 # Guard EE imports so an OSS build needn't import the ee.* package.
 if is_ee():
     from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
-    from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
-    from ee.src.core.wallets.service import WalletsService
-    from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
-    from ee.src.dbs.postgres.wallets.dao import WalletsDAO
-    from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
-    from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
-    from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 
 log = get_module_logger(__name__)
 
-WALLET_STREAMS_ENABLED = is_ee() and env.wallets.enabled
-
-ALL_STREAMS = ("records", "events", "spans", "sessions") + (
-    ("measurements", "debits") if WALLET_STREAMS_ENABLED else ()
-)
+ALL_STREAMS = ("records", "events", "spans", "sessions")
 
 # Bound the stream so acked entries are trimmed; without this it grows unbounded.
 MAXLEN_QUEUES_WEBHOOKS = 100_000
@@ -240,25 +222,6 @@ async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
     )
 
 
-async def _build_measurements_worker(redis_client: Redis) -> StreamConsumer:
-    return MeasurementWorker(
-        measurements_dao=MeasurementsDAO(),
-        debit_publisher=RedisDebitPublisher(redis_client=redis_client),
-        redis_client=redis_client,
-        stream_name=STREAM_MEASUREMENTS,
-        consumer_group="worker-measurements",
-    )
-
-
-async def _build_debits_worker(redis_client: Redis) -> StreamConsumer:
-    return DebitWorker(
-        settlement_port=WalletsService(wallets_dao=WalletsDAO()),
-        redis_client=redis_client,
-        stream_name=STREAM_DEBITS,
-        consumer_group="worker-debits",
-    )
-
-
 async def main_async() -> int:
     try:
         streams = _selected_streams()
@@ -283,9 +246,6 @@ async def main_async() -> int:
             "events": _build_events_worker,
             "sessions": _build_sessions_worker,
         }
-        if WALLET_STREAMS_ENABLED:
-            builders["measurements"] = _build_measurements_worker
-            builders["debits"] = _build_debits_worker
 
         consumers: List[StreamConsumer] = [
             await builders[name](redis_client) for name in streams

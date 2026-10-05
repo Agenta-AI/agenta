@@ -85,9 +85,6 @@ export function forgetTemplateKey(): void {
 export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=llms`
 
-export const billingUrl = ({workspaceId, projectId}: LastContext): string =>
-    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=billing`
-
 export function writeLastContext(context: LastContext): void {
     try {
         localStorage.setItem(LAST_CONTEXT_KEY, JSON.stringify(context))

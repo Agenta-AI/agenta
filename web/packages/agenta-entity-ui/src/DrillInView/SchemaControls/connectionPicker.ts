@@ -17,8 +17,6 @@ import {
     SecretKind,
     SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAvailability,
-    connectionNamespaceFrom,
-    type AgentConnectionNamespace,
     type AgentModelCandidate,
     type AgentModelSelection,
     type ProviderConnection,
@@ -36,7 +34,6 @@ export interface PickerModelRow {
     harnessLabel: string
     mode: ConnectionMode
     slug: string | null
-    namespace: AgentConnectionNamespace | null
     provider: string | null
     connectionKey: string
     connectionName: string
@@ -60,7 +57,6 @@ export interface PickerSelection {
     provider: string | null
     mode: ConnectionMode
     slug: string | null
-    namespace: AgentConnectionNamespace | null
     /** Null is retained only for metadata from the legacy pre-connection picker. */
     harness: string | null
 }
@@ -80,17 +76,14 @@ export interface BuildPickerRowsArgs {
 /**
  * What a candidate's row is called.
  *
- * A candidate backed by a stored record uses the record's own name; a built-in model carries its
- * own. Only a MOUNTED subscription has neither, and that fallback has to say so: a project that also holds a hosted subscription
+ * A candidate backed by a stored record uses the record's own name. Only a MOUNTED subscription
+ * has no record, and that fallback has to say so: a project that also holds a hosted subscription
  * to the same plan would otherwise show two rows called "ChatGPT · Subscription".
  */
 const candidateRowName = (
     candidate: AgentModelCandidate,
     connection: ProviderConnection | undefined,
-): string =>
-    connection?.name ??
-    candidate.connectionName ??
-    mountedSubscriptionName(candidate.provider ?? "")
+): string => connection?.name ?? mountedSubscriptionName(candidate.provider ?? "")
 
 const rowFromCandidate = (
     candidate: AgentModelCandidate,
@@ -98,11 +91,7 @@ const rowFromCandidate = (
 ): PickerConnectionRow => ({
     key: candidate.connectionKey,
     name: candidateRowName(candidate, connection),
-    // A built-in model has no stored connection; it runs on Agenta's account.
-    iconKey:
-        candidate.managed || (!connection && candidate.connectionName)
-            ? "agenta"
-            : (connection?.kind ?? candidate.provider ?? ""),
+    iconKey: candidate.managed ? "agenta" : (connection?.kind ?? candidate.provider ?? ""),
     kind: candidate.source,
     managed: candidate.managed || undefined,
     models: [],
@@ -126,7 +115,6 @@ const modelFromCandidate = (
         harnessLabel: harnessMetaFor(candidate.harness).label,
         mode: candidate.mode,
         slug: candidate.slug,
-        namespace: candidate.namespace ?? null,
         provider: candidate.provider,
         connectionKey: candidate.connectionKey,
         connectionName: candidateRowName(candidate, connection),
@@ -180,7 +168,6 @@ export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConn
 
 export interface PickerOptionMetadata extends Record<string, unknown> {
     connectionSlug?: string
-    connectionNamespace?: AgentConnectionNamespace
     connectionMode: ConnectionMode
     harness: string
     provider?: string
@@ -198,7 +185,6 @@ export const selectedModelRowKey = (
     current: {
         modelId: string | null
         slug: string | null
-        namespace?: AgentConnectionNamespace | null
         mode: ConnectionMode
         harness: string | null
     },
@@ -214,8 +200,7 @@ export const selectedModelRowKey = (
         pool.find(
             (entry) =>
                 entry.model.mode === current.mode &&
-                (entry.model.slug ?? null) === (current.slug ?? null) &&
-                entry.model.namespace === (current.namespace ?? null),
+                (entry.model.slug ?? null) === (current.slug ?? null),
         ) ?? pool[0]
     return match ? modelRowKey(match.key, match.model) : undefined
 }
@@ -225,7 +210,6 @@ export const selectionFromModelRow = (model: PickerModelRow): PickerSelection =>
     provider: model.provider,
     mode: model.mode,
     slug: model.slug,
-    namespace: model.namespace,
     harness: model.harness,
 })
 
@@ -234,7 +218,6 @@ const selectionFromCandidate = (candidate: AgentModelCandidate): PickerSelection
     provider: candidate.provider,
     mode: candidate.mode,
     slug: candidate.slug,
-    namespace: candidate.namespace ?? null,
     harness: candidate.harness,
 })
 
@@ -247,7 +230,6 @@ const completeSelection = (
               provider: selection.provider,
               mode: selection.mode,
               slug: selection.slug,
-              namespace: selection.namespace,
               harness: selection.harness,
           }
         : null
@@ -344,7 +326,6 @@ export const pickerSelectionFrom = (
         // A slug survives in either mode. Under `self_managed` it names a hosted subscription's
         // stored sign-in; dropping it there sent the run to whatever login the deployment mounted.
         slug: read("connectionSlug"),
-        namespace: mode === "agenta" ? connectionNamespaceFrom(read("connectionNamespace")) : null,
         harness: read("harness"),
     }
 }

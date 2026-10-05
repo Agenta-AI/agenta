@@ -52,24 +52,6 @@ class LLMRoutingFieldNotAllowedError(GatewaysError):
         )
 
 
-class LLMCapabilityNotAllowedError(GatewaysError):
-    """The body asks a platform-funded endpoint for a capability the wallet cannot price.
-
-    A `builtin` call is charged from the tokens it reports. A provider-side tool such as
-    Google Search grounding is billed by the provider on top of the tokens and reported
-    nowhere the gateway reads, so it would run on the platform's account uncharged.
-    """
-
-    def __init__(self, *, field: str, namespace: GatewayEndpointNamespace, name: str):
-        self.field = field
-        self.namespace = namespace
-        self.name = name
-        super().__init__(
-            f"Request field {field!r} asks for a capability {namespace.value}/{name} "
-            "does not offer: only function tools are available on it"
-        )
-
-
 class LLMModelIdentifierInvalidError(GatewaysError):
     """The model identifier is not admissible where a route interpolates it (OR60).
 
@@ -109,13 +91,6 @@ class LLMUpstreamError(GatewaysError):
         self.status_code = status_code
         self.detail = detail
         super().__init__(f"Upstream {provider_key} failed ({status_code})")
-
-
-class LLMUpstreamTimeoutError(LLMUpstreamError):
-    """The upstream did not answer in time: a transient failure, worth retrying."""
-
-    def __init__(self, *, provider_key: Optional[str]):
-        super().__init__(provider_key=provider_key, detail="upstream timed out")
 
 
 class LLMConnectionProviderRequiredError(GatewaysError):

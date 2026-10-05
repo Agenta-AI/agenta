@@ -31,8 +31,6 @@ MCPAuthScheme = GatewayAuthScheme
 AGENTA_PROVIDER = "agenta"
 COMPOSIO_PROVIDER = "composio"
 MOCK_PROVIDER = "mock"
-# Paid actions on provider accounts Agenta holds (`core/managed_tools`).
-MANAGED_PROVIDER = "managed"
 
 
 class MCPEndpointRoute(GatewayEndpointRoute):

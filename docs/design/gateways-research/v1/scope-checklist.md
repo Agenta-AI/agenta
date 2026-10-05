@@ -87,7 +87,7 @@ migrate.
 
 | Wave | Item | Why there |
 |---|---|---|
-| 1 | Model allowlist | Custom providers already declare their models by slug; standard providers are not checked against the catalogue (see open-designs.md, "Standard endpoints and the model allowlist") |
+| 1 | Model allowlist | Custom providers already declare their models by slug; standard providers expose their whole catalogue |
 
 ---
 
