@@ -782,6 +782,47 @@ imagePullSecrets:
 {{- end }}
 
 {{/* ================================================================
+   Redis Durable CA certificate (external instance over TLS)
+
+   A managed Redis service (Cloud Memorystore, ElastiCache, Azure Cache)
+   presents a certificate signed by its own authority, not by a public root.
+   `rediss://` then fails with CERTIFICATE_VERIFY_FAILED until the client is
+   given that authority. These helpers mount it as a file so the connection
+   string can point at it with `?ssl_ca_certs=`, which is the redis-py query
+   parameter, instead of turning verification off.
+
+   Set `redisDurable.external.caCert` to the PEM, or to the string
+   "from-existing-secret" when `secrets.existingSecret` supplies the key
+   REDIS_DURABLE_CA_CERT itself.
+   ================================================================ */}}
+{{- define "agenta.redisDurable.caPath" -}}/etc/agenta/redis-durable/ca.pem{{- end }}
+
+{{- define "agenta.redisDurable.caEnabled" -}}
+{{- $rd := default dict .Values.redisDurable -}}
+{{- $ext := default dict $rd.external -}}
+{{- if and (ne (include "agenta.redisDurable.enabled" .) "true") $ext.caCert }}true{{- else }}false{{- end }}
+{{- end }}
+
+{{- define "agenta.redisDurableCaVolume" -}}
+{{- if eq (include "agenta.redisDurable.caEnabled" .) "true" }}
+- name: redis-durable-ca
+  secret:
+    secretName: {{ include "agenta.secretName" . }}
+    items:
+      - key: REDIS_DURABLE_CA_CERT
+        path: ca.pem
+{{- end }}
+{{- end }}
+
+{{- define "agenta.redisDurableCaVolumeMount" -}}
+{{- if eq (include "agenta.redisDurable.caEnabled" .) "true" }}
+- name: redis-durable-ca
+  mountPath: {{ include "agenta.redisDurable.caPath" . | dir }}
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
    SuperTokens connection URI
    ================================================================ */}}
 {{- define "agenta.supertokensUri" -}}

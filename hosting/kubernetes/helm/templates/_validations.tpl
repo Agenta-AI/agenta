@@ -309,3 +309,16 @@ Allowed values: "oss", "ee".
 ` $license) -}}
 {{- end -}}
 {{- end }}
+
+{{/* ================================================================
+   redisVolatile.external.caCert is accepted by the schema, because the
+   schema shares one definition between the two Redis blocks, but only
+   redisDurable mounts a CA today. Fail loudly rather than ignore it.
+   ================================================================ */}}
+{{- define "agenta.validateRedisVolatileCaCert" -}}
+{{- $rv := default dict .Values.redisVolatile -}}
+{{- $ext := default dict $rv.external -}}
+{{- if $ext.caCert }}
+{{- fail "redisVolatile.external.caCert is not implemented: the chart mounts a CA for redisDurable only. Put the authority in the cluster trust store, or open an issue if you need it for the cache." }}
+{{- end }}
+{{- end }}

@@ -192,6 +192,34 @@ redisDurable:
   persistence:
     size: "5Gi"
 
+# An external durable Redis over TLS, for example Google Cloud Memorystore,
+# Amazon ElastiCache or Azure Cache. Such a service presents a certificate
+# signed by its own authority, not by a public root, so `rediss://` fails with
+# CERTIFICATE_VERIFY_FAILED until the client is given that authority.
+#
+# Put the authority in `redisDurable.external.caCert` and the chart mounts it at
+# /etc/agenta/redis-durable/ca.pem on every workload that talks to the durable
+# Redis: api, services, cron, the two workers and the alembic job. Then point the
+# connection string at that path. `ssl_ca_certs` is a redis-py query parameter.
+#
+# redisDurable:
+#   enabled: false
+#   password: from-existing-secret   # defines REDIS_DURABLE_PASSWORD from the Secret
+#   external:
+#     uri: "rediss://:$(REDIS_DURABLE_PASSWORD)@redis.internal.example.com:6378/0?ssl_ca_certs=/etc/agenta/redis-durable/ca.pem"
+#     caCert: |
+#       -----BEGIN CERTIFICATE-----
+#       ...
+#       -----END CERTIFICATE-----
+#
+# With `secrets.existingSecret` the chart writes no Secret, so put the PEM in
+# that Secret yourself under the key REDIS_DURABLE_CA_CERT and set
+# `caCert: from-existing-secret` so the chart still mounts it.
+#
+# Do NOT reach for `?ssl_cert_reqs=none` instead. The traffic stays encrypted,
+# but nothing then proves the server is the server, and the AUTH password is
+# handed to whatever answers that address.
+
 # ================================================================== #
 # store — object store (AGENTA_STORE_*).
 # Docs: https://docs.agenta.ai/self-host/configuration#store-durable-object-store
