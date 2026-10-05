@@ -68,47 +68,47 @@ const HarnessesSection = ({
             {expanded ? (
                 <>
                     <span className="text-colorTextSecondary">Enable this connection in</span>
-                    <div className="flex flex-col gap-2.5">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2">
                         {choices.map((choice) => {
                             const Mark = harnessMarkFor(choice.id)
+                            const checked = selected.includes(choice.id)
 
                             return (
                                 <label
                                     key={choice.id}
                                     className={cn(
-                                        "flex items-center gap-2",
+                                        "box-border flex min-w-0 flex-col gap-1 rounded-lg border border-solid p-3 transition-colors",
+                                        checked ? "border-primary bg-primary/5" : "border-border",
                                         choice.supported
-                                            ? "cursor-pointer"
+                                            ? "cursor-pointer hover:border-primary"
                                             : "cursor-not-allowed opacity-60",
                                     )}
                                 >
-                                    <Checkbox
-                                        checked={selected.includes(choice.id)}
-                                        disabled={!choice.supported}
-                                        onCheckedChange={(next) =>
-                                            onToggle(choice.id, next === true)
-                                        }
-                                    />
-                                    {Mark ? <Mark className="size-4 shrink-0" /> : null}
+                                    <span className="mb-1 flex items-center justify-between">
+                                        {Mark ? <Mark className="size-5 shrink-0" /> : <span />}
+                                        <Checkbox
+                                            checked={checked}
+                                            disabled={!choice.supported}
+                                            onCheckedChange={(next) =>
+                                                onToggle(choice.id, next === true)
+                                            }
+                                        />
+                                    </span>
                                     <span
-                                        className={
+                                        className={cn(
+                                            "truncate font-medium",
                                             choice.supported
                                                 ? "text-colorText"
-                                                : "text-colorTextDisabled"
-                                        }
+                                                : "text-colorTextDisabled",
+                                        )}
                                     >
                                         {choice.label}
                                     </span>
-                                    {choice.domain ? (
-                                        <span className="text-[11px] text-colorTextTertiary">
-                                            {choice.domain}
-                                        </span>
-                                    ) : null}
-                                    {choice.supported ? null : (
-                                        <span className="ml-auto text-[11px] text-colorTextTertiary">
-                                            Incompatible with this provider
-                                        </span>
-                                    )}
+                                    <span className="text-[11px] leading-4 text-colorTextTertiary">
+                                        {choice.supported
+                                            ? (choice.domain ?? " ")
+                                            : "Incompatible with this provider"}
+                                    </span>
                                 </label>
                             )
                         })}
