@@ -49,7 +49,7 @@ export const SettingsEmpty = ({
         className={
             plain
                 ? "py-12"
-                : "relative overflow-hidden rounded-2xl border border-solid border-border bg-muted/20 py-12"
+                : "relative overflow-hidden rounded-2xl border border-solid border-border bg-muted/20 py-16"
         }
     >
         {/* Dots behind the ghost rows, fading out before the frame's edge. */}
