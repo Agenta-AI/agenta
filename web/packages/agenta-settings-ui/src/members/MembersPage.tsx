@@ -1,4 +1,4 @@
-import {useMemo, type ReactNode} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {formatDay} from "@agenta/shared/utils/dateTime"
@@ -9,6 +9,7 @@ import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash, Users} from "@phosph
 
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
+import {InlineName} from "../shared/InlineName"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -48,7 +49,8 @@ export interface MembersPageProps {
     onInvite?: () => void
     onResendInvite?: (member: WorkspaceMember) => void
     onRemove?: (member: WorkspaceMember) => void
-    onRenameSelf?: (member: WorkspaceMember) => void
+    /** Save a new username for your own row, renamed in place; throw to report a failure. */
+    onRenameSelf?: (member: WorkspaceMember, name: string) => Promise<unknown>
     onResetPassword?: (member: WorkspaceMember) => void
     /** Invite / rename / invited-link dialogs — the host's. */
     children?: ReactNode
@@ -77,6 +79,7 @@ export const MembersPage = ({
     onResetPassword,
     children,
 }: MembersPageProps) => {
+    const [renamingSelf, setRenamingSelf] = useState(false)
     const rows = useMemo<MemberRow[]>(
         () => members.map((member) => ({...member, key: member.user.id})),
         [members],
@@ -84,6 +87,7 @@ export const MembersPage = ({
 
     const isSelf = (member: WorkspaceMember) =>
         member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
+    const canRenameSelf = (member: WorkspaceMember) => Boolean(onRenameSelf) && isSelf(member)
     const isOwner = (member: WorkspaceMember) => Boolean(ownerId) && member.user?.id === ownerId
 
     const columns = useMemo(
@@ -127,12 +131,18 @@ export const MembersPage = ({
                                 <InitialsAvatar name={name} />
                                 <div className="flex min-w-0 flex-col">
                                     <div className="flex min-w-0 items-center gap-2">
-                                        <span
-                                            className="truncate font-medium text-foreground"
-                                            title={name}
-                                        >
-                                            {name}
-                                        </span>
+                                        <InlineName
+                                            value={name}
+                                            editing={renamingSelf && canRenameSelf(record)}
+                                            ariaLabel="Username"
+                                            onStart={
+                                                canRenameSelf(record)
+                                                    ? () => setRenamingSelf(true)
+                                                    : undefined
+                                            }
+                                            onDone={() => setRenamingSelf(false)}
+                                            onSave={(next) => onRenameSelf!(record, next)}
+                                        />
                                         {isSelf(record) ? (
                                             <Tag
                                                 size="small"
@@ -171,8 +181,9 @@ export const MembersPage = ({
                                         key: "rename",
                                         label: "Rename",
                                         icon: <PencilSimpleLine size={14} />,
-                                        hidden: !isSelf(record) || !onRenameSelf,
-                                        onClick: () => onRenameSelf?.(record),
+                                        hidden: !canRenameSelf(record),
+                                        deferred: true,
+                                        onClick: () => setRenamingSelf(true),
                                     },
                                     {
                                         key: "resend_invite",

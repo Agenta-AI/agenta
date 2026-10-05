@@ -6,6 +6,7 @@ import {
     inviteToWorkspace,
     removeFromWorkspace,
 } from "@agenta/entities/organization"
+import {updateUsername} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -30,7 +31,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-import {useMutation, useQuery} from "@tanstack/react-query"
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 
 interface Props {
     members: WorkspaceMember[]
@@ -43,7 +44,8 @@ interface Props {
 }
 
 /**
- * Mobile binding: the shared roster, with invite and remove as modals. Role editing
+ * Mobile binding: the shared roster, with invite and remove as modals and your own username
+ * renamed in place. Role editing
  * stays on the desktop — it is a per-row control, and a select inside a table row is a poor
  * trade on a phone.
  */
@@ -61,6 +63,7 @@ export const MembersTab = ({
     const [role, setRole] = useState("")
     const [pendingRemoval, setPendingRemoval] = useState<WorkspaceMember | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const queryClient = useQueryClient()
 
     // NOT a permission check: it only says we know which workspace to write to. Mobile's access
     // model is deliberately optimistic (`useMobileSettingsAccess`) and the API authorizes — there
@@ -125,6 +128,11 @@ export const MembersTab = ({
             onRemove={(member) => {
                 setError(null)
                 setPendingRemoval(member)
+            }}
+            onRenameSelf={async (_member, name) => {
+                await updateUsername(name)
+                await queryClient.invalidateQueries({queryKey: ["profile"]})
+                onChanged()
             }}
         >
             <Dialog open={inviteOpen} onOpenChange={(next) => (next ? undefined : closeInvite())}>
