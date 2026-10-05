@@ -3,10 +3,10 @@ import type {ComponentType} from "react"
 import type {SettingsTabKey} from "@agenta/settings"
 import dynamic from "next/dynamic"
 
+import {billingUrl} from "@/lib/context"
+
 import type {SettingsTabProps} from "./settingsTabProps"
 import {SettingsTabSkeleton} from "./states/SettingsTabSkeleton"
-
-import {billingUrl} from "@/lib/context"
 
 type Loader = () => Promise<ComponentType<SettingsTabProps>>
 

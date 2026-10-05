@@ -5,6 +5,15 @@ import {SettingsPageShell} from "@agenta/settings-ui"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {useRouter} from "next/router"
 
+import {ContentRail} from "@/components/ContentRail"
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {
+    getMobileSettingsTabDescription,
+    getMobileSettingsTabDocs,
+    getMobileSettingsTabLabel,
+} from "@/lib/integrationsCopy"
+
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -15,15 +24,6 @@ import {SettingsTabContent} from "./SettingsTabContent"
 import {SettingsTabRail} from "./SettingsTabRail"
 import {preloadAllSettingsTabs, preloadSettingsTab} from "./settingsTabRegistry"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
-
-import {ContentRail} from "@/components/ContentRail"
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {
-    getMobileSettingsTabDescription,
-    getMobileSettingsTabDocs,
-    getMobileSettingsTabLabel,
-} from "@/lib/integrationsCopy"
 
 /** Warms a tab's code when the pointer reaches its nav link, and every tab once the page is idle. */
 const usePreloadSettingsTabs = () => {

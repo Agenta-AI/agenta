@@ -1,8 +1,8 @@
 import {GatewayToolsSection} from "@agenta/settings-ui"
 
-import {useConfirmModal} from "./useConfirmModal"
-
 import {INTEGRATIONS_SECTION_COPY} from "@/lib/integrationsCopy"
+
+import {useConfirmModal} from "./useConfirmModal"
 
 /** Settings > Integrations: the shared tools section with this app's confirm dialog. */
 export const IntegrationsTab = () => {

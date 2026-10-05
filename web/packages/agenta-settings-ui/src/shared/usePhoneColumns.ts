@@ -6,6 +6,7 @@ import type {ListTableColumn} from "@agenta/ui/list-table"
 const WIDE_QUERY = "(min-width: 640px)"
 
 const subscribe = (onChange: () => void) => {
+    if (typeof window.matchMedia !== "function") return () => undefined
     const list = window.matchMedia(WIDE_QUERY)
     list.addEventListener("change", onChange)
     return () => list.removeEventListener("change", onChange)
@@ -16,7 +17,7 @@ export const usePhoneColumns = (columns: ListTableColumn[], phoneKeys: readonly 
     // Read on the first render, so a desktop table never paints its phone columns first.
     const wide = useSyncExternalStore(
         subscribe,
-        () => window.matchMedia(WIDE_QUERY).matches,
+        () => typeof window.matchMedia !== "function" || window.matchMedia(WIDE_QUERY).matches,
         () => true,
     )
     return useMemo(() => {
