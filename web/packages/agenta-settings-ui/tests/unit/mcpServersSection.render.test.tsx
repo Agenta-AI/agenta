@@ -9,10 +9,9 @@
  * and an open drawer reporting a state the list has already moved past.
  */
 import {getSettingsTabDescription} from "@agenta/settings"
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 import {act, cleanup, fireEvent, render, screen, within} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-
-import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 
 import McpServersSection from "../../src/mcp/McpServersSection"
 
@@ -175,7 +174,7 @@ for (const method of ["hasPointerCapture", "setPointerCapture", "releasePointerC
 
 /** The kebab in a row's trailing cell. Radix opens the menu on pointerdown, not click. */
 const openRowMenu = (name: string) => {
-    const row = screen.getByText(name).closest("tr") as HTMLTableRowElement
+    const row = screen.getByText(name).closest('[role="button"]') as HTMLElement
     const kebab = within(row).getAllByRole("button").at(-1) as HTMLElement
     act(() => {
         fireEvent.pointerDown(kebab, {bubbles: true, button: 0, ctrlKey: false})
@@ -188,36 +187,8 @@ const menuItems = () => screen.getAllByRole("menuitem").map((item) => item.textC
 const statusTone = (cell: HTMLElement) =>
     (cell.firstElementChild as HTMLElement | null)?.className ?? ""
 
-/**
- * The viewport the case means, since two of the four columns are a wider screen's.
- *
- * jsdom implements no `matchMedia`, so without this every breakpoint reads false and every
- * case would silently be a phone. Cases that do not say otherwise are a desktop, which is what
- * the spec's 1000px page is.
- */
-const setViewport = (width: number) => {
-    Object.defineProperty(window, "matchMedia", {
-        writable: true,
-        configurable: true,
-        value: (query: string) => {
-            const min = Number(/min-width:\s*(\d+)px/.exec(query)?.[1] ?? 0)
-            return {
-                matches: width >= min,
-                media: query,
-                onchange: null,
-                addListener: () => undefined,
-                removeListener: () => undefined,
-                addEventListener: () => undefined,
-                removeEventListener: () => undefined,
-                dispatchEvent: () => false,
-            }
-        },
-    })
-}
-
 beforeEach(() => {
     opened.length = 0
-    setViewport(1440)
     confirmSpy = vi.fn()
     setters.remove.mockReset()
     setters.disconnect.mockReset()
@@ -234,28 +205,12 @@ describe("the registry table", () => {
         }
     })
 
-    it("keeps what identifies and acts on a row at phone width, and drops the details", () => {
-        // Measured, the four columns are a 986px table, which a 348px phone can only scroll
-        // sideways. The acceptance is that it reflows instead, and the table's own mechanism for
-        // that is a per-column breakpoint. The URL and the auth are one tap away in the row.
-        setViewport(430)
-        show([LINEAR])
-
-        expect(screen.getByRole("columnheader", {name: "Name"})).toBeTruthy()
-        expect(screen.getByRole("columnheader", {name: "Status"})).toBeTruthy()
-        expect(screen.queryByRole("columnheader", {name: "Server URL"})).toBeNull()
-        expect(screen.queryByRole("columnheader", {name: "Auth"})).toBeNull()
-        // The row still says which server it is, which is what a narrow table is for.
-        expect(screen.getByTestId("mcp-connection-name").textContent).toBe("Linear")
-    })
-
     it("leads each row with the server tile and the connection name", () => {
         const {container} = show([LINEAR])
         expect(screen.getByTestId("mcp-connection-name").textContent).toBe("Linear")
-        // One generic tile per row, at the 24px size the spec's Name cell draws.
+        // One generic tile per row, at the 28px size the Name cell draws.
         const tile = container.querySelector('[data-slot="icon-tile"]')
-        expect(tile?.getAttribute("data-size")).toBe("24")
-        expect(tile?.getAttribute("data-tone")).toBe("info")
+        expect(tile?.getAttribute("data-size")).toBe("28")
     })
 
     it("shows the server URL", () => {
@@ -347,8 +302,8 @@ describe("the row menu", () => {
         openRowMenu("Linear")
         expect(menuItems()).toEqual(["Reconnect", "View tools", "Rename", "Disconnect", "Remove"])
         for (const verb of ["Disconnect", "Remove"]) {
-            expect(screen.getByRole("menuitem", {name: verb}).className).toContain(
-                "text-colorError",
+            expect(screen.getByRole("menuitem", {name: verb}).getAttribute("data-variant")).toBe(
+                "destructive",
             )
         }
     })
@@ -550,11 +505,10 @@ describe("the empty page", () => {
         expect(screen.getAllByTestId("mcp-connect-open")).toHaveLength(1)
     })
 
-    it("draws the muted tile, not the row tile", () => {
+    it("draws the empty state's icon, not a row tile", () => {
         const {container} = show([])
-        const tile = container.querySelector('[data-slot="icon-tile"]')
-        expect(tile?.getAttribute("data-size")).toBe("44")
-        expect(tile?.getAttribute("data-tone")).toBe("muted")
+        expect(container.querySelector('[data-slot="empty-icon"]')).not.toBeNull()
+        expect(container.querySelector('[data-slot="icon-tile"]')).toBeNull()
     })
 
     it("says nothing at all while the list is still loading", () => {
@@ -566,7 +520,7 @@ describe("the empty page", () => {
 describe("loading", () => {
     it("holds three rows' worth of space rather than collapsing the page", () => {
         const {container} = show([], {isPending: true})
-        expect(container.querySelectorAll("tbody tr")).toHaveLength(3)
+        expect(container.querySelectorAll('div[aria-hidden="true"] > div.grid')).toHaveLength(3)
     })
 })
 
@@ -580,7 +534,7 @@ describe("read-only", () => {
 
     it("drops the row menu with it", () => {
         show([LINEAR], {readOnly: true})
-        const row = screen.getByText("Linear").closest("tr") as HTMLTableRowElement
+        const row = screen.getByText("Linear").closest('[role="button"]') as HTMLElement
         expect(within(row).queryAllByRole("button")).toHaveLength(0)
     })
 })

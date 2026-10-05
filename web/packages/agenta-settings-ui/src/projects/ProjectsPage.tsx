@@ -4,15 +4,21 @@ import {createProject, deleteProject, patchProject} from "@agenta/entities/proje
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {message} from "@agenta/ui/app-message"
 import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
 import {
-    Button,
-    DataTable,
-    EmptyState,
-    type DataTableAction,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
-import {CheckCircle, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+    CheckCircle,
+    FolderSimple,
+    MagnifyingGlass,
+    PencilSimpleLine,
+    Plus,
+    Trash,
+} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
+
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 interface ProjectFormValues {
     name: string
@@ -27,8 +33,14 @@ const errorDetail = (error: unknown, fallback: string): string => {
 
 interface ProjectRow extends ProjectsResponse {
     key: string
-    [extra: string]: unknown
 }
+
+const COLUMNS: ListTableColumn[] = [
+    {key: "project_name", label: "Project", width: "minmax(200px,2fr)"},
+    {key: "project_id", label: "Project ID", width: "minmax(240px,2fr)"},
+    {key: "user_role", label: "Your role", width: "minmax(96px,1fr)"},
+    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+]
 
 export interface ProjectDialogState<T> {
     open: boolean
@@ -180,132 +192,115 @@ export const ProjectsPage = ({
         setRenameModalOpen(true)
     }, [])
 
-    const columns = useMemo<DataTableColumn<ProjectRow>[]>(
-        () => [
-            {
-                key: "project_name",
-                title: "Project",
-                width: 260,
-                render: (record) => (
-                    <div className="flex min-w-0 items-center gap-2">
-                        {/* The identity column carries an avatar on every other settings
-                            table; the extraction dropped it here and on Organizations. */}
-                        <InitialsAvatar size="small" name={record.project_name} />
-                        <span className="truncate font-medium" title={record.project_name}>
-                            {record.project_name}
-                        </span>
-                        {record.is_default_project ? <Tag className="m-0" label="Default" /> : null}
-                    </div>
-                ),
-            },
-            // Its own column, not a second line under the name.
-            {
-                key: "project_id",
-                title: "Project ID",
-                width: 330,
-                mono: true,
-                render: (r) => r.project_id,
-            },
-            {
-                key: "user_role",
-                title: "Your role",
-                width: 140,
-                render: (record) =>
-                    record.user_role ? <Tag className="m-0" label={record.user_role} /> : "—",
-            },
-        ],
-        [],
-    )
+    const searching = searchTerm.trim().length > 0
 
-    const rowActions = useCallback(
-        (record: ProjectRow): (DataTableAction<ProjectRow> | {type: "divider"})[] => [
-            {
-                key: "rename",
-                label: "Rename",
-                icon: <PencilSimpleLine size={16} />,
-                onClick: () => openRenameModal(record),
-            },
-            {
-                key: "default",
-                label: "Set as default",
-                icon: <CheckCircle size={16} />,
-                hidden: Boolean(record.is_default_project),
-                disabled: defaultMutation.isPending,
-                onClick: () => handleMakeDefault(record),
-            },
-            {type: "divider"},
-            {
-                key: "delete",
-                label: "Delete project",
-                icon: <Trash size={16} />,
-                danger: true,
-                // The last project in a workspace cannot be removed, and the default project
-                // must be reassigned first.
-                disabled: !canDeleteProjects || Boolean(record.is_default_project),
-                onClick: () => handleDelete(record),
-            },
-        ],
-        [
-            canDeleteProjects,
-            defaultMutation.isPending,
-            handleDelete,
-            handleMakeDefault,
-            openRenameModal,
-        ],
-    )
+    const newProject = canEdit ? (
+        <Button size="sm" onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
+            <Plus size={14} />
+            New project
+        </Button>
+    ) : null
 
     return (
-        <div className="flex flex-col gap-2">
-            <DataTable<ProjectRow>
-                columns={columns}
-                rows={rows}
-                rowKey={(record) => record.key}
-                loading={isLoading}
-                actions={rowActions}
+        <section className="flex flex-col">
+            <SettingsToolbar
                 search={{
                     placeholder: "Search projects",
                     value: searchTerm,
                     onChange: setSearchTerm,
-                    disabled: isLoading,
                 }}
-                primaryActions={
-                    canEdit ? (
-                        <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
-                            <Plus size={14} />
-                            New project
-                        </Button>
-                    ) : null
-                }
+                actions={newProject}
+            />
+            <ListTable<ProjectRow>
+                columns={COLUMNS}
+                groups={[{key: "projects", label: null, rows}]}
+                rowKey={(record) => record.key}
+                minWidth={640}
+                loading={isLoading && rows.length === 0}
+                hideHeader={!isLoading && rows.length === 0}
                 empty={
-                    searchTerm.trim() ? (
-                        <EmptyState
-                            image="simple"
-                            description={`No projects match “${searchTerm.trim()}”`}
+                    searching ? (
+                        <SettingsEmpty
+                            icon={<MagnifyingGlass size={18} />}
+                            title={`No projects match “${searchTerm.trim()}”`}
+                            action={
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setSearchTerm("")}
+                                >
+                                    Clear search
+                                </Button>
+                            }
                         />
                     ) : (
-                        <EmptyState
-                            image="simple"
-                            description={
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-xs font-medium text-colorText">
-                                        No projects in this workspace yet
-                                    </span>
-                                    <span>
-                                        Create a project to organize your agents, datasets, and
-                                        deployments.
-                                    </span>
-                                </div>
-                            }
-                        >
-                            {canEdit ? (
-                                <Button variant="outline" onClick={() => setCreateModalOpen(true)}>
-                                    <Plus size={14} />
-                                    New project
-                                </Button>
-                            ) : null}
-                        </EmptyState>
+                        <SettingsEmpty
+                            icon={<FolderSimple size={18} />}
+                            title="No projects in this workspace yet"
+                            description="Create a project to organize your agents, datasets, and deployments."
+                            action={newProject}
+                        />
                     )
                 }
+                renderRow={(record) => (
+                    <>
+                        <span className="flex min-w-0 items-center gap-2.5">
+                            {/* The identity column carries an avatar on every other settings
+                                table; the extraction dropped it here and on Organizations. */}
+                            <InitialsAvatar name={record.project_name} />
+                            <span
+                                className="truncate font-medium text-foreground"
+                                title={record.project_name}
+                            >
+                                {record.project_name}
+                            </span>
+                            {record.is_default_project ? (
+                                <Tag className="m-0 shrink-0" label="Default" />
+                            ) : null}
+                        </span>
+                        <span className="truncate font-mono text-[13px] text-muted-foreground">
+                            {record.project_id}
+                        </span>
+                        <span className="flex min-w-0">
+                            {record.user_role ? (
+                                <Tag className="m-0" label={record.user_role} />
+                            ) : (
+                                <span className="text-muted-foreground">—</span>
+                            )}
+                        </span>
+                        <SettingsRowMenu
+                            label="Project actions"
+                            items={[
+                                {
+                                    key: "rename",
+                                    label: "Rename",
+                                    icon: <PencilSimpleLine size={14} />,
+                                    onClick: () => openRenameModal(record),
+                                },
+                                {
+                                    key: "default",
+                                    label: "Set as default",
+                                    icon: <CheckCircle size={14} />,
+                                    hidden: Boolean(record.is_default_project),
+                                    disabled: defaultMutation.isPending,
+                                    onClick: () => handleMakeDefault(record),
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "delete",
+                                    label: "Delete project",
+                                    icon: <Trash size={14} />,
+                                    danger: true,
+                                    // The last project in a workspace cannot be removed, and the
+                                    // default project must be reassigned first.
+                                    disabled:
+                                        !canDeleteProjects || Boolean(record.is_default_project),
+                                    onClick: () => handleDelete(record),
+                                },
+                            ]}
+                        />
+                    </>
+                )}
             />
 
             {renderCreateDialog?.({
@@ -337,6 +332,6 @@ export const ProjectsPage = ({
                 pending: deleteMutation.isPending,
                 project: projectToDelete,
             })}
-        </div>
+        </section>
     )
 }

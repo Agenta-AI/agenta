@@ -4,8 +4,13 @@ import {CustomSecretFormat, useVaultSecret, type NamedSecretRow} from "@agenta/e
 import type {LlmProvider} from "@agenta/shared/types"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button, IconTile} from "@agenta/ui/ui"
+import {LockKey, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 /**
  * Mask stored secret content for display. `text` is masked like an API key
@@ -37,6 +42,18 @@ export interface NamedSecretTableProps {
     }) => React.ReactNode
 }
 
+interface SecretRow extends NamedSecretRow {
+    key: string
+}
+
+const COLUMNS: ListTableColumn[] = [
+    {key: "name", label: "Name", width: "minmax(200px,2fr)"},
+    {key: "content", label: "Value", width: "minmax(120px,1fr)"},
+    {key: "format", label: "Format", width: "minmax(72px,0.6fr)"},
+    {key: "created_at", label: "Created", width: "minmax(130px,1fr)"},
+    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+]
+
 export const NamedSecretTable = ({
     renderConfigureDialog,
     renderDeleteDialog,
@@ -45,11 +62,6 @@ export const NamedSecretTable = ({
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false)
     const [selectedSecret, setSelectedSecret] = useState<NamedSecretRow | null>(null)
-
-    interface SecretRow extends NamedSecretRow {
-        key: string
-        [extra: string]: unknown
-    }
 
     const rows = useMemo<SecretRow[]>(
         () =>
@@ -60,118 +72,107 @@ export const NamedSecretTable = ({
         [namedSecrets],
     )
 
-    const columns = useMemo<DataTableColumn<SecretRow>[]>(
-        () => [
-            {key: "name", title: "Name", width: 200, render: (record) => record.name},
-            {key: "slug", title: "Slug", width: 240, mono: true, render: (record) => record.slug},
-            {
-                key: "content",
-                title: "Value",
-                width: 200,
-                render: (record) => <span className="ph-no-capture">{maskContent(record)}</span>,
-            },
-            {
-                key: "format",
-                title: "Format",
-                width: 120,
-                render: (record) => <Tag>{record.format}</Tag>,
-            },
-            {
-                key: "created_at",
-                title: "Created",
-                width: 160,
-                render: (record) =>
-                    record.created_at
-                        ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
-                        : "-",
-            },
-        ],
-        [],
-    )
+    const openCreate = () => {
+        setSelectedSecret(null)
+        setIsConfigModalOpen(true)
+    }
+
+    // The form is the host's; without one this would open nothing, so it is absent rather than dead.
+    const create = renderConfigureDialog ? (
+        <Button size="sm" disabled={loading} onClick={openCreate}>
+            <Plus size={14} />
+            Create secret
+        </Button>
+    ) : null
 
     return (
         <>
-            <div className="flex flex-col gap-2">
-                <DataTable<SecretRow>
-                    className="ph-no-capture"
-                    columns={columns}
-                    rows={rows}
-                    rowKey={(record) => record.key}
-                    loading={loading}
-                    actions={(record) => [
-                        {
-                            key: "edit",
-                            label: "Edit",
-                            icon: <PencilSimpleLine size={16} />,
-                            hidden: !renderConfigureDialog,
-                            onClick: () => {
-                                setSelectedSecret(record)
-                                setIsConfigModalOpen(true)
-                            },
-                        },
-                        {type: "divider"},
-                        {
-                            key: "delete",
-                            label: "Delete",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            hidden: !renderDeleteDialog,
-                            onClick: () => {
-                                setSelectedSecret(record)
-                                setIsDeleteModalOpen(true)
-                            },
-                        },
-                    ]}
+            <section className="flex flex-col">
+                <SettingsToolbar
                     onReload={mutate}
                     reloading={loading}
                     reloadLabel="Reload secrets"
-                    primaryActions={
-                        // The form is the host's; without one this would open nothing, so it
-                        // is absent rather than dead.
-                        renderConfigureDialog ? (
-                            <Button
-                                disabled={loading}
-                                onClick={() => {
-                                    setSelectedSecret(null)
-                                    setIsConfigModalOpen(true)
-                                }}
-                            >
-                                <Plus size={14} />
-                                Create secret
-                            </Button>
-                        ) : null
-                    }
-                    empty={
-                        <EmptyState
-                            image="simple"
-                            description={
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-xs font-medium text-colorText">
-                                        No secrets yet
-                                    </span>
-                                    <span>
-                                        Store a named secret to reference credentials without
-                                        exposing their values.
-                                    </span>
-                                </div>
-                            }
-                        >
-                            {renderConfigureDialog ? (
-                                <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                        setSelectedSecret(null)
-                                        setIsConfigModalOpen(true)
-                                    }}
-                                >
-                                    <Plus size={14} />
-                                    Create secret
-                                </Button>
-                            ) : null}
-                        </EmptyState>
-                    }
+                    actions={create}
                 />
-            </div>
+                <ListTable<SecretRow>
+                    className="ph-no-capture"
+                    columns={COLUMNS}
+                    groups={[{key: "secrets", label: null, rows}]}
+                    rowKey={(record) => record.key}
+                    minWidth={620}
+                    loading={loading && rows.length === 0}
+                    hideHeader={!loading && rows.length === 0}
+                    empty={
+                        <SettingsEmpty
+                            icon={<LockKey size={18} />}
+                            title="No secrets yet"
+                            description="Store a named secret to reference credentials without exposing their values."
+                            action={create}
+                        />
+                    }
+                    renderRow={(record) => (
+                        <>
+                            <span className="flex min-w-0 items-center gap-2.5">
+                                <IconTile
+                                    size={28}
+                                    tone="muted"
+                                    aria-hidden="true"
+                                    className="border border-solid border-border bg-muted text-muted-foreground"
+                                >
+                                    <LockKey />
+                                </IconTile>
+                                <span className="flex min-w-0 flex-col">
+                                    <span className="truncate font-medium">{record.name}</span>
+                                    <span className="truncate font-mono text-[12.5px] text-muted-foreground">
+                                        {record.slug}
+                                    </span>
+                                </span>
+                            </span>
+                            <span className="ph-no-capture truncate font-mono text-[13px]">
+                                {maskContent(record)}
+                            </span>
+                            <span className="flex min-w-0">
+                                <Tag>{record.format}</Tag>
+                            </span>
+                            <span className="truncate text-muted-foreground">
+                                {record.created_at
+                                    ? formatDay({
+                                          date: record.created_at,
+                                          outputFormat: "YYYY-MM-DD HH:mm",
+                                      })
+                                    : "-"}
+                            </span>
+                            <SettingsRowMenu
+                                label="Secret actions"
+                                items={[
+                                    {
+                                        key: "edit",
+                                        label: "Edit",
+                                        icon: <PencilSimpleLine size={14} />,
+                                        hidden: !renderConfigureDialog,
+                                        onClick: () => {
+                                            setSelectedSecret(record)
+                                            setIsConfigModalOpen(true)
+                                        },
+                                    },
+                                    {type: "divider"},
+                                    {
+                                        key: "delete",
+                                        label: "Delete",
+                                        icon: <Trash size={14} />,
+                                        danger: true,
+                                        hidden: !renderDeleteDialog,
+                                        onClick: () => {
+                                            setSelectedSecret(record)
+                                            setIsDeleteModalOpen(true)
+                                        },
+                                    },
+                                ]}
+                            />
+                        </>
+                    )}
+                />
+            </section>
 
             {renderConfigureDialog?.({
                 selectedSecret,
