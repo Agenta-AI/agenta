@@ -281,10 +281,10 @@ redisDurable:
 # Chart defaults when a key is unset:
 #   strategy: Recreate on agentRunner, cron and redisVolatile; RollingUpdate
 #     with maxUnavailable 0, maxSurge 1 on services, web, webMobile,
-#     workerStreams, workerQueues and supertokens; none on api.
+#     workerStreams, workerQueues, supertokens and api.
 #   terminationGracePeriodSeconds: 300 on agentRunner, 120 on the two
-#     workers, 60 on services, web and webMobile.
-#   lifecycle: a preStop exec `sleep 10` on agentRunner, services, web and
+#     workers, 60 on api, services, web and webMobile.
+#   lifecycle: a preStop exec `sleep 10` on agentRunner, api, services, web and
 #     webMobile. Setting a key replaces its default.
 # The keys work on api, services, web, webMobile, cron, workerStreams,
 # workerQueues, agentRunner, supertokens, redisVolatile, redisDurable,
