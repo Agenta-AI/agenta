@@ -1,4 +1,4 @@
-import {Fragment, type ReactNode} from "react"
+import {Fragment, useRef, type ReactNode} from "react"
 
 import {
     Button,
@@ -18,6 +18,8 @@ export interface SettingsRowAction {
     disabled?: boolean
     /** Drop the item for this row, e.g. "Set as default" on the default row. */
     hidden?: boolean
+    /** Run after the menu closes, for a verb that moves focus (an inline rename). */
+    deferred?: boolean
     onClick: () => void
 }
 
@@ -46,6 +48,8 @@ export const SettingsRowMenu = ({
     label?: string
 }) => {
     const shown = visibleItems(items)
+    // Radix restores focus to the trigger on close, which would blur a field the verb just focused.
+    const deferredRef = useRef<(() => void) | null>(null)
     if (!shown.some((item) => !("type" in item))) return null
 
     return (
@@ -64,7 +68,17 @@ export const SettingsRowMenu = ({
                         <DotsThreeVertical aria-hidden weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[180px]">
+                <DropdownMenuContent
+                    align="end"
+                    className="min-w-[180px]"
+                    onCloseAutoFocus={(event) => {
+                        const deferred = deferredRef.current
+                        deferredRef.current = null
+                        if (!deferred) return
+                        event.preventDefault()
+                        deferred()
+                    }}
+                >
                     {shown.map((item, index) =>
                         "type" in item ? (
                             <DropdownMenuSeparator key={`divider-${index}`} />
@@ -73,7 +87,10 @@ export const SettingsRowMenu = ({
                                 <DropdownMenuItem
                                     variant={item.danger ? "destructive" : "default"}
                                     disabled={item.disabled}
-                                    onSelect={item.onClick}
+                                    onSelect={() => {
+                                        if (item.deferred) deferredRef.current = item.onClick
+                                        else item.onClick()
+                                    }}
                                 >
                                     {item.icon}
                                     {item.label}
