@@ -63,6 +63,9 @@ const AccessDialog = ({
     </Dialog>
 )
 
+/** The button pressed; the caller turns it into a stored level. */
+export type AccessAnswer = "allow" | "readOnly" | "deny"
+
 export interface AccessQuestionProps {
     open: boolean
     /** App name from the manifest, else the folder name. */
@@ -75,8 +78,7 @@ export interface AccessQuestionProps {
     writeUnavailable?: boolean
     /** A positioned pane to confine the dialog to; the rest of the page stays live. */
     container?: HTMLElement | null
-    /** The level chosen; Don't allow on the write question answers `read`. */
-    onAnswer: (level: AppAccess) => void
+    onAnswer: (answer: AccessAnswer) => void
     /** Closed without an answer (Esc, ×): nothing is stored. */
     onCancel: () => void
 }
@@ -119,19 +121,15 @@ export function AccessQuestion({
             <p className="m-0 text-xs text-colorTextTertiary">{TRUST_NOTE}</p>
 
             <DialogFooter className="gap-2">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onAnswer(need === "write" ? "read" : "none")}
-                >
+                <Button variant="outline" size="sm" onClick={() => onAnswer("deny")}>
                     Don't allow
                 </Button>
                 {need === "read-write" ? (
-                    <Button variant="outline" size="sm" onClick={() => onAnswer("read")}>
+                    <Button variant="outline" size="sm" onClick={() => onAnswer("readOnly")}>
                         Read only
                     </Button>
                 ) : null}
-                <Button size="sm" onClick={() => onAnswer(need === "read" ? "read" : "read-write")}>
+                <Button size="sm" onClick={() => onAnswer("allow")}>
                     {need === "read-write" ? "Allow read and write" : "Allow"}
                 </Button>
             </DialogFooter>

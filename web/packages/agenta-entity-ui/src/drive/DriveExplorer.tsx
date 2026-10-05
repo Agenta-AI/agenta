@@ -372,9 +372,9 @@ export function DriveExplorer({
     // Row 2's slot for a running app's controls.
     const [appControlsEl, setAppControlsEl] = useState<HTMLDivElement | null>(null)
     // An app's access sheet stays inside this pane, so the chat beside it stays usable.
-    const paneHtmlAppEnv = useMemo(
-        () => ({...htmlAppEnv, sheetContainer: getPane, toolbarSlot: appControlsEl}),
-        [htmlAppEnv, getPane, appControlsEl],
+    const sheetHtmlAppEnv = useMemo(
+        () => ({...htmlAppEnv, sheetContainer: getPane}),
+        [htmlAppEnv, getPane],
     )
     // The app whose code is on screen; every other app opens running.
     const [htmlCodePath, setHtmlCodePath] = useState<string | null>(null)
@@ -387,8 +387,16 @@ export function DriveExplorer({
         dir: appDir,
         displayDir: dirOf(selectedPath ?? ""),
         appName: appDir.split("/").pop() || nameOf(selectedPath ?? ""),
-        env: paneHtmlAppEnv,
+        env: sheetHtmlAppEnv,
     })
+    const paneHtmlAppEnv = useMemo(
+        () => ({
+            ...sheetHtmlAppEnv,
+            toolbarSlot: appControlsEl,
+            openAccessSetting: appAccess.open,
+        }),
+        [sheetHtmlAppEnv, appControlsEl, appAccess.open],
+    )
     const editing = editableMarkdown || editableCode
     const editor = useDriveFileEditor(
         editing ? selectedMount : null,

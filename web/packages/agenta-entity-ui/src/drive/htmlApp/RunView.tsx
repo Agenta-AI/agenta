@@ -279,15 +279,16 @@ export function RunView({
             ) : null}
 
             {onAllowEditing ? (
-                <button
-                    type="button"
-                    onClick={onAllowEditing}
-                    title="The app can read its files but not save changes"
-                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorBorder bg-colorFillTertiary px-2 text-[11px] text-colorTextSecondary hover:text-colorText"
-                >
-                    <LockSimple weight="bold" className="size-3" />
-                    Read only · Allow editing
-                </button>
+                <Tooltip title="The app can read its files but not save changes">
+                    <button
+                        type="button"
+                        onClick={onAllowEditing}
+                        className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorBorder bg-colorFillTertiary px-2 text-[11px] text-colorTextSecondary hover:text-colorText"
+                    >
+                        <LockSimple weight="bold" className="size-3" />
+                        Read only · Allow editing
+                    </button>
+                </Tooltip>
             ) : null}
 
             {changedPaths.length > 0 ? (

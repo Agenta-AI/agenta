@@ -1,17 +1,13 @@
 /** The HTML app viewer: runs the app in its folder and asks for file access on demand. */
-import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     createHtmlAppHost,
     fetchMountFileBlob,
-    getGrant,
-    setGrant as storeGrant,
-    subscribeGrants,
     type AppAccess,
     type GrantLevel,
     type GrantRecord,
     type HtmlAppHost,
-    type HtmlAppHostOptions,
 } from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -19,80 +15,16 @@ import {Skeleton} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {blobToDataUri, dirOf, type AssembleIo} from "./assemble"
-import {AccessQuestion, type AccessQuestionProps} from "./GrantSheet"
+import {AccessQuestion, type AccessAnswer, type AccessQuestionProps} from "./GrantSheet"
+import {defaultGrants, effectiveAccess, HtmlAppEnvContext, useGrantLevel} from "./htmlAppEnv"
 import {KIT_CSS} from "./kit"
 import {RunView, resolveHostKitTokens} from "./RunView"
-import {useAppAccessMenu} from "./useAppAccessMenu"
 import {useAppManifest} from "./useAppManifest"
 import {useChangedHint} from "./useChangedHint"
 
 export {dirOf}
 
-// ---------------------------------------------------------------------------------------------
-// Environment (what a host or a story injects)
-// ---------------------------------------------------------------------------------------------
-
-export interface GrantStore {
-    get: (mountId: string, dir: string) => GrantRecord | null
-    set: (mountId: string, dir: string, record: GrantRecord) => void
-    /** Called after any answer is stored; returns the unsubscribe. */
-    subscribe: (listener: () => void) => () => void
-}
-
-const grantKey = (mountId: string, dir: string) => `${mountId}::${dir}`
-
-/** An isolated in-memory store (stories, tests). */
-export const createGrantStore = (): GrantStore => {
-    const grants = new Map<string, GrantRecord>()
-    const listeners = new Set<() => void>()
-    return {
-        get: (mountId, dir) => grants.get(grantKey(mountId, dir)) ?? null,
-        set: (mountId, dir, record) => {
-            grants.set(grantKey(mountId, dir), record)
-            for (const listener of listeners) listener()
-        },
-        subscribe: (listener) => {
-            listeners.add(listener)
-            return () => {
-                listeners.delete(listener)
-            }
-        },
-    }
-}
-
-/** Per-user grants in localStorage: they hold across tabs and reloads, never across users. */
-export const defaultGrants: GrantStore = {
-    get: getGrant,
-    set: storeGrant,
-    subscribe: subscribeGrants,
-}
-
-/** What a stored level lets the app do here; write is capped to read where edits are off. */
-export const effectiveAccess = (level: AppAccess | null, canEditMounts: boolean): AppAccess =>
-    level === null ? "none" : level === "read-write" && !canEditMounts ? "read" : level
-
 const EMPTY_GRANT: GrantRecord = {level: null, writeRefused: false}
-
-export interface HtmlAppEnv {
-    /** Bridge host factory; default `createHtmlAppHost` (stories inject the mock). */
-    createHost?: (opts: HtmlAppHostOptions) => HtmlAppHost
-    /** Mount io override (stories serve the mock's files); default: the real mount. */
-    io?: AssembleIo | null
-    /** Whether "Read and write files" is offered; default: the drive's upload gate. */
-    canEditMounts?: boolean
-    /** Kit stylesheet; default `KIT_CSS`. */
-    kitCss?: string
-    /** Bridge stub source; default `BRIDGE_STUB`. */
-    bridgeStub?: string
-    resolveTokens?: () => Record<string, string>
-    grants?: GrantStore
-    /** The positioned pane the access sheet is confined to; default: the whole page. */
-    sheetContainer?: () => HTMLElement | null
-    /** The toolbar slot the running app's controls portal into; default: a row above the app. */
-    toolbarSlot?: HTMLElement | null
-}
-
-export const HtmlAppEnvContext = createContext<HtmlAppEnv>({})
 
 /** Mount-backed {@link AssembleIo}; null without a mount (a local composer attachment). */
 export const useMountAssembleIo = (mountId: string | null, projectId: string | null) =>
@@ -173,13 +105,12 @@ export function HtmlAppBody({
     const canEditMounts = env.canEditMounts ?? !!mountId
     const declared = manifest?.access
     const displayDir = dirOf(displayPath ?? path)
-    const accessMenu = useAppAccessMenu({mountId, dir, displayDir, appName, env})
-    const openAccessSetting = accessMenu.open
+    const grantLevel = useGrantLevel(grants, mountId, dir, canEditMounts)
 
     /** The open question: what the app tried that needs an answer. */
     const [question, setQuestion] = useState<AccessQuestionProps["need"] | null>(null)
-    /** The level chosen, or null when closed without an answer. */
-    const answerRef = useRef<((answer: AppAccess | null) => void) | null>(null)
+    /** The button chosen, or null when closed without an answer. */
+    const answerRef = useRef<((answer: AccessAnswer | null) => void) | null>(null)
     /** A write this run was refused because the app only has read. */
     const [writeFailed, setWriteFailed] = useState(false)
     // Callers reuse this body across files without a key: show a host only for its own folder.
@@ -195,7 +126,9 @@ export function HtmlAppBody({
 
     const ask = useCallback(
         (kind: AccessQuestionProps["need"]) =>
-            new Promise<AppAccess | null>((resolve) => {
+            new Promise<AccessAnswer | null>((resolve) => {
+                // One question at a time: a newer one cancels the open one.
+                answerRef.current?.(null)
                 answerRef.current = resolve
                 setQuestion(kind)
             }),
@@ -212,8 +145,13 @@ export function HtmlAppBody({
             if (latest.level !== record.level) return effectiveAccess(latest.level, canEditMounts)
             if (answer === null) return null
             // Don't allow on an upgrade keeps the read the app already has.
-            const level = answer === "none" && record.level === "read" ? "read" : answer
-            // "Read only" refuses write, so a later write does not ask again.
+            const level: AppAccess =
+                answer === "allow"
+                    ? "read-write"
+                    : answer === "readOnly" || record.level === "read"
+                      ? "read"
+                      : "none"
+            // Anything short of write refuses it, so a later write does not ask again.
             grants.set(mountId, dir, {level, writeRefused: level !== "read-write"})
             return level
         },
@@ -257,13 +195,12 @@ export function HtmlAppBody({
                     dismissed.read = true
                     return "none"
                 }
-                const level: AppAccess = answer === "read" ? "read" : "none"
+                const level: AppAccess = answer === "allow" ? "read" : "none"
                 grants.set(mountId, dir, {...latest, level})
                 return level
             }
             if (current === "read-write" || record.level === "none") return current
-            // Asking on a write is for apps that declare nothing; never where edits are off,
-            // after a refusal, or after a cancel.
+            // Only undeclared apps ask on a write; not where edits are off, refused or cancelled.
             if (declared || !canEditMounts || record.writeRefused || dismissed.write) {
                 return current
             }
@@ -276,7 +213,7 @@ export function HtmlAppBody({
                 dismissed.write = true
                 return current
             }
-            const allow = answer === "read-write"
+            const allow = answer === "allow"
             grants.set(
                 mountId,
                 dir,
@@ -335,7 +272,7 @@ export function HtmlAppBody({
         env.resolveTokens,
     ])
 
-    const settleQuestion = useCallback((answer: AppAccess | null) => {
+    const settleQuestion = useCallback((answer: AccessAnswer | null) => {
         setQuestion(null)
         answerRef.current?.(answer)
         answerRef.current = null
@@ -343,12 +280,13 @@ export function HtmlAppBody({
 
     // Read only where the app needs to write: offer the upgrade outside the app.
     const canAllowEditing =
-        canEditMounts && accessMenu.level === "read" && (declared === "read-write" || writeFailed)
+        canEditMounts && grantLevel === "read" && (declared === "read-write" || writeFailed)
+    const {openAccessSetting} = env
     const allowEditing = useCallback(() => {
         if (!mountId || answerRef.current) return
         const record = grants.get(mountId, dir) ?? EMPTY_GRANT
         // After a refusal the question is not raised again; the setting changes it.
-        if (record.writeRefused) openAccessSetting()
+        if (record.writeRefused && openAccessSetting) openAccessSetting()
         else void askReadWrite(record)
     }, [mountId, dir, grants, openAccessSetting, askReadWrite])
 
@@ -401,7 +339,6 @@ export function HtmlAppBody({
                     onCancel={() => settleQuestion(null)}
                 />
             ) : null}
-            {accessMenu.dialog}
         </>
     )
 }

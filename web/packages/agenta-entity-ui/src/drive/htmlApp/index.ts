@@ -6,6 +6,7 @@
 export * from "./assemble"
 export * from "./GrantSheet"
 export * from "./HtmlAppBody"
+export * from "./htmlAppEnv"
 export * from "./kit"
 export * from "./RunView"
 export * from "./useAppManifest"

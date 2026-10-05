@@ -1,10 +1,4 @@
-/**
- * An app whose `app.json` declares `access: "read-write"` gets one question for both at open, and
- * a read-only app that needs to write gets "Read only · Allow editing" outside its frame.
- *
- * The app here follows the authoring rules: it writes only while `canWrite` is true. It talks to
- * the real bridge host over a real port; only the drive client is faked.
- */
+/** Declared `access` asks once for both; a read-only app that needs write gets the chip. */
 
 import {act} from "react"
 
@@ -17,15 +11,15 @@ import {
     type ParentToIframe,
 } from "@agenta/entities/drive"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {type AssembleIo} from "../../src/drive/htmlApp/assemble"
+import {HtmlAppBody} from "../../src/drive/htmlApp/HtmlAppBody"
 import {
     createGrantStore,
-    HtmlAppBody,
     HtmlAppEnvContext,
     type GrantStore,
-} from "../../src/drive/htmlApp/HtmlAppBody"
+} from "../../src/drive/htmlApp/htmlAppEnv"
 
 const MOUNT = {id: "m1"} as never
 const DIR = "apps/board"
@@ -83,6 +77,7 @@ const open = async (opts: {
     manifest: Record<string, unknown>
     grants?: GrantStore
     canEditMounts?: boolean
+    openAccessSetting?: () => void
 }) => {
     const grants = opts.grants ?? createGrantStore()
     const drive = fakeClient()
@@ -112,6 +107,7 @@ const open = async (opts: {
                     kitCss: "",
                     bridgeStub: "",
                     resolveTokens: () => ({}),
+                    openAccessSetting: opts.openAccessSetting,
                 }}
             >
                 <HtmlAppBody mount={MOUNT} path={`${DIR}/index.html`} content="<html></html>" />
@@ -175,7 +171,11 @@ describe("a manifest that declares read-write", () => {
     })
 
     it("Read only stores read, refuses write, and shows the chip that opens File access", async () => {
-        const {grants, drive, host} = await open({manifest: {access: "read-write"}})
+        const openAccessSetting = vi.fn()
+        const {grants, drive, host} = await open({
+            manifest: {access: "read-write"},
+            openAccessSetting,
+        })
         const run = runApp(host())
         await wait()
 
@@ -186,7 +186,7 @@ describe("a manifest that declares read-write", () => {
         expect(drive.writes).toEqual([])
         expect(grants.get("m1", DIR)).toEqual({level: "read", writeRefused: true})
         await click(button("Read only · Allow editing"))
-        expect(dialogTitle()).toBe("File access for Board")
+        expect(openAccessSetting).toHaveBeenCalledOnce()
         run.close()
     })
 

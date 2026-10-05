@@ -45,7 +45,7 @@ Writes carry If-Match automatically.
 - Keep assets self-contained. Do not assume network isolation or embed secrets.
 - Wait for `agenta.ready`; treat `not_found` as empty; while `canWrite` is false, show edits
   as unsaved instead of failing; on `access`, re-render and save them.
-- Save whole files, debounced, after each change; handle `conflict` by re-read and reapply.
+- Save whole files, debounced, after each change; handle `conflict` by re-read and reapply once.
 
 ## Starters
 
