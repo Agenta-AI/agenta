@@ -13,7 +13,7 @@
  * Both gates are the host's to resolve — this page only takes their answers.
  */
 
-import {useState, type ReactNode} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {Spinner} from "@agenta/ui/ui"
@@ -56,6 +56,18 @@ export const AuditLogPage = ({
     members,
     currentUserId,
 }: AuditLogPageProps) => {
+    const names = useMemo(
+        () =>
+            new Map(
+                (members ?? [])
+                    .filter((member) => member.user?.id)
+                    .map((member) => [
+                        member.user.id,
+                        member.user.username || member.user.email || member.user.id,
+                    ]),
+            ),
+        [members],
+    )
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
     const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -81,7 +93,7 @@ export const AuditLogPage = ({
         <div className="flex min-h-0 flex-1 flex-col">
             <AuditLogTable
                 renderDateRange={renderDateRange}
-                members={members}
+                names={names}
                 currentUserId={currentUserId}
                 onSelectEvent={(eventId) => {
                     setSelectedEventId(eventId)
@@ -92,7 +104,7 @@ export const AuditLogPage = ({
                 eventId={selectedEventId}
                 open={drawerOpen}
                 onOpenChange={setDrawerOpen}
-                members={members}
+                names={names}
                 currentUserId={currentUserId}
             />
         </div>

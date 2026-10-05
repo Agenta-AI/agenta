@@ -3,10 +3,7 @@ import {useEffect, useRef, useState} from "react"
 import {message} from "@agenta/ui/app-message"
 import {Input, cn} from "@agenta/ui/ui"
 
-/**
- * A row's name that swaps for an input while renaming in place: Enter or blur saves, Escape
- * cancels, a double-click starts it. The host owns which row is renaming.
- */
+/** A row name that becomes an input while renaming: Enter or blur saves, Escape cancels. */
 export const InlineName = ({
     value,
     editing,

@@ -202,8 +202,7 @@ export const MembersPage = ({
                                         key: "reset_password",
                                         label: "Reset password",
                                         icon: <Key size={14} />,
-                                        // The owner is excluded even though the backend has no such check:
-                                        // resetting their password would mint a login link into that account.
+                                        // Never mint a login link into the owner's account.
                                         hidden:
                                             isSelf(record) ||
                                             isOwner(record) ||

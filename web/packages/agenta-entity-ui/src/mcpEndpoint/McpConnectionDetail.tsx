@@ -29,7 +29,8 @@ import {Button, Field, Input} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {ToolsEmpty} from "./components/ToolsEmpty"
+import {ToolsEmpty} from "../shared/ToolsEmpty"
+
 import {ToolFilterInput} from "./ToolFilterInput"
 
 export interface McpConnectionDetailProps {

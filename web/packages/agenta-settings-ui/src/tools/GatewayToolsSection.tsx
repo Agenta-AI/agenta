@@ -68,10 +68,7 @@ const authLabel = (connection: ToolConnection): string | undefined => {
     return typeof scheme === "string" ? (AUTH_SCHEME_LABELS[scheme] ?? scheme) : undefined
 }
 
-/**
- * A connection's catalog entry: the first catalog page has the popular ones, the rest come from
- * their own (cached) detail lookup, so every connected row gets its real logo and name.
- */
+/** A connection's catalog entry: from the first page when there, else its cached detail. */
 const useCatalogEntry = (integrationKey: string, known?: CatalogIntegrationItem) => {
     const {integration} = useToolIntegrationDetail(known ? "" : integrationKey)
     return known ?? integration

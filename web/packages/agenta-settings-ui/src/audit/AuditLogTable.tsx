@@ -1,13 +1,4 @@
-/**
- * Audit Log — Table
- *
- * Renders the `event` entity's paginated store in `ListTable`. Rows are
- * identity-only; cells resolve their own event data from the entity session
- * cache. Clicking a row opens the detail drawer.
- *
- * Pages are pulled explicitly ("Load more") rather than on scroll: `ListTable`
- * is fully materialized, so the page — not a virtual viewport — owns the scroll.
- */
+/** Audit Log table: identity-only rows over the event store, paged by "Load more". */
 
 import {useCallback, useMemo, useRef, type ReactNode} from "react"
 
@@ -17,7 +8,6 @@ import {
     eventTimestampRangeFilterAtom,
     type EventTableRow,
 } from "@agenta/entities/event"
-import type {WorkspaceMember} from "@agenta/entities/organization"
 import {dayjs} from "@agenta/shared/utils"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -86,30 +76,17 @@ const recomputeRelativeTimestampRange = (preset?: string | null) => {
 export interface AuditLogTableProps {
     onSelectEvent: (eventId: string) => void
     renderDateRange?: AuditLogFiltersProps["renderDateRange"]
-    /** Names the User column by user id when the host has no registered member list. */
-    members?: WorkspaceMember[]
+    /** Member names by user id, for the actor cell. */
+    names?: ReadonlyMap<string, string>
     currentUserId?: string | null
 }
 
 export const AuditLogTable = ({
     onSelectEvent,
     renderDateRange,
-    members,
+    names,
     currentUserId,
 }: AuditLogTableProps) => {
-    const names = useMemo(
-        () =>
-            new Map(
-                (members ?? [])
-                    .filter((member) => member.user?.id)
-                    .map((member) => [
-                        member.user.id,
-                        member.user.username || member.user.email || member.user.id,
-                    ]),
-            ),
-        [members],
-    )
-
     const refreshEvents = useSetAtom(eventsPaginatedStore.actions.refresh)
     const clearEventsCache = useSetAtom(clearEventsCacheAtom)
     const timestampRange = useAtomValue(eventTimestampRangeFilterAtom)

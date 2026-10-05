@@ -2,10 +2,7 @@ import type {ComponentProps, ReactNode} from "react"
 
 import {cn} from "@agenta/ui/ui"
 
-/**
- * A Settings configuration group: a small heading, then its rows in one framed card. The rows
- * are divided by rules, so each setting reads as its own line with its control on the right.
- */
+/** A Settings group: a small heading over its rows in one framed card. */
 export const SettingsSection = ({
     title,
     description,

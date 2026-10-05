@@ -23,10 +23,7 @@ export interface SettingToggleRowProps {
     showSuccess?: boolean
 }
 
-/**
- * One switchable policy: what it does, whether you may change it, and whether it just saved.
- * Sits inside a `SettingsSection`, which draws the rules between rows.
- */
+/** One switchable policy row inside a `SettingsSection`. */
 export const SettingToggleRow = ({
     title,
     description,

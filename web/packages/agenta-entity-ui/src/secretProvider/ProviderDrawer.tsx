@@ -151,9 +151,7 @@ const ProviderDrawer = ({
         setView(next)
     }, [])
 
-    // Opening is what decides the level: with a connection the drawer goes straight to its card
-    // (and shows no back arrow, because there is no list behind it); with only a kind, to a new
-    // card for it; with neither, the catalog.
+    // Opens on the connection's card, else a new card for `kind`, else the catalog.
     useEffect(() => {
         if (!open) return
         showView(

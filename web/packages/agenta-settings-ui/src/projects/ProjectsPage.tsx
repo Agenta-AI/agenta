@@ -260,8 +260,7 @@ export const ProjectsPage = ({
                                     label: "Delete project",
                                     icon: <Trash size={14} />,
                                     danger: true,
-                                    // The last project in a workspace cannot be removed, and the
-                                    // default project must be reassigned first.
+                                    // The last project and the default project cannot be deleted.
                                     disabled:
                                         !canDeleteProjects || Boolean(record.is_default_project),
                                     onClick: () => handleDelete(record),

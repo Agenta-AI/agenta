@@ -72,11 +72,7 @@ const connectionStatus = (
 const agentText = (connection: ChannelConnection): string =>
     connection.agent === null ? "No agent yet" : connection.agent?.name?.trim() || "Unknown agent"
 
-/**
- * Settings > Channels: every connection in the project, whichever agent it answers as, then the
- * platforms to connect. A connection opens the Publish panel on it; a platform starts a new
- * connection by choosing the agent.
- */
+/** Settings > Channels: every connection in the project, then the platforms to connect. */
 export const ChannelsSettingsPage = ({
     agents,
     agentId,

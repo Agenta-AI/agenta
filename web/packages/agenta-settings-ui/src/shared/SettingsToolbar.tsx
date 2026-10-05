@@ -1,15 +1,11 @@
 import type {ReactNode} from "react"
 
-import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowClockwise} from "@phosphor-icons/react"
 
 export interface SettingsToolbarProps {
-    /** The list's search. Omit it for a list short enough to read whole. */
-    search?: {value: string; onChange: (next: string) => void; placeholder: string}
-    /** This list's own filters, left of the right group. */
+    /** This list's own filters, on the left. */
     filters?: ReactNode
-    /** Reload control; it renders first in the right group, so refresh sits in one place. */
     onReload?: () => void
     reloading?: boolean
     reloadLabel?: string
@@ -17,12 +13,8 @@ export interface SettingsToolbarProps {
     actions?: ReactNode
 }
 
-/**
- * The row above a Settings list: search on the list's left edge, reload and the primary button
- * on the right. The same toolbar the Agents list uses, so every list narrows the same way.
- */
+/** The row above a Settings list: filters on the left, reload and buttons on the right. */
 export const SettingsToolbar = ({
-    search,
     filters,
     onReload,
     reloading = false,
@@ -49,21 +41,6 @@ export const SettingsToolbar = ({
             </div>
         ) : null
 
-    if (search) {
-        return (
-            <ListTableToolbar
-                search={search.value}
-                onSearchChange={search.onChange}
-                searchPlaceholder={search.placeholder}
-                actions={
-                    <>
-                        {filters}
-                        {right}
-                    </>
-                }
-            />
-        )
-    }
     return filters || right ? (
         <div className="mb-3 flex flex-wrap items-center gap-2">
             {filters}

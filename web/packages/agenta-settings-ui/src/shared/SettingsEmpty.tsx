@@ -9,11 +9,7 @@ import {
     EmptyTitle,
 } from "@agenta/ui/ui"
 
-/**
- * A Settings list with nothing in it: what the list is for and the one way to start it. Framed
- * on the dotted ground the channel cards use, so an empty page reads as a place to begin rather
- * than as a list that failed to load.
- */
+/** An empty Settings list: what it is for and the one way to start it. */
 export const SettingsEmpty = ({
     icon,
     title,

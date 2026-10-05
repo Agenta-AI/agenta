@@ -28,7 +28,7 @@ import {
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
-import {ToolsEmpty} from "../../mcpEndpoint/components/ToolsEmpty"
+import {ToolsEmpty} from "../../shared/ToolsEmpty"
 import ResultViewer from "../components/ResultViewer"
 import type {SchemaFormHandle} from "../components/SchemaForm"
 import SchemaForm from "../components/SchemaForm"

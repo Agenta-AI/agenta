@@ -58,8 +58,8 @@ import type {
     GatewayConnectionPermissions,
     GatewayPermission,
 } from "../DrillInView/SchemaControls/toolUtils"
+import {ToolsEmpty} from "../shared/ToolsEmpty"
 
-import {ToolsEmpty} from "./components/ToolsEmpty"
 import {FOLLOW_AGENT_PRESET, MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
 
 /** A tool the server's include filter hides may not be given a permission at all. */

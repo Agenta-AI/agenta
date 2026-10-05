@@ -274,12 +274,6 @@ export const getSettingsSidebarTabs = (access: SettingsAccess) =>
 /** The one tab that wants the whole width: the Audit Log's timestamp + event type + full UUID. */
 const FULL_WIDTH_TABS = new Set<SettingsTabKey>(["auditLog"])
 
-/**
- * How wide a Settings tab's body runs, for `SettingsPageShell`'s `variant`.
- *
- * Shared because the shell DEFAULTS to `full`, so a host that forgets to pass this renders an
- * uncapped page rather than an obviously broken one: every other tab, forms included, fills the
- * one centered column.
- */
+/** A Settings tab's `SettingsPageShell` variant: the Audit Log runs full width, the rest centered. */
 export const getSettingsTabVariant = (key: SettingsTabKey): "full" | "table" =>
     FULL_WIDTH_TABS.has(key) ? "full" : "table"

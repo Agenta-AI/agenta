@@ -39,10 +39,7 @@ const visibleItems = (items: SettingsRowMenuItem[]): SettingsRowMenuItem[] => {
     )
 }
 
-/**
- * A settings row's kebab: every row verb that is not the row click. Renders nothing when a host
- * hides every verb, because an empty menu is worse than no menu.
- */
+/** A Settings row's kebab; renders nothing when every item is hidden. */
 export const SettingsRowMenu = ({
     items,
     label = "Row actions",

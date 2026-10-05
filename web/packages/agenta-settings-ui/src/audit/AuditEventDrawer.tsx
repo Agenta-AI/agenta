@@ -6,10 +6,9 @@
  * is always a row currently loaded in the table, so no fetch is needed.
  */
 
-import {useMemo, type ReactNode} from "react"
+import type {ReactNode} from "react"
 
 import {eventByIdAtomFamily} from "@agenta/entities/event"
-import type {WorkspaceMember} from "@agenta/entities/organization"
 import {dayjs} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {
@@ -92,8 +91,8 @@ export interface AuditEventDrawerProps {
     eventId: string | null
     open: boolean
     onOpenChange: (open: boolean) => void
-    /** The roster that names the event's user, as in the table. */
-    members?: WorkspaceMember[]
+    /** Member names by user id, for the actor cell. */
+    names?: ReadonlyMap<string, string>
     currentUserId?: string | null
 }
 
@@ -101,22 +100,10 @@ export const AuditEventDrawer = ({
     eventId,
     open,
     onOpenChange,
-    members,
+    names,
     currentUserId,
 }: AuditEventDrawerProps) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId ?? ""))
-    const names = useMemo(
-        () =>
-            new Map(
-                (members ?? [])
-                    .filter((member) => member.user?.id)
-                    .map((member) => [
-                        member.user.id,
-                        member.user.username || member.user.email || member.user.id,
-                    ]),
-            ),
-        [members],
-    )
 
     // Actor/count live in `attributes`; the top-level request fields are left unset by the backend.
     const actor = typeof event?.attributes?.user_id === "string" ? event.attributes.user_id : null

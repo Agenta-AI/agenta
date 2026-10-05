@@ -370,8 +370,7 @@ export default function McpServersSection({
                                 <StatusIndicator
                                     tone={STATUS_TONE[status]}
                                     label={getMcpConnectionStatusLabel(status)}
-                                    // min-w-0 lets the indicator's own truncation act; otherwise its
-                                    // minimum is its text and it slides Reconnect under the row menu.
+                                    // min-w-0 lets the label truncate instead of pushing Reconnect under the menu.
                                     className="min-w-0 text-[13px]"
                                 />
                                 {/* The repair is offered where the problem is reported, so a row
@@ -381,12 +380,10 @@ export default function McpServersSection({
                                         variant="link"
                                         // An inline link in a dense status cell: kept at the 24px step its touch target is built on.
                                         size="xs"
-                                        // No `h-auto`: the size's own height is the control scale, and
-                                        // the invisible expansion lifts the 24px to a 44px touch target.
+                                        // The invisible expansion lifts the 24px link to a 44px touch target.
                                         className={cn("p-0 text-xs", touchTargetExpansion(24))}
                                         onClick={(event) => {
-                                            // The row opens the connection on click; this is a
-                                            // different intent and must not also do that.
+                                            // A different intent from the row click.
                                             event.stopPropagation()
                                             openReconnect(record)
                                         }}
@@ -424,8 +421,7 @@ export default function McpServersSection({
                                             label: "Disconnect",
                                             icon: <LinkBreak size={14} />,
                                             danger: true,
-                                            // Hidden where there is no grant to give back, which
-                                            // would be a 400 on a row that reads as connected.
+                                            // Only an OAuth grant can be revoked; anything else is a 400.
                                             hidden: !hasGrantToRevoke(record),
                                             onClick: () => handleDisconnect(record),
                                         },

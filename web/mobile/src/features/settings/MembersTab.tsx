@@ -46,12 +46,7 @@ interface Props {
     onChanged: () => void
 }
 
-/**
- * Mobile binding: the shared roster, with invite and remove as modals and your own username
- * renamed in place. Role editing
- * stays on the desktop — it is a per-row control, and a select inside a table row is a poor
- * trade on a phone.
- */
+/** Mobile binding for Members: invite and remove as dialogs, your own name renamed in place. */
 export const MembersTab = ({
     members,
     loading,

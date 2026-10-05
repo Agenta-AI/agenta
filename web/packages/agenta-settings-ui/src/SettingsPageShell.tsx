@@ -4,32 +4,14 @@ import {ArrowSquareOut} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {createPortal} from "react-dom"
 
-/**
- * SettingsPageShell — the frame every Settings tab renders inside.
- *
- * Standalone by design: it does NOT wrap `PageLayout`. Settings has a mandatory description the
- * other PageLayout pages do not want, so the two evolve separately.
- *
- * One centered column, 1040px including its gutters, for every tab: the title, then the body.
- * The title stays put and only the body scrolls, across the full width so the scrollbar sits
- * at the window's edge. The shell fills its parent's height, so the parent must not scroll.
- * A tab's primary action rides the title row through {@link SettingsPageActions}; search and
- * filters stay in the list's own toolbar.
- */
+/** The frame every Settings tab renders in: a fixed title over a body that scrolls, centered at 1040px. */
 export interface SettingsPageShellProps {
     title: ReactNode
-    /**
-     * One sentence explaining what the page is for. Required — a Settings tab without a
-     * description is the single most common gap this shell exists to close.
-     */
+    /** One sentence saying what the page is for. */
     description: ReactNode
     /** Optional tertiary docs link, rendered at the far right of the header. */
     docs?: {label: string; href: string}
-    /**
-     * How wide the page runs. `table` (every tab but one) is the centered 1040px column, and the
-     * body fills it at the header's width. `full` drops the cap for the Audit Log, whose
-     * timestamp + event type + full UUID row wants the whole monitor.
-     */
+    /** `table` is the centered 1040px column; `full` drops the cap (Audit Log). */
     variant?: "full" | "table"
     /** The body's scroll box, for a host that watches its scroll position. */
     scrollRef?: Ref<HTMLDivElement>
@@ -41,10 +23,7 @@ export interface SettingsPageShellProps {
 /** Where a tab's primary action renders: the header's slot inside a shell, `undefined` outside one. */
 const HeaderActionsContext = createContext<HTMLElement | null | undefined>(undefined)
 
-/**
- * A tab's primary action, drawn on the shell's title row. The tab keeps owning the state the
- * button opens; outside a shell (a host without one) it renders in place, right-aligned.
- */
+/** A tab's primary action on the title row; rendered in place outside a shell. */
 export const SettingsPageActions = ({children}: {children: ReactNode}) => {
     const target = useContext(HeaderActionsContext)
     if (target === undefined) return <div className="mb-3 flex justify-end gap-2">{children}</div>
@@ -73,8 +52,7 @@ const SettingsPageShell = ({
         <div
             className={clsx(
                 "flex h-full min-h-0 w-full flex-col self-stretch",
-                // The app's body scale, stated rather than inherited: mobile has no antd and would
-                // otherwise render every Settings tab at the browser's 16px default.
+                // Mobile has no antd base font, so the body scale is stated here.
                 "text-[14px] leading-[1.4285714285714286]",
             )}
         >

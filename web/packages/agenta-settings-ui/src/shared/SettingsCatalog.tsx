@@ -4,10 +4,7 @@ import {ListTableToolbar} from "@agenta/ui/list-table"
 import {SkeletonBlock, cn} from "@agenta/ui/ui"
 import {CaretRight, Plus} from "@phosphor-icons/react"
 
-/**
- * A row's state. A broken row (`attention`) names its problem at the head of its subtitle; a row
- * one click from connecting (`available`) draws a "+". A row under Connected says the rest.
- */
+/** A row's state: `attention` names its problem in the subtitle, `available` draws a "+". */
 export type SettingsCatalogStatus = "connected" | "attention" | "available"
 
 export interface SettingsCatalogItem {
@@ -65,8 +62,7 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
     const open = item.onOpen
     const attention = item.status === "attention"
     return (
-        // Not a <button>: the row can carry a kebab of its own, and a button in a button is
-        // invalid HTML.
+        // Not a <button>: the row can hold its own kebab button.
         <div
             data-testid={item.testId}
             role={open ? "button" : undefined}
@@ -198,13 +194,7 @@ export const SettingsCatalogSection = ({
     </section>
 )
 
-/**
- * A Settings page that is a catalog of things to connect: AI providers, integrations, channels.
- *
- * What is connected comes first, then what is available, each a run of rows under a heading with
- * its count. A row opens its connection when connected and starts the connect flow when not, so
- * the page needs no separate "Add" button.
- */
+/** A catalog page (AI providers, integrations, channels): connected first, then available. */
 export const SettingsCatalog = ({
     search,
     groups,
