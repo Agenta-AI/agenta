@@ -759,7 +759,7 @@ export function McpConnectSheet({
 
                     {screen === "api_key" ? (
                         <>
-                            <div className="grid grid-cols-[1fr_1.4fr] gap-3">
+                            <div className="flex flex-col gap-3">
                                 <HintedField
                                     label="Header"
                                     // Dropped once the server has refused a key: the glyph
