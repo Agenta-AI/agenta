@@ -82,29 +82,53 @@ def cluster_reachable() -> bool:
     return r.returncode == 0
 
 
-def check_source() -> int:
-    """Offline mode: pin the guard in the template source. Returns the failure count."""
+def check_source() -> tuple[int, int]:
+    """Offline mode: pin the guard in the template source. Returns (checks, failures)."""
     text = NOTES_PATH.read_text()
     failures = 0
+    ran = 0
 
     def want(cond: bool, msg: str) -> None:
-        nonlocal failures
+        nonlocal failures, ran
+        ran += 1
         print(("  ok   " if cond else "  FAIL ") + msg)
         if not cond:
             failures += 1
 
-    banner_line = next(
-        (ln for ln in text.splitlines() if 'eq ($agenta.authKey | toString) "replace-me"' in ln),
-        "",
+    lines = text.splitlines()
+    start = next(
+        (i for i, ln in enumerate(lines) if 'eq ($agenta.authKey | toString) "replace-me"' in ln),
+        None,
     )
-    want(bool(banner_line), "the banner condition is still in NOTES.txt")
+    want(start is not None, "the banner condition is still in NOTES.txt")
+    if start is None:
+        return ran, failures
+
     want(
-        "not $secrets.existingSecret" in banner_line,
+        "not $secrets.existingSecret" in lines[start],
         "the banner condition still skips when the operator brings their own Secret",
     )
+
+    # Scope every other assertion to the warning block itself. NOTES.txt also carries an
+    # example values block naming the same three values, so searching the whole file would
+    # keep passing after a name disappeared from the warning. The block runs from the
+    # condition to the bottom edge of the drawn box.
+    end = next((i for i in range(start, len(lines)) if "\u255a" in lines[i]), None)
+    want(end is not None, "the warning box still has a bottom edge to bound the block")
+    block = "\n".join(lines[start : (end + 1) if end else len(lines)])
+    # Assert on the drawn lines a reader sees, not on the template conditions around them.
+    # Every condition in this block mentions its own value name, so searching the block as
+    # text keeps passing after the visible line is reworded. Only a row of the box counts.
+    drawn = [
+        ln for ln in block.splitlines() if ln.lstrip().startswith("\u2551") and "REPLACE" in ln
+    ]
+    want(bool(drawn), "the warning box still has rows telling the reader to replace a value")
     for value in ("agenta.authKey", "agenta.cryptKey", "postgres.password"):
-        want(value in text, f"the banner still names {value}")
-    return failures
+        want(
+            any(value in ln for ln in drawn),
+            f"a visible warning row still names {value}",
+        )
+    return ran, failures
 
 
 def render_notes(extra_args: list[str]) -> str:
@@ -146,8 +170,8 @@ def check(name: str, extra_args: list[str], *, expect_banner: bool, expect: str 
 def main() -> int:
     if not cluster_reachable():
         print("  mode: no cluster reachable, asserting on the template source")
-        failures = check_source()
-        print(f"\n{5 - failures}/5 source checks passed")
+        ran, failures = check_source()
+        print(f"\n{ran - failures}/{ran} source checks passed")
         if failures:
             return 1
         print("OK: the banner still carries its existingSecret guard.")
