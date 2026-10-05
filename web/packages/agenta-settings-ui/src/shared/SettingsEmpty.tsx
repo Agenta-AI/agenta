@@ -21,7 +21,7 @@ export const SettingsEmpty = ({
     description?: ReactNode
     action?: ReactNode
 }) => (
-    <Empty className="rounded-xl border border-solid border-border bg-[radial-gradient(var(--ag-colorBorder)_1px,transparent_1px)] bg-[size:16px_16px] py-14">
+    <Empty className="rounded-xl border border-solid border-border py-14">
         <EmptyHeader>
             {icon ? (
                 <EmptyMedia
