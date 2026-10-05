@@ -50,7 +50,17 @@ import {
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
-import {InputAffix, LoadingButton, PasswordInput, Segmented, Textarea} from "@agenta/ui/ui"
+import {
+    InputAffix,
+    LoadingButton,
+    PasswordInput,
+    Segmented,
+    Textarea,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -411,16 +421,28 @@ const ProviderConnectionCard = ({
           )
         : null
 
+    // The span carries the tooltip: a disabled button swallows hover, so it passes pointers through.
     const testButton = (
-        <LoadingButton
-            variant="outline"
-            className="shrink-0"
-            loading={probeMutation.isPending}
-            disabled={!credentialFilled || !projectId}
-            onClick={() => void runProbe()}
-        >
-            {credentialFailed ? "Retry" : "Test"}
-        </LoadingButton>
+        <TooltipProvider delayDuration={300}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="inline-flex shrink-0">
+                        <LoadingButton
+                            variant="outline"
+                            className="disabled:pointer-events-none"
+                            loading={probeMutation.isPending}
+                            disabled={!credentialFilled || !projectId}
+                            onClick={() => void runProbe()}
+                        >
+                            {credentialFailed ? "Retry" : "Test"}
+                        </LoadingButton>
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-64">
+                    {secretNoteForKind(kind, title)}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 
     return (
@@ -548,13 +570,13 @@ const ProviderConnectionCard = ({
                     </span>
                 ) : null}
 
-                <span className="text-[11px] text-colorTextTertiary">
-                    {keyStored
-                        ? connection?.keyPreview
+                {keyStored ? (
+                    <span className="text-[11px] text-colorTextTertiary">
+                        {connection?.keyPreview
                             ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
-                            : "Key configured. Leave blank to keep it."
-                        : secretNoteForKind(kind, title)}
-                </span>
+                            : "Key configured. Leave blank to keep it."}
+                    </span>
+                ) : null}
 
                 {/* Why the footer's Done is disabled (or what saving now would mean), stated where
                     the credential that decides it is. */}
