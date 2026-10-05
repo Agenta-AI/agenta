@@ -63,7 +63,7 @@ for (const name of SCRUBBED) delete process.env[name];
 // reconstruction tests: answer the records query with an empty log, which leaves the inbound
 // history untouched. The suites that test the query itself call `vi.unmock` on this module.
 vi.mock("../../src/sessions/records-query.ts", () => ({
-  fetchSessionRecords: async () => [],
+  fetchSessionRecords: async () => ({ records: [], recordsIncomplete: false }),
 }));
 
 // A Daytona run with a run credential meters its sandbox and asks the wallet before the turn,

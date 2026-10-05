@@ -48,6 +48,7 @@ import {
   acquireEnvironment,
   destroyInFlightSandboxes,
   destroyInFlightSandboxesForSession,
+  isTurnIndexTaken,
   resolveKeepaliveMount,
   runSandboxAgent,
   runTurn,
@@ -56,6 +57,7 @@ import {
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
 import type { SandboxAgentDeps } from "./engines/sandbox_agent/runtime-contracts.ts";
+import { readLatestSessionTurn } from "./engines/sandbox_agent/session-continuity-durable.ts";
 import { withGatewayErrorDetail } from "./engines/sandbox_agent/engine.ts";
 import {
   cancelHarnessTurn,
@@ -139,7 +141,7 @@ import {
 import { proposeSessionName } from "./sessions/name.ts";
 import {
   buildPersistingEmitter,
-  noteRecordsIncomplete,
+  reportRecordsIncomplete,
   takePersistFailures,
 } from "./sessions/persist.ts";
 import { seedForRun } from "./redaction.ts";
@@ -333,6 +335,13 @@ const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<Sandbo
     if (!cwd) return true;
     return isMounted(cwd, klog);
   },
+  readLatestTurnIndex: async (sessionId, authorization) => {
+    const read = await readLatestSessionTurn(sessionId, undefined, {
+      authorization,
+      log: klog,
+    });
+    return read.ok ? { ok: true, turnIndex: read.turn?.turn_index } : read;
+  },
   // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
   // mount threaded through so an up-front keep-alive sign is never repeated.
   runCold: async (
@@ -376,7 +385,9 @@ const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<Sandbo
           ? "clean-resumable"
           : signal?.aborted || clientGone?.()
             ? "aborted"
-            : "failed-turn",
+            : result && isTurnIndexTaken(result)
+              ? "continuity-invalid"
+              : "failed-turn",
       });
     }
   },
@@ -1164,7 +1175,13 @@ async function runAndStreamWithApiBaseResolved(
     if (sessionOwned && sessionId) {
       const dropped = takePersistFailures(sessionId);
       if (dropped > 0) {
-        noteRecordsIncomplete(sessionId);
+        // Before the watchdog release below, so the flag is on the log before another turn on
+        // this session can be admitted, on this runner or any other.
+        await reportRecordsIncomplete(
+          sessionId,
+          turnId,
+          aliveWatchdog?.credential ?? (() => runCredential(request)),
+        );
         process.stderr.write(
           `[sessions] records INCOMPLETE session=${sessionId} dropped=${dropped}; ` +
             `reconstruction disabled for this session\n`,

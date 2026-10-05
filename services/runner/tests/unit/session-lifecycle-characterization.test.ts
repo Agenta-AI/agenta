@@ -19,6 +19,7 @@
  *
  * Run: pnpm exec vitest run tests/unit/session-lifecycle-characterization.test.ts
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
@@ -196,6 +197,7 @@ function makeEngine(scripts: TurnScript[] = []) {
         script.result ?? { ok: true, output: "ok", stopReason: "complete" }
       );
     },
+    readLatestTurnIndex: turnLogUnmoved,
     async runCold() {
       return { ok: true, output: "cold", stopReason: "complete" };
     },

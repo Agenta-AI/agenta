@@ -225,6 +225,15 @@ class SessionRecordsQueryResponse(BaseModel):
     count: int
     records: List[SessionRecord]
     windowing: Optional[SessionTranscriptWindowing] = None
+    # A runner reported that this log lost a record, so it must not rebuild model context.
+    records_incomplete: bool = False
+
+
+class SessionRecordsIncompleteRequest(BaseModel):
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    # The turn whose record was dropped; kept in the log line, not stored.
+    turn_id: Optional[str] = None
 
 
 class SessionSnapshotPending(BaseModel):

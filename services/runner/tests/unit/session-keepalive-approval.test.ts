@@ -10,6 +10,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-approval.test.ts)
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -31,6 +32,7 @@ import {
   type KeepaliveContext,
   type KeepaliveEngine,
 } from "../../src/server.ts";
+import { WARM_SESSION_UNCONFIRMED_MESSAGE } from "../../src/lifecycle/session-coordinator.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import {
   approvalDecisionForToolCall,
@@ -304,6 +306,7 @@ function makeApprovalEngine(
     async runTurn(env, request, _emit, _signal, opts) {
       return applyScript(env as unknown as DispatchFakeEnv, request, opts);
     },
+    readLatestTurnIndex: turnLogUnmoved,
     async runCold(_request, _emit, _signal, _presigned) {
       calls.cold += 1;
       return { ok: true, output: "cold", stopReason: "complete" };
@@ -620,6 +623,138 @@ describe("runWithKeepalive: approval park + resume", () => {
     assert.deepEqual(calls.prompts, ["What was the codeword I gave you?"]);
     assert.equal(calls.turns[1].opts.continuation, true);
     assert.equal(calls.turns[1].env, calls.turns[0].env);
+  });
+
+  it("stays warm across a resume whose start write was a benign 409 (compared by turn_index)", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    // The turn log as the api keeps it: one row per index, the first writer's turn id wins.
+    const ledger = new Map<number, string | undefined>();
+    const turnIndexes = [0, 0, 1]; // pause, its resume (same index), the next fresh prompt
+    const runScripted = engine.runTurn;
+    engine.runTurn = async (env, request, emit, signal, opts) => {
+      const index = turnIndexes[calls.turns.length];
+      (env as unknown as { continuityTurnIndex?: number }).continuityTurnIndex =
+        index;
+      if (!ledger.has(index)) ledger.set(index, request.turnId);
+      return runScripted(env, request, emit, signal, opts);
+    };
+    const reads: string[] = [];
+    engine.readLatestTurnIndex = async (sessionId) => {
+      reads.push(sessionId);
+      return { ok: true, turnIndex: Math.max(...ledger.keys()) };
+    };
+    const ctx = makeCtx(engine);
+
+    await runWithKeepalive(
+      { ...pauseTurn(), turnId: "t-pause" },
+      undefined,
+      undefined,
+      ctx,
+    );
+    const resumed = await runWithKeepalive(
+      approveResume(true, { turnId: "t-resume", streamId: "stream-1" }),
+      undefined,
+      undefined,
+      ctx,
+    );
+    const next = await runWithKeepalive(
+      {
+        harness: "claude",
+        model: "m1",
+        sessionId: "s1",
+        turnId: "t-next",
+        streamId: "stream-1",
+        ...auth,
+        messages: [{ role: "user", content: "and then?" }],
+      },
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(resumed.ok, true);
+    assert.equal(next.ok, true);
+    assert.equal(
+      ledger.get(0),
+      "t-pause",
+      "the resume's write was refused, so the row keeps the paused turn's id",
+    );
+    assert.deepEqual(reads, ["s1", "s1"], "the resume and the next turn both checked");
+    assert.equal(calls.acquire, 1, "every turn stayed on the warm environment");
+    assert.equal(calls.turns[2].env, calls.turns[0].env);
+    assert.equal(calls.turns[2].opts.continuation, true);
+  });
+
+  it("a parked approval whose turn log moved on is evicted as continuity-invalid", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    engine.readLatestTurnIndex = async () => ({ ok: true, turnIndex: 5 });
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const parked = calls.acquiredEnvs[0];
+    const reasons: Array<string | undefined> = [];
+    parked.destroy = ((opts?: { reason?: string }) => {
+      reasons.push(opts?.reason);
+      return parked.destroyImpl();
+    }) as DispatchFakeEnv["destroy"];
+
+    await runWithKeepalive(
+      approveResume(true, { streamId: "stream-1" }),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(calls.resumes.length, 0, "the stale park was not resumed");
+    assert.equal(calls.acquire, 2, "the reply took the cold path");
+    assert.deepEqual(reasons, ["continuity-invalid"]);
+  });
+
+  it("a failed turn-log read refuses the resume and keeps the approval parked", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    engine.readLatestTurnIndex = async () => ({ ok: false, error: "HTTP 502" });
+
+    const result = await runWithKeepalive(
+      approveResume(true, { streamId: "stream-1" }),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error, WARM_SESSION_UNCONFIRMED_MESSAGE);
+    assert.equal(calls.resumes.length, 0);
+    assert.equal(calls.acquire, 1);
+    assert.equal(ctx.pool.get(POOL_KEY)?.state, "awaiting_approval");
+    assert.equal(calls.acquiredEnvs[0].destroyed, 0);
   });
 
   it("ignores a denied tool result older than the last assistant message", () => {

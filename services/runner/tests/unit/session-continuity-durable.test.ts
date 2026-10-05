@@ -15,6 +15,8 @@ import {
   completeSessionTurn,
   fetchLatestSessionTurn,
   hydrateHarnessSessionFromDurable,
+  readLatestSessionTurn,
+  SessionTurnIndexTaken,
 } from "../../src/engines/sandbox_agent/session-continuity-durable.ts";
 import {
   SessionContinuityStore,
@@ -333,6 +335,49 @@ describe("hydrateHarnessSessionFromDurable", () => {
   });
 });
 
+describe("readLatestSessionTurn", () => {
+  const deps = (fetchImpl: () => Promise<Response>) => ({
+    apiBase: "http://api:8000",
+    authorization: "ApiKey abc",
+    fetchImpl: fetchImpl as unknown as typeof fetch,
+    log: SILENT,
+  });
+
+  it("tells an empty log apart from a failed read", async () => {
+    const empty = await readLatestSessionTurn(
+      "sess-1",
+      undefined,
+      deps(async () => okResponse({ count: 0, turns: [] })),
+    );
+    assert.deepEqual(empty, { ok: true, turn: undefined });
+
+    const refused = await readLatestSessionTurn(
+      "sess-1",
+      undefined,
+      deps(async () => errResponse(401)),
+    );
+    assert.deepEqual(refused, { ok: false, error: "HTTP 401" });
+
+    const unreachable = await readLatestSessionTurn(
+      "sess-1",
+      undefined,
+      deps(async () => {
+        throw new Error("ECONNREFUSED");
+      }),
+    );
+    assert.equal(unreachable.ok, false);
+  });
+
+  it("returns the latest row", async () => {
+    const read = await readLatestSessionTurn(
+      "sess-1",
+      undefined,
+      deps(async () => okResponse({ turns: [{ turn_index: 7 }] })),
+    );
+    assert.deepEqual(read, { ok: true, turn: { turn_index: 7 } });
+  });
+});
+
 describe("appendSessionTurn", () => {
   it("POSTs a plain create — no GET, one call only", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];
@@ -411,22 +456,28 @@ describe("appendSessionTurn", () => {
     assert.equal(body!["start_time"], "2026-07-21T10:00:00.000Z");
   });
 
-  it("treats a resume execution's duplicate-start 409 as benign", async () => {
+  it("reports a duplicate-start 409 as SessionTurnIndexTaken, unlogged, for the caller to judge", async () => {
     const logs: string[] = [];
-    await assert.doesNotReject(() =>
-      appendSessionTurn(
-        "sess-1",
-        "claude",
-        0,
-        { streamId: "stream-1" },
-        {
-          apiBase: "http://api:8000",
-          authorization: "ApiKey abc",
-          fetchImpl: (async () => errResponse(409)) as unknown as typeof fetch,
-          log: (message) => logs.push(message),
-        },
-      ),
+    await assert.rejects(
+      () =>
+        appendSessionTurn(
+          "sess-1",
+          "claude",
+          4,
+          { streamId: "stream-1" },
+          {
+            apiBase: "http://api:8000",
+            authorization: "ApiKey abc",
+            fetchImpl: (async () => errResponse(409)) as unknown as typeof fetch,
+            log: (message) => logs.push(message),
+          },
+        ),
+      (err: unknown) =>
+        err instanceof SessionTurnIndexTaken &&
+        err.sessionId === "sess-1" &&
+        err.turnIndex === 4,
     );
+    // A resume's 409 is expected, so the append itself says nothing; the caller logs a real one.
     assert.deepEqual(logs, []);
   });
 
@@ -510,17 +561,22 @@ describe("completeSessionTurn", () => {
       },
       deps,
     );
-    await appendSessionTurn(
-      "sess-1",
-      "claude",
-      0,
-      {
-        streamId: "stream-1",
-        turnId: "turn-execution-resume",
-        agentSessionId: "agent-1",
-        startTime: "2026-07-21T10:01:00.000Z",
-      },
-      deps,
+    // The resume's append is refused; `runTurn` swallows that for a resume.
+    await assert.rejects(
+      () =>
+        appendSessionTurn(
+          "sess-1",
+          "claude",
+          0,
+          {
+            streamId: "stream-1",
+            turnId: "turn-execution-resume",
+            agentSessionId: "agent-1",
+            startTime: "2026-07-21T10:01:00.000Z",
+          },
+          deps,
+        ),
+      SessionTurnIndexTaken,
     );
     await completeSessionTurn(
       "sess-1",

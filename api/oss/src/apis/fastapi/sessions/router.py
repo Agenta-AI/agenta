@@ -170,6 +170,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionRecordIngestBody,
     SessionRecordQueryRequest,
     SessionRecordResponse,
+    SessionRecordsIncompleteRequest,
     SessionRecordsQueryResponse,
     SessionSnapshotPending,
     SessionSnapshotResponse,
@@ -994,6 +995,15 @@ class RecordsRouter:
             tags=["Sessions"],
         )
 
+        self.router.add_api_route(
+            "/incomplete",
+            self.mark_records_incomplete,
+            methods=["POST"],
+            operation_id="mark_records_incomplete",
+            status_code=status.HTTP_200_OK,
+            tags=["Sessions"],
+        )
+
     @intercept_exceptions()
     async def query_records(
         self,
@@ -1016,6 +1026,10 @@ class RecordsRouter:
             if query_request.windowing is None
             else None
         )
+        records_incomplete = await self.records_service.get_records_incomplete(
+            project_id=UUID(request.state.project_id),
+            session_id=query_request.session_id,
+        )
         if query_request.windowing is not None:
             page = await self.records_service.get_records_page(
                 project_id=UUID(request.state.project_id),
@@ -1036,11 +1050,35 @@ class RecordsRouter:
                 )
                 if page.next_offset is not None
                 else None,
+                records_incomplete=records_incomplete,
             )
         return SessionRecordsQueryResponse(
             count=len(records),
             records=records,
+            records_incomplete=records_incomplete,
         )
+
+    @intercept_exceptions()
+    async def mark_records_incomplete(
+        self,
+        request: Request,
+        body: SessionRecordsIncompleteRequest,
+    ) -> dict:
+        # Same permission as record ingest: the runner reports on the log it writes.
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        _validate_session_id_http(body.session_id)
+        await self.records_service.mark_records_incomplete(
+            project_id=UUID(request.state.project_id),
+            session_id=body.session_id,
+            turn_id=body.turn_id,
+        )
+        return {"ok": True}
 
     @intercept_exceptions()
     async def get_record_event(

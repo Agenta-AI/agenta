@@ -33,6 +33,7 @@ export {
   type SessionEnvironment,
 } from "./sandbox_agent/runtime-contracts.ts";
 export {
+  isTurnIndexTaken,
   runSandboxAgent,
   shouldPark,
 } from "./sandbox_agent/engine.ts";

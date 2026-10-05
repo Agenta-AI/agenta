@@ -7,6 +7,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-dispatch.test.ts)
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
@@ -26,6 +27,11 @@ import {
   type KeepaliveContext,
   type KeepaliveEngine,
 } from "../../src/server.ts";
+import {
+  WARM_SESSION_UNCONFIRMED_MESSAGE,
+  type LatestTurnIndexRead,
+} from "../../src/lifecycle/session-coordinator.ts";
+import { TURN_INDEX_TAKEN_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
 import {
@@ -84,7 +90,11 @@ interface FakeEnv {
   clearTurn: () => void;
   /** Replaceable body so a test can slow the teardown down; `destroy` stays a stable closure. */
   destroyImpl: () => Promise<void>;
-  destroy: () => Promise<void>;
+  destroy: (opts?: { reason?: string }) => Promise<void>;
+  /** The teardown reason of every destroy, which decides whether the sandbox parks or deletes. */
+  destroyReasons: Array<string | undefined>;
+  /** The turn index the env last ran; unset unless a test models the turn log. */
+  continuityTurnIndex?: number;
 }
 
 function makeEngine(options: EngineOptions = {}) {
@@ -127,7 +137,11 @@ function makeEngine(options: EngineOptions = {}) {
       },
       // Stable closure delegating to the replaceable body — the pool captures `destroy` at
       // park time, so a test that swaps `destroyImpl` later still takes effect.
-      destroy: () => env.destroyImpl(),
+      destroy: (opts) => {
+        env.destroyReasons.push(opts?.reason);
+        return env.destroyImpl();
+      },
+      destroyReasons: [],
     };
     return env;
   };
@@ -190,6 +204,7 @@ function makeEngine(options: EngineOptions = {}) {
     async runTurn(env, _request, emit, _signal, opts) {
       return runOneTurn(env as unknown as FakeEnv, !!opts.continuation, emit);
     },
+    readLatestTurnIndex: turnLogUnmoved,
     async runCold(_request, _emit, _signal, presignedMount) {
       calls.cold += 1;
       calls.coldPresigned.push(presignedMount);
@@ -1211,5 +1226,182 @@ describe("runWithKeepalive: the installed mount lease governs reuse", () => {
         `the warning names both knobs: ${warnings[0]}`,
       );
     });
+  });
+});
+
+describe("runWithKeepalive: the warm entry is checked against the turn log", () => {
+  const KEY = "proj-1:s1";
+  /** A session-owned turn 2: it writes the turn log, so it checks it. */
+  const streamed = () => turn2("s1", { streamId: "stream-1" });
+
+  /** Turn 1 runs cold and parks; the parked env last ran turn `parkedAt`. */
+  async function parkedAt(parkedIndex: number, options: EngineOptions = {}) {
+    const made = makeEngine(options);
+    const ctx = makeCtx(made.engine);
+    const reads: Array<{ sessionId: string; authorization: string }> = [];
+    let answer: () => Promise<LatestTurnIndexRead> = async () => ({
+      ok: true,
+      turnIndex: parkedIndex,
+    });
+    made.engine.readLatestTurnIndex = async (sessionId, authorization) => {
+      reads.push({ sessionId, authorization });
+      return answer();
+    };
+    const r1 = await runWithKeepalive(turn1(), undefined, undefined, ctx);
+    assert.equal(r1.ok, true);
+    assert.equal(ctx.pool.get(KEY)?.state, "idle", "turn 1 parked warm");
+    made.calls.acquiredEnvs[0].continuityTurnIndex = parkedIndex;
+    return {
+      ...made,
+      ctx,
+      reads,
+      setAnswer: (next: () => Promise<LatestTurnIndexRead>) => {
+        answer = next;
+      },
+    };
+  }
+
+  it("the latest row's turn_index equals the entry's: a warm hit", async () => {
+    const { calls, ctx, reads } = await parkedAt(3);
+    assert.equal(reads.length, 0, "a cold miss has nothing to check");
+
+    const r2 = await runWithKeepalive(streamed(), undefined, undefined, ctx);
+
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "no re-acquire");
+    assert.equal(calls.turns[1].continuation, true);
+    assert.equal(calls.turns[1].env, calls.turns[0].env);
+    assert.deepEqual(reads, [{ sessionId: "s1", authorization: "ApiKey run" }]);
+  });
+
+  it("the read uses the turn's live credential when the watchdog supplies one", async () => {
+    const { ctx, reads } = await parkedAt(3);
+
+    await runWithKeepalive(streamed(), undefined, undefined, {
+      ...ctx,
+      credential: () => "Secret leased",
+    });
+
+    assert.equal(reads[0]?.authorization, "Secret leased");
+  });
+
+  it("a run with no stream id writes no turn log, so it warm-hits without a read", async () => {
+    const { calls, ctx, reads, setAnswer } = await parkedAt(3);
+    setAnswer(async () => ({ ok: true, turnIndex: 9 }));
+
+    const r2 = await runWithKeepalive(turn2(), undefined, undefined, ctx);
+
+    assert.equal(r2.ok, true);
+    assert.equal(reads.length, 0, "no read");
+    assert.equal(calls.acquire, 1);
+    assert.equal(calls.turns[1].continuation, true);
+  });
+
+  it("another runner appended a row: evict as continuity-invalid and take the cold path", async () => {
+    const { calls, ctx, setAnswer } = await parkedAt(3);
+    setAnswer(async () => ({ ok: true, turnIndex: 4 }));
+
+    const r2 = await runWithKeepalive(streamed(), undefined, undefined, ctx);
+
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 2, "the cold path rebuilt the environment");
+    assert.equal(calls.turns[1].continuation, false, "the cold turn replays");
+    assert.notEqual(calls.turns[1].env, calls.turns[0].env);
+    assert.deepEqual(
+      calls.acquiredEnvs[0].destroyReasons,
+      ["continuity-invalid"],
+      "a stale conversation parks its sandbox, it does not delete it",
+    );
+  });
+
+  it("an empty log while the entry ran a turn is a moved log, not a warm hit", async () => {
+    const { calls, ctx, setAnswer } = await parkedAt(0);
+    setAnswer(async () => ({ ok: true, turnIndex: undefined }));
+
+    await runWithKeepalive(streamed(), undefined, undefined, ctx);
+
+    assert.equal(calls.acquire, 2);
+    assert.deepEqual(calls.acquiredEnvs[0].destroyReasons, [
+      "continuity-invalid",
+    ]);
+  });
+
+  it("the read fails: the turn fails with the named error and the entry stays parked", async () => {
+    const { calls, ctx, setAnswer } = await parkedAt(3);
+    setAnswer(async () => ({ ok: false, error: "HTTP 503" }));
+
+    const r2 = await runWithKeepalive(streamed(), undefined, undefined, ctx);
+
+    assert.equal(r2.ok, false);
+    assert.equal(r2.error, WARM_SESSION_UNCONFIRMED_MESSAGE);
+    assert.equal(calls.turns.length, 1, "no turn ran");
+    assert.equal(calls.acquire, 1, "no cold retry");
+    assert.equal(ctx.pool.get(KEY)?.state, "idle", "the entry stays");
+    assert.equal(ctx.pool.get(KEY)?.environment as unknown, calls.acquiredEnvs[0]);
+    assert.equal(calls.acquiredEnvs[0].destroyed, 0);
+  });
+
+  it("a read that throws is a failed read", async () => {
+    const { calls, ctx, setAnswer } = await parkedAt(3);
+    setAnswer(async () => {
+      throw new Error("ECONNREFUSED");
+    });
+
+    const r2 = await runWithKeepalive(streamed(), undefined, undefined, ctx);
+
+    assert.equal(r2.error, WARM_SESSION_UNCONFIRMED_MESSAGE);
+    assert.equal(ctx.pool.get(KEY)?.state, "idle");
+    assert.equal(calls.acquiredEnvs[0].destroyed, 0);
+  });
+
+  it("a fresh prompt whose index another runner wrote: evict as continuity-invalid, no cold retry", async () => {
+    const taken: AgentRunResult = {
+      ok: false,
+      error: TURN_INDEX_TAKEN_MESSAGE,
+      errorDetail: {
+        code: "turn_index_taken",
+        message: TURN_INDEX_TAKEN_MESSAGE,
+        retryable: true,
+        next_step: "Send the message again.",
+      },
+    };
+    const { calls, ctx } = await parkedAt(3, {
+      turnResults: [{ ok: true, output: "ok", stopReason: "complete" }, taken],
+    });
+
+    const r2 = await runWithKeepalive(streamed(), undefined, undefined, ctx);
+
+    assert.equal(r2.ok, false);
+    assert.equal(r2.error, TURN_INDEX_TAKEN_MESSAGE);
+    assert.equal(calls.turns.length, 2, "no cold retry ran a third turn");
+    assert.equal(calls.acquire, 1, "no cold acquire");
+    assert.equal(ctx.pool.get(KEY), undefined, "the entry is evicted");
+    assert.deepEqual(
+      calls.acquiredEnvs[0].destroyReasons,
+      ["continuity-invalid"],
+      "the environment parks; nothing is deleted",
+    );
+  });
+
+  it("a cold turn refused the same way parks its new environment instead of deleting it", async () => {
+    const taken: AgentRunResult = {
+      ok: false,
+      error: TURN_INDEX_TAKEN_MESSAGE,
+      errorDetail: {
+        code: "turn_index_taken",
+        message: TURN_INDEX_TAKEN_MESSAGE,
+        retryable: true,
+      },
+    };
+    const { engine, calls } = makeEngine({ turnResults: [taken] });
+    const ctx = makeCtx(engine);
+
+    const r1 = await runWithKeepalive(turn1(), undefined, undefined, ctx);
+
+    assert.equal(r1.ok, false);
+    assert.equal(calls.acquire, 1);
+    assert.deepEqual(calls.acquiredEnvs[0].destroyReasons, [
+      "continuity-invalid",
+    ]);
   });
 });

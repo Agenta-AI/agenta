@@ -10,6 +10,7 @@ import { runCredential } from "./runtime-policy.ts";
 import { loadDurableDecisions } from "../../sessions/interactions.ts";
 import { runTurn } from "./run-turn.ts";
 import { normalizeRequestModel } from "./model.ts";
+import { TURN_INDEX_TAKEN_CODE } from "./errors.ts";
 import {
   type RunTurnOptions,
   type SandboxAgentDeps,
@@ -22,6 +23,15 @@ export function withGatewayErrorDetail(result: AgentRunResult): AgentRunResult {
   if (result.ok || result.errorDetail || !result.error) return result;
   const errorDetail = parseGatewayErrorDetail(result.error);
   return errorDetail ? { ...result, errorDetail } : result;
+}
+
+/**
+ * The turn-start write found the turn's index already written by another runner, so the turn
+ * ended before its prompt. The conversation is stale, not the environment: tear it down as
+ * `continuity-invalid`, which parks, and never retry it cold.
+ */
+export function isTurnIndexTaken(result: AgentRunResult): boolean {
+  return result.errorDetail?.code === TURN_INDEX_TAKEN_CODE;
 }
 
 /**
@@ -133,7 +143,9 @@ export async function runSandboxAgent(
           : "clean-resumable"
         : signal?.aborted
           ? "aborted"
-          : "failed-turn",
+          : result && isTurnIndexTaken(result)
+            ? "continuity-invalid"
+            : "failed-turn",
     });
   }
 }

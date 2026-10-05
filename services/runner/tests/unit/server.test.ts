@@ -7,6 +7,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
@@ -558,6 +559,7 @@ describe("createAgentServer", () => {
         runTurnCalls += 1;
         return { ok: true, output: "must not run" };
       },
+      readLatestTurnIndex: turnLogUnmoved,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -666,6 +668,7 @@ describe("createAgentServer", () => {
         runTurnCalls += 1;
         return { ok: true, output: "must not run" };
       },
+      readLatestTurnIndex: turnLogUnmoved,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
