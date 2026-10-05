@@ -11,8 +11,17 @@ The banner used to fire anyway, so every correctly configured production install
 told in capital letters that it ships `authKey = "replace-me"`. That is the case this
 test pins.
 
-NOTES.txt is not part of `helm template` output, so these cases render with
-`helm install --dry-run=client` and read the notes section of the result.
+NOTES.txt is not part of `helm template` output, and this chart cannot render it offline:
+`agenta.validateRedisDurablePersistenceToggle` calls `lookup`, which makes helm build a real
+client even for `--dry-run=client`. So this test has two modes and always runs one of them:
+
+* with a reachable cluster (a developer machine), it renders the real notes through
+  `helm install --dry-run=client` and asserts on the banner itself. That is the strong check.
+* with no cluster (CI), it asserts on the template source instead: the banner's condition must
+  still carry the `secrets.existingSecret` guard, and the banner must still name the three
+  values. Weaker, but it pins the thing that regressed.
+
+The mode is printed, so a run is never silently weaker than it looks.
 
 Run: uv run hosting/kubernetes/helm/tests/test_notes_default_secrets.py
 Requires the `helm` binary on PATH.
@@ -62,6 +71,42 @@ EXISTING_SECRET_ARGS = [
 ]
 
 
+NOTES_PATH = CHART_DIR / "templates" / "NOTES.txt"
+
+
+def cluster_reachable() -> bool:
+    """Whether helm can talk to a cluster, which `helm install --dry-run` needs here."""
+    r = subprocess.run(
+        ["helm", "list", "--max", "1"], capture_output=True, text=True, check=False
+    )
+    return r.returncode == 0
+
+
+def check_source() -> int:
+    """Offline mode: pin the guard in the template source. Returns the failure count."""
+    text = NOTES_PATH.read_text()
+    failures = 0
+
+    def want(cond: bool, msg: str) -> None:
+        nonlocal failures
+        print(("  ok   " if cond else "  FAIL ") + msg)
+        if not cond:
+            failures += 1
+
+    banner_line = next(
+        (ln for ln in text.splitlines() if 'eq ($agenta.authKey | toString) "replace-me"' in ln),
+        "",
+    )
+    want(bool(banner_line), "the banner condition is still in NOTES.txt")
+    want(
+        "not $secrets.existingSecret" in banner_line,
+        "the banner condition still skips when the operator brings their own Secret",
+    )
+    for value in ("agenta.authKey", "agenta.cryptKey", "postgres.password"):
+        want(value in text, f"the banner still names {value}")
+    return failures
+
+
 def render_notes(extra_args: list[str]) -> str:
     result = subprocess.run(
         [
@@ -99,6 +144,16 @@ def check(name: str, extra_args: list[str], *, expect_banner: bool, expect: str 
 
 
 def main() -> int:
+    if not cluster_reachable():
+        print("  mode: no cluster reachable, asserting on the template source")
+        failures = check_source()
+        print(f"\n{5 - failures}/5 source checks passed")
+        if failures:
+            return 1
+        print("OK: the banner still carries its existingSecret guard.")
+        return 0
+
+    print("  mode: cluster reachable, asserting on the rendered notes")
     results = [
         # The reachable real warning: the four required keys are set, but the bundled
         # PostgreSQL still runs on the default password.
