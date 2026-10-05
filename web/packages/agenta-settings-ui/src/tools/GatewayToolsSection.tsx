@@ -88,6 +88,18 @@ const ConnectionLogo = ({
     return <IntegrationLogo src={entry?.logo} name={name} />
 }
 
+/** The app's display name ("Google Maps"), falling back to the connection's own name. */
+const AppName = ({
+    connection,
+    known,
+}: {
+    connection: ToolConnection
+    known?: CatalogIntegrationItem
+}) => {
+    const entry = useCatalogEntry(connection.integration_key ?? "", known)
+    return <>{entry?.name ?? connection.name ?? connection.slug}</>
+}
+
 const ConnectionDescription = ({
     integrationKey,
     known,
@@ -424,7 +436,9 @@ export default function GatewayToolsSection({
             {finishing ? (
                 <FinishConnectionDialog
                     open
-                    name={finishing.name}
+                    name={
+                        <AppName connection={finishing.connection} known={finishing.integration} />
+                    }
                     logo={
                         <ConnectionLogo
                             integrationKey={finishing.connection.integration_key ?? ""}

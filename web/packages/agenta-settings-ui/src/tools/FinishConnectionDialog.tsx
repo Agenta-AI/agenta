@@ -22,7 +22,8 @@ export const FinishConnectionDialog = ({
     onClose,
 }: {
     open: boolean
-    name: string
+    /** The app's display name. */
+    name: ReactNode
     logo: ReactNode
     /** Starts the provider's sign-in; resolves once its window is open. */
     onAuthorize: () => Promise<void>
