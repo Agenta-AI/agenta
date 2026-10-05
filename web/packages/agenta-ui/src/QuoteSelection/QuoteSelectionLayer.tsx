@@ -104,7 +104,7 @@ export const QuoteSelectionLayer = ({
 
     const finish = () => {
         setDraft(null)
-        returnFocusRef.current?.focus?.()
+        returnFocusRef.current?.focus?.({preventScroll: true})
         window.getSelection()?.removeAllRanges()
     }
 
