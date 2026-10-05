@@ -90,7 +90,7 @@ export const WebhooksPage = ({
     renderDeleteDialog,
     renderSecretReveal,
 }: WebhooksPageProps) => {
-    const [{data: webhooks, isPending: isLoading, refetch}] = useAtom(webhooksAtom)
+    const [{data: webhooks, isPending: isLoading}] = useAtom(webhooksAtom)
     const [searchTerm, setSearchTerm] = useState("")
     const setIsDrawerOpen = useSetAtom(isWebhookDrawerOpenAtom)
     const setEditingWebhook = useSetAtom(editingWebhookAtom)
@@ -99,17 +99,6 @@ export const WebhooksPage = ({
     const setWebhookToDelete = useSetAtom(webhookToDeleteAtom)
 
     const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null)
-    const [reloading, setReloading] = useState(false)
-
-    const reloadAll = useCallback(async () => {
-        setReloading(true)
-        try {
-            await refetch()
-        } finally {
-            setReloading(false)
-        }
-    }, [refetch])
-
     const handleCreate = useCallback(() => {
         setEditingWebhook(undefined)
         setIsDrawerOpen(true)
@@ -192,9 +181,6 @@ export const WebhooksPage = ({
                     value: searchTerm,
                     onChange: setSearchTerm,
                 }}
-                onReload={reloadAll}
-                reloading={reloading}
-                reloadLabel="Reload all webhooks"
             />
             <ListTable<WebhookRow>
                 columns={COLUMNS}

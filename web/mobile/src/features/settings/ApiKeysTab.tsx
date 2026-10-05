@@ -91,7 +91,6 @@ export const ApiKeysTab = ({
                 creating={keys.creating}
                 canView={canView}
                 canEdit={canEdit}
-                onReload={keys.list}
                 onCreate={() => {
                     setError(null)
                     void keys.create()

@@ -7,7 +7,6 @@ import {Key, Plus, Trash} from "@phosphor-icons/react"
 import {SettingsPageActions} from "./SettingsPageShell"
 import {SettingsEmpty} from "./shared/SettingsEmpty"
 import {SettingsRowMenu} from "./shared/SettingsRowMenu"
-import {SettingsToolbar} from "./shared/SettingsToolbar"
 
 export interface ApiKeysPageProps {
     rows: ApiKeyRow[]
@@ -15,7 +14,6 @@ export interface ApiKeysPageProps {
     creating: boolean
     canView: boolean
     canEdit: boolean
-    onReload: () => void
     onCreate: () => void
     onDelete: (prefix: string) => void
 }
@@ -52,7 +50,6 @@ export const ApiKeysPage = ({
     creating,
     canView,
     canEdit,
-    onReload,
     onCreate,
     onDelete,
 }: ApiKeysPageProps) => {
@@ -76,11 +73,6 @@ export const ApiKeysPage = ({
     return (
         <section className="flex flex-col">
             <SettingsPageActions>{generate}</SettingsPageActions>
-            <SettingsToolbar
-                onReload={onReload}
-                reloading={listing}
-                reloadLabel="Reload API keys"
-            />
             <ListTable<ApiKeyRow>
                 columns={COLUMNS}
                 groups={[{key: "keys", label: null, rows}]}

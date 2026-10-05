@@ -11,7 +11,6 @@ import {LockKey, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {SettingsPageActions} from "../SettingsPageShell"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
-import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 /**
  * Mask stored secret content for display. `text` is masked like an API key
@@ -59,7 +58,7 @@ export const NamedSecretTable = ({
     renderConfigureDialog,
     renderDeleteDialog,
 }: NamedSecretTableProps) => {
-    const {namedSecrets, loading, mutate} = useVaultSecret()
+    const {namedSecrets, loading} = useVaultSecret()
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false)
     const [selectedSecret, setSelectedSecret] = useState<NamedSecretRow | null>(null)
@@ -90,11 +89,6 @@ export const NamedSecretTable = ({
         <>
             <section className="flex flex-col">
                 <SettingsPageActions>{create}</SettingsPageActions>
-                <SettingsToolbar
-                    onReload={mutate}
-                    reloading={loading}
-                    reloadLabel="Reload secrets"
-                />
                 <ListTable<SecretRow>
                     className="ph-no-capture"
                     columns={COLUMNS}
