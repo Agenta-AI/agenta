@@ -87,3 +87,14 @@ def test_the_summary_states_the_organizations_wallet_mode(client_granting, monke
 
     assert response.status_code == 200
     assert response.json()["mode"] == "enforce"
+
+
+def test_a_usage_window_without_a_timezone_is_refused(client_granting):
+    # Compared with UTC timestamps, a naive bound would shift by the session's timezone.
+    client, _ = client_granting({Permission.EDIT_BILLING})
+
+    response = client.post(
+        "/wallets/usage/query", json={"start": "2026-10-01T00:00:00"}
+    )
+
+    assert response.status_code == 422

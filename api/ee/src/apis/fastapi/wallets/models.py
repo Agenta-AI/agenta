@@ -1,14 +1,14 @@
-from datetime import datetime
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from ee.src.core.wallets.usage.dtos import WalletUsage, WalletUsageSummary
 
 
 class WalletUsageQueryRequest(BaseModel):
-    start: Optional[datetime] = None
-    end: Optional[datetime] = None
+    # With a timezone: the window is compared with UTC timestamps.
+    start: Optional[AwareDatetime] = None
+    end: Optional[AwareDatetime] = None
 
 
 class WalletSummaryResponse(BaseModel):

@@ -117,6 +117,22 @@ def test_a_field_the_upstream_did_not_report_stays_unknown_rather_than_zero():
     assert usage == GatewayUsage(cache_read_tokens=4)
 
 
+def test_a_cached_slice_larger_than_the_prompt_never_makes_fresh_input_negative():
+    # A negative input would offset the output in the charge.
+    usage = _usage_from_payload(
+        {
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "prompt_tokens_details": {"cached_tokens": 12},
+            }
+        },
+        LLMProtocol.CHAT_COMPLETIONS,
+    )
+
+    assert usage == GatewayUsage(input_tokens=0, cache_read_tokens=12, output_tokens=5)
+
+
 @pytest.mark.asyncio
 async def test_a_messages_stream_keeps_the_cache_split_its_first_frame_reported():
     """`message_start` carries input and both cached slices; `message_delta`, near the

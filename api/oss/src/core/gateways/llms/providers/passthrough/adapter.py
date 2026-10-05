@@ -144,7 +144,8 @@ def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[Gateway
     ):
         output = total - prompt
     if isinstance(prompt, int) and isinstance(cached, int):
-        prompt -= cached
+        # Never below zero: a negative input would offset the output in the charge.
+        prompt = max(prompt - cached, 0)
     return GatewayUsage(
         calls=1,
         input_tokens=prompt,

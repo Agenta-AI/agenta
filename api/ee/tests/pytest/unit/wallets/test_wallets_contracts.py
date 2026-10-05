@@ -1,7 +1,11 @@
 import pytest
 from pydantic import ValidationError
 
-from ee.src.core.wallets.contracts import DebitCommandV1, MeasurementCommandV1
+from ee.src.core.wallets.contracts import (
+    DebitCommandV1,
+    MeasurementCommandV1,
+    MeasurementComponentV1,
+)
 from ee.tests.pytest.utils.wallets.builders import (
     build_debit_command,
     build_llm_component,
@@ -102,3 +106,10 @@ def test_measurement_command_rejects_repeated_component_keys():
     component = build_mcp_component()
     with pytest.raises(ValidationError, match="duplicate component keys"):
         build_measurement_command(components=[component, component.model_copy()])
+
+
+@pytest.mark.parametrize("field", ["value", "cost_musd"])
+def test_a_measurement_component_rejects_a_negative_quantity(field):
+    # Pricing multiplies components directly: a negative one would reduce the charge.
+    with pytest.raises(ValidationError):
+        MeasurementComponentV1(**{"key": "output_tokens", "value": 1, field: -1})

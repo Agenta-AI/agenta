@@ -35,8 +35,9 @@ class MeasurementComponentV1(BaseModel):
     """One optional, repeatable metric on a measurement (e.g. `input_tokens`)."""
 
     key: str
-    value: int
-    cost_musd: Optional[int] = None
+    # Pricing multiplies these directly, so a negative one would reduce the charge.
+    value: int = Field(ge=0)
+    cost_musd: Optional[int] = Field(default=None, ge=0)
 
 
 class MeasurementCommandV1(BaseModel):
