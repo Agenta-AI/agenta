@@ -158,7 +158,6 @@ export const AnalyticsPage = ({
         unit: bucketUnit(window),
         rangeLabel,
         agentName,
-        agentCost: agentSplit.cost,
         grouped,
         emptyText,
         onExplore,

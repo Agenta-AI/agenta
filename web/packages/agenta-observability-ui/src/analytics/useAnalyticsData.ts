@@ -147,6 +147,7 @@ export const usePageAnalytics = (
         data.agentOrder.slice(0, SPLIT_KEYS),
         window,
         filters,
+        group === "agent",
     )
     const modelSplit = useAnalyticsSplit(
         "model",

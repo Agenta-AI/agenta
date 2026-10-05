@@ -36,7 +36,6 @@ export interface OverviewContext {
     unit: string
     rangeLabel: string
     agentName: (id: string) => string
-    agentCost: KeyedSeries
     /** The page's group-by, when set: per-key series the main cards stack. */
     grouped: GroupedData | null
     emptyText: (what: string) => {text: string; onClear?: () => void}
@@ -186,14 +185,6 @@ const CostChartCard = ({ctx}: {ctx: OverviewContext}) => {
                         title={ctx.fullLabels[i]}
                         runs={`${formatCount(points[i].runs)} runs`}
                         value={formatMoney(values[i])}
-                        rows={topRows(
-                            ctx.agentCost,
-                            i,
-                            values[i],
-                            ctx.agentName,
-                            formatMoney,
-                            analyticsColor("cost"),
-                        )}
                         facts={[
                             {
                                 label: "Avg cost per run",
