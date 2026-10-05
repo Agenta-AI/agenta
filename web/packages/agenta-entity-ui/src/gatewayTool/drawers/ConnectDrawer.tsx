@@ -205,14 +205,14 @@ export default function ConnectDrawer({
             onCancel={handleClose}
             // The integration's mark heads the dialog, beside the close button.
             title={
-                <span className="flex size-10 items-center justify-center overflow-hidden rounded-[10px] border border-solid border-border bg-background shadow-xs">
+                <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs">
                     {integrationLogo ? (
                         <Image
                             src={integrationLogo}
                             alt={integrationName}
-                            width={24}
-                            height={24}
-                            className="size-6 object-contain"
+                            width={18}
+                            height={18}
+                            className="size-[18px] object-contain"
                             unoptimized
                         />
                     ) : (
