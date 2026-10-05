@@ -163,7 +163,7 @@ const RunTable = ({
         )
     }
 
-    const grid = "grid grid-cols-[minmax(96px,1fr)_40px_54px_60px_60px_64px_72px_12px] gap-2"
+    const grid = "grid grid-cols-[minmax(96px,1fr)_40px_54px_60px_60px_64px_44px_12px] gap-2"
     return (
         <div className="-mx-1 overflow-x-auto">
             <div className="min-w-[480px] px-1">
@@ -233,21 +233,8 @@ const RunTable = ({
                             <span className="text-right tabular-nums">
                                 {formatMoney(row.runs ? row.cost / row.runs : null)}
                             </span>
-                            <span className="flex items-center justify-end gap-2">
-                                <span className="h-1.5 w-8 rounded-full bg-background">
-                                    <span
-                                        className="block h-full rounded-full"
-                                        style={{
-                                            width: `${share * 100}%`,
-                                            background: analyticsColor(
-                                                shareKey === "cost" ? "cost" : shareKey,
-                                            ),
-                                        }}
-                                    />
-                                </span>
-                                <span className="w-8 text-right text-xs text-muted-foreground tabular-nums">
-                                    {Math.round(share * 100)}%
-                                </span>
+                            <span className="text-right text-muted-foreground tabular-nums">
+                                {Math.round(share * 100)}%
                             </span>
                             <span className="text-muted-foreground">
                                 {drillable ? <CaretRight size={12} /> : null}
@@ -313,19 +300,8 @@ const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) =>
                     <span className="text-right tabular-nums">
                         {(row.calls / buckets).toFixed(1)}
                     </span>
-                    <span className="flex items-center justify-end gap-2">
-                        <span className="h-1.5 w-8 rounded-full bg-background">
-                            <span
-                                className="block h-full rounded-full"
-                                style={{
-                                    width: `${total ? (row.calls / total) * 100 : 0}%`,
-                                    background: analyticsColor("tools"),
-                                }}
-                            />
-                        </span>
-                        <span className="w-8 text-right text-xs text-muted-foreground tabular-nums">
-                            {total ? Math.round((row.calls / total) * 100) : 0}%
-                        </span>
+                    <span className="text-right text-muted-foreground tabular-nums">
+                        {total ? Math.round((row.calls / total) * 100) : 0}%
                     </span>
                 </div>
             ))}
