@@ -42,10 +42,7 @@ export const TranscriptTurns = ({
             />
         ))}
         {pending ? (
-            <PendingTurn
-                sessionId={sessionId}
-                runId={runIdFor(turns, turns.length)}
-            />
+            <PendingTurn sessionId={sessionId} runId={runIdFor(turns, turns.length)} />
         ) : null}
     </>
 )

@@ -9,22 +9,15 @@
  */
 import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
-import {quotesToMarkdown} from "@agenta/shared/quotes"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
-import {
-    clearQuotes,
-    getQuotes,
-    registerQuoteSubmit,
-    removeQuote,
-    restoreQuotes,
-    useStagedQuotes,
-} from "@agenta/ui/quote-selection"
+import {registerQuoteSubmit, removeQuote, useStagedQuotes} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
+import {withStagedQuotes, type QuotedSend} from "../assets/quotedSubmit"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
 import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
@@ -164,19 +157,8 @@ export const ChatComposer = ({
     const quotes = useStagedQuotes(quoteSessionId)
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const editorRef = inputRef ?? ownInputRef
-    const withQuotes =
-        (send: (text: string) => void | boolean | Promise<void | boolean>) =>
-        (text: string): void | boolean | Promise<void | boolean> => {
-            const staged = getQuotes(quoteSessionId).filter((quote) => quote.staged)
-            if (!staged.length) return send(text)
-            clearQuotes(quoteSessionId)
-            // A send that did not go out gets the chips and the typed text back, not the markdown.
-            return Promise.resolve(send(quotesToMarkdown(staged, text))).then((sent) => {
-                if (sent !== false) return
-                restoreQuotes(quoteSessionId, staged)
-                void editorRef.current?.setMarkdown(text)
-            })
-        }
+    const withQuotes = (send: QuotedSend) =>
+        withStagedQuotes(quoteSessionId, send, () => editorRef.current)
 
     // The note box's Enter: send the whole message now, as the Send button would.
     const submitNowRef = useRef<() => boolean>(() => false)

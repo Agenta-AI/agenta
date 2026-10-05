@@ -13,32 +13,39 @@ describe("applyQueueOps", () => {
         const view = applyQueueOps(
             rows,
             {
-                a: {kind: "remove", settledSeq: null},
-                b: {kind: "edit", text: "second, edited", settledSeq: null},
+                a: {kind: "remove", settledSeq: null, token: 1},
+                b: {kind: "edit", text: "second, edited", settledSeq: null, token: 2},
             },
             {c: {message: "Couldn't send this message now. Try again."}},
         )
         expect(view).toEqual([
-            {...rows[1], text: "second, edited"},
+            {...rows[1], text: "second, edited", editable: false, saving: true},
             {...rows[2], error: "Couldn't send this message now. Try again."},
         ])
-        expect(applyQueueOps(rows, {c: {kind: "sendNow", settledSeq: 3}}, {})).toEqual(
+        expect(applyQueueOps(rows, {c: {kind: "sendNow", settledSeq: 3, token: 3}}, {})).toEqual(
             rows.slice(0, 2),
         )
+        // A saved edit is sendable and editable again.
+        const saved = applyQueueOps(
+            rows,
+            {b: {kind: "edit", text: "x", settledSeq: 2, token: 4}},
+            {},
+        )
+        expect(saved[1]).toEqual({...rows[1], text: "x"})
     })
 })
 
 describe("pruneQueueOps", () => {
     it("keeps an op until a read that began after its write lands", () => {
-        const ops = {a: {kind: "remove" as const, settledSeq: 4}}
+        const ops = {a: {kind: "remove" as const, settledSeq: 4, token: 1}}
         expect(pruneQueueOps(ops, rows, 4)).toBe(ops)
         expect(pruneQueueOps(ops, rows, 5)).toEqual({})
-        const inFlight = {a: {kind: "remove" as const, settledSeq: null}}
+        const inFlight = {a: {kind: "remove" as const, settledSeq: null, token: 2}}
         expect(pruneQueueOps(inFlight, [], 99)).toBe(inFlight)
     })
 
     it("keeps a sent row hidden while the server still lists it", () => {
-        const ops = {a: {kind: "sendNow" as const, settledSeq: 4}}
+        const ops = {a: {kind: "sendNow" as const, settledSeq: 4, token: 3}}
         expect(pruneQueueOps(ops, rows, 9)).toBe(ops)
         expect(pruneQueueOps(ops, rows.slice(1), 9)).toEqual({})
     })

@@ -871,6 +871,62 @@ describe("durable queued edits", () => {
         expect(edit).toHaveBeenNthCalledWith(2, "selected", {text: "new"})
     })
 
+    it("keeps a row neither sendable nor editable while its edit saves, then sends the new text", async () => {
+        let finish!: (result: ServerQueueWriteResult) => void
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [{id: "selected", text: "old", source: "server"}],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(),
+            edit: vi.fn(() => new Promise<ServerQueueWriteResult>((resolve) => (finish = resolve))),
+            sendNow: vi
+                .fn()
+                .mockResolvedValue({outcome: "applied", settledSeq: 2, executionId: null}),
+        }
+        const {result} = setup({...settledEmpty, server})
+        act(() => result.current.beginEdit("selected"))
+        await act(async () => {
+            await result.current.commitEdit({text: "new"})
+        })
+        expect(result.current.queued[0]).toMatchObject({text: "new", editable: false, saving: true})
+
+        act(() => result.current.sendQueuedNow?.("selected"))
+        act(() => result.current.beginEdit("selected"))
+        expect(server.sendNow).not.toHaveBeenCalled()
+        expect(result.current.editingId).toBeNull()
+
+        act(() => finish({outcome: "applied", settledSeq: 1}))
+        await waitFor(() => expect(result.current.queued[0].saving).toBeUndefined())
+        act(() => result.current.sendQueuedNow?.("selected"))
+        expect(server.sendNow).toHaveBeenCalledWith("selected")
+        expect(result.current.pendingSendRows.map((row) => row.parts)).toEqual([
+            [{type: "text", text: "new"}],
+        ])
+    })
+
+    it("does not let an earlier edit's failure undo a later remove of the same row", async () => {
+        let finish!: (result: ServerQueueWriteResult) => void
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [{id: "selected", text: "old", source: "server"}],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(() => new Promise<ServerQueueWriteResult>(() => undefined)),
+            edit: vi.fn(() => new Promise<ServerQueueWriteResult>((resolve) => (finish = resolve))),
+        }
+        const {result} = setup({...settledEmpty, server})
+        act(() => result.current.beginEdit("selected"))
+        await act(async () => {
+            await result.current.commitEdit({text: "new"})
+        })
+        act(() => result.current.removeQueued("selected"))
+        expect(result.current.queued).toEqual([])
+
+        await act(async () => finish({outcome: "failed", settledSeq: 1}))
+        expect(result.current.queued).toEqual([])
+    })
+
     it("keeps the edit as a flagged row when the queued row left before it saved", async () => {
         const server: ServerQueueAdapter = {
             busy: true,

@@ -3,10 +3,13 @@ import type {FileUIPart} from "ai"
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 
 /** A write shown before the snapshot has it; `settledSeq` is null while it is in flight. */
-export type QueueOp =
+export type QueueOpBody =
     | {kind: "remove"; settledSeq: number | null}
     | {kind: "sendNow"; settledSeq: number | null}
     | {kind: "edit"; text: string; fileParts?: FileUIPart[]; settledSeq: number | null}
+
+/** `token` names the write that owns the row's overlay; only it may settle or undo it. */
+export type QueueOp = QueueOpBody & {token: number}
 
 export type QueueOps = Readonly<Record<string, QueueOp>>
 
@@ -37,6 +40,8 @@ export const applyQueueOps = (
                       text: op.text,
                       fileParts: op.fileParts ?? row.fileParts,
                       attachmentCount: op.fileParts?.length ?? row.attachmentCount,
+                      // Not sendable or editable again until this edit has saved.
+                      ...(op.settledSeq === null ? {editable: false, saving: true} : {}),
                   }
                 : {}),
             ...(error ? {error: error.message, unsavedEdit: error.unsavedEdit} : {}),

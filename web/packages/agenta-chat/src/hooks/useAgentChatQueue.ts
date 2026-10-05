@@ -15,7 +15,7 @@ import {
     applyQueueOps,
     pruneQueueOps,
     pruneQueueRowErrors,
-    type QueueOp,
+    type QueueOpBody,
     type QueueOps,
     type QueueRowError,
     type QueueRowErrors,
@@ -43,6 +43,8 @@ export interface QueuedMessage {
     /** An edit that did not save; the pencil reopens it instead of the saved text. */
     unsavedEdit?: {text: string; fileParts?: FileUIPart[]}
     promotedExecutionId?: string | null
+    /** An edit of this row is still saving. */
+    saving?: boolean
 }
 
 /** `settledSeq`: a snapshot read with a higher sequence reflects this write. */
@@ -249,18 +251,33 @@ export const useAgentChatQueue = ({
     const admissionChainRef = useRef<Promise<void>>(Promise.resolve())
     const admittingRef = useRef(0)
 
-    const setOp = useCallback((id: string, op: QueueOp | null) => {
+    const opsRef = useRef(ops)
+    opsRef.current = ops
+    const opTokenRef = useRef(0)
+    const opOwnersRef = useRef(new Map<string, number>())
+    const setOp = useCallback((id: string, body: QueueOpBody) => {
+        const token = ++opTokenRef.current
+        opOwnersRef.current.set(id, token)
+        setOps((current) => ({...current, [id]: {...body, token}}))
+        return token
+    }, [])
+    // A later write on the same row owns its overlay; an earlier one's outcome must not touch it.
+    const dropOp = useCallback((id: string, token: number) => {
+        if (opOwnersRef.current.get(id) !== token) return false
+        opOwnersRef.current.delete(id)
         setOps((current) => {
-            if (op) return {...current, [id]: op}
-            if (!(id in current)) return current
+            if (current[id]?.token !== token) return current
             const next = {...current}
             delete next[id]
             return next
         })
+        return true
     }, [])
-    const settleOp = useCallback((id: string, settledSeq: number) => {
+    const settleOp = useCallback((id: string, token: number, settledSeq: number) => {
         setOps((current) =>
-            current[id] ? {...current, [id]: {...current[id], settledSeq}} : current,
+            current[id]?.token === token
+                ? {...current, [id]: {...current[id], settledSeq}}
+                : current,
         )
     }, [])
     const setRowError = useCallback((id: string, error: QueueRowError | null) => {
@@ -402,22 +419,23 @@ export const useAgentChatQueue = ({
     const startRemove = useCallback(
         (id: string) => {
             setRowError(id, null)
-            setOp(id, {kind: "remove", settledSeq: null})
+            const token = setOp(id, {kind: "remove", settledSeq: null})
             const fail = (message: string) => {
-                setOp(id, null)
-                setRowError(id, {message})
+                if (dropOp(id, token)) setRowError(id, {message})
             }
             void server
                 .remove(id)
                 .then(({outcome, settledSeq}) => {
                     // Gone already is the end state the user asked for.
-                    if (outcome === "applied" || outcome === "not_found") settleOp(id, settledSeq)
+                    if (outcome === "applied" || outcome === "not_found") {
+                        settleOp(id, token, settledSeq)
+                    }
                     // 409: promoted, or bound to a pending stop.
                     else fail(outcome === "conflict" ? REMOVE_ABOUT_TO_RUN : REMOVE_FAILED)
                 })
                 .catch(() => fail(REMOVE_FAILED))
         },
-        [server, setOp, setRowError, settleOp],
+        [dropOp, server, setOp, setRowError, settleOp],
     )
 
     // One durable admission for both policies, so a steer gets the same echo and refusal
@@ -564,15 +582,20 @@ export const useAgentChatQueue = ({
         (id: string) => {
             const row = server.queued.find((message) => message.id === id)
             const sendNow = server.sendNow
-            if (!row || !sendNow) return
+            const op = opsRef.current[id]
+            if (!row || !sendNow || (op?.kind === "edit" && op.settledSeq === null)) return
+            // A saved edit the snapshot has not caught up with is the text that runs.
+            const sent =
+                op?.kind === "edit"
+                    ? {text: op.text, fileParts: op.fileParts ?? row.fileParts}
+                    : row
             const echoId = `send-now-${id}`
             setRowError(id, null)
-            setOp(id, {kind: "sendNow", settledSeq: null})
-            echoes.add({id: echoId, text: row.text, fileParts: row.fileParts})
+            const token = setOp(id, {kind: "sendNow", settledSeq: null})
+            echoes.add({id: echoId, text: sent.text, fileParts: sent.fileParts})
             const fail = (message: string) => {
                 echoes.drop(echoId)
-                setOp(id, null)
-                setRowError(id, {message})
+                if (dropOp(id, token)) setRowError(id, {message})
             }
             void sendNow(id)
                 .then(({outcome, settledSeq, executionId}) => {
@@ -586,12 +609,12 @@ export const useAgentChatQueue = ({
                         )
                         return
                     }
-                    settleOp(id, settledSeq)
+                    settleOp(id, token, settledSeq)
                     if (executionId) echoes.markAccepted(echoId, executionId)
                 })
                 .catch(() => fail(SEND_NOW_FAILED))
         },
-        [echoes, server, setOp, setRowError, settleOp],
+        [dropOp, echoes, server, setOp, setRowError, settleOp],
     )
 
     // The API binds one input to a pending stop, so a second Send Now waits for it.
@@ -636,6 +659,8 @@ export const useAgentChatQueue = ({
     /** Open a session on `id`, stashing the composer's current draft. */
     const beginEdit = useCallback(
         (id: string, draft = "") => {
+            const op = opsRef.current[id]
+            if (op?.kind === "edit" && op.settledSeq === null) return
             editSessionRef.current = {
                 id,
                 server: server.queued.some((message) => message.id === id),
@@ -654,6 +679,16 @@ export const useAgentChatQueue = ({
         return draft
     }, [])
 
+    // A refused send the composer cannot take back (a newer draft is there) stays as a flagged row.
+    const {markFailed} = echoes
+    const keepRefusedSend = useCallback(
+        (item: {text: string; fileParts?: FileUIPart[]}) => {
+            const id = generateId()
+            markFailed(id, {id, ...item})
+        },
+        [markFailed],
+    )
+
     /** Close the session without touching the message. Returns the draft to restore. */
     const cancelEdit = useCallback(() => {
         editSessionRef.current = null
@@ -668,9 +703,14 @@ export const useAgentChatQueue = ({
             item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]},
             save: NonNullable<ServerQueueAdapter["edit"]>,
         ) => {
-            setOp(id, {kind: "edit", text: item.text, fileParts: item.fileParts, settledSeq: null})
+            const token = setOp(id, {
+                kind: "edit",
+                text: item.text,
+                fileParts: item.fileParts,
+                settledSeq: null,
+            })
             const fail = (outcome: PendingInputWriteOutcome) => {
-                setOp(id, null)
+                if (!dropOp(id, token)) return
                 if (serverQueuedRef.current.some((message) => message.id === id)) {
                     setRowError(id, {
                         message: outcome === "conflict" ? EDIT_ABOUT_TO_RUN : EDIT_FAILED,
@@ -685,11 +725,11 @@ export const useAgentChatQueue = ({
             }
             void save(id, {text: item.text, fileParts: item.fileParts})
                 .then(({outcome, settledSeq}) =>
-                    outcome === "applied" ? settleOp(id, settledSeq) : fail(outcome),
+                    outcome === "applied" ? settleOp(id, token, settledSeq) : fail(outcome),
                 )
                 .catch(() => fail("failed"))
         },
-        [echoes, setOp, setRowError, settleOp],
+        [dropOp, echoes, setOp, setRowError, settleOp],
     )
 
     /**
@@ -753,5 +793,6 @@ export const useAgentChatQueue = ({
         beginEdit,
         cancelEdit,
         commitEdit,
+        keepRefusedSend,
     }
 }

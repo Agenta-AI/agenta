@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, type MutableRefObject} from "react"
 
-import {describeAccepted, isComposerRunStoppable} from "@agenta/chat/assets"
+import {canRestoreRefusedSend, describeAccepted, isComposerRunStoppable} from "@agenta/chat/assets"
 import {
     AttachmentDropOverlay,
     ChatComposer,
@@ -46,6 +46,7 @@ export const Composer = ({
     attachments,
     onSend,
     onSteer,
+    onRefusedOverDraft,
     disabled = false,
     waitingOnUser = false,
     streaming = false,
@@ -72,6 +73,8 @@ export const Composer = ({
         parts?: FileUIPart[]
         stagedFiles?: ComposerAttachment[]
     }) => void | Promise<void>
+    /** A send refused after a newer draft was typed: the host keeps it so neither is lost. */
+    onRefusedOverDraft?: (input: {text: string; parts?: FileUIPart[]}) => void
     /** No resolvable agent yet, or the screen is still hydrating. */
     disabled?: boolean
     /** The run is parked on the user (pending approval) — sends will queue. */
@@ -195,10 +198,12 @@ export const Composer = ({
         // A failed upload adopts the take into the tray; hold the send so nothing is lost.
         if (!uploadedExtras) return false
         const outbound = [...staged, ...uploadedExtras]
+        let parts: FileUIPart[] | undefined
+        let cleared = false
         try {
             // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
             // Enter, which the send button's `sendDisabled` guard doesn't cover.
-            const parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
+            parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
             // The message leaves the composer HERE, before the send can fail: draft and tray go
             // now, and every refusal path puts them back afterwards (the catch below for an early
             // one, the screen's `restoreRefusedSend` for a late one). Clearing after the await let
@@ -206,6 +211,7 @@ export const Composer = ({
             // holding the chips until admission read as "the attachment didn't go" (#6777).
             draft.clearDraft()
             attachments.clearAttachments(staged.map((file) => file.uid))
+            cleared = true
             release()
             if (policy === "steer" && onSteer) await onSteer({text, parts, stagedFiles: outbound})
             else await onSend({text, parts, stagedFiles: outbound})
@@ -217,9 +223,14 @@ export const Composer = ({
             // composer's own inline channel. `outbound`, not `staged`: a voice take never sat in
             // the tray, and restoring it there is what makes it retryable. Idempotent: a throw
             // before the clear leaves the tray as it was.
-            void richInputRef.current?.setMarkdown(text)
-            attachments.restoreAttachments(outbound)
             attachments.setRejections(refusedSendRejections(error))
+            // Never over a draft typed while this send was pending: the host keeps it instead.
+            if (cleared && !canRestoreRefusedSend(richInputRef.current)) {
+                onRefusedOverDraft?.({text, parts})
+                return false
+            }
+            if (cleared) void richInputRef.current?.setMarkdown(text)
+            attachments.restoreAttachments(outbound)
             return false
         }
     }

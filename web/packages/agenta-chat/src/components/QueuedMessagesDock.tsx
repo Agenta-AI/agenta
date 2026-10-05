@@ -140,7 +140,7 @@ const Row = ({
                         size="sm"
                         variant="ghost"
                         className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
-                        disabled={editing || sendingThis || sendNowBlocked}
+                        disabled={editing || sendingThis || sendNowBlocked || !!message.saving}
                         title={
                             !sendingThis && sendNowBlocked
                                 ? "Another message is being sent first"

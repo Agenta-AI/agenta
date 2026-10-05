@@ -179,12 +179,13 @@ export const LiveConversation = ({
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const {adoptRevision} = conversation
     const adoptSecretRevision = useCallback(
         (next: string) => {
-            conversation.adoptRevision(next)
+            adoptRevision(next)
             pinRevision(next)
         },
-        [conversation.adoptRevision, pinRevision],
+        [adoptRevision, pinRevision],
     )
     const pendingSecret = useMemo(
         () => getPendingSecretInteractions(conversation.messages)[0],
@@ -931,6 +932,9 @@ export const LiveConversation = ({
                             entityId={entityId}
                             sessionId={sessionId}
                             attachments={attachments}
+                            onRefusedOverDraft={({text, parts}) =>
+                                conversation.keepRefusedSend({text, fileParts: parts})
+                            }
                             onSend={async ({text, parts, stagedFiles}) => {
                                 setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The
