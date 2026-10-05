@@ -20,13 +20,11 @@ import {analyticsColor} from "../colors"
 import {clock, monthDay} from "../labels"
 
 const SHOWN = 20
-/** Failed runs fetched to count reasons; a window with more counts the newest. */
-const REASON_SAMPLE = 500
-/** Costly runs fetched to rank; each root span carries its inputs and outputs, so keep it small. */
+// Root spans carry their inputs and outputs (~70 KB each), so samples stay small.
+const REASON_SAMPLE = 100
 const COST_SAMPLE = 40
 
-// The traces endpoint orders by time only, so it is asked for runs above a cost floor and they
-// rank on the client.
+// The spans endpoint orders by time only, so costly runs come from a cost floor, ranked here.
 const byCost = (a: AnalyticsRun, b: AnalyticsRun) => (b.cost ?? -1) - (a.cost ?? -1)
 
 const ROW_GRID =
@@ -38,7 +36,7 @@ export interface DrawerRunsProps {
     focus: AnalyticsFocus | null
     total: number
     failed: number
-    /** The window's cost per run, null while it loads; the cost list asks for runs at twice it. */
+    /** The window's cost per run, null while it loads. */
     averageCost: number | null
     failedOnly: boolean
     onFailedOnly: (failedOnly: boolean) => void
@@ -122,7 +120,7 @@ export const DrawerRuns = ({
         [runs, reason, failedOnly],
     )
     const traceIds = useMemo(() => listed.map((run) => run.traceId), [listed])
-    const toolsQuery = useAtomValue(analyticsRunToolsAtomFamily(traceIds))
+    const toolsQuery = useAtomValue(analyticsRunToolsAtomFamily({traceIds, window}))
     const tools = toolsQuery.data
     const matching = reason
         ? (reasons.find((r) => r.label === reason)?.count ?? 0)

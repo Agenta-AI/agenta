@@ -7,11 +7,9 @@ import {
     formatCount,
     formatMetric,
     formatMoney,
-    rankKeys,
     sharePercent,
     successRate,
     sum,
-    topSeries,
     analyticsDrawerAtom,
     analyticsGroupAtom,
     analyticsFiltersAtom,
@@ -25,13 +23,15 @@ import {Button, Sheet, SheetContent, SheetDescription, SheetTitle, cn} from "@ag
 import {CaretLeft, CaretRight, X} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
+import {stackSeries} from "../cards/GroupedCard"
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
-import {TimeChart, type TimeSeries} from "../charts/TimeChart"
+import {TimeChart} from "../charts/TimeChart"
 import {analyticsColor} from "../colors"
 import {bucketUnit, fullLabel, shortLabel} from "../labels"
 import {
     SPLIT_KEYS,
     useAnalyticsSplit,
+    useAnalyticsTools,
     useAnalyticsWindowData,
     type KeyColor,
 } from "../useAnalyticsData"
@@ -124,8 +124,12 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
     )
     const focus = state?.focus ?? null
     const data = useAnalyticsWindowData(window, filters, focus)
-    const toolsPerBucket = useToolsPerBucket(data)
-    // The page's group-by stacks the chart too, unless the drawer is already on one key of it.
+    const tools = useAnalyticsTools(window)
+    const toolsPerBucket = useMemo(
+        () => data.starts.map((_, i) => sum(tools.order.map((key) => tools.calls[key][i] ?? 0))),
+        [data.starts, tools],
+    )
+    // The page's group stacks the chart too, unless the drawer is on one key of it.
     const group = useAtomValue(analyticsGroupAtom)
     const stackDim = group !== "none" && focus?.dim !== group ? group : null
     const stackSplit = useAnalyticsSplit(
@@ -167,14 +171,15 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
               : stackSplit.status.pending
                 ? null
                 : stackSplit[metric as "cost" | "tokens"]
-    const stacked: TimeSeries[] | null =
+    const stacked =
         stackDim && stackSource
-            ? topSeries(stackSource, rankKeys(stackSource), 4, values as number[]).map((s) => ({
-                  key: s.key,
-                  label: s.other ? "Other" : stackDim === "agent" ? agentName(s.key) : s.key,
-                  color: s.other ? analyticsColor("other") : keyColor(stackDim, s.key),
-                  values: s.values,
-              }))
+            ? stackSeries(
+                  stackSource,
+                  values as number[],
+                  stackDim === "agent" ? agentName : (key) => key,
+                  (key) => keyColor(stackDim, key),
+                  (stackDim === "agent" ? data.agentOrder : data.modelOrder).length,
+              )
             : null
 
     const title =
@@ -422,6 +427,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                         metric={metric}
                         agentName={agentName}
                         keyColor={keyColor}
+                        tools={tools}
                         unit={unit}
                         onDim={(dim) => setState({...state, dim})}
                         onDrill={(next, dim) => setState({...state, focus: next, dim})}
@@ -466,12 +472,3 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
         </>
     )
 }
-
-const useToolsPerBucket = (data: ReturnType<typeof useAnalyticsWindowData>) =>
-    useMemo(
-        () =>
-            data.starts.map((_, i) =>
-                data.toolOrder.reduce((total, key) => total + (data.toolCalls[key][i] ?? 0), 0),
-            ),
-        [data.starts, data.toolOrder, data.toolCalls],
-    )

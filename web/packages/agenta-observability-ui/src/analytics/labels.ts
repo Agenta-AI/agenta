@@ -17,8 +17,7 @@ export const clock = (t: number) => {
 
 const isDaily = (window: AnalyticsWindow) => window.interval >= 24 * 60
 
-// Daily buckets are fixed 24h steps, so across a DST change a start can fall at 23:00 the day
-// before; the midpoint always lands on the right day.
+// Across a DST change a daily start can fall at 23:00 the day before; the midpoint cannot.
 const midday = (start: number) => start + 12 * 60 * 60_000
 
 /** Axis label for one bucket. */

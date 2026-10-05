@@ -48,6 +48,24 @@ export interface GroupedCardProps {
 
 const TOP = 4
 
+/** The top four keys of `series` and an "Other" remainder of `total`, labelled and colored. */
+export const stackSeries = (
+    series: KeyedSeries,
+    total: number[],
+    keyLabel: (key: string) => string,
+    keyColor: (key: string) => string,
+    keyCount?: number,
+): TimeSeries[] => {
+    const order = rankKeys(series)
+    const restCount = Math.max(0, (keyCount ?? order.length) - Math.min(TOP, order.length))
+    return topSeries(series, order, TOP, total).map((s) => ({
+        key: s.key,
+        label: s.other ? (restCount ? `Other (${restCount})` : "Unattributed") : keyLabel(s.key),
+        color: s.other ? analyticsColor("other") : keyColor(s.key),
+        values: s.values,
+    }))
+}
+
 const formatValue = (metric: GroupedMetric, value: number) =>
     metric === "runs" ? formatCount(value) : formatMetric(metric, value)
 
@@ -72,19 +90,11 @@ export const GroupedCard = ({
     const [hovered, setHovered] = useState<number | null>(null)
     const [hidden, setHidden] = useState<Record<string, boolean>>({})
 
-    const order = useMemo(() => rankKeys(source.series), [source.series])
-    const top = useMemo(
-        () => topSeries(source.series, order, TOP, source.total),
-        [source.series, order, source.total],
+    const stack = useMemo(
+        () => stackSeries(source.series, source.total, keyLabel, keyColor, source.keyCount),
+        [source, keyLabel, keyColor],
     )
-    const restCount = Math.max(0, (source.keyCount ?? order.length) - Math.min(TOP, order.length))
-    const series: TimeSeries[] = top.map((s) => ({
-        key: s.key,
-        label: s.other ? (restCount ? `Other (${restCount})` : "Unattributed") : keyLabel(s.key),
-        color: s.other ? analyticsColor("other") : keyColor(s.key),
-        values: s.values,
-        hidden: hidden[s.key],
-    }))
+    const series: TimeSeries[] = stack.map((s) => ({...s, hidden: hidden[s.key]}))
 
     const bucketTotal = (i: number) =>
         sum(series.filter((s) => !s.hidden).map((s) => s.values[i] ?? 0))

@@ -17,7 +17,12 @@ import {Segmented, cn} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {SERIES_COLORS, analyticsColor} from "../colors"
-import {useAnalyticsSplit, type AnalyticsWindowData, type KeyColor} from "../useAnalyticsData"
+import {
+    useAnalyticsSplit,
+    type AnalyticsTools,
+    type AnalyticsWindowData,
+    type KeyColor,
+} from "../useAnalyticsData"
 
 const LIMIT = 8
 const OTHER = "__other"
@@ -71,6 +76,7 @@ export interface DrawerBreakdownProps {
     metric: AnalyticsMetric
     agentName: (id: string) => string
     keyColor: KeyColor
+    tools: AnalyticsTools
     unit: string
     onDim: (dim: AnalyticsDimension) => void
     onDrill: (focus: AnalyticsFocus, dim: AnalyticsDimension) => void
@@ -254,10 +260,10 @@ const RunTable = ({
     )
 }
 
-const ToolTable = ({data, focus, filters, unit}: DrawerBreakdownProps) => {
+const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) => {
     const rows = useMemo(
-        () => data.toolOrder.map((key) => ({key, calls: sum(data.toolCalls[key])})),
-        [data.toolOrder, data.toolCalls],
+        () => tools.order.map((key) => ({key, calls: sum(tools.calls[key])})),
+        [tools],
     )
     const total = sum(rows.map((r) => r.calls))
     const buckets = data.starts.length || 1
@@ -266,7 +272,7 @@ const ToolTable = ({data, focus, filters, unit}: DrawerBreakdownProps) => {
     if (!rows.length) {
         return (
             <div className="py-6 text-center text-sm text-muted-foreground">
-                {data.status.tools.pending ? "Loading…" : "No tool calls in this window"}
+                {tools.status.pending ? "Loading…" : "No tool calls in this window"}
             </div>
         )
     }

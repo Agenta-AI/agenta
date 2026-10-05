@@ -161,7 +161,6 @@ export interface AnalyticsRunsKey {
     failedOnly: boolean
     minCost?: number | null
     limit: number
-    /** Off for a query the caller only needs as a fallback. */
     enabled?: boolean
 }
 
@@ -184,13 +183,15 @@ export const analyticsRunsAtomFamily = atomFamily(
 
 /** Tool calls of the runs on screen, to show call counts and which calls failed. */
 export const analyticsRunToolsAtomFamily = atomFamily(
-    (traceIds: string[]) =>
+    ({traceIds, window}: {traceIds: string[]; window: AnalyticsWindow}) =>
         atomWithQuery((get) => {
             const projectId = get(projectIdAtom)
             return {
-                queryKey: ["analytics", "run-tools", projectId, traceIds],
+                queryKey: ["analytics", "run-tools", projectId, traceIds, window],
                 queryFn: async (): Promise<Record<string, AnalyticsRunTools>> =>
-                    toolsByRun(await fetchAnalyticsToolSpans(projectId as string, traceIds)),
+                    toolsByRun(
+                        await fetchAnalyticsToolSpans(projectId as string, traceIds, window),
+                    ),
                 enabled: Boolean(projectId) && traceIds.length > 0,
                 ...QUERY_OPTIONS,
             }
@@ -198,10 +199,7 @@ export const analyticsRunToolsAtomFamily = atomFamily(
     isEqual,
 )
 
-/**
- * Agent id to display name: the agents list first, then the workflow artifact, which also
- * names agents that were archived since their runs. Null until known.
- */
+/** Agent id to name: the agents list, then the artifact (which also names archived agents). */
 export const analyticsAgentNamesAtomFamily = atomFamily(
     (ids: string[]) =>
         atom((get) => {

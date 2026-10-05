@@ -64,15 +64,12 @@ export const useAnalyticsWindowData = (
     const agentsFailedQ = useAnalyticsBuckets("agentsFailed", window, filters, focus)
     const modelsQ = useAnalyticsBuckets("models", window, filters, focus)
     const modelsFailedQ = useAnalyticsBuckets("modelsFailed", window, filters, focus)
-    // Tool spans carry no agent reference, so neither filters nor focus narrow them.
-    const toolsQ = useAnalyticsBuckets("tools", window, EMPTY_FILTERS)
 
     return useMemo(() => {
         const keyed = (data: typeof overviewQ.data, paths: string[]): KeyedSeries =>
             keyedSeries(window, data ?? [], paths)
         const agentRuns = keyed(agentsQ.data, AGENT_PATHS)
         const modelRuns = keyed(modelsQ.data, [PATH.model])
-        const toolCalls = keyed(toolsQ.data, [PATH.tool])
         return {
             starts: bucketStarts(window),
             overview: toOverview(window, overviewQ.data ?? [], failedQ.data ?? []),
@@ -82,19 +79,27 @@ export const useAnalyticsWindowData = (
             modelRuns,
             modelFailed: keyed(modelsFailedQ.data, [PATH.model]),
             modelOrder: rankKeys(modelRuns),
-            toolCalls,
-            toolOrder: rankKeys(toolCalls),
             status: {
                 overview: statusOf(overviewQ, failedQ),
                 agents: statusOf(agentsQ, agentsFailedQ),
                 models: statusOf(modelsQ, modelsFailedQ),
-                tools: statusOf(toolsQ),
             },
         }
-    }, [window, overviewQ, failedQ, agentsQ, agentsFailedQ, modelsQ, modelsFailedQ, toolsQ])
+    }, [window, overviewQ, failedQ, agentsQ, agentsFailedQ, modelsQ, modelsFailedQ])
 }
 
 export type AnalyticsWindowData = ReturnType<typeof useAnalyticsWindowData>
+
+/** Tool calls per tool; tool spans carry no agent reference, so filters do not narrow them. */
+export const useAnalyticsTools = (window: AnalyticsWindow) => {
+    const query = useAnalyticsBuckets("tools", window, EMPTY_FILTERS)
+    return useMemo(() => {
+        const calls = keyedSeries(window, query.data ?? [], [PATH.tool])
+        return {calls, order: rankKeys(calls), status: statusOf(query)}
+    }, [window, query])
+}
+
+export type AnalyticsTools = ReturnType<typeof useAnalyticsTools>
 
 /** Cost and tokens per key, one filtered request per key. */
 export const useAnalyticsSplit = (
@@ -116,7 +121,7 @@ export const useAnalyticsSplit = (
             tokens[key] = numberSeries(window, buckets, PATH.tokens)
         }
         return {cost, tokens, status: statusOf(query)}
-    }, [dim, query, window])
+    }, [query, window])
 }
 
 /** A name lookup for agent ids; unknown ids read as "Unknown agent" until they resolve. */
@@ -125,15 +130,12 @@ export const useAgentNames = (ids: string[]) => {
     return useCallback((id: string) => names[id] ?? UNKNOWN_AGENT, [names])
 }
 
-/** Cost and tokens split for the page window cost one request per key, so splits stop here. */
+/** Splits cost one request per key, so they stop here. */
 export const SPLIT_KEYS = 25
 
 export type KeyColor = (dim: "agent" | "model", key: string) => string
 
-/**
- * The page window's data, its agent and model splits, and one color per key that the page and
- * the drawer share. Colors go to the keys any main card shows, so a key reads the same everywhere.
- */
+/** Page data, its splits, and per-key colors the page and drawer share. */
 export const usePageAnalytics = (
     window: AnalyticsWindow,
     filters: AnalyticsFilters,

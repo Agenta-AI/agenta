@@ -103,7 +103,7 @@ const GroupedMainCard = ({
         labels={ctx.labels}
         fullLabels={ctx.fullLabels}
         height={height}
-        empty={ctx.emptyText(metric === "cost" ? "cost" : metric)}
+        empty={ctx.emptyText(metric)}
         onExplore={(bucket) => ctx.onExplore(metric, bucket)}
     />
 )

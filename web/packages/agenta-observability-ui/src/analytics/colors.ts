@@ -1,7 +1,4 @@
-/**
- * Every color the Analytics tab draws with, in one place. Edit a value here to restyle the tab;
- * components read them only as `var(--analytics-*)`, which `ANALYTICS_COLOR_CSS` defines.
- */
+/** Every Analytics color; components read them as `var(--analytics-*)` from `ANALYTICS_COLOR_CSS`. */
 const LIGHT = {
     cost: "#7e90a4",
     runs: "#b5b16c",

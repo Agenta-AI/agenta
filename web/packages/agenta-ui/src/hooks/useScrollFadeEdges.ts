@@ -1,10 +1,6 @@
 import {useEffect, type RefObject} from "react"
 
-/**
- * Drives `.ag-scroll-fade` (surfaces.css) on a scroll box: sets `data-fade-top`/`-bottom` when
- * there is more to scroll that way. `insetSelector` names a sticky heading the top fade starts
- * below. Writes the DOM, not state, so scrolling never re-renders.
- */
+/** Drives `.ag-scroll-fade` on a scroll box; `insetSelector` names a sticky heading to fade below. */
 export const useScrollFadeEdges = (
     ref: RefObject<HTMLElement | null>,
     {enabled = true, insetSelector}: {enabled?: boolean; insetSelector?: string} = {},

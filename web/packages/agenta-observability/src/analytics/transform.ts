@@ -137,10 +137,7 @@ export const rankKeys = (series: KeyedSeries): string[] =>
 
 export const OTHER_KEY = "__other"
 
-/**
- * The top `limit` keys plus one "other" series. `total` (per bucket) lets "other" cover what the
- * keyed series omit; without it "other" is the sum of the remaining keys.
- */
+/** The top `limit` keys plus "other": the rest of `total` per bucket, else the remaining keys. */
 export const topSeries = (
     series: KeyedSeries,
     order: string[],

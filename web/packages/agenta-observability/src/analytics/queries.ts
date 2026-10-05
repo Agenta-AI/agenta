@@ -33,11 +33,11 @@ export type Condition = Record<string, unknown>
 const num = (path: string): AnalyticsMetricSpec => ({type: "numeric/continuous", path})
 const cat = (path: string): AnalyticsMetricSpec => ({type: "categorical/single", path})
 
-// The API validates span types against its lowercase enum; anything else fails the query.
 const FAILED: Condition = {field: "status_code", operator: "is", value: "STATUS_CODE_ERROR"}
 // A run is an invocation trace; annotation traces (evaluator feedback) are not runs.
 const INVOCATION: Condition = {field: "trace_type", operator: "is", value: "invocation"}
-const spanType = (value: "chat" | "tool" | "workflow"): Condition => ({
+// The API validates span types against its lowercase enum; anything else fails the query.
+const spanType = (value: "tool" | "workflow"): Condition => ({
     field: "span_type",
     operator: "is",
     value,
@@ -66,7 +66,7 @@ const RUN_TOTALS = [
     cat(PATH.trace),
 ]
 
-export const ANALYTICS_QUERIES = {
+const ANALYTICS_QUERIES = {
     overview: {focus: "trace", runLevel: true, where: [], specs: RUN_TOTALS},
     failed: {focus: "trace", runLevel: true, where: [FAILED], specs: [cat(PATH.trace)]},
     agents: {
@@ -109,7 +109,7 @@ export const filterConditions = (filters: AnalyticsFilters): Condition[] => {
 
 const FOCUS_KEY = {model: MODEL_KEY, provider: PROVIDER_KEY}
 
-export const focusCondition = (focus: AnalyticsFocus): Condition =>
+const focusCondition = (focus: AnalyticsFocus): Condition =>
     focus.dim === "agent"
         ? {field: "references", operator: "in", value: [{id: focus.key}]}
         : anyOf(FOCUS_KEY[focus.dim], [focus.key])
@@ -160,7 +160,7 @@ export interface AnalyticsRunsParams {
     filters: AnalyticsFilters
     focus?: AnalyticsFocus | null
     failedOnly?: boolean
-    /** Only runs costing at least this much; the endpoint cannot order by cost, so this keeps it small. */
+    /** Only runs costing at least this much. */
     minCost?: number | null
     limit: number
 }
@@ -212,12 +212,15 @@ export const fetchAnalyticsRunSpans = async ({
 export const fetchAnalyticsToolSpans = async (
     projectId: string,
     traceIds: string[],
+    window: AnalyticsWindow,
 ): Promise<TraceSpan[]> => {
     if (!traceIds.length) return []
     const res = await fetchAllPreviewTraces(
         {
             focus: "span",
             size: 1000,
+            oldest: new Date(window.oldest).toISOString(),
+            newest: new Date(window.newest).toISOString(),
             filter: {
                 conditions: [
                     spanType("tool"),
