@@ -124,7 +124,7 @@ export const MembersPage = ({
                     return (
                         <>
                             <div className="flex min-w-0 items-center gap-2.5">
-                                <InitialsAvatar shape="circle" name={name} />
+                                <InitialsAvatar name={name} />
                                 <div className="flex min-w-0 flex-col">
                                     <div className="flex min-w-0 items-center gap-2">
                                         <span
