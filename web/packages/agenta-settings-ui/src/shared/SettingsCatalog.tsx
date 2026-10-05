@@ -141,6 +141,13 @@ const SkeletonGroup = ({rows}: {rows: number}) => (
 
 const HEADING = "m-0 text-[13px] font-medium leading-[18px] text-muted-foreground"
 
+const Count = ({group}: {group: Omit<SettingsCatalogGroup, "key">}) =>
+    group.count === null ? null : (
+        <span className="text-[13px] font-normal text-muted-foreground/60">
+            {group.count ?? group.items.length}
+        </span>
+    )
+
 /** One catalog group, exported for hosts that load groups on their own via `after`. */
 export const SettingsCatalogSection = ({
     group,
@@ -152,8 +159,8 @@ export const SettingsCatalogSection = ({
 }) => (
     <section ref={sectionRef} className="flex flex-col gap-3">
         <div className="flex min-h-6 items-center gap-1.5">
-            <h2 className={HEADING}>
-                {group.onToggle ? (
+            {group.onToggle ? (
+                <h2 className={HEADING}>
                     <button
                         type="button"
                         aria-expanded={!group.collapsed}
@@ -163,20 +170,19 @@ export const SettingsCatalogSection = ({
                             FOCUS_RING,
                         )}
                     >
+                        {group.label}
+                        <Count group={group} />
                         <CaretRight
                             size={12}
                             className={cn("transition-transform", !group.collapsed && "rotate-90")}
                         />
-                        {group.label}
                     </button>
-                ) : (
-                    group.label
-                )}
-            </h2>
-            {group.count === null ? null : (
-                <span className="text-[13px] text-muted-foreground/60">
-                    {group.count ?? group.items.length}
-                </span>
+                </h2>
+            ) : (
+                <>
+                    <h2 className={HEADING}>{group.label}</h2>
+                    <Count group={group} />
+                </>
             )}
             {group.action ? <div className="ml-auto flex">{group.action}</div> : null}
         </div>
