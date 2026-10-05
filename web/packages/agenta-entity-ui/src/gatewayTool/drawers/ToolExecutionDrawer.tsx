@@ -14,14 +14,7 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton, message} from "@agenta/ui"
 import {Tag} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {
-    Button,
-    EmptyState,
-    InputAffix,
-    LoadingButton,
-    Segmented,
-    SkeletonBlock,
-} from "@agenta/ui/ui"
+import {Button, InputAffix, LoadingButton, Segmented, SkeletonBlock} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     BracketsRound,
@@ -30,10 +23,12 @@ import {
     ListDashes,
     MagnifyingGlass,
     Play,
+    Wrench,
 } from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
+import {ToolsEmpty} from "../../mcpEndpoint/components/ToolsEmpty"
 import ResultViewer from "../components/ResultViewer"
 import type {SchemaFormHandle} from "../components/SchemaForm"
 import SchemaForm from "../components/SchemaForm"
@@ -270,9 +265,11 @@ function ActionPickerStep({
                     allowClear
                 />
 
-                <span className="text-xs text-colorTextDescription">
-                    {total} action{total !== 1 ? "s" : ""}
-                </span>
+                {total > 0 ? (
+                    <span className="text-xs text-colorTextDescription">
+                        {total} action{total !== 1 ? "s" : ""}
+                    </span>
+                ) : null}
             </div>
 
             {/* Scrollable content */}
@@ -283,7 +280,24 @@ function ActionPickerStep({
                 {isLoading && actions.length === 0 ? (
                     <ActionRowsSkeleton />
                 ) : actions.length === 0 ? (
-                    <EmptyState description="No actions found" />
+                    search.value.trim() ? (
+                        <ToolsEmpty
+                            icon={<MagnifyingGlass size={18} />}
+                            title={`No actions match “${search.value.trim()}”`}
+                            description="Try another word, or clear the search to see every action."
+                            action={
+                                <Button variant="outline" onClick={() => search.onChange("")}>
+                                    Clear search
+                                </Button>
+                            }
+                        />
+                    ) : (
+                        <ToolsEmpty
+                            icon={<Wrench size={18} />}
+                            title="No actions available"
+                            description={`${integrationName || integrationKey} exposes no actions yet.`}
+                        />
+                    )
                 ) : (
                     <div className="flex flex-col">
                         {actions.map((action, i) => (
