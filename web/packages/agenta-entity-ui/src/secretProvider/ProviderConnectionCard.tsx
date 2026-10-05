@@ -424,7 +424,7 @@ const ProviderConnectionCard = ({
     return (
         <div className="flex min-h-full flex-1 flex-col gap-4 text-xs">
             <section className="flex shrink-0 flex-col gap-3">
-                {fields.map((field) => {
+                {fields.map((field, index) => {
                     const value = credential[field.key] ?? ""
                     const block =
                         field.attributes?.kind === "json" || field.attributes?.kind === "textarea"
@@ -440,14 +440,22 @@ const ProviderConnectionCard = ({
 
                     return (
                         <div key={field.key} className="flex flex-col gap-1">
-                            <span className="font-medium text-colorText">
-                                {/* TODO(copy: owner) */}
-                                {replaceOnly
-                                    ? field.key === "apiKey"
-                                        ? "Replace key"
-                                        : `Replace ${field.label}`
-                                    : field.label}
-                            </span>
+                            <div className="flex items-baseline justify-between gap-3">
+                                <span className="font-medium text-colorText">
+                                    {/* TODO(copy: owner) */}
+                                    {replaceOnly
+                                        ? field.key === "apiKey"
+                                            ? "Replace key"
+                                            : `Replace ${field.label}`
+                                        : field.label}
+                                </span>
+                                {/* The card's one encryption disclaimer, on the first credential. */}
+                                {index === 0 ? (
+                                    <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                                        Encrypted at rest
+                                    </span>
+                                ) : null}
+                            </div>
                             {replaceOnly ? (
                                 <span className="text-[11px] text-colorTextTertiary">
                                     {/* TODO(copy: owner) */}
@@ -520,33 +528,25 @@ const ProviderConnectionCard = ({
 
                 {testedField === null ? <div>{testButton}</div> : null}
 
-                {/* The credential's verdict left, the one encryption disclaimer right. */}
-                <div className="flex items-start justify-between gap-3">
-                    {statusLine ? (
-                        <span
-                            className={
-                                credentialFailed
-                                    ? "flex min-w-0 items-start gap-1 text-colorError"
-                                    : "flex min-w-0 items-start gap-1.5 text-colorSuccess"
-                            }
-                        >
-                            {credentialFailed ? (
-                                <WarningCircle size={14} className="mt-0.5 shrink-0" />
-                            ) : (
-                                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
-                            )}
-                            <span>
-                                {statusLine}
-                                {credentialFailed ? " Nothing has been saved." : null}
-                            </span>
+                {statusLine ? (
+                    <span
+                        className={
+                            credentialFailed
+                                ? "flex min-w-0 items-start gap-1 text-colorError"
+                                : "flex min-w-0 items-start gap-1.5 text-colorSuccess"
+                        }
+                    >
+                        {credentialFailed ? (
+                            <WarningCircle size={14} className="mt-0.5 shrink-0" />
+                        ) : (
+                            <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
+                        )}
+                        <span>
+                            {statusLine}
+                            {credentialFailed ? " Nothing has been saved." : null}
                         </span>
-                    ) : (
-                        <span />
-                    )}
-                    <span className="shrink-0 text-[11px] text-colorTextTertiary">
-                        Encrypted at rest
                     </span>
-                </div>
+                ) : null}
 
                 <span className="text-[11px] text-colorTextTertiary">
                     {secretNoteForKind(kind, title)}
