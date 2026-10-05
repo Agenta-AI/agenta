@@ -71,12 +71,6 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         docs: {label: "Provider setup", href: `${DOCS_BASE}/faq/integrations/llm-providers`},
     },
     {
-        key: "apiKeys",
-        scope: "project",
-        description: "Manage API keys used to authenticate requests.",
-        docs: {label: "Using the API", href: `${DOCS_BASE}/reference/api-guide/overview`},
-    },
-    {
         key: "tools",
         scope: "project",
         description: "Configure integrations your agents can use.",
@@ -98,6 +92,12 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "project",
         description:
             "Chat platforms connected to this project. Each connection answers as one agent.",
+    },
+    {
+        key: "apiKeys",
+        scope: "project",
+        description: "Manage API keys used to authenticate requests.",
+        docs: {label: "Using the API", href: `${DOCS_BASE}/reference/api-guide/overview`},
     },
     {
         key: "webhooks",

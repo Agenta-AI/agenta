@@ -121,11 +121,11 @@ describe("settings sidebar scopes", () => {
 
         expect(keysForScope("project")).toEqual([
             "llms",
-            "apiKeys",
             "tools",
             "secrets",
             "mcpEndpoints",
             "channels",
+            "apiKeys",
             "webhooks",
             "analytics",
         ])

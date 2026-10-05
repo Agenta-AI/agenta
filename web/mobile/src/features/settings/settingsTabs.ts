@@ -15,11 +15,11 @@ import {useWalletSummary} from "../wallet/useWalletSummary"
 /** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
 export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "llms",
-    "apiKeys",
     "tools",
     "secrets",
     "mcpEndpoints",
     "channels",
+    "apiKeys",
     "webhooks",
     "analytics",
     "billing",
