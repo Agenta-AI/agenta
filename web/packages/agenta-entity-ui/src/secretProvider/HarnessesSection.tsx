@@ -9,12 +9,12 @@
  * Collapsed by default and always showing its value (the enabled harnesses' marks), so the card's
  * common path stays short without hiding what it decided.
  */
-import {useState} from "react"
+import {useRef, useState} from "react"
 
 import {harnessSummary} from "@agenta/entities/secret"
 import {cn} from "@agenta/ui/styles"
 import {Checkbox, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {CaretDown, CaretUp} from "@phosphor-icons/react"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {harnessMarkFor} from "./harnessMark"
 
@@ -42,6 +42,7 @@ const HarnessesSection = ({
     unrestricted = false,
 }: HarnessesSectionProps) => {
     const [expanded, setExpanded] = useState(false)
+    const sectionRef = useRef<HTMLElement>(null)
 
     const enabled = choices.filter((choice) => selected.includes(choice.id))
     const summary = harnessSummary(
@@ -50,17 +51,17 @@ const HarnessesSection = ({
     )
 
     return (
-        <section className="flex shrink-0 flex-col gap-2">
+        <section ref={sectionRef} className="flex shrink-0 flex-col">
             <button
                 type="button"
                 onClick={() => setExpanded((value) => !value)}
-                className="flex w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
+                className="flex w-fit cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
                 aria-expanded={expanded}
             >
                 <span className="font-medium text-colorText">Harnesses</span>
                 {enabled.length ? (
                     <TooltipProvider delayDuration={300}>
-                        <span className="flex flex-1 items-center gap-1" aria-label={summary}>
+                        <span className="flex items-center gap-1" aria-label={summary}>
                             {enabled.map((choice) => {
                                 const Mark = harnessMarkFor(choice.id)
                                 return (
@@ -83,17 +84,30 @@ const HarnessesSection = ({
                         </span>
                     </TooltipProvider>
                 ) : (
-                    <span className="flex-1 text-colorTextSecondary">· {summary}</span>
+                    <span className="text-colorTextSecondary">· {summary}</span>
                 )}
-                {expanded ? (
-                    <CaretUp size={14} className="text-colorTextTertiary" />
-                ) : (
-                    <CaretDown size={14} className="text-colorTextTertiary" />
-                )}
+                <CaretRight
+                    size={12}
+                    className={cn(
+                        "text-colorTextTertiary transition-transform",
+                        expanded && "rotate-90",
+                    )}
+                />
             </button>
 
-            {expanded ? (
-                <>
+            {/* Animates height through grid rows; once open, the section scrolls into view. */}
+            <div
+                inert={!expanded}
+                onTransitionEnd={(event) => {
+                    if (event.target !== event.currentTarget || !expanded) return
+                    sectionRef.current?.scrollIntoView({behavior: "smooth", block: "nearest"})
+                }}
+                className={cn(
+                    "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
+                    expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                )}
+            >
+                <div className="flex min-h-0 flex-col gap-2 overflow-hidden pt-2">
                     <span className="text-colorTextSecondary">Enable this connection in</span>
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2">
                         {choices.map((choice) => {
@@ -143,8 +157,8 @@ const HarnessesSection = ({
                     <span className="text-[11px] text-colorTextTertiary">
                         Each enabled harness adds this connection&apos;s models to the model picker.
                     </span>
-                </>
-            ) : null}
+                </div>
+            </div>
         </section>
     )
 }
