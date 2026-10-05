@@ -1,4 +1,5 @@
 import type {AnalyticsWindow} from "@agenta/observability/analytics"
+import {getProviderDisplayName} from "@agenta/ui/select-llm-provider"
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -35,3 +36,10 @@ export const bucketUnit = (window: AnalyticsWindow) =>
     isDaily(window) ? "day" : window.interval >= 60 ? "hour" : "5 minutes"
 
 export const UNKNOWN_AGENT = "Unknown agent"
+
+/** How a group key reads: an agent's name, a model id, or a provider's display name. */
+export const groupKeyLabel = (
+    dim: "agent" | "model" | "provider",
+    agentName: (id: string) => string,
+): ((key: string) => string) =>
+    dim === "agent" ? agentName : dim === "provider" ? getProviderDisplayName : (key) => key

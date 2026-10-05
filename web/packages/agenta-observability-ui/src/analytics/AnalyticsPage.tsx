@@ -36,7 +36,7 @@ import {
 } from "./cards/OverviewCards"
 import {ANALYTICS_COLOR_CSS} from "./colors"
 import {AnalyticsDrawer} from "./drawer/AnalyticsDrawer"
-import {bucketUnit, fullLabel, shortLabel} from "./labels"
+import {bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "./labels"
 import {useAgentNames, useFailureReasons, usePageAnalytics} from "./useAnalyticsData"
 
 export interface AnalyticsPageProps {
@@ -91,7 +91,7 @@ export const AnalyticsPage = ({
             setRange(defaultRange(retention))
     }, [custom, range, retention, setRange])
 
-    const {data, agentSplit, modelSplit, keyColor} = usePageAnalytics(window, filters, group)
+    const {data, split, keyColor} = usePageAnalytics(window, filters, group)
 
     const agentName = useAgentNames(
         useMemo(
@@ -113,7 +113,7 @@ export const AnalyticsPage = ({
             openDrawer({
                 bucket,
                 metric,
-                dim: group === "model" ? "model" : "agent",
+                dim: group === "agent" || group === "none" ? "agent" : "model",
                 focus: null,
                 failedOnly: false,
             }),
@@ -133,19 +133,17 @@ export const AnalyticsPage = ({
     const grouped = useMemo<GroupedData | null>(() => {
         if (group === "none") return null
         const dim = group
-        const byAgent = dim === "agent"
-        const split = byAgent ? agentSplit : modelSplit
-        const keyCount = (byAgent ? data.agentOrder : data.modelOrder).length
+        const g = data.groups[dim]
+        const keyCount = g.order.length
         const points = data.overview.points
-        const runs = byAgent ? data.agentRuns : data.modelRuns
         return {
-            keyLabel: byAgent ? agentName : (key: string) => key,
+            keyLabel: groupKeyLabel(dim, agentName),
             keyColor: (key: string) => keyColor(dim, key),
-            failed: byAgent ? data.agentFailed : data.modelFailed,
+            failed: g.failed,
             runs: {
-                series: runs,
+                series: g.runs,
                 total: points.map((p) => p.runs),
-                status: byAgent ? data.status.agents : data.status.models,
+                status: g.status,
             },
             cost: {
                 series: split.cost,
@@ -160,7 +158,7 @@ export const AnalyticsPage = ({
                 status: split.status,
             },
         }
-    }, [group, agentSplit, modelSplit, data, agentName, keyColor])
+    }, [group, split, data, agentName, keyColor])
     const ctx: OverviewContext = {
         data,
         labels,

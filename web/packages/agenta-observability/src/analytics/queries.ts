@@ -84,6 +84,12 @@ const ANALYTICS_QUERIES = {
     models: {focus: "trace", runLevel: true, where: [], specs: [cat(PATH.model)]},
     modelsFailed: {focus: "trace", runLevel: true, where: [FAILED], specs: [cat(PATH.model)]},
     providers: {focus: "trace", runLevel: true, where: [], specs: [cat(PATH.provider)]},
+    providersFailed: {
+        focus: "trace",
+        runLevel: true,
+        where: [FAILED],
+        specs: [cat(PATH.provider)],
+    },
     tools: {focus: "span", runLevel: false, where: [spanType("tool")], specs: [cat(PATH.tool)]},
 } satisfies Record<string, QueryDef>
 

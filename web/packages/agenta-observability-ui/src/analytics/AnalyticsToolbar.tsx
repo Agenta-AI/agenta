@@ -37,6 +37,7 @@ import {
 } from "@agenta/ui/ui"
 import {
     CalendarBlank,
+    Cloud,
     Check,
     LockSimple,
     Minus,
@@ -356,12 +357,18 @@ const useModelProviders = (
     )
 }
 
-const GROUP_LABEL: Record<AnalyticsGroup, string> = {none: "None", agent: "Agent", model: "Model"}
+const GROUP_LABEL: Record<AnalyticsGroup, string> = {
+    none: "None",
+    agent: "Agent",
+    model: "Model",
+    provider: "Provider",
+}
 
 const GROUP_OPTIONS: FilterMenuOption<AnalyticsGroup>[] = [
     {value: "none", label: "None", icon: <Minus size={ICON} />},
     {value: "agent", label: "Agent", icon: <Robot size={ICON} />},
     {value: "model", label: "Model", icon: <Sparkle size={ICON} />},
+    {value: "provider", label: "Provider", icon: <Cloud size={ICON} />},
 ]
 
 const AnalyticsFilterMenu = ({

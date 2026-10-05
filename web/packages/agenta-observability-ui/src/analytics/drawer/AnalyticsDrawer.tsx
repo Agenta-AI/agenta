@@ -26,7 +26,7 @@ import {stackSeries} from "../cards/GroupedCard"
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
 import {analyticsColor} from "../colors"
-import {bucketUnit, fullLabel, shortLabel} from "../labels"
+import {bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "../labels"
 import {
     SPLIT_KEYS,
     useAnalyticsSplit,
@@ -133,7 +133,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
     const stackDim = group !== "none" && focus?.dim !== group ? group : null
     const stackSplit = useAnalyticsSplit(
         stackDim ?? "agent",
-        (stackDim === "model" ? data.modelOrder : data.agentOrder).slice(0, SPLIT_KEYS),
+        data.groups[stackDim ?? "agent"].order.slice(0, SPLIT_KEYS),
         window,
         filters,
         Boolean(stackDim) && (state?.metric === "cost" || state?.metric === "tokens"),
@@ -164,9 +164,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
         !stackDim || !STACKABLE.includes(metric)
             ? null
             : metric === "runs"
-              ? stackDim === "agent"
-                  ? data.agentRuns
-                  : data.modelRuns
+              ? data.groups[stackDim].runs
               : stackSplit.status.pending
                 ? null
                 : stackSplit[metric as "cost" | "tokens"]
@@ -175,9 +173,9 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
             ? stackSeries(
                   stackSource,
                   values as number[],
-                  stackDim === "agent" ? agentName : (key) => key,
+                  groupKeyLabel(stackDim, agentName),
                   (key) => keyColor(stackDim, key),
-                  (stackDim === "agent" ? data.agentOrder : data.modelOrder).length,
+                  data.groups[stackDim].order.length,
               )
             : null
 
