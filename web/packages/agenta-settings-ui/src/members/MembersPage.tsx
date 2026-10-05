@@ -1,15 +1,39 @@
-import type {ReactNode} from "react"
-import {useMemo} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {formatDay} from "@agenta/shared/utils/dateTime"
-import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {InitialsAvatar, StatusIndicator, Tag} from "@agenta/ui/components/presentational"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
+import {
+    ArrowClockwise,
+    Key,
+    MagnifyingGlass,
+    PencilSimpleLine,
+    Plus,
+    Trash,
+    Users,
+} from "@phosphor-icons/react"
+
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 interface MemberRow extends WorkspaceMember {
     key: string
 }
+
+const MEMBER_COLUMN: ListTableColumn = {
+    key: "member",
+    label: "Member",
+    width: "minmax(220px,2fr)",
+}
+const ROLE_COLUMN: ListTableColumn = {key: "roles", label: "Role", width: "minmax(120px,1fr)"}
+const TAIL_COLUMNS: ListTableColumn[] = [
+    {key: "status", label: "Status", width: "minmax(96px,1fr)"},
+    {key: "created_at", label: "Added", width: "minmax(96px,1fr)"},
+    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+]
 
 const usernameFromEmail = (email?: string | null) => (email ? email.split("@")[0] : "")
 
@@ -81,158 +105,161 @@ export const MembersPage = ({
         member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
     const isOwner = (member: WorkspaceMember) => Boolean(ownerId) && member.user?.id === ownerId
 
-    const columns = useMemo<DataTableColumn<MemberRow>[]>(
-        () => [
-            {
-                key: "member",
-                title: "Member",
-                width: 280,
-                render: (record) => {
-                    const name = record.user.username || usernameFromEmail(record.user.email)
-                    return (
-                        <div className="flex min-w-0 items-center gap-2">
-                            <InitialsAvatar size="small" name={name} />
-                            <span className="truncate font-medium" title={name}>
-                                {name}
-                            </span>
-                            {/* Tones, not bare tags: "You" is the accent the desktop app has
-                                always given your own row, and an invitation reads as a state. */}
-                            {isSelf(record) ? (
-                                <Tag size="small" tone="info" label="You" className="shrink-0" />
-                            ) : null}
-                            {/* Invitation state belongs beside the person; accepted members carry none. */}
-                            {record.user?.status === "expired" ? (
-                                <Tag
-                                    size="small"
-                                    tone="error"
-                                    label="Expired"
-                                    className="shrink-0"
-                                />
-                            ) : null}
-                            {record.user?.status === "pending" ? (
-                                <Tag
-                                    size="small"
-                                    tone="warning"
-                                    label="Pending"
-                                    className="shrink-0"
-                                />
-                            ) : null}
-                        </div>
-                    )
-                },
-            },
-            {key: "email", title: "Email", width: 290, mono: true, render: (r) => r.user?.email},
-            ...(renderRoleCell
-                ? [
-                      {
-                          key: "roles",
-                          title: "Role",
-                          width: 160,
-                          render: (record: MemberRow) => renderRoleCell(record),
-                      } satisfies DataTableColumn<MemberRow>,
-                  ]
-                : []),
-            {
-                key: "created_at",
-                title: "Added",
-                width: 160,
-                render: (record) =>
-                    record.user.created_at ? formatDay({date: record.user.created_at}) : "-",
-            },
-        ],
-        [renderRoleCell, signedInUser?.id, signedInUser?.email],
+    const columns = useMemo(
+        () => [MEMBER_COLUMN, ...(renderRoleCell ? [ROLE_COLUMN] : []), ...TAIL_COLUMNS],
+        [renderRoleCell],
     )
 
     const inviteButton = (variant?: "outline") =>
         canInviteMembers && onInvite ? (
-            <Button variant={variant} onClick={onInvite} disabled={loading}>
+            <Button size="sm" variant={variant} onClick={onInvite} disabled={loading}>
                 <Plus size={14} />
                 Invite members
             </Button>
         ) : null
 
+    const searching = searchTerm.trim().length > 0
+
     return (
-        <div className="flex flex-col gap-2">
-            <DataTable<MemberRow>
-                columns={columns}
-                rows={rows}
-                rowKey={(record) => record.key}
-                loading={loading}
-                actions={(record) => [
-                    {
-                        key: "rename",
-                        label: "Rename",
-                        icon: <PencilSimpleLine size={16} />,
-                        hidden: !isSelf(record) || !onRenameSelf,
-                        onClick: () => onRenameSelf?.(record),
-                    },
-                    {
-                        key: "resend_invite",
-                        label: "Resend invitation",
-                        icon: <ArrowClockwise size={16} />,
-                        hidden:
-                            isSelf(record) ||
-                            record.user.status === "member" ||
-                            !canInviteMembers ||
-                            !onResendInvite,
-                        disabled: resendingEmail === record.user.email,
-                        onClick: () => onResendInvite?.(record),
-                    },
-                    {
-                        key: "reset_password",
-                        label: "Reset password",
-                        icon: <Key size={16} />,
-                        // The owner is excluded even though the backend has no such check:
-                        // resetting their password would mint a login link into that account.
-                        hidden:
-                            isSelf(record) ||
-                            isOwner(record) ||
-                            record.user.status !== "member" ||
-                            !canResetPassword ||
-                            !onResetPassword,
-                        onClick: () => onResetPassword?.(record),
-                    },
-                    {
-                        key: "remove",
-                        label: "Remove",
-                        icon: <Trash size={16} />,
-                        danger: true,
-                        hidden: isSelf(record) || isOwner(record) || !canRemoveMembers || !onRemove,
-                        onClick: () => onRemove?.(record),
-                    },
-                ]}
+        <div className="flex flex-col">
+            <SettingsToolbar
                 search={{
                     placeholder: "Search members",
                     value: searchTerm,
                     onChange: onSearchChange,
-                    disabled: loading,
                 }}
-                primaryActions={inviteButton()}
+                actions={inviteButton()}
+            />
+            <ListTable<MemberRow>
+                columns={columns}
+                groups={[{key: "all", label: null, rows}]}
+                rowKey={(record) => record.key}
+                minWidth={renderRoleCell ? 700 : 580}
+                loading={loading && rows.length === 0}
+                hideHeader={!loading && rows.length === 0}
                 empty={
-                    searchTerm.trim() ? (
-                        <EmptyState
-                            image="simple"
-                            description={`No members match “${searchTerm.trim()}”`}
+                    searching ? (
+                        <SettingsEmpty
+                            icon={<MagnifyingGlass size={18} />}
+                            title={`No members match “${searchTerm.trim()}”`}
+                            action={
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => onSearchChange("")}
+                                >
+                                    Clear search
+                                </Button>
+                            }
                         />
                     ) : (
-                        <EmptyState
-                            image="simple"
-                            description={
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-xs font-medium text-colorText">
-                                        No members yet
-                                    </span>
-                                    <span>
-                                        Invite people to collaborate in this organization.
-                                        Invitations appear here until they are accepted or expire.
-                                    </span>
-                                </div>
-                            }
-                        >
-                            {inviteButton("outline")}
-                        </EmptyState>
+                        <SettingsEmpty
+                            icon={<Users size={18} />}
+                            title="No members yet"
+                            description="Invite people to collaborate in this organization. Invitations appear here until they are accepted or expire."
+                            action={inviteButton("outline")}
+                        />
                     )
                 }
+                renderRow={(record) => {
+                    const name = record.user.username || usernameFromEmail(record.user.email)
+                    const status = record.user?.status
+                    return (
+                        <>
+                            <div className="flex min-w-0 items-center gap-2.5">
+                                <InitialsAvatar shape="circle" name={name} />
+                                <div className="flex min-w-0 flex-col">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <span
+                                            className="truncate font-medium text-foreground"
+                                            title={name}
+                                        >
+                                            {name}
+                                        </span>
+                                        {isSelf(record) ? (
+                                            <Tag
+                                                size="small"
+                                                tone="info"
+                                                label="You"
+                                                className="shrink-0"
+                                            />
+                                        ) : null}
+                                    </div>
+                                    <span className="truncate text-[12.5px] text-muted-foreground">
+                                        {record.user?.email}
+                                    </span>
+                                </div>
+                            </div>
+                            {renderRoleCell ? (
+                                <div className="min-w-0 font-medium text-foreground">
+                                    {renderRoleCell(record)}
+                                </div>
+                            ) : null}
+                            {status === "expired" ? (
+                                <StatusIndicator tone="error" label="Expired" />
+                            ) : status === "pending" ? (
+                                <StatusIndicator tone="warning" label="Pending" />
+                            ) : (
+                                <StatusIndicator tone="success" label="Active" />
+                            )}
+                            <span className="truncate text-muted-foreground">
+                                {record.user.created_at
+                                    ? formatDay({date: record.user.created_at})
+                                    : "-"}
+                            </span>
+                            <SettingsRowMenu
+                                label="Member actions"
+                                items={[
+                                    {
+                                        key: "rename",
+                                        label: "Rename",
+                                        icon: <PencilSimpleLine size={14} />,
+                                        hidden: !isSelf(record) || !onRenameSelf,
+                                        onClick: () => onRenameSelf?.(record),
+                                    },
+                                    {
+                                        key: "resend_invite",
+                                        label: "Resend invitation",
+                                        icon: <ArrowClockwise size={14} />,
+                                        hidden:
+                                            isSelf(record) ||
+                                            record.user.status === "member" ||
+                                            !canInviteMembers ||
+                                            !onResendInvite,
+                                        disabled: resendingEmail === record.user.email,
+                                        onClick: () => onResendInvite?.(record),
+                                    },
+                                    {
+                                        key: "reset_password",
+                                        label: "Reset password",
+                                        icon: <Key size={14} />,
+                                        // The owner is excluded even though the backend has no such check:
+                                        // resetting their password would mint a login link into that account.
+                                        hidden:
+                                            isSelf(record) ||
+                                            isOwner(record) ||
+                                            record.user.status !== "member" ||
+                                            !canResetPassword ||
+                                            !onResetPassword,
+                                        onClick: () => onResetPassword?.(record),
+                                    },
+                                    {
+                                        key: "remove",
+                                        label: "Remove",
+                                        icon: <Trash size={14} />,
+                                        danger: true,
+                                        hidden:
+                                            isSelf(record) ||
+                                            isOwner(record) ||
+                                            !canRemoveMembers ||
+                                            !onRemove,
+                                        onClick: () => onRemove?.(record),
+                                    },
+                                ]}
+                            />
+                        </>
+                    )
+                }}
             />
 
             {children}

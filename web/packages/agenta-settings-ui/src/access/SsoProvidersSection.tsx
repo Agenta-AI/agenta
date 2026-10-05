@@ -1,10 +1,22 @@
 import type {ReactNode} from "react"
-import {useMemo} from "react"
 
 import type {OrganizationProvider} from "@agenta/entities/organization"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
+import {PencilSimpleLine, Plus, ShieldCheck, Trash} from "@phosphor-icons/react"
+
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {SettingsToolbar} from "../shared/SettingsToolbar"
+
+const COLUMNS: ListTableColumn[] = [
+    {key: "slug", label: "Provider", width: "minmax(140px,1.2fr)"},
+    {key: "callback_url", label: "Callback URL", width: "minmax(220px,2.4fr)"},
+    {key: "status", label: "Status", width: "minmax(96px,1fr)"},
+    {key: "enable", label: "Enable", srOnly: true, width: "72px"},
+    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+]
 
 export interface SsoProvidersSectionProps {
     providers: OrganizationProvider[]
@@ -50,120 +62,107 @@ export const SsoProvidersSection = ({
     renderInstructions,
     children,
 }: SsoProvidersSectionProps) => {
-    const columns = useMemo<DataTableColumn<OrganizationProvider>[]>(
-        () => [
-            {key: "slug", title: "Provider", width: 200, render: (record) => record.slug},
-            {
-                key: "callback_url",
-                title: "Callback URL",
-                width: 320,
-                mono: true,
-                render: (record) => {
-                    const url = callbackUrlFor?.(record)
-                    if (!url) return <span className="text-colorTextSecondary">Set org slug</span>
-                    return (
-                        <span className="block truncate" title={url}>
-                            {url}
-                        </span>
-                    )
-                },
-            },
-            {
-                key: "status",
-                title: "Status",
-                width: 140,
-                render: (record) => {
-                    if (!isEnabled(record)) return <StatusIndicator label="Disabled" />
-                    return isValid(record) ? (
-                        <StatusIndicator tone="success" label="Active" />
-                    ) : (
-                        <StatusIndicator tone="warning" label="Pending" />
-                    )
-                },
-            },
-            {
-                key: "enable",
-                title: "",
-                width: 100,
-                render: (record) =>
-                    (!isEnabled(record) || !isValid(record)) && onEnable ? (
-                        <Button size="sm" disabled={enabling} onClick={() => onEnable(record)}>
-                            Enable
-                        </Button>
-                    ) : null,
-            },
-        ],
-        [callbackUrlFor, onEnable, enabling],
-    )
-
     const addButton = (variant?: "outline") =>
         onAdd ? (
-            <Button variant={variant} onClick={onAdd} disabled={loading}>
+            <Button size="sm" variant={variant} onClick={onAdd} disabled={loading}>
                 <Plus size={14} />
                 {addLabel}
             </Button>
         ) : null
 
     return (
-        <section className="flex flex-col gap-3">
-            <div className="flex items-start justify-between">
-                <div>
-                    <h2 className="m-0 text-lg font-medium text-colorText">SSO Providers</h2>
-                    <p className="m-0 mt-1 text-xs text-colorTextSecondary">
-                        Configure identity providers for single sign-on
-                    </p>
-                </div>
-                {addButton()}
+        <section className="flex flex-col">
+            <div className="mb-3">
+                <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
+                    SSO Providers
+                </h2>
+                <p className="m-0 mt-1 text-xs text-muted-foreground">
+                    Configure identity providers for single sign-on
+                </p>
             </div>
 
-            {children}
+            {children ? <div className="mb-3">{children}</div> : null}
 
-            <DataTable<OrganizationProvider>
-                columns={columns}
-                rows={providers}
+            <SettingsToolbar actions={addButton()} />
+            <ListTable<OrganizationProvider>
+                columns={COLUMNS}
+                groups={[{key: "all", label: null, rows: providers}]}
                 rowKey={(record) => record.id}
-                loading={loading}
-                expandedContent={
-                    renderInstructions
-                        ? (record) => (isValid(record) ? null : renderInstructions(record))
-                        : undefined
-                }
-                actions={(record) => [
-                    {
-                        key: "edit",
-                        label: "Edit provider",
-                        icon: <PencilSimpleLine size={16} />,
-                        hidden: !onEdit,
-                        onClick: () => onEdit?.(record),
-                    },
-                    {
-                        key: "delete",
-                        label: "Delete provider",
-                        icon: <Trash size={16} />,
-                        danger: true,
-                        hidden: !onDelete,
-                        disabled: deleting,
-                        onClick: () => onDelete?.(record),
-                    },
-                ]}
+                minWidth={640}
+                loading={loading && providers.length === 0}
+                hideHeader={!loading && providers.length === 0}
                 empty={
-                    <EmptyState
-                        image="simple"
-                        description={
-                            <div className="flex flex-col gap-1">
-                                <span className="text-xs font-medium text-colorText">
-                                    No SSO providers yet
-                                </span>
-                                <span>
-                                    Add an OIDC provider to let members sign in with your identity
-                                    provider.
-                                </span>
-                            </div>
-                        }
-                    >
-                        {addButton("outline")}
-                    </EmptyState>
+                    <SettingsEmpty
+                        icon={<ShieldCheck size={18} />}
+                        title="No SSO providers yet"
+                        description="Add an OIDC provider to let members sign in with your identity provider."
+                        action={addButton("outline")}
+                    />
                 }
+                renderRow={(record) => {
+                    const url = callbackUrlFor?.(record)
+                    const instructions =
+                        renderInstructions && !isValid(record) ? renderInstructions(record) : null
+                    return (
+                        <>
+                            <span className="truncate font-medium text-foreground">
+                                {record.slug}
+                            </span>
+                            {url ? (
+                                <span
+                                    className="truncate font-mono text-[13px] text-muted-foreground"
+                                    title={url}
+                                >
+                                    {url}
+                                </span>
+                            ) : (
+                                <span className="truncate text-muted-foreground">Set org slug</span>
+                            )}
+                            {!isEnabled(record) ? (
+                                <StatusIndicator label="Disabled" />
+                            ) : isValid(record) ? (
+                                <StatusIndicator tone="success" label="Active" />
+                            ) : (
+                                <StatusIndicator tone="warning" label="Pending" />
+                            )}
+                            <span className="flex justify-end">
+                                {(!isEnabled(record) || !isValid(record)) && onEnable ? (
+                                    <Button
+                                        size="sm"
+                                        disabled={enabling}
+                                        onClick={() => onEnable(record)}
+                                    >
+                                        Enable
+                                    </Button>
+                                ) : null}
+                            </span>
+                            <SettingsRowMenu
+                                label="Provider actions"
+                                items={[
+                                    {
+                                        key: "edit",
+                                        label: "Edit provider",
+                                        icon: <PencilSimpleLine size={14} />,
+                                        hidden: !onEdit,
+                                        onClick: () => onEdit?.(record),
+                                    },
+                                    {
+                                        key: "delete",
+                                        label: "Delete provider",
+                                        icon: <Trash size={14} />,
+                                        danger: true,
+                                        hidden: !onDelete,
+                                        disabled: deleting,
+                                        onClick: () => onDelete?.(record),
+                                    },
+                                ]}
+                            />
+                            {instructions ? (
+                                <div className="col-span-full">{instructions}</div>
+                            ) : null}
+                        </>
+                    )
+                }}
             />
         </section>
     )

@@ -15,10 +15,10 @@ import type {Event} from "@agenta/entities/event"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {dayjs} from "@agenta/shared/utils"
-import {CopyButton, Tag} from "@agenta/ui/components/presentational"
+import {CopyButton} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
-export const Dash = () => <span className="text-xs text-colorTextTertiary">—</span>
+export const Dash = () => <span className="text-xs text-muted-foreground">—</span>
 
 /** Actor user id from `attributes.user_id`, if present. */
 const readActor = (event: Event): string | null => {
@@ -40,12 +40,12 @@ export const EventTimestampCell = ({eventId}: {eventId: string}) => {
     // A `title` rather than a Tooltip: the row is clickable, and a hover card over
     // every timestamp in a 50-row page fights the click target for no gain.
     return (
-        <Tag
-            className="m-0 whitespace-nowrap font-mono text-xs"
+        <span
+            className="truncate text-muted-foreground"
             title={dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss.SSS")}
         >
             {dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss")}
-        </Tag>
+        </span>
     )
 }
 
@@ -54,7 +54,11 @@ export const EventTypeCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
-    return <Tag className="m-0 font-mono text-xs">{event.event_type}</Tag>
+    return (
+        <span className="truncate font-mono text-[13px] text-foreground" title={event.event_type}>
+            {event.event_type}
+        </span>
+    )
 }
 
 /** Actor — the user who triggered the event, resolved to a name/avatar. */
@@ -88,7 +92,11 @@ export const CountCell = ({eventId}: {eventId: string}) => {
     const count = readCount(event)
     if (count === null) return <Dash />
 
-    return <Tag className="m-0 font-mono text-xs tabular-nums">{count}</Tag>
+    return (
+        <span className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+            {count}
+        </span>
+    )
 }
 
 /** Event id (UUID) — the unique identifier of this audit event. */

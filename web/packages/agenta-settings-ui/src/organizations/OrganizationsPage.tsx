@@ -1,14 +1,33 @@
-import type {ReactNode} from "react"
-import {useMemo} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import type {Org} from "@agenta/entities/organization"
 import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {ArrowsLeftRight, PencilSimpleLine, Plus, SignOut, Trash} from "@phosphor-icons/react"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
+import {
+    ArrowsLeftRight,
+    Buildings,
+    MagnifyingGlass,
+    PencilSimpleLine,
+    Plus,
+    SignOut,
+    Trash,
+} from "@phosphor-icons/react"
+
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 interface OrgRow extends Org {
     key: string
 }
+
+const COLUMNS: ListTableColumn[] = [
+    {key: "name", label: "Organization", width: "minmax(200px,2fr)"},
+    {key: "id", label: "Organization ID", width: "minmax(220px,2fr)"},
+    {key: "owner_id", label: "Your role", width: "minmax(96px,1fr)"},
+    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+]
 
 export interface OrganizationsPageProps {
     /** Every organization you belong to; this page owns the search filter. */
@@ -62,128 +81,124 @@ export const OrganizationsPage = ({
 
     const isOwner = (org: Org) => Boolean(currentUserId) && org.owner_id === currentUserId
 
-    const columns = useMemo<DataTableColumn<OrgRow>[]>(
-        () => [
-            {
-                key: "name",
-                title: "Organization",
-                width: 280,
-                render: (record) => {
-                    const name = record.name ?? record.slug ?? record.id
-                    return (
-                        <div className="flex min-w-0 items-center gap-2">
-                            {/* The identity column carries an avatar on every other settings
-                                table; the extraction dropped it here and on Projects. */}
-                            <InitialsAvatar size="small" name={name} />
-                            <span className="truncate font-medium" title={name}>
-                                {name}
-                            </span>
-                            {record.id === selectedOrgId ? <Tag>Current</Tag> : null}
-                        </div>
-                    )
-                },
-            },
-            // Its own copyable column, not a tag beside the page title.
-            {key: "id", title: "Organization ID", width: 330, mono: true, render: (r) => r.id},
-            {
-                key: "owner_id",
-                title: "Your role",
-                width: 140,
-                render: (record) => (isOwner(record) ? "Owner" : "Member"),
-            },
-        ],
-        [selectedOrgId, currentUserId],
-    )
-
     const createButton = (variant?: "outline") =>
         onCreate ? (
-            <Button variant={variant} onClick={onCreate} disabled={loading}>
+            <Button size="sm" variant={variant} onClick={onCreate} disabled={loading}>
                 <Plus size={14} />
                 New organization
             </Button>
         ) : null
 
+    const searching = searchTerm.trim().length > 0
+
     return (
-        <div className="flex flex-col gap-2">
-            <DataTable<OrgRow>
-                columns={columns}
-                rows={rows}
-                rowKey={(record) => record.key}
-                loading={loading}
-                actions={(record) => [
-                    {
-                        key: "switch",
-                        label: "Switch to this organization",
-                        icon: <ArrowsLeftRight size={16} />,
-                        hidden: record.id === selectedOrgId || !onSwitch,
-                        onClick: () => onSwitch?.(record),
-                    },
-                    {
-                        key: "rename",
-                        label: "Rename",
-                        icon: <PencilSimpleLine size={16} />,
-                        hidden: !isOwner(record) || !onRename,
-                        onClick: () => onRename?.(record),
-                    },
-                    {
-                        key: "transfer",
-                        label: "Transfer ownership",
-                        icon: <ArrowsLeftRight size={16} />,
-                        // The member list is scoped to the current organization.
-                        hidden:
-                            !isOwner(record) || record.id !== selectedOrgId || !onTransferOwnership,
-                        onClick: () => onTransferOwnership?.(record),
-                    },
-                    {type: "divider"},
-                    {
-                        key: "leave",
-                        label: "Leave organization",
-                        icon: <SignOut size={16} />,
-                        danger: true,
-                        hidden: isOwner(record) || !onLeave,
-                        onClick: () => onLeave?.(record),
-                    },
-                    {
-                        key: "delete",
-                        label: "Delete organization",
-                        icon: <Trash size={16} />,
-                        danger: true,
-                        hidden: !isOwner(record) || !onDelete,
-                        onClick: () => onDelete?.(record),
-                    },
-                ]}
+        <div className="flex flex-col">
+            <SettingsToolbar
                 search={{
                     placeholder: "Search organizations",
                     value: searchTerm,
                     onChange: onSearchChange,
-                    disabled: loading,
                 }}
-                primaryActions={createButton()}
+                actions={createButton()}
+            />
+            <ListTable<OrgRow>
+                columns={COLUMNS}
+                groups={[{key: "all", label: null, rows}]}
+                rowKey={(record) => record.key}
+                minWidth={640}
+                loading={loading && rows.length === 0}
+                hideHeader={!loading && rows.length === 0}
                 empty={
-                    searchTerm.trim() ? (
-                        <EmptyState
-                            image="simple"
-                            description={`No organizations match “${searchTerm.trim()}”`}
+                    searching ? (
+                        <SettingsEmpty
+                            icon={<MagnifyingGlass size={18} />}
+                            title={`No organizations match “${searchTerm.trim()}”`}
+                            action={
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => onSearchChange("")}
+                                >
+                                    Clear search
+                                </Button>
+                            }
                         />
                     ) : (
-                        <EmptyState
-                            image="simple"
-                            description={
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-xs font-medium text-colorText">
-                                        No organizations yet
-                                    </span>
-                                    <span>
-                                        An organization groups your workspaces, projects and the
-                                        people who work in them.
-                                    </span>
-                                </div>
-                            }
-                        >
-                            {createButton("outline")}
-                        </EmptyState>
+                        <SettingsEmpty
+                            icon={<Buildings size={18} />}
+                            title="No organizations yet"
+                            description="An organization groups your workspaces, projects and the people who work in them."
+                            action={createButton("outline")}
+                        />
                     )
                 }
+                renderRow={(record) => {
+                    const name = record.name ?? record.slug ?? record.id
+                    return (
+                        <>
+                            <div className="flex min-w-0 items-center gap-2.5">
+                                <InitialsAvatar name={name} />
+                                <span className="truncate font-medium text-foreground" title={name}>
+                                    {name}
+                                </span>
+                                {record.id === selectedOrgId ? (
+                                    <Tag className="shrink-0">Current</Tag>
+                                ) : null}
+                            </div>
+                            <span className="truncate font-mono text-[13px] text-muted-foreground">
+                                {record.id}
+                            </span>
+                            <span className="truncate">{isOwner(record) ? "Owner" : "Member"}</span>
+                            <SettingsRowMenu
+                                label="Organization actions"
+                                items={[
+                                    {
+                                        key: "switch",
+                                        label: "Switch to this organization",
+                                        icon: <ArrowsLeftRight size={14} />,
+                                        hidden: record.id === selectedOrgId || !onSwitch,
+                                        onClick: () => onSwitch?.(record),
+                                    },
+                                    {
+                                        key: "rename",
+                                        label: "Rename",
+                                        icon: <PencilSimpleLine size={14} />,
+                                        hidden: !isOwner(record) || !onRename,
+                                        onClick: () => onRename?.(record),
+                                    },
+                                    {
+                                        key: "transfer",
+                                        label: "Transfer ownership",
+                                        icon: <ArrowsLeftRight size={14} />,
+                                        // The member list is scoped to the current organization.
+                                        hidden:
+                                            !isOwner(record) ||
+                                            record.id !== selectedOrgId ||
+                                            !onTransferOwnership,
+                                        onClick: () => onTransferOwnership?.(record),
+                                    },
+                                    {type: "divider"},
+                                    {
+                                        key: "leave",
+                                        label: "Leave organization",
+                                        icon: <SignOut size={14} />,
+                                        danger: true,
+                                        hidden: isOwner(record) || !onLeave,
+                                        onClick: () => onLeave?.(record),
+                                    },
+                                    {
+                                        key: "delete",
+                                        label: "Delete organization",
+                                        icon: <Trash size={14} />,
+                                        danger: true,
+                                        hidden: !isOwner(record) || !onDelete,
+                                        onClick: () => onDelete?.(record),
+                                    },
+                                ]}
+                            />
+                        </>
+                    )
+                }}
             />
 
             {children}

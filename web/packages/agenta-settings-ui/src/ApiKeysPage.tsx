@@ -1,7 +1,12 @@
 import type {ApiKeyRow} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Alert, Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {Plus, Trash} from "@phosphor-icons/react"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Alert, Button} from "@agenta/ui/ui"
+import {Key, Plus, Trash} from "@phosphor-icons/react"
+
+import {SettingsEmpty} from "./shared/SettingsEmpty"
+import {SettingsRowMenu} from "./shared/SettingsRowMenu"
+import {SettingsToolbar} from "./shared/SettingsToolbar"
 
 export interface ApiKeysPageProps {
     rows: ApiKeyRow[]
@@ -16,37 +21,23 @@ export interface ApiKeysPageProps {
 
 const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : "—")
 
-const COLUMNS: DataTableColumn<ApiKeyRow>[] = [
-    {
-        key: "prefix",
-        title: "API key",
-        width: 360,
-        mono: true,
-        render: (record) => record.prefix.padEnd(40, "\u2022"),
-    },
-    {key: "created_at", title: "Created", width: 150, render: (r) => formatDate(r.created_at)},
-    {
-        key: "expiration_date",
-        title: "Expires",
-        width: 150,
-        render: (record) => {
-            const date = record.expiration_date ? new Date(record.expiration_date) : null
-            if (!date) return "Never"
-            return date < new Date() ? (
-                <StatusIndicator tone="error" label="Expired" />
-            ) : (
-                date.toLocaleDateString()
-            )
-        },
-    },
-    {
-        key: "last_used_at",
-        title: "Last used",
-        width: 190,
-        render: (record) =>
-            record.last_used_at ? new Date(record.last_used_at).toLocaleString() : "Never used",
-    },
+const COLUMNS: ListTableColumn[] = [
+    {key: "prefix", label: "API key", width: "minmax(180px,2fr)"},
+    {key: "created_at", label: "Created", width: "minmax(96px,1fr)"},
+    {key: "expiration_date", label: "Expires", width: "minmax(96px,1fr)"},
+    {key: "last_used_at", label: "Last used", width: "minmax(140px,1.4fr)"},
+    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
 ]
+
+const ExpiresCell = ({value}: {value?: string | null}) => {
+    const date = value ? new Date(value) : null
+    if (!date) return <span className="text-muted-foreground">Never</span>
+    return date < new Date() ? (
+        <StatusIndicator tone="error" label="Expired" />
+    ) : (
+        <span>{date.toLocaleDateString()}</span>
+    )
+}
 
 /**
  * The API keys table: the prefix, when it was made, when it expires, when it was last used.
@@ -74,61 +65,63 @@ export const ApiKeysPage = ({
         )
     }
 
+    const generate = canEdit ? (
+        <Button size="sm" disabled={creating || listing} onClick={onCreate}>
+            <Plus size={14} />
+            Generate key
+        </Button>
+    ) : null
+
     return (
-        <DataTable<ApiKeyRow>
-            columns={COLUMNS}
-            rows={rows}
-            rowKey={(record) => record.key}
-            loading={listing}
-            actions={
-                canEdit
-                    ? (record) => [
-                          {
-                              key: "delete",
-                              label: "Delete key",
-                              icon: <Trash size={16} />,
-                              danger: true,
-                              onClick: () => onDelete(record.prefix),
-                          },
-                      ]
-                    : undefined
-            }
-            onReload={onReload}
-            reloading={listing}
-            reloadLabel="Reload API keys"
-            primaryActions={
-                canEdit ? (
+        <section className="flex flex-col">
+            <SettingsToolbar
+                onReload={onReload}
+                reloading={listing}
+                reloadLabel="Reload API keys"
+                actions={generate}
+            />
+            <ListTable<ApiKeyRow>
+                columns={COLUMNS}
+                groups={[{key: "keys", label: null, rows}]}
+                rowKey={(record) => record.key}
+                loading={listing && rows.length === 0}
+                hideHeader={!listing && rows.length === 0}
+                empty={
+                    <SettingsEmpty
+                        icon={<Key size={18} />}
+                        title="No API keys yet"
+                        description="Generate a key to authenticate requests to the Agenta API from your code, CI jobs, and SDKs."
+                        action={generate}
+                    />
+                }
+                renderRow={(record) => (
                     <>
-                        <Button disabled={creating || listing} onClick={onCreate}>
-                            <Plus size={14} />
-                            Generate key
-                        </Button>
+                        <span className="truncate font-mono text-[13px]">
+                            {record.prefix.padEnd(20, "\u2022")}
+                        </span>
+                        <span className="truncate">{formatDate(record.created_at)}</span>
+                        <ExpiresCell value={record.expiration_date} />
+                        <span className="truncate text-muted-foreground">
+                            {record.last_used_at
+                                ? new Date(record.last_used_at).toLocaleString()
+                                : "Never used"}
+                        </span>
+                        <SettingsRowMenu
+                            label="Key actions"
+                            items={[
+                                {
+                                    key: "delete",
+                                    label: "Delete key",
+                                    icon: <Trash size={14} />,
+                                    danger: true,
+                                    hidden: !canEdit,
+                                    onClick: () => onDelete(record.prefix),
+                                },
+                            ]}
+                        />
                     </>
-                ) : null
-            }
-            empty={
-                <EmptyState
-                    image="simple"
-                    description={
-                        <div className="flex flex-col gap-1">
-                            <span className="text-xs font-medium text-colorText">
-                                No API keys yet
-                            </span>
-                            <span>
-                                Generate a key to authenticate requests to the Agenta API from your
-                                code, CI jobs, and SDKs.
-                            </span>
-                        </div>
-                    }
-                >
-                    {canEdit ? (
-                        <Button variant="outline" disabled={creating} onClick={onCreate}>
-                            <Plus size={14} />
-                            Generate key
-                        </Button>
-                    ) : null}
-                </EmptyState>
-            }
-        />
+                )}
+            />
+        </section>
     )
 }
