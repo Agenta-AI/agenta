@@ -8,7 +8,7 @@ export interface AnalyticsCardProps {
     value?: ReactNode
     caption?: ReactNode
     onExplore?: () => void
-    /** Pills or other controls beside the title. */
+    /** Controls beside the title. */
     controls?: ReactNode
     legend?: ReactNode
     note?: ReactNode
@@ -142,34 +142,6 @@ export const ChartLegendRow = ({
             >
                 <span className="size-2 rounded-full" style={{background: item.color}} />
                 {item.label}
-            </button>
-        ))}
-    </div>
-)
-
-export const Pills = <T extends string>({
-    options,
-    value,
-    onChange,
-}: {
-    options: {value: T; label: string}[]
-    value: T
-    onChange: (value: T) => void
-}) => (
-    <div className="flex gap-0.5">
-        {options.map((option) => (
-            <button
-                key={option.value}
-                type="button"
-                onClick={() => onChange(option.value)}
-                className={cn(
-                    "h-6 cursor-pointer rounded-md border-0 px-2 text-xs",
-                    option.value === value
-                        ? "bg-background text-foreground shadow-sm"
-                        : "bg-transparent text-muted-foreground hover:text-foreground",
-                )}
-            >
-                {option.label}
             </button>
         ))}
     </div>

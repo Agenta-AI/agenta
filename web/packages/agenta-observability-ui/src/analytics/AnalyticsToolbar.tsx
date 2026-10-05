@@ -10,11 +10,17 @@ import {
     sum,
     analyticsModelProvidersAtomFamily,
     type AnalyticsFilters,
+    type AnalyticsGroup,
     type AnalyticsRangeKey,
     type AnalyticsRetention,
     type AnalyticsWindow,
 } from "@agenta/observability/analytics"
-import {FilterMenu, type FilterMenuOption, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {
+    FilterMenu,
+    GroupMenu,
+    type FilterMenuOption,
+    type FilterMenuSection,
+} from "@agenta/ui/filter-menu"
 import {getProviderDisplayName, getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {
     Button,
@@ -24,7 +30,17 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {CalendarBlank, CaretDown, Check, LockSimple, Robot, Sparkle, X} from "@phosphor-icons/react"
+import {
+    CalendarBlank,
+    CaretDown,
+    Check,
+    LockSimple,
+    Minus,
+    Robot,
+    Rows,
+    Sparkle,
+    X,
+} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {useAgentNames, useAnalyticsBuckets} from "./useAnalyticsData"
@@ -45,6 +61,8 @@ export interface AnalyticsToolbarProps {
     onUpgrade?: () => void
     filters: AnalyticsFilters
     onFiltersChange: (filters: AnalyticsFilters) => void
+    group: AnalyticsGroup
+    onGroupChange: (group: AnalyticsGroup) => void
     window: AnalyticsWindow
     agentName: (id: string) => string
     rangeOpen: boolean
@@ -58,6 +76,8 @@ export const AnalyticsToolbar = ({
     onUpgrade,
     filters,
     onFiltersChange,
+    group,
+    onGroupChange,
     window,
     agentName,
     rangeOpen,
@@ -119,6 +139,15 @@ export const AnalyticsToolbar = ({
                 onChange={onFiltersChange}
                 window={window}
                 label={label}
+            />
+
+            <GroupMenu
+                options={GROUP_OPTIONS}
+                value={group}
+                onChange={onGroupChange}
+                label={group === "none" ? "Group" : `Group: ${GROUP_LABEL[group]}`}
+                icon={<Rows size={ICON} />}
+                active={group !== "none"}
             />
 
             {active.map((dim) => {
@@ -219,6 +248,14 @@ const useModelProviders = (
         null
     )
 }
+
+const GROUP_LABEL: Record<AnalyticsGroup, string> = {none: "None", agent: "Agent", model: "Model"}
+
+const GROUP_OPTIONS: FilterMenuOption<AnalyticsGroup>[] = [
+    {value: "none", label: "None", icon: <Minus size={ICON} />},
+    {value: "agent", label: "Agent", icon: <Robot size={ICON} />},
+    {value: "model", label: "Model", icon: <Sparkle size={ICON} />},
+]
 
 const AnalyticsFilterMenu = ({
     filters,

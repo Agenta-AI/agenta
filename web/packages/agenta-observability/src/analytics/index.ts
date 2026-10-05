@@ -46,6 +46,7 @@ export {
     analyticsNowAtom,
     analyticsWindowAtom,
     analyticsFiltersAtom,
+    analyticsGroupAtom,
     EMPTY_FILTERS,
     analyticsBucketsAtomFamily,
     analyticsSplitAtomFamily,

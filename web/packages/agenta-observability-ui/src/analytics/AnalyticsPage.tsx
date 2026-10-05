@@ -7,11 +7,12 @@ import {
     isRangeLocked,
     analyticsDrawerAtom,
     analyticsFiltersAtom,
+    analyticsGroupAtom,
     analyticsHasAgentsAtom,
     analyticsNowAtom,
     analyticsRangeAtom,
     analyticsWindowAtom,
-    type AnalyticsDimension,
+    rankKeys,
     type AnalyticsFocus,
     type AnalyticsMetric,
     type AnalyticsRetention,
@@ -23,16 +24,16 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {AnalyticsEmptyState} from "./AnalyticsEmptyState"
 import {AnalyticsToolbar} from "./AnalyticsToolbar"
-import {BreakdownCard, type BreakdownMetric} from "./cards/BreakdownCard"
 import {FailureRateCard} from "./cards/FailureRateCard"
 import {
     CostCard,
     RunsCard,
     SuccessCard,
     TokensCard,
+    type GroupedData,
     type OverviewContext,
 } from "./cards/OverviewCards"
-import {ANALYTICS_COLOR_CSS} from "./colors"
+import {ANALYTICS_COLOR_CSS, SERIES_COLORS, analyticsColor} from "./colors"
 import {AnalyticsDrawer} from "./drawer/AnalyticsDrawer"
 import {bucketUnit, fullLabel, shortLabel} from "./labels"
 import {useAgentNames, useAnalyticsSplit, useAnalyticsWindowData} from "./useAnalyticsData"
@@ -60,8 +61,7 @@ export const AnalyticsPage = ({
     const window = useAtomValue(analyticsWindowAtom)
     const agents = useAtomValue(analyticsHasAgentsAtom)
     const openDrawer = useSetAtom(analyticsDrawerAtom)
-    const [agentMetric, setAgentMetric] = useState<BreakdownMetric>("runs")
-    const [modelMetric, setModelMetric] = useState<BreakdownMetric>("runs")
+    const [group, setGroup] = useAtom(analyticsGroupAtom)
     const [rangeOpen, setRangeOpen] = useState(false)
 
     // Without a tick the window freezes at first read: runs after `newest` would never show.
@@ -99,7 +99,7 @@ export const AnalyticsPage = ({
         data.modelOrder.slice(0, SPLIT_KEYS),
         window,
         filters,
-        modelMetric !== "runs",
+        group === "model",
     )
 
     const agentName = useAgentNames(
@@ -119,9 +119,15 @@ export const AnalyticsPage = ({
         [filtered, clearFilters, rangeLabel],
     )
     const onExplore = useCallback(
-        (metric: AnalyticsMetric, bucket: number | null, dim: AnalyticsDimension = "agent") =>
-            openDrawer({bucket, metric, dim, focus: null, failedOnly: false}),
-        [openDrawer],
+        (metric: AnalyticsMetric, bucket: number | null) =>
+            openDrawer({
+                bucket,
+                metric,
+                dim: group === "model" ? "model" : "agent",
+                focus: null,
+                failedOnly: false,
+            }),
+        [openDrawer, group],
     )
 
     const labels = useMemo(
@@ -132,6 +138,42 @@ export const AnalyticsPage = ({
         () => data.starts.map((s) => fullLabel(window, s)),
         [data.starts, window],
     )
+    const grouped = useMemo<GroupedData | null>(() => {
+        if (group === "none") return null
+        const byAgent = group === "agent"
+        const split = byAgent ? agentSplit : modelSplit
+        const keyCount = (byAgent ? data.agentOrder : data.modelOrder).length
+        const points = data.overview.points
+        const runs = byAgent ? data.agentRuns : data.modelRuns
+        // Colors go to the keys any card shows, in that order, so a key keeps one color.
+        const shown = [
+            ...new Set([runs, split.cost, split.tokens].flatMap((s) => rankKeys(s).slice(0, 4))),
+        ]
+        const keyColor = (key: string) =>
+            analyticsColor(SERIES_COLORS[Math.max(0, shown.indexOf(key)) % SERIES_COLORS.length])
+        return {
+            keyLabel: byAgent ? agentName : (key: string) => key,
+            keyColor,
+            failed: byAgent ? data.agentFailed : data.modelFailed,
+            runs: {
+                series: runs,
+                total: points.map((p) => p.runs),
+                status: byAgent ? data.status.agents : data.status.models,
+            },
+            cost: {
+                series: split.cost,
+                keyCount,
+                total: points.map((p) => p.cost),
+                status: split.status,
+            },
+            tokens: {
+                series: split.tokens,
+                keyCount,
+                total: points.map((p) => p.tokens),
+                status: split.status,
+            },
+        }
+    }, [group, agentSplit, modelSplit, data, agentName])
     const ctx: OverviewContext = {
         data,
         labels,
@@ -140,6 +182,7 @@ export const AnalyticsPage = ({
         rangeLabel,
         agentName,
         agentCost: agentSplit.cost,
+        grouped,
         emptyText,
         onExplore,
     }
@@ -164,45 +207,6 @@ export const AnalyticsPage = ({
     }
 
     const noMatch = filtered && !overviewStatus.pending && !data.overview.totals.runs
-    const agentSource = {
-        runs: {
-            series: data.agentRuns,
-            total: data.overview.points.map((p) => p.runs),
-            status: data.status.agents,
-        },
-        cost: {
-            series: agentSplit.cost,
-            keyCount: data.agentOrder.length,
-            total: data.overview.points.map((p) => p.cost),
-            status: agentSplit.status,
-        },
-        tokens: {
-            series: agentSplit.tokens,
-            keyCount: data.agentOrder.length,
-            total: data.overview.points.map((p) => p.tokens),
-            status: agentSplit.status,
-        },
-    }[agentMetric]
-    const modelSource = {
-        runs: {
-            series: data.modelRuns,
-            total: data.overview.points.map((p) => p.runs),
-            status: data.status.models,
-        },
-        cost: {
-            series: modelSplit.cost,
-            keyCount: data.modelOrder.length,
-            total: data.overview.points.map((p) => p.cost),
-            status: modelSplit.status,
-        },
-        tokens: {
-            series: modelSplit.tokens,
-            keyCount: data.modelOrder.length,
-            total: data.overview.points.map((p) => p.tokens),
-            status: modelSplit.status,
-        },
-    }[modelMetric]
-    const breakdownProps = {labels, fullLabels, rangeLabel}
 
     return (
         <div className="flex flex-col gap-4 pb-10">
@@ -214,6 +218,8 @@ export const AnalyticsPage = ({
                 onUpgrade={onUpgrade}
                 filters={filters}
                 onFiltersChange={setFilters}
+                group={group}
+                onGroupChange={setGroup}
                 window={window}
                 agentName={agentName}
                 rangeOpen={rangeOpen}
@@ -248,7 +254,6 @@ export const AnalyticsPage = ({
             </div>
             <TokensCard ctx={ctx} />
 
-            <h2 className="m-0 mt-6 text-base font-medium text-foreground">Breakdown</h2>
             <FailureRateCard
                 data={data}
                 agentName={agentName}
@@ -263,30 +268,6 @@ export const AnalyticsPage = ({
                         failedOnly,
                     })
                 }
-            />
-            <BreakdownCard
-                {...breakdownProps}
-                dim="agent"
-                metric={agentMetric}
-                metrics={["runs", "cost", "tokens"]}
-                onMetricChange={setAgentMetric}
-                source={agentSource}
-                keyLabel={agentName}
-                countWord="runs"
-                empty={emptyText("runs")}
-                onExplore={(metric, bucket) => onExplore(metric, bucket, "agent")}
-            />
-            <BreakdownCard
-                {...breakdownProps}
-                dim="model"
-                metric={modelMetric}
-                metrics={["runs", "cost", "tokens"]}
-                onMetricChange={setModelMetric}
-                source={modelSource}
-                keyLabel={(key) => key}
-                countWord="runs"
-                empty={emptyText("runs")}
-                onExplore={(metric, bucket) => onExplore(metric, bucket, "model")}
             />
             <AnalyticsDrawer agentName={agentName} onOpenTrace={onOpenTrace} />
         </div>

@@ -163,6 +163,8 @@ export const TimeChart = ({
             interval={step - 1}
             tickMargin={8}
             fontSize={11}
+            // Lines put points on the plot edges; padding keeps edge dots and labels whole.
+            padding={kind === "line" ? {left: 16, right: 16} : undefined}
         />,
         <YAxis
             key="y"
@@ -265,7 +267,12 @@ export const TimeChart = ({
                             type="linear"
                             stroke={s.color}
                             strokeWidth={2}
-                            dot={false}
+                            // A series with one point draws no line, so it gets a dot.
+                            dot={
+                                s.values.filter((v) => v !== null).length === 1
+                                    ? {r: 3, fill: s.color, strokeWidth: 0}
+                                    : false
+                            }
                             activeDot={{r: 4, fill: "var(--background)", strokeWidth: 2}}
                             connectNulls
                             isAnimationActive={false}

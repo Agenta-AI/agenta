@@ -2,6 +2,9 @@ export type AnalyticsRangeKey = "24h" | "7d" | "30d" | "90d"
 
 export type AnalyticsDimension = "agent" | "model" | "tool"
 
+/** How the main charts split: not at all, or by agent or configured model. */
+export type AnalyticsGroup = "none" | "agent" | "model"
+
 export type AnalyticsMetric = "cost" | "runs" | "success" | "tokens" | "tools" | "avgcost"
 
 /** Agent ids and configured model names; both narrow the root-span (run) queries. */

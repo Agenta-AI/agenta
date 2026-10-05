@@ -17,6 +17,7 @@ import {keyedSeries, rangeWindow, toAnalyticsRun, toolsByRun} from "./transform"
 import type {
     AnalyticsDimension,
     AnalyticsFilters,
+    AnalyticsGroup,
     AnalyticsMetric,
     AnalyticsRangeKey,
     AnalyticsRun,
@@ -37,6 +38,8 @@ export const analyticsWindowAtom = atom<AnalyticsWindow>((get) =>
 export const EMPTY_FILTERS: AnalyticsFilters = {agent: [], model: []}
 
 export const analyticsFiltersAtom = atom<AnalyticsFilters>(EMPTY_FILTERS)
+
+export const analyticsGroupAtom = atom<AnalyticsGroup>("none")
 
 const QUERY_OPTIONS = {staleTime: 60_000, refetchOnWindowFocus: false} as const
 
