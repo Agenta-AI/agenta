@@ -17,7 +17,7 @@
  *
  * Design: providers-drawer-final/README.md
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     isSubscriptionConnection,
@@ -40,6 +40,7 @@ import {
 } from "./PlaygroundProviderSections"
 import ProviderCatalogList from "./ProviderCatalogList"
 import ProviderConnectionCard, {type ProviderCardSaveState} from "./ProviderConnectionCard"
+import {providerIconFor} from "./providerIcon"
 import SubscriptionConnectionCard from "./SubscriptionConnectionCard"
 import SubscriptionPairCard, {type SubscriptionPairCardSaveState} from "./SubscriptionPairCard"
 
@@ -77,6 +78,15 @@ type DrawerView =
     | {level: "catalog"}
     | {level: "connection"; kind: string; connection: ProviderConnection | null; pushed: boolean}
     | {level: "subscription"; pair: SubscriptionPair}
+
+/** The provider's logo in the 28px tile the catalog rows use. */
+const ProviderTile = ({kind}: {kind: string}) => {
+    return (
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-background">
+            {createElement(providerIconFor(kind), {className: "size-4"})}
+        </span>
+    )
+}
 
 const DEFAULT_SUBSCRIPTION_DOCS_URL = "https://docs.agenta.ai/self-host/quick-start"
 
@@ -217,6 +227,7 @@ const ProviderDrawer = ({
             // A connection name is user-supplied, so it truncates rather than shoving the X out.
             <span className="flex min-w-0 items-center gap-2" style={{maxWidth: titleMaxWidth}}>
                 {view.pushed ? backButton : null}
+                <ProviderTile kind={view.kind} />
                 <span className="truncate">
                     {view.connection?.name ?? providerTitleForKind(view.kind)}
                 </span>
