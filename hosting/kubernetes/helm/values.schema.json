@@ -1531,6 +1531,11 @@
               "description": "Annotations on the Service. GKE reads cloud.google.com/backend-config and cloud.google.com/neg here."
             }
           }
+        },
+        "livenessProbe": {
+          "type": "object",
+          "description": "A liveness probe for this workload, passed through as written. The chart sets none: cron and the two workers run their process as PID 1, so the container lifecycle already restarts a process that exits, and detecting one that is alive but idle needs an application heartbeat that does not exist yet (agenta#7334).",
+          "additionalProperties": true
         }
       }
     },

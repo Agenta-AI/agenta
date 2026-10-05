@@ -39,6 +39,7 @@ import type { ObjectStore } from "./workspace/drive-objects.ts";
 import { publishSkillSnapshot } from "./workspace/skill-snapshot.ts";
 import { withPublicCode } from "../sandbox_agent/errors.ts";
 import type { SessionLedger } from "./session-ledger.ts";
+import { GATEWAY_CREDENTIALS_VALUE_ENV } from "../sandbox_agent/run-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -211,12 +212,24 @@ export class InProcessHarnessHost {
     const home = this.facts.harnessEnv.PI_CODING_AGENT_DIR;
     const modelsPath = home ? join(home, "models.json") : undefined;
     const customKey = this.facts.customProvider ? this.facts.modelEnvironment[this.facts.customProvider.keyEnv] : undefined;
+    // The gateway credential the provider's models.json header references by `$VAR`. It goes to
+    // this session's runtime only; the runner's own `process.env` never holds it.
+    const gatewayCredential = this.facts.harnessEnv[GATEWAY_CREDENTIALS_VALUE_ENV];
+    const customEnv = gatewayCredential ? { [GATEWAY_CREDENTIALS_VALUE_ENV]: gatewayCredential } : undefined;
     const opened = await openPiSession({
       cwd,
       sessionDir: transcripts.dir,
       skillDir: this.facts.harnessEnv.PI_CODING_AGENT_SKILL_DIR,
       modelsPath: modelsPath && (await exists(modelsPath)) ? modelsPath : undefined,
-      ...(this.facts.customProvider && customKey ? { customProvider: { providerId: this.facts.customProvider.providerId, key: customKey } } : {}),
+      ...(this.facts.customProvider && (customKey || customEnv)
+        ? {
+            customProvider: {
+              providerId: this.facts.customProvider.providerId,
+              ...(customKey ? { key: customKey } : {}),
+              ...(customEnv ? { env: customEnv } : {}),
+            },
+          }
+        : {}),
       modelEnv: this.facts.modelEnvironment,
       credentials: this.credentialStore(),
       systemPrompt: this.facts.systemPrompt,

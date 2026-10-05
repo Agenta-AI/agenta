@@ -3580,6 +3580,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/create-top-up-checkout",
+          label: "Create Top Up Checkout User Route",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/fetch-plans",
           label: "Fetch Plan User Route",
           className: "api-method get",
