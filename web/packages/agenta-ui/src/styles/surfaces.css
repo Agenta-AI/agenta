@@ -268,3 +268,63 @@
         display: none;
     }
 }
+
+/* A light that travels the edge of a featured card; the card sits inside with a 1px inset. */
+@property --ag-ring-angle {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
+.ag-living-border {
+    --ag-ring-claude: #d97757;
+    position: relative;
+    isolation: isolate;
+    padding: 1px;
+    background:
+        conic-gradient(
+            from var(--ag-ring-angle),
+            transparent 0 60%,
+            var(--ag-colorPrimary) 75%,
+            var(--ag-ring-claude) 85%,
+            transparent 95%
+        ),
+        linear-gradient(var(--ag-colorBorder), var(--ag-colorBorder));
+    animation: ag-ring-spin 6s linear infinite;
+}
+
+.ag-living-border::after {
+    content: "";
+    position: absolute;
+    inset: -14px;
+    z-index: -1;
+    border-radius: inherit;
+    background: conic-gradient(
+        from var(--ag-ring-angle),
+        transparent 0 60%,
+        color-mix(in srgb, var(--ag-colorPrimary) 25%, transparent) 75%,
+        color-mix(in srgb, var(--ag-ring-claude) 22%, transparent) 85%,
+        transparent 95%
+    );
+    filter: blur(20px);
+    opacity: 0;
+    animation: ag-ring-spin 6s linear infinite;
+}
+
+/* The glow only reads as light on a dark page; on white it smudges. */
+.dark .ag-living-border::after {
+    opacity: 1;
+}
+
+@keyframes ag-ring-spin {
+    to {
+        --ag-ring-angle: 360deg;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ag-living-border,
+    .ag-living-border::after {
+        animation: none;
+    }
+}

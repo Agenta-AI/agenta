@@ -214,6 +214,7 @@ export const AIProvidersPage = ({
                     subscriptionStatusLine(subscription?.subscription) ||
                     "Sign in with your account",
                 state: connected ? "connected" : broken ? "attention" : "available",
+                brand: "neutral",
                 action: {
                     label: connected ? "Manage" : broken ? "Sign in again" : "Connect",
                     onClick: () => setSignInOpen(true),
@@ -225,6 +226,7 @@ export const AIProvidersPage = ({
                 name: "Claude",
                 detail: "Read from your deployment's login",
                 state: "available",
+                brand: "clay",
                 action: {
                     label: "Set up",
                     external: true,
