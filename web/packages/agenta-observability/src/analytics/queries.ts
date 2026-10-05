@@ -25,6 +25,7 @@ export const PATH = {
 } as const
 
 const MODEL_KEY = "ag.data.parameters.agent.llm.model"
+const COST_KEY = "ag.metrics.costs.cumulative.total"
 const PROVIDER_KEY = "ag.data.parameters.agent.llm.provider"
 
 export type Condition = Record<string, unknown>
@@ -159,6 +160,8 @@ export interface AnalyticsRunsParams {
     filters: AnalyticsFilters
     focus?: AnalyticsFocus | null
     failedOnly?: boolean
+    /** Only runs costing at least this much; the endpoint cannot order by cost, so this keeps it small. */
+    minCost?: number | null
     limit: number
 }
 
@@ -177,6 +180,7 @@ export const fetchAnalyticsRunSpans = async ({
     filters,
     focus,
     failedOnly,
+    minCost,
     limit,
 }: AnalyticsRunsParams): Promise<TraceSpan[]> => {
     const conditions = [
@@ -185,6 +189,9 @@ export const fetchAnalyticsRunSpans = async ({
         ...filterConditions(filters),
         ...(focus ? [focusCondition(focus)] : []),
         ...(failedOnly ? [FAILED] : []),
+        ...(minCost != null
+            ? [{field: "attributes", key: COST_KEY, operator: "gte", value: minCost}]
+            : []),
     ]
     const res = await fetchAllPreviewTraces(
         {

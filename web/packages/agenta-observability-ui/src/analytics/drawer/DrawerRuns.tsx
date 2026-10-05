@@ -19,9 +19,18 @@ import {useAtomValue} from "jotai"
 import {analyticsColor} from "../colors"
 import {clock, monthDay} from "../labels"
 
-const SHOWN = 15
+const SHOWN = 20
 /** Failed runs fetched to count reasons; a window with more counts the newest. */
 const REASON_SAMPLE = 500
+/** Costly runs fetched to rank; each root span carries its inputs and outputs, so keep it small. */
+const COST_SAMPLE = 40
+
+// The traces endpoint orders by time only, so it is asked for runs above a cost floor and they
+// rank on the client.
+const byCost = (a: AnalyticsRun, b: AnalyticsRun) => (b.cost ?? -1) - (a.cost ?? -1)
+
+const ROW_GRID =
+    "grid grid-cols-[12px_minmax(0,1.2fr)_minmax(0,1.1fr)_76px_56px_70px_14px] items-center gap-2.5 px-1"
 
 export interface DrawerRunsProps {
     window: AnalyticsWindow
@@ -29,6 +38,8 @@ export interface DrawerRunsProps {
     focus: AnalyticsFocus | null
     total: number
     failed: number
+    /** The window's cost per run, null while it loads; the cost list asks for runs at twice it. */
+    averageCost: number | null
     failedOnly: boolean
     onFailedOnly: (failedOnly: boolean) => void
     agentName: (id: string) => string
@@ -42,6 +53,7 @@ export const DrawerRuns = ({
     focus,
     total,
     failed,
+    averageCost,
     failedOnly,
     onFailedOnly,
     agentName,
@@ -50,15 +62,39 @@ export const DrawerRuns = ({
 }: DrawerRunsProps) => {
     const [reason, setReason] = useState<string | null>(null)
     const [open, setOpen] = useState<string | null>(null)
-    const query = useAtomValue(
+    const base = {window, filters, focus}
+    const ready = averageCost !== null
+    const average = averageCost ?? 0
+    const hasCost = average > 0
+    const failedQuery = useAtomValue(
         analyticsRunsAtomFamily({
-            window,
-            filters,
-            focus,
-            failedOnly,
-            limit: failedOnly ? REASON_SAMPLE : SHOWN,
+            ...base,
+            failedOnly: true,
+            limit: REASON_SAMPLE,
+            enabled: failedOnly,
         }),
     )
+    const highQuery = useAtomValue(
+        analyticsRunsAtomFamily({
+            ...base,
+            failedOnly: false,
+            minCost: hasCost ? average * 2 : null,
+            limit: hasCost ? COST_SAMPLE : SHOWN,
+            enabled: !failedOnly && ready,
+        }),
+    )
+    // Too few runs at twice the average: lower the floor to the average.
+    const lowerFloor = hasCost && !failedOnly && (highQuery.data?.length ?? SHOWN) < 5
+    const lowQuery = useAtomValue(
+        analyticsRunsAtomFamily({
+            ...base,
+            failedOnly: false,
+            minCost: average,
+            limit: COST_SAMPLE,
+            enabled: lowerFloor,
+        }),
+    )
+    const query = failedOnly ? failedQuery : lowerFloor ? lowQuery : highQuery
     const runs = useMemo(() => query.data ?? [], [query.data])
 
     const reasons = useMemo(() => {
@@ -77,11 +113,13 @@ export const DrawerRuns = ({
 
     const listed = useMemo(
         () =>
-            (reason
-                ? runs.filter((run) => categorizeFailure(run.reason).label === reason)
-                : runs
+            (failedOnly
+                ? reason
+                    ? runs.filter((run) => categorizeFailure(run.reason).label === reason)
+                    : runs
+                : [...runs].sort(byCost)
             ).slice(0, SHOWN),
-        [runs, reason],
+        [runs, reason, failedOnly],
     )
     const traceIds = useMemo(() => listed.map((run) => run.traceId), [listed])
     const toolsQuery = useAtomValue(analyticsRunToolsAtomFamily(traceIds))
@@ -95,7 +133,7 @@ export const DrawerRuns = ({
     // Segmented re-measures on every new options array, so it must stay stable.
     const runFilterOptions = useMemo(
         () => [
-            {value: "all", label: `All ${formatCount(total)}`},
+            {value: "cost", label: "Most expensive"},
             {value: "failed", label: `Failed ${formatCount(failed)}`},
         ],
         [total, failed],
@@ -108,7 +146,7 @@ export const DrawerRuns = ({
                 <Segmented
                     size="sm"
                     options={runFilterOptions}
-                    value={failedOnly ? "failed" : "all"}
+                    value={failedOnly ? "failed" : "cost"}
                     onChange={(value) => {
                         setReason(null)
                         onFailedOnly(value === "failed")
@@ -164,6 +202,22 @@ export const DrawerRuns = ({
                 </div>
             ) : null}
 
+            {listed.length && !query.isPending && !query.error ? (
+                <div
+                    className={cn(
+                        ROW_GRID,
+                        "h-7 text-[11px] text-muted-foreground [&>span:nth-child(n+4)]:text-right",
+                    )}
+                >
+                    <span />
+                    <span>Agent</span>
+                    <span>Model</span>
+                    <span>Started</span>
+                    <span>Tokens</span>
+                    <span>{failedOnly ? "Cost" : "Cost ↓"}</span>
+                    <span />
+                </div>
+            ) : null}
             {query.isPending ? (
                 <div className="flex flex-col gap-2 py-2">
                     {Array.from({length: 4}, (_, i) => (
@@ -193,9 +247,24 @@ export const DrawerRuns = ({
             ) : (
                 <div className="py-4 text-sm text-muted-foreground">No runs match</div>
             )}
-            {matching > listed.length && listed.length ? (
+            {listed.length ? (
                 <div className="pt-2 text-[11px] text-muted-foreground">
-                    Showing {listed.length} of {formatCount(matching)}
+                    {failedOnly
+                        ? matching > listed.length
+                            ? `Showing ${listed.length} of ${formatCount(matching)}`
+                            : null
+                        : hasCost
+                          ? `Runs costing at least ${formatMoney(
+                                lowerFloor ? average : average * 2,
+                            )} (${lowerFloor ? "the" : "twice the"} average per run), most expensive first${
+                                runs.length >= COST_SAMPLE ? `, from the newest ${COST_SAMPLE}` : ""
+                            }`
+                          : `Newest ${listed.length} of ${formatCount(total)} runs: none recorded a cost`}
+                    {listed.some((run) => run.subscription) ? (
+                        <span className="block">
+                            ≈ Estimated from tokens: the run used a subscription.
+                        </span>
+                    ) : null}
                 </div>
             ) : null}
         </section>
@@ -235,7 +304,8 @@ const RunRow = ({
                 type="button"
                 onClick={onToggle}
                 className={cn(
-                    "grid min-h-11 w-full cursor-pointer grid-cols-[12px_minmax(0,1.2fr)_minmax(0,1.1fr)_auto_56px_70px_14px] items-center gap-2.5 border-0 px-1 py-1.5 text-left text-sm",
+                    ROW_GRID,
+                    "min-h-11 w-full cursor-pointer border-0 py-1.5 text-left text-sm",
                     open ? "bg-accent" : "bg-transparent hover:bg-accent",
                 )}
             >

@@ -159,7 +159,10 @@ export interface AnalyticsRunsKey {
     filters: AnalyticsFilters
     focus?: AnalyticsFocus | null
     failedOnly: boolean
+    minCost?: number | null
     limit: number
+    /** Off for a query the caller only needs as a fallback. */
+    enabled?: boolean
 }
 
 export const analyticsRunsAtomFamily = atomFamily(
@@ -172,7 +175,7 @@ export const analyticsRunsAtomFamily = atomFamily(
                     (await fetchAnalyticsRunSpans({projectId: projectId as string, ...key})).map(
                         toAnalyticsRun,
                     ),
-                enabled: Boolean(projectId),
+                enabled: Boolean(projectId) && key.enabled !== false,
                 ...QUERY_OPTIONS,
             }
         }),

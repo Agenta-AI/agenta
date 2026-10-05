@@ -434,6 +434,13 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                         focus={focus}
                         total={totals.runs}
                         failed={totals.failed}
+                        averageCost={
+                            data.status.overview.pending
+                                ? null
+                                : totals.runs
+                                  ? totals.cost / totals.runs
+                                  : 0
+                        }
                         failedOnly={state.failedOnly}
                         onFailedOnly={(failedOnly) => setState({...state, failedOnly})}
                         agentName={agentName}
