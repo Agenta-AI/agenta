@@ -94,9 +94,6 @@ export const DrawerBreakdown = (props: DrawerBreakdownProps) => (
                     onChange={(value) => props.onDim(value as AnalyticsDimension)}
                 />
             </div>
-            {props.dim !== "tool" ? (
-                <span className="text-[11px] text-muted-foreground">Click a row to drill in</span>
-            ) : null}
         </div>
         {props.dim === "tool" ? <ToolTable {...props} /> : <RunTable {...props} dim={props.dim} />}
     </section>
