@@ -5,13 +5,9 @@
  * saved or hand-entered that it did not. Checking a model is a policy choice, so the card always
  * saves the explicit list — including an empty one, which means "offer none".
  *
- * One bordered container holds the whole block: search pinned at the top, the rows, then manual
- * entry and the fetch line pinned at the bottom. This is the CARD's only flexible region — every
- * pixel the fixed sections do not need goes to the rows, which is what keeps the footer off the
- * bottom of an empty column — and the rows scroll inside it.
- *
- * Manual entry is available in every state (with discovery, without it, before any test), because
- * a provider's list is never a promise that nothing else works.
+ * One field above the list both searches it and adds a model ID it does not hold, in every state,
+ * because a provider's list is never a promise that nothing else works. The bordered list below is
+ * the card's only flexible region, so its rows scroll inside it.
  */
 import {useMemo, useState} from "react"
 
@@ -63,7 +59,6 @@ const ActiveModelsSection = ({
     refetching,
 }: ActiveModelsSectionProps) => {
     const [search, setSearch] = useState("")
-    const [manualId, setManualId] = useState("")
     const [showAll, setShowAll] = useState(false)
 
     const activeCount = useMemo(() => options.filter((option) => option.checked).length, [options])
@@ -80,11 +75,12 @@ const ActiveModelsSection = ({
     const {truncated, visibleCount} = modelListView({total: matching.length, showAll})
     const visible = truncated ? matching.slice(0, visibleCount) : matching
 
-    const addManual = () => {
-        const id = manualId.trim()
-        if (!id) return
-        onAddManual(id)
-        setManualId("")
+    const term = search.trim()
+    const canAdd = Boolean(term) && !options.some((option) => option.id === term)
+    const addTerm = () => {
+        if (!canAdd) return
+        onAddManual(term)
+        setSearch("")
     }
 
     return (
@@ -106,36 +102,56 @@ const ActiveModelsSection = ({
                 </div>
             </div>
 
+            <InputAffix
+                className="shrink-0"
+                placeholder={
+                    options.length
+                        ? `Search ${options.length} models or add an ID`
+                        : manualPlaceholder
+                }
+                prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
+                allowClear
+                value={search}
+                onValueChange={setSearch}
+                onKeyDown={(event) => {
+                    if (event.key !== "Enter") return
+                    event.preventDefault()
+                    addTerm()
+                }}
+            />
+
             <div
                 className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-solid border-colorBorderSecondary"
                 style={{minHeight: MIN_LIST_HEIGHT}}
             >
-                <div className="shrink-0 border-0 border-b border-solid border-colorSplit">
-                    <InputAffix
-                        variant="ghost"
-                        placeholder={`Search ${options.length} models`}
-                        prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
-                        allowClear
-                        // InputAffix sizes its inner <input> from the size variant, so the row's
-                        // type scale has to be set through it rather than on the wrapper.
-                        className="[&_input]:!text-xs"
-                        value={search}
-                        onValueChange={setSearch}
-                    />
-                </div>
+                {canAdd ? (
+                    <button
+                        type="button"
+                        onClick={addTerm}
+                        className="flex w-full shrink-0 cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorSplit bg-transparent px-3 py-2 text-left text-field-sm text-colorText hover:bg-colorFillQuaternary"
+                    >
+                        <Plus size={14} className="shrink-0 text-colorTextTertiary" />
+                        <span className="min-w-0 truncate">
+                            Add <span className="font-mono">{term}</span>
+                        </span>
+                        <span className="ml-auto shrink-0 text-field-xs text-colorTextTertiary">
+                            Enter
+                        </span>
+                    </button>
+                ) : null}
 
                 {visible.length === 0 ? (
-                    <p className="m-0 border-0 border-b border-solid border-colorSplit px-3 py-3 text-colorTextSecondary">
-                        {options.length === 0
-                            ? "No models yet. Add a model ID below."
-                            : "No model matches this search."}
-                    </p>
+                    canAdd ? null : (
+                        <p className="m-0 px-3 py-3 text-colorTextSecondary">
+                            No models yet. Type a model ID above to add it.
+                        </p>
+                    )
                 ) : (
                     <ScrollScrim>
                         {visible.map((option) => (
                             <label
                                 key={option.id}
-                                className="flex cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorSplit px-3 py-1.5 hover:bg-colorFillQuaternary"
+                                className="flex cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorSplit px-3 py-1.5 last:border-b-0 hover:bg-colorFillQuaternary"
                             >
                                 <Checkbox
                                     checked={option.checked}
@@ -161,31 +177,6 @@ const ActiveModelsSection = ({
                         ))}
                     </ScrollScrim>
                 )}
-
-                <div className="flex shrink-0 items-center gap-1 pl-3 pr-2">
-                    <Plus size={14} className="shrink-0 text-colorTextTertiary" />
-                    <InputAffix
-                        variant="ghost"
-                        className="min-w-0 flex-1 font-mono [&_input]:!text-field-sm"
-                        placeholder={manualPlaceholder}
-                        value={manualId}
-                        onValueChange={setManualId}
-                        onKeyDown={(event) => {
-                            if (event.key !== "Enter") return
-                            event.preventDefault()
-                            addManual()
-                        }}
-                    />
-                    <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto shrink-0 px-1"
-                        onClick={addManual}
-                        disabled={!manualId.trim()}
-                    >
-                        Add
-                    </Button>
-                </div>
 
                 <div
                     className={`shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorSplit py-1 pl-3 pr-2 text-field-sm ${truncated || fetchedAt ? "flex" : "hidden"}`}
