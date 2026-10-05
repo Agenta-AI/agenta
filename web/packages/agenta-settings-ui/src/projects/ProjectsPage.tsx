@@ -3,14 +3,15 @@ import {useCallback, useMemo, useState} from "react"
 import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {message} from "@agenta/ui/app-message"
-import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
+import {InitialsAvatar, StatusIndicator, Tag} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {CheckCircle, FolderSimple, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {Copy, FolderSimple, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
+import {InlineName} from "../shared/InlineName"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -31,7 +32,7 @@ interface ProjectRow extends ProjectsResponse {
 
 const COLUMNS: ListTableColumn[] = [
     {key: "project_name", label: "Project", width: "minmax(0,2fr)"},
-    {key: "project_id", label: "Project ID", width: "minmax(0,2fr)"},
+    {key: "status", label: "Status", width: "minmax(0,1fr)"},
     {key: "user_role", label: "Your role", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
@@ -49,9 +50,10 @@ export interface ProjectsPageProps {
     projects: ProjectsResponse[]
     isLoading: boolean
     workspaceId?: string
-    /** Create / rename / delete dialogs — antd-Form driven on the desktop, a sheet on mobile. */
+    /** The project the reader is in now, marked Current. */
+    currentProjectId?: string
+    /** Create / delete dialogs — the host's. Rename happens in place on the row. */
     renderCreateDialog?: (state: ProjectDialogState<ProjectFormValues>) => React.ReactNode
-    renderRenameDialog?: (state: ProjectDialogState<ProjectFormValues>) => React.ReactNode
     renderDeleteDialog?: (state: ProjectDialogState<void>) => React.ReactNode
 }
 
@@ -59,16 +61,15 @@ export const ProjectsPage = ({
     projects,
     isLoading,
     workspaceId,
+    currentProjectId,
     renderCreateDialog,
-    renderRenameDialog,
     renderDeleteDialog,
 }: ProjectsPageProps) => {
     const queryClient = useQueryClient()
 
     const [isCreateModalOpen, setCreateModalOpen] = useState(false)
-    const [isRenameModalOpen, setRenameModalOpen] = useState(false)
     const [projectToDelete, setProjectToDelete] = useState<ProjectsResponse | null>(null)
-    const [activeProject, setActiveProject] = useState<ProjectsResponse | null>(null)
+    const [renamingId, setRenamingId] = useState<string | null>(null)
 
     const scopedProjects = useMemo(() => {
         if (!projects) return []
@@ -76,9 +77,8 @@ export const ProjectsPage = ({
         return projects.filter((project) => project.workspace_id === workspaceId)
     }, [projects, workspaceId])
     const canDeleteProjects = scopedProjects.length > 1
-    // Create, rename and delete all need a dialog from the host. A host that brings none (mobile)
-    // gets the list read-only rather than affordances that open nothing.
-    const canEdit = Boolean(renderCreateDialog || renderRenameDialog || renderDeleteDialog)
+    // A host that brings no dialogs gets the list read-only rather than affordances that open nothing.
+    const canEdit = Boolean(renderCreateDialog || renderDeleteDialog)
 
     const rows = useMemo<ProjectRow[]>(() => {
         return scopedProjects.map((project) => ({...project, key: project.project_id}))
@@ -104,24 +104,7 @@ export const ProjectsPage = ({
         mutationFn: ({projectId, name}: {projectId: string; name: string}) =>
             patchProject(projectId, {name}),
         onSuccess: () => {
-            message.success("Project renamed")
             void invalidateProjects()
-            setRenameModalOpen(false)
-            setActiveProject(null)
-        },
-        onError: (error) => {
-            message.error(errorDetail(error, "Unable to rename project"))
-        },
-    })
-
-    const defaultMutation = useMutation({
-        mutationFn: (projectId: string) => patchProject(projectId, {make_default: true}),
-        onSuccess: () => {
-            message.success("Default project updated")
-            void invalidateProjects()
-        },
-        onError: (error) => {
-            message.error(errorDetail(error, "Unable to set default"))
         },
     })
 
@@ -146,25 +129,6 @@ export const ProjectsPage = ({
         [createMutation],
     )
 
-    const handleRename = useCallback(
-        (values: ProjectFormValues) => {
-            if (!activeProject) return
-            renameMutation.mutate({
-                projectId: activeProject.project_id,
-                name: values.name.trim(),
-            })
-        },
-        [activeProject, renameMutation],
-    )
-
-    const handleMakeDefault = useCallback(
-        (project: ProjectsResponse) => {
-            if (!project?.project_id) return
-            defaultMutation.mutate(project.project_id)
-        },
-        [defaultMutation],
-    )
-
     const handleDelete = useCallback(
         (project: ProjectsResponse) => {
             if (!canDeleteProjects) return
@@ -172,11 +136,6 @@ export const ProjectsPage = ({
         },
         [canDeleteProjects],
     )
-
-    const openRenameModal = useCallback((project: ProjectsResponse) => {
-        setActiveProject(project)
-        setRenameModalOpen(true)
-    }, [])
 
     const newProject = canEdit ? (
         <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
@@ -210,18 +169,40 @@ export const ProjectsPage = ({
                             {/* The identity column carries an avatar on every other settings
                                 table; the extraction dropped it here and on Organizations. */}
                             <InitialsAvatar name={record.project_name} />
-                            <span
-                                className="truncate font-medium text-foreground"
-                                title={record.project_name}
-                            >
-                                {record.project_name}
-                            </span>
+                            <InlineName
+                                value={record.project_name}
+                                editing={canEdit && renamingId === record.project_id}
+                                ariaLabel="Project name"
+                                onStart={
+                                    canEdit ? () => setRenamingId(record.project_id) : undefined
+                                }
+                                onDone={() => setRenamingId(null)}
+                                onSave={(name) =>
+                                    renameMutation
+                                        .mutateAsync({projectId: record.project_id, name})
+                                        .catch((error) => {
+                                            throw new Error(
+                                                errorDetail(error, "Unable to rename project"),
+                                            )
+                                        })
+                                }
+                            />
                             {record.is_default_project ? (
                                 <Tag className="m-0 shrink-0" label="Default" />
                             ) : null}
                         </span>
-                        <span className="truncate font-mono text-[13px] text-muted-foreground">
-                            {record.project_id}
+                        <span className="flex min-w-0 items-center gap-2">
+                            {record.project_id === currentProjectId ? (
+                                <StatusIndicator
+                                    tone="success"
+                                    label="Current"
+                                    className="text-[13px]"
+                                />
+                            ) : record.is_demo ? (
+                                <Tag className="m-0" label="Demo" />
+                            ) : (
+                                <span className="text-muted-foreground">—</span>
+                            )}
                         </span>
                         <span className="flex min-w-0">
                             {record.user_role ? (
@@ -237,15 +218,19 @@ export const ProjectsPage = ({
                                     key: "rename",
                                     label: "Rename",
                                     icon: <PencilSimpleLine size={14} />,
-                                    onClick: () => openRenameModal(record),
+                                    hidden: !canEdit,
+                                    deferred: true,
+                                    onClick: () => setRenamingId(record.project_id),
                                 },
                                 {
-                                    key: "default",
-                                    label: "Set as default",
-                                    icon: <CheckCircle size={14} />,
-                                    hidden: Boolean(record.is_default_project),
-                                    disabled: defaultMutation.isPending,
-                                    onClick: () => handleMakeDefault(record),
+                                    key: "copy-id",
+                                    label: "Copy project ID",
+                                    icon: <Copy size={14} />,
+                                    onClick: () =>
+                                        void navigator.clipboard?.writeText(record.project_id).then(
+                                            () => message.success("Project ID copied"),
+                                            () => message.error("Couldn't copy the project ID"),
+                                        ),
                                 },
                                 {type: "divider"},
                                 {
@@ -270,17 +255,6 @@ export const ProjectsPage = ({
                 onClose: () => setCreateModalOpen(false),
                 onSubmit: handleCreate,
                 pending: createMutation.isPending,
-            })}
-
-            {renderRenameDialog?.({
-                open: isRenameModalOpen,
-                onClose: () => {
-                    setRenameModalOpen(false)
-                    setActiveProject(null)
-                },
-                onSubmit: handleRename,
-                pending: renameMutation.isPending,
-                project: activeProject,
             })}
 
             {renderDeleteDialog?.({

@@ -240,6 +240,7 @@ const TabBody = ({
                     projects={projects.data ?? []}
                     isLoading={projects.isPending}
                     workspaceId={workspaceId}
+                    projectId={projectId}
                 />
             )
         case "workspace":

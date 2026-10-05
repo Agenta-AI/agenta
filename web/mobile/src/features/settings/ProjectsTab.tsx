@@ -25,19 +25,21 @@ interface Props {
     projects: ProjectsResponse[]
     isLoading: boolean
     workspaceId: string
+    projectId?: string
 }
 
 /**
- * Mobile binding: the shared projects table, with create / rename / delete as modals
+ * Mobile binding: the shared projects table, with create / delete as modals; rename is inline
  * (the desktop uses antd modals — same verbs, each app's own idiom). The mutations live in
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
-export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
+export const ProjectsTab = ({projects, isLoading, workspaceId, projectId}: Props) => {
     return (
         <ProjectsPage
             projects={projects}
             isLoading={isLoading}
             workspaceId={workspaceId}
+            currentProjectId={projectId}
             renderCreateDialog={({open, onClose, onSubmit, pending}) => (
                 <NameSheet
                     open={open}
@@ -45,17 +47,6 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
                     description="Projects group your agents, datasets and deployments."
                     submitLabel="Create"
                     pending={pending}
-                    onClose={onClose}
-                    onSubmit={(name) => onSubmit({name})}
-                />
-            )}
-            renderRenameDialog={({open, onClose, onSubmit, pending, project}) => (
-                <NameSheet
-                    open={open}
-                    title="Rename project"
-                    submitLabel="Save"
-                    pending={pending}
-                    initialValue={project?.project_name ?? ""}
                     onClose={onClose}
                     onSubmit={(name) => onSubmit({name})}
                 />
