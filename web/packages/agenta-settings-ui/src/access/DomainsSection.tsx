@@ -15,9 +15,9 @@ import {SettingsToolbar} from "../shared/SettingsToolbar"
 const TOKEN_LIFETIME_MS = 48 * 60 * 60 * 1000
 
 const COLUMNS: ListTableColumn[] = [
-    {key: "slug", label: "Domain", width: "minmax(180px,2fr)"},
-    {key: "expires_at", label: "Expiration", width: "minmax(160px,1.4fr)"},
-    {key: "is_verified", label: "Status", width: "minmax(96px,1fr)"},
+    {key: "slug", label: "Domain", width: "minmax(0,2fr)"},
+    {key: "expires_at", label: "Expiration", width: "minmax(0,1.4fr)"},
+    {key: "is_verified", label: "Status", width: "minmax(0,1fr)"},
     {key: "verify", label: "Verify", srOnly: true, width: "72px"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
@@ -89,7 +89,7 @@ export const DomainsSection = ({
                 groups={[{key: "all", label: null, rows: domains}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.id}
-                minWidth={600}
+                minWidth={0}
                 loading={loading && domains.length === 0}
                 hideHeader={!loading && domains.length === 0}
                 empty={

@@ -12,9 +12,9 @@ import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 const COLUMNS: ListTableColumn[] = [
-    {key: "slug", label: "Provider", width: "minmax(140px,1.2fr)"},
-    {key: "callback_url", label: "Callback URL", width: "minmax(220px,2.4fr)"},
-    {key: "status", label: "Status", width: "minmax(96px,1fr)"},
+    {key: "slug", label: "Provider", width: "minmax(0,1.2fr)"},
+    {key: "callback_url", label: "Callback URL", width: "minmax(0,2.4fr)"},
+    {key: "status", label: "Status", width: "minmax(0,1fr)"},
     {key: "enable", label: "Enable", srOnly: true, width: "72px"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
@@ -90,7 +90,7 @@ export const SsoProvidersSection = ({
                 groups={[{key: "all", label: null, rows: providers}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.id}
-                minWidth={640}
+                minWidth={0}
                 loading={loading && providers.length === 0}
                 hideHeader={!loading && providers.length === 0}
                 empty={

@@ -48,10 +48,10 @@ interface SecretRow extends NamedSecretRow {
 }
 
 const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(200px,2fr)"},
-    {key: "content", label: "Value", width: "minmax(120px,1fr)"},
-    {key: "format", label: "Format", width: "minmax(72px,0.6fr)"},
-    {key: "created_at", label: "Created", width: "minmax(130px,1fr)"},
+    {key: "name", label: "Name", width: "minmax(0,2fr)"},
+    {key: "content", label: "Value", width: "minmax(0,1fr)"},
+    {key: "format", label: "Format", width: "minmax(0,0.6fr)"},
+    {key: "created_at", label: "Created", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
@@ -96,7 +96,7 @@ export const NamedSecretTable = ({
                     groups={[{key: "secrets", label: null, rows}]}
                     wrapRow={hoverableRow}
                     rowKey={(record) => record.key}
-                    minWidth={620}
+                    minWidth={0}
                     loading={loading && rows.length === 0}
                     hideHeader={!loading && rows.length === 0}
                     empty={

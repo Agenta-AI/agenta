@@ -92,10 +92,10 @@ const hasGrantToRevoke = (endpoint: MCPEndpoint) =>
     endpoint.auth_mode === "oauth" && Boolean(endpoint.secret_id)
 
 const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(200px,2fr)"},
-    {key: "url", label: "Server URL", width: "minmax(180px,2fr)"},
-    {key: "auth", label: "Auth", width: "minmax(140px,1fr)"},
-    {key: "status", label: "Status", width: "minmax(190px,1.2fr)"},
+    {key: "name", label: "Name", width: "minmax(0,2fr)"},
+    {key: "url", label: "Server URL", width: "minmax(0,2fr)"},
+    {key: "auth", label: "Auth", width: "minmax(0,1fr)"},
+    {key: "status", label: "Status", width: "minmax(0,1.2fr)"},
 ]
 
 const ACTIONS_COLUMN: ListTableColumn = {
@@ -273,7 +273,7 @@ export default function McpServersSection({
                 columns={columns}
                 groups={[{key: "servers", label: null, rows}]}
                 rowKey={rowKey}
-                minWidth={readOnly ? 740 : 800}
+                minWidth={0}
                 loading={isPending}
                 skeletonRows={3}
                 hideHeader={empty}

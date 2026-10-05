@@ -30,9 +30,9 @@ interface ProjectRow extends ProjectsResponse {
 }
 
 const COLUMNS: ListTableColumn[] = [
-    {key: "project_name", label: "Project", width: "minmax(200px,2fr)"},
-    {key: "project_id", label: "Project ID", width: "minmax(240px,2fr)"},
-    {key: "user_role", label: "Your role", width: "minmax(96px,1fr)"},
+    {key: "project_name", label: "Project", width: "minmax(0,2fr)"},
+    {key: "project_id", label: "Project ID", width: "minmax(0,2fr)"},
+    {key: "user_role", label: "Your role", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
@@ -193,7 +193,7 @@ export const ProjectsPage = ({
                 groups={[{key: "projects", label: null, rows}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
-                minWidth={640}
+                minWidth={0}
                 loading={isLoading && rows.length === 0}
                 hideHeader={!isLoading && rows.length === 0}
                 empty={

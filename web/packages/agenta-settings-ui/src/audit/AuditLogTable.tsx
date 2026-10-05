@@ -39,7 +39,7 @@ import {AUDIT_LOG_PAGE_SIZE, AUDIT_LOG_SCOPE_ID} from "./constants"
 
 // The count has no heading of its own: the number reads alongside the Event column.
 const COLUMNS: ListTableColumn[] = [
-    {key: "event_type", label: "Event", width: "minmax(240px,2fr)"},
+    {key: "event_type", label: "Event", width: "minmax(0,2fr)"},
     {
         key: "count",
         label: "Count",
@@ -47,9 +47,9 @@ const COLUMNS: ListTableColumn[] = [
         width: "56px",
         headerClassName: "text-right",
     },
-    {key: "timestamp", label: "Timestamp", width: "minmax(160px,1.2fr)"},
-    {key: "actor", label: "User", width: "minmax(140px,1fr)"},
-    {key: "id", label: "ID", width: "minmax(240px,2fr)"},
+    {key: "timestamp", label: "Timestamp", width: "minmax(0,1.2fr)"},
+    {key: "actor", label: "User", width: "minmax(0,1fr)"},
+    {key: "id", label: "ID", width: "minmax(0,2fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
@@ -144,7 +144,7 @@ export const AuditLogTable = ({onSelectEvent, renderDateRange}: AuditLogTablePro
                 columns={COLUMNS}
                 groups={[{key: "all", label: null, rows: loadedRows}]}
                 rowKey={(record) => record.key}
-                minWidth={920}
+                minWidth={0}
                 loading={paginationInfo.isFetching && loadedRows.length === 0}
                 hideHeader={!paginationInfo.isFetching && loadedRows.length === 0}
                 onOpenRow={(record) => onSelectEvent(record.id)}

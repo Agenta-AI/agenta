@@ -22,10 +22,10 @@ export interface ApiKeysPageProps {
 const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : "—")
 
 const COLUMNS: ListTableColumn[] = [
-    {key: "prefix", label: "API key", width: "minmax(180px,2fr)"},
-    {key: "created_at", label: "Created", width: "minmax(96px,1fr)"},
-    {key: "expiration_date", label: "Expires", width: "minmax(96px,1fr)"},
-    {key: "last_used_at", label: "Last used", width: "minmax(140px,1.4fr)"},
+    {key: "prefix", label: "API key", width: "minmax(0,2fr)"},
+    {key: "created_at", label: "Created", width: "minmax(0,1fr)"},
+    {key: "expiration_date", label: "Expires", width: "minmax(0,1fr)"},
+    {key: "last_used_at", label: "Last used", width: "minmax(0,1.4fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
@@ -76,6 +76,7 @@ export const ApiKeysPage = ({
             <SettingsPageActions>{generate}</SettingsPageActions>
             <ListTable<ApiKeyRow>
                 columns={COLUMNS}
+                minWidth={0}
                 groups={[{key: "keys", label: null, rows}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}

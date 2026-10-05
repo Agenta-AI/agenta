@@ -28,12 +28,12 @@ interface MemberRow extends WorkspaceMember {
 const MEMBER_COLUMN: ListTableColumn = {
     key: "member",
     label: "Member",
-    width: "minmax(220px,2fr)",
+    width: "minmax(0,2fr)",
 }
-const ROLE_COLUMN: ListTableColumn = {key: "roles", label: "Role", width: "minmax(120px,1fr)"}
+const ROLE_COLUMN: ListTableColumn = {key: "roles", label: "Role", width: "minmax(0,1fr)"}
 const TAIL_COLUMNS: ListTableColumn[] = [
-    {key: "status", label: "Status", width: "minmax(96px,1fr)"},
-    {key: "created_at", label: "Added", width: "minmax(96px,1fr)"},
+    {key: "status", label: "Status", width: "minmax(0,1fr)"},
+    {key: "created_at", label: "Added", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
@@ -137,7 +137,7 @@ export const MembersPage = ({
                 groups={[{key: "all", label: null, rows}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
-                minWidth={renderRoleCell ? 700 : 580}
+                minWidth={0}
                 loading={loading && rows.length === 0}
                 hideHeader={!loading && rows.length === 0}
                 empty={

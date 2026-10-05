@@ -23,9 +23,9 @@ interface OrgRow extends Org {
 }
 
 const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Organization", width: "minmax(200px,2fr)"},
-    {key: "id", label: "Organization ID", width: "minmax(220px,2fr)"},
-    {key: "owner_id", label: "Your role", width: "minmax(96px,1fr)"},
+    {key: "name", label: "Organization", width: "minmax(0,2fr)"},
+    {key: "id", label: "Organization ID", width: "minmax(0,2fr)"},
+    {key: "owner_id", label: "Your role", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
@@ -88,7 +88,7 @@ export const OrganizationsPage = ({
                 groups={[{key: "all", label: null, rows}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
-                minWidth={640}
+                minWidth={0}
                 loading={loading && rows.length === 0}
                 hideHeader={!loading && rows.length === 0}
                 empty={

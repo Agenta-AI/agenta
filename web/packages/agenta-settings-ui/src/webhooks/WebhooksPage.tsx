@@ -62,10 +62,10 @@ interface WebhookRow extends WebhookSubscription {
 }
 
 const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(200px,2fr)"},
-    {key: "url", label: "Target", width: "minmax(180px,2fr)"},
-    {key: "events", label: "Events", width: "minmax(140px,1.4fr)"},
-    {key: "status", label: "Status", width: "minmax(96px,0.8fr)"},
+    {key: "name", label: "Name", width: "minmax(0,2fr)"},
+    {key: "url", label: "Target", width: "minmax(0,2fr)"},
+    {key: "events", label: "Events", width: "minmax(0,1.4fr)"},
+    {key: "status", label: "Status", width: "minmax(0,0.8fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
 
@@ -164,7 +164,7 @@ export const WebhooksPage = ({
                 groups={[{key: "webhooks", label: null, rows}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
-                minWidth={640}
+                minWidth={0}
                 loading={isLoading}
                 hideHeader={!isLoading && rows.length === 0}
                 onOpenRow={renderDrawer ? handleEdit : undefined}
