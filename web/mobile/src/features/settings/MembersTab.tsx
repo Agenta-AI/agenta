@@ -35,8 +35,6 @@ import {useMutation, useQuery} from "@tanstack/react-query"
 interface Props {
     members: WorkspaceMember[]
     loading: boolean
-    searchTerm: string
-    onSearchChange: (value: string) => void
     signedInUser: {id?: string | null; username?: string | null; email?: string | null} | null
     ownerId?: string | null
     organizationId?: string | null
@@ -52,8 +50,6 @@ interface Props {
 export const MembersTab = ({
     members,
     loading,
-    searchTerm,
-    onSearchChange,
     signedInUser,
     ownerId,
     organizationId,
@@ -121,8 +117,6 @@ export const MembersTab = ({
         <MembersPage
             members={members}
             loading={loading}
-            searchTerm={searchTerm}
-            onSearchChange={onSearchChange}
             signedInUser={signedInUser}
             ownerId={ownerId}
             canInviteMembers={scopeKnown}

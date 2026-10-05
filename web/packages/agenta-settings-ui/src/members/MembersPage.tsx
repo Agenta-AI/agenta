@@ -5,21 +5,12 @@ import {formatDay} from "@agenta/shared/utils/dateTime"
 import {InitialsAvatar, StatusIndicator, Tag} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {
-    ArrowClockwise,
-    Key,
-    MagnifyingGlass,
-    PencilSimpleLine,
-    Plus,
-    Trash,
-    Users,
-} from "@phosphor-icons/react"
+import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash, Users} from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
-import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 interface MemberRow extends WorkspaceMember {
     key: string
@@ -40,11 +31,8 @@ const TAIL_COLUMNS: ListTableColumn[] = [
 const usernameFromEmail = (email?: string | null) => (email ? email.split("@")[0] : "")
 
 export interface MembersPageProps {
-    /** The full roster — this page owns the search filter so hosts cannot drift on it. */
     members: WorkspaceMember[]
     loading?: boolean
-    searchTerm: string
-    onSearchChange: (value: string) => void
     /** Identifies "You" and hides the destructive actions on your own row. */
     signedInUser?: {id?: string | null; email?: string | null} | null
     /** The owner cannot be removed. */
@@ -69,14 +57,12 @@ export interface MembersPageProps {
 /**
  * The organization's members: who they are, their role, and where their invitation stands.
  *
- * A view only — the list, the search term and every verb come from the host, so a surface without
+ * A view only — the list and every verb come from the host, so a surface without
  * invite dialogs still renders the roster and its empty state.
  */
 export const MembersPage = ({
     members,
     loading = false,
-    searchTerm,
-    onSearchChange,
     signedInUser,
     ownerId,
     renderRoleCell,
@@ -91,17 +77,10 @@ export const MembersPage = ({
     onResetPassword,
     children,
 }: MembersPageProps) => {
-    const rows = useMemo<MemberRow[]>(() => {
-        const term = searchTerm.trim().toLowerCase()
-        const matching = term
-            ? members.filter((member) =>
-                  [member.user?.email, member.user?.username].some((value) =>
-                      value?.toLowerCase().includes(term),
-                  ),
-              )
-            : members
-        return matching.map((member) => ({...member, key: member.user.id}))
-    }, [members, searchTerm])
+    const rows = useMemo<MemberRow[]>(
+        () => members.map((member) => ({...member, key: member.user.id})),
+        [members],
+    )
 
     const isSelf = (member: WorkspaceMember) =>
         member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
@@ -120,18 +99,9 @@ export const MembersPage = ({
             </Button>
         ) : null
 
-    const searching = searchTerm.trim().length > 0
-
     return (
         <div className="flex flex-col">
             <SettingsPageActions>{inviteButton()}</SettingsPageActions>
-            <SettingsToolbar
-                search={{
-                    placeholder: "Search members",
-                    value: searchTerm,
-                    onChange: onSearchChange,
-                }}
-            />
             <ListTable<MemberRow>
                 columns={columns}
                 groups={[{key: "all", label: null, rows}]}
@@ -141,24 +111,12 @@ export const MembersPage = ({
                 loading={loading && rows.length === 0}
                 hideHeader={!loading && rows.length === 0}
                 empty={
-                    searching ? (
-                        <SettingsEmpty
-                            icon={<MagnifyingGlass size={18} />}
-                            title={`No members match “${searchTerm.trim()}”`}
-                            action={
-                                <Button variant="outline" onClick={() => onSearchChange("")}>
-                                    Clear search
-                                </Button>
-                            }
-                        />
-                    ) : (
-                        <SettingsEmpty
-                            icon={<Users size={18} />}
-                            title="No members yet"
-                            description="Invite people to collaborate in this organization. Invitations appear here until they are accepted or expire."
-                            action={inviteButton("outline")}
-                        />
-                    )
+                    <SettingsEmpty
+                        icon={<Users size={18} />}
+                        title="No members yet"
+                        description="Invite people to collaborate in this organization. Invitations appear here until they are accepted or expire."
+                        action={inviteButton("outline")}
+                    />
                 }
                 renderRow={(record) => {
                     const name = record.user.username || usernameFromEmail(record.user.email)

@@ -133,7 +133,6 @@ const TabBody = ({
     // A confirmation is about the section that raised it. Leaving the tab abandons that context,
     // so the modal must not survive into the next one and act there.
     useEffect(() => closeConfirm, [tab, closeConfirm])
-    const [memberSearch, setMemberSearch] = useState("")
 
     const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
     const [lastSavedFlag, setLastSavedFlag] = useState<AuthFlagKey | null>(null)
@@ -248,8 +247,6 @@ const TabBody = ({
                 <MembersTab
                     members={org.data?.default_workspace?.members ?? []}
                     loading={projects.isPending || org.isPending}
-                    searchTerm={memberSearch}
-                    onSearchChange={setMemberSearch}
                     signedInUser={user}
                     ownerId={org.data?.owner_id}
                     organizationId={organizationId}
