@@ -86,23 +86,22 @@ export const SubscriptionSignInDialog = ({
     return (
         <Dialog open={open} onOpenChange={(next) => (next ? undefined : close())}>
             <DialogContent className="sm:max-w-[440px]">
-                <DialogHeader>
-                    <div className="flex items-center gap-3">
-                        {logo ? (
-                            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-solid border-border bg-background shadow-xs [&_svg]:size-5">
-                                {logo}
-                            </span>
-                        ) : null}
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                            <DialogTitle>
-                                {succeeded ? `${name} connected` : `Connect ${name}`}
-                            </DialogTitle>
-                            <DialogDescription>
-                                {succeeded
-                                    ? statusLine || "Agents can run on this subscription."
-                                    : `Sign in with your ${name} subscription to run agents on it.`}
-                            </DialogDescription>
-                        </div>
+                {/* Same head as the integration connect dialog: the mark, then title and line. */}
+                <DialogHeader className="gap-3 text-left">
+                    {logo ? (
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-solid border-border bg-background shadow-xs [&_svg]:size-[18px]">
+                            {logo}
+                        </span>
+                    ) : null}
+                    <div className="flex flex-col gap-1">
+                        <DialogTitle className="text-base font-medium leading-snug">
+                            {succeeded ? `${name} connected` : `Connect ${name}`}
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-colorTextDescription">
+                            {succeeded
+                                ? statusLine || "Agents can run on this subscription."
+                                : `Sign in with your ${name} subscription to run agents on it.`}
+                        </DialogDescription>
                     </div>
                 </DialogHeader>
 
