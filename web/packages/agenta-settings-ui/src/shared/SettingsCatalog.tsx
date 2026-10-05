@@ -219,7 +219,7 @@ export const SettingsCatalog = ({
         <div className="flex flex-col gap-5">
             {search ? (
                 // Pinned to the body's top while the catalog scrolls; the host's fade starts below it.
-                <div data-sticky-search className="sticky top-0 z-10 -mb-3 bg-background pb-3">
+                <div data-sticky-search className="sticky top-0 z-10 -mb-3 bg-background pb-3 pt-1">
                     <ListTableToolbar
                         className="mb-0"
                         search={search.value}
