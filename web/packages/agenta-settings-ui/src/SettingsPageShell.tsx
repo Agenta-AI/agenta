@@ -1,4 +1,4 @@
-import {createContext, useContext, useState, type ReactNode} from "react"
+import {createContext, useContext, useState, type ReactNode, type Ref} from "react"
 
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -11,6 +11,8 @@ import {createPortal} from "react-dom"
  * other PageLayout pages do not want, so the two evolve separately.
  *
  * One centered column, 1040px including its gutters, for every tab: the title, then the body.
+ * The title stays put and only the body scrolls, across the full width so the scrollbar sits
+ * at the window's edge. The shell fills its parent's height, so the parent must not scroll.
  * A tab's primary action rides the title row through {@link SettingsPageActions}; search and
  * filters stay in the list's own toolbar.
  */
@@ -29,11 +31,10 @@ export interface SettingsPageShellProps {
      * timestamp + event type + full UUID row wants the whole monitor.
      */
     variant?: "full" | "table"
-    /**
-     * Bound the page height so a table that scrolls internally does not grow the page.
-     * Needed by tabs hosting a virtualized table.
-     */
-    fullHeight?: boolean
+    /** The body's scroll box, for a host that watches its scroll position. */
+    scrollRef?: Ref<HTMLDivElement>
+    /** Extra classes on the body's scroll box, e.g. a scroll-edge fade. */
+    scrollClassName?: string
     children: ReactNode
 }
 
@@ -50,28 +51,39 @@ export const SettingsPageActions = ({children}: {children: ReactNode}) => {
     return target ? createPortal(children, target) : null
 }
 
+/** The centered column both the title and the body sit in, so their edges line up. */
+const columnClassName = (variant: SettingsPageShellProps["variant"]) =>
+    clsx(
+        // `box-border` because preflight is off: `w-full` plus padding would overflow.
+        "box-border w-full px-4 sm:px-8 lg:px-14",
+        variant !== "full" && "mx-auto max-w-[1040px]",
+    )
+
 const SettingsPageShell = ({
     title,
     description,
     docs,
     variant = "full",
-    fullHeight,
+    scrollRef,
+    scrollClassName,
     children,
 }: SettingsPageShellProps) => {
     const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null)
     return (
         <div
             className={clsx(
-                // `box-border` because preflight is off: `w-full` plus padding would overflow.
-                "box-border flex w-full flex-col self-stretch px-4 pb-16 pt-6 sm:px-8 lg:px-14 lg:pt-11",
-                variant !== "full" && "mx-auto max-w-[1040px]",
+                "flex h-full min-h-0 w-full flex-col self-stretch",
                 // The app's body scale, stated rather than inherited: mobile has no antd and would
                 // otherwise render every Settings tab at the browser's 16px default.
                 "text-[14px] leading-[1.4285714285714286]",
-                fullHeight ? "h-full min-h-0" : "min-h-full",
             )}
         >
-            <header className="mb-7 flex flex-col gap-1.5">
+            <header
+                className={clsx(
+                    columnClassName(variant),
+                    "flex shrink-0 flex-col gap-1.5 pb-7 pt-6 lg:pt-11",
+                )}
+            >
                 <div className="flex min-w-0 items-center justify-between gap-4">
                     {/* Below `sm` the title drops to the 16px body ramp, like every page title on a
                     phone. `m-0` kills the UA margin (preflight is off). */}
@@ -100,10 +112,15 @@ const SettingsPageShell = ({
                 <p className="m-0 text-[14px] leading-5 text-colorTextSecondary">{description}</p>
             </header>
 
-            <div className={clsx("flex flex-col", fullHeight && "min-h-0 flex-1")}>
-                <HeaderActionsContext.Provider value={actionsSlot}>
-                    {children}
-                </HeaderActionsContext.Provider>
+            <div
+                ref={scrollRef}
+                className={clsx("min-h-0 flex-1 overflow-y-auto", scrollClassName)}
+            >
+                <div className={clsx(columnClassName(variant), "flex flex-col pb-16")}>
+                    <HeaderActionsContext.Provider value={actionsSlot}>
+                        {children}
+                    </HeaderActionsContext.Provider>
+                </div>
             </div>
         </div>
     )

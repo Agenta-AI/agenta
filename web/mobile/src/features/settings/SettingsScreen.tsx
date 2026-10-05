@@ -369,21 +369,17 @@ export const SettingsScreen = ({
         [router],
     )
 
-    // The Analytics tab's long column fades at an edge with more to scroll, below the sticky header.
+    // The Analytics tab's long column fades at an edge with more to scroll.
     const scrollRef = useRef<HTMLDivElement>(null)
     const fades = active === "analytics"
-    useScrollFadeEdges(scrollRef, {enabled: fades, insetSelector: "header"})
+    useScrollFadeEdges(scrollRef, {enabled: fades})
 
     const content = (
-        <div
-            ref={scrollRef}
-            className={`min-w-0 flex-1 overflow-y-auto${fades ? " ag-scroll-fade" : ""}`}
-        >
-            {/* The shared page cap, same as every desktop Settings tab. It was escaped here when
-                this app was phone-only; `max-w-[1248px]` never binds below ~1490px of viewport,
-                so it costs phones nothing and stops the page sprawling edge to edge on the
-                desktop widths this app now serves. */}
+        // Does not scroll: the shell keeps the title still and scrolls only its body.
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <SettingsPageShell
+                scrollRef={scrollRef}
+                scrollClassName={fades ? "ag-scroll-fade" : undefined}
                 variant={getSettingsTabVariant(active)}
                 title={getMobileSettingsTabLabel(active, access)}
                 description={getMobileSettingsTabDescription(active, access)}
