@@ -14,6 +14,7 @@ export interface UpgradeNoticeProps {
 /** Stands in for a section the current plan does not include, framed like every empty page. */
 export const UpgradeNotice = ({title, description, action}: UpgradeNoticeProps) => (
     <SettingsEmpty
+        plain
         icon={<Lock size={18} />}
         title={title}
         description={

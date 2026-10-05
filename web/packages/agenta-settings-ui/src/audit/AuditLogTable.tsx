@@ -151,6 +151,7 @@ export const AuditLogTable = ({
                 onOpenRow={(record) => onSelectEvent(record.id)}
                 empty={
                     <SettingsEmpty
+                        plain
                         icon={<ClockCounterClockwise size={18} />}
                         title="No events in this window"
                         description="Widen the date range or clear the filters."

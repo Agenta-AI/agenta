@@ -416,6 +416,7 @@ export default function GatewayToolsSection({
                     empty={
                         term ? (
                             <SettingsEmpty
+                                plain
                                 icon={<MagnifyingGlass size={18} />}
                                 title={copy.noMatch(searchTerm.trim())}
                                 action={

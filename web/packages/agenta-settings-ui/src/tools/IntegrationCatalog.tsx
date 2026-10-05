@@ -179,6 +179,7 @@ const FlatCatalog = ({
     if (!fetching && items.length === 0 && !available.hasNextPage) {
         return connectedMatches > 0 || !term ? null : (
             <SettingsEmpty
+                plain
                 icon={<MagnifyingGlass size={18} />}
                 title={noMatch(term)}
                 action={
