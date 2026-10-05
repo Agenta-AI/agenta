@@ -188,6 +188,15 @@ global:
 #   redisVolatile:
 #     safeToEvict: false        # default; true lets the autoscaler consolidate the node
 #     podAnnotations: {}        # merged over the default, so a key set here wins
+# Both bundled Redis instances probe startup every five seconds and restart after
+# 60 failures by default (about five minutes). The durable instance must replay its
+# append-only file before ping succeeds. Measure recovery with your CPU/storage limits
+# and allow enough time, or restarts can repeat the same unfinished replay.
+# Increase the threshold per instance without changing the error-aware ping command:
+#   redisDurable:
+#     startupProbe:
+#       failureThreshold: 360  # example: about 30 minutes, not a recovery guarantee
+# The same key works on redisVolatile; it leaves the other instance's threshold alone.
 redisDurable:
   persistence:
     size: "5Gi"

@@ -1,5 +1,6 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $redisDurable := default dict $values.redisDurable -}}
+{{- $startupProbe := default dict $redisDurable.startupProbe -}}
 {{- $persistence := default dict $redisDurable.persistence -}}
 {{- $persistenceEnabled := true -}}
 {{- if hasKey $persistence "enabled" -}}
@@ -93,9 +94,10 @@ spec:
                   name: {{ include "agenta.secretName" . }}
                   key: REDIS_DURABLE_PASSWORD
           {{- end }}
-          {{- /* A startup probe, so a restart that has to replay the
-                 append-only file is not killed by liveness while it works.
-                 Liveness and readiness only begin once this passes. */}}
+          {{- /* Liveness and readiness wait for startup to pass. A startup failure
+                 still restarts Redis after 60 attempts, about five minutes by default.
+                 Set redisDurable.startupProbe.failureThreshold higher when replaying the
+                 append-only file can take longer; otherwise restarts repeat the replay. */}}
           {{- /* -e makes redis-cli exit non-zero on an error REPLY, not just on a
                  connection failure. Without it `ping` exits 0 while the server answers
                  LOADING during an AOF replay, so a probe reported a loading instance as
@@ -107,7 +109,7 @@ spec:
             initialDelaySeconds: 2
             periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 60
+            failureThreshold: {{ default 60 $startupProbe.failureThreshold }}
           livenessProbe:
             exec:
               command: ["redis-cli", "-e", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]

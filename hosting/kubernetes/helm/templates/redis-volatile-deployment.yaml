@@ -1,5 +1,6 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $redisVolatile := default dict $values.redisVolatile -}}
+{{- $startupProbe := default dict $redisVolatile.startupProbe -}}
 {{- if eq (include "agenta.redisVolatile.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -99,7 +100,7 @@ spec:
             initialDelaySeconds: 2
             periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 60
+            failureThreshold: {{ default 60 $startupProbe.failureThreshold }}
           livenessProbe:
             exec:
               command: ["redis-cli", "-e", "-p", {{ include "agenta.redisVolatile.port" . | quote }}, "ping"]

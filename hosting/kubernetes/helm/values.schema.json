@@ -1563,6 +1563,18 @@
         "enabled": {
           "type": "boolean"
         },
+        "startupProbe": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Startup allowance for this bundled Redis. The error-aware ping command and five-second interval stay fixed.",
+          "properties": {
+            "failureThreshold": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Consecutive failed startup probes before Kubernetes restarts Redis. Default 60 (about five minutes). Increase this for slow append-only-file recovery; 360 allows about 30 minutes. Choose a value from measured recovery time with CPU and storage limits in place."
+            }
+          }
+        },
         "password": {
           "type": "string",
           "description": "Optional; rendered into REDIS_URI_VOLATILE / REDIS_URI_DURABLE."

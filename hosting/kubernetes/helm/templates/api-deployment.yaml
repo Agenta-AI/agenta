@@ -14,11 +14,12 @@ spec:
   {{- /* Graceful rollouts. A managed load balancer (GKE) keeps sending requests to a pod
          for a few seconds after Kubernetes removes it from the endpoints, so a pod that
          exits at once answers them with 502. The api is the workload that serves those
-         requests, and it had none of the three protections every other web-facing
-         workload got: no strategy, no grace period and no preStop. The Kubernetes default
-         of 25% unavailable rounds to "the only pod" on a single-replica install, so a
-         rollout was a deliberate outage. Now the same defaults as services, web and
-         webMobile. See the README section "Graceful rollouts". */}}
+         requests. Kubernetes defaults to RollingUpdate with maxUnavailable: 25% and
+         maxSurge: 25%. For one replica, these round down to 0 unavailable pods and up
+         to 1 surge pod, so the explicit 0/1 limits preserve those availability limits.
+         The api previously had no preStop hook and used the default 30-second grace
+         period. Now it uses the same rollout and shutdown defaults as services, web
+         and webMobile. See the README section "Graceful rollouts". */}}
   {{- with $api.strategy }}
   strategy:
     {{- toYaml . | nindent 4 }}
