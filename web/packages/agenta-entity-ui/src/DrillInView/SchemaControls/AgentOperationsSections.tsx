@@ -78,7 +78,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                 </div>
             </section>
             <section className="flex grow flex-col" aria-busy>
-                <AgentRegionHeaderBar title="Files" sticky={sticky}>
+                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
@@ -98,7 +98,6 @@ export function AgentOperationsSections({
     sticky = true,
     storage,
     storageHeader,
-    storageTitle = "Files",
     automationDrawer,
     onOpenRunHistory,
 }: {
@@ -114,7 +113,6 @@ export function AgentOperationsSections({
      * layer for the same reason as `storage`. Follows the shared `ConfigRowTrailing` convention so
      * its folder glyph lands on the panel's affordance axis. */
     storageHeader?: ReactNode
-    storageTitle?: string
     /** The automations create/edit drawer, passed down to the Automations section. */
     automationDrawer: ReactNode
     /** A row's "Run history" destination; see {@link TriggerManagementSection}. */
@@ -169,7 +167,7 @@ export function AgentOperationsSections({
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
             <section className="flex grow flex-col">
-                <AgentRegionHeaderBar title={storageTitle} sticky={sticky}>
+                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     {storageHeader}
                 </AgentRegionHeaderBar>
                 {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}

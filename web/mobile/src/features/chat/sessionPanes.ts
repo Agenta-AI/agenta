@@ -20,7 +20,6 @@ export interface SessionPaneInputs {
     /** The Files pane's open flag (`useSessionFilesPane`), which any file opener latches. */
     filesOpen: boolean
     filesExpanded?: boolean
-    suppressConfig?: boolean
 }
 
 export interface SessionPanes {
@@ -39,13 +38,12 @@ export const resolveSessionPanes = ({
     hasEntity,
     filesOpen,
     filesExpanded = false,
-    suppressConfig = false,
 }: SessionPaneInputs): SessionPanes => {
     // On a phone an open Files pane takes the whole screen, so nothing else gets a slot. Neither
     // flag is touched: closing Files lands back on whatever was showing under it.
     if (filesOpen && (filesExpanded || !twoPane))
         return {showConfig: false, showPane: false, showFiles: true}
-    const showConfig = !chatMaximized && !configCollapsed && !suppressConfig && hasEntity
+    const showConfig = !chatMaximized && !configCollapsed && hasEntity
     // The sessions rail stands in for the config panel ONLY in maximized mode, as on the desktop.
     // Collapsing config collapses the PANE and gives the width to the conversation; swapping the
     // rail in instead means the collapse never actually frees any space.

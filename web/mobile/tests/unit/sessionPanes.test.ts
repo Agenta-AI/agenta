@@ -70,7 +70,7 @@ describe("resolveSessionPanes on a phone with the Files pane open", () => {
     })
 })
 
-describe("expanded files and responsive restoration", () => {
+describe("resolveSessionPanes with the Files pane expanded", () => {
     it("covers Settings and the sessions rail only while files are open", () => {
         for (const chatMaximized of [true, false]) {
             expect(
@@ -93,21 +93,18 @@ describe("expanded files and responsive restoration", () => {
             }),
         ).toEqual({showConfig: true, showPane: true, showFiles: false})
     })
-    it("temporarily suppresses Settings without replacing its retained intent", () => {
-        const input = {...phone, twoPane: true, configCollapsed: false, filesOpen: true}
-        expect(resolveSessionPanes({...input, suppressConfig: true})).toEqual({
-            showConfig: false,
-            showPane: false,
-            showFiles: true,
-        })
-        expect(resolveSessionPanes(input)).toEqual({
-            showConfig: true,
-            showPane: true,
-            showFiles: true,
-        })
-        expect(input.configCollapsed).toBe(false)
+    it("brings Settings back beside Files when the expansion ends", () => {
+        expect(
+            resolveSessionPanes({
+                ...phone,
+                twoPane: true,
+                configCollapsed: false,
+                filesOpen: true,
+                filesExpanded: false,
+            }),
+        ).toEqual({showConfig: true, showPane: true, showFiles: true})
     })
-    it("restores at the current breakpoint, including an originally hidden Settings pane", () => {
+    it("restores at the current breakpoint, keeping a collapsed Settings pane collapsed", () => {
         expect(resolveSessionPanes({...phone, filesOpen: true, filesExpanded: false})).toEqual({
             showConfig: false,
             showPane: false,

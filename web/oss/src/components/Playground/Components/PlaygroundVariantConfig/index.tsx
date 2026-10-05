@@ -371,7 +371,6 @@ const PlaygroundVariantConfig: React.FC<
                                 scope={chatScopeKey}
                             />
                         }
-                        storageTitle="Recent files"
                         storageHeader={
                             <StorageFilesHeader
                                 revisionId={variantId}

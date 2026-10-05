@@ -1,118 +1,110 @@
-import {act, useEffect, useRef, useState} from "react"
+import {act} from "react"
 import {createRoot} from "react-dom/client"
 
 import {Provider, createStore} from "jotai"
-import {describe, expect, it} from "vitest"
+import {afterEach, describe, expect, it} from "vitest"
 
 import {useFilesPaneLayout} from "../../src/state/filesPaneLayout"
 import {
     chatPanelMaximizedAtom,
     configPanelCollapsedAtom,
-    configPanelCollapsedPreferenceAtom,
     configPanelCollapsedPhonePreferenceAtom,
+    configPanelCollapsedPreferenceAtom,
     filesPaneWidthAtom,
-    phoneViewportAtom,
+    playgroundLayoutActionAtom,
     rightPanelWidthAtom,
 } from "../../src/state/panelLayout"
+;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
+    true
 
-function Runtime() {
-    const instance = useRef({})
-    const [counter, setCounter] = useState(0)
-    useEffect(() => {
-        const timer = setInterval(() => setCounter((n) => n + 1), 10)
-        return () => clearInterval(timer)
-    }, [])
-    return (
-        <div data-instance={String(instance.current)}>
-            <iframe title="Running app" srcDoc="<button>Counter</button>" />
-            <textarea defaultValue="unsaved" />
-            <span data-stream>{counter}</span>
-        </div>
-    )
+let cleanup: (() => void) | undefined
+afterEach(() => cleanup?.())
+
+function setup() {
+    const store = createStore()
+    const mount = document.createElement("div")
+    const root = createRoot(mount)
+    let layout: ReturnType<typeof useFilesPaneLayout> | undefined
+    function Host({session, open}: {session: string; open: boolean}) {
+        layout = useFilesPaneLayout("w:scope", session, open)
+        return null
+    }
+    const render = (session = "session-1", open = true) =>
+        act(() =>
+            root.render(
+                <Provider store={store}>
+                    <Host session={session} open={open} />
+                </Provider>,
+            ),
+        )
+    render()
+    cleanup = () => act(() => root.unmount())
+    return {
+        store,
+        render,
+        expanded: () => layout!.expanded,
+        toggle: () => act(() => layout!.toggleExpand()),
+    }
 }
 
-for (const host of ["m:agent-first", "w:drawer:chat-scope"]) {
-    describe(`${host} transient file layout`, () => {
-        it("retains intent, instances, drafts and both viewport preferences without a storage write", async () => {
-            const store = createStore()
-            store.set(configPanelCollapsedPreferenceAtom, false)
-            store.set(configPanelCollapsedPhonePreferenceAtom, true)
-            store.set(rightPanelWidthAtom, 460)
-            store.set(filesPaneWidthAtom, 620)
-            let props = {open: true, session: "session-1"}
-            const mount = document.createElement("div")
-            document.body.appendChild(mount)
-            const root = createRoot(mount)
-            function Host() {
-                const layout = useFilesPaneLayout(host, props.session, props.open)
-                return (
-                    <>
-                        <button
-                            onClick={() => layout.toggleExpand(false)}
-                            aria-pressed={layout.expanded}
-                        >
-                            Toggle
-                        </button>
-                        <div
-                            data-retaining={layout.retaining}
-                            data-collapsed={layout.configCollapsed}
-                        >
-                            <Runtime />
-                        </div>
-                    </>
-                )
-            }
-            const render = () =>
-                act(() =>
-                    root.render(
-                        <Provider store={store}>
-                            <Host />
-                        </Provider>,
-                    ),
-                )
-            render()
-            const iframe = mount.querySelector("iframe")
-            const editor = mount.querySelector("textarea")!
-            editor.value = "my dirty draft"
-            const click = () => act(() => mount.querySelector("button")!.click())
-            click()
-            expect(mount.querySelector("button")!.getAttribute("aria-pressed")).toBe("true")
-            act(() => store.set(phoneViewportAtom, true))
-            expect(mount.querySelector("button")!.getAttribute("aria-pressed")).toBe("true")
-            await act(async () => {
-                await new Promise((r) => setTimeout(r, 40))
-            })
-            expect(Number(mount.querySelector("[data-stream]")!.textContent)).toBeGreaterThan(0)
-            click()
-            expect(mount.querySelector("button")!.getAttribute("aria-pressed")).toBe("false")
-            expect(mount.querySelector("[data-retaining]")!.getAttribute("data-retaining")).toBe(
-                "true",
-            )
-            expect(mount.querySelector("iframe")).toBe(iframe)
-            expect(mount.querySelector("textarea")).toBe(editor)
-            expect(editor.value).toBe("my dirty draft")
-            expect(store.get(configPanelCollapsedPreferenceAtom)).toBe(false)
-            expect(store.get(configPanelCollapsedPhonePreferenceAtom)).toBe(true)
-            expect(store.get(rightPanelWidthAtom)).toBe(460)
-            expect(store.get(filesPaneWidthAtom)).toBe(620)
-            click()
-            props = {...props, open: false}
-            render()
-            props = {...props, open: true}
-            render()
-            expect(mount.querySelector("button")!.getAttribute("aria-pressed")).toBe("false")
-            click()
-            props = {...props, session: "session-2"}
-            render()
-            expect(mount.querySelector("button")!.getAttribute("aria-pressed")).toBe("false")
-            click()
-            act(() => store.set(configPanelCollapsedAtom, false))
-            expect(mount.querySelector("button")!.getAttribute("aria-pressed")).toBe("false")
-            click()
-            act(() => store.set(chatPanelMaximizedAtom, true))
-            expect(mount.querySelector("button")!.getAttribute("aria-pressed")).toBe("false")
-            act(() => root.unmount())
-            mount.remove()
-        })
+describe("useFilesPaneLayout", () => {
+    it("flips the expansion on each toggle", () => {
+        const host = setup()
+        host.toggle()
+        expect(host.expanded()).toBe(true)
+        host.toggle()
+        expect(host.expanded()).toBe(false)
     })
-}
+
+    it("writes no width or collapse preference while expanding and restoring", () => {
+        const host = setup()
+        host.store.set(configPanelCollapsedPreferenceAtom, false)
+        host.store.set(configPanelCollapsedPhonePreferenceAtom, true)
+        host.store.set(rightPanelWidthAtom, 460)
+        host.store.set(filesPaneWidthAtom, 620)
+        const action = host.store.get(playgroundLayoutActionAtom)
+        host.toggle()
+        host.toggle()
+        expect(host.store.get(playgroundLayoutActionAtom)).toBe(action)
+        expect(host.store.get(configPanelCollapsedPreferenceAtom)).toBe(false)
+        expect(host.store.get(configPanelCollapsedPhonePreferenceAtom)).toBe(true)
+        expect(host.store.get(rightPanelWidthAtom)).toBe(460)
+        expect(host.store.get(filesPaneWidthAtom)).toBe(620)
+    })
+
+    it("ends when the pane closes", () => {
+        const host = setup()
+        host.toggle()
+        host.render("session-1", false)
+        host.render("session-1", true)
+        expect(host.expanded()).toBe(false)
+    })
+
+    it("ends when the session changes", () => {
+        const host = setup()
+        host.toggle()
+        host.render("session-2")
+        expect(host.expanded()).toBe(false)
+    })
+
+    it("ends on a config collapse write", () => {
+        const host = setup()
+        host.toggle()
+        act(() => host.store.set(configPanelCollapsedAtom, true))
+        expect(host.expanded()).toBe(false)
+    })
+
+    it("ends on a maximize write", () => {
+        const host = setup()
+        host.toggle()
+        act(() => host.store.set(chatPanelMaximizedAtom, true))
+        expect(host.expanded()).toBe(false)
+    })
+
+    it("does not expand a closed pane", () => {
+        const host = setup()
+        host.render("session-1", false)
+        host.toggle()
+        expect(host.expanded()).toBe(false)
+    })
+})

@@ -57,7 +57,6 @@ export const ConfigPane = ({
                 <AgentBuildPanel
                     revisionId={entityId}
                     stickyHeaderTop={48}
-                    storageTitle="Recent files"
                     storage={
                         <StorageSection
                             revisionId={entityId}

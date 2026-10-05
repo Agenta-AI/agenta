@@ -319,47 +319,25 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const prevFilesOpenRef = useRef(filesPane.open)
     useEffect(() => {
-        if (
-            !filesLayout.retaining &&
-            filesPane.open &&
-            !prevFilesOpenRef.current &&
-            !canPanesCoexist
-        )
+        if (filesPane.open && !prevFilesOpenRef.current && !canPanesCoexist)
             setConfigPanelCollapsed(true)
         prevFilesOpenRef.current = filesPane.open
-    }, [filesPane.open, canPanesCoexist, setConfigPanelCollapsed, filesLayout.retaining])
+    }, [filesPane.open, canPanesCoexist, setConfigPanelCollapsed])
     const closeFilesPane = filesPane.close
     const prevConfigCollapsedRef = useRef(configPanelCollapsed)
     useEffect(() => {
-        if (
-            !filesLayout.retaining &&
-            !configPanelCollapsed &&
-            prevConfigCollapsedRef.current &&
-            !canPanesCoexist
-        )
+        if (!configPanelCollapsed && prevConfigCollapsedRef.current && !canPanesCoexist)
             closeFilesPane()
         prevConfigCollapsedRef.current = configPanelCollapsed
-    }, [configPanelCollapsed, canPanesCoexist, closeFilesPane, filesLayout.retaining])
+    }, [configPanelCollapsed, canPanesCoexist, closeFilesPane])
     // Shrinking below the threshold with BOTH open: keep the Files pane (the content surface the
     // user opened deliberately) and collapse the config pane — the same choice opening Files makes.
     const prevCoexistRef = useRef(canPanesCoexist)
     useEffect(() => {
-        if (
-            !filesLayout.retaining &&
-            !canPanesCoexist &&
-            prevCoexistRef.current &&
-            filesPane.open &&
-            !configPanelCollapsed
-        )
+        if (!canPanesCoexist && prevCoexistRef.current && filesPane.open && !configPanelCollapsed)
             setConfigPanelCollapsed(true)
         prevCoexistRef.current = canPanesCoexist
-    }, [
-        canPanesCoexist,
-        filesPane.open,
-        configPanelCollapsed,
-        setConfigPanelCollapsed,
-        filesLayout.retaining,
-    ])
+    }, [canPanesCoexist, filesPane.open, configPanelCollapsed, setConfigPanelCollapsed])
 
     // A trigger test asks for a fresh session: create + activate one, then clear the flag so the
     // new session's conversation consumes the turn (the per-session consumer skips flagged runs).
@@ -412,7 +390,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
             paneMax={RAIL_MAX_WIDTH}
             fillMin={320}
             resizable={chatMaximized && !fullWidthFiles}
-            animate={animateRailSplit && !filesLayout.retaining}
+            animate={animateRailSplit}
             barHidden={!chatMaximized || fullWidthFiles}
             className="h-full min-h-0 min-w-0 w-full"
             onResize={(size) => {
@@ -456,9 +434,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                 <SessionFilesPane
                                     sessionId={activeId}
                                     expanded={filesExpanded}
-                                    onToggleExpand={() =>
-                                        filesLayout.toggleExpand(configPanelCollapsed)
-                                    }
+                                    onToggleExpand={filesLayout.toggleExpand}
                                 />
                             </DriveSessionProvider>
                         ) : null

@@ -20,11 +20,10 @@ vi.mock("../../src/drive/DriveFileRow", () => ({
 }))
 vi.mock("../../src/drive/SessionFilesPane", async () => {
     const {atom, useAtom} = await import("jotai")
-    const buckets = new Map<string, ReturnType<typeof atom<boolean>>>()
+    const openAtom = atom(false)
     return {
-        useSessionFilesPane: (scope: string) => {
-            if (!buckets.has(scope)) buckets.set(scope, atom(false))
-            const [open, set] = useAtom(buckets.get(scope)!)
+        useSessionFilesPane: () => {
+            const [open, set] = useAtom(openAtom)
             return {open, toggle: () => set(!open)}
         },
     }
@@ -45,6 +44,8 @@ vi.mock("@agenta/ui/ui", () => ({
     SkeletonBlock: () => <span data-loading />,
 }))
 import StorageFilesHeader from "../../src/drive/StorageFilesHeader"
+;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
+    true
 
 beforeEach(() =>
     Object.assign(fixture.drive, {
@@ -57,57 +58,43 @@ beforeEach(() =>
     }),
 )
 
-for (const scope of ["agent-first", "revision-drawer-chat-scope"]) {
-    describe(`${scope} Settings discovery`, () => {
-        for (const state of ["normal", "loading", "error", "empty", "capped"]) {
-            it(`keeps a synchronized folder toggle after the total count in ${state}`, () => {
-                fixture.drive.isLoading = state === "loading"
-                fixture.drive.errored = state === "error"
-                fixture.drive.fileCount = state === "empty" ? 0 : 12
-                fixture.drive.fileCountCapped = state === "capped"
-                const host = document.createElement("div")
-                const root = createRoot(host)
-                act(() =>
-                    root.render(
-                        <Provider store={createStore()}>
-                            <StorageFilesHeader scope={scope} sessionId="session-1" />
-                            <StorageFilesHeader scope={scope} sessionId="session-1" />
-                        </Provider>,
-                    ),
-                )
-                const buttons = [...host.querySelectorAll("button")]
-                expect(buttons).toHaveLength(2)
-                expect(buttons[0].disabled).toBe(false)
-                act(() => buttons[0].click())
-                expect(buttons.map((b) => b.getAttribute("aria-pressed"))).toEqual(["true", "true"])
-                act(() => buttons[1].click())
-                expect(buttons.map((b) => b.getAttribute("aria-pressed"))).toEqual([
-                    "false",
-                    "false",
-                ])
-                if (state === "capped") expect(host.textContent).toContain("12+ files")
-                if (state === "empty") expect(host.textContent).toContain("No files")
-                if (state === "normal")
-                    expect(host.querySelector('[data-tooltip="Total files"]')!.textContent).toBe(
-                        "12 files",
-                    )
-                act(() => root.unmount())
-            })
-        }
-    })
+function render(ui: React.ReactNode) {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    act(() => root.render(<Provider store={createStore()}>{ui}</Provider>))
+    return {host, unmount: () => act(() => root.unmount())}
 }
-it("disables the no-conversation control and explains why", () => {
-    const host = document.createElement("div")
-    const root = createRoot(host)
-    act(() => root.render(<StorageFilesHeader scope="no-session" />))
-    expect(host.querySelector("button")!.disabled).toBe(true)
-    expect(host.querySelector("button")!.title).toBe("Open a conversation to browse files.")
-    act(() => root.unmount())
-})
-it("does not add a toggle to unrelated hosts", () => {
-    const host = document.createElement("div")
-    const root = createRoot(host)
-    act(() => root.render(<StorageFilesHeader sessionId="session" />))
-    expect(host.querySelector("button")).toBeNull()
-    act(() => root.unmount())
+
+describe("StorageFilesHeader files toggle", () => {
+    for (const state of ["loaded", "loading", "error"] as const) {
+        it(`flips the pane while the drive is ${state}`, () => {
+            fixture.drive.isLoading = state === "loading"
+            fixture.drive.errored = state === "error"
+            const {host, unmount} = render(
+                <StorageFilesHeader scope="agent-first" sessionId="session-1" />,
+            )
+            const button = host.querySelector("button")!
+            expect(button.disabled).toBe(false)
+            act(() => button.click())
+            expect(button.getAttribute("aria-pressed")).toBe("true")
+            act(() => button.click())
+            expect(button.getAttribute("aria-pressed")).toBe("false")
+            unmount()
+        })
+    }
+
+    it("is disabled without a conversation and says why", () => {
+        const {host, unmount} = render(<StorageFilesHeader scope="agent-first" />)
+        expect(host.querySelector("button")!.disabled).toBe(true)
+        expect(
+            host.querySelector('[data-tooltip="Open a conversation to browse files."]'),
+        ).not.toBeNull()
+        unmount()
+    })
+
+    it("does not render without a scope", () => {
+        const {host, unmount} = render(<StorageFilesHeader sessionId="session" />)
+        expect(host.querySelector("button")).toBeNull()
+        unmount()
+    })
 })

@@ -4,9 +4,7 @@ import {
     chatPanelMaximizedAtom,
     configPanelCollapsedAtom,
     phoneViewportAtom,
-    panesCoexistMinWindow,
     useFilesPaneLayout,
-    usePaneContainerWidth,
 } from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui"
@@ -277,19 +275,13 @@ const PlaygroundMainView = ({
         : sessions[0]?.id
     const filesPane = useSessionFilesPane(chatScope, activeSessionId ?? "")
     const filesLayout = useFilesPaneLayout(`w:${chatScope}`, activeSessionId ?? "", filesPane.open)
-    const {containerRef, containerWidth} = usePaneContainerWidth()
     const filesExpanded = isAgentConfig && filesLayout.expanded
     const phoneViewport = useAtomValue(phoneViewportAtom)
     const fullWidthFiles = filesExpanded || (isAgentConfig && phoneViewport && filesPane.open)
-    const suppressConfig =
-        filesLayout.retaining && filesPane.open && (containerWidth ?? 0) < panesCoexistMinWindow(0)
     const configCollapsed =
         !isComparisonView &&
         isAgentConfig &&
-        (fullWidthFiles ||
-            suppressConfig ||
-            chatMaximized ||
-            (filesLayout.configCollapsed ?? configPanelCollapsed))
+        (fullWidthFiles || chatMaximized || configPanelCollapsed)
     // Ease the config pane between its width and 0 on EITHER collapse trigger. The transition class
     // must land in the SAME commit as the size change (else it snaps), so detect the flip during
     // render via a ref compare; hold it ~280ms so removing the class doesn't snap, then drop it
@@ -404,7 +396,6 @@ const PlaygroundMainView = ({
             {...divProps}
         >
             <div
-                ref={containerRef}
                 className={clsx("w-full max-h-full h-full grow relative overflow-hidden", {
                     // Agent Build view: recess the whole workspace to a near-black/soft-grey base so
                     // the raised Config panel and the Chat canvas read as two distinct surfaces.
@@ -424,10 +415,12 @@ const PlaygroundMainView = ({
                         paneMin={300}
                         paneMax={440}
                         fillMin={420}
-                        animate={animateSplit && !filesLayout.retaining}
+                        animate={animateSplit}
                         barHidden={configCollapsed}
                         resizable={!configCollapsed}
-                        paneClassName={configCollapsed ? "hidden" : undefined}
+                        // Only full-width files drop the pane from layout: every other collapse
+                        // keeps it in flow so the flex-basis ease above still runs.
+                        paneClassName={fullWidthFiles ? "hidden" : undefined}
                         // Controlled width: the drag must write through per tick, or the pane
                         // only snaps at pointer-up.
                         onResize={(size) => setAgentPaneSize(size)}

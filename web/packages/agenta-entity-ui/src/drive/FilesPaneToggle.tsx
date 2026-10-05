@@ -1,16 +1,18 @@
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, SimpleTooltip, type SimpleTooltipProps} from "@agenta/ui/ui"
 import {Folder, FolderOpen} from "@phosphor-icons/react"
 
 export function FilesPaneToggle({
     open,
     onToggle,
     disabled = false,
+    tooltipSide,
 }: {
     open: boolean
     onToggle: () => void
     disabled?: boolean
+    tooltipSide?: SimpleTooltipProps["side"]
 }) {
     return (
         <SimpleTooltip
@@ -24,6 +26,7 @@ export function FilesPaneToggle({
                     </span>
                 )
             }
+            side={tooltipSide}
         >
             <span className="inline-flex shrink-0">
                 <Button
@@ -32,7 +35,6 @@ export function FilesPaneToggle({
                     aria-label={open ? "Hide files pane" : "Show files pane"}
                     aria-pressed={open}
                     aria-keyshortcuts={shortcutAria("panel.files")}
-                    title={disabled ? "Open a conversation to browse files." : undefined}
                     disabled={disabled}
                     onClick={onToggle}
                     className="h-7 w-7 shrink-0 p-0"
