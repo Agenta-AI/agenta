@@ -4,6 +4,7 @@ import type {
   CredentialDeliveryCapabilities,
   CredentialDeliveryPort,
 } from "../../providers/credential-delivery-port.ts";
+import { wasSandboxCreatedHere } from "./created-sandboxes.ts";
 import { DaytonaReconnectTerminalError } from "./daytona-provider.ts";
 import { planSlotKeys, type DaytonaSecretPlan } from "./daytona-secret-plan.ts";
 import {
@@ -430,9 +431,10 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
       const entry = registry.get(sandboxId);
       const activeProvider = providerFor({});
       if (!entry) {
-        // The runner restarted or lost ownership. It cannot prove which Secrets back the parked
-        // sandbox, so delete the sandbox and force the caller onto a fresh create.
-        await destroySandboxIdempotently(activeProvider, sandboxId);
+        // The runner restarted or another process created this sandbox. It cannot prove which
+        // Secrets back it, so force the caller onto a fresh create. It does NOT delete it: another
+        // pod may still be serving a turn from it, and only Kill deletes a sandbox this process
+        // did not create. Daytona's autostop and autodelete reclaim it otherwise.
         throw new DaytonaReconnectTerminalError(
           sandboxId,
           "missing-process-local-secret-allocation",
@@ -533,6 +535,12 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
       const activeProvider = providerFor({});
       const entry = registry.get(sandboxId);
       if (!entry) {
+        // No entry means no proof this process owns the sandbox. Delete it only when this process
+        // created it; any other one may be serving another pod's turn.
+        if (!wasSandboxCreatedHere(sandboxId)) {
+          log(`not deleting sandbox=${sandboxId}: not created by this runner`);
+          return;
+        }
         await destroySandboxIdempotently(activeProvider, sandboxId);
         return;
       }

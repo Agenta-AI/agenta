@@ -5,6 +5,7 @@ import {
   DEFAULT_DAYTONA_SNAPSHOT,
   type RunnerDaytonaConfig,
 } from "../../config/runner-config.ts";
+import { markSandboxCreated } from "./created-sandboxes.ts";
 
 type DaytonaClient = Pick<Daytona, "get">;
 type DaytonaCreateObjectWithSnapshot = {
@@ -231,7 +232,11 @@ export function daytonaWithLifecycle(
     ...baseProvider,
     async create(): Promise<string> {
       try {
-        return await baseProvider.create();
+        // Every Daytona-path create passes through here, with or without the Secrets wrapper,
+        // so this is where the process learns which sandboxes it may reconnect to and delete.
+        const sandboxId = await baseProvider.create();
+        markSandboxCreated(sandboxId);
+        return sandboxId;
       } catch (error) {
         if (!isNotFound(error)) throw error;
 

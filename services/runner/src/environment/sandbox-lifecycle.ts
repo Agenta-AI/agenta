@@ -2,8 +2,8 @@
  * `SandboxLifecycle` — the provider instance.
  *
  * LIFECYCLE MIGRATION, STEP 5. This unit owns the `sandbox_start` acquire stage and the sandbox
- * half of teardown. It is a pure code move: the reconnect ladder, the fresh-create fallback, the
- * park-versus-delete decision, and the in-flight registry all behave exactly as they did inline.
+ * half of teardown: the reconnect ladder, the fresh-create fallback, and the park-versus-delete
+ * decision.
  *
  * TWO EVENTS, ONE STAGE NAME. `acquire` may reconnect a parked sandbox or create a fresh one. Both
  * emit `sandbox_start`, and the mode rides the ` mode=...` field. A dashboard grouping by stage
@@ -15,6 +15,7 @@
  */
 import { conciseError } from "../engines/sandbox_agent/errors.ts";
 import { DaytonaReconnectTerminalError } from "../engines/sandbox_agent/daytona-provider.ts";
+import { wasSandboxCreatedHere } from "../engines/sandbox_agent/created-sandboxes.ts";
 import {
   markSandboxDestroyed,
   readStoredSandboxPointer,
@@ -54,10 +55,10 @@ export interface SandboxAcquireResult {
 }
 
 /**
- * Get a sandbox: reconnect a parked one when a pointer names it, otherwise create a fresh one.
+ * Get a sandbox: reconnect a parked one when a pointer names a sandbox this process created,
+ * otherwise create a fresh one.
  *
- * Byte-for-byte the inline behavior, including the swallowed reconnect failure and the extra log
- * line for a confirmed terminal Daytona state.
+ * A reconnect failure is swallowed, and a confirmed terminal Daytona state gets an extra log line.
  */
 export async function acquire(
   input: SandboxAcquireInput,
@@ -65,9 +66,10 @@ export async function acquire(
 ): Promise<SandboxAcquireResult> {
   const { isDaytona, sessionForMount, runCred, log, timingLog } = input;
 
-  // A stored sandbox id is trusted: reconnect it by id and let reconnect converge its network
-  // policy to this run's plan. Any reconnect failure falls through to a fresh create. Snapshot
-  // and image drift are accepted as per-conversation version pinning, not grounds for a rebuild.
+  // A stored sandbox id this process created is trusted: reconnect it by id and let reconnect
+  // converge its network policy to this run's plan. Any reconnect failure falls through to a
+  // fresh create. Snapshot and image drift are accepted as per-conversation version pinning, not
+  // grounds for a rebuild.
   const storedSandboxPointer =
     isDaytona && sessionForMount && runCred
       ? await (deps.readStoredSandboxPointer ?? readStoredSandboxPointer)(
@@ -76,30 +78,43 @@ export async function acquire(
         )
       : undefined;
 
+  // An id this process did not create belongs to another pod, or to this pod before a restart.
+  // It is not touched at all: no get, no start, no delete. The owner's pool timer stops it, or
+  // Daytona's autostop and autodelete remove it. See `created-sandboxes.ts`.
+  const ownSandboxPointer =
+    storedSandboxPointer && wasSandboxCreatedHere(storedSandboxPointer.sandboxId)
+      ? storedSandboxPointer
+      : undefined;
+  if (storedSandboxPointer && !ownSandboxPointer) {
+    log(
+      `stored sandbox=${storedSandboxPointer.sandboxId} was not created by this runner, creating fresh`,
+    );
+  }
+
   let sandbox: unknown;
   let mode: "reconnect" | "create" = "create";
 
-  if (storedSandboxPointer) {
+  if (ownSandboxPointer) {
     const sandboxStartStartedAt = Date.now();
     try {
       sandbox = await deps.startSandboxAgent({
         ...input.startOptions,
-        sandboxId: storedSandboxPointer.sandboxId,
+        sandboxId: ownSandboxPointer.sandboxId,
       });
       mode = "reconnect";
       log(
-        `reconnected sandbox=${storedSandboxPointer.sandboxId} session=${sessionForMount}`,
+        `reconnected sandbox=${ownSandboxPointer.sandboxId} session=${sessionForMount}`,
       );
     } catch (err) {
       log(
-        `reconnect failed sandbox=${storedSandboxPointer.sandboxId}, creating fresh: ${conciseError(err, input.harness)}`,
+        `reconnect failed sandbox=${ownSandboxPointer.sandboxId}, creating fresh: ${conciseError(err, input.harness)}`,
       );
       // No explicit pointer clear needed: turns are append-only, so the fresh sandbox this
       // turn creates below gets its own turn row at completion, and that row's higher
       // turn_index naturally supersedes the dead one on the next `latest_turn` read.
       if (err instanceof DaytonaReconnectTerminalError) {
         log(
-          `terminal Daytona state '${err.state}' for sandbox=${storedSandboxPointer.sandboxId}, not retrying reconnect`,
+          `terminal Daytona state '${err.state}' for sandbox=${ownSandboxPointer.sandboxId}, not retrying reconnect`,
         );
       }
     } finally {

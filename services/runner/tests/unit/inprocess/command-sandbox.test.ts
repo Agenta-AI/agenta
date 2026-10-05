@@ -16,6 +16,7 @@ import { CommandSandbox, CREDENTIALS_LABEL, NetworkPolicyError } from "../../../
 import { boundedDaytonaApi } from "../../../src/engines/inprocess/sandbox/daytona-api.ts";
 import { sandboxSlots, sandboxSlotsUnresolvedMessage } from "../../../src/engines/inprocess/sandbox/sandbox-slots.ts";
 import { classifyRunError } from "../../../src/engines/sandbox_agent/errors.ts";
+import { wasSandboxCreatedHere } from "../../../src/engines/sandbox_agent/created-sandboxes.ts";
 import { OWNER_LABEL, type SandboxOwner } from "../../../src/engines/inprocess/sandbox/sandbox-owner.ts";
 import { createTestWorkspace, OPEN_NETWORK, sandboxSettings, TEST_DEADLINES, testConversation, testOwner, testRegistryOptions } from "../../utils/inprocess-workspace.ts";
 import { LocalDaytona } from "../../utils/local-daytona.ts";
@@ -92,6 +93,8 @@ describe("network policy fails closed (R3-5, Codex 4, Codex R4 late update)", ()
     const use = await newSandbox(daytona).sandbox.acquire(BLOCKED);
     expect(daytona.sandboxes.get(use.sandbox.id)!.networkUpdates).toHaveLength(0);
     expect(daytona.sandboxes.get(use.sandbox.id)!.network).toEqual({ networkBlockAll: true });
+    // The stored pointer to this sandbox is one the reconnect ladder trusts.
+    expect(wasSandboxCreatedHere(use.sandbox.id)).toBe(true);
     use.release();
   });
 });
