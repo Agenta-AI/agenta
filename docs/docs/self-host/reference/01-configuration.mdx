@@ -276,6 +276,7 @@ Set on the `runner` service.
 | `AGENTA_RUNNER_LOG_LEVEL` | Log verbosity | `silent` | no | `agentRunner.logLevel` |
 | `AGENTA_RUNNER_REPLICA_ID` | Runner identity: the platform binds each turn to one runner by this id | Random per process when unset | no | Chart-managed (the pod name) |
 | `AGENTA_RUNNER_REPLICA_ADDRESS` | URL that reaches this runner directly, where the platform sends Stop for its turns | Empty (use `AGENTA_RUNNER_INTERNAL_URL`) | no | Chart-managed (`http://<pod IP>:<port>`) |
+| `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS` | Seconds a stopping runner lets its running turns finish before it cancels them | `0` | no | `agentRunner.shutdownWaitSeconds` (default: the grace period minus 100) |
 
 Every variable on this page treats an empty value as unset, so leaving a line blank selects the
 default rather than an empty string.
@@ -291,10 +292,17 @@ The bundled Compose files set a fixed value, which is safe because Compose runs 
 chart sets the pod name.
 
 `AGENTA_RUNNER_REPLICA_ADDRESS` is where the platform API sends Stop for a turn that this runner
-runs. Leave it empty when one runner sits behind `AGENTA_RUNNER_INTERNAL_URL`, as in Compose. The
-Helm chart sets it to the pod IP and the runner port, so the API must be able to reach runner pods
-directly: a NetworkPolicy that blocks API to runner traffic breaks Stop. The platform stores the
+runs, and where Services sends the session's follow-up messages. Leave it empty when one runner
+sits behind `AGENTA_RUNNER_INTERNAL_URL`, as in Compose. The Helm chart sets it to the pod IP and
+the runner port, so the API and Services must be able to reach runner pods directly: a
+NetworkPolicy that blocks API or Services traffic to runner pod IPs breaks Stop and follow-up
+routing. The platform stores the
 address only when the runner presents its runner token.
+
+When a runner gets SIGTERM, it refuses new turns with a 503 and keeps Stop and Kill open. It lets
+its running turns finish for `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS`, cancels the turns that still
+run, and deletes its sandboxes. The default `0` cancels at once, because Docker Compose stops a
+container 10 seconds after SIGTERM. The Helm chart sets the wait from the pod's grace period.
 
 The local sandbox is single-runner only: its sessions live on one runner's disk. To run multiple
 runners, use the Daytona provider.
@@ -654,6 +662,7 @@ The runner fails to start when configuration is invalid, before it listens. The 
 | `AGENTA_RUNNER_INPROCESS_FOR_PI` other than `true` or `false` | `AGENTA_RUNNER_INPROCESS_FOR_PI must be 'true' or 'false', got '<value>'.` |
 | Snapshot and image both set | `AGENTA_RUNNER_DAYTONA_SNAPSHOT and AGENTA_RUNNER_DAYTONA_IMAGE are mutually exclusive; set only one.` |
 | Non-integer positive value | `<variable> must be a positive integer, got '<value>'.` |
+| Shutdown wait that is negative or not an integer | `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS must be a non-negative integer, got '<value>'.` |
 
 The last message covers `AGENTA_RUNNER_PORT`, `AGENTA_RUNNER_CONCURRENCY_LIMIT`,
 `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`, `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`,

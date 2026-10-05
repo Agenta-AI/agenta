@@ -372,7 +372,6 @@ describe("(b) teardown reasons name the failing layer", () => {
       "clean-resumable",
       "idle-expiry",
       "capacity-eviction",
-      "shutdown-idle",
     ] as const) {
       assert.equal(
         teardownDisposition(reason),
@@ -388,6 +387,7 @@ describe("(b) teardown reasons name the failing layer", () => {
       "failed-turn",
       "aborted",
       "shutdown-in-flight",
+      "shutdown-idle",
     ] as const) {
       assert.equal(
         teardownDisposition(reason),
@@ -404,7 +404,6 @@ describe("(b) teardown reasons name the failing layer", () => {
       "clean-resumable",
       "idle-expiry",
       "capacity-eviction",
-      "shutdown-idle",
       "session-incompatible",
       "continuity-invalid",
     ];

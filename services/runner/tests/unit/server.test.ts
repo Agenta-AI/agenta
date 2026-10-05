@@ -33,6 +33,7 @@ import {
   resetExecutionsForTest,
 } from "../../src/sessions/execution-registry.ts";
 import { resetContinuationAdmissionsForTest } from "../../src/sessions/continuation-admission.ts";
+import { resetDrainForTest } from "../../src/lifecycle/shutdown.ts";
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -1919,6 +1920,8 @@ describe("registerShutdownHandler (sandbox-leak backstop on docker stop)", () =>
   afterEach(() => {
     for (const signal of registered.splice(0))
       process.removeAllListeners(signal);
+    // The handler puts the process into drain; later tests serve turns again.
+    resetDrainForTest();
   });
 
   function register(opts: Parameters<typeof registerShutdownHandler>[0]) {

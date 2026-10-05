@@ -164,6 +164,19 @@ export class ConversationRegistry {
     return { conversations: this.entries.size, running, inUse, retired, commands };
   }
 
+  /**
+   * Shutdown: delete the sandbox of every conversation no environment holds any more. No later
+   * process reconnects to a sandbox this one created, so a parked one would only wait for
+   * Daytona's autodelete. Runs in the background; `settle` waits for it.
+   */
+  deleteUnheld(): void {
+    for (const workspace of [...this.entries.values()]) {
+      if (workspace.sandbox.holders > 0 || workspace.sandbox.inUse) continue;
+      this.entries.delete(workspace.sandbox.key);
+      this.track(this.drop(workspace));
+    }
+  }
+
   /** Wait (bounded) for parks, deletes and retirements; the runner calls it on shutdown. */
   async settle(timeoutMs: number): Promise<void> {
     const cleanups = [...this.entries.values()].map((w) => w.sandbox.settle(timeoutMs));

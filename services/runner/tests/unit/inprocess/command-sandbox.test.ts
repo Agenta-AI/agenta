@@ -192,6 +192,30 @@ describe("recovery and retirement (CR7, R3-4, Codex 8)", () => {
   });
 });
 
+describe("the registry at shutdown", () => {
+  it("deletes a parked sandbox no environment holds, and keeps one that is still held", async () => {
+    const parked = createTestWorkspace({ conversationId: "parked" });
+    await parked.bash("true");
+    parked.registry.release(parked.workspace, "park");
+    await parked.registry.settle(5_000);
+    const [stopped] = [...parked.daytona.sandboxes.values()];
+    expect(stopped!.state).toBe("stopped");
+
+    const held = createTestWorkspace({ conversationId: "held" });
+    await held.bash("true");
+    const [running] = [...held.daytona.sandboxes.values()];
+
+    parked.registry.deleteUnheld();
+    held.registry.deleteUnheld();
+    await parked.registry.settle(5_000);
+    await held.registry.settle(5_000);
+    expect(stopped!.deleted).toBe(true);
+    expect(parked.registry.counters().conversations).toBe(0);
+    expect(running!.deleted).toBeFalsy();
+    expect(held.registry.counters().conversations).toBe(1);
+  });
+});
+
 describe("the registry (Codex 11)", () => {
   it("never evicts the entry it is handing out, and keeps one object per conversation", () => {
     const daytona = freshDaytona();

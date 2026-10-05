@@ -294,6 +294,83 @@ Allowed values:
 {{- end }}
 
 {{/* ================================================================
+   A local sandbox is a process inside the runner pod that started
+   it. A second runner pod cannot reach it, so the local provider
+   runs exactly one runner pod.
+   ================================================================ */}}
+{{- define "agenta.validateRunnerReplicas" -}}
+{{- $replicas := int (include "agenta.agentRunner.replicas" .) -}}
+{{- if and (eq (include "agenta.agentRunner.enabled" .) "true") (eq (include "agenta.agentRunner.localProviderEnabled" .) "true") (gt $replicas 1) -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: agentRunner.replicas=%d, but agentRunner.providers.enabled lists "local".
+
+A local sandbox runs inside the runner pod that started it, and no other runner pod can reach
+it. With the local provider, keep one runner:
+
+  agentRunner.replicas: 1
+
+To run more than one runner, enable only remote sandbox providers:
+
+  agentRunner.providers.enabled: [daytona]
+  agentRunner.providers.default: daytona
+` $replicas) -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
+   The same reason forbids a rolling update with the local provider:
+   the surge pod would run beside the old one. A strategy without a
+   type is a RollingUpdate to Kubernetes.
+   ================================================================ */}}
+{{- define "agenta.validateRunnerStrategy" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- $type := default "RollingUpdate" (default dict $runner.strategy).type -}}
+{{- if and (eq (include "agenta.agentRunner.enabled" .) "true") (eq (include "agenta.agentRunner.localProviderEnabled" .) "true") $runner.strategy (ne $type "Recreate") -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: agentRunner.strategy is %q, but agentRunner.providers.enabled lists "local".
+
+A rolling update starts the new runner pod beside the old one, and a local sandbox runs inside
+the pod that started it. With the local provider, remove agentRunner.strategy (the chart then
+uses Recreate) or set:
+
+  agentRunner.strategy:
+    type: Recreate
+` $type) -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
+   The runner's shutdown runs inside the grace period: the preStop
+   delay, the wait, then the cancel and the teardown, which take up to
+   80 s with the default AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS. A wait
+   past grace - 100 lets the KILL signal land before the sandboxes are
+   deleted, so refuse it.
+   ================================================================ */}}
+{{- define "agenta.validateRunnerShutdownWait" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if and (eq (include "agenta.agentRunner.enabled" .) "true") (not (kindIs "invalid" $runner.shutdownWaitSeconds)) -}}
+{{- $grace := int (include "agenta.agentRunner.terminationGracePeriodSeconds" .) -}}
+{{- $limit := max 0 (sub $grace 100) -}}
+{{- $wait := int $runner.shutdownWaitSeconds -}}
+{{- if gt $wait $limit -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: agentRunner.shutdownWaitSeconds=%d is more than
+agentRunner.terminationGracePeriodSeconds (%d) minus 100.
+
+After the wait the runner cancels the turns that still run and deletes its sandboxes, which
+takes up to 80 seconds, after a 10-second preStop delay. Lower the wait to %d or less, or raise
+the grace period:
+
+  agentRunner.terminationGracePeriodSeconds: %d
+` $wait $grace $limit (add $wait 100)) -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
    Validate license value is in the allowed set. Catches typos like
    `agenta.license: enterprise` that would otherwise fall through to
    the OSS code paths and silently disable EE features.

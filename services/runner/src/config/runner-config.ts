@@ -76,6 +76,13 @@ export const DEFAULT_RUNNER_HOST = "127.0.0.1";
 export const DEFAULT_RUNNER_PORT = 8765;
 export const DEFAULT_CONCURRENCY_LIMIT = 1000;
 export const DEFAULT_LOG_LEVEL = "silent";
+/**
+ * Zero: without an operator value, a shutdown cancels running turns at once. Docker Compose sends
+ * SIGKILL 10 seconds after SIGTERM unless the compose file says otherwise, and none of ours does,
+ * so any wait there would be cut off mid-way and leave the turns and their sandboxes behind. The
+ * Helm chart passes a wait that fits its own grace period.
+ */
+export const DEFAULT_SHUTDOWN_WAIT_SECONDS = 0;
 
 /** Thrown when the operator's configuration is invalid. Fails startup before the server listens. */
 export class RunnerConfigError extends Error {
@@ -94,6 +101,8 @@ export interface RunnerServerConfig {
   /** The URL that reaches this process directly; unset means "use the Service URL". */
   replicaAddress: string | undefined;
   token: string | undefined;
+  /** How long a shutdown lets admitted turns finish on their own before it cancels them. */
+  shutdownWaitSeconds: number;
 }
 
 export interface RunnerProvidersConfig {
@@ -174,6 +183,22 @@ function parsePositiveInt(
   if (!Number.isInteger(parsed) || parsed < 1) {
     throw new RunnerConfigError(
       `${name} must be a positive integer, got '${value}'.`,
+    );
+  }
+  return parsed;
+}
+
+function parseNonNegativeInt(
+  raw: string | undefined,
+  fallback: number,
+  name: string,
+): number {
+  const value = nonEmpty(raw);
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new RunnerConfigError(
+      `${name} must be a non-negative integer, got '${value}'.`,
     );
   }
   return parsed;
@@ -421,6 +446,11 @@ function parseServer(env: Env): RunnerServerConfig {
     replicaId: nonEmpty(env.AGENTA_RUNNER_REPLICA_ID),
     replicaAddress: nonEmpty(env.AGENTA_RUNNER_REPLICA_ADDRESS),
     token: nonEmpty(env.AGENTA_RUNNER_TOKEN),
+    shutdownWaitSeconds: parseNonNegativeInt(
+      env.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS,
+      DEFAULT_SHUTDOWN_WAIT_SECONDS,
+      "AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS",
+    ),
   };
 }
 

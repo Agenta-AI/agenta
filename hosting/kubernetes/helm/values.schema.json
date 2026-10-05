@@ -886,16 +886,23 @@
         },
         "replicas": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "description": "Runner pods. Default 1. More than 1 needs remote sandbox providers only: the render fails when providers.enabled lists 'local', whose sandboxes run inside the runner pod."
         },
         "terminationGracePeriodSeconds": {
           "$ref": "#/$defs/terminationGracePeriodSeconds"
+        },
+        "shutdownWaitSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: how long a stopping runner pod lets its running turns finish before it cancels them. Default: terminationGracePeriodSeconds minus 100 (never below 0), which leaves room for the 10-second preStop delay, the cancel and the sandbox teardown. The render fails for a value above that. The margin assumes the default AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS (10 s); a larger settle time needs a shorter wait, by twice the increase."
         },
         "lifecycle": {
           "$ref": "#/$defs/containerLifecycle"
         },
         "strategy": {
-          "$ref": "#/$defs/workloadStrategy"
+          "$ref": "#/$defs/workloadStrategy",
+          "description": "Default: RollingUpdate (maxSurge 1, maxUnavailable 0) when only remote sandbox providers are enabled, Recreate when providers.enabled lists 'local'."
         },
         "fuse": {
           "type": "object",

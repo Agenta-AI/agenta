@@ -116,10 +116,19 @@ import {
 import { claimContinuationAdmission } from "./sessions/continuation-admission.ts";
 import {
   findExecution,
+  liveExecutions,
   noteExecutionProject,
   registerExecution,
   unregisterExecution,
 } from "./sessions/execution-registry.ts";
+import {
+  beginDrain,
+  cancelExecutions,
+  cancelParkedPrompts,
+  drainThenTearDown,
+  isDraining,
+  shutdownCancelBudgetMs,
+} from "./lifecycle/shutdown.ts";
 import {
   awaitTurnOrAbandon,
   resolveTurnSettleLimits,
@@ -153,7 +162,11 @@ import {
 import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/turn-admission.ts";
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
-const SHUTDOWN_TURN_END_BUDGET_MS = 5_000;
+const SHUTDOWN_TURN_END_BUDGET_MS = 10_000;
+/** The bound on each of the two shutdown delete sweeps: the keep-alive pools, then in-flight runs. */
+const SHUTDOWN_DELETE_BUDGET_MS = 10_000;
+/** The bound on the wait for in-process command sandboxes still being deleted in the background. */
+const SHUTDOWN_INPROCESS_SETTLE_MS = 20_000;
 /** How long an in-process run gets to unwind after its abort, inside the shutdown budget above. */
 const INPROCESS_ABANDON_GRACE_MS = 3_000;
 
@@ -189,6 +202,15 @@ function concurrencyLimit(): number {
 }
 
 let inFlight = 0;
+
+/**
+ * Whether this process still runs an admitted execution. The execution registry holds every
+ * session-owned turn, Daytona and in-process alike; the request count adds the runs without a
+ * session. A turn parked on an approval has neither, because it runs nothing.
+ */
+export function hasRunningWork(): boolean {
+  return inFlight > 0 || liveExecutions().length > 0;
+}
 
 /** Constant-time string compare so the token check does not leak length/prefix via timing. */
 function tokensMatch(provided: string, expected: string): boolean {
@@ -1383,36 +1405,59 @@ function parkedSessionControl(
   for (const provider of Object.keys(
     keepalivePools,
   ) as KeepaliveProviderName[]) {
-    const pool = keepalivePools[provider];
-    const parked = pool.get(key);
-    if (!parked || parked.state !== "awaiting_approval") continue;
-    return {
-      turnId: parked.environment.parkedTurnId,
-      stop: async () => {
-        // Checkout makes the transition exclusive: a racing request cannot consume the same
-        // permission gate while Stop is releasing it.
-        const live = pool.checkoutApproval(key);
-        if (!live) throw new Error("parked approval was already checked out");
-        await stopParkedApprovalSession({
-          environment: live.environment,
-          repark: () =>
-            pool.repark(
-              live,
-              {
-                historyFingerprint: live.historyFingerprint,
-                historyAsserted: live.historyAsserted,
-                credentialEpoch: live.credentialEpoch,
-              },
-              keepaliveConfigs[provider].stoppedTtlMs ??
-                keepaliveConfigs[provider].ttlMs,
-            ),
-          teardown: () =>
-            pool.evictIfCurrent(live, "stop-approval-failed", "failed-turn"),
-        });
-      },
-    };
+    const control = parkedControlAt(keepalivePools[provider], provider, key);
+    if (control) return control;
   }
   return undefined;
+}
+
+/** Every approval-parked session this process holds, in every pool. */
+export function parkedSessionControls(
+  pools: Record<
+    KeepaliveProviderName,
+    SessionPool<SessionEnvironment>
+  > = keepalivePools,
+): ParkedSessionControl[] {
+  return (Object.keys(pools) as KeepaliveProviderName[]).flatMap((provider) =>
+    pools[provider]
+      .keys()
+      .map((key) => parkedControlAt(pools[provider], provider, key))
+      .filter((control) => control !== undefined),
+  );
+}
+
+function parkedControlAt(
+  pool: SessionPool<SessionEnvironment>,
+  provider: KeepaliveProviderName,
+  key: string,
+): ParkedSessionControl | undefined {
+  const parked = pool.get(key);
+  if (!parked || parked.state !== "awaiting_approval") return undefined;
+  return {
+    turnId: parked.environment.parkedTurnId,
+    stop: async () => {
+      // Checkout makes the transition exclusive: a racing request cannot consume the same
+      // permission gate while Stop is releasing it.
+      const live = pool.checkoutApproval(key);
+      if (!live) throw new Error("parked approval was already checked out");
+      await stopParkedApprovalSession({
+        environment: live.environment,
+        repark: () =>
+          pool.repark(
+            live,
+            {
+              historyFingerprint: live.historyFingerprint,
+              historyAsserted: live.historyAsserted,
+              credentialEpoch: live.credentialEpoch,
+            },
+            keepaliveConfigs[provider].stoppedTtlMs ??
+              keepaliveConfigs[provider].ttlMs,
+          ),
+        teardown: () =>
+          pool.evictIfCurrent(live, "stop-approval-failed", "failed-turn"),
+      });
+    },
+  };
 }
 
 interface StopParkedApprovalSessionInput {
@@ -1641,6 +1686,15 @@ export function createRequestListener(
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
 
+        // A draining pod takes no new turn. A caller that posted to this pod's own address
+        // retries once at the Service URL, where another pod takes it.
+        if (isDraining()) {
+          return send(res, 503, {
+            ok: false,
+            error: "Runner is shutting down; send the turn to another runner",
+          });
+        }
+
         // Per-box admission gate: reject before doing any work when this replica
         // is already at its in-flight limit. Reserve the slot for the whole run and release
         // it in `finally`, whichever path (streaming or one-shot) is taken.
@@ -1710,16 +1764,20 @@ export function createAgentServer(
 }
 
 /**
- * Register a shutdown handler that best-effort deletes any in-flight sandbox(es) before exit.
+ * Register a shutdown handler that drains the process and best-effort deletes its sandbox(es)
+ * before exit.
  *
  * Without this, `docker stop` (SIGTERM) kills the process while the per-run `finally` in
  * `runSandboxAgent` is still waiting on the harness — so the sandbox it created is never deleted
- * and leaks (a Daytona credit-burner). The handler drains the in-flight registry, then exits.
+ * and leaks (a Daytona credit-burner).
  *
- * It is timeout-bounded so it can NEVER hang shutdown: `destroyInFlightSandboxes` races the
- * deletes against its own timeout, and if the SIGTERM grace period elapses the orchestrator's
- * SIGKILL ends the process anyway (the Daytona auto-stop backstop in `provider.ts` covers that
- * unreachable case). The handler installs once and is idempotent against a repeated signal.
+ * The drain flag goes up before any cleanup starts, so `/run` and `/stream` refuse new turns
+ * from the first moment, whatever the cleanup does (see `lifecycle/shutdown.ts`).
+ *
+ * It is timeout-bounded so it can NEVER hang shutdown: every step of the cleanup races its own
+ * timeout, and if the SIGTERM grace period elapses the orchestrator's SIGKILL ends the process
+ * anyway (the Daytona auto-stop backstop in `provider.ts` covers that unreachable case). The
+ * handler installs once and is idempotent against a repeated signal.
  *
  * Injectable (`onCleanup` / `exit`) so a test can drive it without killing the test process.
  */
@@ -1736,14 +1794,52 @@ export function registerShutdownHandler({
   const handle = (signal: NodeJS.Signals): void => {
     if (shuttingDown) return; // a second signal must not race a second cleanup
     shuttingDown = true;
+    beginDrain();
     process.stderr.write(
-      `[sandbox-agent] received ${signal}, cleaning up in-flight sandboxes\n`,
+      `[sandbox-agent] received ${signal}, draining and cleaning up sandboxes\n`,
     );
     void onCleanup()
       .catch(() => {})
       .finally(() => exit(0));
   };
   for (const signal of signals) process.on(signal, handle);
+}
+
+/**
+ * The last shutdown step: delete every sandbox this process holds, idle, parked and in flight.
+ * Both pool reasons delete: no other process reconnects to a sandbox this one created, so a
+ * stopped one would only wait for Daytona's autodelete.
+ */
+export async function tearDownHeldSandboxes(
+  pools: readonly SessionPool<SessionEnvironment>[] = Object.values(keepalivePools),
+  destroyInFlight: (
+    timeoutMs: number,
+    reason: TeardownReason,
+  ) => Promise<void> = destroyInFlightSandboxes,
+): Promise<void> {
+  // While persistence still works: an in-process turn the cancel step did not end writes its
+  // ending, so no client waits on a turn this process will never finish.
+  await endActiveTurns(RUNNER_SHUTDOWN_REASON, SHUTDOWN_TURN_END_BUDGET_MS);
+  await Promise.all(
+    pools.map((pool) =>
+      pool.destroyAll(
+        SHUTDOWN_DELETE_BUDGET_MS,
+        "shutdown-idle",
+        "shutdown-in-flight",
+      ),
+    ),
+  );
+  await destroyInFlight(SHUTDOWN_DELETE_BUDGET_MS, "shutdown-in-flight");
+  // A command sandbox whose environment already left the pool is still held by the in-process
+  // provider. Its delete, like the ones above, runs in the background; let them all reach Daytona
+  // before exit.
+  await inProcessProvider?.then(
+    (provider) => {
+      provider.deleteUnheld();
+      return provider.settle(SHUTDOWN_INPROCESS_SETTLE_MS);
+    },
+    () => {},
+  );
 }
 
 // Only run as a server when this file is the process entry (`tsx src/server.ts`); importing
@@ -1765,34 +1861,29 @@ if (isEntrypoint(import.meta.url)) {
     );
   });
 
-  // On `docker stop` (SIGTERM) / Ctrl-C (SIGINT), drain the keep-alive pool (its complete
-  // per-session destroy) and then delete any sandbox a run created, so a kill does not leak a
-  // parked session or an in-flight sandbox (the per-run teardown never runs on a process kill).
-  registerShutdownHandler({
-    onCleanup: async (timeoutMs?: number) => {
-      // First, while persistence still works: every running turn writes its ending, so no
-      // client waits on a turn this process will never finish.
-      await endActiveTurns(RUNNER_SHUTDOWN_REASON, SHUTDOWN_TURN_END_BUDGET_MS);
-      await Promise.all(
-        Object.values(keepalivePools).map((pool) =>
-          pool.destroyAll(timeoutMs, "shutdown-idle", "shutdown-in-flight"),
-        ),
-      );
-      await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");
-      // Command sandboxes park in the background; let those stops reach Daytona before exit.
-      await inProcessProvider?.then(
-        (provider) => provider.settle(Math.min(timeoutMs ?? 20_000, 20_000)),
-        () => {},
-      );
-    },
-  });
-
   // Parse and validate the operator configuration ONCE before listening. An invalid
   // configuration (empty/unknown provider list, default not enabled, Daytona enabled without a
   // credential, mutually exclusive artifact, invalid lifecycle values) fails startup here. Log
   // one redacted summary, then bridge the typed Daytona credential into the ambient names the
   // vendored SDK reads during sandbox creation.
   let runnerConfig = loadRunnerConfig();
+
+  // On SIGTERM (a deploy, a node drain, `docker stop`) or Ctrl-C (SIGINT): refuse new turns,
+  // let running ones finish, cancel the rest with a settled wait, then delete every sandbox this
+  // process holds (the per-run teardown never runs on a process kill).
+  const shutdownWaitMs = runnerConfig.server.shutdownWaitSeconds * 1000;
+  registerShutdownHandler({
+    onCleanup: () =>
+      drainThenTearDown({
+        waitMs: shutdownWaitMs,
+        busy: hasRunningWork,
+        cancelRunning: () =>
+          cancelExecutions(liveExecutions(), shutdownCancelBudgetMs()),
+        cancelParked: () =>
+          cancelParkedPrompts(parkedSessionControls(), shutdownCancelBudgetMs()),
+        tearDown: () => tearDownHeldSandboxes(),
+      }),
+  });
   // The shared token is required to SERVE, but not to parse config: the per-request config reads
   // (provider defaults) must not depend on an auth secret. So it is asserted here, at the one
   // boundary that exposes the HTTP surface, and nowhere else.

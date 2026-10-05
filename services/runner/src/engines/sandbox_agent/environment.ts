@@ -181,7 +181,11 @@ import {
   sessionContinuityStore,
 } from "./session-continuity.ts";
 import { mountExpiryMs, projectScopeFor } from "./session-identity.ts";
-import { teardownDisposition, type TeardownReason } from "./teardown.ts";
+import {
+  commandSandboxDisposition,
+  teardownDisposition,
+  type TeardownReason,
+} from "./teardown.ts";
 import {
   cleanup as cleanupWorkspace,
   materialize as materializeWorkspace,
@@ -591,10 +595,8 @@ async function acquireEnvironmentOnce(
       harness: plan.harness,
       reason: opts?.reason,
       log: logger,
-      // A command-only sandbox holds no harness state a failed turn could have wedged, so only an
-      // explicit kill deletes it; every other ending keeps its disk for the next turn.
       ...(plan.harnessInRunner
-        ? { disposition: opts?.reason === "kill" ? ("delete" as const) : ("stop" as const) }
+        ? { disposition: commandSandboxDisposition(opts?.reason) }
         : {}),
     });
     await meterStopped;
