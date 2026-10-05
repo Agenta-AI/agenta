@@ -266,8 +266,7 @@ export default function McpServersSection({
 
     return (
         <div className="flex flex-col">
-            {/* The empty state carries the one button, so no screen offers the same action twice. */}
-            {readOnly || empty ? null : <SettingsPageActions>{connect}</SettingsPageActions>}
+            {readOnly ? null : <SettingsPageActions>{connect}</SettingsPageActions>}
 
             <ListTable<MCPEndpoint>
                 columns={columns}

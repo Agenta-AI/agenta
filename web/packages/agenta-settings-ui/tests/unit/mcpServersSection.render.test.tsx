@@ -500,9 +500,8 @@ describe("the empty page", () => {
                 "Connect a server by URL. You'll sign in or add a key once; agents in this project can then add it and choose what it may run.",
             ),
         ).toBeTruthy()
-        // The header button is dropped in favour of the one in the panel, so the same action is
-        // never offered twice on one screen.
-        expect(screen.getAllByTestId("mcp-connect-open")).toHaveLength(1)
+        // The header keeps its button like every Settings page; the panel offers it too.
+        expect(screen.getAllByTestId("mcp-connect-open")).toHaveLength(2)
     })
 
     it("draws the empty state's icon, not a row tile", () => {
