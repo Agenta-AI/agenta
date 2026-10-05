@@ -205,22 +205,30 @@ def the_switches_turn_everything_off() -> None:
     assert spread_of(docs, "api") is None
 
 
-def redis_probes_fail_on_an_error_reply() -> None:
-    """`redis-cli ping` must exit non-zero when the server answers with an error.
+def redis_probe_command(port: str) -> list[str]:
+    return ["sh", "-c", f'[ "$(redis-cli -p {port} ping)" = "PONG" ]']
 
-    Without -e, redis-cli exits 0 on an error REPLY and only fails on a connection
-    problem. A Redis answering LOADING during an AOF replay therefore passed its probe
-    and took traffic before it had its data. Measured in a running pod: `redis-cli get`
-    with no argument exits 0 without -e and 1 with it.
+
+def redis_probes_fail_on_an_error_reply() -> None:
+    """A Redis probe must pass only on PONG, and must not use `redis-cli -e`.
+
+    redis-cli exits 0 on an error REPLY and only fails on a connection problem. A Redis
+    answering LOADING during an AOF replay therefore passed a bare `redis-cli ping` probe
+    and took traffic before it had its data. `redis-cli -e` fixes that, but Redis 6.0 and
+    older reject -e, so a pinned old image failed every probe and crash-looped. Comparing
+    the reply to PONG fails on an error reply and works on every Redis version.
     """
     docs = render()
-    for component in ("redis-durable", "redis-volatile"):
+    for component, port in (("redis-durable", "6381"), ("redis-volatile", "6379")):
         wl = workload(docs, component)
         container = wl["spec"]["template"]["spec"]["containers"][0]
         for probe in ("startupProbe", "livenessProbe", "readinessProbe"):
             command = container[probe]["exec"]["command"]
-            assert "-e" in command, (
-                f"{component}.{probe} runs {command!r}, which exits 0 on an error reply"
+            assert command == redis_probe_command(port), (
+                f"{component}.{probe} runs {command!r}, expected a PONG comparison"
+            )
+            assert "-e" not in command[-1].split(), (
+                f"{component}.{probe} uses redis-cli -e, which Redis 6.0 rejects"
             )
 
 
@@ -232,8 +240,8 @@ def redis_has_a_startup_probe() -> None:
         ]
         probe = container.get("startupProbe")
         assert probe is not None, component
-        assert probe["exec"]["command"][0] == "redis-cli", component
-        assert probe["exec"]["command"][-1] == "ping", component
+        assert probe["exec"]["command"][:2] == ["sh", "-c"], component
+        assert "redis-cli" in probe["exec"]["command"][-1], component
         assert probe["periodSeconds"] == 5, component
         assert probe["failureThreshold"] == 60, component
 
@@ -255,7 +263,7 @@ def redis_startup_allowance_is_configurable_per_instance() -> None:
         assert probe["timeoutSeconds"] == 5, component
         for name in ("startupProbe", "livenessProbe", "readinessProbe"):
             command = container[name]["exec"]["command"]
-            assert command == ["redis-cli", "-e", "-p", port, "ping"], component
+            assert command == redis_probe_command(port), component
         for name in ("livenessProbe", "readinessProbe"):
             assert container[name]["failureThreshold"] == 5, component
         other_container = workload(docs, other)["spec"]["template"]["spec"][
