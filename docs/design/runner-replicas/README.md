@@ -4,11 +4,11 @@ This folder holds the design for running the agent runner as two or more Kuberne
 answers GitHub issue [Agenta-AI/agenta#7322](https://github.com/Agenta-AI/agenta/issues/7322),
 "Runner cannot run two replicas".
 
-The recommended design, the minimal design, makes two pods safe and keeps conversations warm:
-each pod keeps the sandboxes it creates, every control path reaches the right pod, and each
+The design is approved for implementation; stage 1 only. The minimal design makes two pods safe
+and keeps conversations warm: each pod keeps the sandboxes it creates, every control path reaches the right pod, and each
 follow-up goes to the pod that holds its conversation. A cold turn happens only when a pod dies,
 restarts, or is replaced by a deploy. Design B, which lets any pod adopt any sandbox, is fully
-designed but optional and not scheduled. Both share six common changes.
+designed, parked, and not scheduled. Both share six common changes.
 
 ## Reading order
 

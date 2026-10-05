@@ -1,24 +1,29 @@
 # Status
 
-**State:** design revised 2026-10-05 for the warm requirement. It adds a sixth common change,
-"Send follow-ups to the holder pod", and makes design B optional. It awaits Mahmoud's four
-decisions. No code has changed.
+**State:** Design approved for implementation on 2026-10-05 (stage 1, six common changes;
+design B parked). No code has changed.
 
 ## Decisions for Mahmoud
 
-Each decision has its context, options, side effects, and recommendation in
-[plan.md, "Decisions for Mahmoud"](plan.md#decisions-for-mahmoud).
+Mahmoud decided all four on 2026-10-05. Each decision has its context, options, side effects, and
+recommendation in [plan.md, "Decisions for Mahmoud"](plan.md#decisions-for-mahmoud).
 
-- [ ] Decision 1: route Stop by the turn's recorded pod address (recommended), or fan out to
-      every pod. Heartbeat delivery is rejected.
-- [ ] Decision 2: do we still want design B, and when? Not now, and revisit if the measured
-      restart cost hurts (recommended); or commit after the spikes; or never. An in-process-only
-      product direction, raised the same day and not decided, would shrink design B to
-      command-sandbox adoption.
-- [ ] Decision 3: at shutdown, drain, then cancel with a settled wait, then tear down
-      (recommended), or keep today's shutdown.
-- [ ] Decision 4: hosted device login at two pods: move the attempt's state to the api if that
-      is small, else disable it on multi-pod deployments with a clear error.
+- [x] Decision 1, option 1: route Stop by the turn's recorded pod address.
+- [x] Decision 2, option 1: park design B and ship the minimal design. Measure the cold-turn cost
+      after a deploy on the GKE stage, and revisit later.
+- [x] Decision 3, option 1: at shutdown, drain, then cancel with a settled wait, then tear down.
+- [x] Decision 4, option 1: move the hosted device-login attempt's state into the api. It must
+      land before the chart sets two pods.
+
+## Shape of design B if it is ever scheduled
+
+Design B is parked. Stage 1 ships first, and the cold-turn cost after a deploy is measured on the
+GKE stage. If design B comes later, the api owns a sandbox registry in Postgres. Each row holds
+the sandbox id, the conversation, the path, the create fingerprint, the Secret names, the state,
+and the time of the last turn. The api also owns the lifecycle decisions, which are idle stop,
+delete, and kill, and it makes them through its sweep. Runners become stateless executors. They
+create, connect, stop, and delete sandboxes on the api's behalf. Both the Daytona path and the
+in-process path stay for now.
 
 ## Facts that changed the design
 
@@ -132,3 +137,11 @@ The design follows research.md and the code on each point below. plan.md states 
 - 2026-10-05: the holder route also covers approval continuations and queued inputs, because the
   api sends them through the same services handler (research.md section 14.1). An approval answer
   now resumes warm on the parking pod while that pod lives.
+- 2026-10-05: Mahmoud decided the four decisions, option 1 each:
+  - Stop routes to the pod address recorded in the turn binding.
+  - Design B is parked and the minimal design ships. The cold-turn cost after a deploy is
+    measured on the GKE stage, and design B is revisited later. Its future shape is in this file.
+  - Shutdown drains, then cancels with a settled wait, then tears down.
+  - The hosted device-login attempt state moves into the api. It must land before the chart sets
+    two pods.
+  The design is approved for implementation as stage 1 only.

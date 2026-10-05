@@ -4,14 +4,14 @@ Terms in this file are defined in the [README glossary](README.md#glossary). The
 user sees today, the four failure scenarios, and the warm requirement are in
 [context.md](context.md).
 
-The plan recommends one design and keeps a second one ready:
+The plan ships one design and parks a second one:
 
-- **The minimal design (private sandboxes), recommended.** Six common changes, plus one rule: a
+- **The minimal design (private sandboxes), approved for stage 1.** Six common changes, plus one rule: a
   pod reconnects only to a sandbox it created, and deletes another pod's sandbox only through
   Kill. Two pods become safe. A follow-up goes to the pod that holds the conversation, so it stays
   warm as today. A cold turn happens only when that pod dies, restarts, or is replaced by a
   deploy.
-- **Design B (any pod adopts any sandbox), optional.** No pod stops a shared sandbox, and the
+- **Design B (any pod adopts any sandbox), parked.** No pod stops a shared sandbox, and the
   sandbox carries the facts that a pod needs to adopt it. It removes the fresh sandbox that every
   conversation pays after a restart or a deploy. It is fully designed and not scheduled.
 
@@ -1565,23 +1565,24 @@ The design chooses the manifest, on a label when it fits.
 
 Rows not listed match the minimal design.
 
-## Recommendation and staging
+## The decided plan and staging
 
-**Ship the minimal design: the six common changes plus the minimal rule.** Two pods are safe. A
-follow-up stays warm on its holder pod, so warm behaviour is the same as today, and a cold turn
-happens only when a pod dies, restarts, or is replaced by a deploy. Stop is direct and exact. Kill
-reaches every labelled sandbox. Deploys stop killing running turns. Compose, Railway, and a
-one-pod Helm install keep today's behaviour.
+**Stage 1 ships: the six common changes plus the minimal rule.** Two pods are safe. A follow-up
+stays warm on its holder pod, so warm behaviour is the same as today, and a cold turn happens
+only when a pod dies, restarts, or is replaced by a deploy. Stop is direct and exact. Kill reaches
+every labelled sandbox. Deploys stop killing running turns. Compose, Railway, and a one-pod Helm
+install keep today's behaviour.
 
-**Measure the restart cost while it ships.** Measure the cold-turn cost after a deploy on the GKE
-stage. Run the two spikes for design B too, because they are cheap and they keep the option open.
+**The restart cost is measured after the deploy.** Measure the cold-turn cost after a deploy on
+the GKE stage. Run the two spikes for design B too, because they are cheap and they keep the
+option open.
 
-**Keep design B designed, and do not schedule it now.** It no longer serves the warm requirement.
-What it still buys is the removal of the restart cost and interchangeable pods. Revisit it if the
-measured restart cost hurts users.
+**Design B is parked, not scheduled.** It no longer serves the warm requirement. What it still
+buys is the removal of the restart cost and interchangeable pods. Revisit it if the measured
+restart cost hurts users.
 
-Hash routing is not recommended. "Send follow-ups to the holder pod" gives the same warm hits with
-no resolver.
+Hash routing is not part of the plan. "Send follow-ups to the holder pod" gives the same warm hits
+with no resolver.
 
 ## Verification plan
 
@@ -1723,6 +1724,8 @@ Each step says what reverts it. Not every step is independent; the dependencies 
 
 ### Decision 1: how Stop reaches the turn's pod
 
+**Decided 2026-10-05: option 1.**
+
 **Today.** Stop goes to the Service URL. At one pod it always reaches the right pod. At two pods
 half of all Stops reach the wrong pod and settle `lost`.
 
@@ -1742,6 +1745,8 @@ Heartbeat delivery is not an option; it is rejected under "Alternatives consider
 needs also fixes the double admission of one turn.
 
 ### Decision 2: do we still want design B, and when?
+
+**Decided 2026-10-05: option 1.** If design B ever comes, its shape is an api-owned sandbox registry and lifecycle, with stateless runners; see status.md.
 
 **Today.** Every restart and every deploy costs each conversation one fresh sandbox on its next
 turn. With the minimal design, that stays true at two pods, and it is the only remaining cold
@@ -1770,6 +1775,8 @@ sandbox. Design B would then shrink to adopting command sandboxes, a much smalle
 
 ### Decision 3: shutdown order
 
+**Decided 2026-10-05: option 1.**
+
 **Today.** At SIGTERM the runner cancels every running turn within about 5 seconds and deletes the
 sandboxes of running turns and parked approvals.
 
@@ -1786,6 +1793,8 @@ pods. A late follow-up gets a 503 and falls back once to another pod, where it g
 finishes its own, so the wait costs users nothing.
 
 ### Decision 4: hosted device login at two pods
+
+**Decided 2026-10-05: option 1.**
 
 **Today.** A device-login attempt is a running poll loop with its state in one pod's memory. The
 api's later poll can reach the other pod, which does not know the attempt.
