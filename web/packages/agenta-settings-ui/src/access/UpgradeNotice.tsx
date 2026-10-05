@@ -1,10 +1,10 @@
 import type {ReactNode} from "react"
 
-import {Lock} from "@phosphor-icons/react"
-
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 
 export interface UpgradeNoticeProps {
+    /** The locked tab's sidebar icon. */
+    icon: ReactNode
     title: string
     description: string
     /** The upgrade link — routing and billing availability are the host's to decide. */
@@ -12,10 +12,9 @@ export interface UpgradeNoticeProps {
 }
 
 /** Stands in for a section the current plan does not include, framed like every empty page. */
-export const UpgradeNotice = ({title, description, action}: UpgradeNoticeProps) => (
+export const UpgradeNotice = ({icon, title, description, action}: UpgradeNoticeProps) => (
     <SettingsEmpty
-        plain
-        icon={<Lock size={18} />}
+        icon={icon}
         title={title}
         description={
             <>

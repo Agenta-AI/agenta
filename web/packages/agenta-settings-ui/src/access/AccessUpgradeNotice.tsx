@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {getSettingsSidebarIcon} from "@agenta/settings"
+
 import {UpgradeNotice} from "./UpgradeNotice"
 
 /** The three separately-sold halves of Access & Security. */
@@ -47,6 +49,7 @@ export const AccessUpgradeNotice = ({locked, action}: AccessUpgradeNoticeProps) 
 
     return (
         <UpgradeNotice
+            icon={getSettingsSidebarIcon("organization")}
             title={
                 isEverything
                     ? "Access & Security is not available on your plan"

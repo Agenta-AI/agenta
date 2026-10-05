@@ -16,6 +16,7 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {Spinner} from "@agenta/ui/ui"
 
 import {UpgradeNotice} from "../access/UpgradeNotice"
@@ -82,6 +83,7 @@ export const AuditLogPage = ({
     if (!hasAudit) {
         return (
             <UpgradeNotice
+                icon={getSettingsSidebarIcon("auditLog")}
                 title="Audit Log is not available on your plan"
                 description="Query the full history of platform events — who did what, and when — across your organization."
                 action={upgradeAction}
