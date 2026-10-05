@@ -6,7 +6,7 @@
  * saves the explicit list — including an empty one, which means "offer none".
  *
  * One field above the list both searches it and adds a model ID it does not hold, in every state,
- * because a provider's list is never a promise that nothing else works. The bordered list below is
+ * because a provider's list is never a promise that nothing else works. The list below is
  * the card's only flexible region, so its rows scroll inside it.
  */
 import {useMemo, useState} from "react"
@@ -113,12 +113,12 @@ const ActiveModelsSection = ({
             />
 
             {/* Sized to its rows, so a short list leaves no empty box; a long one scrolls. */}
-            <div className="flex max-h-[min(320px,45vh)] flex-col overflow-hidden rounded-md border border-solid border-colorBorderSecondary">
+            <div className="flex max-h-[min(320px,45vh)] flex-col overflow-hidden">
                 {canAdd ? (
                     <button
                         type="button"
                         onClick={addTerm}
-                        className="mx-1 mt-1 flex shrink-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-2 text-left text-field-sm text-colorText hover:bg-colorFillQuaternary"
+                        className="flex shrink-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-2 text-left text-field-sm text-colorText hover:bg-colorFillQuaternary"
                     >
                         <Plus size={14} className="shrink-0 text-colorTextTertiary" />
                         <span className="min-w-0 truncate">
@@ -132,12 +132,12 @@ const ActiveModelsSection = ({
 
                 {visible.length === 0 ? (
                     canAdd ? null : (
-                        <p className="m-0 px-3 py-3 text-colorTextSecondary">
+                        <p className="m-0 px-2 py-3 text-colorTextSecondary">
                             No models yet. Type a model ID above to add it.
                         </p>
                     )
                 ) : (
-                    <ScrollScrim className="p-1">
+                    <ScrollScrim>
                         {visible.map((option) => (
                             <label
                                 key={option.id}
@@ -171,7 +171,7 @@ const ActiveModelsSection = ({
                 )}
 
                 <div
-                    className={`shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorSplit py-1 pl-3 pr-2 text-field-sm ${truncated || fetchedAt ? "flex" : "hidden"}`}
+                    className={`shrink-0 items-center justify-between gap-2 py-1 pl-2 pr-1 text-field-sm ${truncated || fetchedAt ? "flex" : "hidden"}`}
                 >
                     {truncated ? (
                         <Button
