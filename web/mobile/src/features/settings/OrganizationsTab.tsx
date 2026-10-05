@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {
     createOrganization,
@@ -30,7 +30,7 @@ import {groupByOrganization} from "../context/workspaceGroups"
 
 import {ConfirmModal} from "./ConfirmModal"
 import {NameDialog} from "./NameDialog"
-import {settingsUrlFor} from "./switchContext"
+import {switchSettingsContext} from "./switchContext"
 
 import {fetchProjects} from "@/lib/context"
 
@@ -99,13 +99,11 @@ export const OrganizationsTab = ({
                 const group = groups.find((entry) => entry.organizationId === org.id)
                 const first = group?.projects[0]
                 if (!group || !first) return
-                void router.push(
-                    settingsUrlFor({
-                        workspaceId: group.workspaceId,
-                        projectId: first.project_id,
-                        tab: "organizationGeneral",
-                    }),
-                )
+                switchSettingsContext(router, {
+                    workspaceId: group.workspaceId,
+                    projectId: first.project_id,
+                    tab: "organizationGeneral",
+                })
             }}
             onCreate={() => {
                 setError(null)
@@ -135,6 +133,7 @@ export const OrganizationsTab = ({
                 placeholder="Organization name"
                 submitLabel="Create"
                 pending={pending}
+                error={error}
                 onClose={() => setCreating(false)}
                 onSubmit={async (name) => {
                     if (await run(() => createOrganization({name}), "Couldn't create it"))
@@ -204,6 +203,8 @@ const TransferDialog = ({
     onTransfer: (userId: string) => void
 }) => {
     const [userId, setUserId] = useState("")
+    // Each opening starts with no member chosen.
+    useEffect(() => setUserId(""), [org])
     const candidates = useMemo(
         () => members.filter((member) => member.user?.id && member.user.id !== currentUserId),
         [members, currentUserId],
@@ -213,9 +214,7 @@ const TransferDialog = ({
         <Dialog
             open={Boolean(org)}
             onOpenChange={(next) => {
-                if (next || pending) return
-                setUserId("")
-                onClose()
+                if (!next && !pending) onClose()
             }}
         >
             <DialogContent>

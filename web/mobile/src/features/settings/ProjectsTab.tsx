@@ -14,7 +14,7 @@ import {
 import {useRouter} from "next/router"
 
 import {NameDialog} from "./NameDialog"
-import {settingsUrlFor} from "./switchContext"
+import {switchSettingsContext} from "./switchContext"
 
 interface Props {
     projects: ProjectsResponse[]
@@ -37,13 +37,11 @@ export const ProjectsTab = ({projects, isLoading, workspaceId, projectId}: Props
             workspaceId={workspaceId}
             currentProjectId={projectId}
             onSwitch={(project) =>
-                void router.push(
-                    settingsUrlFor({
-                        workspaceId: project.workspace_id ?? workspaceId,
-                        projectId: project.project_id,
-                        tab: "projects",
-                    }),
-                )
+                switchSettingsContext(router, {
+                    workspaceId: project.workspace_id ?? workspaceId,
+                    projectId: project.project_id,
+                    tab: "projects",
+                })
             }
             renderCreateDialog={({open, onClose, onSubmit, pending}) => (
                 <NameDialog

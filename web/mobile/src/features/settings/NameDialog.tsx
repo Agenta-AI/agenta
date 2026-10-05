@@ -20,6 +20,7 @@ export const NameDialog = ({
     pending,
     initialValue = "",
     placeholder = "Name",
+    error,
     onClose,
     onSubmit,
 }: {
@@ -30,6 +31,7 @@ export const NameDialog = ({
     pending: boolean
     initialValue?: string
     placeholder?: string
+    error?: string | null
     onClose: () => void
     onSubmit: (name: string) => void
 }) => {
@@ -46,13 +48,19 @@ export const NameDialog = ({
                     <DialogTitle>{title}</DialogTitle>
                     {description ? <DialogDescription>{description}</DialogDescription> : null}
                 </DialogHeader>
-                <div>
+                <div className="flex flex-col gap-1.5">
                     <Input
                         autoFocus
                         value={value}
+                        aria-invalid={error ? true : undefined}
                         onChange={(event) => setValue(event.target.value)}
                         placeholder={placeholder}
                     />
+                    {error ? (
+                        <p role="alert" className="text-destructive m-0 text-xs">
+                            {error}
+                        </p>
+                    ) : null}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={pending}>
