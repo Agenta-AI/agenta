@@ -8,15 +8,15 @@ export type AccessFeature = "access" | "domains" | "sso"
 const FEATURES: Record<AccessFeature, {name: string; blurb: string}> = {
     access: {
         name: "Access Controls",
-        blurb: "control how members sign in and who can join this organization",
+        blurb: "sign-in and join rules",
     },
     domains: {
         name: "Verified Domains",
-        blurb: "verify the domains your organization owns and use them for access rules and auto-join",
+        blurb: "verified domains",
     },
     sso: {
         name: "SSO Providers",
-        blurb: "connect an OIDC identity provider so members sign in through single sign-on",
+        blurb: "single sign-on",
     },
 }
 
@@ -25,8 +25,6 @@ const ORDER: AccessFeature[] = ["access", "domains", "sso"]
 /** "a", "a and b", "a, b and c" — the last separator is "and", not a comma. */
 const list = (parts: string[]) =>
     parts.length <= 1 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`
-
-const sentenceCase = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 export interface AccessUpgradeNoticeProps {
     /** Which features the plan does not include. Renders nothing when empty. */
@@ -54,7 +52,7 @@ export const AccessUpgradeNotice = ({locked, action}: AccessUpgradeNoticeProps) 
                     ? "Access & Security is not available on your plan"
                     : `${list(present.map((feature) => FEATURES[feature].name))} ${present.length > 1 ? "are" : "is"} not available on your plan`
             }
-            description={`${sentenceCase(list(present.map((feature) => FEATURES[feature].blurb)))}.`}
+            description={`Set up ${list(present.map((feature) => FEATURES[feature].blurb))} for this organization.`}
             action={action}
         />
     )
