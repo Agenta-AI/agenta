@@ -15,7 +15,7 @@
  */
 import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {subscriptionPairModelsAtom} from "@agenta/entities/secret"
+import {subscriptionPairModelsAtom, type AgentConnectionNamespace} from "@agenta/entities/secret"
 import {agentModelCandidatesAtomFamily, loadAgentModelCandidates} from "@agenta/entities/workflow"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
@@ -50,6 +50,8 @@ export interface ModelPickerControlProps {
     mode: ConnectionMode
     /** The stored connection slug, so the right connection's row shows as selected. */
     slug: string | null
+    /** The stored slug's namespace: a built-in and a custom endpoint may share one slug. */
+    namespace: AgentConnectionNamespace | null
     /** Only an uncommitted local agent may replace its automatic template placeholder. */
     replaceable: boolean
     disabled?: boolean
@@ -72,6 +74,7 @@ const ModelPickerControl = ({
     provider,
     mode,
     slug,
+    namespace,
     replaceable,
     disabled,
     showSubscriptions = true,
@@ -108,15 +111,15 @@ const ModelPickerControl = ({
     // The exact row the config points at. `value` alone selects by model id, which lights up every
     // connection offering that id; the stored connection and harness resolve it to one.
     const selectedKey = useMemo(
-        () => selectedModelRowKey(rows, {modelId, slug, mode, harness}),
-        [rows, modelId, slug, mode, harness],
+        () => selectedModelRowKey(rows, {modelId, slug, namespace, mode, harness}),
+        [rows, modelId, slug, namespace, mode, harness],
     )
     const groups = useMemo(() => buildPickerGroupsWithSections(rows), [rows])
     const allSourcesResolved = candidateState.status === "ready"
 
     const currentSelection = useMemo<PickerSelection | null>(
-        () => (modelId && harness ? {modelId, provider, mode, slug, harness} : null),
-        [modelId, provider, mode, slug, harness],
+        () => (modelId && harness ? {modelId, provider, mode, slug, namespace, harness} : null),
+        [modelId, provider, mode, slug, namespace, harness],
     )
     const openProviderDrawer = useCallback(() => {
         drawerConnectionKeysRef.current = connections.map((connection) => connection.id)

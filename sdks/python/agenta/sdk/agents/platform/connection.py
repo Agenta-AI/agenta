@@ -210,7 +210,11 @@ class PlatformConnection:
         return self._authorization or _derive_authorization()
 
     async def gateway_authorization(
-        self, *, plane: Optional[str] = None
+        self,
+        *,
+        plane: Optional[str] = None,
+        session_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> Optional[str]:
         """The credential the SANDBOX may hold, exchanged for the one this process holds.
 
@@ -225,6 +229,9 @@ class PlatformConnection:
         that plane is switched off now, while the caller still has a pre-gateway path, rather
         than at the first tool call, when it does not.
 
+        ``session_id`` and ``agent_id`` label the platform-funded usage the gateway records
+        for calls made with this credential. They authorize nothing.
+
         ``None`` when no backend or no caller credential is configured — the offline and
         standalone cases, where there is no gateway to be confined to either.
         """
@@ -238,7 +245,15 @@ class PlatformConnection:
                 response = await client.post(
                     f"{api_base}/gateways/credentials",
                     headers=self.headers(authorization=authorization),
-                    json={"plane": plane} if plane else {},
+                    json={
+                        key: value
+                        for key, value in (
+                            ("plane", plane),
+                            ("session_id", session_id),
+                            ("agent_id", agent_id),
+                        )
+                        if value
+                    },
                 )
         except Exception as exc:  # pylint: disable=broad-except
             log.warning("agent: gateway credential exchange failed", exc_info=True)

@@ -21,6 +21,7 @@ import { sleep } from "./sandbox/serial-queue.ts";
 import { DriveObjects, type ObjectStore } from "./workspace/drive-objects.ts";
 import { TranscriptStore, transcriptDir } from "./workspace/transcript-store.ts";
 import type { MountCredentials } from "../sandbox_agent/mount.ts";
+import type { SandboxUsageContext } from "../../metering/sandbox-usage.ts";
 
 type Log = (message: string) => void;
 
@@ -40,6 +41,8 @@ export interface ConversationSpec {
   skillModes: Map<string, number>;
   /** Signs the conversation-file prefix. */
   signTranscriptMount: () => Promise<MountCredentials | null>;
+  /** Who the command sandbox's running seconds are reported for; absent, they are not metered. */
+  usage?: SandboxUsageContext;
 }
 
 export interface RegistryOptions {
@@ -90,6 +93,7 @@ export class ConversationRegistry {
       workspace.signTranscriptMount = spec.signTranscriptMount;
     }
     workspace.drive.addModes(spec.skillModes);
+    workspace.sandbox.useUsage(spec.usage);
     // Counted before pruning, so the entry being handed out is never the one evicted.
     workspace.sandbox.holders += 1;
     this.prune();
@@ -106,6 +110,7 @@ export class ConversationRegistry {
     const sandbox = workspace.sandbox;
     sandbox.holders = Math.max(0, sandbox.holders - 1);
     if (sandbox.holders === 0) {
+      sandbox.releaseUsage();
       if (disposition === "delete") {
         if (this.entries.get(sandbox.key) === workspace) {
           this.entries.delete(sandbox.key);

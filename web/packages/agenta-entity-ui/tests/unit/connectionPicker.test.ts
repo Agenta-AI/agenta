@@ -776,6 +776,7 @@ describe("selectionFromModelRow", () => {
             provider: "anthropic",
             mode: "agenta",
             slug: "anthropic",
+            namespace: null,
             harness: "claude",
         })
     })
@@ -896,6 +897,7 @@ describe("pickerSelectionFrom", () => {
             provider: "openai",
             mode: "agenta",
             slug: "openai-2",
+            namespace: null,
             harness: "pi_core",
         })
     })
@@ -927,8 +929,67 @@ describe("pickerSelectionFrom", () => {
             provider: null,
             mode: "agenta",
             slug: null,
+            namespace: null,
             harness: null,
         })
+    })
+})
+
+describe("a built-in pick beside a custom endpoint of the same slug", () => {
+    it("keeps the namespace through the option metadata", () => {
+        expect(
+            pickerSelectionFrom("gpt-5.5", {
+                connectionSlug: "agenta",
+                connectionNamespace: "builtin",
+                connectionMode: "agenta",
+                harness: "pi_core",
+                provider: "openai",
+            }),
+        ).toMatchObject({slug: "agenta", namespace: "builtin"})
+    })
+
+    it("marks the row the namespace names, not the first row with the slug", () => {
+        const model = (namespace: "builtin" | null) => ({
+            modelId: "gpt-5.5",
+            label: "GPT-5.5",
+            harness: "pi_core",
+            harnessLabel: "Pi",
+            mode: "agenta" as const,
+            slug: "agenta",
+            namespace,
+            provider: "openai",
+            connectionKey: namespace ? "builtin:agenta" : "custom-1",
+            connectionName: "agenta",
+        })
+        const rows = [
+            {
+                key: "custom-1",
+                name: "agenta",
+                iconKey: "openai",
+                kind: "connection" as const,
+                models: [model(null)],
+            },
+            {
+                key: "builtin:agenta",
+                name: "Built-in: agenta",
+                iconKey: "agenta",
+                kind: "connection" as const,
+                models: [model("builtin")],
+            },
+        ]
+        const current = {
+            modelId: "gpt-5.5",
+            slug: "agenta",
+            mode: "agenta" as const,
+            harness: "pi_core",
+        }
+
+        expect(selectedModelRowKey(rows, {...current, namespace: "builtin"})).toBe(
+            "builtin:agenta:pi_core:gpt-5.5",
+        )
+        expect(selectedModelRowKey(rows, {...current, namespace: null})).toBe(
+            "custom-1:pi_core:gpt-5.5",
+        )
     })
 })
 
@@ -1008,6 +1069,7 @@ describe("a deployment-hosted connection's provider family", () => {
             provider: "anthropic",
             mode: "agenta",
             slug: "aws-bedrock-52e8f59f0d07",
+            namespace: null,
             harness: "claude",
         })
     })

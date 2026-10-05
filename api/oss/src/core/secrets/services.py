@@ -866,6 +866,44 @@ class VaultService:
             await invalidate_cache(project_id=str(project_id))
         return secret_dto
 
+    async def delete_managed_secret(
+        self,
+        *,
+        secret_id: UUID,
+        manager: SecretManager,
+        project_id: UUID | None = None,
+        organization_id: UUID | None = None,
+    ) -> None:
+        """Delete a managed row on behalf of the manager that owns it, for a manager that
+        retires what it seeded. Refuses any row another manager owns, and any unmanaged
+        row."""
+        deleted: list[SecretResponseDTO] = []
+
+        def authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
+            management = stored_secret_dto.management
+            if management is None or management.manager != manager:
+                raise ManagedSecretReadOnlyError()
+            deleted.append(stored_secret_dto)
+
+        with set_data_encryption_key(
+            data_encryption_key=self._data_encryption_key,
+        ):
+            await self.secrets_dao.delete(
+                secret_id=secret_id,
+                project_id=project_id,
+                organization_id=organization_id,
+                authorize_delete=authorize_delete,
+            )
+
+        if project_id is not None:
+            await invalidate_cache(project_id=str(project_id))
+
+        for stored_secret_dto in deleted:
+            await self._deregister_llm_endpoint(
+                project_id=project_id,
+                secret_dto=stored_secret_dto,
+            )
+
     async def invalidate_secrets_cache(self, project_id: UUID) -> None:
         """Drop this project's cached secrets list.
 

@@ -37,6 +37,7 @@ class FakeStripe:
         ]
         self.cancelled = []
         self.modified = []
+        self.metadata = {}
 
         stripe = self
 
@@ -53,7 +54,7 @@ class FakeStripe:
                 stripe.cancelled.append(id)
 
             @staticmethod
-            def modify(id, items):
+            def modify(id, items, metadata=None):
                 stripe._check(id)
                 deleted = {item["id"] for item in items if item.get("deleted")}
                 kept = [item for item in stripe.items if item["id"] not in deleted]
@@ -63,6 +64,7 @@ class FakeStripe:
                         "A subscription must have at least one active plan."
                     )
                 stripe.items = kept + added
+                stripe.metadata.update(metadata or {})
                 stripe.modified.append(id)
 
         class SubscriptionItem:
@@ -165,6 +167,8 @@ async def test_switch_between_paid_plans_replaces_the_stripe_items(monkeypatch):
     assert stripe.modified == ["sub_123"]
     assert stripe.cancelled == []
     assert [item["price"] for item in stripe.items] == ["price_business"]
+    # The renewal's monthly credits follow the plan named in the metadata.
+    assert stripe.metadata == {"plan": BUSINESS}
     assert dao.subscription.plan == BUSINESS
     assert dao.subscription.subscription_id == "sub_123"
     router._reset_organization_flags.assert_not_awaited()
@@ -209,7 +213,7 @@ async def test_switch_refused_by_stripe_answers_400_and_keeps_the_plan(monkeypat
         monkeypatch, plan=PRO, subscription_id="sub_123", prices=["price_pro"]
     )
 
-    def refuse(id, items):
+    def refuse(id, items, metadata=None):
         raise FakeStripeError("This subscription cannot be updated.")
 
     monkeypatch.setattr(stripe.Subscription, "modify", staticmethod(refuse))
