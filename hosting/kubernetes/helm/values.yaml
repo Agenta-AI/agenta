@@ -192,10 +192,16 @@ redisDurable:
   persistence:
     size: "5Gi"
 
-# An external durable Redis over TLS, for example Google Cloud Memorystore,
-# Amazon ElastiCache or Azure Cache. Such a service presents a certificate
-# signed by its own authority, not by a public root, so `rediss://` fails with
-# CERTIFICATE_VERIFY_FAILED until the client is given that authority.
+# An external durable Redis over TLS.
+#
+# Set `caCert` only when the service presents a certificate from an authority the
+# client does not already trust. Then `rediss://` fails with
+# CERTIFICATE_VERIFY_FAILED until you supply that authority. Google Cloud
+# Memorystore is the case we measured: it signs with a per-instance authority, and
+# the connection is refused without it. Managed services that present a publicly
+# trusted certificate need nothing here, so do not go looking for a CA you do not
+# need. Check your provider's documentation, or try the connection first and add
+# the authority only if it is refused.
 #
 # Put the authority in `redisDurable.external.caCert` and the chart mounts it at
 # /etc/agenta/redis-durable/ca.pem on every workload that talks to the durable

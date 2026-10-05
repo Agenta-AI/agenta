@@ -322,3 +322,65 @@ Allowed values: "oss", "ee".
 {{- fail "redisVolatile.external.caCert is not implemented: the chart mounts a CA for redisDurable only. Put the authority in the cluster trust store, or open an issue if you need it for the cache." }}
 {{- end }}
 {{- end }}
+
+{{/* ================================================================
+   The durable-Redis CA volume projects the key REDIS_DURABLE_CA_CERT
+   explicitly, and Kubernetes refuses to mount a Secret volume whose
+   named key is absent: every affected pod then fails to start. Two
+   combinations produce exactly that, so refuse them at render time
+   with the fix in the message.
+   ================================================================ */}}
+{{- define "agenta.validateRedisDurableCaCert" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $secrets := default dict .Values.secrets -}}
+{{- $rd := default dict $values.redisDurable -}}
+{{- $ext := default dict $rd.external -}}
+{{- $ca := $ext.caCert -}}
+{{- if $ca }}
+{{- $isPlaceholder := eq ($ca | toString) "from-existing-secret" -}}
+{{- if and $isPlaceholder (not $secrets.existingSecret) }}
+{{- fail `
+
+CONFIGURATION ERROR: redisDurable.external.caCert is "from-existing-secret" but
+secrets.existingSecret is not set.
+
+That placeholder means "the Secret I supply already holds REDIS_DURABLE_CA_CERT".
+Without secrets.existingSecret the chart creates the Secret itself and writes no
+such key, so the CA volume would reference a key that does not exist and every
+pod that talks to the durable Redis would fail to start.
+
+Pick one:
+
+  # the chart owns the Secret: give it the PEM
+  redisDurable:
+    external:
+      caCert: |
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+
+  # you own the Secret: put REDIS_DURABLE_CA_CERT in it and keep the placeholder
+  secrets:
+    existingSecret: my-agenta-secret
+`}}
+{{- end }}
+{{- if and (not $isPlaceholder) $secrets.existingSecret }}
+{{- fail `
+
+CONFIGURATION ERROR: redisDurable.external.caCert holds a certificate, but
+secrets.existingSecret is set.
+
+With secrets.existingSecret the chart creates no Secret, so a PEM given here is
+never written anywhere. The CA volume reads REDIS_DURABLE_CA_CERT from your
+Secret, and if your Secret does not hold it, every pod that talks to the durable
+Redis fails to start.
+
+Put the PEM in your own Secret under the key REDIS_DURABLE_CA_CERT, then set:
+
+  redisDurable:
+    external:
+      caCert: from-existing-secret
+`}}
+{{- end }}
+{{- end }}
+{{- end }}

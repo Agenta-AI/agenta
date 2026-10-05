@@ -164,6 +164,29 @@ def main() -> int:
     code, out = render(KEY_ARGS + ["--set-string", f"redisVolatile.external.caCert={PEM}"])
     check(code != 0 and "not implemented" in out, "a certificate on the cache Redis fails the render")
 
+    # --- the two combinations that could never mount -------------------------
+    # The volume names REDIS_DURABLE_CA_CERT explicitly, and Kubernetes refuses to mount a
+    # Secret volume whose named key is absent. Both of these would render happily and then
+    # leave every durable-Redis workload unable to start, so they must fail at render time.
+    code, out = render(KEY_ARGS + EXTERNAL_ARGS + ["--set", "redisDurable.external.caCert=from-existing-secret"])
+    check(
+        code != 0 and "from-existing-secret" in out and "secrets.existingSecret is not set" in out,
+        "the placeholder without an existing Secret fails the render",
+    )
+
+    code, out = render(
+        EXTERNAL_ARGS
+        + [
+            "--set", f"secrets.existingSecret={EXISTING_SECRET}",
+            "--set", f"global.postgresql.auth.existingSecret={EXISTING_SECRET}",
+            "--set-string", f"redisDurable.external.caCert={PEM}",
+        ]
+    )
+    check(
+        code != 0 and "is set" in out and "never written anywhere" in out,
+        "an inline certificate alongside an existing Secret fails the render",
+    )
+
     print(f"\n{total - len(failures)}/{total} checks passed")
     if failures:
         return 1
