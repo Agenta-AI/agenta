@@ -268,6 +268,18 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                     </button>
                                 </span>
                             ) : null}
+                            {focus ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setFilters({...filters, [focus.dim]: [focus.key]})
+                                        setState(null)
+                                    }}
+                                    className="h-6 cursor-pointer border-0 bg-transparent px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                                >
+                                    Apply as filter
+                                </button>
+                            ) : null}
                         </div>
                     ) : null}
 
@@ -447,20 +459,6 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                     />
                 </div>
             </div>
-
-            {focus ? (
-                <div className="flex justify-end px-5 pb-4 pt-2">
-                    <Button
-                        size="sm"
-                        onClick={() => {
-                            setFilters({...filters, [focus.dim]: [focus.key]})
-                            setState(null)
-                        }}
-                    >
-                        Apply as filter
-                    </Button>
-                </div>
-            ) : null}
         </>
     )
 }
