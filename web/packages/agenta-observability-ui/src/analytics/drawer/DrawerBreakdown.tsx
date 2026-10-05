@@ -18,7 +18,6 @@ import {CaretRight} from "@phosphor-icons/react"
 
 import {SERIES_COLORS, analyticsColor} from "../colors"
 import {
-    SPLIT_KEYS,
     useAnalyticsSplit,
     type AnalyticsTools,
     type AnalyticsWindowData,
@@ -115,7 +114,8 @@ const RunTable = ({
     const failed = dim === "agent" ? data.agentFailed : data.modelFailed
     const order = dim === "agent" ? data.agentOrder : data.modelOrder
     const [showAll, setShowAll] = useState(false)
-    const limit = showAll ? SPLIT_KEYS : LIMIT
+    // Show all asks for every key, so nothing is left behind as "Other".
+    const limit = showAll ? order.length : LIMIT
     const top = useMemo(() => order.slice(0, limit), [order, limit])
     const split = useAnalyticsSplit(dim, top, window, filters, true, focus)
     const totals = data.overview.totals
@@ -249,9 +249,7 @@ const RunTable = ({
                     onClick={() => setShowAll(!showAll)}
                     className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-xs text-muted-foreground hover:text-foreground"
                 >
-                    {showAll
-                        ? `Show top ${LIMIT}`
-                        : `Show all ${Math.min(order.length, SPLIT_KEYS)}`}
+                    {showAll ? `Show top ${LIMIT}` : `Show all ${order.length}`}
                 </button>
             ) : null}
         </div>
