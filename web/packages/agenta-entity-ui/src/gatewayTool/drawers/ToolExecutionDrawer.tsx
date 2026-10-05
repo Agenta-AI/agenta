@@ -260,9 +260,6 @@ function ActionPickerStep({
                     <span className="truncate text-base font-medium leading-snug text-foreground">
                         Choose an action to run
                     </span>
-                    <span className="truncate text-sm text-colorTextDescription">
-                        Connection · {connectionSlug}
-                    </span>
                 </div>
 
                 <InputAffix
