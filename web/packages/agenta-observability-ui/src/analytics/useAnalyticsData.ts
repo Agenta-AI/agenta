@@ -11,6 +11,8 @@ import {
     analyticsAgentNamesAtomFamily,
     analyticsBucketsAtomFamily,
     analyticsSplitAtomFamily,
+    analyticsRunsAtomFamily,
+    categorizeFailure,
     type KeyedSeries,
     type AnalyticsFilters,
     type AnalyticsFocus,
@@ -173,3 +175,62 @@ export const usePageAnalytics = (
     }, [data.agentRuns, data.modelRuns, agentSplit, modelSplit])
     return {data, agentSplit, modelSplit, keyColor}
 }
+
+/** Failed runs fetched to read their reasons; a window with more uses the newest. */
+export const FAILURE_SAMPLE = 100
+
+export interface ReasonCount {
+    label: string
+    count: number
+}
+
+const ranked = (counts: Record<string, number>): ReasonCount[] =>
+    Object.entries(counts)
+        .map(([label, count]) => ({label, count}))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+
+/** Why runs failed, for the range and per bucket, from the newest failed runs. */
+export const useFailureReasons = (
+    window: AnalyticsWindow,
+    filters: AnalyticsFilters,
+    failed: number,
+) => {
+    const query = useAtomValue(
+        analyticsRunsAtomFamily({
+            window,
+            filters,
+            focus: null,
+            failedOnly: true,
+            limit: FAILURE_SAMPLE,
+            enabled: failed > 0,
+        }),
+    )
+    return useMemo(() => {
+        const width = window.interval * 60_000
+        const buckets = bucketStarts(window).map(() => ({
+            reasons: {} as Record<string, number>,
+            agents: {} as Record<string, number>,
+        }))
+        const total: Record<string, number> = {}
+        const runs = query.data ?? []
+        for (const run of runs) {
+            const label = categorizeFailure(run.reason).label
+            total[label] = (total[label] ?? 0) + 1
+            const bucket = buckets[Math.floor((run.startedAt - window.oldest) / width)]
+            if (!bucket) continue
+            bucket.reasons[label] = (bucket.reasons[label] ?? 0) + 1
+            if (run.agentId) bucket.agents[run.agentId] = (bucket.agents[run.agentId] ?? 0) + 1
+        }
+        return {
+            top: ranked(total),
+            byBucket: buckets.map((b) => ({
+                reasons: ranked(b.reasons),
+                agent: ranked(b.agents)[0]?.label ?? null,
+            })),
+            sampled: runs.length,
+            status: statusOf(query),
+        }
+    }, [query, window])
+}
+
+export type FailureReasons = ReturnType<typeof useFailureReasons>

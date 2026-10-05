@@ -35,7 +35,7 @@ import {
 import {ANALYTICS_COLOR_CSS} from "./colors"
 import {AnalyticsDrawer} from "./drawer/AnalyticsDrawer"
 import {bucketUnit, fullLabel, shortLabel} from "./labels"
-import {useAgentNames, usePageAnalytics} from "./useAnalyticsData"
+import {useAgentNames, useFailureReasons, usePageAnalytics} from "./useAnalyticsData"
 
 export interface AnalyticsPageProps {
     /** The plan's trace retention; null keeps every range open (OSS, custom plans). */
@@ -116,6 +116,20 @@ export const AnalyticsPage = ({
         [openDrawer, group],
     )
 
+    const failures = useFailureReasons(window, filters, data.overview.totals.failed)
+    const onFailureReason = useCallback(
+        (reason: string) =>
+            openDrawer({
+                bucket: null,
+                metric: "success",
+                dim: group === "model" ? "model" : "agent",
+                focus: null,
+                failedOnly: true,
+                reason,
+            }),
+        [openDrawer, group],
+    )
+
     const labels = useMemo(
         () => data.starts.map((s) => shortLabel(window, s)),
         [data.starts, window],
@@ -163,6 +177,8 @@ export const AnalyticsPage = ({
         rangeLabel,
         agentName,
         grouped,
+        failures,
+        onFailureReason,
         emptyText,
         onExplore,
     }

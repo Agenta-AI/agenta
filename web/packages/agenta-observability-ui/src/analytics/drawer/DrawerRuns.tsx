@@ -18,19 +18,20 @@ import {useAtomValue} from "jotai"
 
 import {analyticsColor} from "../colors"
 import {clock, monthDay} from "../labels"
+import {FAILURE_SAMPLE} from "../useAnalyticsData"
 
 const SHOWN = 20
 // Root spans carry their inputs and outputs (~70 KB each), so samples stay small.
-const REASON_SAMPLE = 100
 const COST_SAMPLE = 40
 
 // The spans endpoint orders by time only, so costly runs come from a cost floor, ranked here.
 const byCost = (a: AnalyticsRun, b: AnalyticsRun) => (b.cost ?? -1) - (a.cost ?? -1)
 
 const ROW_GRID =
-    "grid grid-cols-[12px_minmax(0,1.2fr)_minmax(0,1.1fr)_76px_56px_70px_14px] items-center gap-2.5 px-1"
+    "grid grid-cols-[12px_minmax(0,1.2fr)_minmax(0,1.1fr)_92px_56px_70px_14px] items-center gap-2.5 px-1"
 
 export interface DrawerRunsProps {
+    initialReason?: string | null
     window: AnalyticsWindow
     filters: AnalyticsFilters
     focus: AnalyticsFocus | null
@@ -46,6 +47,7 @@ export interface DrawerRunsProps {
 }
 
 export const DrawerRuns = ({
+    initialReason,
     window,
     filters,
     focus,
@@ -58,7 +60,7 @@ export const DrawerRuns = ({
     showDate,
     onOpenTrace,
 }: DrawerRunsProps) => {
-    const [reason, setReason] = useState<string | null>(null)
+    const [reason, setReason] = useState<string | null>(initialReason ?? null)
     const [open, setOpen] = useState<string | null>(null)
     const base = {window, filters, focus}
     const ready = averageCost !== null
@@ -68,7 +70,7 @@ export const DrawerRuns = ({
         analyticsRunsAtomFamily({
             ...base,
             failedOnly: true,
-            limit: REASON_SAMPLE,
+            limit: FAILURE_SAMPLE,
             enabled: failedOnly,
         }),
     )
@@ -258,7 +260,7 @@ export const DrawerRuns = ({
                                 runs.length >= COST_SAMPLE ? `, from the newest ${COST_SAMPLE}` : ""
                             }`
                           : `Newest ${listed.length} of ${formatCount(total)} runs: none recorded a cost`}
-                    {listed.some((run) => run.subscription) ? (
+                    {listed.some((run) => run.subscription && run.cost !== null) ? (
                         <span className="block">
                             ≈ Estimated from tokens: the run used a subscription.
                         </span>
