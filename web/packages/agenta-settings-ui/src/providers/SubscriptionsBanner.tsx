@@ -41,42 +41,47 @@ const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
     return (
         <div
             className={cn(
-                "flex min-w-0 items-center gap-3 rounded-xl border border-solid px-3 py-2.5",
+                "flex min-w-0 flex-col gap-2.5 rounded-xl border border-solid p-3",
                 brand.cell,
             )}
         >
-            <span
-                className={cn(
-                    "flex size-8 shrink-0 items-center justify-center rounded-[9px] [&_svg]:size-4",
-                    brand.tile,
-                )}
-            >
-                {plan.logo}
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-                <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-[14px] font-semibold text-foreground">
-                        {plan.name}
-                    </span>
-                    {plan.state === "available" ? null : (
-                        <span
-                            aria-label={STATE_LABEL[plan.state]}
-                            title={STATE_LABEL[plan.state]}
-                            className={cn(
-                                "size-1.5 shrink-0 rounded-full",
-                                ready ? "bg-colorSuccess" : "bg-colorWarning",
-                            )}
-                        />
+            <div className="flex min-w-0 items-center gap-3">
+                <span
+                    className={cn(
+                        "flex size-8 shrink-0 items-center justify-center rounded-[9px] [&_svg]:size-4",
+                        brand.tile,
                     )}
+                >
+                    {plan.logo}
                 </span>
-                <span className="truncate text-[12px] text-muted-foreground" title={plan.detail}>
-                    {plan.detail}
+                <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-[14px] font-semibold text-foreground">
+                            {plan.name}
+                        </span>
+                        {plan.state === "available" ? null : (
+                            <span
+                                aria-label={STATE_LABEL[plan.state]}
+                                title={STATE_LABEL[plan.state]}
+                                className={cn(
+                                    "size-1.5 shrink-0 rounded-full",
+                                    ready ? "bg-colorSuccess" : "bg-colorWarning",
+                                )}
+                            />
+                        )}
+                    </span>
+                    <span
+                        className="truncate text-[12px] text-muted-foreground"
+                        title={plan.detail}
+                    >
+                        {plan.detail}
+                    </span>
                 </span>
-            </span>
+            </div>
             <Button
                 variant={ready ? "outline" : "default"}
                 onClick={plan.action.onClick}
-                className={cn("shrink-0", ready ? null : brand.button)}
+                className={cn("w-full", ready ? null : brand.button)}
             >
                 {plan.action.label}
                 {plan.action.external ? (
