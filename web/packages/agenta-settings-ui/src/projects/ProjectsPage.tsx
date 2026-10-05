@@ -22,6 +22,7 @@ import {InlineName} from "../shared/InlineName"
 import {NameAvatar} from "../shared/NameAvatar"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 interface ProjectFormValues {
     name: string
@@ -44,6 +45,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "user_role", label: "Your role", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
+const PHONE_KEYS = ["project_name", "status", "actions"]
 
 export interface ProjectDialogState<T> {
     open: boolean
@@ -65,6 +67,8 @@ export interface ProjectsPageProps {
     /** Create / delete dialogs — the host's. Rename happens in place on the row. */
     renderCreateDialog?: (state: ProjectDialogState<ProjectFormValues>) => React.ReactNode
     renderDeleteDialog?: (state: ProjectDialogState<void>) => React.ReactNode
+    /** After a create, rename or delete lands, for a host that caches projects elsewhere. */
+    onChanged?: () => void
 }
 
 export const ProjectsPage = ({
@@ -75,6 +79,7 @@ export const ProjectsPage = ({
     onSwitch,
     renderCreateDialog,
     renderDeleteDialog,
+    onChanged,
 }: ProjectsPageProps) => {
     const queryClient = useQueryClient()
 
@@ -91,13 +96,16 @@ export const ProjectsPage = ({
     // A host that brings no dialogs gets the list read-only rather than affordances that open nothing.
     const canEdit = Boolean(renderCreateDialog || renderDeleteDialog)
 
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+
     const rows = useMemo<ProjectRow[]>(() => {
         return scopedProjects.map((project) => ({...project, key: project.project_id}))
     }, [scopedProjects])
 
     const invalidateProjects = useCallback(async () => {
+        onChanged?.()
         await queryClient.invalidateQueries({queryKey: ["projects"]})
-    }, [queryClient])
+    }, [queryClient, onChanged])
 
     const createMutation = useMutation({
         mutationFn: (payload: ProjectFormValues) => createProject(payload),
@@ -159,7 +167,7 @@ export const ProjectsPage = ({
         <section className="flex flex-col">
             <SettingsPageActions>{newProject}</SettingsPageActions>
             <ListTable<ProjectRow>
-                columns={COLUMNS}
+                columns={columns}
                 groups={[{key: "projects", label: null, rows}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
@@ -219,13 +227,15 @@ export const ProjectsPage = ({
                                 <span className="text-muted-foreground">—</span>
                             )}
                         </span>
-                        <span className="flex min-w-0">
-                            {record.user_role ? (
-                                <Tag className="m-0" label={record.user_role} />
-                            ) : (
-                                <span className="text-muted-foreground">—</span>
-                            )}
-                        </span>
+                        {shows("user_role") ? (
+                            <span className="flex min-w-0">
+                                {record.user_role ? (
+                                    <Tag className="m-0" label={record.user_role} />
+                                ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                )}
+                            </span>
+                        ) : null}
                         <SettingsRowMenu
                             label="Project actions"
                             items={[

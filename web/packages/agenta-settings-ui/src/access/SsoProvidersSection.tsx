@@ -10,6 +10,7 @@ import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 const COLUMNS: ListTableColumn[] = [
     {key: "slug", label: "Provider", width: "minmax(0,1.2fr)"},
@@ -18,6 +19,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "enable", label: "Enable", srOnly: true, width: "72px"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
+const PHONE_KEYS = ["slug", "status", "enable", "actions"]
 
 export interface SsoProvidersSectionProps {
     providers: OrganizationProvider[]
@@ -63,6 +65,7 @@ export const SsoProvidersSection = ({
     renderInstructions,
     children,
 }: SsoProvidersSectionProps) => {
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
     const addButton = (variant?: "outline") =>
         onAdd ? (
             <Button variant={variant} onClick={onAdd} disabled={loading}>
@@ -86,7 +89,7 @@ export const SsoProvidersSection = ({
 
             <SettingsToolbar actions={addButton()} />
             <ListTable<OrganizationProvider>
-                columns={COLUMNS}
+                columns={columns}
                 groups={[{key: "all", label: null, rows: providers}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.id}
@@ -111,7 +114,7 @@ export const SsoProvidersSection = ({
                             <span className="truncate font-medium text-foreground">
                                 {record.slug}
                             </span>
-                            {url ? (
+                            {!shows("callback_url") ? null : url ? (
                                 <span
                                     className="truncate font-mono text-[13px] text-muted-foreground"
                                     title={url}

@@ -8,6 +8,7 @@ import {SettingsPageActions} from "./SettingsPageShell"
 import {hoverableRow} from "./shared/hoverableRow"
 import {SettingsEmpty} from "./shared/SettingsEmpty"
 import {SettingsRowMenu} from "./shared/SettingsRowMenu"
+import {usePhoneColumns} from "./shared/usePhoneColumns"
 
 export interface ApiKeysPageProps {
     rows: ApiKeyRow[]
@@ -28,6 +29,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "last_used_at", label: "Last used", width: "minmax(0,1.4fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
+const PHONE_KEYS = ["prefix", "expiration_date", "actions"]
 
 const ExpiresCell = ({value}: {value?: string | null}) => {
     const date = value ? new Date(value) : null
@@ -54,6 +56,7 @@ export const ApiKeysPage = ({
     onCreate,
     onDelete,
 }: ApiKeysPageProps) => {
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
     if (!canView) {
         return (
             <Alert
@@ -75,7 +78,7 @@ export const ApiKeysPage = ({
         <section className="flex flex-col">
             <SettingsPageActions>{generate}</SettingsPageActions>
             <ListTable<ApiKeyRow>
-                columns={COLUMNS}
+                columns={columns}
                 minWidth={0}
                 groups={[{key: "keys", label: null, rows}]}
                 wrapRow={hoverableRow}
@@ -95,13 +98,17 @@ export const ApiKeysPage = ({
                         <span className="truncate font-mono text-[13px]">
                             {record.prefix.padEnd(20, "\u2022")}
                         </span>
-                        <span className="truncate">{formatDate(record.created_at)}</span>
+                        {shows("created_at") ? (
+                            <span className="truncate">{formatDate(record.created_at)}</span>
+                        ) : null}
                         <ExpiresCell value={record.expiration_date} />
-                        <span className="truncate text-muted-foreground">
-                            {record.last_used_at
-                                ? new Date(record.last_used_at).toLocaleString()
-                                : "Never used"}
-                        </span>
+                        {shows("last_used_at") ? (
+                            <span className="truncate text-muted-foreground">
+                                {record.last_used_at
+                                    ? new Date(record.last_used_at).toLocaleString()
+                                    : "Never used"}
+                            </span>
+                        ) : null}
                         <SettingsRowMenu
                             label="Key actions"
                             items={[

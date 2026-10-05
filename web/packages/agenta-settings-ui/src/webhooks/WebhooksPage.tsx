@@ -19,6 +19,7 @@ import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 const isGitHubApiUrl = (url?: string | null): boolean => {
     if (!url) {
@@ -68,6 +69,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "status", label: "Status", width: "minmax(0,0.8fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
+const PHONE_KEYS = ["name", "status", "actions"]
 
 export interface WebhooksPageProps {
     /** The drawer that creates/edits a subscription — the host's. */
@@ -159,6 +161,8 @@ export const WebhooksPage = ({
         return (webhooks ?? []).map((webhook) => ({...webhook, key: webhook.id}))
     }, [webhooks])
 
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+
     const subscribe = renderDrawer ? (
         <Button onClick={handleCreate} disabled={isLoading}>
             <Plus size={14} />
@@ -170,7 +174,7 @@ export const WebhooksPage = ({
         <section className="flex flex-col">
             <SettingsPageActions>{subscribe}</SettingsPageActions>
             <ListTable<WebhookRow>
-                columns={COLUMNS}
+                columns={columns}
                 groups={[{key: "webhooks", label: null, rows}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
@@ -210,12 +214,16 @@ export const WebhooksPage = ({
                                     </span>
                                 </span>
                             </span>
-                            <span className="truncate text-muted-foreground" title={url}>
-                                {formatDestination(url)}
-                            </span>
-                            <span className="truncate text-muted-foreground" title={events}>
-                                {events}
-                            </span>
+                            {shows("url") ? (
+                                <span className="truncate text-muted-foreground" title={url}>
+                                    {formatDestination(url)}
+                                </span>
+                            ) : null}
+                            {shows("events") ? (
+                                <span className="truncate text-muted-foreground" title={events}>
+                                    {events}
+                                </span>
+                            ) : null}
                             <StatusIndicator
                                 tone={isWebhookActive(record) ? "success" : "default"}
                                 label={isWebhookActive(record) ? "Active" : "Paused"}

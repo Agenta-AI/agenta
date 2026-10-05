@@ -38,6 +38,21 @@ const columnClassName = (variant: SettingsPageShellProps["variant"]) =>
         variant !== "full" && "mx-auto max-w-[1040px]",
     )
 
+const DocsLink = ({docs, className}: {docs: {label: string; href: string}; className: string}) => (
+    <a
+        className={clsx(
+            "shrink-0 items-center gap-1.5 text-[13px] text-colorTextSecondary no-underline hover:text-colorText",
+            className,
+        )}
+        href={docs.href}
+        target="_blank"
+        rel="noopener noreferrer"
+    >
+        {docs.label}
+        <ArrowSquareOut size={13} />
+    </a>
+)
+
 const SettingsPageShell = ({
     title,
     description,
@@ -70,17 +85,7 @@ const SettingsPageShell = ({
                     </h1>
 
                     <div className="flex shrink-0 items-center gap-4">
-                        {docs ? (
-                            <a
-                                className="flex shrink-0 items-center gap-1.5 text-[13px] text-colorTextSecondary no-underline hover:text-colorText"
-                                href={docs.href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                {docs.label}
-                                <ArrowSquareOut size={13} />
-                            </a>
-                        ) : null}
+                        {docs ? <DocsLink docs={docs} className="hidden sm:flex" /> : null}
                         <div
                             ref={setActionsSlot}
                             className="flex items-center gap-2 empty:hidden"
@@ -88,6 +93,8 @@ const SettingsPageShell = ({
                     </div>
                 </div>
                 <p className="m-0 text-[14px] leading-5 text-colorTextSecondary">{description}</p>
+                {/* A phone's title row has room for the action only. */}
+                {docs ? <DocsLink docs={docs} className="flex self-start sm:hidden" /> : null}
             </header>
 
             <div

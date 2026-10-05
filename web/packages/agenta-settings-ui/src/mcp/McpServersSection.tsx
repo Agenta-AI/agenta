@@ -54,6 +54,7 @@ import {SettingsPageActions} from "../SettingsPageShell"
 import {InlineName} from "../shared/InlineName"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 /** Nouns for the rows; a host that calls them something else passes its own. */
 export interface McpServersSectionCopy {
@@ -108,6 +109,7 @@ const ACTIONS_COLUMN: ListTableColumn = {
     srOnly: true,
     width: "32px",
 }
+const PHONE_KEYS = ["name", "status", "actions"]
 
 export interface McpServersSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
@@ -260,7 +262,11 @@ export default function McpServersSection({
         [confirm, deleteEndpoint, setViewing],
     )
 
-    const columns = useMemo(() => (readOnly ? COLUMNS : [...COLUMNS, ACTIONS_COLUMN]), [readOnly])
+    const allColumns = useMemo(
+        () => (readOnly ? COLUMNS : [...COLUMNS, ACTIONS_COLUMN]),
+        [readOnly],
+    )
+    const {columns, shows} = usePhoneColumns(allColumns, PHONE_KEYS)
     const empty = !isPending && rows.length === 0
 
     const connect = (
@@ -338,19 +344,21 @@ export default function McpServersSection({
                                                 data: record.data,
                                                 flags: record.flags,
                                             },
-                                            projectId,
+                                            projectId ?? undefined,
                                         )
                                         void refresh()
                                     }}
                                 />
                             </span>
-                            <span
-                                className="truncate font-mono text-[13px] text-muted-foreground"
-                                title={record.data.route.base_url ?? undefined}
-                            >
-                                {record.data.route.base_url}
-                            </span>
-                            {record.auth_mode === "oauth" ? (
+                            {shows("url") ? (
+                                <span
+                                    className="truncate font-mono text-[13px] text-muted-foreground"
+                                    title={record.data.route.base_url ?? undefined}
+                                >
+                                    {record.data.route.base_url}
+                                </span>
+                            ) : null}
+                            {!shows("auth") ? null : record.auth_mode === "oauth" ? (
                                 <span className="truncate">OAuth</span>
                             ) : record.auth_mode === "none" ? (
                                 <span className="truncate">None</span>

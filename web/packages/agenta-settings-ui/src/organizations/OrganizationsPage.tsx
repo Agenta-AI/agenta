@@ -21,6 +21,7 @@ import {InlineName} from "../shared/InlineName"
 import {NameAvatar} from "../shared/NameAvatar"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 interface OrgRow extends Org {
     key: string
@@ -32,6 +33,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "owner_id", label: "Your role", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
+const PHONE_KEYS = ["name", "status", "actions"]
 
 export interface OrganizationsPageProps {
     /** Every organization you belong to. */
@@ -76,6 +78,7 @@ export const OrganizationsPage = ({
     )
 
     const [renamingId, setRenamingId] = useState<string | null>(null)
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
     const isOwner = (org: Org) => Boolean(currentUserId) && org.owner_id === currentUserId
 
     const createButton = (variant?: "outline") =>
@@ -90,7 +93,7 @@ export const OrganizationsPage = ({
         <div className="flex flex-col">
             <SettingsPageActions>{createButton()}</SettingsPageActions>
             <ListTable<OrgRow>
-                columns={COLUMNS}
+                columns={columns}
                 groups={[{key: "all", label: null, rows}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
@@ -137,7 +140,11 @@ export const OrganizationsPage = ({
                                     <span className="text-muted-foreground">—</span>
                                 )}
                             </span>
-                            <span className="truncate">{isOwner(record) ? "Owner" : "Member"}</span>
+                            {shows("owner_id") ? (
+                                <span className="truncate">
+                                    {isOwner(record) ? "Owner" : "Member"}
+                                </span>
+                            ) : null}
                             <SettingsRowMenu
                                 label="Organization actions"
                                 items={[

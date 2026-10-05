@@ -16,6 +16,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 import {
     ActorCell,
@@ -41,6 +42,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "actor", label: "User", width: "minmax(0,1.2fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
+const PHONE_KEYS = ["event_type", "timestamp", "actions"]
 
 // Mirror the relative presets offered by the host's date-range picker, so Refresh can
 // roll every relative window forward instead of falling back to the originally captured
@@ -120,6 +122,8 @@ export const AuditLogTable = ({
         refreshTable()
     }, [refreshTable])
 
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+
     const filters: ReactNode = (
         <AuditLogFilters
             registerRefresh={useCallback((flush: () => void) => {
@@ -138,7 +142,7 @@ export const AuditLogTable = ({
                 reloadLabel="Reload audit log"
             />
             <ListTable<EventTableRow>
-                columns={COLUMNS}
+                columns={columns}
                 groups={[{key: "all", label: null, rows: loadedRows}]}
                 rowKey={(record) => record.key}
                 minWidth={0}
@@ -155,13 +159,15 @@ export const AuditLogTable = ({
                 renderRow={(record) => (
                     <>
                         <EventTypeCell eventId={record.id} />
-                        <CountCell eventId={record.id} />
+                        {shows("count") ? <CountCell eventId={record.id} /> : null}
                         <EventTimestampCell eventId={record.id} />
-                        <ActorCell
-                            eventId={record.id}
-                            names={names}
-                            currentUserId={currentUserId}
-                        />
+                        {shows("actor") ? (
+                            <ActorCell
+                                eventId={record.id}
+                                names={names}
+                                currentUserId={currentUserId}
+                            />
+                        ) : null}
                         <EventRowMenu eventId={record.id} onView={() => onSelectEvent(record.id)} />
                     </>
                 )}

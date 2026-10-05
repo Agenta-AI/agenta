@@ -10,6 +10,7 @@ import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 /** An unverified domain's token stops being usable 48 hours after it was issued. */
 const TOKEN_LIFETIME_MS = 48 * 60 * 60 * 1000
@@ -21,6 +22,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "verify", label: "Verify", srOnly: true, width: "72px"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
+const PHONE_KEYS = ["slug", "is_verified", "verify", "actions"]
 
 const ExpirationCell = ({domain}: {domain: OrganizationDomain}) => {
     if (domain.flags?.is_verified) return <span className="text-muted-foreground">-</span>
@@ -64,6 +66,7 @@ export const DomainsSection = ({
     deleting,
     renderInstructions,
 }: DomainsSectionProps) => {
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
     const addButton = (variant?: "outline") =>
         onAdd ? (
             <Button variant={variant} onClick={onAdd} disabled={loading}>
@@ -85,7 +88,7 @@ export const DomainsSection = ({
 
             <SettingsToolbar actions={addButton()} />
             <ListTable<OrganizationDomain>
-                columns={COLUMNS}
+                columns={columns}
                 groups={[{key: "all", label: null, rows: domains}]}
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.id}
@@ -111,7 +114,7 @@ export const DomainsSection = ({
                             <span className="truncate font-medium text-foreground">
                                 {record.slug}
                             </span>
-                            <ExpirationCell domain={record} />
+                            {shows("expires_at") ? <ExpirationCell domain={record} /> : null}
                             {verified ? (
                                 <StatusIndicator tone="success" label="Verified" />
                             ) : (

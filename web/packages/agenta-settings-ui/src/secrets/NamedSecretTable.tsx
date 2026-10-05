@@ -12,6 +12,7 @@ import {SettingsPageActions} from "../SettingsPageShell"
 import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 /**
  * Mask stored secret content for display. `text` is masked like an API key
@@ -54,6 +55,7 @@ const COLUMNS: ListTableColumn[] = [
     {key: "created_at", label: "Created", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
+const PHONE_KEYS = ["name", "actions"]
 
 export const NamedSecretTable = ({
     renderConfigureDialog,
@@ -63,6 +65,7 @@ export const NamedSecretTable = ({
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false)
     const [selectedSecret, setSelectedSecret] = useState<NamedSecretRow | null>(null)
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
 
     const rows = useMemo<SecretRow[]>(
         () =>
@@ -92,7 +95,7 @@ export const NamedSecretTable = ({
                 <SettingsPageActions>{create}</SettingsPageActions>
                 <ListTable<SecretRow>
                     className="ph-no-capture"
-                    columns={COLUMNS}
+                    columns={columns}
                     groups={[{key: "secrets", label: null, rows}]}
                     wrapRow={hoverableRow}
                     rowKey={(record) => record.key}
@@ -133,20 +136,26 @@ export const NamedSecretTable = ({
                                     </span>
                                 </span>
                             </span>
-                            <span className="ph-no-capture truncate font-mono text-[13px]">
-                                {maskContent(record)}
-                            </span>
-                            <span className="flex min-w-0">
-                                <Tag>{record.format}</Tag>
-                            </span>
-                            <span className="truncate text-muted-foreground">
-                                {record.created_at
-                                    ? formatDay({
-                                          date: record.created_at,
-                                          outputFormat: "YYYY-MM-DD HH:mm",
-                                      })
-                                    : "-"}
-                            </span>
+                            {shows("content") ? (
+                                <span className="ph-no-capture truncate font-mono text-[13px]">
+                                    {maskContent(record)}
+                                </span>
+                            ) : null}
+                            {shows("format") ? (
+                                <span className="flex min-w-0">
+                                    <Tag>{record.format}</Tag>
+                                </span>
+                            ) : null}
+                            {shows("created_at") ? (
+                                <span className="truncate text-muted-foreground">
+                                    {record.created_at
+                                        ? formatDay({
+                                              date: record.created_at,
+                                              outputFormat: "YYYY-MM-DD HH:mm",
+                                          })
+                                        : "-"}
+                                </span>
+                            ) : null}
                             <SettingsRowMenu
                                 label="Secret actions"
                                 items={[

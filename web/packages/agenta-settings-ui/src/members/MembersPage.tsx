@@ -13,6 +13,7 @@ import {InlineName} from "../shared/InlineName"
 import {NameAvatar} from "../shared/NameAvatar"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 interface MemberRow extends WorkspaceMember {
     key: string
@@ -29,6 +30,8 @@ const TAIL_COLUMNS: ListTableColumn[] = [
     {key: "created_at", label: "Added", width: "minmax(0,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "32px"},
 ]
+/** Role stays on a phone: its cell is where the role is changed. */
+const PHONE_KEYS = ["member", "roles", "status", "actions"]
 
 const usernameFromEmail = (email?: string | null) => (email ? email.split("@")[0] : "")
 
@@ -91,10 +94,11 @@ export const MembersPage = ({
     const canRenameSelf = (member: WorkspaceMember) => Boolean(onRenameSelf) && isSelf(member)
     const isOwner = (member: WorkspaceMember) => Boolean(ownerId) && member.user?.id === ownerId
 
-    const columns = useMemo(
+    const allColumns = useMemo(
         () => [MEMBER_COLUMN, ...(renderRoleCell ? [ROLE_COLUMN] : []), ...TAIL_COLUMNS],
         [renderRoleCell],
     )
+    const {columns, shows} = usePhoneColumns(allColumns, PHONE_KEYS)
 
     const inviteButton = (variant?: "outline") =>
         canInviteMembers && onInvite ? (
@@ -170,11 +174,13 @@ export const MembersPage = ({
                             ) : (
                                 <StatusIndicator tone="success" label="Active" />
                             )}
-                            <span className="truncate text-muted-foreground">
-                                {record.user.created_at
-                                    ? formatDay({date: record.user.created_at})
-                                    : "-"}
-                            </span>
+                            {shows("created_at") ? (
+                                <span className="truncate text-muted-foreground">
+                                    {record.user.created_at
+                                        ? formatDay({date: record.user.created_at})
+                                        : "-"}
+                                </span>
+                            ) : null}
                             <SettingsRowMenu
                                 label="Member actions"
                                 items={[
