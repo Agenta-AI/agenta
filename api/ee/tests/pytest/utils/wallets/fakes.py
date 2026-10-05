@@ -21,6 +21,7 @@ from ee.src.core.wallets.types import (
     WalletDebitDTO,
     WalletSpendableBalanceDTO,
     WalletsDAOInterface,
+    deficit_repayment,
     plan_settlement,
 )
 
@@ -237,6 +238,15 @@ class FakeWalletsDAO(WalletsDAOInterface):
 
         await self._lock_general_balance(organization_id=organization_id)
 
+        repaid_musd = deficit_repayment(
+            credit_kind=credit_kind,
+            amount_musd=amount_musd,
+            credit_balances_musd=sum(
+                balance.balance_musd
+                for _, balance in self._owned_credits(organization_id=organization_id)
+            ),
+            general_balance_musd=self.general_balance.balance_musd,
+        )
         credit_id = uuid_utils.uuid7()
         credit = WalletCreditDTO(
             id=credit_id,
@@ -253,13 +263,13 @@ class FakeWalletsDAO(WalletsDAOInterface):
             credit_kind=credit_kind,
             priority=priority,
             end_time=end_time,
-            balance_musd=amount_musd,
+            balance_musd=amount_musd - repaid_musd,
         )
         balance = WalletBalanceDTO(
             id=uuid_utils.uuid7(),
             organization_id=organization_id,
             wallet_credit_id=credit_id,
-            balance_musd=amount_musd,
+            balance_musd=amount_musd - repaid_musd,
         )
         self._credits[credit_id] = (candidate, balance)
         self.general_balance = self.general_balance.model_copy(

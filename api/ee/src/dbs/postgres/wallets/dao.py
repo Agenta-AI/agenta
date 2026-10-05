@@ -22,6 +22,7 @@ from ee.src.core.wallets.types import (
     WalletGeneralBalanceNotFoundError,
     WalletSpendableBalanceDTO,
     WalletsDAOInterface,
+    deficit_repayment,
     plan_settlement,
 )
 from ee.src.dbs.postgres.wallets.dbes import (
@@ -57,8 +58,9 @@ async def _mint_credit(
     start_time: Optional[datetime],
     end_time: Optional[datetime],
     data: dict,
+    balance_musd: int,
 ) -> WalletCreditDBE:
-    """Add a credit and its balance row, funded with the full amount."""
+    """Add a credit and its balance row, funded with `balance_musd`."""
     credit = WalletCreditDBE(
         id=uuid_utils.uuid7(),
         organization_id=organization_id,
@@ -80,7 +82,7 @@ async def _mint_credit(
             id=uuid_utils.uuid7(),
             organization_id=organization_id,
             wallet_credit_id=credit.id,
-            balance_musd=amount_musd,
+            balance_musd=balance_musd,
             floor_musd=None,
         )
     )
@@ -376,7 +378,28 @@ class WalletsDAO(WalletsDAOInterface):
                 return credit_dbe_to_dto(existing)
 
             # 3. First delivery: mint the credit and its balance row, and fund the
-            #    general balance projection by the full amount.
+            #    general balance projection by the full amount. The part that repays
+            #    an outstanding deficit is spent at once, off the credit's row.
+            credit_balances_musd = (
+                await session.execute(
+                    select(
+                        func.coalesce(func.sum(WalletBalanceDBE.balance_musd), 0)
+                    ).where(
+                        WalletBalanceDBE.organization_id == organization_id,
+                        WalletBalanceDBE.wallet_credit_id.is_not(None),
+                    )
+                )
+            ).scalar_one()
+            repaid_musd = deficit_repayment(
+                credit_kind=credit_kind,
+                amount_musd=amount_musd,
+                # SUM over bigint is numeric: a Decimal, which the JSONB data refuses.
+                credit_balances_musd=int(credit_balances_musd),
+                general_balance_musd=general.balance_musd,
+            )
+            data: dict = {"references": {"award_idempotency_key": idempotency_key}}
+            if repaid_musd:
+                data["repaid_deficit_musd"] = repaid_musd
             credit = await _mint_credit(
                 session,
                 organization_id=organization_id,
@@ -385,7 +408,8 @@ class WalletsDAO(WalletsDAOInterface):
                 priority=priority,
                 start_time=now,
                 end_time=end_time,
-                data={"references": {"award_idempotency_key": idempotency_key}},
+                data=data,
+                balance_musd=amount_musd - repaid_musd,
             )
             general.balance_musd += amount_musd
 

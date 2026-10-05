@@ -360,3 +360,62 @@ async def test_settle_never_funds_a_debit_from_another_organizations_credit():
     assert len(dao.debits) == 1
     assert dao.debits[0].wallet_credit_id is None
     assert dao.debits[0].amount_musd == 100
+
+
+@pytest.mark.parametrize(
+    "credit_kind, credit_balances, general, expected",
+    [
+        ("daily_free", 0, -10, 10),  # the whole deficit
+        ("daily_free", 0, -100, 75),  # at most the credit
+        ("daily_free", 20, 20, 0),  # no deficit, an expired remainder only
+        ("daily_free", 20, 15, 5),  # a deficit beside an expired remainder
+        ("restricted:llm:", 0, -10, 0),  # a restricted credit repays nothing
+    ],
+)
+def test_a_new_credit_repays_the_outstanding_deficit(
+    credit_kind, credit_balances, general, expected
+):
+    from ee.src.core.wallets.types import deficit_repayment
+
+    assert (
+        deficit_repayment(
+            credit_kind=credit_kind,
+            amount_musd=75,
+            credit_balances_musd=credit_balances,
+            general_balance_musd=general,
+        )
+        == expected
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_repaid_deficit_does_not_return_when_the_credit_expires():
+    organization_id = uuid4()
+    dao = FakeWalletsDAO(general_balance=None)
+    service = WalletsService(wallets_dao=dao)
+
+    await service.settle(
+        build_debit_command(organization_id=organization_id, amount_musd=10)
+    )
+    credit = await dao.award_credit(
+        organization_id=organization_id,
+        idempotency_key="daily",
+        credit_kind="daily_free",
+        amount_musd=75,
+        priority=0,
+        end_time=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    await service.settle(
+        build_debit_command(organization_id=organization_id, amount_musd=65)
+    )
+    candidate, balance = dao._credits[credit.id]
+    assert balance.balance_musd == 0
+
+    dao._credits[credit.id] = (
+        candidate.model_copy(
+            update={"end_time": datetime.now(timezone.utc) - timedelta(minutes=1)}
+        ),
+        balance,
+    )
+    spendable = await dao.get_spendable_balance(organization_id=organization_id)
+    assert spendable.spendable_musd == 0

@@ -164,6 +164,27 @@ def is_resource_eligible(*, credit_kind: str, resource_key: str) -> bool:
     return resource_key.startswith(credit_kind[len(RESTRICTED_CREDIT_KIND_PREFIX) :])
 
 
+def deficit_repayment(
+    *,
+    credit_kind: str,
+    amount_musd: int,
+    credit_balances_musd: int,
+    general_balance_musd: int,
+) -> int:
+    """How much of a new credit repays the outstanding deficit.
+
+    A deficit lowers the general balance and no credit row, so the general balance is the
+    sum of the credit rows minus the deficit. A new credit that left its row at the full
+    amount would hold value the deficit already spent: when the credit expires, its
+    remainder is subtracted from the spendable balance again, and the deficit counts twice.
+    A restricted credit repays nothing: the deficit may come from a resource it cannot fund.
+    """
+    if credit_kind not in GENERAL_CREDIT_KINDS:
+        return 0
+    outstanding = credit_balances_musd - general_balance_musd
+    return min(max(outstanding, 0), amount_musd)
+
+
 def compose_debit_key(*, idempotency_key: str, source: str) -> str:
     """Every debit_key is derived from the posting key plus its actual funding source
     (a `wallet_credit_id`, or the explicit `deficit` literal) — never a sequence."""

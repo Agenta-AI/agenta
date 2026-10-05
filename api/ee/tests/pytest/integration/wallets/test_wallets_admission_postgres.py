@@ -296,3 +296,47 @@ async def test_settlement_does_not_spend_a_credit_that_expired_during_its_lock_w
         assert [debit.wallet_credit_id for debit in debits] == [None]
     finally:
         await _cleanup(organization_id)
+
+
+async def test_a_repaid_deficit_does_not_return_when_the_credit_expires(wallet_schema):
+    """A deficit, then a credit that repays it, then the rest of the credit spent: when
+    the credit expires, nothing is left on it and the organization owes nothing. Before,
+    the credit's row kept the repaid part, and its expiry subtracted the deficit again."""
+    organization_id = uuid.uuid4()
+    dao = WalletsDAO()
+    service = WalletsService(wallets_dao=dao)
+    now = datetime.now(timezone.utc)
+
+    try:
+        await service.settle(
+            build_debit_command(
+                organization_id=organization_id, amount_musd=FIVE_DOLLARS
+            )
+        )
+        credit = await _award(
+            dao,
+            organization_id=organization_id,
+            key="after-deficit",
+            amount_musd=TWENTY_DOLLARS,
+            end_time=now + timedelta(days=1),
+        )
+        assert credit.data["repaid_deficit_musd"] == FIVE_DOLLARS
+        spendable = await dao.get_spendable_balance(organization_id=organization_id)
+        assert spendable.spendable_musd == TWENTY_DOLLARS - FIVE_DOLLARS
+
+        await service.settle(
+            build_debit_command(
+                organization_id=organization_id,
+                amount_musd=TWENTY_DOLLARS - FIVE_DOLLARS,
+            )
+        )
+        async with get_transactions_engine().session() as session:
+            await session.execute(
+                text("UPDATE wallet_credits SET end_time = :t WHERE id = :id"),
+                {"t": now - timedelta(minutes=1), "id": credit.id},
+            )
+
+        spendable = await dao.get_spendable_balance(organization_id=organization_id)
+        assert spendable.spendable_musd == 0
+    finally:
+        await _cleanup(organization_id)

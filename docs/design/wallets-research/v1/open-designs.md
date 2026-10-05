@@ -2080,6 +2080,21 @@ Evidence: `ee/tests/pytest/integration/wallets/test_wallets_admission_postgres.p
 `ee/tests/pytest/unit/wallets/test_wallets_service.py`, run against the in-memory fake, which
 now implements the same read.
 
+**Follow-up (2026-10-05): a new credit repays the outstanding deficit.** The read above
+double-counted a repaid deficit. A deficit lowers the general row and no credit row. A credit
+granted afterwards kept its full amount on its row, so after the rest of it was spent, the
+repaid part stayed on the row, and at expiry the read subtracted the deficit a second time.
+It repeated with every expiring grant: a 10-credit deficit took 10 credits from every later
+daily grant. Now `award_credit`, under the general-row lock, funds the new credit's row with
+its amount minus the outstanding deficit (the credit rows' sum minus the general row) and
+records the repaid part in `data.repaid_deficit_musd`. The general row still gains the full
+amount. A `restricted:` credit repays nothing, because the deficit may come from a resource it
+cannot fund. Options considered: an expiry sweep (option 1, still not needed) or debit rows
+that move the deficit onto the credit (a new posting kind; more than the bug needs). Found by
+the final Codex review. Evidence:
+`test_wallets_admission_postgres.py::test_a_repaid_deficit_does_not_return_when_the_credit_expires`
+(real Postgres) and the matching unit tests in `test_wallets_service.py`.
+
 ## 22. What identifies one plan change
 
 **Status:** Resolved by removal (2026-10-02). Was: decided 2026-09-25, option 2, option 3 deferred.
