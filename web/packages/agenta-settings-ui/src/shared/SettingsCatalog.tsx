@@ -2,7 +2,7 @@ import type {KeyboardEvent, ReactNode, Ref} from "react"
 
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {SkeletonBlock, cn} from "@agenta/ui/ui"
-import {Plus} from "@phosphor-icons/react"
+import {CaretRight, Plus} from "@phosphor-icons/react"
 
 /**
  * A row's state. A broken row (`attention`) names its problem at the head of its subtitle; a row
@@ -38,6 +38,9 @@ export interface SettingsCatalogGroup {
     footer?: ReactNode
     /** Right of the heading, e.g. "Show all". */
     action?: ReactNode
+    /** With `onToggle`, the heading folds the rows away. */
+    collapsed?: boolean
+    onToggle?: () => void
 }
 
 const FOCUS_RING =
@@ -136,6 +139,8 @@ const SkeletonGroup = ({rows}: {rows: number}) => (
     </section>
 )
 
+const HEADING = "m-0 text-[13px] font-medium leading-[18px] text-muted-foreground"
+
 /** One catalog group, exported for hosts that load groups on their own via `after`. */
 export const SettingsCatalogSection = ({
     group,
@@ -147,8 +152,26 @@ export const SettingsCatalogSection = ({
 }) => (
     <section ref={sectionRef} className="flex flex-col gap-3">
         <div className="flex min-h-6 items-center gap-1.5">
-            <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
-                {group.label}
+            <h2 className={HEADING}>
+                {group.onToggle ? (
+                    <button
+                        type="button"
+                        aria-expanded={!group.collapsed}
+                        onClick={group.onToggle}
+                        className={cn(
+                            "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent p-0 font-[inherit] text-inherit hover:text-foreground",
+                            FOCUS_RING,
+                        )}
+                    >
+                        <CaretRight
+                            size={12}
+                            className={cn("transition-transform", !group.collapsed && "rotate-90")}
+                        />
+                        {group.label}
+                    </button>
+                ) : (
+                    group.label
+                )}
             </h2>
             {group.count === null ? null : (
                 <span className="text-[13px] text-muted-foreground/60">
@@ -157,7 +180,7 @@ export const SettingsCatalogSection = ({
             )}
             {group.action ? <div className="ml-auto flex">{group.action}</div> : null}
         </div>
-        {group.items.length || group.pendingRows ? (
+        {group.collapsed ? null : group.items.length || group.pendingRows ? (
             <div className={ROW_GRID}>
                 {group.items.map((item) => (
                     <CatalogRow key={item.key} item={item} />
@@ -165,7 +188,7 @@ export const SettingsCatalogSection = ({
                 {skeletonRows(group.pendingRows ?? 0)}
             </div>
         ) : null}
-        {group.footer}
+        {group.collapsed ? null : group.footer}
     </section>
 )
 

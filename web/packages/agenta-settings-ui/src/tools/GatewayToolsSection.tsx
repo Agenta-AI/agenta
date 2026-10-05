@@ -17,7 +17,8 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, MagnifyingGlass, Play, Plugs, Trash, XCircle} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {useAtom, useSetAtom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 
 import type {ConfirmDestructive} from "../confirm"
 import {
@@ -102,6 +103,12 @@ const ConnectionDescription = ({
     return <>{[entry?.name ?? integrationKey, auth].filter(Boolean).join(" · ")}</>
 }
 
+/** Per viewer: a long Connected list folds away and stays folded. */
+const connectedCollapsedAtom = atomWithStorage(
+    "agenta:settings:integrations-connected-collapsed",
+    false,
+)
+
 export interface GatewayToolsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
     confirm?: ConfirmDestructive
@@ -135,6 +142,7 @@ export default function GatewayToolsSection({
     // The search atom is module-level; leaving the page must not leave the catalog filtered.
     useEffect(() => () => setServerSearch(""), [setServerSearch])
     const [connectTarget, setConnectTarget] = useState<CatalogIntegrationItem | null>(null)
+    const [connectedCollapsed, setConnectedCollapsed] = useAtom(connectedCollapsedAtom)
 
     const openExecution = useCallback(
         (record: ToolConnection) => {
@@ -335,9 +343,20 @@ export default function GatewayToolsSection({
                 ]
             },
         )
-        return [{key: "connected", label: "Connected", items: connected}]
+        return [
+            {
+                key: "connected",
+                label: "Connected",
+                items: connected,
+                // A search always shows what it matched.
+                collapsed: !term && connectedCollapsed,
+                onToggle: term ? undefined : () => setConnectedCollapsed((value) => !value),
+            },
+        ]
     }, [
         term,
+        connectedCollapsed,
+        setConnectedCollapsed,
         integrations,
         connections,
         readOnly,
