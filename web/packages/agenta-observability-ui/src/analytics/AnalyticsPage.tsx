@@ -48,8 +48,7 @@ export interface AnalyticsPageProps {
 
 const SPLIT_KEYS = 10
 
-const CALLS_NOTE =
-    "Not narrowed by the filters: model and tool calls do not record their agent yet."
+const CALLS_NOTE = "Not narrowed by the filters: model calls do not record their agent yet."
 
 export const AnalyticsPage = ({
     retention,
@@ -289,17 +288,6 @@ export const AnalyticsPage = ({
                 onExplore={(metric, bucket) =>
                     onExplore(metric === "tools" ? "runs" : metric, bucket, "model")
                 }
-            />
-            <BreakdownCard
-                {...breakdownProps}
-                dim="tool"
-                metric="runs"
-                source={{series: data.toolCalls, status: data.status.tools}}
-                keyLabel={(key) => key}
-                countWord="calls"
-                note={filtered ? CALLS_NOTE : undefined}
-                empty={{text: `No tool calls in the ${rangeLabel.toLowerCase()}`}}
-                onExplore={(_, bucket) => onExplore("tools", bucket, "tool")}
             />
             <AnalyticsDrawer agentName={agentName} onOpenTrace={onOpenTrace} />
         </div>
