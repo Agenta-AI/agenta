@@ -21,7 +21,6 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMModelNotAllowedError,
     LLMUpstreamError,
-    LLMUpstreamTimeoutError,
 )
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
@@ -30,7 +29,6 @@ from oss.src.core.gateways.policy.types import (
     SecretInvalidError,
     SecretNotFoundError,
     EntitlementDeniedError,
-    SpendRefusedError,
     PolicyDeniedError,
 )
 from oss.src.utils.context import (
@@ -117,16 +115,7 @@ class _MockLlmGatewayService:
         self.list_models_calls: List[Dict[str, Any]] = []
 
     async def relay_chat_completion(
-        self,
-        *,
-        scope,
-        namespace,
-        name,
-        body,
-        headers,
-        protocol=None,
-        run_id=None,
-        run_labels=None,
+        self, *, scope, namespace, name, body, headers, protocol=None
     ) -> LLMRelayResult:
         self.relay_calls.append(
             {
@@ -136,7 +125,6 @@ class _MockLlmGatewayService:
                 "body": body,
                 "headers": headers,
                 "protocol": protocol,
-                "run_id": run_id,
             }
         )
         if self._relay_exception is not None:
@@ -208,27 +196,6 @@ async def test_standard_route_passes_standard_namespace_and_provider_as_name():
 
     assert service.relay_calls[0]["namespace"] == GatewayEndpointNamespace.STANDARD
     assert service.relay_calls[0]["name"] == "openai"
-
-
-@pytest.mark.asyncio
-async def test_the_run_a_caller_presents_reaches_the_service():
-    """The run claim is read off request state, never off the tenant scope, and it is
-    what ties a measured call back to its workflow run. A caller on no run passes None."""
-    on_a_run = _request(body=_body())
-    on_a_run.state.gateway_run_id = "run-42"
-    run_ids = []
-
-    for request in (on_a_run, _request(body=_body())):
-        service = _MockLlmGatewayService(
-            relay_result=_relay_result(status_code=200, chunks=[b"{}"])
-        )
-        with _auth_scope():
-            await LLMGatewayProxy(llm_gateway_service=service).chat_completions_builtin(
-                request, "mock"
-            )
-        run_ids.append(service.relay_calls[0]["run_id"])
-
-    assert run_ids == ["run-42", None]
 
 
 @pytest.mark.asyncio
@@ -325,22 +292,6 @@ _DENIAL_CASES = [
     ),
     (EntitlementDeniedError(key="k", target="t"), 403, "policy_denied"),
     (
-        SpendRefusedError(
-            code="wallet_balance_exhausted", message="Out of credits.", target="t"
-        ),
-        403,
-        "wallet_balance_exhausted",
-    ),
-    (
-        SpendRefusedError(
-            code="builtin_models_not_enabled",
-            message="Built-in models are not enabled.",
-            target="t",
-        ),
-        403,
-        "builtin_models_not_enabled",
-    ),
-    (
         LLMModelNotAllowedError(
             model="gpt-4o", namespace=GatewayEndpointNamespace.CUSTOM, name="my-slug"
         ),
@@ -389,11 +340,6 @@ _DENIAL_CASES = [
         LLMUpstreamError(provider_key="openai", status_code=None, detail="timed out"),
         424,
         "upstream_error",
-    ),
-    (
-        LLMUpstreamTimeoutError(provider_key="openai"),
-        504,
-        "upstream_timeout",
     ),
 ]
 
@@ -445,9 +391,7 @@ async def test_typed_denials_carry_the_code_marker_in_message_except_upstream_er
 ):
     """WP25/OD18: `code` must survive in `message` alone, because Codex's own SDK
     (codex-rs's `extract_error_message`) discards every other field. `upstream_error`
-    is excluded — D16 forwards the upstream's own detail untouched — and so is
-    `upstream_timeout`: both are provider failures, and a marker would make the runner read
-    them as an Agenta refusal that retrying cannot fix."""
+    is excluded — D16 forwards the upstream's own detail untouched."""
     service = _MockLlmGatewayService(relay_exception=exc)
     proxy = LLMGatewayProxy(llm_gateway_service=service)
 
@@ -458,7 +402,7 @@ async def test_typed_denials_carry_the_code_marker_in_message_except_upstream_er
 
     message = json.loads(response.body)["error"]["message"]
     marker = f"⟦agenta_code:{expected_code}⟧"
-    if expected_code in ("upstream_error", "upstream_timeout"):
+    if expected_code == "upstream_error":
         assert marker not in message
     else:
         assert message.endswith(marker)

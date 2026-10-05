@@ -27,18 +27,6 @@ class EntitlementDeniedError(GatewaysError):
         super().__init__(f"Entitlement {key} exceeded for {target}")
 
 
-class SpendRefusedError(EntitlementDeniedError):
-    """Spend admission refused with its own code and a sentence for the person, so the
-    refusal reaches them as itself (out of credit, built-in models not enabled) rather
-    than as a generic entitlement denial."""
-
-    def __init__(self, *, code: str, message: str, target: str):
-        GatewaysError.__init__(self, message)
-        self.key = code
-        self.target = target
-        self.code = code
-
-
 class SecretNotFoundError(GatewaysError):
     """Resolution failed. Names WHICH owner is missing a secret, so the
     caller learns whether they must connect or an administrator must

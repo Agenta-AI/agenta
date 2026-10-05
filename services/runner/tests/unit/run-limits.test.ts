@@ -12,7 +12,6 @@ import assert from "node:assert/strict";
 import {
   createRunLimits,
   resolveRunLimits,
-  runWithTurnLimit,
   DEFAULT_IDLE_TIMEOUT_MS,
   DEFAULT_TOTAL_DEADLINE_MS,
   DEFAULT_TTFB_TIMEOUT_MS,
@@ -136,58 +135,6 @@ describe("resolveRunLimits", () => {
     );
   });
 
-  it("the plan's turn limit shortens the total deadline and carries its message", () => {
-    withEnv({ [TOTAL_DEADLINE_ENV]: undefined, [IDLE_TIMEOUT_ENV]: undefined }, () => {
-      const limits = resolveRunLimits(() => {}, { ms: 30 * 60_000, message: "Stopped at 30 minutes." });
-      assert.equal(limits.totalMs, 30 * 60_000);
-      assert.equal(limits.turnLimitMessage, "Stopped at 30 minutes.");
-      // Idle equal to a plan's short turn is not a misconfiguration: the total fires first.
-      assert.equal(limits.idleMs, DEFAULT_IDLE_TIMEOUT_MS);
-    });
-  });
-
-  it("an operator's lower env deadline wins over the plan, and no plan means the env alone", () => {
-    withEnv({ [TOTAL_DEADLINE_ENV]: "60000", [IDLE_TIMEOUT_ENV]: "10000" }, () => {
-      const limits = resolveRunLimits(() => {}, { ms: 4 * 60 * 60_000, message: "Stopped at 4 hours." });
-      assert.equal(limits.totalMs, 60000);
-      assert.equal(limits.turnLimitMessage, undefined);
-    });
-    withEnv({ [TOTAL_DEADLINE_ENV]: undefined }, () => {
-      const limits = resolveRunLimits(() => {}, undefined);
-      assert.equal(limits.totalMs, DEFAULT_TOTAL_DEADLINE_MS);
-      assert.equal(limits.turnLimitMessage, undefined);
-    });
-  });
-
-  it("reads the turn limit in scope for the run that resolves it", () => {
-    withEnv({ [TOTAL_DEADLINE_ENV]: undefined }, () => {
-      const inside = runWithTurnLimit({ ms: 1_800_000, message: "Stopped." }, () => resolveRunLimits());
-      assert.ok(inside.totalMs <= 1_800_000 && inside.totalMs > 1_790_000);
-      assert.equal(resolveRunLimits().totalMs, DEFAULT_TOTAL_DEADLINE_MS);
-    });
-  });
-
-  it("a later attempt in the same admitted turn gets only the time left", () => {
-    const realNow = Date.now;
-    let now = 1_000_000;
-    Date.now = () => now;
-    try {
-      withEnv({ [TOTAL_DEADLINE_ENV]: undefined }, () => {
-        const totals = runWithTurnLimit({ ms: 1_800_000, message: "Stopped." }, () => {
-          const first = resolveRunLimits().totalMs;
-          now += 120_000; // the first attempt stalled for two minutes and is retried
-          const retry = resolveRunLimits().totalMs;
-          now += 1_800_000; // a retry that starts past the limit trips at once
-          const late = resolveRunLimits();
-          return [first, retry, late.totalMs, late.turnLimitMessage];
-        });
-        assert.deepEqual(totals, [1_800_000, 1_680_000, 1, "Stopped."]);
-      });
-    } finally {
-      Date.now = realNow;
-    }
-  });
-
   it("a degenerate total cannot derive an idle timeout that fires instantly", () => {
     // A total at the timer floor makes "half the total" round to 0; every field must still
     // leave here armable, since createRunLimits feeds all four straight to setTimeout.
@@ -226,18 +173,13 @@ describe("createRunLimits", () => {
       { clock },
     );
     const trips: string[] = [];
-    const kinds: string[] = [];
-    limits.onTrip((reason, kind) => {
-      trips.push(reason);
-      kinds.push(kind);
-    });
+    limits.onTrip((reason) => trips.push(reason));
 
     advance(999);
     assert.equal(trips.length, 0, "must not trip before the deadline");
     advance(2);
     assert.equal(trips.length, 1);
     assert.match(trips[0], /total run deadline/);
-    assert.deepEqual(kinds, ["total"]);
 
     // Idempotent: nothing else should fire after the first trip (timers were cleared).
     advance(100000);

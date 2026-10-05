@@ -5,7 +5,6 @@ import {
     buildConnectionPickerRows,
     buildPickerGroupsWithSections,
     pickerSelectionFrom,
-    selectedModelRowKey,
     describeMcp,
     describeSkill,
     describeTool,
@@ -21,7 +20,6 @@ import {
     readAgentItems,
     readHarnessKind,
     readModelId,
-    readModelConnection,
     readModelConnectionSlug,
     readRunnerPermission,
     skillCommandName,
@@ -124,10 +122,7 @@ export function useChatSlashCommands({
      * Built from one recipe with `useModelHarness` so the two pickers cannot list different models
      * for the same agent.
      */
-    const currentConnection = readModelConnection(config)
-    const currentConnectionMode = currentConnection?.mode ?? "agenta"
-    const currentConnectionNamespace = currentConnection?.namespace ?? null
-    const {modelGroups, currentModelKey} = useMemo(() => {
+    const modelGroups = useMemo(() => {
         const rows =
             candidateState.status === "ready"
                 ? buildConnectionPickerRows({
@@ -136,25 +131,8 @@ export function useChatSlashCommands({
                       capabilities,
                   })
                 : []
-        // The exact row the config points at: the same model can sit on a built-in and a
-        // customer-funded connection, and only one of them is what this agent pays with.
-        const currentModelKey = selectedModelRowKey(rows, {
-            modelId: currentModel,
-            slug: currentConnectionSlug,
-            namespace: currentConnectionNamespace,
-            mode: currentConnectionMode,
-            harness: currentHarness,
-        })
-        return {modelGroups: buildPickerGroupsWithSections(rows), currentModelKey}
-    }, [
-        candidateState,
-        capabilities,
-        currentModel,
-        currentHarness,
-        currentConnectionSlug,
-        currentConnectionNamespace,
-        currentConnectionMode,
-    ])
+        return buildPickerGroupsWithSections(rows)
+    }, [candidateState, capabilities])
     // With neither source the drawer falls back to a schema-driven picker, which this palette does
     // not host — so offer no `/model` at all rather than a command that opens an empty panel.
     const modelAvailable = modelGroups.length > 0
@@ -215,7 +193,6 @@ export function useChatSlashCommands({
                     provider,
                     mode: selection.mode,
                     slug: selection.slug,
-                    namespace: selection.namespace,
                 }),
                 selection.harness && selection.harness !== currentHarness
                     ? `Model set to ${label} · ${harnessMetaFor(selection.harness).label}`
@@ -395,7 +372,6 @@ export function useChatSlashCommands({
         closePicker: useCallback(() => setPicker(null), []),
         modelGroups,
         currentModel,
-        currentModelKey,
         currentConnectionSlug,
         currentHarness,
         currentPermission,

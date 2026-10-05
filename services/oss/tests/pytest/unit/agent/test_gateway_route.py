@@ -104,7 +104,6 @@ async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypa
                 "model": "gpt-5.5",
                 "provider_key": "openai",
                 "connection_slug": None,
-                "connection_namespace": None,
             }
             return _Response(
                 {

@@ -1,9 +1,8 @@
 import {useCallback} from "react"
 
-import {isBillingEnabled} from "@agenta/shared/api"
 import {useRouter} from "next/router"
 
-import {billingUrl, llmProvidersUrl} from "@/lib/context"
+import {llmProvidersUrl} from "@/lib/context"
 
 /**
  * Where a reader goes when a run failed for a credential they can fix themselves.
@@ -32,22 +31,4 @@ export const useProviderRecovery = (): (() => void) | undefined => {
     }, [projectId, router, workspaceId])
 
     return inProject ? open : undefined
-}
-
-/**
- * Where a reader goes when a turn met a plan limit: Settings -> Usage & Billing, where the plans
- * and credit purchases live. Undefined off a project route, or where billing is off.
- */
-export const useBillingRoute = (): (() => void) | undefined => {
-    const router = useRouter()
-    const {workspace_id: workspaceId, project_id: projectId} = router.query
-    const available =
-        isBillingEnabled() && typeof workspaceId === "string" && typeof projectId === "string"
-
-    const open = useCallback(() => {
-        if (typeof workspaceId !== "string" || typeof projectId !== "string") return
-        void router.push(billingUrl({workspaceId, projectId}))
-    }, [projectId, router, workspaceId])
-
-    return available ? open : undefined
 }

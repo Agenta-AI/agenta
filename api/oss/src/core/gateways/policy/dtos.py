@@ -75,9 +75,7 @@ class ResolvedSecret(BaseModel):
     wire model embeds it."""
 
     secret: SecretResponseDTO  # decrypted, from VaultService
-    owner: Optional[
-        SecretOwner
-    ]  # None for the platform's own credential, which no one owns
+    owner: SecretOwner
     origin: SecretOrigin
 
 
@@ -107,34 +105,12 @@ class PolicyDecision(BaseModel):
 
 class GatewayUsage(BaseModel):
     """What the meter needs, plane-neutral. Tokens on the LLM plane, calls on
-    both; recorded from day one even while nothing is charged (`policy.md`).
-
-    One field per distinct price, not per provider spelling: `input_tokens` is fresh
-    input only, and the cached slices are carried apart because they are priced apart
-    and cannot be split again later. `input_tokens + cache_read_tokens +
-    cache_write_tokens` is the prompt. None means the upstream did not say, never zero."""
+    both; recorded from day one even while nothing is charged (`policy.md`)."""
 
     calls: int = 1
     input_tokens: Optional[int] = None
-    cache_read_tokens: Optional[int] = None
-    cache_write_tokens: Optional[int] = None
     output_tokens: Optional[int] = None
     cost: Optional[float] = None
-
-
-class SpendAdmission(BaseModel):
-    """The spend answer, asked before a platform-funded call is dispatched. Distinct from
-    `PolicyDecision`, which answers the permission question.
-
-    `ceiling_musd` is carried and never enforced: nothing sets it today, and nothing may
-    read it as a budget (wallets open-design item 17)."""
-
-    allowed: bool
-    # Set when refused: a stable code the caller can act on, and the sentence for the
-    # person who sent the call.
-    reason: Optional[str] = None
-    message: Optional[str] = None
-    ceiling_musd: Optional[int] = None
 
 
 class GatewayOutcome(BaseModel):

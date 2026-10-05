@@ -34,7 +34,7 @@ from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
 from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
     apply_static_fields,
 )
-from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
+from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
 # Default timeout for outbound LLM requests.
@@ -110,47 +110,16 @@ def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[Gateway
     if not isinstance(usage, dict):
         return None
 
-    if protocol == LLMProtocol.MESSAGES:
-        # Anthropic reports fresh input already apart from both cached slices.
+    if protocol == LLMProtocol.CHAT_COMPLETIONS:
         return GatewayUsage(
             calls=1,
-            input_tokens=usage.get("input_tokens"),
-            cache_read_tokens=usage.get("cache_read_input_tokens"),
-            cache_write_tokens=usage.get("cache_creation_input_tokens"),
-            output_tokens=usage.get("output_tokens"),
+            input_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"),
         )
-
-    # OpenAI's two protocols count the cached slice INSIDE the prompt total, so fresh input
-    # is the difference; left as is, cached tokens would be priced as fresh input.
-    if protocol == LLMProtocol.CHAT_COMPLETIONS:
-        prompt = usage.get("prompt_tokens")
-        details = usage.get("prompt_tokens_details")
-        output = usage.get("completion_tokens")
-    else:
-        prompt = usage.get("input_tokens")
-        details = usage.get("input_tokens_details")
-        output = usage.get("output_tokens")
-    cached = details.get("cached_tokens") if isinstance(details, dict) else None
-    # OpenAI counts reasoning inside the output total; Vertex's OpenAI-compatible endpoint
-    # leaves Gemini's reasoning out of it and counts it only in `total_tokens`. Reasoning is
-    # billed as output, so the output is whatever of the total is not prompt. Vertex omits
-    # `completion_tokens` altogether when the answer is empty, as when reasoning used the
-    # whole token limit; the reasoning is still billed.
-    total = usage.get("total_tokens")
-    if (
-        isinstance(total, int)
-        and isinstance(prompt, int)
-        and total - prompt > (output if isinstance(output, int) else 0)
-    ):
-        output = total - prompt
-    if isinstance(prompt, int) and isinstance(cached, int):
-        # Never below zero: a negative input would offset the output in the charge.
-        prompt = max(prompt - cached, 0)
     return GatewayUsage(
         calls=1,
-        input_tokens=prompt,
-        cache_read_tokens=cached,
-        output_tokens=output,
+        input_tokens=usage.get("input_tokens"),
+        output_tokens=usage.get("output_tokens"),
     )
 
 
@@ -169,20 +138,14 @@ def _merge_usage(
         return later
     return GatewayUsage(
         calls=1,
-        **{
-            field: getattr(later, field)
-            if getattr(later, field) is not None
-            else getattr(base, field)
-            for field in _MERGED_USAGE_FIELDS
-        },
+        input_tokens=later.input_tokens
+        if later.input_tokens is not None
+        else base.input_tokens,
+        output_tokens=later.output_tokens
+        if later.output_tokens is not None
+        else base.output_tokens,
+        cost=later.cost if later.cost is not None else base.cost,
     )
-
-
-# Every measured field, derived so that a field added to `GatewayUsage` cannot be dropped
-# by a stream that splits its usage across frames.
-_MERGED_USAGE_FIELDS = tuple(
-    field for field in GatewayUsage.model_fields if field != "calls"
-)
 
 
 def _usage_from_body(content: bytes, protocol: LLMProtocol) -> Optional[GatewayUsage]:
@@ -331,7 +294,6 @@ class RelayLLMAdapter(LLMUpstreamInterface):
     ) -> LLMRelayResult:
         url = build_url(route, context.protocol, stream=context.stream)
         body = apply_static_fields(
-            provider_key=route.provider_key,
             deployment_kind=route.deployment_kind,
             protocol=context.protocol,
             body=body,
@@ -366,7 +328,11 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         try:
             response = await client.send(request, stream=True)
         except httpx.TimeoutException as exc:
-            raise LLMUpstreamTimeoutError(provider_key=route.provider_key) from exc
+            raise LLMUpstreamError(
+                provider_key=route.provider_key,
+                status_code=None,
+                detail="upstream timed out",
+            ) from exc
         except httpx.RequestError as exc:
             # The provider key is in these headers, and a refusal raised while building
             # the request quotes them (OR86).
@@ -442,11 +408,7 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         provider_key: Optional[str],
     ) -> AsyncIterator[bytes]:
         try:
-            try:
-                content = await response.aread()
-            except httpx.TimeoutException as exc:
-                # The headers came in time and the body did not.
-                raise LLMUpstreamTimeoutError(provider_key=provider_key) from exc
+            content = await response.aread()
             if scanner.detects(content):
                 raise LLMUpstreamCredentialEchoError(
                     provider_key=provider_key, status_code=response.status_code

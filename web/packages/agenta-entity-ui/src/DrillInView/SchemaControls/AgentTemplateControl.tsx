@@ -351,7 +351,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     provider: connection.provider ?? undefined,
                     connectionMode: connection.mode ?? prev.connectionMode,
                     connectionSlug: connection.slug ?? undefined,
-                    connectionNamespace: connection.namespace ?? undefined,
                 }))
             }
         }

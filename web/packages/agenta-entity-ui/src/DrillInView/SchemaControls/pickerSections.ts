@@ -38,7 +38,6 @@ const optionFor = (row: PickerConnectionRow, model: PickerModelRow, ambiguous: b
         searchCaption: row.name,
         metadata: {
             ...(model.slug ? {connectionSlug: model.slug} : {}),
-            ...(model.namespace ? {connectionNamespace: model.namespace} : {}),
             connectionMode: model.mode,
             harness: model.harness,
             ...(model.provider ? {provider: model.provider} : {}),

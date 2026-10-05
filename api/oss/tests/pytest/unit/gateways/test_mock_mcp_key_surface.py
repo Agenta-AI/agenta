@@ -88,7 +88,7 @@ def test_the_registered_header_is_accepted(client, key):
 
 def test_the_authorization_fallback_is_accepted(client, key):
     """What an endpoint that registered no header name sends
-    (`providers/http/adapter.py::credential_headers`)."""
+    (`providers/http/adapter.py::_credential_headers`)."""
     response = client.post(
         KEY_MCP_PATH,
         json=_HANDSHAKE,

@@ -19,9 +19,8 @@
 import {act} from "react"
 
 import {
-    OWN_KEY_CODES,
-    PLAN_LIMIT_TITLES,
     RETRYABLE_CODES,
+    STARTER_CREDIT_CODES,
     SUBSCRIPTION_LOGIN_CODES,
 } from "@agenta/chat/components"
 import {
@@ -145,7 +144,7 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(shown).not.toContain("Try again")
     })
 
-    it.each([...OWN_KEY_CODES])(
+    it.each([...STARTER_CREDIT_CODES])(
         "offers the key escape for %s, and takes the reader there",
         (code) => {
             const shown = renderTurn(failedTurn("Out of starter credits.", code))
@@ -170,68 +169,6 @@ describe("mobile TurnRow: a run that failed", () => {
         press("Sign in again")
 
         expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=llms")
-    })
-
-    describe("a plan limit", () => {
-        const runtime = globalThis as typeof globalThis & {__env?: Record<string, string>}
-        afterEach(() => {
-            delete runtime.__env
-        })
-        const sentence =
-            "Your Hobby plan allows 2 agents at a time, and 2 are running. We didn't start this request or charge you. Resend when one finishes, or upgrade to Pro for 10 at a time."
-
-        it.each(Object.entries(PLAN_LIMIT_TITLES))(
-            "%s shows its title and the platform's whole sentence, never the code",
-            (code, title) => {
-                const shown = renderTurn(failedTurn(sentence, code))
-
-                expect(shown).toContain(title)
-                expect(shown).toContain(sentence)
-                expect(shown).not.toContain(code)
-                expect(shown).not.toContain("The run stopped")
-                expect(shown).not.toContain("Try again")
-            },
-        )
-
-        it("offers the plans where billing is on, and takes the reader there", () => {
-            runtime.__env = {NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "true"}
-            renderTurn(failedTurn(sentence, "concurrent_turns_limit"))
-
-            press("Plans and billing")
-
-            expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=billing")
-        })
-
-        it("draws no plans button where billing is off", () => {
-            expect(renderTurn(failedTurn(sentence, "turn_time_limit_reached"))).not.toContain(
-                "Plans and billing",
-            )
-        })
-    })
-
-    it("shows included models being off as its own refusal, with the key escape", () => {
-        const sentence =
-            "Agenta's included models aren't enabled for your organization. Use your own provider key, or contact us."
-        const shown = renderTurn(failedTurn(sentence, "builtin_models_not_enabled"))
-
-        expect(shown).toContain("This model isn't available for your organization")
-        expect(shown).toContain(sentence)
-        expect(shown).toContain("Add your key")
-        expect(shown).not.toContain("builtin_models_not_enabled")
-        expect(shown).not.toContain("Plans and billing")
-    })
-
-    it("never shows the gateway's code marker", () => {
-        // Release QA, 2026-10-03: the reason read "... ⟦agenta_code:policy_denied⟧".
-        const shown = renderTurn(
-            failedTurn(
-                "The model provider refused the request (HTTP 403): Denied use_llm_endpoints on builtin/agenta \u27e6agenta_code:policy_denied\u27e7",
-                "provider_error",
-            ),
-        )
-
-        expect(shown).toContain("Denied use_llm_endpoints on builtin/agenta")
-        expect(shown).not.toContain("agenta_code")
     })
 
     it("draws no escape off a project route, where there is no page to send anyone to", () => {

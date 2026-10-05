@@ -101,45 +101,7 @@ class StarterCreditsProxyClient:
         return payload if isinstance(payload, dict) else {}
 
     async def block_key(self, *, key: str) -> None:
-        """`key` is the key itself or its hashed token; the proxy accepts both."""
         await self._request("POST", "/key/block", json={"key": key})
-
-    async def list_team_keys(
-        self,
-        *,
-        team_id: str,
-        page: int,
-        size: int,
-    ) -> list[dict[str, Any]]:
-        """One page of the team's keys as full objects: hashed `token`, `key_alias`,
-        `spend`, `max_budget`, `blocked` and `metadata`. Never the key itself."""
-        payload = await self._request(
-            "GET",
-            "/key/list",
-            params={
-                "team_id": team_id,
-                "page": page,
-                "size": size,
-                "return_full_object": "true",
-            },
-        )
-        keys = payload.get("keys") if isinstance(payload, dict) else None
-        if not isinstance(keys, list) or not all(isinstance(key, dict) for key in keys):
-            raise ProxyRequestError(
-                status_code=200, detail="key list response carried no key objects"
-            )
-        return keys
-
-    async def get_key_info(self, *, key: str) -> dict[str, Any]:
-        """The key's current `spend`, `max_budget` and `blocked`. `key` is the key
-        itself or its hashed token."""
-        payload = await self._request("GET", "/key/info", params={"key": key})
-        info = payload.get("info") if isinstance(payload, dict) else None
-        if not isinstance(info, dict):
-            raise ProxyRequestError(
-                status_code=200, detail="key info response carried no info"
-            )
-        return info
 
     async def _request(
         self,

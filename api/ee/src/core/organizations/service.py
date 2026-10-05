@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
@@ -966,67 +966,11 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
 from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
-from ee.src.core.wallets.service import WalletsService  # noqa: E402
 
 
 _subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
 )
-
-_wallets_service: Optional[WalletsService] = None
-
-
-def register_wallets_service(*, wallets_service: WalletsService) -> None:
-    """Composition-root hook: the entrypoint wires the wallets service at startup."""
-    global _wallets_service
-    _wallets_service = wallets_service
-
-
-def _get_wallets_service() -> WalletsService:
-    if _wallets_service is None:
-        raise RuntimeError(
-            "Wallets service not registered. "
-            "Call register_wallets_service() from the composition root."
-        )
-    return _wallets_service
-
-
-async def _provision_wallet_general_balance(
-    *,
-    organization_id: UUID,
-    plan: str,
-) -> None:
-    """Idempotent. Runs after the organization and subscription have committed, in its
-    own transaction, so a failure here leaves them in place and can be retried alone."""
-    try:
-        await _get_wallets_service().provision_general_balance(
-            organization_id=organization_id,
-            plan=plan,
-        )
-    except Exception as exc:
-        log.error(
-            "[wallets] Failed to provision general balance for organization [%s]: %s",
-            organization_id,
-            exc,
-        )
-        raise
-
-
-async def _award_signup_grant(*, organization_id: UUID) -> None:
-    """Idempotent. Signup path only: on explicit organization creation the grant would
-    be farmable (report.md §9.2)."""
-    try:
-        await _get_wallets_service().award(
-            organization_id=organization_id,
-            activity_code="signup",
-        )
-    except Exception as exc:
-        log.error(
-            "[wallets] Failed to award signup grant for organization [%s]: %s",
-            organization_id,
-            exc,
-        )
-        raise
 
 
 async def provision_signup_subscription(
@@ -1041,7 +985,7 @@ async def provision_signup_subscription(
     """
 
     try:
-        subscription = await _subscription_service.provision_subscription(
+        await _subscription_service.provision_subscription(
             organization_id=str(organization.id),
             organization_name=organization.name,
             organization_email=organization_email,
@@ -1068,24 +1012,6 @@ async def provision_signup_subscription(
         organization_email=organization_email,
     )
 
-    # Both helpers re-raise, and the signup path deletes the new user when this
-    # coroutine fails, so an unfinished wallet must not run here.
-    if env.wallets.enabled:
-        if subscription is None:
-            # `provision_subscription` returns None when the organization already had a
-            # subscription — a retried signup. The stored row is then the only thing that
-            # knows the real plan: with Stripe on, the organization was onboarded on the
-            # trial or free plan, and `get_default_plan()` would size the wallet's floor
-            # from a plan it is not on. Fall back to the default only if nothing is stored.
-            subscription = await _subscription_service.read(
-                organization_id=str(organization.id)
-            )
-        plan = subscription.plan if subscription is not None else get_default_plan()
-        await _provision_wallet_general_balance(
-            organization_id=organization.id, plan=plan
-        )
-        await _award_signup_grant(organization_id=organization.id)
-
 
 async def provision_user_subscription(organization: OrganizationDB) -> None:
     """Start the default plan + seed the user gauge for an explicitly-created org.
@@ -1093,12 +1019,10 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
     Entry point for `POST /organizations/`. Called from OSS via the `is_ee()` seam.
     """
 
-    plan = get_default_plan()
-
     try:
         await _subscription_service.start_plan(
             organization_id=str(organization.id),
-            plan=plan,
+            plan=get_default_plan(),
         )
     except Exception as exc:
         log.error(
@@ -1113,8 +1037,3 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
         delta=1,
         scope=scope_from(organization_id=organization.id),
     )
-
-    if env.wallets.enabled:
-        await _provision_wallet_general_balance(
-            organization_id=organization.id, plan=plan
-        )

@@ -59,7 +59,7 @@ def _api_key_value(data: object) -> Optional[str]:
     return content if isinstance(content, str) and content else None
 
 
-def credential_headers(route: MCPResolvedRoute, auth: MCPDirectAuth) -> Dict[str, str]:
+def _credential_headers(route: MCPResolvedRoute, auth: MCPDirectAuth) -> Dict[str, str]:
     """The credential the gateway injects for this endpoint, as headers.
 
     Credentials live only in the vault. The endpoint carries their opaque `secret_id`, so
@@ -123,7 +123,7 @@ class HttpMCPAdapter(MCPUpstreamInterface):
                 "belongs to ComposioMCPAdapter"
             )
 
-        credentials = credential_headers(route, auth)
+        credentials = _credential_headers(route, auth)
 
         # route.headers merged under the caller's forwarded headers (§7.1): caller
         # headers win on collision, but only the allowlisted ones travel at all. The

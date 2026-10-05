@@ -73,29 +73,6 @@ function firstJsonObject(text: string): unknown {
   return undefined;
 }
 
-/**
- * Gateway refusals written for the person in the chat, each with the sentence shown when a
- * harness kept only the marker (Codex) and so lost the gateway's own sentence. The run shows the
- * sentence under the refusal's own class (`errors.ts` `RunErrorCode`), never the raw text with its
- * marker: the chat maps the class to its title and button.
- */
-const PERSON_FACING_REFUSALS: Record<string, string> = {
-  wallet_balance_exhausted: "You've used all your organization's credits.",
-  builtin_models_not_enabled: "Agenta's included models aren't enabled for your organization. Use your own provider key, or contact us.",
-};
-
-/** The person-facing gateway refusal this text carries, with the marker removed, or undefined. */
-export function personFacingGatewayRefusal(
-  raw: string | undefined,
-): { code: string; message: string } | undefined {
-  if (!raw || !carriesGatewayRefusalMarker(raw)) return undefined;
-  const fromBody = parseFromBody(raw);
-  const code = fromBody?.code ?? parseFromMarker(raw)?.code;
-  if (!code || !(code in PERSON_FACING_REFUSALS)) return undefined;
-  const said = fromBody?.message.replace(CODE_MARKER_RE, "").trim();
-  return { code, message: said || PERSON_FACING_REFUSALS[code]! };
-}
-
 /** Does this text still carry the gateway's typed-refusal marker? */
 export function carriesGatewayRefusalMarker(text: string | undefined): boolean {
   return !!text && CODE_MARKER_RE.test(text);

@@ -449,10 +449,7 @@ export function writePiToolSpecsFileLocal(
 ): void {
   try {
     mkdirSync(dirname(delivery.path), { recursive: true });
-    writeFileSync(delivery.path, delivery.contents, {
-      encoding: "utf-8",
-      mode: 0o600,
-    });
+    writeFileSync(delivery.path, delivery.contents, { encoding: "utf-8", mode: 0o600 });
     // `mode` applies only to a new file; one an older runner left behind keeps its own.
     chmodSync(delivery.path, 0o600);
   } catch (err) {
@@ -490,16 +487,6 @@ export async function uploadPiToolSpecsToSandbox(
 }
 
 /**
- * Agenta's provider keys that Pi names differently. The override must name Pi's own provider,
- * or it registers a provider Pi has no models for and nothing is selectable.
- */
-const PI_PROVIDER_IDS: Record<string, string> = { together_ai: "together" };
-
-export function piProviderId(provider: string | undefined): string | undefined {
-  return provider ? (PI_PROVIDER_IDS[provider] ?? provider) : provider;
-}
-
-/**
  * Env the Agenta Pi extension reads. Per-turn trace context, capture policy, and redaction values
  * ride the stable read-once control file; the endpoint and authorization stay in the runner.
  */
@@ -527,7 +514,7 @@ export function buildPiExtensionEnv(
     const gatewayHeaders = materializeGatewayHeaders(request);
     const isGatewayRoute = Object.keys(gatewayHeaders).length > 0;
     env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = encodePiModelProviderOverride({
-      provider: piProviderId(request.modelConnection?.provider),
+      provider: request.modelConnection?.provider,
       baseUrl: modelBaseUrl,
       ...(isGatewayRoute ? { headers: gatewayHeaders } : {}),
       // credentialMode "none" leaves no real key anywhere; without SOME apiKey Pi may treat the

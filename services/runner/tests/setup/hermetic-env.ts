@@ -52,8 +52,6 @@ const SCRUBBED = [
   // The per-run export credential the trace exporter falls back to. Present in a dev shell, it
   // flips the credential-less export paths (skip vs send) that otel export tests assert on.
   "AGENTA_CREDENTIALS",
-  // The wallet switch: on, a Daytona run with a credential would ask the network for admission.
-  "AGENTA_WALLETS_ENABLED",
 ];
 
 for (const name of SCRUBBED) delete process.env[name];
@@ -64,15 +62,6 @@ for (const name of SCRUBBED) delete process.env[name];
 // history untouched. The suites that test the query itself call `vi.unmock` on this module.
 vi.mock("../../src/sessions/records-query.ts", () => ({
   fetchSessionRecords: async () => [],
-}));
-
-// A Daytona run with a run credential meters its sandbox and asks the wallet before the turn,
-// both over the network. Engine suites are not metering tests: admit every turn and meter
-// nothing. The meter's own suite calls `vi.unmock` on this module.
-vi.mock("../../src/metering/sandbox-usage.ts", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../src/metering/sandbox-usage.ts")>()),
-  admitSandboxTurn: async () => ({ admitted: true }),
-  startSandboxMeter: () => ({ stop: async () => {} }),
 }));
 
 // A cold pause waits for the harness to answer the cancelled prompt with its usage. Test fakes
