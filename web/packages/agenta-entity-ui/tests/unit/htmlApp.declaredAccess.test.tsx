@@ -190,7 +190,7 @@ describe("a manifest that declares read-write", () => {
         run.close()
     })
 
-    it("a stored read that never refused write: the chip asks for both and the app can write", async () => {
+    it("a stored read that never refused write: the chip asks for write and the app can write", async () => {
         const grants = createGrantStore()
         grants.set("m1", DIR, {level: "read", writeRefused: false})
         const {host} = await open({manifest: {access: "read-write"}, grants})
@@ -199,8 +199,9 @@ describe("a manifest that declares read-write", () => {
         expect(run.app.canWrite).toBe(false)
 
         await click(button("Read only · Allow editing"))
-        expect(dialogTitle()).toContain("read and change files")
-        await click(button("Allow read and write"))
+        expect(dialogTitle()).toContain("Let Board change files in")
+        expect(button("Read only")).toBeUndefined()
+        await click(button("Allow"))
         await wait()
 
         expect(run.app.canWrite).toBe(true)

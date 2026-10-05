@@ -135,11 +135,11 @@ export function HtmlAppBody({
         [],
     )
 
-    /** Asks for read and write at once and stores the answer; null when closed without one. */
-    const askReadWrite = useCallback(
+    /** Asks for write (with read when none is held) and stores the answer; null when closed. */
+    const askForWrite = useCallback(
         async (record: GrantRecord): Promise<AppAccess | null> => {
             if (!mountId) return null
-            const answer = await ask("read-write")
+            const answer = await ask(record.level === "read" ? "write" : "read-write")
             // A level set while the question was open (another view of this app) wins.
             const latest = grants.get(mountId, dir) ?? EMPTY_GRANT
             if (latest.level !== record.level) return effectiveAccess(latest.level, canEditMounts)
@@ -179,7 +179,7 @@ export function HtmlAppBody({
             // The manifest declares write: the first call asks for both at once.
             if (declared === "read-write" && canEditMounts && record.level === null) {
                 if (dismissed.read) return current
-                const level = await askReadWrite(record)
+                const level = await askForWrite(record)
                 if (level !== null) return level
                 dismissed.read = true
                 return "none"
@@ -267,7 +267,7 @@ export function HtmlAppBody({
         grants,
         canEditMounts,
         ask,
-        askReadWrite,
+        askForWrite,
         env.createHost,
         env.resolveTokens,
     ])
@@ -287,8 +287,8 @@ export function HtmlAppBody({
         const record = grants.get(mountId, dir) ?? EMPTY_GRANT
         // After a refusal the question is not raised again; the setting changes it.
         if (record.writeRefused && openAccessSetting) openAccessSetting()
-        else void askReadWrite(record)
-    }, [mountId, dir, grants, openAccessSetting, askReadWrite])
+        else void askForWrite(record)
+    }, [mountId, dir, grants, openAccessSetting, askForWrite])
 
     // `onNavigate` speaks presented paths; RunView resolves mount-relative ones.
     const toDisplayPath = useCallback(
