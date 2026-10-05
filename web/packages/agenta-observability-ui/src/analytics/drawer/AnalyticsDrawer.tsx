@@ -1,7 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
 import {
-    ANALYTICS_RANGE,
     bucketStarts,
     bucketWindow,
     formatCount,
@@ -13,7 +12,7 @@ import {
     analyticsDrawerAtom,
     analyticsGroupAtom,
     analyticsFiltersAtom,
-    analyticsRangeAtom,
+    analyticsRangeLabelAtom,
     analyticsWindowAtom,
     type AnalyticsMetric,
     type AnalyticsPoint,
@@ -109,7 +108,7 @@ export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDra
 const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
     const [state, setState] = useAtom(analyticsDrawerAtom)
     const pageWindow = useAtomValue(analyticsWindowAtom)
-    const range = useAtomValue(analyticsRangeAtom)
+    const rangeLabel = useAtomValue(analyticsRangeLabelAtom)
     const [filters, setFilters] = useAtom(analyticsFiltersAtom)
     const [hovered, setHovered] = useState<number | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -182,8 +181,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
               )
             : null
 
-    const title =
-        bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : ANALYTICS_RANGE[range].label
+    const title = bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : rangeLabel
     const sub = `${unit === "day" ? "Day by day" : unit === "hour" ? "Hour by hour" : "5-minute view"} · ${formatCount(totals.runs)} runs`
     const focusName = focus ? (focus.dim === "agent" ? agentName(focus.key) : focus.key) : null
     const focusLabel = focus ? `${focus.dim === "agent" ? "Agent" : "Model"}: ${focusName}` : null

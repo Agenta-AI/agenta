@@ -1,5 +1,11 @@
 export type AnalyticsRangeKey = "24h" | "7d" | "30d" | "90d"
 
+/** A picked span of whole local days: `oldest` is the first day's midnight, `newest` the end. */
+export interface AnalyticsCustomRange {
+    oldest: number
+    newest: number
+}
+
 export type AnalyticsDimension = "agent" | "model" | "tool"
 
 /** How the main charts split: not at all, or by agent or configured model. */

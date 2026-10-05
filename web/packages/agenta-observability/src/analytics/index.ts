@@ -3,6 +3,8 @@ export {PATH, type AnalyticsFocus, type AnalyticsQueryName} from "./queries"
 export {
     OTHER_KEY,
     rangeWindow,
+    customWindow,
+    customRangeLabel,
     bucketWindow,
     bucketStarts,
     numberSeries,
@@ -37,6 +39,8 @@ export {
     analyticsRangeAtom,
     analyticsNowAtom,
     analyticsWindowAtom,
+    analyticsCustomRangeAtom,
+    analyticsRangeLabelAtom,
     analyticsFiltersAtom,
     analyticsGroupAtom,
     EMPTY_FILTERS,

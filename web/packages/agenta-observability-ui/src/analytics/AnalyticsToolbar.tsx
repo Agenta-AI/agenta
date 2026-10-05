@@ -1,14 +1,14 @@
-import {useMemo, useState} from "react"
+import {useMemo, useRef, useState} from "react"
 
 import {
     PATH,
-    ANALYTICS_RANGE,
     ANALYTICS_RANGES,
     isRangeLocked,
     keyedSeries,
     rankKeys,
     sum,
     analyticsModelProvidersAtomFamily,
+    type AnalyticsCustomRange,
     type AnalyticsFilters,
     type AnalyticsGroup,
     type AnalyticsRangeKey,
@@ -24,11 +24,16 @@ import {
 import {getProviderDisplayName, getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {
     Button,
+    DateRangeCalendar,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    Popover,
+    PopoverAnchor,
+    PopoverContent,
+    type DateRangeValue,
 } from "@agenta/ui/ui"
 import {
     CalendarBlank,
@@ -57,6 +62,9 @@ const DIMS: {key: FilterDim; label: string; plural: string; icon: typeof Robot}[
 export interface AnalyticsToolbarProps {
     range: AnalyticsRangeKey
     onRangeChange: (range: AnalyticsRangeKey) => void
+    custom: AnalyticsCustomRange | null
+    onCustomChange: (range: AnalyticsCustomRange | null) => void
+    rangeLabel: string
     retention: AnalyticsRetention | null
     onUpgrade?: () => void
     filters: AnalyticsFilters
@@ -72,6 +80,9 @@ export interface AnalyticsToolbarProps {
 export const AnalyticsToolbar = ({
     range,
     onRangeChange,
+    custom,
+    onCustomChange,
+    rangeLabel,
     retention,
     onUpgrade,
     filters,
@@ -85,54 +96,100 @@ export const AnalyticsToolbar = ({
 }: AnalyticsToolbarProps) => {
     const active = DIMS.filter((d) => filters[d.key].length)
     const label = (dim: FilterDim, key: string) => (dim === "agent" ? agentName(key) : key)
+    const [customOpen, setCustomOpen] = useState(false)
+    const openingCustom = useRef(false)
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            <DropdownMenu open={rangeOpen} onOpenChange={onRangeOpenChange}>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                        <CalendarBlank data-icon="inline-start" />
-                        {ANALYTICS_RANGE[range].label}
-                        <CaretDown data-icon="inline-end" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[230px]">
-                    {ANALYTICS_RANGES.map((option) => {
-                        const locked = isRangeLocked(option, retention)
-                        return (
-                            <DropdownMenuItem
-                                key={option.key}
-                                disabled={locked}
-                                onSelect={() => onRangeChange(option.key)}
-                                className="justify-between"
-                            >
-                                {option.label}
-                                {locked ? (
-                                    <LockSimple className="text-muted-foreground" />
-                                ) : option.key === range ? (
-                                    <Check />
-                                ) : null}
-                            </DropdownMenuItem>
-                        )
-                    })}
-                    {retention && ANALYTICS_RANGES.some((o) => isRangeLocked(o, retention)) ? (
-                        <>
-                            <DropdownMenuSeparator />
-                            <div className="flex flex-col gap-2 px-2 py-1.5">
-                                <span className="text-xs text-muted-foreground">
-                                    Your {retention.planName} plan keeps {retention.days} days of
-                                    history.
-                                </span>
-                                {onUpgrade ? (
-                                    <Button size="xs" className="self-start" onClick={onUpgrade}>
-                                        Upgrade plan
-                                    </Button>
-                                ) : null}
-                            </div>
-                        </>
+            <Popover open={customOpen} onOpenChange={setCustomOpen}>
+                <DropdownMenu open={rangeOpen} onOpenChange={onRangeOpenChange}>
+                    <PopoverAnchor asChild>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                                <CalendarBlank data-icon="inline-start" />
+                                {rangeLabel}
+                                <CaretDown data-icon="inline-end" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                    </PopoverAnchor>
+                    <DropdownMenuContent
+                        align="start"
+                        className="w-[230px]"
+                        // Focus going back to the trigger would dismiss the calendar, so it opens after.
+                        onCloseAutoFocus={(event) => {
+                            if (!openingCustom.current) return
+                            event.preventDefault()
+                            openingCustom.current = false
+                            setCustomOpen(true)
+                        }}
+                    >
+                        {ANALYTICS_RANGES.map((option) => {
+                            const locked = isRangeLocked(option, retention)
+                            return (
+                                <DropdownMenuItem
+                                    key={option.key}
+                                    disabled={locked}
+                                    onSelect={() => {
+                                        onCustomChange(null)
+                                        onRangeChange(option.key)
+                                    }}
+                                    className="justify-between"
+                                >
+                                    {option.label}
+                                    {locked ? (
+                                        <LockSimple className="text-muted-foreground" />
+                                    ) : option.key === range && !custom ? (
+                                        <Check />
+                                    ) : null}
+                                </DropdownMenuItem>
+                            )
+                        })}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                openingCustom.current = true
+                            }}
+                            className="justify-between"
+                        >
+                            Custom range…
+                            {custom ? <Check /> : null}
+                        </DropdownMenuItem>
+                        {retention && ANALYTICS_RANGES.some((o) => isRangeLocked(o, retention)) ? (
+                            <>
+                                <DropdownMenuSeparator />
+                                <div className="flex flex-col gap-2 px-2 py-1.5">
+                                    <span className="text-xs text-muted-foreground">
+                                        Your {retention.planName} plan keeps {retention.days} days
+                                        of history.
+                                    </span>
+                                    {onUpgrade ? (
+                                        <Button
+                                            size="xs"
+                                            className="self-start"
+                                            onClick={onUpgrade}
+                                        >
+                                            Upgrade plan
+                                        </Button>
+                                    ) : null}
+                                </div>
+                            </>
+                        ) : null}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                <PopoverContent align="start" className="w-auto p-0">
+                    {customOpen ? (
+                        <CustomRangePanel
+                            value={custom}
+                            retention={retention}
+                            onApply={(next) => {
+                                onCustomChange(next)
+                                setCustomOpen(false)
+                            }}
+                            onCancel={() => setCustomOpen(false)}
+                        />
                     ) : null}
-                </DropdownMenuContent>
-            </DropdownMenu>
+                </PopoverContent>
+            </Popover>
 
             <AnalyticsFilterMenu
                 filters={filters}
@@ -173,6 +230,59 @@ export const AnalyticsToolbar = ({
                     </span>
                 )
             })}
+        </div>
+    )
+}
+
+const DAY = 24 * 60 * 60 * 1000
+
+// DateRangeCalendar speaks UTC ISO without a zone designator.
+const toWire = (ms: number) => new Date(ms).toISOString().slice(0, 19)
+const localMidnight = (wire: string) => new Date(new Date(`${wire}Z`).setHours(0, 0, 0, 0))
+
+/** Two months of days to pick a span from, bounded by today and the plan's retention. */
+const CustomRangePanel = ({
+    value,
+    retention,
+    onApply,
+    onCancel,
+}: {
+    value: AnalyticsCustomRange | null
+    retention: AnalyticsRetention | null
+    onApply: (range: AnalyticsCustomRange) => void
+    onCancel: () => void
+}) => {
+    const [draft, setDraft] = useState<DateRangeValue>(
+        value ? {startTime: toWire(value.oldest), endTime: toWire(value.newest - 1000)} : {},
+    )
+    const today = new Date(new Date().setHours(0, 0, 0, 0)).getTime()
+    const apply = () => {
+        if (!draft.startTime || !draft.endTime) return
+        const last = localMidnight(draft.endTime)
+        onApply({
+            oldest: localMidnight(draft.startTime).getTime(),
+            newest: new Date(last.setDate(last.getDate() + 1)).getTime(),
+        })
+    }
+    return (
+        <div className="flex flex-col">
+            <DateRangeCalendar
+                value={draft}
+                onChange={setDraft}
+                showTime={false}
+                months={2}
+                hideClear
+                minDate={retention ? toWire(today - (retention.days - 1) * DAY) : undefined}
+                maxDate={toWire(today + DAY - 1000)}
+            />
+            <div className="flex justify-end gap-2 border-0 border-t border-solid border-border px-3 py-2">
+                <Button variant="ghost" size="sm" onClick={onCancel}>
+                    Cancel
+                </Button>
+                <Button size="sm" disabled={!draft.startTime || !draft.endTime} onClick={apply}>
+                    Apply
+                </Button>
+            </div>
         </div>
     )
 }

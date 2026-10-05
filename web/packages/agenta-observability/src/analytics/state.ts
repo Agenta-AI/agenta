@@ -13,8 +13,17 @@ import {
     type AnalyticsFocus,
     type AnalyticsQueryName,
 } from "./queries"
-import {keyedSeries, rangeWindow, toAnalyticsRun, toolsByRun} from "./transform"
+import {ANALYTICS_RANGE} from "./ranges"
+import {
+    customRangeLabel,
+    customWindow,
+    keyedSeries,
+    rangeWindow,
+    toAnalyticsRun,
+    toolsByRun,
+} from "./transform"
 import type {
+    AnalyticsCustomRange,
     AnalyticsDimension,
     AnalyticsFilters,
     AnalyticsGroup,
@@ -30,10 +39,23 @@ export const analyticsRangeAtom = atom<AnalyticsRangeKey>("7d")
 /** The page's clock; the host ticks it so the window follows real time. */
 export const analyticsNowAtom = atom(Date.now())
 
+/** A picked span of days; set, it replaces the preset range. */
+export const analyticsCustomRangeAtom = atom<AnalyticsCustomRange | null>(null)
+
 // Rounded to the hour or day, so the query keys only move at a boundary.
-export const analyticsWindowAtom = atom<AnalyticsWindow>((get) =>
-    rangeWindow(get(analyticsRangeAtom), get(analyticsNowAtom)),
-)
+export const analyticsWindowAtom = atom<AnalyticsWindow>((get) => {
+    const custom = get(analyticsCustomRangeAtom)
+    return custom
+        ? customWindow(custom)
+        : rangeWindow(get(analyticsRangeAtom), get(analyticsNowAtom))
+})
+
+export const analyticsRangeLabelAtom = atom((get) => {
+    const custom = get(analyticsCustomRangeAtom)
+    return custom
+        ? customRangeLabel(custom, get(analyticsNowAtom))
+        : ANALYTICS_RANGE[get(analyticsRangeAtom)].label
+})
 
 export const EMPTY_FILTERS: AnalyticsFilters = {agent: [], model: []}
 

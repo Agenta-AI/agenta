@@ -11,6 +11,8 @@ import {
     analyticsHasAgentsAtom,
     analyticsNowAtom,
     analyticsRangeAtom,
+    analyticsCustomRangeAtom,
+    analyticsRangeLabelAtom,
     analyticsWindowAtom,
     type AnalyticsFocus,
     type AnalyticsMetric,
@@ -57,6 +59,8 @@ export const AnalyticsPage = ({
     onOpenTrace,
 }: AnalyticsPageProps) => {
     const [range, setRange] = useAtom(analyticsRangeAtom)
+    const [custom, setCustom] = useAtom(analyticsCustomRangeAtom)
+    const rangeLabel = useAtomValue(analyticsRangeLabelAtom)
     const [filters, setFilters] = useAtom(analyticsFiltersAtom)
     const window = useAtomValue(analyticsWindowAtom)
     const agents = useAtomValue(analyticsHasAgentsAtom)
@@ -83,8 +87,9 @@ export const AnalyticsPage = ({
 
     // A plan that keeps less history than the open range moves the page to what it keeps.
     useEffect(() => {
-        if (isRangeLocked(ANALYTICS_RANGE[range], retention)) setRange(defaultRange(retention))
-    }, [range, retention, setRange])
+        if (!custom && isRangeLocked(ANALYTICS_RANGE[range], retention))
+            setRange(defaultRange(retention))
+    }, [custom, range, retention, setRange])
 
     const {data, agentSplit, modelSplit, keyColor} = usePageAnalytics(window, filters, group)
 
@@ -95,7 +100,6 @@ export const AnalyticsPage = ({
         ),
     )
     const filtered = filters.agent.length > 0 || filters.model.length > 0
-    const rangeLabel = ANALYTICS_RANGE[range].label
     const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), [setFilters])
     const emptyText = useCallback(
         (what: string) =>
@@ -214,6 +218,9 @@ export const AnalyticsPage = ({
             <AnalyticsToolbar
                 range={range}
                 onRangeChange={setRange}
+                custom={custom}
+                onCustomChange={setCustom}
+                rangeLabel={rangeLabel}
                 retention={retention}
                 onUpgrade={onUpgrade}
                 filters={filters}

@@ -3,6 +3,7 @@ import type {MetricsBucket, TraceSpan} from "@agenta/entities/trace"
 import {PATH} from "./queries"
 import {ANALYTICS_RANGE} from "./ranges"
 import type {
+    AnalyticsCustomRange,
     KeyedSeries,
     AnalyticsOverview,
     AnalyticsPoint,
@@ -28,6 +29,29 @@ export const rangeWindow = (range: AnalyticsRangeKey, now: number): AnalyticsWin
     today.setHours(0, 0, 0, 0)
     const end = today.getTime() + DAY
     return {oldest: end - ANALYTICS_RANGE[range].days * DAY, newest: end, interval: 24 * 60}
+}
+
+/** A custom span by hour when it covers two days or less, else by day. */
+export const customWindow = (range: AnalyticsCustomRange): AnalyticsWindow => ({
+    ...range,
+    interval: range.newest - range.oldest <= 2 * DAY ? 60 : 24 * 60,
+})
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/** "Sep 3 – Sep 18", with years when the span crosses one or is not this year. */
+export const customRangeLabel = (range: AnalyticsCustomRange, now: number): string => {
+    const first = new Date(range.oldest)
+    // `newest` is the midnight after the last day; the midpoint of that day is safe across DST.
+    const last = new Date(range.newest - DAY / 2)
+    const withYear =
+        first.getFullYear() !== last.getFullYear() ||
+        last.getFullYear() !== new Date(now).getFullYear()
+    const day = (d: Date) =>
+        `${MONTHS[d.getMonth()]} ${d.getDate()}${withYear ? `, ${d.getFullYear()}` : ""}`
+    return first.toDateString() === last.toDateString()
+        ? day(first)
+        : `${day(first)} – ${day(last)}`
 }
 
 /** The window one bucket covers, split finer: a day by hour, an hour by five minutes. */
