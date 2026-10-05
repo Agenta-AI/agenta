@@ -39,7 +39,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {formatCount} from "@agenta/shared/utils"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Alert, Button, IconTile, InlineConfirm} from "@agenta/ui/ui"
-import {ArrowClockwise, Plugs} from "@phosphor-icons/react"
+import {ArrowClockwise, Plugs, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {
@@ -59,6 +59,7 @@ import type {
     GatewayPermission,
 } from "../DrillInView/SchemaControls/toolUtils"
 
+import {ToolsEmpty} from "./components/ToolsEmpty"
 import {FOLLOW_AGENT_PRESET, MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
 
 /** A tool the server's include filter hides may not be given a permission at all. */
@@ -439,20 +440,24 @@ export default function McpPermissionDrawer({
         if (loginLapsed) return null
         if (tools.status !== "failed") return null
         return (
-            <div className="flex flex-col items-start gap-1 px-1 py-4">
-                <p className="m-0 text-xs text-colorError">{tools.error}</p>
-                {/* The action that fixes it, where the problem is reported. Retrying a tool list on
-                    a server nobody has authorized only fails again. */}
-                {tools.needsAuth && onReconnect ? (
-                    <Button variant="ghost" size="sm" disabled={disabled} onClick={onReconnect}>
-                        Connect
-                    </Button>
-                ) : (
-                    <Button variant="ghost" size="sm" onClick={() => void loadTools()}>
-                        Retry tools
-                    </Button>
-                )}
-            </div>
+            <ToolsEmpty
+                icon={<WarningCircle size={18} />}
+                title="Couldn't read this server's tools"
+                description={tools.error}
+                action={
+                    // Retrying a tool list on a server nobody has authorized only fails again.
+                    tools.needsAuth && onReconnect ? (
+                        <Button variant="outline" disabled={disabled} onClick={onReconnect}>
+                            Connect
+                        </Button>
+                    ) : (
+                        <Button variant="outline" onClick={() => void loadTools()}>
+                            <ArrowClockwise size={14} />
+                            Retry tools
+                        </Button>
+                    )
+                }
+            />
         )
     }, [disabled, loadTools, loginLapsed, onReconnect, slug, tools])
 

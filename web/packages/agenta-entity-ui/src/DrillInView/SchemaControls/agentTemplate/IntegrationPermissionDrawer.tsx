@@ -611,14 +611,17 @@ export function PermissionDrawerBody({
                     </div>
                 )}
 
-                <SearchInput
-                    // formatCount, because a one-tool server read "Search 1 tools".
-                    placeholder={`Search ${formatCount(searchCount ?? catalogTools.length, "tool")}`}
-                    aria-label="Search tools"
-                    value={query}
-                    onValueChange={setQuery}
-                    disabled={inert}
-                />
+                {/* Hidden when there are no tools to search, e.g. a list that failed to load. */}
+                {catalogTools.length > 0 || (searchCount ?? 0) > 0 ? (
+                    <SearchInput
+                        // formatCount, because a one-tool server read "Search 1 tools".
+                        placeholder={`Search ${formatCount(searchCount ?? catalogTools.length, "tool")}`}
+                        aria-label="Search tools"
+                        value={query}
+                        onValueChange={setQuery}
+                        disabled={inert}
+                    />
+                ) : null}
 
                 {catalog.status === "loading" ? (
                     // Three rows at a tool row's own height, so the list area keeps its shape
