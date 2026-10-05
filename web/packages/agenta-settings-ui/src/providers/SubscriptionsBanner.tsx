@@ -29,9 +29,9 @@ const BRAND = {
         button: "border-transparent bg-foreground text-background hover:bg-foreground/85",
     },
     clay: {
-        cell: "border-[#d97757]/30 bg-[linear-gradient(160deg,color-mix(in_srgb,#d97757_24%,transparent),transparent_70%)]",
-        tile: "bg-[#d97757] text-[#1a0f0b]",
-        button: "border-transparent bg-[#d97757] text-[#1a0f0b] hover:bg-[#d97757]/85",
+        cell: "border-[color-mix(in_srgb,var(--brand-clay)_30%,transparent)] bg-[linear-gradient(160deg,color-mix(in_srgb,var(--brand-clay)_24%,transparent),transparent_70%)]",
+        tile: "bg-[var(--brand-clay)] text-[var(--brand-clay-ink)]",
+        button: "border-transparent bg-[var(--brand-clay)] text-[var(--brand-clay-ink)] hover:bg-[color-mix(in_srgb,var(--brand-clay)_85%,transparent)]",
     },
 } as const
 
@@ -96,7 +96,8 @@ const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
 
 /** AI providers' lead: run agents on a plan the team already pays for, ahead of API keys. */
 export const SubscriptionsBanner = ({plans}: {plans: SubscriptionPlan[]}) => (
-    <section className="rounded-2xl border border-solid border-border bg-background">
+    // Anthropic's brand clay, not a theme color, so it is set once here.
+    <section className="rounded-2xl border border-solid border-border bg-background [--brand-clay-ink:#1a0f0b] [--brand-clay:#d97757]">
         <div className="grid grid-cols-1 items-center gap-2 p-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
             <div className="flex min-w-0 flex-col justify-center gap-2 px-2.5 py-1.5">
                 <span className="flex w-fit items-center gap-1.5 rounded-full border border-solid border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[11.5px] font-medium text-colorPrimaryText">

@@ -1,14 +1,4 @@
-/**
- * The connection card's "Harnesses" section.
- *
- * A harness is the program that talks to the model and uses tools (Pi, Claude Code, Codex). The
- * checked set is user policy; the harness catalog is the technical limit underneath it, so a
- * harness that cannot reach this provider is shown disabled with the reason rather than hidden —
- * a missing row reads as a bug, a disabled one explains itself.
- *
- * Collapsed by default and always showing its value (the enabled harnesses' marks), so the card's
- * common path stays short without hiding what it decided.
- */
+/** The connection card's Harnesses: which harnesses may use it, with unreachable ones disabled. */
 import {useRef, useState} from "react"
 
 import {harnessSummary} from "@agenta/entities/secret"
@@ -99,7 +89,8 @@ const HarnessesSection = ({
             <div
                 inert={!expanded}
                 onTransitionEnd={(event) => {
-                    if (event.target !== event.currentTarget || !expanded) return
+                    if (event.propertyName !== "grid-template-rows" || !expanded) return
+                    if (event.target !== event.currentTarget) return
                     sectionRef.current?.scrollIntoView({behavior: "smooth", block: "nearest"})
                 }}
                 className={cn(

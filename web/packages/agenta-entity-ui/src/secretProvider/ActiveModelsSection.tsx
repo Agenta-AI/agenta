@@ -1,14 +1,4 @@
-/**
- * The connection card's "Active models" section.
- *
- * The list is what this connection will offer: the models the provider just named, plus anything
- * saved or hand-entered that it did not. Checking a model is a policy choice, so the card always
- * saves the explicit list — including an empty one, which means "offer none".
- *
- * One field above the list both searches it and adds a model ID it does not hold, in every state,
- * because a provider's list is never a promise that nothing else works. The list below is
- * the card's only flexible region, so its rows scroll inside it.
- */
+/** A connection's model list, with one field that searches it and adds IDs it lacks. */
 import {useMemo, useState} from "react"
 
 import {
@@ -68,7 +58,13 @@ const ActiveModelsSection = ({
     const visible = truncated ? matching.slice(0, visibleCount) : matching
 
     const term = search.trim()
-    const canAdd = Boolean(term) && !options.some((option) => option.id === term)
+    const canAdd =
+        Boolean(term) &&
+        !options.some(
+            (option) =>
+                option.id.toLowerCase() === term.toLowerCase() ||
+                option.name?.toLowerCase() === term.toLowerCase(),
+        )
     const addTerm = () => {
         if (!canAdd) return
         onAddManual(term)

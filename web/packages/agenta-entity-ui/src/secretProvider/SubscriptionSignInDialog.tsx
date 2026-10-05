@@ -113,6 +113,8 @@ export const SubscriptionSignInDialog = ({
     }
 
     const succeeded = isReady && !pending && !starting
+    // A finished sign-in waits on the vault refresh before the connection reads ready.
+    const settling = startedRef.current && !pending && !starting && !isReady && !error && !lostPoll
 
     return (
         <Dialog open={open} onOpenChange={(next) => (next ? undefined : close())}>
@@ -166,7 +168,7 @@ export const SubscriptionSignInDialog = ({
                             ) : null}
                         </div>
                     </div>
-                ) : starting ? (
+                ) : starting || settling ? (
                     <div className="flex flex-col gap-4" aria-busy>
                         <SkeletonBlock active className="h-4 w-2/3 rounded" />
                         <SkeletonBlock active className="h-[74px] w-full rounded-xl" />
@@ -231,8 +233,8 @@ export const SubscriptionSignInDialog = ({
                             <Button variant="outline" onClick={close}>
                                 Cancel
                             </Button>
-                            <Button disabled={starting} onClick={() => void connect()}>
-                                {starting ? "Starting…" : "Try again"}
+                            <Button disabled={starting || settling} onClick={() => void connect()}>
+                                {starting ? "Starting…" : settling ? "Finishing…" : "Try again"}
                             </Button>
                         </>
                     )}

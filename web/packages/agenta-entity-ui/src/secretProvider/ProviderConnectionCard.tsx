@@ -421,7 +421,7 @@ const ProviderConnectionCard = ({
           )
         : null
 
-    // The span carries the tooltip: a disabled button swallows hover, so it passes pointers through.
+    // The span carries the tooltip, since a disabled button takes no pointer events.
     const testButton = (
         <TooltipProvider delayDuration={300}>
             <Tooltip>
@@ -429,7 +429,6 @@ const ProviderConnectionCard = ({
                     <span className="inline-flex shrink-0">
                         <LoadingButton
                             variant="outline"
-                            className="disabled:pointer-events-none"
                             loading={probeMutation.isPending}
                             disabled={!credentialFilled || !projectId}
                             onClick={() => void runProbe()}

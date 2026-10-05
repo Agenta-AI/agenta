@@ -55,6 +55,8 @@ const DEFAULT_COPY: GatewayToolsSectionCopy = {
     noMatch: (term) => `No tools match “${term}”`,
 }
 
+const OAUTH_POPUP = "width=600,height=700,popup=yes"
+
 /** The same reading as ConnectionStatusBadge. */
 const connectionStatus = (
     connection: ToolConnection,
@@ -176,6 +178,9 @@ export default function GatewayToolsSection({
         async (connection: ToolConnection) => {
             if (!connection.id) return
             const connectionId = connection.id
+            // An OAuth popup opens inside the click, before the await, so it is not blocked.
+            const oauth = /oauth/i.test(String(connection.data?.auth_scheme ?? ""))
+            let popup = oauth ? window.open("", "tools_oauth", OAUTH_POPUP) : null
             try {
                 const result = await handleRefresh(connectionId)
 
@@ -183,12 +188,8 @@ export default function GatewayToolsSection({
                     ?.redirect_url
 
                 if (typeof redirectUrl === "string" && redirectUrl) {
-                    // OAuth re-auth: open popup and wait for completion
-                    const popup = window.open(
-                        redirectUrl,
-                        "tools_oauth",
-                        "width=600,height=700,popup=yes",
-                    )
+                    if (popup) popup.location.href = redirectUrl
+                    else popup = window.open(redirectUrl, "tools_oauth", OAUTH_POPUP)
 
                     const cleanup = async () => {
                         window.focus()
@@ -233,9 +234,11 @@ export default function GatewayToolsSection({
                         }
                     }, 1000)
                 } else {
+                    popup?.close()
                     message.success("Connection refreshed")
                 }
             } catch {
+                popup?.close()
                 message.error("Failed to refresh connection")
             }
         },

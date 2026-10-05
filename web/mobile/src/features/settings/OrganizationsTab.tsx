@@ -60,17 +60,6 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
         // The nav switcher and org switching read org names and projects from this list.
         void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
     }
-    // Every org's projects, the same list the nav switcher reads, to land on one when switching.
-    const allProjects = useQuery({
-        queryKey: ["mobile", "projects"],
-        queryFn: () => fetchProjects(),
-        staleTime: 30_000,
-    })
-    const groups = useMemo(
-        () =>
-            allProjects.data?.kind === "ok" ? groupByOrganization(allProjects.data.projects) : [],
-        [allProjects.data],
-    )
     const [creating, setCreating] = useState(false)
     const [transferring, setTransferring] = useState<Org | null>(null)
     const [deleting, setDeleting] = useState<Org | null>(null)
@@ -98,7 +87,14 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
             loading={orgs.isPending}
             selectedOrgId={selectedOrgId}
             currentUserId={currentUserId}
-            onSwitch={(org) => {
+            onSwitch={async (org) => {
+                // The nav switcher's list, fetched if it is not cached yet.
+                const result = await queryClient.fetchQuery({
+                    queryKey: ["mobile", "projects"],
+                    queryFn: () => fetchProjects(),
+                    staleTime: 30_000,
+                })
+                const groups = result.kind === "ok" ? groupByOrganization(result.projects) : []
                 const group = groups.find((entry) => entry.organizationId === org.id)
                 const first = group?.projects[0]
                 if (!group || !first) {
