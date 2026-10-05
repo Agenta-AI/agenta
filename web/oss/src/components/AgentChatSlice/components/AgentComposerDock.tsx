@@ -103,7 +103,7 @@ const AgentComposerDock = ({
     queue: {
         queued: QueuedMessage[]
         removeQueued: (id: string) => void
-        sendQueuedNow: ((id: string) => Promise<void>) | undefined
+        sendQueuedNow: ((id: string) => void) | undefined
         editingId: string | null
         beginEdit: (id: string, draft?: string) => void
         cancelEdit: () => string

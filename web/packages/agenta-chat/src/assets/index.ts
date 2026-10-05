@@ -14,7 +14,13 @@ export * from "./boundedRequest"
 export * from "./serverOwnedApproval"
 export * from "./continuationPreflight"
 export * from "./composerRunState"
-export {startupPhaseFromDataPart, type StartupPhase, type TurnStage} from "./startupPhases"
+export {
+    stageWordAt,
+    stageWords,
+    startupPhaseFromDataPart,
+    type StartupPhase,
+    type TurnStage,
+} from "./startupPhases"
 export {getMessageTurnId, latestTurnId} from "./agentTurn"
 export * from "./resolveStopExecution"
 export * from "./pendingSendEchoes"
