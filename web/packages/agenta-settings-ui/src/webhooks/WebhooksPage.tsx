@@ -8,8 +8,8 @@ import {
     isWebhookDrawerOpenAtom,
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
-import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
+import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button, IconTile} from "@agenta/ui/ui"
 import {GithubLogo, PencilSimpleLine, Play, Plus, Trash, WebhooksLogo} from "@phosphor-icons/react"
@@ -133,9 +133,19 @@ export const WebhooksPage = ({
         [testWebhookSubscription],
     )
 
+    const [togglingId, setTogglingId] = useState<string | null>(null)
     const handleToggle = useCallback(
-        (webhook: WebhookSubscription) => async (next: boolean) => {
-            await setWebhookActive({id: webhook.id, active: next})
+        async (webhook: WebhookSubscription) => {
+            const next = !isWebhookActive(webhook)
+            setTogglingId(webhook.id)
+            try {
+                await setWebhookActive({id: webhook.id, active: next})
+                message.success(next ? "Webhook resumed" : "Webhook paused")
+            } catch {
+                message.error("Failed to update webhook")
+            } finally {
+                setTogglingId(null)
+            }
         },
         [setWebhookActive],
     )
@@ -206,19 +216,22 @@ export const WebhooksPage = ({
                             <span className="truncate text-muted-foreground" title={events}>
                                 {events}
                             </span>
-                            {/* The toggle shows the state and changes it, so it lives in Status. */}
-                            <div onClick={(event) => event.stopPropagation()}>
-                                <ActiveToggle
-                                    active={isWebhookActive(record)}
-                                    onToggle={handleToggle(record)}
-                                    activatedMessage="Webhook resumed"
-                                    pausedMessage="Webhook paused"
-                                    errorMessage="Failed to update webhook"
-                                />
-                            </div>
+                            <StatusIndicator
+                                tone={isWebhookActive(record) ? "success" : "default"}
+                                label={isWebhookActive(record) ? "Active" : "Paused"}
+                                className="min-w-0 text-[13px]"
+                            />
                             <SettingsRowMenu
                                 label="Webhook actions"
                                 items={[
+                                    {
+                                        key: "active",
+                                        label: "Active",
+                                        checked: isWebhookActive(record),
+                                        disabled: togglingId === record.id,
+                                        onClick: () => void handleToggle(record),
+                                    },
+                                    {type: "divider"},
                                     {
                                         key: "test",
                                         label: "Test",

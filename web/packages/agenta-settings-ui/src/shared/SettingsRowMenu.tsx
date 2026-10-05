@@ -7,6 +7,7 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    Switch,
 } from "@agenta/ui/ui"
 import {DotsThreeVertical} from "@phosphor-icons/react"
 
@@ -20,6 +21,8 @@ export interface SettingsRowAction {
     hidden?: boolean
     /** Run after the menu closes, for a verb that moves focus (an inline rename). */
     deferred?: boolean
+    /** Draws a switch in this state; selecting flips it and leaves the menu open. */
+    checked?: boolean
     onClick: () => void
 }
 
@@ -87,13 +90,23 @@ export const SettingsRowMenu = ({
                                 <DropdownMenuItem
                                     variant={item.danger ? "destructive" : "default"}
                                     disabled={item.disabled}
-                                    onSelect={() => {
+                                    onSelect={(event) => {
+                                        if (item.checked !== undefined) event.preventDefault()
                                         if (item.deferred) deferredRef.current = item.onClick
                                         else item.onClick()
                                     }}
                                 >
                                     {item.icon}
                                     {item.label}
+                                    {item.checked !== undefined ? (
+                                        <Switch
+                                            size="sm"
+                                            checked={item.checked}
+                                            tabIndex={-1}
+                                            aria-hidden
+                                            className="pointer-events-none ml-auto"
+                                        />
+                                    ) : null}
                                 </DropdownMenuItem>
                             </Fragment>
                         ),
