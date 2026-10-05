@@ -313,7 +313,7 @@ export async function runTurn(
   // Set once this turn's ledger row is written: a failed turn the harness rolled back completes
   // its row like any other resume point.
   let turnLedgerForFailure:
-    | { sessionId: string; turnIndex: number; authorization: string }
+    | { sessionId: string; turnIndex: number }
     | undefined;
   /**
    * After a failed turn: keep the harness's native session when it can take the failed turn back
@@ -360,7 +360,7 @@ export async function runTurn(
         turnLedgerForFailure.sessionId,
         turnLedgerForFailure.turnIndex,
         { agentSessionId, endTime: new Date().toISOString() },
-        { authorization: turnLedgerForFailure.authorization, log: logger },
+        { authorization: credential(), log: logger },
       ).catch(() => {});
     }
   };
@@ -722,16 +722,16 @@ export async function runTurn(
     }
 
     const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;
-    const syncCred = runCredential(request);
+    // Keep only the ledger identity. Long turns rotate the platform credential, so every
+    // append/completion must resolve the live lease instead of saving a start-of-turn token.
     const turnLedgerContext =
       sessionId &&
       env.continuityTurnIndex !== undefined &&
-      syncCred &&
+      credential() &&
       request.streamId
         ? {
             sessionId,
             turnIndex: env.continuityTurnIndex,
-            authorization: syncCred,
             streamId: request.streamId,
           }
         : undefined;
@@ -756,7 +756,7 @@ export async function runTurn(
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,
         },
-        { authorization: turnLedgerContext.authorization, log: logger },
+        { authorization: credential(), log: logger },
       ).catch(() => {});
     }
 
@@ -1977,7 +1977,7 @@ export async function runTurn(
             agentSessionId,
             endTime: turnEndedAt,
           },
-          { authorization: turnLedgerContext.authorization, log: logger },
+          { authorization: credential(), log: logger },
         ).catch(() => {});
       }
     } else if (stopReason === "paused" || stopReason === "cancelled") {

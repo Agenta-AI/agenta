@@ -70,6 +70,52 @@ describe("resolveSessionPanes on a phone with the Files pane open", () => {
     })
 })
 
+describe("resolveSessionPanes with the Files pane expanded", () => {
+    it("covers Settings and the sessions rail only while files are open", () => {
+        for (const chatMaximized of [true, false]) {
+            expect(
+                resolveSessionPanes({
+                    ...phone,
+                    twoPane: true,
+                    configCollapsed: false,
+                    filesOpen: true,
+                    filesExpanded: true,
+                    chatMaximized,
+                }),
+            ).toEqual({showConfig: false, showPane: false, showFiles: true})
+        }
+        expect(
+            resolveSessionPanes({
+                ...phone,
+                twoPane: true,
+                configCollapsed: false,
+                filesExpanded: true,
+            }),
+        ).toEqual({showConfig: true, showPane: true, showFiles: false})
+    })
+    it("brings Settings back beside Files when the expansion ends", () => {
+        expect(
+            resolveSessionPanes({
+                ...phone,
+                twoPane: true,
+                configCollapsed: false,
+                filesOpen: true,
+                filesExpanded: false,
+            }),
+        ).toEqual({showConfig: true, showPane: true, showFiles: true})
+    })
+    it("restores at the current breakpoint, keeping a collapsed Settings pane collapsed", () => {
+        expect(resolveSessionPanes({...phone, filesOpen: true, filesExpanded: false})).toEqual({
+            showConfig: false,
+            showPane: false,
+            showFiles: true,
+        })
+        expect(
+            resolveSessionPanes({...phone, twoPane: true, filesOpen: true, filesExpanded: false}),
+        ).toEqual({showConfig: false, showPane: false, showFiles: true})
+    })
+})
+
 describe("resolveSessionPanes with two panes", () => {
     it("shows Files beside the configuration, not instead of it", () => {
         expect(

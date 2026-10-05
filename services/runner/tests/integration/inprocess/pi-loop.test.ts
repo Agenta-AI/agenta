@@ -55,6 +55,26 @@ describe("a conversation that runs no command (QA4A-1)", () => {
   }, 30_000);
 });
 
+describe("a gateway route (the gateway credential header)", () => {
+  // Production EU, 2026-10-05: every in-process turn on a gateway route (built-in Gemini, an own
+  // OpenAI-compatible key) failed before the model call, because the header's `$VAR` was looked up
+  // in the runner's shared process environment, which never holds it.
+  it("sends each session's own credential, never the runner's environment", async () => {
+    expect(process.env.AGENTA_GATEWAY_CREDENTIALS_VALUE).toBeUndefined();
+    model.script([{ text: "through the gateway" }]);
+    const first = model.requests.length;
+    const sessions = await Promise.all(
+      ["ApiKey org-a", "ApiKey org-b"].map((value) => openSession(createHostFixture(model.baseUrl, { gatewayCredential: value }))),
+    );
+    const results = await Promise.all(sessions.map(({ session }) => session.prompt(prompt("hello"))));
+    expect(results).toEqual([{ stopReason: "end_turn" }, { stopReason: "end_turn" }]);
+    for (const { turn } of sessions) expect(turn.text()).toContain("through the gateway");
+    const sent = model.requests.slice(first).map((r) => r.headers["x-ag-credentials"]);
+    expect(sent.sort()).toEqual(["ApiKey org-a", "ApiKey org-b"]);
+    expect(process.env.AGENTA_GATEWAY_CREDENTIALS_VALUE).toBeUndefined();
+  }, 30_000);
+});
+
 describe("admission and accounting (decision 8)", () => {
   it("refuses a session past the runner's maximum, and counts a session's transcript after a turn", async () => {
     const fixture = createHostFixture(model.baseUrl);
