@@ -250,8 +250,6 @@ export interface AnalyticsDrawerState {
     dim: AnalyticsDimension
     focus: AnalyticsFocus | null
     failedOnly: boolean
-    /** A failure reason the Failed list opens filtered to. */
-    reason?: string | null
 }
 
 export const analyticsDrawerAtom = atom<AnalyticsDrawerState | null>(null)

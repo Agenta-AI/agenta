@@ -43,7 +43,6 @@ const ROW_GRID =
     "grid grid-cols-[12px_minmax(0,1.2fr)_minmax(0,1.1fr)_92px_56px_70px_14px] items-center gap-2.5 px-1"
 
 export interface DrawerRunsProps {
-    initialReason?: string | null
     window: AnalyticsWindow
     filters: AnalyticsFilters
     focus: AnalyticsFocus | null
@@ -59,7 +58,6 @@ export interface DrawerRunsProps {
 }
 
 export const DrawerRuns = ({
-    initialReason,
     window,
     filters,
     focus,
@@ -72,7 +70,7 @@ export const DrawerRuns = ({
     showDate,
     onOpenTrace,
 }: DrawerRunsProps) => {
-    const [reason, setReason] = useState<string | null>(initialReason ?? null)
+    const [reason, setReason] = useState<string | null>(null)
     const [open, setOpen] = useState<string | null>(null)
     const base = {window, filters, focus}
     const ready = averageCost !== null

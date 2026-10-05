@@ -211,11 +211,9 @@ export const useFailureReasons = (
         const byReason: KeyedSeries = {}
         const bucketAgents = Array.from({length: size}, () => ({}) as Record<string, number>)
         const agentReasons: Record<string, Record<string, number>> = {}
-        const total: Record<string, number> = {}
         const runs = query.data ?? []
         for (const run of runs) {
             const label = categorizeFailure(run.reason).label
-            total[label] = (total[label] ?? 0) + 1
             if (run.agentId) {
                 const reasons = (agentReasons[run.agentId] ??= {})
                 reasons[label] = (reasons[label] ?? 0) + 1
@@ -225,14 +223,16 @@ export const useFailureReasons = (
             ;(byReason[label] ??= Array.from({length: size}, () => 0))[i] += 1
             if (run.agentId) bucketAgents[i][run.agentId] = (bucketAgents[i][run.agentId] ?? 0) + 1
         }
-        const top = ranked(total)
         return {
-            top,
-            /** Failed runs per bucket for each reason, keyed by reason label. */
-            byReason,
-            /** The most common reason first, so its color is the darkest. */
-            order: top.map((r) => r.label),
             mainReason: (agentId: string) => ranked(agentReasons[agentId] ?? {})[0]?.label ?? null,
+            reasonsAt: (bucket: number) =>
+                ranked(
+                    Object.fromEntries(
+                        Object.entries(byReason)
+                            .map(([label, values]) => [label, values[bucket] ?? 0] as const)
+                            .filter(([, count]) => count > 0),
+                    ),
+                ),
             busiestAgent: (bucket: number) => ranked(bucketAgents[bucket] ?? {})[0]?.label ?? null,
             sampled: runs.length,
             status: statusOf(query),

@@ -121,18 +121,6 @@ export const AnalyticsPage = ({
     )
 
     const failures = useFailureReasons(window, filters, data.overview.totals.failed)
-    const onFailureReason = useCallback(
-        (reason: string) =>
-            openDrawer({
-                bucket: null,
-                metric: "success",
-                dim: group === "model" ? "model" : "agent",
-                focus: null,
-                failedOnly: true,
-                reason,
-            }),
-        [openDrawer, group],
-    )
 
     const labels = useMemo(
         () => data.starts.map((s) => shortLabel(window, s)),
@@ -182,7 +170,6 @@ export const AnalyticsPage = ({
         agentName,
         grouped,
         failures,
-        onFailureReason,
         emptyText,
         onExplore,
     }
@@ -257,9 +244,9 @@ export const AnalyticsPage = ({
             <CostCard ctx={ctx} />
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] gap-4">
                 <RunsCard ctx={ctx} />
-                <TokensCard ctx={ctx} />
+                <SuccessCard ctx={ctx} />
             </div>
-            <SuccessCard ctx={ctx} />
+            <TokensCard ctx={ctx} />
             <FailureRateCard
                 data={data}
                 failures={failures}

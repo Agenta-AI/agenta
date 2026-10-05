@@ -435,8 +435,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                     />
 
                     <DrawerRuns
-                        key={`${window.oldest}-${focus?.dim ?? ""}-${focus?.key ?? ""}-${state.reason ?? ""}`}
-                        initialReason={state.reason}
+                        key={`${window.oldest}-${focus?.dim ?? ""}-${focus?.key ?? ""}`}
                         window={window}
                         filters={filters}
                         focus={focus}
