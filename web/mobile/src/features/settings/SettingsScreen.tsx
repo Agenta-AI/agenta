@@ -134,7 +134,6 @@ const TabBody = ({
     // so the modal must not survive into the next one and act there.
     useEffect(() => closeConfirm, [tab, closeConfirm])
     const [memberSearch, setMemberSearch] = useState("")
-    const [orgSearch, setOrgSearch] = useState("")
 
     const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
     const [lastSavedFlag, setLastSavedFlag] = useState<AuthFlagKey | null>(null)
@@ -263,8 +262,6 @@ const TabBody = ({
                 <OrganizationsPage
                     organizations={organizations.data ?? []}
                     loading={organizations.isPending}
-                    searchTerm={orgSearch}
-                    onSearchChange={setOrgSearch}
                     selectedOrgId={organizationId}
                     currentUserId={user?.id}
                 />

@@ -37,23 +37,6 @@ vi.mock("@agenta/ui/ui", () => {
         Switch: () => <span />,
     }
 })
-vi.mock("@agenta/ui/list-table", () => ({
-    ListTableToolbar: ({
-        search,
-        onSearchChange,
-        searchPlaceholder,
-    }: {
-        search: string
-        onSearchChange: (next: string) => void
-        searchPlaceholder: string
-    }) => (
-        <input
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            aria-label={searchPlaceholder}
-        />
-    ),
-}))
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))
 vi.mock("../../src/channels/qr", () => ({QrCode: () => null}))
 vi.mock("../../src/channels/AgentMark", () => ({AgentMark: () => null}))
@@ -194,26 +177,5 @@ describe("ChannelsSettingsPage", () => {
         expect(byTestId("channels-agent-picker")).not.toBeNull()
         await clickTestId("channels-agent-a2")
         expect(byTestId("channels-hub")).not.toBeNull()
-    })
-
-    it("filters the connections by search and says when nothing matches", async () => {
-        await act(async () => root.render(<Host rows={[SLACK_A2, ORPHAN]} />))
-        const input = container.querySelector(
-            'input[aria-label="Search channels"]',
-        ) as HTMLInputElement
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
-        const type = async (value: string) =>
-            act(async () => {
-                setter.call(input, value)
-                input.dispatchEvent(new Event("input", {bubbles: true}))
-            })
-
-        await type("growth")
-        expect(byTestId("channels-card-s-a2")).not.toBeNull()
-        expect(byTestId("channels-card-s-orphan")).toBeNull()
-        expect(byTestId("channels-platform-slack")).toBeNull()
-
-        await type("nothing-like-this")
-        expect(container.textContent).toContain("No channels found")
     })
 })

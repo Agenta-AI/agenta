@@ -1,14 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/ui/ui"
-import {MagnifyingGlass} from "@phosphor-icons/react"
 
 import {
     SettingsCatalog,
     type SettingsCatalogGroup,
     type SettingsCatalogItem,
 } from "../shared/SettingsCatalog"
-import {SettingsEmpty} from "../shared/SettingsEmpty"
 
 import {connectionsForAgent} from "./actions"
 import {
@@ -89,7 +87,6 @@ export const ChannelsSettingsPage = ({
     hostedHandle = "@agenta",
 }: ChannelsSettingsPageProps) => {
     const [retrying, setRetrying] = useState(false)
-    const [search, setSearch] = useState("")
     const agentName = agents.find((agent) => agent.id === agentId)?.name
 
     // The panel's agent changes before the host reloads for it, so derive its view here.
@@ -135,33 +132,23 @@ export const ChannelsSettingsPage = ({
     )
     const startConnect = useCallback(() => openRoute({view: "agents"}), [openRoute])
 
-    const term = search.trim().toLowerCase()
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
-        const matches = (texts: (string | null | undefined)[]) =>
-            !term || texts.some((text) => text?.toLowerCase().includes(term))
-
-        const connected = (connections.allConnections ?? []).flatMap(
-            (connection, index): SettingsCatalogItem[] => {
+        const connected = (connections.allConnections ?? []).map(
+            (connection, index): SettingsCatalogItem => {
                 const {title, detail} = connectionRowText(connection, hostedHandle)
-                const label = platformLabel(connection.platform)
-                if (!matches([title, detail, label, connection.agent?.name])) return []
-                return [
-                    {
-                        key: connection.connectionId ?? `${connection.platform}-${index}`,
-                        logo: platformLogo(connection.platform, 22),
-                        name: title,
-                        description: `${agentText(connection)} · ${detail}`,
-                        ...connectionStatus(connection),
-                        onOpen: () => openConnection(connection),
-                        testId: `channels-card-${connection.connectionId}`,
-                    },
-                ]
+                return {
+                    key: connection.connectionId ?? `${connection.platform}-${index}`,
+                    logo: platformLogo(connection.platform, 22),
+                    name: title,
+                    description: `${agentText(connection)} · ${detail}`,
+                    ...connectionStatus(connection),
+                    onOpen: () => openConnection(connection),
+                    testId: `channels-card-${connection.connectionId}`,
+                }
             },
         )
 
-        const platforms = CHANNEL_PLATFORMS.filter((platform) =>
-            matches([platformLabel(platform), PLATFORM_DESCRIPTIONS[platform]]),
-        ).map(
+        const platforms = CHANNEL_PLATFORMS.map(
             (platform): SettingsCatalogItem => ({
                 key: platform,
                 logo: platformLogo(platform, 22),
@@ -178,7 +165,7 @@ export const ChannelsSettingsPage = ({
             {key: "connected", label: "Connected", items: connected},
             {key: "platforms", label: "Messaging platforms", items: platforms},
         ]
-    }, [connections.allConnections, term, hostedHandle, openConnection, startConnect])
+    }, [connections.allConnections, hostedHandle, openConnection, startConnect])
 
     const retry = async () => {
         setRetrying(true)
@@ -194,7 +181,6 @@ export const ChannelsSettingsPage = ({
     return (
         <div data-testid="channels-settings">
             <SettingsCatalog
-                search={{value: search, onChange: setSearch, placeholder: "Search channels"}}
                 groups={groups}
                 loading={firstLoad}
                 notice={
@@ -209,18 +195,6 @@ export const ChannelsSettingsPage = ({
                             </Button>
                         </div>
                     ) : undefined
-                }
-                empty={
-                    <SettingsEmpty
-                        icon={<MagnifyingGlass size={18} />}
-                        title="No channels found"
-                        description={`Nothing matches “${search.trim()}”. Try a bot, workspace, platform or agent name.`}
-                        action={
-                            <Button variant="outline" size="sm" onClick={() => setSearch("")}>
-                                Clear search
-                            </Button>
-                        }
-                    />
                 }
             />
 

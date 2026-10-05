@@ -12,21 +12,12 @@ import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button, IconTile} from "@agenta/ui/ui"
-import {
-    GithubLogo,
-    MagnifyingGlass,
-    PencilSimpleLine,
-    Play,
-    Plus,
-    Trash,
-    WebhooksLogo,
-} from "@phosphor-icons/react"
+import {GithubLogo, PencilSimpleLine, Play, Plus, Trash, WebhooksLogo} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 
 import {SettingsPageActions} from "../SettingsPageShell"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
-import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 const isGitHubApiUrl = (url?: string | null): boolean => {
     if (!url) {
@@ -91,7 +82,6 @@ export const WebhooksPage = ({
     renderSecretReveal,
 }: WebhooksPageProps) => {
     const [{data: webhooks, isPending: isLoading}] = useAtom(webhooksAtom)
-    const [searchTerm, setSearchTerm] = useState("")
     const setIsDrawerOpen = useSetAtom(isWebhookDrawerOpenAtom)
     const setEditingWebhook = useSetAtom(editingWebhookAtom)
     const testWebhookSubscription = useSetAtom(testWebhookAtom)
@@ -155,15 +145,8 @@ export const WebhooksPage = ({
     }, [setIsDrawerOpen, setEditingWebhook])
 
     const rows = useMemo<WebhookRow[]>(() => {
-        const all = (webhooks ?? []).map((webhook) => ({...webhook, key: webhook.id}))
-        const term = searchTerm.trim().toLowerCase()
-        if (!term) return all
-        return all.filter((webhook) =>
-            [webhook.name, webhook.data?.url].some((value) => value?.toLowerCase().includes(term)),
-        )
-    }, [webhooks, searchTerm])
-
-    const searching = searchTerm.trim().length > 0
+        return (webhooks ?? []).map((webhook) => ({...webhook, key: webhook.id}))
+    }, [webhooks])
 
     const subscribe = renderDrawer ? (
         <Button size="sm" onClick={handleCreate} disabled={isLoading}>
@@ -175,13 +158,6 @@ export const WebhooksPage = ({
     return (
         <section className="flex flex-col">
             <SettingsPageActions>{subscribe}</SettingsPageActions>
-            <SettingsToolbar
-                search={{
-                    placeholder: "Search webhooks",
-                    value: searchTerm,
-                    onChange: setSearchTerm,
-                }}
-            />
             <ListTable<WebhookRow>
                 columns={COLUMNS}
                 groups={[{key: "webhooks", label: null, rows}]}
@@ -191,28 +167,12 @@ export const WebhooksPage = ({
                 hideHeader={!isLoading && rows.length === 0}
                 onOpenRow={renderDrawer ? handleEdit : undefined}
                 empty={
-                    searching ? (
-                        <SettingsEmpty
-                            icon={<MagnifyingGlass size={18} />}
-                            title={`No webhooks match “${searchTerm.trim()}”`}
-                            action={
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setSearchTerm("")}
-                                >
-                                    Clear search
-                                </Button>
-                            }
-                        />
-                    ) : (
-                        <SettingsEmpty
-                            icon={<WebhooksLogo size={18} />}
-                            title="No webhooks yet"
-                            description="Subscribe an endpoint to receive workflow events as signed HTTP requests."
-                            action={subscribe}
-                        />
-                    )
+                    <SettingsEmpty
+                        icon={<WebhooksLogo size={18} />}
+                        title="No webhooks yet"
+                        description="Subscribe an endpoint to receive workflow events as signed HTTP requests."
+                        action={subscribe}
+                    />
                 }
                 renderRow={(record) => {
                     const url = record.data?.url

@@ -7,7 +7,6 @@ import {Button} from "@agenta/ui/ui"
 import {
     ArrowsLeftRight,
     Buildings,
-    MagnifyingGlass,
     PencilSimpleLine,
     Plus,
     SignOut,
@@ -17,7 +16,6 @@ import {
 import {SettingsPageActions} from "../SettingsPageShell"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
-import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 interface OrgRow extends Org {
     key: string
@@ -31,11 +29,9 @@ const COLUMNS: ListTableColumn[] = [
 ]
 
 export interface OrganizationsPageProps {
-    /** Every organization you belong to; this page owns the search filter. */
+    /** Every organization you belong to. */
     organizations: Org[]
     loading?: boolean
-    searchTerm: string
-    onSearchChange: (value: string) => void
     /** Marks the "Current" row and scopes the ownership transfer. */
     selectedOrgId?: string | null
     currentUserId?: string | null
@@ -58,8 +54,6 @@ export interface OrganizationsPageProps {
 export const OrganizationsPage = ({
     organizations,
     loading = false,
-    searchTerm,
-    onSearchChange,
     selectedOrgId,
     currentUserId,
     onSwitch,
@@ -70,15 +64,10 @@ export const OrganizationsPage = ({
     onDelete,
     children,
 }: OrganizationsPageProps) => {
-    const rows = useMemo<OrgRow[]>(() => {
-        const term = searchTerm.trim().toLowerCase()
-        const matching = term
-            ? organizations.filter((org) =>
-                  [org.name, org.id].some((value) => value?.toLowerCase().includes(term)),
-              )
-            : organizations
-        return matching.map((org) => ({...org, key: org.id}))
-    }, [organizations, searchTerm])
+    const rows = useMemo<OrgRow[]>(
+        () => organizations.map((org) => ({...org, key: org.id})),
+        [organizations],
+    )
 
     const isOwner = (org: Org) => Boolean(currentUserId) && org.owner_id === currentUserId
 
@@ -90,18 +79,9 @@ export const OrganizationsPage = ({
             </Button>
         ) : null
 
-    const searching = searchTerm.trim().length > 0
-
     return (
         <div className="flex flex-col">
             <SettingsPageActions>{createButton()}</SettingsPageActions>
-            <SettingsToolbar
-                search={{
-                    placeholder: "Search organizations",
-                    value: searchTerm,
-                    onChange: onSearchChange,
-                }}
-            />
             <ListTable<OrgRow>
                 columns={COLUMNS}
                 groups={[{key: "all", label: null, rows}]}
@@ -110,28 +90,12 @@ export const OrganizationsPage = ({
                 loading={loading && rows.length === 0}
                 hideHeader={!loading && rows.length === 0}
                 empty={
-                    searching ? (
-                        <SettingsEmpty
-                            icon={<MagnifyingGlass size={18} />}
-                            title={`No organizations match “${searchTerm.trim()}”`}
-                            action={
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => onSearchChange("")}
-                                >
-                                    Clear search
-                                </Button>
-                            }
-                        />
-                    ) : (
-                        <SettingsEmpty
-                            icon={<Buildings size={18} />}
-                            title="No organizations yet"
-                            description="An organization groups your workspaces, projects and the people who work in them."
-                            action={createButton("outline")}
-                        />
-                    )
+                    <SettingsEmpty
+                        icon={<Buildings size={18} />}
+                        title="No organizations yet"
+                        description="An organization groups your workspaces, projects and the people who work in them."
+                        action={createButton("outline")}
+                    />
                 }
                 renderRow={(record) => {
                     const name = record.name ?? record.slug ?? record.id

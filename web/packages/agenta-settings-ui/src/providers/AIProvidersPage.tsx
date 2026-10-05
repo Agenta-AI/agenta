@@ -22,8 +22,7 @@ import {
     providerIconFor,
     SubscriptionConnectionCard,
 } from "@agenta/entity-ui/secretProvider"
-import {Button} from "@agenta/ui/ui"
-import {MagnifyingGlass, PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
+import {PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -31,7 +30,6 @@ import {
     type SettingsCatalogGroup,
     type SettingsCatalogItem,
 } from "../shared/SettingsCatalog"
-import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 /** The capability map is global; the key only records which surface asked for it. */
@@ -57,11 +55,6 @@ export interface AIProvidersPageProps {
 }
 
 type DrawerTarget = {connection: ProviderConnection} | {kind: string}
-
-interface ProviderRow {
-    item: SettingsCatalogItem
-    terms: string[]
-}
 
 /** What a credential-set kind's form asks for, read off its fields in `providerFields.ts`. */
 const FORM_FIELDS_BY_KIND: Record<string, string> = {
@@ -98,7 +91,6 @@ export const AIProvidersPage = ({
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const deleteSecret = useSetAtom(deleteSecretAtom)
 
-    const [search, setSearch] = useState("")
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
     const [subscriptionPanelOpen, setSubscriptionPanelOpen] = useState(false)
     const [pendingRemoval, setPendingRemoval] = useState<ProviderConnection | null>(null)
@@ -145,58 +137,52 @@ export const AIProvidersPage = ({
     }, [deleteSecret, mutate, pendingRemoval])
 
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
-        const connectedRows = userConnections.map<ProviderRow>((connection) => ({
-            terms: [connection.name, connection.title, connection.kind],
-            item: {
-                key: connection.id,
-                logo: <ProviderLogo kind={connection.kind} />,
-                name: connection.name,
-                description: [
-                    connection.title !== connection.name ? connection.title : null,
-                    credentialSummary(connection),
-                    activeModelsSummary(connection, capabilities),
-                ]
-                    .filter(Boolean)
-                    .join(" · "),
-                status: "connected",
-                statusLabel: "Connected",
-                onOpen: () => setDrawerTarget({connection}),
-                menu: (
-                    <SettingsRowMenu
-                        label={`Actions for ${connection.name}`}
-                        items={[
-                            {
-                                key: "edit",
-                                label: "Edit",
-                                icon: <PencilSimpleLine size={14} />,
-                                onClick: () => setDrawerTarget({connection}),
-                            },
-                            {type: "divider"},
-                            {
-                                key: "delete",
-                                label: "Delete",
-                                icon: <Trash size={14} />,
-                                danger: true,
-                                hidden: !canRemove,
-                                onClick: () => requestRemoval(connection),
-                            },
-                        ]}
-                    />
-                ),
-            },
+        const connectedRows = userConnections.map<SettingsCatalogItem>((connection) => ({
+            key: connection.id,
+            logo: <ProviderLogo kind={connection.kind} />,
+            name: connection.name,
+            description: [
+                connection.title !== connection.name ? connection.title : null,
+                credentialSummary(connection),
+                activeModelsSummary(connection, capabilities),
+            ]
+                .filter(Boolean)
+                .join(" · "),
+            status: "connected",
+            statusLabel: "Connected",
+            onOpen: () => setDrawerTarget({connection}),
+            menu: (
+                <SettingsRowMenu
+                    label={`Actions for ${connection.name}`}
+                    items={[
+                        {
+                            key: "edit",
+                            label: "Edit",
+                            icon: <PencilSimpleLine size={14} />,
+                            onClick: () => setDrawerTarget({connection}),
+                        },
+                        {type: "divider"},
+                        {
+                            key: "delete",
+                            label: "Delete",
+                            icon: <Trash size={14} />,
+                            danger: true,
+                            hidden: !canRemove,
+                            onClick: () => requestRemoval(connection),
+                        },
+                    ]}
+                />
+            ),
         }))
 
-        const catalogRow = (entry: ProviderCatalogEntry): ProviderRow => ({
-            terms: [entry.title, entry.kind],
-            item: {
-                key: entry.kind,
-                logo: <ProviderLogo kind={entry.kind} />,
-                name: entry.title,
-                description: catalogDescription(entry),
-                status: "available",
-                statusLabel: `Connect ${entry.title}`,
-                onOpen: () => setDrawerTarget({kind: entry.kind}),
-            },
+        const catalogRow = (entry: ProviderCatalogEntry): SettingsCatalogItem => ({
+            key: entry.kind,
+            logo: <ProviderLogo kind={entry.kind} />,
+            name: entry.title,
+            description: catalogDescription(entry),
+            status: "available",
+            statusLabel: `Connect ${entry.title}`,
+            onOpen: () => setDrawerTarget({kind: entry.kind}),
         })
 
         const subscriptionConnected = subscriptionIsReady(subscription?.subscription)
@@ -204,75 +190,57 @@ export const AIProvidersPage = ({
         // A sign-in that once worked and now does not needs attention, not a fresh connect.
         const subscriptionBroken =
             !subscriptionConnected && !!loginState && loginState !== "pending_login"
-        const chatgptRow: ProviderRow = {
-            terms: [CHATGPT_NAME, "chatgpt"],
-            item: {
-                key: "chatgpt",
-                logo: <ProviderLogo kind="openai" />,
-                name: CHATGPT_NAME,
-                description:
-                    subscriptionStatusLine(subscription?.subscription) ||
-                    `Sign in with your ${CHATGPT_NAME} subscription to run agents`,
-                status: subscriptionConnected
-                    ? "connected"
-                    : subscriptionBroken
-                      ? "attention"
-                      : "available",
-                statusLabel: subscriptionConnected
-                    ? "Connected"
-                    : subscriptionBroken
-                      ? "Sign in again"
-                      : `Connect ${CHATGPT_NAME}`,
-                onOpen: () => setSubscriptionPanelOpen((isOpen) => !isOpen),
-            },
+        const chatgptRow: SettingsCatalogItem = {
+            key: "chatgpt",
+            logo: <ProviderLogo kind="openai" />,
+            name: CHATGPT_NAME,
+            description:
+                subscriptionStatusLine(subscription?.subscription) ||
+                `Sign in with your ${CHATGPT_NAME} subscription to run agents`,
+            status: subscriptionConnected
+                ? "connected"
+                : subscriptionBroken
+                  ? "attention"
+                  : "available",
+            statusLabel: subscriptionConnected
+                ? "Connected"
+                : subscriptionBroken
+                  ? "Sign in again"
+                  : `Connect ${CHATGPT_NAME}`,
+            onOpen: () => setSubscriptionPanelOpen((isOpen) => !isOpen),
         }
-        const claudeRow: ProviderRow = {
-            terms: ["Claude", "claude"],
-            item: {
-                key: "claude",
-                logo: <ProviderLogo kind="anthropic" />,
-                name: "Claude",
-                description: "Detected from your deployment's login folder",
-                status: "available",
-                statusLabel: "Set one up",
-                onOpen: () => window.open(subscriptionDocsUrl, "_blank", "noopener,noreferrer"),
-            },
+        const claudeRow: SettingsCatalogItem = {
+            key: "claude",
+            logo: <ProviderLogo kind="anthropic" />,
+            name: "Claude",
+            description: "Detected from your deployment's login folder",
+            status: "available",
+            statusLabel: "Set one up",
+            onOpen: () => window.open(subscriptionDocsUrl, "_blank", "noopener,noreferrer"),
         }
-
-        const query = search.trim().toLowerCase()
-        const matching = (rows: ProviderRow[]) =>
-            rows
-                .filter(
-                    (row) => !query || row.terms.some((term) => term.toLowerCase().includes(query)),
-                )
-                .map((row) => row.item)
-
-        const subscriptionItems = matching([chatgptRow, claudeRow])
-        const chatgptShown = subscriptionItems.some((item) => item.key === chatgptRow.item.key)
 
         return [
-            {key: "connected", label: "Connected", items: matching(connectedRows)},
+            {key: "connected", label: "Connected", items: connectedRows},
             {
                 key: "model-providers",
                 label: "Model providers",
-                items: matching(MODEL_PROVIDERS.map(catalogRow)),
+                items: MODEL_PROVIDERS.map(catalogRow),
             },
             {
                 key: "cloud-platforms",
                 label: "Cloud platforms",
-                items: matching(CLOUD_PLATFORMS.map(catalogRow)),
+                items: CLOUD_PLATFORMS.map(catalogRow),
             },
             {
                 key: "subscriptions",
                 label: "Subscriptions",
-                items: subscriptionItems,
-                footer:
-                    subscriptionPanelOpen && chatgptShown ? (
-                        <SubscriptionConnectionCard
-                            connection={subscription}
-                            onRemove={canRemove ? requestRemoval : undefined}
-                        />
-                    ) : undefined,
+                items: [chatgptRow, claudeRow],
+                footer: subscriptionPanelOpen ? (
+                    <SubscriptionConnectionCard
+                        connection={subscription}
+                        onRemove={canRemove ? requestRemoval : undefined}
+                    />
+                ) : undefined,
             },
         ]
     }, [
@@ -281,7 +249,6 @@ export const AIProvidersPage = ({
         subscription,
         subscriptionPanelOpen,
         subscriptionDocsUrl,
-        search,
         canRemove,
         requestRemoval,
     ])
@@ -289,7 +256,6 @@ export const AIProvidersPage = ({
     return (
         <div className="ph-no-capture">
             <SettingsCatalog
-                search={{value: search, onChange: setSearch, placeholder: "Search providers"}}
                 groups={groups}
                 loading={loading && userConnections.length === 0}
                 notice={
@@ -299,17 +265,6 @@ export const AIProvidersPage = ({
                             {removeError}
                         </span>
                     ) : null
-                }
-                empty={
-                    <SettingsEmpty
-                        icon={<MagnifyingGlass size={18} />}
-                        title="No providers match"
-                        action={
-                            <Button size="sm" variant="outline" onClick={() => setSearch("")}>
-                                Clear search
-                            </Button>
-                        }
-                    />
                 }
             />
 

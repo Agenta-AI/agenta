@@ -6,20 +6,12 @@ import {message} from "@agenta/ui/app-message"
 import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {
-    CheckCircle,
-    FolderSimple,
-    MagnifyingGlass,
-    PencilSimpleLine,
-    Plus,
-    Trash,
-} from "@phosphor-icons/react"
+import {CheckCircle, FolderSimple, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {SettingsPageActions} from "../SettingsPageShell"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
-import {SettingsToolbar} from "../shared/SettingsToolbar"
 
 interface ProjectFormValues {
     name: string
@@ -76,7 +68,6 @@ export const ProjectsPage = ({
     const [isRenameModalOpen, setRenameModalOpen] = useState(false)
     const [projectToDelete, setProjectToDelete] = useState<ProjectsResponse | null>(null)
     const [activeProject, setActiveProject] = useState<ProjectsResponse | null>(null)
-    const [searchTerm, setSearchTerm] = useState("")
 
     const scopedProjects = useMemo(() => {
         if (!projects) return []
@@ -89,15 +80,8 @@ export const ProjectsPage = ({
     const canEdit = Boolean(renderCreateDialog || renderRenameDialog || renderDeleteDialog)
 
     const rows = useMemo<ProjectRow[]>(() => {
-        const all = scopedProjects.map((project) => ({...project, key: project.project_id}))
-        const term = searchTerm.trim().toLowerCase()
-        if (!term) return all
-        return all.filter((project) =>
-            [project.project_name, project.project_id].some((value) =>
-                value?.toLowerCase().includes(term),
-            ),
-        )
-    }, [scopedProjects, searchTerm])
+        return scopedProjects.map((project) => ({...project, key: project.project_id}))
+    }, [scopedProjects])
 
     const invalidateProjects = useCallback(async () => {
         await queryClient.invalidateQueries({queryKey: ["projects"]})
@@ -193,8 +177,6 @@ export const ProjectsPage = ({
         setRenameModalOpen(true)
     }, [])
 
-    const searching = searchTerm.trim().length > 0
-
     const newProject = canEdit ? (
         <Button size="sm" onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
             <Plus size={14} />
@@ -205,13 +187,6 @@ export const ProjectsPage = ({
     return (
         <section className="flex flex-col">
             <SettingsPageActions>{newProject}</SettingsPageActions>
-            <SettingsToolbar
-                search={{
-                    placeholder: "Search projects",
-                    value: searchTerm,
-                    onChange: setSearchTerm,
-                }}
-            />
             <ListTable<ProjectRow>
                 columns={COLUMNS}
                 groups={[{key: "projects", label: null, rows}]}
@@ -220,28 +195,12 @@ export const ProjectsPage = ({
                 loading={isLoading && rows.length === 0}
                 hideHeader={!isLoading && rows.length === 0}
                 empty={
-                    searching ? (
-                        <SettingsEmpty
-                            icon={<MagnifyingGlass size={18} />}
-                            title={`No projects match “${searchTerm.trim()}”`}
-                            action={
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setSearchTerm("")}
-                                >
-                                    Clear search
-                                </Button>
-                            }
-                        />
-                    ) : (
-                        <SettingsEmpty
-                            icon={<FolderSimple size={18} />}
-                            title="No projects in this workspace yet"
-                            description="Create a project to organize your agents, datasets, and deployments."
-                            action={newProject}
-                        />
-                    )
+                    <SettingsEmpty
+                        icon={<FolderSimple size={18} />}
+                        title="No projects in this workspace yet"
+                        description="Create a project to organize your agents, datasets, and deployments."
+                        action={newProject}
+                    />
                 }
                 renderRow={(record) => (
                     <>
