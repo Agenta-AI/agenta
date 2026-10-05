@@ -12,8 +12,17 @@ import {
     type AnalyticsRun,
     type AnalyticsWindow,
 } from "@agenta/observability/analytics"
-import {Button, Segmented, SkeletonBlock, cn} from "@agenta/ui/ui"
-import {ArrowSquareOut, CaretRight} from "@phosphor-icons/react"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    Segmented,
+    SkeletonBlock,
+    cn,
+} from "@agenta/ui/ui"
+import {ArrowSquareOut, CaretDown, CaretRight, Check} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {analyticsColor} from "../colors"
@@ -145,38 +154,50 @@ export const DrawerRuns = ({
         <section className="rounded-xl bg-muted px-4 py-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium">Runs</span>
-                <Segmented
-                    size="sm"
-                    options={runFilterOptions}
-                    value={failedOnly ? "failed" : "cost"}
-                    onChange={(value) => {
-                        setReason(null)
-                        onFailedOnly(value === "failed")
-                    }}
-                />
-            </div>
-
-            {failedOnly && reasons.length ? (
-                <div className="flex flex-wrap gap-1.5 pb-3">
-                    {[{label: null, count: runs.length, raw: ""}, ...reasons].map((r) => (
-                        <button
-                            key={r.label ?? "all"}
-                            type="button"
-                            title={r.raw || undefined}
-                            onClick={() => setReason(r.label)}
-                            className={cn(
-                                "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2.5 text-xs",
-                                reason === r.label
-                                    ? "border-border bg-background text-foreground"
-                                    : "border-transparent bg-transparent text-muted-foreground hover:text-foreground",
-                            )}
-                        >
-                            {r.label ?? "All"}
-                            <span className="tabular-nums">{formatCount(r.count)}</span>
-                        </button>
-                    ))}
+                <div className="flex items-center gap-2">
+                    {failedOnly && reasons.length ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="max-w-[220px]">
+                                    <span className="truncate">{reason ?? "All reasons"}</span>
+                                    <CaretDown data-icon="inline-end" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-[260px]">
+                                {[{label: null, count: runs.length, raw: ""}, ...reasons].map(
+                                    (r) => (
+                                        <DropdownMenuItem
+                                            key={r.label ?? "all"}
+                                            title={r.raw || undefined}
+                                            onSelect={() => setReason(r.label)}
+                                            className="justify-between gap-3"
+                                        >
+                                            <span className="truncate">
+                                                {r.label ?? "All reasons"}
+                                            </span>
+                                            <span className="flex items-center gap-2 text-muted-foreground tabular-nums">
+                                                {formatCount(r.count)}
+                                                {reason === r.label ? (
+                                                    <Check className="text-foreground" />
+                                                ) : null}
+                                            </span>
+                                        </DropdownMenuItem>
+                                    ),
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : null}
+                    <Segmented
+                        size="sm"
+                        options={runFilterOptions}
+                        value={failedOnly ? "failed" : "cost"}
+                        onChange={(value) => {
+                            setReason(null)
+                            onFailedOnly(value === "failed")
+                        }}
+                    />
                 </div>
-            ) : null}
+            </div>
 
             {listed.length && !query.isPending && !query.error ? (
                 failedOnly ? (
