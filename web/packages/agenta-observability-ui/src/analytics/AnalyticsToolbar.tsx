@@ -37,7 +37,6 @@ import {
 } from "@agenta/ui/ui"
 import {
     CalendarBlank,
-    CaretDown,
     Check,
     LockSimple,
     Minus,
@@ -108,7 +107,6 @@ export const AnalyticsToolbar = ({
                             <Button variant="outline" size="sm">
                                 <CalendarBlank data-icon="inline-start" />
                                 {rangeLabel}
-                                <CaretDown data-icon="inline-end" />
                             </Button>
                         </DropdownMenuTrigger>
                     </PopoverAnchor>
