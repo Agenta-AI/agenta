@@ -39,10 +39,9 @@ export const withMobileSettingsLabels = <T extends {key: SettingsTabKey; title: 
 
 /** Copy for the shared `GatewayToolsSection`, whose defaults still say "tool" for oss/ee. */
 export const INTEGRATIONS_SECTION_COPY = {
-    integrationColumn: "Integration",
     run: "Run action",
     searchPlaceholder: "Search integrations",
-    connect: "Connect integration",
+    browseAll: "Browse all integrations",
     emptyTitle: "No integrations connected yet",
     emptyBody: "Connect an integration to let your agents call it.",
     noMatch: (term: string) => `No integrations match “${term}”`,
