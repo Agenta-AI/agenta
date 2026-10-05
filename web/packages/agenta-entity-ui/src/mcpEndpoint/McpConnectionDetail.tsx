@@ -24,7 +24,7 @@ import {
 import {projectIdAtom} from "@agenta/shared/state"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {Tag} from "@agenta/ui/components/presentational"
+import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Button, Field, Input} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -174,9 +174,14 @@ export default function McpConnectionDetail({
                 {endpoint ? (
                     <div className="flex flex-col gap-5" data-testid="mcp-connection-detail">
                         <div className="flex min-w-0 items-center gap-2">
-                            <Tag tone={isReady ? "green" : "gold"} className="m-0 text-xs">
-                                {getMcpConnectionStateLabel(connectionState ?? "needs_auth")}
-                            </Tag>
+                            <StatusIndicator
+                                tone={isReady ? "success" : "warning"}
+                                label={getMcpConnectionStateLabel(connectionState ?? "needs_auth")}
+                                className="shrink-0 text-[13px]"
+                            />
+                            <span aria-hidden className="text-colorTextDescription">
+                                ·
+                            </span>
                             <span
                                 className="truncate font-mono text-xs text-colorTextDescription"
                                 title={endpoint.data.route.base_url ?? undefined}
