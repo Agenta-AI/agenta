@@ -118,7 +118,7 @@ export const SubscriptionsBanner = ({plans}: {plans: SubscriptionPlan[]}) => (
                         Bring your own plan
                     </h2>
                     <p className="m-0 text-[12.5px] leading-[18px] text-muted-foreground">
-                        Agents run on your ChatGPT or Claude subscription instead of an API key.
+                        Agents run on your ChatGPT or Claude subscription. No API key needed.
                     </p>
                 </div>
             </div>
