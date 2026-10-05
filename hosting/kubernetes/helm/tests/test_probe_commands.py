@@ -49,23 +49,39 @@ NO_DEFAULT_LIVENESS = {
 }
 
 URL_ARGS = [
-    "--set", "agenta.webUrl=https://agenta.example.com",
-    "--set", "agenta.apiUrl=https://agenta.example.com/api",
-    "--set", "agenta.servicesUrl=https://agenta.example.com/services",
+    "--set",
+    "agenta.webUrl=https://agenta.example.com",
+    "--set",
+    "agenta.apiUrl=https://agenta.example.com/api",
+    "--set",
+    "agenta.servicesUrl=https://agenta.example.com/services",
 ]
 
 KEY_ARGS = [
-    "--set", "agenta.authKey=0000000000000000000000000000000000000000000000000000000000000000",
-    "--set", "agenta.cryptKey=1111111111111111111111111111111111111111111111111111111111111111",
-    "--set", "agenta.servicesInternalKey=2222222222222222222222222222222222222222222222222222222222222222",
-    "--set", "agenta.runnerToken=3333333333333333333333333333333333333333333333333333333333333333",
-    "--set", "postgres.password=a-real-password",
+    "--set",
+    "agenta.authKey=0000000000000000000000000000000000000000000000000000000000000000",
+    "--set",
+    "agenta.cryptKey=1111111111111111111111111111111111111111111111111111111111111111",
+    "--set",
+    "agenta.servicesInternalKey=2222222222222222222222222222222222222222222222222222222222222222",
+    "--set",
+    "agenta.runnerToken=3333333333333333333333333333333333333333333333333333333333333333",
+    "--set",
+    "postgres.password=a-real-password",
 ]
 
 
 def render(extra: list[str] | None = None) -> list[dict]:
     result = subprocess.run(
-        ["helm", "template", RELEASE, str(CHART_DIR), *URL_ARGS, *KEY_ARGS, *(extra or [])],
+        [
+            "helm",
+            "template",
+            RELEASE,
+            str(CHART_DIR),
+            *URL_ARGS,
+            *KEY_ARGS,
+            *(extra or []),
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -114,7 +130,9 @@ def main() -> int:
             joined = " ".join(str(x) for x in command)
             for bad in ABSENT_FROM_IMAGE:
                 if program in ("sh", "bash") and f"{bad} " in joined:
-                    offenders.append(f"{ref} {c['name']}.{probe_name} shells out to {bad!r}")
+                    offenders.append(
+                        f"{ref} {c['name']}.{probe_name} shells out to {bad!r}"
+                    )
     check(
         not offenders,
         "no exec probe calls a program the image does not carry"
@@ -123,7 +141,9 @@ def main() -> int:
 
     # --- the three PID-1 workloads carry no liveness probe by default --------
     with_liveness = {
-        ref for ref, c in workloads(parsed) if c.get("livenessProbe") and ref in NO_DEFAULT_LIVENESS
+        ref
+        for ref, c in workloads(parsed)
+        if c.get("livenessProbe") and ref in NO_DEFAULT_LIVENESS
     }
     check(
         not with_liveness,
@@ -140,21 +160,30 @@ def main() -> int:
     parsed = render(["--set-json", f"workerQueues.livenessProbe={json.dumps(probe)}"])
     got = None
     for ref, c in workloads(parsed):
-        if ref == f"Deployment/{RELEASE}-agenta-worker-queues" and c["name"] != "wait-for-redis":
+        if (
+            ref == f"Deployment/{RELEASE}-agenta-worker-queues"
+            and c["name"] != "wait-for-redis"
+        ):
             if c.get("livenessProbe"):
                 got = c["livenessProbe"]
     check(got is not None, "a probe set in values reaches the worker container")
     if got:
-        check(got.get("periodSeconds") == 17, "the supplied period survives (got %s)" % got.get("periodSeconds"))
         check(
-            (got.get("exec") or {}).get("command") == ["sh", "-c", "test -f /tmp/heartbeat"],
+            got.get("periodSeconds") == 17,
+            "the supplied period survives (got %s)" % got.get("periodSeconds"),
+        )
+        check(
+            (got.get("exec") or {}).get("command")
+            == ["sh", "-c", "test -f /tmp/heartbeat"],
             "the supplied command survives unchanged",
         )
 
     print(f"\n{total - len(failures)}/{total} checks passed")
     if failures:
         return 1
-    print("OK: no probe calls a missing program, and the PID-1 workloads set none by default.")
+    print(
+        "OK: no probe calls a missing program, and the PID-1 workloads set none by default."
+    )
     return 0
 
 
