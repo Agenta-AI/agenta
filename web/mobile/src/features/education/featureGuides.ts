@@ -51,11 +51,6 @@ export const FEATURE_GUIDES: Record<FeatureGuideKey, FeatureGuide> = {
         headline: "Put your agents to work in the background",
         body: "An automation runs one of your agents without you asking — on a schedule, or when something happens in an app you have connected.",
         docsUrl: "https://agenta.ai/docs/concepts/automations",
-        video: {
-            id: "f32acd7ba24a22793626d625f83498fb",
-            title: "Automations in Agenta",
-            stillSeconds: 4,
-        },
         icons: {main: Lightning, left: Clock, right: Robot},
         templateKeys: ["pr-reviewer", "changelog-writer", "issue-triage"],
     },
