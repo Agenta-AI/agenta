@@ -179,6 +179,8 @@ const ProviderConnectionCard = ({
     // A saved write-only record returns no values, so its secret fields arrive empty every time.
     // They still count as filled — otherwise editing only the model list would demand the key again.
     const storedFields = useMemo(() => storedCredentialFields(connection), [connection])
+    // A saved key's status replaces the Test explainer under the fields.
+    const keyStored = storedFields.includes("apiKey")
     // Typed OR already in the vault. Test used to demand typed material, because an empty form had
     // no credential to spend; the probe now takes a `secret_id` and resolves the stored one itself,
     // so a write-only connection is testable without retyping a key it can never read back.
@@ -456,14 +458,10 @@ const ProviderConnectionCard = ({
                                     </span>
                                 ) : null}
                             </div>
-                            {replaceOnly ? (
+                            {replaceOnly && field.key !== "apiKey" ? (
                                 <span className="text-[11px] text-colorTextTertiary">
                                     {/* TODO(copy: owner) */}
-                                    {field.key === "apiKey"
-                                        ? connection?.keyPreview
-                                            ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
-                                            : "Key configured. Leave blank to keep it."
-                                        : "Saved value. Leave blank to keep it."}
+                                    Saved value. Leave blank to keep it.
                                 </span>
                             ) : null}
                             <div className="flex items-start gap-2">
@@ -549,7 +547,11 @@ const ProviderConnectionCard = ({
                 ) : null}
 
                 <span className="text-[11px] text-colorTextTertiary">
-                    {secretNoteForKind(kind, title)}
+                    {keyStored
+                        ? connection?.keyPreview
+                            ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
+                            : "Key configured. Leave blank to keep it."
+                        : secretNoteForKind(kind, title)}
                 </span>
 
                 {/* Why the footer's Done is disabled (or what saving now would mean), stated where
