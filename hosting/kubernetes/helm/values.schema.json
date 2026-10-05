@@ -1601,6 +1601,10 @@
             },
             "uri": {
               "type": "string"
+            },
+            "caCert": {
+              "type": "string",
+              "description": "PEM of the authority that signed an external Redis instance's certificate, or the string from-existing-secret when secrets.existingSecret supplies REDIS_DURABLE_CA_CERT. Implemented for redisDurable only: the chart mounts it at /etc/agenta/redis-durable/ca.pem, and the connection string points at that path with ?ssl_ca_certs=. Setting it on redisVolatile fails the render."
             }
           }
         }
