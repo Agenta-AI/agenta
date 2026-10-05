@@ -13,6 +13,7 @@
  */
 import {forwardRef, type ButtonHTMLAttributes, type ReactNode} from "react"
 
+import {cn} from "@agenta/ui/styles"
 import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 
@@ -24,7 +25,10 @@ export interface SectionAddButtonProps extends ButtonHTMLAttributes<HTMLButtonEl
 }
 
 export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonProps>(
-    function SectionAddButton({label, tooltip, disabled, type = "button", ...rest}, ref) {
+    function SectionAddButton(
+        {label, tooltip, disabled, type = "button", className, ...rest},
+        ref,
+    ) {
         const button = (
             <Button
                 ref={ref}
@@ -33,6 +37,11 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 size="icon"
                 aria-label={label}
                 disabled={disabled}
+                // Quieter than the row title at rest; full strength on hover or while open.
+                className={cn(
+                    "!text-colorTextTertiary hover:!text-colorText aria-expanded:!text-colorText",
+                    className,
+                )}
                 {...rest}
             >
                 <Plus size={16} />
