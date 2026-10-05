@@ -10,7 +10,6 @@ import {
     DialogHeader,
     DialogTitle,
     SkeletonBlock,
-    Spinner,
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, Check, CheckCircle, Copy, WarningCircle} from "@phosphor-icons/react"
 
@@ -26,6 +25,38 @@ export interface SubscriptionSignInDialogProps {
     /** Remove the connection. Absent hides the verb. */
     onRemove?: (connection: ProviderConnection) => void
 }
+
+/** One numbered step, with a rail to the next. */
+const Step = ({
+    index,
+    title,
+    last,
+    children,
+}: {
+    index: number
+    title: string
+    last?: boolean
+    children: ReactNode
+}) => (
+    <li className="flex gap-3">
+        <span className="flex flex-col items-center">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-solid border-border bg-background text-[12px] font-medium text-foreground">
+                {index}
+            </span>
+            {last ? null : <span aria-hidden className="my-1 w-px flex-1 bg-border" />}
+        </span>
+        <span
+            className={
+                last
+                    ? "flex min-w-0 flex-1 flex-col gap-2"
+                    : "flex min-w-0 flex-1 flex-col gap-1 pb-4"
+            }
+        >
+            <span className="text-sm font-medium leading-6 text-foreground">{title}</span>
+            {children}
+        </span>
+    </li>
+)
 
 const CopyCode = ({code}: {code: string}) => {
     const [copied, setCopied] = useState(false)
@@ -107,27 +138,29 @@ export const SubscriptionSignInDialog = ({
 
                 {pending ? (
                     <div className="flex flex-col gap-4">
-                        <ol className="m-0 flex list-none flex-col gap-2 p-0 text-sm text-muted-foreground">
-                            {[
-                                `Open ${name} and sign in.`,
-                                "Enter this code when it asks for one.",
-                            ].map((step, index) => (
-                                <li key={step} className="flex items-center gap-2.5">
-                                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-solid border-border text-[11px] font-medium text-foreground">
-                                        {index + 1}
-                                    </span>
-                                    {step}
-                                </li>
-                            ))}
+                        <ol className="m-0 flex list-none flex-col p-0">
+                            <Step index={1} title={`Open ${name}`}>
+                                <a
+                                    href={pending.verificationUri}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex w-fit items-center gap-1 text-[13px] text-btn-link no-underline hover:text-btn-link-hover"
+                                >
+                                    {pending.verificationUri.replace(/^https?:\/\//, "")}
+                                    <ArrowSquareOut size={12} />
+                                </a>
+                            </Step>
+                            <Step index={2} title="Enter this code" last>
+                                <CopyCode code={pending.userCode} />
+                            </Step>
                         </ol>
-                        <CopyCode code={pending.userCode} />
-                        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-2">
-                                <Spinner size="small" />
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                            {/* Shimmers while the poll runs; plain text under reduced motion. */}
+                            <span className="bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_45%,var(--ag-colorTextQuaternary)_90%)] bg-clip-text text-colorTextSecondary motion-safe:animate-text-shimmer motion-safe:bg-[length:240%_100%] motion-safe:text-transparent">
                                 Waiting for you to sign in
                             </span>
                             {pending.expiresAt ? (
-                                <span className="tabular-nums">
+                                <span className="tabular-nums text-muted-foreground">
                                     Expires in {countdownLabel(pending.expiresAt, now)}
                                 </span>
                             ) : null}
