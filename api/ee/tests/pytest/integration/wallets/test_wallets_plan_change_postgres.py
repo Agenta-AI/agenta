@@ -137,6 +137,12 @@ async def test_plan_changes_write_no_wallet_rows_and_granted_credit_survives(
     monkeypatch.setattr(env.wallets, "enabled", True)
     monkeypatch.setattr(subscriptions_service_module, "invalidate_cache", AsyncMock())
     monkeypatch.setattr(subscriptions_service_module, "_load_stripe", _fake_stripe)
+    # A switch refuses a plan without Stripe prices, and this environment configures none.
+    monkeypatch.setattr(
+        subscriptions_service_module,
+        "get_stripe_line_items",
+        lambda plan: [{"price": f"price_{plan}", "quantity": 1}],
+    )
 
     organization_id = uuid.uuid4()
     wallets_service = WalletsService(wallets_dao=WalletsDAO())
