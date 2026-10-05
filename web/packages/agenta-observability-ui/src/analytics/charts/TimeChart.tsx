@@ -46,6 +46,41 @@ export interface TimeChartProps {
 type Row = Record<string, number | string | null>
 
 const TICKS = 6
+
+/** The average's label: a pill in the card color, right-aligned just above the line. */
+const AverageLabel = ({
+    text,
+    viewBox,
+}: {
+    text: string
+    viewBox?: {x: number; y: number; width: number}
+}) => {
+    if (!viewBox) return null
+    // 11px text runs about 6px per character; padding is 4px a side.
+    const width = text.length * 6 + 8
+    const right = viewBox.x + viewBox.width
+    return (
+        <g>
+            <rect
+                x={right - width}
+                y={viewBox.y - 17}
+                width={width}
+                height={15}
+                rx={4}
+                fill="var(--muted)"
+            />
+            <text
+                x={right - 4}
+                y={viewBox.y - 6}
+                textAnchor="end"
+                fontSize={11}
+                fill="var(--muted-foreground)"
+            >
+                {text}
+            </text>
+        </g>
+    )
+}
 // Top corners only; the bottom of a stack sits on the axis.
 const TOP_RADIUS: [number, number, number, number] = [3, 3, 0, 0]
 
@@ -139,21 +174,6 @@ export const TimeChart = ({
             tickFormatter={formatTick}
             fontSize={11}
         />,
-        average ? (
-            <ReferenceLine
-                key="avg"
-                y={average.value}
-                stroke="var(--muted-foreground)"
-                strokeDasharray="3 3"
-                ifOverflow="extendDomain"
-                label={{
-                    value: average.label,
-                    position: "insideBottomRight",
-                    fontSize: 11,
-                    fill: "var(--muted-foreground)",
-                }}
-            />
-        ) : null,
         tooltip ? (
             <ChartTooltip
                 key="tooltip"
@@ -172,6 +192,18 @@ export const TimeChart = ({
             />
         ) : null,
     ]
+
+    // Drawn after the series so its label sits over the bars.
+    const averageLine = average ? (
+        <ReferenceLine
+            key="avg"
+            y={average.value}
+            stroke="var(--muted-foreground)"
+            strokeDasharray="3 3"
+            ifOverflow="extendDomain"
+            label={<AverageLabel text={average.label} />}
+        />
+    ) : null
 
     return (
         <ChartContainer
@@ -202,6 +234,7 @@ export const TimeChart = ({
                             ))}
                         </Bar>
                     ))}
+                    {averageLine}
                 </BarChart>
             ) : (
                 <ComposedChart {...common} barCategoryGap={labels.length > 24 ? "12%" : "18%"}>
@@ -238,6 +271,7 @@ export const TimeChart = ({
                             isAnimationActive={false}
                         />
                     ))}
+                    {averageLine}
                 </ComposedChart>
             )}
         </ChartContainer>
