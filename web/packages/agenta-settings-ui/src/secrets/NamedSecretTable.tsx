@@ -15,21 +15,19 @@ import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {usePhoneColumns} from "../shared/usePhoneColumns"
 
-/**
- * Mask stored secret content for display. `text` is masked like an API key
- * (first/last few chars); `json` shows the key names only, never the values.
- */
+const STARS = "*******"
+
+/** `abc*******xyz` for text (the server's preview when the value is write-only); key names for json. */
 const maskContent = (record: NamedSecretRow): string => {
-    const {format, content} = record
+    const {format, content, keyPreview} = record
     if (format === CustomSecretFormat.Json) {
         const keys = content && typeof content === "object" ? Object.keys(content) : []
         return keys.length ? `{ ${keys.join(", ")} }` : "{ }"
     }
     const text = typeof content === "string" ? content : ""
-    // The vault does not return a stored value, so an empty one is masked, not "-".
-    if (!text) return "••••••••"
-    if (text.length <= 6) return "•••"
-    return `${text.slice(0, 3)}...${text.slice(-3)}`
+    if (text.length > 12) return `${text.slice(0, 3)}${STARS}${text.slice(-3)}`
+    if (text) return STARS
+    return keyPreview ? keyPreview.replace(/\*+/, STARS) : STARS
 }
 
 export interface NamedSecretTableProps {
