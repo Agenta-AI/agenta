@@ -8,10 +8,9 @@ import {
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ArrowRight} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
-import Link from "next/link"
 
+import {FeatureSection} from "./FeatureSection"
 import {FeatureTemplateCard} from "./FeatureTemplateCard"
 import {FeatureTemplateGridSkeleton} from "./states/FeatureTemplateGridSkeleton"
 
@@ -44,19 +43,10 @@ export const FeatureTemplateGrid = ({
     if (status === "success" && templates.length === 0) return null
 
     return (
-        <section className="flex flex-col gap-3">
-            <div className="flex items-baseline justify-between gap-3">
-                <h2 className="m-0 text-[14px] font-semibold text-foreground">
-                    Start from a template
-                </h2>
-                <Link
-                    href={browseHref}
-                    className="inline-flex items-center gap-1 text-[12.5px] text-muted-foreground no-underline hover:text-foreground"
-                >
-                    View all templates
-                    <ArrowRight className="size-3" aria-hidden />
-                </Link>
-            </div>
+        <FeatureSection
+            title="Start from a template"
+            link={{href: browseHref, label: "View all templates"}}
+        >
             {status === "pending" ? (
                 <FeatureTemplateGridSkeleton count={templateKeys.length} />
             ) : status === "error" ? (
@@ -73,6 +63,6 @@ export const FeatureTemplateGrid = ({
                     ))}
                 </div>
             )}
-        </section>
+        </FeatureSection>
     )
 }

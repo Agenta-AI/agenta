@@ -38,6 +38,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
+import {AutomationAgentStarters} from "./AutomationAgentStarters"
 import {AutomationCardBody} from "./AutomationCardBody"
 import {AutomationFilterMenu} from "./AutomationFilterMenu"
 import {AutomationKindMark} from "./AutomationKindMark"
@@ -330,7 +331,9 @@ export const AutomationListScreen = ({
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
                         {projectEmpty ? (
-                            <FeatureOnboarding guideKey="automations" base={base} />
+                            <FeatureOnboarding guideKey="automations" base={base}>
+                                <AutomationAgentStarters base={base} />
+                            </FeatureOnboarding>
                         ) : (
                             <>
                                 {/* Search belongs to the list, not to the page: it sits on the

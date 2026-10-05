@@ -6,14 +6,17 @@ import {cn} from "@/lib/utils"
 
 /** A way to start, styled like a template card: icon tiles, what it does, and where it leads. */
 export const FeatureActionCard = ({
-    icons,
+    icons = [],
+    media,
     title,
     description,
     actionLabel,
     meta,
     onClick,
 }: {
-    icons: ReactNode[]
+    icons?: ReactNode[]
+    /** Drawn as-is in place of the icon tiles, e.g. an agent's own chip. */
+    media?: ReactNode
     title: string
     description: string
     actionLabel: string
@@ -26,6 +29,7 @@ export const FeatureActionCard = ({
         className="box-border flex min-w-0 cursor-pointer flex-col rounded-xl border border-solid border-colorBorderSecondary bg-background px-4 pb-0 pt-4 text-left transition-[border-color,box-shadow] hover:border-border hover:shadow-[0_2px_8px_-2px_color-mix(in_srgb,var(--ag-colorText)_12%,transparent)]"
     >
         <span className="flex h-[30px] items-center">
+            {media}
             {icons.map((icon, index) => (
                 <span
                     key={index}

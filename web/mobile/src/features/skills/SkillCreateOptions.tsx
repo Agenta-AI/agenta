@@ -4,6 +4,7 @@ import {scanSkillFromFileList, type SkillUploadScan} from "@agenta/entity-ui/dri
 import {FileText, Folder, GithubLogo, PencilSimple} from "@phosphor-icons/react"
 
 import {FeatureActionCard} from "../education/FeatureActionCard"
+import {FeatureSection} from "../education/FeatureSection"
 
 /** The empty Skills page's starting points: the New skill menu's three entries, as cards. */
 export const SkillCreateOptions = ({
@@ -18,15 +19,7 @@ export const SkillCreateOptions = ({
     const fileInput = useRef<HTMLInputElement>(null)
 
     return (
-        <section className="flex flex-col gap-3">
-            <div className="flex items-baseline justify-between gap-3">
-                <h2 className="m-0 text-[14px] font-semibold text-foreground">
-                    Ways to add a skill
-                </h2>
-                <span className="text-[12.5px] text-colorTextTertiary @max-xl:hidden">
-                    Attach skills to any agent once added
-                </span>
-            </div>
+        <FeatureSection title="Ways to add a skill" hint="Attach skills to any agent once added">
             <div className="grid gap-3 @2xl:grid-cols-3">
                 <FeatureActionCard
                     icons={[<PencilSimple key="write" size={15} />]}
@@ -68,6 +61,6 @@ export const SkillCreateOptions = ({
                     event.target.value = ""
                 }}
             />
-        </section>
+        </FeatureSection>
     )
 }
