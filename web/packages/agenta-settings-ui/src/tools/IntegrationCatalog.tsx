@@ -6,7 +6,7 @@ import {
     useToolCatalogIntegrations,
     type ToolCatalogCategory,
 } from "@agenta/entities/gatewayTool"
-import {ScrollSentinel} from "@agenta/ui"
+import {ScrollSentinel} from "@agenta/ui/components"
 import {Button} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useInfiniteQuery} from "@tanstack/react-query"
