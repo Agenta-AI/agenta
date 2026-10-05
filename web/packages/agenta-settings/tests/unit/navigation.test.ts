@@ -123,6 +123,7 @@ describe("settings sidebar scopes", () => {
             "apiKeys",
             "secrets",
             "llms",
+            "analytics",
             "tools",
             "channels",
             "webhooks",
