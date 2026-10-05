@@ -22,9 +22,9 @@ import {
     type McpToolSummary,
 } from "@agenta/entities/mcpEndpoint"
 import {projectIdAtom} from "@agenta/shared/state"
+import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components/presentational"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Field, Input} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
@@ -132,88 +132,87 @@ export default function McpConnectionDetail({
     }, [endpoint, name, nameProblem, onChanged, projectId])
 
     return (
-        <EnhancedDrawer
+        <EnhancedModal
             open={!!endpoint}
-            onClose={onClose}
+            onCancel={onClose}
             title={endpoint?.name || endpoint?.slug || "Connection"}
-            // A bottom sheet below `lg` and the right-edge drawer above it, the way every
-            // sibling MCP panel arrives. The default `right` slid a 520px panel in from the
-            // edge of a phone. The width still applies from `lg` up.
-            placement="responsive"
+            footer={null}
             width={520}
             destroyOnClose
         >
-            {endpoint ? (
-                <div className="flex flex-col gap-5" data-testid="mcp-connection-detail">
-                    <div className="flex items-center gap-2">
-                        <Tag tone={isReady ? "green" : "gold"} className="m-0 text-xs">
-                            {getMcpConnectionStateLabel(connectionState ?? "needs_auth")}
-                        </Tag>
-                        <span
-                            className="truncate text-xs text-colorTextDescription"
-                            title={endpoint.data.route.base_url ?? undefined}
-                        >
-                            {endpoint.data.route.base_url}
-                        </span>
-                    </div>
+            <ModalContent>
+                {endpoint ? (
+                    <div className="flex flex-col gap-5" data-testid="mcp-connection-detail">
+                        <div className="flex items-center gap-2">
+                            <Tag tone={isReady ? "green" : "gold"} className="m-0 text-xs">
+                                {getMcpConnectionStateLabel(connectionState ?? "needs_auth")}
+                            </Tag>
+                            <span
+                                className="truncate text-xs text-colorTextDescription"
+                                title={endpoint.data.route.base_url ?? undefined}
+                            >
+                                {endpoint.data.route.base_url}
+                            </span>
+                        </div>
 
-                    <Field label="Name" error={nameProblem ?? undefined}>
-                        <Input
-                            value={name}
-                            aria-label="Connection name"
-                            onChange={(event) => setName(event.target.value)}
-                        />
-                    </Field>
-                    {/* Said out loud, because renaming something an agent uses invites the
+                        <Field label="Name" error={nameProblem ?? undefined}>
+                            <Input
+                                value={name}
+                                aria-label="Connection name"
+                                onChange={(event) => setName(event.target.value)}
+                            />
+                        </Field>
+                        {/* Said out loud, because renaming something an agent uses invites the
                         opposite assumption. */}
-                    <p className="-mt-3 text-xs text-colorTextDescription">
-                        Agents keep using this connection under its existing reference, so renaming
-                        it here does not change any agent.
-                    </p>
-                    <div>
-                        <Button
-                            onClick={rename}
-                            disabled={
-                                saving || !!nameProblem || name.trim() === (endpoint.name ?? "")
-                            }
-                        >
-                            Save name
-                        </Button>
-                    </div>
-
-                    <section className="flex flex-col gap-2">
-                        <h4 className="m-0 text-sm font-medium text-colorText">Tools</h4>
-                        <ToolFilterInput
-                            total={tools.status === "ready" ? tools.tools.length : 0}
-                            value={filter}
-                            onChange={setFilter}
-                        />
-                        <ToolList
-                            state={tools}
-                            isReady={isReady}
-                            onRetry={loadTools}
-                            filter={filter}
-                        />
-                        <p className="m-0 text-xs text-colorTextDescription">
-                            Choose what this server may do in an agent&apos;s configuration.
+                        <p className="-mt-3 text-xs text-colorTextDescription">
+                            Agents keep using this connection under its existing reference, so
+                            renaming it here does not change any agent.
                         </p>
-                    </section>
-
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" onClick={() => onReconnect(endpoint)}>
-                            {isReady ? "Reconnect" : "Connect"}
-                        </Button>
-                        {/* Only an OAuth connection holds a grant to revoke; the route
-                            refuses anything else. */}
-                        {isReady && endpoint.auth_mode === "oauth" ? (
-                            <Button variant="ghost" onClick={() => onDisconnect(endpoint)}>
-                                Disconnect
+                        <div>
+                            <Button
+                                onClick={rename}
+                                disabled={
+                                    saving || !!nameProblem || name.trim() === (endpoint.name ?? "")
+                                }
+                            >
+                                Save name
                             </Button>
-                        ) : null}
+                        </div>
+
+                        <section className="flex flex-col gap-2">
+                            <h4 className="m-0 text-sm font-medium text-colorText">Tools</h4>
+                            <ToolFilterInput
+                                total={tools.status === "ready" ? tools.tools.length : 0}
+                                value={filter}
+                                onChange={setFilter}
+                            />
+                            <ToolList
+                                state={tools}
+                                isReady={isReady}
+                                onRetry={loadTools}
+                                filter={filter}
+                            />
+                            <p className="m-0 text-xs text-colorTextDescription">
+                                Choose what this server may do in an agent&apos;s configuration.
+                            </p>
+                        </section>
+
+                        <div className="flex items-center gap-2">
+                            <Button variant="ghost" onClick={() => onReconnect(endpoint)}>
+                                {isReady ? "Reconnect" : "Connect"}
+                            </Button>
+                            {/* Only an OAuth connection holds a grant to revoke; the route
+                            refuses anything else. */}
+                            {isReady && endpoint.auth_mode === "oauth" ? (
+                                <Button variant="ghost" onClick={() => onDisconnect(endpoint)}>
+                                    Disconnect
+                                </Button>
+                            ) : null}
+                        </div>
                     </div>
-                </div>
-            ) : null}
-        </EnhancedDrawer>
+                ) : null}
+            </ModalContent>
+        </EnhancedModal>
     )
 }
 
