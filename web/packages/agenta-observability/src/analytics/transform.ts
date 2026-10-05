@@ -19,7 +19,22 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-/** Hourly buckets ending at the next full hour for 24h; local-midnight days otherwise. */
+const WEEK = 7 * DAY
+
+/** Ranges longer than a month read by the week; a bar per day would be a hairline. */
+const WEEKLY_AFTER_DAYS = 31
+
+/** Daily, or whole weeks ending at `newest` (so a range can start up to six days earlier). */
+const dayWindow = (oldest: number, newest: number): AnalyticsWindow =>
+    newest - oldest > WEEKLY_AFTER_DAYS * DAY
+        ? {
+              oldest: newest - Math.ceil((newest - oldest) / WEEK) * WEEK,
+              newest,
+              interval: 7 * 24 * 60,
+          }
+        : {oldest, newest, interval: 24 * 60}
+
+/** Hourly buckets ending at the next full hour for 24h; local-midnight days or weeks otherwise. */
 export const rangeWindow = (range: AnalyticsRangeKey, now: number): AnalyticsWindow => {
     if (range === "24h") {
         const end = Math.ceil(now / HOUR) * HOUR
@@ -28,20 +43,20 @@ export const rangeWindow = (range: AnalyticsRangeKey, now: number): AnalyticsWin
     const today = new Date(now)
     today.setHours(0, 0, 0, 0)
     const end = today.getTime() + DAY
-    return {oldest: end - ANALYTICS_RANGE[range].days * DAY, newest: end, interval: 24 * 60}
+    return dayWindow(end - ANALYTICS_RANGE[range].days * DAY, end)
 }
 
-/** A custom span by hour when it covers two days or less, else by day. */
-export const customWindow = (range: AnalyticsCustomRange): AnalyticsWindow => ({
-    ...range,
-    interval: range.newest - range.oldest <= 2 * DAY ? 60 : 24 * 60,
-})
+/** A custom span by hour when it covers two days or less, else by day or week. */
+export const customWindow = (range: AnalyticsCustomRange): AnalyticsWindow =>
+    range.newest - range.oldest <= 2 * DAY
+        ? {...range, interval: 60}
+        : dayWindow(range.oldest, range.newest)
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 /** "Sep 3 – Sep 18", with years when the span crosses one or is not this year. */
 export const customRangeLabel = (range: AnalyticsCustomRange, now: number): string => {
-    const first = new Date(range.oldest)
+    const first = new Date(customWindow(range).oldest)
     // `newest` is the midnight after the last day; the midpoint of that day is safe across DST.
     const last = new Date(range.newest - DAY / 2)
     const withYear =
@@ -54,11 +69,12 @@ export const customRangeLabel = (range: AnalyticsCustomRange, now: number): stri
         : `${day(first)} – ${day(last)}`
 }
 
-/** The window one bucket covers, split finer: a day by hour, an hour by five minutes. */
+/** The window one bucket covers, split finer: a week by day, a day by hour, an hour by five minutes. */
 export const bucketWindow = (window: AnalyticsWindow, index: number): AnalyticsWindow => {
     const width = window.interval * MINUTE
     const oldest = window.oldest + index * width
-    return {oldest, newest: oldest + width, interval: window.interval >= 24 * 60 ? 60 : 5}
+    const interval = window.interval > 24 * 60 ? 24 * 60 : window.interval === 24 * 60 ? 60 : 5
+    return {oldest, newest: oldest + width, interval}
 }
 
 export const bucketStarts = (window: AnalyticsWindow): number[] => {

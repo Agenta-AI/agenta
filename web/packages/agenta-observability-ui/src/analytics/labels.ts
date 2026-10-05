@@ -16,6 +16,7 @@ export const clock = (t: number) => {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+const isWeekly = (window: AnalyticsWindow) => window.interval > 24 * 60
 const isDaily = (window: AnalyticsWindow) => window.interval >= 24 * 60
 
 // Across a DST change a daily start can fall at 23:00 the day before; the midpoint cannot.
@@ -26,14 +27,23 @@ export const shortLabel = (window: AnalyticsWindow, start: number) =>
     isDaily(window) ? monthDay(midday(start)) : clock(start)
 
 /** Tooltip and drawer title for one bucket. */
-export const fullLabel = (window: AnalyticsWindow, start: number) =>
-    isDaily(window)
+export const fullLabel = (window: AnalyticsWindow, start: number) => {
+    if (isWeekly(window))
+        return `${monthDay(midday(start))} – ${monthDay(midday(start + (window.interval - 24 * 60) * 60_000))}`
+    return isDaily(window)
         ? `${WEEKDAYS[new Date(midday(start)).getDay()]}, ${monthDay(midday(start))}`
         : `${monthDay(start)}, ${clock(start)}`
+}
 
-/** "day", "hour" or "5 minutes": what one bucket of the window is. */
+/** "week", "day", "hour" or "5 minutes": what one bucket of the window is. */
 export const bucketUnit = (window: AnalyticsWindow) =>
-    isDaily(window) ? "day" : window.interval >= 60 ? "hour" : "5 minutes"
+    isWeekly(window)
+        ? "week"
+        : isDaily(window)
+          ? "day"
+          : window.interval >= 60
+            ? "hour"
+            : "5 minutes"
 
 export const UNKNOWN_AGENT = "Unknown agent"
 

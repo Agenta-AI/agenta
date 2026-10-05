@@ -77,6 +77,13 @@ const pointValue = (metric: AnalyticsMetric, p: AnalyticsPoint, tools: number): 
     }
 }
 
+const UNIT_VIEW: Record<string, string> = {
+    week: "Week by week",
+    day: "Day by day",
+    hour: "Hour by hour",
+    "5 minutes": "5-minute view",
+}
+
 export interface AnalyticsDrawerProps {
     agentName: (id: string) => string
     /** The page's color per agent or model, so a key reads the same in the drawer. */
@@ -180,7 +187,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
             : null
 
     const title = bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : rangeLabel
-    const sub = `${unit === "day" ? "Day by day" : unit === "hour" ? "Hour by hour" : "5-minute view"} · ${formatCount(totals.runs)} runs`
+    const sub = `${UNIT_VIEW[unit]} · ${formatCount(totals.runs)} runs`
     const focusName = focus ? (focus.dim === "agent" ? agentName(focus.key) : focus.key) : null
     const focusLabel = focus ? `${focus.dim === "agent" ? "Agent" : "Model"}: ${focusName}` : null
     const pageChips = [
@@ -449,7 +456,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                         failedOnly={state.failedOnly}
                         onFailedOnly={(failedOnly) => setState({...state, failedOnly})}
                         agentName={agentName}
-                        showDate={bucket === null && window.interval >= 24 * 60}
+                        showDate={window.newest - window.oldest > 24 * 60 * 60_000}
                         onOpenTrace={onOpenTrace}
                     />
                 </div>
