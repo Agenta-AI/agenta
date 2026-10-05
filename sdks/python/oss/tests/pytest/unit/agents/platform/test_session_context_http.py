@@ -866,3 +866,122 @@ async def test_the_clients_close_is_entered_on_the_abandonment_path(
     assert closed.is_set(), "the client's close never ran"
     # Entered, not awaited: the caller returned long before the 1 s teardown finished.
     assert elapsed < 0.5
+
+
+# --------------------------------------------------------------------------- #
+# The runner pod address: read with the runner token, used only for routing
+# --------------------------------------------------------------------------- #
+POD_ADDRESS = "http://10.8.2.17:8765"
+
+
+def _stream_with_address(name: Optional[str], address: Any) -> _FakeResponse:
+    return _FakeResponse(
+        200, {"stream": {"id": "s1", "name": name}, "runner_address": address}
+    )
+
+
+async def test_the_stream_read_sends_the_runner_token_and_returns_the_address(
+    connection, routed, monkeypatch
+):
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", " runner-secret ")
+    calls = routed(
+        {
+            f"/workflows/{WORKFLOW_ID}": _workflow("Changelog writer"),
+            "/sessions/streams/": _stream_with_address("Sapphire Ledger", POD_ADDRESS),
+            "/sessions/turns/query": _turns(1),
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", workflow_id=WORKFLOW_ID, connection=connection
+    )
+
+    assert context.runner_address == POD_ADDRESS
+    assert context.session_name == "Sapphire Ledger"
+    by_url = {call["url"]: call for call in calls}
+    stream_headers = by_url["https://api.x/api/sessions/streams/"]["headers"]
+    assert stream_headers["X-Agenta-Runner-Token"] == "runner-secret"
+    # The tenant credential still authorizes the read; the runner token rides beside it.
+    assert stream_headers["Authorization"] == "Access tok"
+    # Only the read that answers with an address carries the runner token.
+    other_calls = [
+        call
+        for url, call in by_url.items()
+        if url != "https://api.x/api/sessions/streams/"
+    ]
+    assert all("X-Agenta-Runner-Token" not in call["headers"] for call in other_calls)
+
+
+async def test_without_a_runner_token_the_read_sends_none(
+    connection, routed, monkeypatch
+):
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
+    calls = routed(
+        {
+            "/sessions/streams/": _stream_with_address("Sapphire Ledger", ""),
+            "/sessions/turns/query": _turns(1),
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", connection=connection
+    )
+
+    assert context.runner_address is None
+    assert all("X-Agenta-Runner-Token" not in call["headers"] for call in calls)
+
+
+@pytest.mark.parametrize(
+    "address",
+    ["", "   ", None, 42, ["http://10.8.2.17:8765"]],
+    ids=["empty", "blank", "null", "number", "list"],
+)
+async def test_an_empty_or_malformed_address_means_the_service_url(
+    connection, routed, address
+):
+    """The address is a hint: anything that is not a usable string costs only the hint."""
+    routed(
+        {
+            "/sessions/streams/": _stream_with_address("Sapphire Ledger", address),
+            "/sessions/turns/query": _turns(1),
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", connection=connection
+    )
+
+    assert context.runner_address is None
+    assert context.session_name == "Sapphire Ledger"
+    assert context.first_turn is False
+
+
+@pytest.mark.parametrize(
+    "turns",
+    [_FakeResponse(500, {}), RuntimeError("backend down"), _FakeResponse(200, {})],
+    ids=["turns-500", "turns-raises", "turns-malformed"],
+)
+async def test_a_failed_read_yields_no_address(connection, routed, turns):
+    """A read that yields no facts yields no address; the turn goes to the Service URL."""
+    routed(
+        {
+            "/sessions/streams/": _stream_with_address("Sapphire Ledger", POD_ADDRESS),
+            "/sessions/turns/query": turns,
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", connection=connection
+    )
+
+    assert context is None
+
+
+async def test_a_run_with_no_session_reads_no_address(connection, routed):
+    calls = routed({})
+
+    context = await resolve_session_context(session_id=None, connection=connection)
+
+    assert calls == []
+    assert context.runner_address is None
+    assert context.first_turn is True

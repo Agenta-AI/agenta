@@ -254,13 +254,14 @@ async def _resolve(
             ),
         )
 
-    session_name, first_turn = session_facts
+    session_name, first_turn, runner_address = session_facts
     if agent_name is None and session_name is None and first_turn is None:
         return None
     return SessionContext(
         agent_name=agent_name,
         session_name=session_name,
         first_turn=first_turn,
+        runner_address=runner_address,
     )
 
 
@@ -315,8 +316,8 @@ async def _read_session_facts(
     api_base: str,
     headers: dict,
     session_id: Optional[str],
-) -> Tuple[Optional[str], Optional[bool]]:
-    """The session's name and whether it has run a turn yet.
+) -> Tuple[Optional[str], Optional[bool], Optional[str]]:
+    """The session's name, whether it has run a turn yet, and the pod that ran the last one.
 
     A run with no session id opens a fresh session, so it is the first turn and the session
     has no name. That is a fact, not an unknown, and it needs no read. It is also rare in the
@@ -338,16 +339,20 @@ async def _read_session_facts(
     appends the turn row, so an ordinary first invocation cannot observe its own row.
     Counting the request's messages would be wrong rather than cheap, because a client may
     send only the latest message.
+
+    The stream read carries the runner token, which is what lets the api answer with the
+    runner pod's address. Every read that yields no facts yields no address either, and the
+    turn goes to the Service URL.
     """
     if session_id is None:
-        return None, True
-    unknown: Tuple[Optional[str], Optional[bool]] = (None, None)
+        return None, True, None
+    unknown: Tuple[Optional[str], Optional[bool], Optional[str]] = (None, None, None)
     try:
         stream_response, turns_response = await asyncio.gather(
             client.get(
                 f"{api_base}/sessions/streams/",
                 params={"session_id": session_id},
-                headers=headers,
+                headers={**headers, **_runner_token_header()},
             ),
             client.post(
                 f"{api_base}/sessions/turns/query",
@@ -383,7 +388,23 @@ async def _read_session_facts(
     if session_name is _MALFORMED or first_turn is _MALFORMED:
         log.warning("agent: session facts arrived in an unexpected shape")
         return unknown
-    return session_name, first_turn
+    return session_name, first_turn, _runner_address(stream_body)
+
+
+def _runner_token_header() -> dict:
+    """The header that proves this caller is runner infrastructure, when this process has one.
+
+    The same ``AGENTA_RUNNER_TOKEN`` the runner transport sends. Without it the api answers
+    the read as it answers a browser: no runner address.
+    """
+    token = (os.getenv("AGENTA_RUNNER_TOKEN") or "").strip()
+    return {"X-Agenta-Runner-Token": token} if token else {}
+
+
+def _runner_address(body: dict) -> Optional[str]:
+    """The pod address the api derived for this read, or ``None`` for the Service URL."""
+    address = body.get("runner_address")
+    return address.strip() if isinstance(address, str) and address.strip() else None
 
 
 class _Malformed:

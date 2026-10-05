@@ -60,6 +60,7 @@ class LocalBackend(Backend):
         control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
+        runner_address: Optional[str] = None,
     ) -> Session:
         raise NotImplementedError(
             "LocalBackend is not implemented yet (Phase 3: Pi via bundled JS, "

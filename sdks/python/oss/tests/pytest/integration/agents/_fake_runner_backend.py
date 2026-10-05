@@ -180,6 +180,7 @@ class FakeRunnerBackend(Backend):
         control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
+        runner_address: Optional[str] = None,
     ) -> FakeRunnerSession:
         return FakeRunnerSession(
             self,

@@ -37,6 +37,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
     get_running_owner,
     get_session_liveness,
+    get_turn_binding,
     is_turn_superseded,
     mark_turn_superseded,
     record_turn_start,
@@ -872,6 +873,35 @@ class SessionStreamsService:
         # Redis is authoritative for the nest bools; overlay them on the durable row.
         stream.flags = flags
         return stream
+
+    async def runner_address(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+    ) -> str:
+        """The address of the runner pod bound to turn_id, or "" when it is not known.
+
+        A routing hint: the caller falls back to the Service URL on an empty or dead address,
+        so a failed read costs a cold turn, never the read it rides on.
+        """
+        try:
+            binding = await get_turn_binding(
+                self._lock,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+        except Exception as error:  # noqa: BLE001 - the address is optional
+            log.warning(
+                "could not read the turn binding for session=%s turn=%s: %s",
+                session_id,
+                turn_id,
+                error,
+            )
+            return ""
+        return binding.replica_address if binding else ""
 
     async def fetch_header(
         self,

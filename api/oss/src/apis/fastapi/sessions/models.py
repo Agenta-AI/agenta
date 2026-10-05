@@ -190,6 +190,14 @@ class SessionStreamQueryRequest(BaseModel):
 class SessionStreamResponse(BaseModel):
     stream: Optional[SessionStream] = None
     capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
+    runner_address: str = Field(
+        default="",
+        description=(
+            "The address of the runner pod that ran the stream's last turn. Filled only for a "
+            "caller that proves it is runner infrastructure; empty when unknown. A routing "
+            "hint, not proof that the pod is alive."
+        ),
+    )
 
 
 class SessionStreamsResponse(BaseModel):

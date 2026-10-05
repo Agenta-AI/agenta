@@ -151,6 +151,7 @@ class _FakeBackend(Backend):
         control_command_id=None,
         effective_parameters=None,
         gateway_policy=None,
+        runner_address=None,
     ) -> _FakeSession:
         return _FakeSession(
             AgentResult(output=self._output, events=self._events, usage={"total": 5})
