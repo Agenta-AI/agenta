@@ -145,9 +145,15 @@ api:
           app.kubernetes.io/component: api
 ```
 
-An empty list does not switch the constraints off. The chart reads an empty list as "unset" and
-generates its own two constraints again. There is no per-workload off switch. To remove every
-generated object, turn the mechanism off for the whole release:
+An empty list removes the constraints for that workload:
+
+```yaml
+api:
+  topologySpreadConstraints: []
+```
+
+There is no per-workload switch for the budget. To remove every generated object, turn the
+mechanism off for the whole release:
 
 ```yaml
 podDisruptionBudgets:
@@ -173,7 +179,7 @@ These are the chart's defaults. A key you set replaces the default for that work
 
 | Workload | `strategy` | `terminationGracePeriodSeconds` | `lifecycle.preStop` |
 |---|---|---|---|
-| `api` | none | none | none |
+| `api` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | 60 | exec `sleep 10` |
 | `services` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | 60 | exec `sleep 10` |
 | `web` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | 60 | exec `sleep 10` |
 | `webMobile` | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | 60 | exec `sleep 10` |
@@ -186,31 +192,24 @@ These are the chart's defaults. A key you set replaces the default for that work
 | `redisDurable` | none (a StatefulSet has no `spec.strategy`) | none | none |
 | `store.seaweedfs` | none (a StatefulSet has no `spec.strategy`) | none | none |
 
-The API takes public traffic and has none of the three. Set them:
+Every workload that takes public traffic (`api`, `services`, `web`, `webMobile`) already has all
+three, so you do not need to set them. To change one, set the key on that workload. For example, a
+longer drain for the API:
 
 ```yaml
 api:
-  replicas: 2
-  strategy:
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-  terminationGracePeriodSeconds: 45
-  lifecycle:
-    preStop:
-      exec:
-        command: ["sh", "-c", "sleep 10"]
+  terminationGracePeriodSeconds: 90
 ```
 
-Three constraints on those values:
+Three constraints apply when you change those values:
 
 - The grace period must be longer than the preStop delay plus the time the process needs to drain.
   The KILL signal lands at the end of the grace period.
-- `preStop: {sleep: {seconds: 10}}` is shorter to write, and it needs Kubernetes 1.30 or later. Use
-  the exec hook above below 1.30. The exec hook needs a shell and a `sleep` binary in the image. The
-  Agenta images have both.
+- `preStop: {sleep: {seconds: 10}}` needs Kubernetes 1.30 or later. Below 1.30, use an exec hook.
+  The default exec hook runs `sleep` directly, so the image needs a `sleep` binary. The Agenta
+  images have one. A custom image without `sleep` must set its own `lifecycle`.
 - `maxUnavailable: 0` needs room for one more pod than you run today. On a full cluster the rollout
-  waits for a node instead of starting.
+  waits for a node instead of starting. From version 0.122.1 this also applies to `api`.
 
 ## Lock down the bundled data stores
 
@@ -257,6 +256,43 @@ entry above lets them back in.
 
 These are not optional on GKE. Without them the Ingress never gets an address.
 
+### Create the address, the certificate and the redirect
+
+The Ingress below names three objects that the chart does not create: a global static IP address,
+a Google-managed certificate, and a FrontendConfig that redirects HTTP to HTTPS. Reserve the
+address once:
+
+```bash
+gcloud compute addresses create agenta-ip --global
+```
+
+Point the DNS record for your host at that address. Create the other two objects with
+`extraObjects`, so the release owns them:
+
+```yaml
+extraObjects:
+  - apiVersion: networking.gke.io/v1
+    kind: ManagedCertificate
+    metadata:
+      name: agenta-cert
+      namespace: "{{ .Release.Namespace }}"
+    spec:
+      domains:
+        - agenta.example.com
+  - apiVersion: networking.gke.io/v1beta1
+    kind: FrontendConfig
+    metadata:
+      name: agenta-https
+      namespace: "{{ .Release.Namespace }}"
+    spec:
+      redirectToHttps:
+        enabled: true
+        responseCodeName: MOVED_PERMANENTLY_DEFAULT
+```
+
+GKE provisions the certificate only after the DNS record resolves to the address. This can take
+10 to 30 minutes.
+
 ### Route by annotation, not by class
 
 The GKE Ingress controller ignores `spec.ingressClassName`. It reacts only to the legacy
@@ -267,6 +303,10 @@ Set `ingress.className` to an empty string so the chart leaves the field out, th
 annotation:
 
 ```yaml
+agenta:
+  webUrl: "https://agenta.example.com"
+  apiUrl: "https://agenta.example.com/api"
+  servicesUrl: "https://agenta.example.com/services"
 ingress:
   enabled: true
   className: ""
@@ -275,15 +315,18 @@ ingress:
     kubernetes.io/ingress.class: gce
     kubernetes.io/ingress.global-static-ip-name: agenta-ip
     networking.gke.io/managed-certificates: agenta-cert
-  paths:
-    api:       { path: /api,      pathType: ImplementationSpecific }
-    services:  { path: /services, pathType: ImplementationSpecific }
-    webMobile: { path: /m,        pathType: ImplementationSpecific }
-    web:       { path: /,         pathType: ImplementationSpecific }
+    networking.gke.io/v1beta1.FrontendConfig: agenta-https
 ```
 
 An unset `ingress.className` still defaults to `traefik`, which is correct for the bundled stack.
 Only an explicit empty string omits the field.
+
+Set the three public URLs yourself. The chart derives `https` URLs only when `ingress.tls` is a
+non-empty list, and a Google-managed certificate leaves `ingress.tls` empty. Without them the
+derived URLs start with `http://`.
+
+Keep the chart's default paths, which use `pathType: Prefix`. With `ImplementationSpecific`, GKE
+treats `/api` as an exact path, so a request to `/api/...` does not reach the API.
 
 The GKE load balancer cannot rewrite a path. It forwards `/api` and `/services` verbatim. Both
 backends accept their own prefix, so nothing has to strip it. See
@@ -312,13 +355,18 @@ web:
 BackendConfig objects are yours to create. Put them in `extraObjects` if you want the release to
 own them.
 
-## GKE Autopilot: turn off the local sandbox
+## GKE Autopilot: turn off the FUSE mount
 
-A local sandbox mounts the object store prefix on the node. The runner container therefore asks for
-the `SYS_ADMIN` capability and a hostPath mount of `/dev/fuse` whenever `store.enabled` and
-`agentRunner.fuse.enabled` are both true. Autopilot rejects both.
+A local sandbox mounts the object store prefix with FUSE, so working directories persist across
+turns. The runner container therefore asks for the `SYS_ADMIN` capability and a hostPath mount of
+`/dev/fuse` whenever `store.enabled` and `agentRunner.fuse.enabled` are both true. Autopilot rejects
+both, and the runner pod never starts.
 
-On Autopilot, turn the mount off and run sandboxes on the Daytona provider:
+On Autopilot, set `agentRunner.fuse.enabled: false`. Local sandboxes still run, but each run gets an
+ephemeral working directory, and working directories do not persist across turns.
+
+If agents need working directories that persist across turns, run sandboxes on the Daytona
+provider:
 
 ```yaml
 agentRunner:

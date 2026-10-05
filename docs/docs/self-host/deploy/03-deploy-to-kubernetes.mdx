@@ -207,8 +207,9 @@ Configuration is done through Helm values. Defaults live in `hosting/kubernetes/
 | `global.imagePullSecrets` | Image pull secrets (Bitnami subchart convention) | `[]` |
 
 The three URLs have no fixed default. The chart derives each one from `ingress.host` when
-`ingress.enabled` is `true`, and uses `https` when `ingress.tls` is a non-empty list. With ingress
-disabled you must set all three yourself. The chart fails the install, with a message naming the
+`ingress.enabled` is `true` and you set `ingress.host` yourself. The `agenta.local` fallback that
+the Ingress uses is not used for the URLs. The chart uses `https` when `ingress.tls` is a non-empty
+list. Otherwise, or with ingress disabled, set all three yourself. The chart fails the install, with a message naming the
 keys, if any of the three resolves to empty.
 
 ### Secrets {#secrets}
@@ -341,8 +342,9 @@ pod that owns it. See
 
 ### Availability and Rollout {#availability-and-rollout}
 
-The chart renders a PodDisruptionBudget and topologySpreadConstraints for each workload it deploys,
-and sets rollout and shutdown defaults per workload.
+The chart renders a PodDisruptionBudget and topologySpreadConstraints for each workload that runs
+two or more replicas. A workload with one replica gets neither by default. The chart also sets
+rollout and shutdown defaults per workload, whatever its replica count.
 [Prepare a Kubernetes deployment for production](/self-host/guides/kubernetes-production) explains
 what each one does, what the defaults give you, and what they do not.
 
@@ -357,6 +359,7 @@ what each one does, what the defaults give you, and what they do not.
 | `<workload>.strategy` | Rendered verbatim under the Deployment's `spec.strategy` | per workload |
 | `<workload>.terminationGracePeriodSeconds` | Rendered on the pod spec | per workload |
 | `<workload>.lifecycle` | Rendered verbatim under the container's `lifecycle` | per workload |
+| `<workload>.livenessProbe` | Rendered verbatim as the container's liveness probe (`cron`, `workerStreams`, `workerQueues` only) | none |
 
 `<workload>` is one of `api`, `web`, `webMobile`, `services`, `cron`, `workerStreams`,
 `workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`, `redisDurable` or `store.seaweedfs`.
@@ -365,6 +368,10 @@ what each one does, what the defaults give you, and what they do not.
 all of them, and both also work on `alembic`.
 
 The migration Job carries no budget and no spread constraints.
+
+`cron`, `workerStreams` and `workerQueues` have no liveness probe by default. Each runs its process
+as PID 1, so the kubelet already restarts the container when the process exits. To detect a process
+that is alive but no longer working, supply your own probe with `<workload>.livenessProbe`.
 
 ### PostgreSQL (Bundled)
 
@@ -410,6 +417,19 @@ The chart deploys two Redis instances: volatile (caching/pub-sub) and durable (q
 | `redisDurable.password` | Password (recommended for production) | `""` |
 | `redisDurable.persistence.size` | PVC size | `5Gi` |
 | `redisDurable.safeToEvict` | Let a cluster autoscaler consolidate this pod's node | `false` |
+| `redisVolatile.startupProbe.failureThreshold` | Startup probe attempts, five seconds apart, before Redis restarts | `60` |
+| `redisDurable.startupProbe.failureThreshold` | Startup probe attempts, five seconds apart, before Redis restarts | `60` |
+
+The durable instance replays its append-only file before it answers `ping`, and the startup probe
+fails until it does. The default allows about five minutes. If a replay takes longer, Redis
+restarts and starts the replay again. Measure the recovery time with your CPU and storage limits,
+then raise the threshold for that instance. For example, about 30 minutes:
+
+```yaml
+redisDurable:
+  startupProbe:
+    failureThreshold: 360
+```
 
 Each instance runs one pod and holds state, so losing the pod takes that component down. Both carry
 `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` for that reason. `supertokens` carries it
@@ -502,8 +522,23 @@ An ingress controller that strips the prefix also works. After the strip the req
 prefix, which both backends route as well. The two examples below are both valid configurations,
 not requirements.
 
-Set `AGENTA_SERVICES_PATH_PREFIX` on the services container to publish that backend under a
-different prefix, or to an empty string to turn its strip off.
+To publish the services backend under a different prefix, change three values together. The
+variable alone is not enough: the Ingress still routes `/services`, and the derived
+`agenta.servicesUrl` still ends in `/services`. For example, for `/svc`:
+
+```yaml
+agenta:
+  servicesUrl: "https://agenta.example.com/svc"
+ingress:
+  paths:
+    services:
+      path: /svc
+services:
+  env:
+    AGENTA_SERVICES_PATH_PREFIX: /svc
+```
+
+Set `AGENTA_SERVICES_PATH_PREFIX` to an empty string to turn the strip off.
 
 **Traefik**: Use a `StripPrefix` Middleware via `extraObjects`:
 
@@ -527,26 +562,17 @@ extraObjects:
           - /services
 ```
 
-**NGINX Ingress Controller**: Override the paths to use regex capture groups and add rewrite annotations:
+**NGINX Ingress Controller**: Set the class. The default paths need no rewrite:
 
 ```yaml
 ingress:
   className: "nginx"
   host: "agenta.example.com"
-  annotations:
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /$1
-  paths:
-    api:
-      path: /api/(.*)
-      pathType: ImplementationSpecific
-    services:
-      path: /services/(.*)
-      pathType: ImplementationSpecific
-    web:
-      path: /(.*)
-      pathType: ImplementationSpecific
 ```
+
+Do not add `nginx.ingress.kubernetes.io/rewrite-target`. NGINX applies an Ingress annotation to
+every path on that Ingress, so a rewrite also changes requests to `/m`, and the mobile web app
+needs that prefix.
 
 ### Enable TLS
 
@@ -663,14 +689,32 @@ fails with `redisVolatile.external.uri or redis.uriVolatile is required when
 redisVolatile.enabled=false`. Put the host, the port and the credentials inside the URI.
 :::
 
-:::warning A private certificate authority is not supported yet
+:::note A durable Redis with a private certificate authority
 A `rediss://` URI makes the client use TLS and verify the server certificate. The client trusts only
-the certificate authorities already in the container image. A managed Redis whose certificate is
-signed by your own private authority is not one of them, and the connection fails.
+the certificate authorities already in the container image. Some managed services, such as Google
+Cloud Memorystore, sign with an authority of their own, and the connection fails with
+`CERTIFICATE_VERIFY_FAILED`. A service with a publicly trusted certificate needs nothing here.
 
-This chart version mounts no certificate file into the workloads that read `REDIS_URI_DURABLE`, so
-there is nothing for the connection string to point at. Use a managed Redis with a publicly trusted
-certificate, or keep the bundled durable Redis.
+For the durable instance, put the authority in `redisDurable.external.caCert`. The chart mounts it
+at `/etc/agenta/redis-durable/ca.pem` on every workload that reads `REDIS_URI_DURABLE`. Point the URI
+at that file with the `ssl_ca_certs` parameter:
+
+```yaml
+redisDurable:
+  enabled: false
+  external:
+    uri: "rediss://:password@your-redis-host:6378/0?ssl_ca_certs=/etc/agenta/redis-durable/ca.pem"
+    caCert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+```
+
+With `secrets.existingSecret`, the chart writes no Secret. Put the PEM in your Secret under the key
+`REDIS_DURABLE_CA_CERT`, and set `caCert: from-existing-secret` so the chart still mounts it.
+
+The volatile instance has no such setting. `redisVolatile.external.caCert` fails the render. Use a
+volatile Redis with a publicly trusted certificate.
 :::
 
 ### External SuperTokens
@@ -790,7 +834,7 @@ kubectl -n agenta describe ingress agenta
 Common causes:
 - Missing ingress controller: ensure Traefik or NGINX Ingress Controller is installed
 - Wrong `ingress.className`: it must match your ingress controller's class name. On GKE the field is ignored, and the Ingress gets no address until you set `ingress.className: ""` and add `kubernetes.io/ingress.class: gce` to `ingress.annotations`
-- Regex paths without the matching rewrite: if you override `ingress.paths.*` with regex capture groups for NGINX, the rewrite annotations must be there too (see [Path Handling](#path-prefix-stripping))
+- A rewrite annotation on NGINX: `nginx.ingress.kubernetes.io/rewrite-target` applies to every path on the Ingress, including `/m`. Remove it. The backends accept their prefixes (see [Path Handling](#path-prefix-stripping))
 
 ### The agent runner pod never becomes ready
 

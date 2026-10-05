@@ -111,6 +111,10 @@ one in every phase, because it exists before the install starts.
 ## A managed ingress (GKE)
 
 ```yaml
+agenta:
+  webUrl: "https://agenta.example.com"
+  apiUrl: "https://agenta.example.com/api"
+  servicesUrl: "https://agenta.example.com/services"
 ingress:
   enabled: true
   className: ""            # see the note below: GKE ignores this field
@@ -119,12 +123,14 @@ ingress:
     kubernetes.io/ingress.class: gce
     kubernetes.io/ingress.global-static-ip-name: agenta-ip
     networking.gke.io/managed-certificates: agenta-cert
-  paths:
-    api:       { path: /api,      pathType: ImplementationSpecific }
-    services:  { path: /services, pathType: ImplementationSpecific }
-    webMobile: { path: /m,        pathType: ImplementationSpecific }
-    web:       { path: /,         pathType: ImplementationSpecific }
+    networking.gke.io/v1beta1.FrontendConfig: agenta-https
 ```
+
+Set the three public URLs yourself. A Google-managed certificate leaves
+`ingress.tls` empty, and the chart then derives `http://` URLs. Keep the default paths, which use `pathType: Prefix`. With `ImplementationSpecific`
+GKE treats `/api` as an exact path, and `/api/...` never reaches the API. The
+static IP, the ManagedCertificate and the FrontendConfig are yours to create; see
+[Prepare a Kubernetes deployment for production](../../docs/docs/self-host/deploy/05-kubernetes-production.mdx).
 
 The GKE ingress controller ignores `spec.ingressClassName`. An Ingress carrying
 `className: gce` gets no controller events and never gets an IP, even with an
@@ -257,9 +263,8 @@ Nothing here makes a single replica highly available. A budget over a single pod
 defers the eviction of its node; the pod still moves. Give any workload that
 must stay reachable `replicas: 2`.
 
-An empty `<workload>.topologySpreadConstraints` list does not switch the
-constraints off. The chart reads an empty list as unset and generates its own
-two again. Only `topologySpread.enabled: false` removes them.
+An empty `<workload>.topologySpreadConstraints` list removes the constraints for
+that workload. `topologySpread.enabled: false` removes them for every workload.
 
 The block in `values.yaml` under "Availability under disruption" is the source of
 truth. The operator-facing guide is

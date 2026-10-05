@@ -117,9 +117,10 @@ replaces the chart's default, capability and all.
 
 :::warning GKE Autopilot rejects both
 Autopilot refuses the `SYS_ADMIN` capability and a hostPath mount of `/dev/fuse`, so the runner pod
-never starts with them. On Autopilot you cannot run a local sandbox. Set
-`agentRunner.fuse.enabled: false` and run sandboxes on the Daytona provider instead. See
-[GKE Autopilot: turn off the local sandbox](/self-host/guides/kubernetes-production#gke-autopilot-turn-off-the-local-sandbox).
+never starts with them. Set `agentRunner.fuse.enabled: false`. Local sandboxes still run, but
+working directories do not persist across turns. If agents need them to persist, run sandboxes on
+the Daytona provider. See
+[GKE Autopilot: turn off the FUSE mount](/self-host/guides/kubernetes-production#gke-autopilot-turn-off-the-fuse-mount).
 :::
 
 ## Next
