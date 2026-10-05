@@ -397,7 +397,7 @@ describe("useAgentChatQueue", () => {
 
     it.each([
         ["failed", "Couldn't remove this message. Try again."],
-        ["conflict", "This message already started."],
+        ["conflict", "This message is about to run and can't be removed."],
     ] as const)("puts a row whose removal was %s back, with its error", async (outcome, error) => {
         const server: ServerQueueAdapter = {
             busy: true,
@@ -669,47 +669,34 @@ describe("Send Now over a stop that is still pending", () => {
         rerender({...settledEmpty, server: {...server, queued: [server.queued[1]], viewSeq: 4}})
         await waitFor(() => expect(result.current.sendNowPending).toBe(false))
     })
-
-    it("withdraws the pending input on Stop and hands its text back", async () => {
-        const restoreRefusedSend = vi.fn().mockResolvedValue(true)
-        const server: ServerQueueAdapter = {
-            busy: true,
-            queued: [{id: "input-1", text: "run me next", source: "server", policy: "steer"}],
-            viewSeq: 1,
-            submit: vi.fn(),
-            remove: vi.fn().mockResolvedValue({outcome: "applied", settledSeq: 1}),
-        }
-        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
-        expect(result.current.sendNowPending).toBe(true)
-        act(() => result.current.cancelPendingSendNow())
-        expect(server.remove).toHaveBeenCalledWith("input-1")
-        await waitFor(() =>
-            expect(restoreRefusedSend).toHaveBeenCalledWith(
-                expect.objectContaining({text: "run me next"}),
-            ),
-        )
-        expect(echoText(result)).toEqual([])
-    })
 })
 
 describe("a steer the transcript took over", () => {
-    it("stays out of the dock until a later read, and comes back if that read still lists it", async () => {
+    it("stays out of the dock until the fresh read lands, and comes back if it is still listed", async () => {
         const {server, watchers} = durableServer("queued")
-        const busy = {...server, busy: true}
+        let landRead!: (seq: number) => void
+        const refresh = vi.fn(() => new Promise<number | null>((resolve) => (landRead = resolve)))
+        const busy = {...server, busy: true, refresh}
         const {result, rerender} = setup({...settledEmpty, server: busy})
         await act(async () => {
             await result.current.steer({text: "skip that"})
         })
         act(() => watchers[0].onParked?.("input-1"))
-        const row: QueuedMessage = {id: "input-1", text: "skip that", source: "server", policy: "steer"}
+        const row: QueuedMessage = {
+            id: "input-1",
+            text: "skip that",
+            source: "server",
+            policy: "steer",
+        }
         const listing = {...busy, queued: [row], viewSeq: 1}
         rerender({...settledEmpty, server: listing})
-        // The echo covers it while it is the only copy on screen.
         expect(result.current.queued).toEqual([])
-        // Its saved row lands; the snapshot is a poll behind and still lists it.
+        // Its saved row lands while the snapshot is a poll behind: one fresh read, still hidden.
         rerender({...settledEmpty, messages: [userTurn("u1", "skip that")], server: listing})
+        expect(refresh).toHaveBeenCalledTimes(1)
         expect(result.current.queued).toEqual([])
-        // A read after the hand-over still lists it: the turn never consumed it, so it shows.
+        await act(async () => landRead(3))
+        // That read still lists it: the turn never consumed it, so it is back and removable.
         rerender({
             ...settledEmpty,
             messages: [userTurn("u1", "skip that")],
@@ -720,28 +707,18 @@ describe("a steer the transcript took over", () => {
 })
 
 describe("a queued input that starts on its own", () => {
-    const row: QueuedMessage = {id: "input-1", text: "next", source: "server"}
-    const server = (queued: QueuedMessage[], viewSeq: number): ServerQueueAdapter => ({
-        busy: true,
-        queued,
-        viewSeq,
-        submit: vi.fn(),
-        remove: vi.fn(),
-    })
-
-    it("is not held back in the dock when its user row landed before the listing dropped", () => {
-        const {result, rerender} = setup({...settledEmpty, server: server([row], 1)})
+    it("is not shown in the dock once the listing drops it", () => {
+        const row: QueuedMessage = {id: "input-1", text: "next", source: "server"}
+        const server = (queued: QueuedMessage[], viewSeq: number): ServerQueueAdapter => ({
+            busy: true,
+            queued,
+            viewSeq,
+            submit: vi.fn(),
+            remove: vi.fn(),
+        })
         const listing = server([row], 1)
-        rerender({...settledEmpty, server: listing})
+        const {result, rerender} = setup({...settledEmpty, server: listing})
         rerender({...settledEmpty, messages: [userTurn("u1", "next")], server: listing})
-        rerender({...settledEmpty, messages: [userTurn("u1", "next")], server: server([], 2)})
-        expect(result.current.queued).toEqual([])
-    })
-
-    it("is held until its user row lands when the listing drops first", () => {
-        const {result, rerender} = setup({...settledEmpty, server: server([row], 1)})
-        rerender({...settledEmpty, server: server([], 2)})
-        expect(result.current.queued).toEqual([expect.objectContaining({id: "input-1"})])
         rerender({...settledEmpty, messages: [userTurn("u1", "next")], server: server([], 2)})
         expect(result.current.queued).toEqual([])
     })
@@ -843,7 +820,33 @@ describe("durable queued edits", () => {
         await waitFor(() => expect(echoText(result)).toEqual(["new"]))
     })
 
-    it("hands a refused edit to the composer when it can take it", async () => {
+    it("keeps a refused edit on a row that is still queued, never in the composer", async () => {
+        const restoreRefusedSend = vi.fn().mockResolvedValue(true)
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [{id: "selected", text: "old", source: "server"}],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(),
+            edit: vi.fn().mockResolvedValue({outcome: "conflict", settledSeq: 1}),
+        }
+        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+        act(() => result.current.beginEdit("selected"))
+        await act(async () => {
+            await result.current.commitEdit({text: "new"})
+        })
+        await waitFor(() =>
+            expect(result.current.queued[0]).toMatchObject({
+                text: "old",
+                error: "This message is about to run and can't be edited.",
+                unsavedEdit: {text: "new"},
+            }),
+        )
+        expect(restoreRefusedSend).not.toHaveBeenCalled()
+        expect(echoText(result)).toEqual([])
+    })
+
+    it("hands a refused edit to the composer once its row is gone", async () => {
         const restoreRefusedSend = vi.fn().mockResolvedValue(true)
         const server: ServerQueueAdapter = {
             busy: true,
@@ -853,8 +856,9 @@ describe("durable queued edits", () => {
             remove: vi.fn(),
             edit: vi.fn().mockResolvedValue({outcome: "not_found", settledSeq: 1}),
         }
-        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+        const {result, rerender} = setup({...settledEmpty, server, restoreRefusedSend})
         act(() => result.current.beginEdit("selected"))
+        rerender({...settledEmpty, server: {...server, queued: []}, restoreRefusedSend})
         await act(async () => {
             await result.current.commitEdit({text: "new"})
         })

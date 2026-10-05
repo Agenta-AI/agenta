@@ -35,8 +35,7 @@ export interface PendingSendEchoes {
     dockCoveredIds: ReadonlySet<string>
     /** Docked echoes, as rows for the queue dock until the server lists them. */
     dockRows: QueuedMessage[]
-    /** Inputs whose echo just retired because their saved row landed: the transcript shows them
-     *  now, while the dock's snapshot may still list them. Set only until the store is pruned. */
+    /** Inputs whose echo just retired into the transcript; the dock's snapshot may lag them. */
     retiredParkedIds: ReadonlySet<string>
     /** Show a send immediately, before its request leaves. */
     add: (input: PendingSendEchoInput) => void

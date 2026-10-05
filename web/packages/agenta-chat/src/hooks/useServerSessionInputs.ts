@@ -51,7 +51,7 @@ export interface ServerInputWatcher {
     onSettled?: () => void
     /** The run stream named the turn (`started`) or a startup phase (#6047), its only source. */
     onTurnStage?: (stage: TurnStage) => void
-    /** The send will start a turn rather than park, as far as the caller can tell: narrate it. */
+    /** The send will likely start a turn rather than park, so its stage is narrated. */
     opensTurn?: boolean
     /** The runner admitted this send's turn, so a later send parks behind it. */
     onTurnNamed?: () => void
@@ -224,7 +224,6 @@ export const parkedInputIdFromBody = (body: unknown): string | null => {
     const id = (input as {id?: unknown}).id
     return typeof id === "string" && id ? id : null
 }
-
 
 interface SnapshotRead {
     view: SessionPendingInputView
@@ -441,8 +440,7 @@ export const useServerSessionInputs = ({
 
             if (response.status === 202) {
                 narrate(null)
-                // The body names the durable input this became. The echo retires when the dock is
-                // OBSERVED to list that id, so nothing here waits for that read.
+                // The echo retires once the dock lists the input this body names; no need to wait.
                 const parkedId = await response
                     .json()
                     .then(parkedInputIdFromBody)
@@ -530,8 +528,7 @@ export const useServerSessionInputs = ({
     const sendNow = useCallback(
         async (id: string) => {
             const {outcome, admission} = await sendInputNow({sessionId, inputId: id})
-            // Only a promotion names the NEW turn. Over a running turn the id is the one being
-            // stopped, and its saved user row would retire the echo at once.
+            // Over a running turn the id is the turn being stopped, not the one this input starts.
             const input = admission?.input
             const executionId =
                 input?.state === "promoted" ? (input.promoted_execution_id ?? null) : null

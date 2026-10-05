@@ -392,15 +392,12 @@ export const LiveConversation = ({
     const retryStopRef = useRef(false)
     const stopSessionIdRef = useRef(sessionId)
     stopSessionIdRef.current = sessionId
-    const serverStopping = isSessionTurnStopping({
-        currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
-        stoppingTurnId,
-    })
-    // A Send Now or Steer stop runs a queued message next. Stop stays live so it can end the work.
-    const stopWithdrawsQueued = serverStopping && !stoppingHere && conversation.sendNowPending
     const stopping =
         stoppingHere ||
-        (serverStopping && !stopWithdrawsQueued) ||
+        isSessionTurnStopping({
+            currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
+            stoppingTurnId,
+        }) ||
         (stopStateLoading && conversation.hitlPending)
     const settleParkedStop = useCallback(() => {
         if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
@@ -458,10 +455,8 @@ export const LiveConversation = ({
     )
 
     // Composer Stop cancels on the server before changing local presentation.
-    const {cancelPendingSendNow} = conversation
     const stopHere = useCallback(() => {
         if (stopping) return
-        if (stopWithdrawsQueued) cancelPendingSendNow()
         // Fence a delayed approval release even when cancellation cannot be requested yet.
         voidPendingResume()
         if (!projectId || !sessionId) return
@@ -576,8 +571,6 @@ export const LiveConversation = ({
         sessionId,
         stop,
         stopping,
-        stopWithdrawsQueued,
-        cancelPendingSendNow,
         conversation.hitlPending,
         settleParkedStop,
         voidPendingResume,
@@ -585,8 +578,7 @@ export const LiveConversation = ({
 
     const interactionAvailability = getInteractionAvailability({
         stopped: conversation.stopped,
-        // The turn is ending either way, so its gates are not answerable.
-        stopping: stopping || serverStopping,
+        stopping,
         streaming: streamingHere,
     })
     const pendingApprovals = useMemo(
@@ -667,11 +659,7 @@ export const LiveConversation = ({
     const resumingAfterAnswer = conversation.hitlPending && !cardOpen && answerInFlight
 
     const secretDockOpen =
-        !streamingHere &&
-        !stopping &&
-        !serverStopping &&
-        !conversation.stopped &&
-        Boolean(pendingSecret)
+        !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is

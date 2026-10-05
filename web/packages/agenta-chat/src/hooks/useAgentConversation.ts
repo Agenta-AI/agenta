@@ -239,10 +239,8 @@ export interface AgentConversation {
     hitlPending: boolean
     removeQueued: (id: string) => void
     sendQueuedNow?: (id: string) => void
-    /** A stop is carrying a queued input into the next turn (Send Now or Steer). */
+    /** A stop is carrying a queued input into the next turn; a second Send Now must wait. */
     sendNowPending: boolean
-    /** Withdraw that input so a Stop ends the work; its text goes back to the composer. */
-    cancelPendingSendNow: () => void
     /** Id of the held message the composer is editing, or null. */
     editingId: string | null
     /** Borrow the composer for `id`, stashing the draft it currently holds. */
@@ -777,7 +775,6 @@ export const useAgentConversation = ({
         removeQueued,
         sendQueuedNow,
         sendNowPending,
-        cancelPendingSendNow,
         ownsContinuation,
         serverBusy,
         hitlPending,
@@ -1342,7 +1339,6 @@ export const useAgentConversation = ({
         removeQueued,
         sendQueuedNow,
         sendNowPending,
-        cancelPendingSendNow,
         editingId,
         beginEdit,
         cancelEdit,

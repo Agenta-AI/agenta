@@ -285,10 +285,10 @@ export const ActivityTimeline = ({
           ? null
           : Math.max(traced ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
-    // A settled step's verb holds for a beat, then the line reads the working words.
+    // A settled step's verb holds for a beat, then the line reads "Working".
     const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
     const verbStep = current ?? lastAgentStep(steps)
-    // The stage words belong to the wait before the first step only; any step or answer ends them.
+    // Stage words belong only to the wait before the first step or answer.
     const beforeFirstStep = live && !awaiting && steps.length === 0 && !resuming && !answerStarted
     const stageWord = useStageWord(stageWords(stage), beforeFirstStep, stageSince)
     // The latest step reads live for as long as the run does.

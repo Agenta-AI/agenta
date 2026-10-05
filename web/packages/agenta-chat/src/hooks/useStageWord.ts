@@ -2,11 +2,7 @@ import {useEffect, useState} from "react"
 
 import {STAGE_WORD_MS, stageWordAt, type StageWords} from "../assets/startupPhases"
 
-/**
- * The word to show now: the lead words in order, then the loop. Counted from `since` (when the
- * stage began) when known, so a remount mid-stage picks up where the line was instead of
- * starting the stage over; otherwise from when the line became active.
- */
+/** Counted from `since` when known, so a remount mid-stage does not restart the words. */
 export const useStageWord = (words: StageWords, active: boolean, since: number | null): string => {
     const [activeSince, setActiveSince] = useState<number | null>(null)
     const [, setNow] = useState(0)

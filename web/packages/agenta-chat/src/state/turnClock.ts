@@ -4,13 +4,7 @@ import {atomFamily} from "jotai-family"
 
 import type {TurnStage} from "../assets/startupPhases"
 
-/**
- * The stage of the turn each session is waiting on (#6047): a send on its way, an admitted turn,
- * or a runner startup phase. The line before the first step narrates it.
- *
- * Each send that opens a turn replaces the entry with `sending`, so a stage the last turn left
- * behind never narrates this one.
- */
+/** The stage of the turn each session waits on (#6047); each turn-opening send resets it. */
 
 /** The map is the source of truth and keeps the key set enumerable. */
 const turnStartMapAtom = atom<Record<string, TurnStage>>({})
@@ -27,10 +21,7 @@ export const turnStartAtomFamily = atomFamily((sessionId: string) =>
     selectAtom(turnStartMapAtom, (m): TurnStage | undefined => m[sessionId]),
 )
 
-/**
- * Always replaces, so a runner event advances the visible words immediately. `started` only
- * advances a `sending` entry: it must never rewind a startup phase that arrived first.
- */
+/** `started` only advances `sending`: it must never rewind a startup phase that came first. */
 export const startTurnClockAtom = atom(null, (get, set, sessionId: string, stage: TurnStage) => {
     const current = get(turnStartMapAtom)
     if (stage === "started" && current[sessionId] !== "sending") return

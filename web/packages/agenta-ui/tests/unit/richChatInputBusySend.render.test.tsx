@@ -48,4 +48,14 @@ describe("busy composer standard Send", () => {
         fireEvent.click(screen.getByRole("button", {name: "Send"}))
         expect(onSubmit).toHaveBeenCalledWith("")
     })
+
+    it("keeps the text in the editor when the host refuses the send", async () => {
+        const onSubmit = vi.fn(() => false as const)
+        const ref = createRef<RichChatInputHandle>()
+        render(<RichChatInput ref={ref} onSubmit={onSubmit} />)
+        await act(async () => ref.current?.setMarkdown("not yet"))
+        fireEvent.click(screen.getByRole("button", {name: "Send"}))
+        expect(onSubmit).toHaveBeenCalledWith("not yet")
+        expect(ref.current?.getMarkdown()).toBe("not yet")
+    })
 })

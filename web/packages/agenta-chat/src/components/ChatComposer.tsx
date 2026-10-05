@@ -165,8 +165,8 @@ export const ChatComposer = ({
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const editorRef = inputRef ?? ownInputRef
     const withQuotes =
-        (send: (text: string) => unknown) =>
-        (text: string): unknown => {
+        (send: (text: string) => void | boolean | Promise<void | boolean>) =>
+        (text: string): void | boolean | Promise<void | boolean> => {
             const staged = getQuotes(quoteSessionId).filter((quote) => quote.staged)
             if (!staged.length) return send(text)
             clearQuotes(quoteSessionId)
@@ -185,8 +185,8 @@ export const ChatComposer = ({
         if (!editor || disabled || composerDisabled) return false
         if (files.length > 0 && !attachmentsSettled) return false
         const text = editor.getMarkdown()
+        if (withQuotes(onSubmit)(text) === false) return false
         editor.clear()
-        void withQuotes(onSubmit)(text)
         return true
     }
     useEffect(

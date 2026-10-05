@@ -2,10 +2,7 @@ import type {FileUIPart} from "ai"
 
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 
-/**
- * A queue write this tab made and shows before the snapshot does. `settledSeq` is null while the
- * write is in flight; once it lands, the first snapshot read past that sequence is the truth.
- */
+/** A write shown before the snapshot has it; `settledSeq` is null while it is in flight. */
 export type QueueOp =
     | {kind: "remove"; settledSeq: number | null}
     | {kind: "sendNow"; settledSeq: number | null}
@@ -13,7 +10,7 @@ export type QueueOp =
 
 export type QueueOps = Readonly<Record<string, QueueOp>>
 
-/** Why a row's last action did not land, and the edit text it would otherwise have lost. */
+/** `unsavedEdit` keeps a refused edit so it is not lost. */
 export interface QueueRowError {
     message: string
     unsavedEdit?: {text: string; fileParts?: FileUIPart[]}
@@ -21,7 +18,7 @@ export interface QueueRowError {
 
 export type QueueRowErrors = Readonly<Record<string, QueueRowError>>
 
-/** The server rows as this tab's writes leave them. Pure: hides, rewrites, and flags. */
+/** The server rows as this tab's pending writes leave them. */
 export const applyQueueOps = (
     rows: readonly QueuedMessage[],
     ops: QueueOps,
@@ -48,10 +45,7 @@ export const applyQueueOps = (
     return next
 }
 
-/**
- * Drop the ops the snapshot has caught up with. A sent row stays hidden while the server still
- * lists it: a send-now over a running turn waits for that turn to stop before it starts.
- */
+/** A sent row stays hidden while listed: over a running turn it waits for the stop. */
 export const pruneQueueOps = (
     ops: QueueOps,
     rows: readonly QueuedMessage[],
@@ -71,7 +65,7 @@ export const pruneQueueOps = (
     return changed ? next : ops
 }
 
-/** Errors for rows still on screen; a row that left the queue takes its error with it. */
+/** A row that left the queue takes its error with it. */
 export const pruneQueueRowErrors = (
     errors: QueueRowErrors,
     rows: readonly QueuedMessage[],

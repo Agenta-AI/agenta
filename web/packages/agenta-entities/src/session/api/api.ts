@@ -180,9 +180,7 @@ export async function fetchSessionSnapshot({
     return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]") ?? null
 }
 
-/** How a pending-input write ended. `not_found`, `conflict` and `busy` are the server's refusals
- * (gone; already started or removed; another input already holds the stop); `failed` is anything
- * else, transport included. */
+/** `busy` is a 409 `session_busy`: another input already rides the pending stop. */
 export type PendingInputWriteOutcome = "applied" | "not_found" | "conflict" | "busy" | "failed"
 
 const refusalOf = (error: unknown): PendingInputWriteOutcome | null => {
