@@ -20,7 +20,15 @@ const GhostCard = ({height}: {height: number}) => (
 )
 
 /** A project with no agents yet: placeholder charts behind one call to action. */
-export const AnalyticsEmptyState = ({onCreateAgent}: {onCreateAgent?: () => void}) => (
+export const AnalyticsEmptyState = ({
+    onCreateAgent,
+    creating,
+    error,
+}: {
+    onCreateAgent?: () => void
+    creating?: boolean
+    error?: string | null
+}) => (
     <div className="relative">
         <div className="flex flex-col gap-4 opacity-70">
             <GhostCard height={210} />
@@ -37,10 +45,15 @@ export const AnalyticsEmptyState = ({onCreateAgent}: {onCreateAgent?: () => void
                     and how reliably they finish.
                 </p>
                 {onCreateAgent ? (
-                    <Button onClick={onCreateAgent}>
+                    <Button onClick={onCreateAgent} disabled={creating}>
                         <Plus data-icon="inline-start" />
                         Create an agent
                     </Button>
+                ) : null}
+                {error ? (
+                    <span role="alert" className="text-xs text-destructive">
+                        {error}
+                    </span>
                 ) : null}
                 <span className="text-xs text-muted-foreground">
                     New runs appear here within about a minute.

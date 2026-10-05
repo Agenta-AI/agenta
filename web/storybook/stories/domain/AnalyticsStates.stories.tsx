@@ -1,9 +1,9 @@
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // Not exported from @agenta/observability-ui/analytics — import direct.
+import {AnalyticsEmptyState} from "../../../packages/agenta-observability-ui/src/analytics/AnalyticsEmptyState"
 import {AnalyticsCard} from "../../../packages/agenta-observability-ui/src/analytics/cards/AnalyticsCard"
 import {ANALYTICS_COLOR_CSS} from "../../../packages/agenta-observability-ui/src/analytics/colors"
-import {AnalyticsEmptyState} from "../../../packages/agenta-observability-ui/src/analytics/AnalyticsEmptyState"
 
 /**
  * The Analytics tab's states a reviewer cannot reach by clicking on a project with data: a project

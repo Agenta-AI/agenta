@@ -42,6 +42,8 @@ export interface AnalyticsPageProps {
     retention: AnalyticsRetention | null
     onUpgrade?: () => void
     onCreateAgent?: () => void
+    creatingAgent?: boolean
+    createAgentError?: string | null
     /** Opens a run's trace from the drawer's runs list. */
     onOpenTrace?: (traceId: string) => void
 }
@@ -50,6 +52,8 @@ export const AnalyticsPage = ({
     retention,
     onUpgrade,
     onCreateAgent,
+    creatingAgent,
+    createAgentError,
     onOpenTrace,
 }: AnalyticsPageProps) => {
     const [range, setRange] = useAtom(analyticsRangeAtom)
@@ -177,7 +181,11 @@ export const AnalyticsPage = ({
         return (
             <>
                 <style>{ANALYTICS_COLOR_CSS}</style>
-                <AnalyticsEmptyState onCreateAgent={onCreateAgent} />
+                <AnalyticsEmptyState
+                    onCreateAgent={onCreateAgent}
+                    creating={creatingAgent}
+                    error={createAgentError}
+                />
             </>
         )
     }

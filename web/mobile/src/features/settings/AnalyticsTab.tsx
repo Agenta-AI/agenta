@@ -37,6 +37,8 @@ export const AnalyticsTab = ({workspaceId, projectId}: Props) => {
                     : undefined
             }
             onCreateAgent={() => void newAgent.create()}
+            creatingAgent={newAgent.creating}
+            createAgentError={newAgent.error}
             onOpenTrace={(traceId) => openTrace({traceId})}
         />
     )
