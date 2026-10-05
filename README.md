@@ -9,7 +9,7 @@
   </a>
   
 <div align="center">
-  <strong> <h1> The open source workspace for your agents and your team </h1></strong>
+  <strong> <h1> The open-source workspace for your agents and your team </h1></strong>
 
   Build AI coworkers by chatting. Share them with your team. Talk to them in Slack, WhatsApp or Telegram.
   
@@ -95,7 +95,7 @@ Agenta is an open-source workspace where you build specialized agents that autom
 
 You build agents by chatting with them. You describe the work, connect the apps they need, and improve them through feedback.
 
-You can work with your agents in the web app, or talk to them where you already are: Slack, Telegram or WhatsApp.
+You can work with your agents in the web app, or talk to them where you already are: **Slack**, **Telegram** or **WhatsApp Business**.
 
 For recurring work, you can create automations. Your agents run on a schedule or when an event occurs in a connected app, and you can see what every run did.
 
@@ -104,10 +104,13 @@ For recurring work, you can create automations. Your agents run on a schedule or
 Agenta is the wrong tool if you are looking for:
 
 - **an agentic development environment** for writing code, like ocra, Claude Code or OpenCode.
+  
   *Agenta is built for the work around and beyond code: IT ops, GTM, HR, legal, finance, support...*
 - **a single-user personal assistant**, like openclaw or Hermes.
+  
   *Agenta is built for teams: agents are shared, multi-user, and run where the team works (e.g. Slack).*
 - **a low-code workflow builder**, like n8n or Zapier.
+  
   *In Agenta you do not draw workflows. You build autonomous agents that figure out the steps and solve problems on their own.*
 
 Agenta is built for work, with professionals in mind from day one. That means:
@@ -184,58 +187,6 @@ Claude Cowork provides a workspace built around Claude. Agenta is open source an
 These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code, Pi, and Codex today. Support for more harnesses is on the roadmap.
 
 ## Roadmap
-
-**Harnesses**
-
-- [x] Claude Code
-- [x] Pi
-- [x] Codex
-- [ ] Gemini
-- [ ] OpenCode
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
-
-**Models**
-
-- [x] OpenAI
-- [x] Anthropic
-- [x] OpenRouter
-- [x] Mistral AI
-- [x] Cohere
-- [x] Anyscale
-- [x] Perplexity AI
-- [x] DeepInfra
-- [x] Together AI
-- [x] Groq
-- [x] Google Gemini
-- [x] Azure
-- [x] AWS Bedrock
-- [x] MiniMax
-- [x] OpenAI-compatible models
-- [x] Self-hosted models (Ollama)
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
-
-**Agent runtimes**
-
-- [x] Local runtime
-- [x] Daytona sandboxes
-- [x] Docker sandboxes
-- [ ] E2B sandboxes
-- [ ] AgentComputer
-- [ ] Vercel
-- [ ] Cloudflare
-- [ ] Modal
-- [ ] BoxLite
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
-
-**Features**
-
-- [x] Schedules
-- [x] Events from connected apps
-- [x] MCP servers (API key + unauthenticated)
-- [ ] Generic webhook triggers
-- [ ] Additional MCP transports (OAuth)
-- [ ] Channels (Slack, Telegram, Discord, Teams)
-- [ ] Mobile version
 
 See the [complete roadmap](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). Want to help with one of these items? [Open a discussion](https://github.com/Agenta-AI/agenta/discussions) or contribute.
 
