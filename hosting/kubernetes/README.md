@@ -215,7 +215,7 @@ Four things to get right:
 - `preStop: {sleep: ...}` needs Kubernetes 1.30 or later. Below that, use
   `preStop: {exec: {command: ["sh", "-c", "sleep 10"]}}`, and note that the image
   must have that shell. The chart's own default hook is an exec `sleep 10` on
-  `agentRunner`, `services`, `web` and `webMobile`; a custom image without
+  `agentRunner`, `api`, `services`, `web` and `webMobile`; a custom image without
   `sleep` must set its own `lifecycle`.
 - `strategy` is for Deployments. The durable Redis and SeaweedFS are
   StatefulSets and the migration is a Job; neither has a `spec.strategy`, so the

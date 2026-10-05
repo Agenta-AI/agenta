@@ -1625,7 +1625,11 @@ imagePullSecrets:
 - component: web-mobile
   key: webMobile
   replicas: {{ include "agenta.webMobile.replicas" . }}
-  enabled: {{ include "agenta.web.enabled" . }}
+  {{- /* Not web.enabled. web-mobile-deployment.yaml renders unconditionally, and
+         values.schema.json refuses webMobile.enabled: false, so the mobile app is
+         always deployed. Tying its budget to the desktop app left it with none
+         whenever someone turned the desktop app off. */}}
+  enabled: true
 - component: services
   key: services
   replicas: {{ include "agenta.services.replicas" . }}
@@ -1687,8 +1691,11 @@ imagePullSecrets:
 {{- $root := .root -}}
 {{- $values := include "agenta.values" $root | fromYaml -}}
 {{- $wl := default dict (get $values .key) -}}
-{{- if $wl.topologySpreadConstraints -}}
-{{- toYaml $wl.topologySpreadConstraints }}
+{{- /* hasKey, not truthiness. An empty list is falsy in Go templates, so
+       `topologySpreadConstraints: []` fell through to the generated block and the
+       documented way to remove the constraints quietly regenerated them. */ -}}
+{{- if hasKey $wl "topologySpreadConstraints" -}}
+{{- with $wl.topologySpreadConstraints }}{{- toYaml . }}{{- end }}
 {{- else if and (eq (include "agenta.topologySpread.enabled" $root) "true") (gt (int .replicas) 1) -}}
 - maxSkew: 1
   topologyKey: kubernetes.io/hostname

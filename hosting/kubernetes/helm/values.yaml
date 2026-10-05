@@ -188,6 +188,15 @@ global:
 #   redisVolatile:
 #     safeToEvict: false        # default; true lets the autoscaler consolidate the node
 #     podAnnotations: {}        # merged over the default, so a key set here wins
+# Both bundled Redis instances probe startup every five seconds and restart after
+# 60 failures by default (about five minutes). The durable instance must replay its
+# append-only file before ping succeeds. Measure recovery with your CPU/storage limits
+# and allow enough time, or restarts can repeat the same unfinished replay.
+# Increase the threshold per instance without changing the error-aware ping command:
+#   redisDurable:
+#     startupProbe:
+#       failureThreshold: 360  # example: about 30 minutes, not a recovery guarantee
+# The same key works on redisVolatile; it leaves the other instance's threshold alone.
 redisDurable:
   persistence:
     size: "5Gi"
@@ -315,10 +324,10 @@ redisDurable:
 # Chart defaults when a key is unset:
 #   strategy: Recreate on agentRunner, cron and redisVolatile; RollingUpdate
 #     with maxUnavailable 0, maxSurge 1 on services, web, webMobile,
-#     workerStreams, workerQueues and supertokens; none on api.
+#     workerStreams, workerQueues, supertokens and api.
 #   terminationGracePeriodSeconds: 300 on agentRunner, 120 on the two
-#     workers, 60 on services, web and webMobile.
-#   lifecycle: a preStop exec `sleep 10` on agentRunner, services, web and
+#     workers, 60 on api, services, web and webMobile.
+#   lifecycle: a preStop exec `sleep 10` on agentRunner, api, services, web and
 #     webMobile. Setting a key replaces its default.
 # Liveness probes: the chart sets none on cron, workerStreams or workerQueues. Each of
 # those runs its process as PID 1, so a process that exits takes the container with it and
