@@ -16,16 +16,16 @@ import {Tag} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
     Button,
-    Divider,
     EmptyState,
     InputAffix,
     LoadingButton,
     Segmented,
-    Spinner,
+    SkeletonBlock,
 } from "@agenta/ui/ui"
 import {
     ArrowLeft,
     BracketsRound,
+    CaretRight,
     CopySimple,
     ListDashes,
     MagnifyingGlass,
@@ -34,7 +34,6 @@ import {
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
-import {CatalogCard} from "../components/catalogPrimitives"
 import ResultViewer from "../components/ResultViewer"
 import type {SchemaFormHandle} from "../components/SchemaForm"
 import SchemaForm from "../components/SchemaForm"
@@ -77,13 +76,17 @@ export default function ToolExecutionDrawer() {
         setSelectedAction(action)
     }, [])
 
-    const drawerTitle = step === 2 ? "Test Action" : "Select Action"
-
     return (
         <EnhancedDrawer
             open={open}
             onClose={handleClose}
-            title={drawerTitle}
+            // The integration's mark heads the drawer, as in the connect dialog.
+            title={
+                <span className="flex min-w-0 items-center gap-3">
+                    <LogoTile logo={integrationLogo ?? undefined} name={integrationName || ""} />
+                    <span className="truncate text-base font-medium">{integrationName}</span>
+                </span>
+            }
             width={640}
             destroyOnClose
             styles={{
@@ -117,6 +120,99 @@ export default function ToolExecutionDrawer() {
                     />
                 ))}
         </EnhancedDrawer>
+    )
+}
+
+/** Composio's MCP-style hints, said as what the action does. */
+const HINT_LABELS: Record<string, string> = {
+    readOnlyHint: "Read-only",
+    createHint: "Creates",
+    updateHint: "Updates",
+    destructiveHint: "Deletes",
+    deleteHint: "Deletes",
+}
+
+function ActionRow({
+    action,
+    onSelect,
+}: {
+    action: CatalogActionItem
+    onSelect: (action: CatalogActionItem) => void
+}) {
+    const categories = action.categories ?? []
+    const hint = categories.map((c) => HINT_LABELS[c]).find(Boolean)
+    const topic = categories.find((c) => !c.endsWith("Hint"))
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onSelect(action)}
+            onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    onSelect(action)
+                }
+            }}
+            className="-mx-3 flex cursor-pointer items-center gap-3 rounded-[10px] px-3 py-2.5 outline-none hover:bg-accent/60 focus-visible:bg-accent/60"
+        >
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-medium text-foreground">
+                        {action.name}
+                    </span>
+                    {hint ? (
+                        <Tag
+                            tone={hint === "Deletes" ? "red" : "default"}
+                            className="shrink-0 text-xs"
+                        >
+                            {hint}
+                        </Tag>
+                    ) : null}
+                </div>
+                {action.description ? (
+                    <span className="line-clamp-2 text-xs text-colorTextDescription">
+                        {topic ? <span className="font-mono">{topic} · </span> : null}
+                        {action.description}
+                    </span>
+                ) : null}
+            </div>
+            <CaretRight size={14} className="shrink-0 text-muted-foreground" />
+        </div>
+    )
+}
+
+function ActionRowsSkeleton({rows = 6}: {rows?: number}) {
+    return (
+        <div className="flex flex-col" aria-hidden>
+            {Array.from({length: rows}, (_, index) => (
+                <div key={index} className="flex flex-col gap-1.5 py-3">
+                    <SkeletonBlock active className="h-4 w-1/3 rounded" />
+                    <SkeletonBlock active className="h-3.5 w-5/6 rounded" />
+                </div>
+            ))}
+        </div>
+    )
+}
+
+/** The integration's logo in a bordered tile; its initial when it has none. */
+function LogoTile({logo, name}: {logo?: string; name: string}) {
+    return (
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs">
+            {logo ? (
+                <Image
+                    src={logo}
+                    alt={name}
+                    width={18}
+                    height={18}
+                    className="size-[18px] object-contain"
+                    unoptimized
+                />
+            ) : (
+                <span className="text-sm font-semibold text-muted-foreground">
+                    {name.charAt(0).toUpperCase()}
+                </span>
+            )}
+        </span>
     )
 }
 
@@ -160,25 +256,13 @@ function ActionPickerStep({
         <div className="flex flex-col h-full overflow-hidden">
             {/* Sticky header */}
             <div className="flex flex-col gap-3 px-6 pt-4 pb-3 shrink-0">
-                <div className="flex items-center gap-3">
-                    {integrationLogo && (
-                        <Image
-                            src={integrationLogo}
-                            alt={integrationName ?? ""}
-                            width={32}
-                            height={32}
-                            className="w-8 h-8 rounded object-contain shrink-0"
-                            unoptimized
-                        />
-                    )}
-                    <div className="flex flex-col min-w-0 flex-1">
-                        <span className="truncate font-medium">
-                            {integrationName || integrationKey}
-                        </span>
-                        <span className="text-xs truncate text-colorTextDescription">
-                            Connection: {connectionSlug}
-                        </span>
-                    </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                    <span className="truncate text-base font-medium leading-snug text-foreground">
+                        Choose an action to run
+                    </span>
+                    <span className="truncate text-sm text-colorTextDescription">
+                        Connection · {connectionSlug}
+                    </span>
                 </div>
 
                 <InputAffix
@@ -194,21 +278,17 @@ function ActionPickerStep({
                 </span>
             </div>
 
-            <Divider className="!m-0" />
-
             {/* Scrollable content */}
             <div
                 ref={scrollRef}
                 className="flex-1 overflow-y-auto overscroll-contain px-6 py-3 relative"
             >
                 {isLoading && actions.length === 0 ? (
-                    <div className="flex items-center justify-center py-8">
-                        <Spinner />
-                    </div>
+                    <ActionRowsSkeleton />
                 ) : actions.length === 0 ? (
                     <EmptyState description="No actions found" />
                 ) : (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col">
                         {actions.map((action, i) => (
                             <React.Fragment key={action.key}>
                                 {i === sentinelIndex && (
@@ -218,28 +298,7 @@ function ActionPickerStep({
                                         isFetching={isFetchingNextPage}
                                     />
                                 )}
-                                <CatalogCard
-                                    className="cursor-pointer"
-                                    onClick={() => onSelectAction(action)}
-                                >
-                                    <div className="flex flex-col gap-0.5">
-                                        <div className="flex items-center gap-2">
-                                            <span className="truncate font-medium">
-                                                {action.name}
-                                            </span>
-                                            {action.categories?.slice(0, 2).map((c) => (
-                                                <Tag key={c} tone="default" className="text-xs">
-                                                    {c}
-                                                </Tag>
-                                            ))}
-                                        </div>
-                                        {action.description && (
-                                            <span className="text-xs line-clamp-2 text-colorTextDescription">
-                                                {action.description}
-                                            </span>
-                                        )}
-                                    </div>
-                                </CatalogCard>
+                                <ActionRow action={action} onSelect={onSelectAction} />
                             </React.Fragment>
                         ))}
 
@@ -249,11 +308,7 @@ function ActionPickerStep({
                             isFetching={isFetchingNextPage}
                         />
 
-                        {isFetchingNextPage && (
-                            <div className="flex items-center justify-center py-4">
-                                <Spinner size="small" />
-                            </div>
-                        )}
+                        {isFetchingNextPage && <ActionRowsSkeleton rows={3} />}
                     </div>
                 )}
 
@@ -350,25 +405,7 @@ function ActionDetailStep({
                             <ArrowLeft size={16} />
                         </Button>
                     )}
-                    {integrationLogo && (
-                        <Image
-                            src={integrationLogo}
-                            alt={integrationName ?? ""}
-                            width={24}
-                            height={24}
-                            className="w-6 h-6 rounded object-contain shrink-0"
-                            unoptimized
-                        />
-                    )}
-                    {integrationName && (
-                        <span className="shrink-0 text-colorTextDescription">
-                            {integrationName}
-                        </span>
-                    )}
-                    {integrationName && (
-                        <span className="shrink-0 text-colorTextDescription">/</span>
-                    )}
-                    <span className="truncate flex-1 font-medium">
+                    <span className="truncate flex-1 text-base font-medium">
                         {detailLoading ? "Loading…" : displayName}
                     </span>
                     <Segmented
@@ -390,14 +427,14 @@ function ActionDetailStep({
                     />
                 </div>
                 {action?.description && (
-                    <span className="text-xs text-colorTextDescription">{action.description}</span>
+                    <p className="m-0 line-clamp-3 text-sm text-colorTextDescription">
+                        {action.description}
+                    </p>
                 )}
                 <span className="text-xs text-colorTextDescription">
-                    Connection: {connectionSlug}
+                    Connection · {connectionSlug}
                 </span>
             </div>
-
-            <Divider className="!m-0" />
 
             {/* Scrollable content */}
             <div
@@ -405,22 +442,21 @@ function ActionDetailStep({
                 className="flex-1 overflow-y-auto overscroll-contain px-6 py-3 relative"
             >
                 {detailLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <Spinner />
-                    </div>
+                    <ActionRowsSkeleton rows={3} />
                 ) : (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-6">
                         {/* Inputs section */}
                         <div className="flex flex-col gap-2">
                             <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium">Inputs</span>
+                                <span className="text-[13px] font-medium text-muted-foreground">
+                                    Inputs
+                                </span>
                                 {!jsonMode && (
                                     <Button
                                         variant="ghost"
-                                        size="icon-sm"
+                                        size="icon"
                                         aria-label="Copy inputs"
                                         onClick={handleCopyInputs}
-                                        className="opacity-60 hover:opacity-100"
                                     >
                                         <CopySimple size={14} />
                                     </Button>
@@ -432,22 +468,13 @@ function ActionDetailStep({
                                 disabled={isExecuting}
                                 jsonMode={jsonMode}
                             />
-                            <LoadingButton
-                                size="sm"
-                                loading={isExecuting}
-                                onClick={handleExecute}
-                                className="self-start"
-                            >
-                                {!isExecuting && <Play size={14} />}
-                                Run
-                            </LoadingButton>
                         </div>
-
-                        <Divider className="!my-1" />
 
                         {/* Outputs section */}
                         <div className="flex flex-col gap-2">
-                            <span className="text-sm font-medium">Outputs</span>
+                            <span className="text-[13px] font-medium text-muted-foreground">
+                                Output
+                            </span>
                             {result || error ? (
                                 <ResultViewer
                                     result={result}
@@ -456,9 +483,12 @@ function ActionDetailStep({
                                     jsonMode={jsonMode}
                                 />
                             ) : (
-                                <div className="rounded-lg border border-dashed border-gray-300 p-4 text-center">
+                                <div className="flex flex-col items-center gap-1 rounded-[10px] border border-dashed border-border px-4 py-8 text-center">
+                                    <Play size={18} className="text-muted-foreground" />
+                                    <span className="text-sm text-foreground">No output yet</span>
                                     <span className="text-xs text-colorTextDescription">
-                                        Run the action to see results
+                                        Fill in the inputs and run the action to see what it
+                                        returns.
                                     </span>
                                 </div>
                             )}
@@ -468,6 +498,16 @@ function ActionDetailStep({
 
                 <ScrollToTopButton scrollRef={scrollRef} />
             </div>
+
+            {/* Run sits in a footer so it stays in reach on a long form. */}
+            {!detailLoading && (
+                <div className="flex shrink-0 justify-end border-0 border-t border-solid border-border px-6 py-3">
+                    <LoadingButton loading={isExecuting} onClick={handleExecute}>
+                        {!isExecuting && <Play size={14} />}
+                        Run action
+                    </LoadingButton>
+                </div>
+            )}
         </div>
     )
 }
