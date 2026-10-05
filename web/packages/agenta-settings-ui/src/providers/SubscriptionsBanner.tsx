@@ -98,21 +98,7 @@ const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
 export const SubscriptionsBanner = ({plans}: {plans: SubscriptionPlan[]}) => (
     <section className="rounded-2xl border border-solid border-border bg-background">
         <div className="grid grid-cols-1 items-center gap-2 p-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
-            <div className="flex min-w-0 flex-col gap-2.5 px-2.5 py-1.5">
-                <span className="flex items-center" aria-hidden>
-                    {plans.map((plan, index) => (
-                        <span
-                            key={plan.key}
-                            className={cn(
-                                "flex size-6 items-center justify-center rounded-md ring-2 ring-background [&_svg]:size-3.5",
-                                BRAND[plan.brand].tile,
-                                index > 0 && "-ml-1",
-                            )}
-                        >
-                            {plan.logo}
-                        </span>
-                    ))}
-                </span>
+            <div className="flex min-w-0 flex-col justify-center px-2.5 py-1.5">
                 <div className="flex flex-col gap-0.5">
                     <h2 className="m-0 text-[16px] font-semibold leading-6 tracking-[-0.01em] text-foreground">
                         Bring your own plan
