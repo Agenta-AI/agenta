@@ -137,7 +137,13 @@ describe("agenta extension model provider override", () => {
       },
     ]);
     assert.equal(pi.registered.length, 0);
-    assert.deepEqual(pi.handlers, {});
+    // Only the Gemini thought-signature hooks, which every active run registers.
+    assert.deepEqual(Object.keys(pi.handlers).sort(), [
+      "before_provider_request",
+      "context",
+      "message_end",
+      "provider_stream_event",
+    ]);
   });
 
   it("carries OUR gateway credential and a placeholder apiKey onto the built-in provider override (WP13 reopen)", () => {

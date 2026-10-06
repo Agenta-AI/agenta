@@ -94,6 +94,8 @@ export function createHostFixture(
      * `anthropic` provider pointed at the model server, the credentials only in the run's model environment.
      */
     anthropic?: { authToken: string; apiKey?: string };
+    /** The Agenta extension's environment. Empty by default, which leaves the extension inert. */
+    extensionEnv?: Record<string, string>;
   } = {},
 ): HostFixture {
   const skills = options.skills ?? [];
@@ -146,7 +148,7 @@ export function createHostFixture(
       ...(skillDir ? { PI_CODING_AGENT_SKILL_DIR: skillDir } : {}),
       ...(options.gatewayCredential ? { AGENTA_GATEWAY_CREDENTIALS_VALUE: options.gatewayCredential } : {}),
     },
-    extensionEnv: gating ? { AGENTA_AGENT_BUILTIN_GATING: "true" } : {},
+    extensionEnv: { ...options.extensionEnv, ...(gating ? { AGENTA_AGENT_BUILTIN_GATING: "true" } : {}) },
     modelEnvironment: options.anthropic
       ? {
           ANTHROPIC_AUTH_TOKEN: options.anthropic.authToken,

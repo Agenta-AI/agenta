@@ -320,6 +320,38 @@ describe("a runner restart between two turns", () => {
   }, 60_000);
 });
 
+describe("a Gemini tool call on an OpenAI-compatible endpoint", () => {
+  // Vertex's `endpoints/openapi` refuses a history whose tool call lost the `thought_signature`
+  // the model returned with it: "HTTP 400: Function call is missing a thought_signature".
+  const signatureOf = (request: { messages: unknown[] }) =>
+    (request.messages as Array<{ role: string; tool_calls?: Array<{ extra_content?: unknown }> }>)
+      .filter((message) => message.role === "assistant" && message.tool_calls)
+      .flatMap((message) => message.tool_calls!.map((call) => call.extra_content));
+
+  it("sends the signature back with the call, in the same turn and after a runner restart", async () => {
+    const fixture = createHostFixture(model.baseUrl, { extensionEnv: { AGENTA_AGENT_BUILTIN_ACTIVATION: "1" } });
+    model.script([{ tool: "bash", args: { command: "echo signed" }, signature: "c2lnLW9uZQ==" }, { text: "first turn done" }]);
+    const first = await openSession(fixture);
+    expect(await first.session.prompt(prompt("turn one"))).toEqual({ stopReason: "end_turn" });
+    const signed = { google: { thought_signature: "c2lnLW9uZQ==" } };
+    expect(signatureOf(model.requests.at(-1)!)).toEqual([signed]);
+    const record = await first.persist.getSession(first.session.id);
+    await first.host.pauseSandbox();
+    await first.runner.registry.settle(5_000);
+
+    // A new runner process reads the history back from the conversation file.
+    const persist = new InMemorySessionPersistDriver();
+    await persist.updateSession(record!);
+    const second = fixture.runner({ owner: "runner-a-restarted" }).host({ persist });
+    const resumed = await second.host.resumeSession(first.session.id);
+    await resumed.setModel("mock/mock-1");
+    model.script([{ text: "second turn done" }]);
+    expect(await resumed.prompt(prompt("turn two"))).toEqual({ stopReason: "end_turn" });
+    expect(signatureOf(model.requests.at(-1)!)).toEqual([signed]);
+    await second.host.destroySandbox();
+  }, 60_000);
+});
+
 describe("the conversation file on the drive", () => {
   it("brings the history back on a runner that lost its disk", async () => {
     const fixture = createHostFixture(model.baseUrl);
