@@ -142,7 +142,7 @@ DEFAULT_STRATEGIES = {
     "supertokens": ROLLING_NO_GAP,
 }
 DEFAULT_GRACE_PERIODS = {
-    "api": 60,
+    "api": 930,  # api.gunicorn.gracefulTimeout (900) + 30
     "runner": 300,
     "worker-streams": 120,
     "worker-queues": 120,

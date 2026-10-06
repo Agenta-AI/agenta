@@ -64,18 +64,23 @@ services:
         #     dockerfile: api/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
+        # A worker recycled at --max-requests finishes its open requests (an LLM gateway
+        # stream can run for minutes) for --graceful-timeout seconds while the other
+        # worker takes new ones. A container stop still uses docker's default 10 s:
+        # a compose recreate stops the old container before it starts the new one, so
+        # a longer stop_grace_period would only make an upgrade's downtime longer.
         command: >
             newrelic-admin run-program gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
-            --worker-class uvicorn.workers.UvicornWorker
+            --worker-class entrypoints.uvicorn_worker.DrainingUvicornWorker
             --workers 2
             --worker-connections 1000
             --backlog 2048
             --keep-alive 5
-            --max-requests 10000
-            --max-requests-jitter 1000
+            --max-requests ${AGENTA_API_MAX_REQUESTS:-100000}
+            --max-requests-jitter ${AGENTA_API_MAX_REQUESTS_JITTER:-10000}
             --timeout 60
-            --graceful-timeout 30
+            --graceful-timeout ${AGENTA_API_GRACEFUL_TIMEOUT:-900}
             --log-level info
             --access-logfile -
             --error-logfile -

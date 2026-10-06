@@ -1,6 +1,14 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $api := default dict $values.api -}}
 {{- $newrelic := default dict $values.newrelic -}}
+{{- /* Gunicorn's worker lifecycle. An LLM gateway stream can run for many minutes, and a
+       worker that is recycled (max-requests) or stopped (SIGTERM) only finishes the
+       requests it has open for gracefulTimeout seconds, so gracefulTimeout must cover the
+       longest stream. maxRequests recycles a worker as a guard against slow memory leaks;
+       a high value keeps recycles rare. timeout is gunicorn's hung-worker check, not a
+       request limit. See the README section "Long streams and worker shutdown". */}}
+{{- $gunicorn := default dict $api.gunicorn -}}
+{{- $gracefulTimeout := int (hasKey $gunicorn "gracefulTimeout" | ternary $gunicorn.gracefulTimeout 900) -}}
 {{- if eq (include "agenta.api.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -42,10 +50,12 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- /* The default covers the preStop delay (10 s), the gunicorn drain and a margin, so
+             the kubelet does not send KILL while a stream is still finishing. */}}
       {{- if hasKey $api "terminationGracePeriodSeconds" }}
       terminationGracePeriodSeconds: {{ $api.terminationGracePeriodSeconds }}
       {{- else }}
-      terminationGracePeriodSeconds: 60
+      terminationGracePeriodSeconds: {{ add $gracefulTimeout 30 }}
       {{- end }}
       {{- with $api.podSecurityContext }}
       securityContext:
@@ -74,17 +84,17 @@ spec:
             - --bind
             - 0.0.0.0:{{ include "agenta.api.port" . }}
             - --worker-class
-            - uvicorn.workers.UvicornWorker
+            - entrypoints.uvicorn_worker.DrainingUvicornWorker
             - --workers
             - {{ include "agenta.api.workers" . | quote }}
             - --max-requests
-            - "10000"
+            - {{ int (hasKey $gunicorn "maxRequests" | ternary $gunicorn.maxRequests 100000) | quote }}
             - --max-requests-jitter
-            - "1000"
+            - {{ int (hasKey $gunicorn "maxRequestsJitter" | ternary $gunicorn.maxRequestsJitter 10000) | quote }}
             - --timeout
-            - "60"
+            - {{ int (hasKey $gunicorn "timeout" | ternary $gunicorn.timeout 60) | quote }}
             - --graceful-timeout
-            - "60"
+            - {{ $gracefulTimeout | quote }}
             - --log-level
             - info
             - --access-logfile

@@ -1271,7 +1271,42 @@
       "$ref": "#/$defs/bundledRedis"
     },
     "api": {
-      "$ref": "#/$defs/component"
+      "allOf": [
+        {
+          "$ref": "#/$defs/component"
+        },
+        {
+          "properties": {
+            "gunicorn": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Gunicorn worker lifecycle for the api. A recycled (max-requests) or stopped worker finishes the requests it has open for gracefulTimeout seconds, so gracefulTimeout must cover the longest LLM gateway stream. Unset, terminationGracePeriodSeconds defaults to gracefulTimeout plus 30.",
+              "properties": {
+                "maxRequests": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Requests a worker serves before gunicorn replaces it, a guard against slow memory leaks. 0 turns recycling off. Default 100000."
+                },
+                "maxRequestsJitter": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Random extra requests added to maxRequests per worker, so the workers do not recycle together. Default 10000."
+                },
+                "timeout": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Seconds without a heartbeat before gunicorn kills a hung worker. Not a request limit. Default 60."
+                },
+                "gracefulTimeout": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Seconds a recycled or stopped worker gets to finish its open requests before it is killed. Default 900 (15 minutes)."
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "web": {
       "$ref": "#/$defs/component"
