@@ -431,6 +431,74 @@ async def test_a_gemini_provider_key_resolves_to_an_openai_compatible_route(mode
     assert resolved.model == "gemini-3.7-flash"
 
 
+def _vertex_row(*, protocol: Optional[str] = None) -> LLMEndpoint:
+    """The endpoint row the vault registrar writes for a Vertex card saved from the UI."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug="my-vertex",
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                "kind": "vertex_ai",
+                **({"protocol": protocol} if protocol else {}),
+                "provider": {
+                    "extras": {
+                        "vertex_ai_project": "my-project",
+                        "vertex_ai_location": "global",
+                        "vertex_ai_credentials": "{}",
+                    }
+                },
+                "models": [{"slug": "google/gemini-3.7-flash"}],
+                "provider_slug": "my-vertex",
+            },
+            header={"name": "my-vertex"},
+        )
+    )
+    return _custom_row(
+        slug="my-vertex",
+        provider_key=endpoint.provider_key,
+        deployment_kind=endpoint.deployment_kind,
+        models=endpoint.data.models,
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_openai_shaped_vertex_endpoint_resolves_to_a_custom_route():
+    """Pi refused a Vertex connection (`deployment 'vertex_ai' is not supported by harness
+    'pi_core'`). Behind the gateway it is Vertex's OpenAI-compatible endpoint, reached with a
+    token the gateway mints, so the harness drives it as any custom route."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["my-vertex"] = _vertex_row()
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(),
+        model="google/gemini-3.7-flash",
+        provider_key=None,
+        connection_slug="my-vertex",
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
+    assert resolved.provider_key == "openai"
+    assert resolved.deployment_kind == LLMDeploymentKind.CUSTOM
+    assert resolved.model == "google/gemini-3.7-flash"
+
+
+@pytest.mark.asyncio
+async def test_an_anthropic_shaped_vertex_endpoint_keeps_its_deployment():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["my-vertex"] = _vertex_row(protocol="anthropic")
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(),
+        model="claude-haiku-4-5",
+        provider_key=None,
+        connection_slug="my-vertex",
+    )
+
+    assert resolved.provider_key == "anthropic"
+    assert resolved.deployment_kind == LLMDeploymentKind.VERTEX
+
+
 def _bedrock_row(models: List[str]) -> LLMEndpoint:
     """The endpoint row the vault registrar writes for a Bedrock card saved from the UI."""
     endpoint = map_custom_provider_secret_to_endpoint(
