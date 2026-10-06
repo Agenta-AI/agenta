@@ -542,4 +542,7 @@ def test_resolve_of_a_bedrock_connection_answers_the_vault_fallback_code(
     )
 
     assert response.status_code == 403
-    assert _envelope_of(response)["code"] == "llm_gateway_disabled"
+    envelope = _envelope_of(response)
+    assert envelope["code"] == "llm_gateway_disabled"
+    # No switch turns it on, so the envelope names none.
+    assert "flag" not in (envelope.get("details") or {})

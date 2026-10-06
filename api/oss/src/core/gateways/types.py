@@ -78,7 +78,11 @@ class LLMGatewayConnectionNotServedError(LLMGatewayDisabledError):
     reads as "resolve from the vault".
     """
 
-    operator_hint = "Agents on a Bedrock connection resolve from the vault, not through the LLM gateway."
+    # No switch turns this on, so the envelope names none.
+    flag = ""
+    operator_hint = (
+        "Agents on a Bedrock connection resolve from the vault, not the LLM gateway."
+    )
 
     def __init__(self) -> None:
         GatewayPlaneDisabledError.__init__(

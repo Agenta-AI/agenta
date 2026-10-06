@@ -460,6 +460,7 @@ def _bedrock_row(models: List[str]) -> LLMEndpoint:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("is_active", [True, False])
 @pytest.mark.parametrize(
     "model",
     [
@@ -468,7 +469,9 @@ def _bedrock_row(models: List[str]) -> LLMEndpoint:
         "openai.gpt-oss-20b",
     ],
 )
-async def test_an_agent_on_a_bedrock_connection_is_sent_to_the_vault_path(model):
+async def test_an_agent_on_a_bedrock_connection_is_sent_to_the_vault_path(
+    model, is_active
+):
     """The gateway relays Bedrock to `bedrock-mantle`, whose model ids are not the runtime ids
     people save, and which has no Claude in some regions. Resolve answers with the code the
     agent SDK reads as "resolve from the vault", for an organization the gateway serves."""
@@ -480,6 +483,8 @@ async def test_an_agent_on_a_bedrock_connection_is_sent_to_the_vault_path(model)
             "openai.gpt-oss-20b",
         ]
     )
+    # A deactivated gateway endpoint does not stop the run: the gateway takes no part in it.
+    dao.rows_by_slug["my-bedrock"].flags.is_active = is_active
     resolver = _MockResolver()
 
     with pytest.raises(LLMGatewayConnectionNotServedError) as refused:
