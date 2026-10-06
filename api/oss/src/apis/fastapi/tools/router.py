@@ -1399,6 +1399,7 @@ class ToolsRouter:
                 workflows_service=self.workflows_service,
                 tracing_service=self.tracing_service,
                 mounts_service=self.mounts_service,
+                workspace_id=_workspace_id(request),
             )
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
@@ -1832,6 +1833,15 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _workspace_id(request: Request) -> Optional[UUID]:
+    """The caller's workspace, for links into the web app; None when the credential has none."""
+    workspace_id = getattr(request.state, "workspace_id", None)
+    try:
+        return UUID(str(workspace_id)) if workspace_id else None
+    except ValueError:
+        return None
 
 
 def _json_for_inline_script(value: Any) -> str:

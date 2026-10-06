@@ -36,6 +36,7 @@ from oss.src.core.tools.platform_handlers import (
     handle_edit_agent_config,
     handle_list_agents,
     handle_read_agent_config,
+    dispatch_platform_tool_handler,
     required_elevated_permission,
 )
 from oss.src.core.shared.exceptions import EntityCreationConflict
@@ -50,6 +51,7 @@ from oss.src.core.workflows.dtos import (
 )
 from oss.src.core.workflows.new_agent import new_agent_revision_data
 from oss.src.core.workflows.service import SimpleWorkflowsService, WorkflowsService
+from oss.src.utils.env import env
 
 
 # Fixed, so parametrized test ids are the same in every pytest-xdist worker.
@@ -61,6 +63,7 @@ TARGET_VARIANT = UUID("00000000-0000-4000-8000-000000000005")
 HEAD = UUID("00000000-0000-4000-8000-000000000006")
 STATIC_ID = "00000000-0000-4000-8000-000000000007"
 OTHER = UUID("00000000-0000-4000-8000-000000000008")
+WORKSPACE = UUID("00000000-0000-4000-8000-000000000009")
 SESSION = "01a1-session"
 INSTRUCTIONS = ["parameters", "agent", "instructions", "agents_md"]
 
@@ -130,12 +133,15 @@ def service(workflows):
     return service
 
 
-def _call(handler, service, **arguments):
+def _call(handler, service, *, workspace_id=None, **arguments):
+    # Only the agent tools take a workspace; `commit_revision` shares this helper.
+    extra = {"workspace_id": workspace_id} if workspace_id else {}
     return handler(
         arguments=arguments,
         project_id=PROJECT,
         user_id=USER,
         workflows_service=service,
+        **extra,
     )
 
 
@@ -190,6 +196,18 @@ class TestRegistration:
                 required_elevated_permission(call_ref=ref, arguments=arguments)
                 == permission
             )
+
+    @pytest.mark.parametrize(
+        "ref",
+        [
+            LIST_AGENTS_CALL_REF,
+            READ_AGENT_CONFIG_CALL_REF,
+            CREATE_AGENT_CALL_REF,
+            EDIT_AGENT_CONFIG_CALL_REF,
+        ],
+    )
+    def test_the_agent_tools_take_the_workspace_for_their_links(self, ref):
+        assert PLATFORM_TOOL_HANDLERS[ref].needs_workspace is True
 
 
 class TestTheCallerBindingFailsClosed:
@@ -265,6 +283,8 @@ class TestListAgents:
             "Invoice helper",
             "Support Triage",
         ]
+        # The name leads: it is what the model tells the person.
+        assert list(agents[0])[0] == "name"
         assert set(agents[0]) == {
             "id",
             "slug",
@@ -275,6 +295,16 @@ class TestListAgents:
         }
         assert agents[0]["version"] == "3"
         assert result.content["next_cursor"] is None
+
+    async def test_each_row_links_its_agent(self, listing, monkeypatch):
+        monkeypatch.setattr(env.agenta, "web_url", "https://cloud.agenta.ai")
+
+        result = await _call(handle_list_agents, listing, workspace_id=WORKSPACE)
+
+        assert [agent["url"] for agent in result.content["agents"]] == [
+            f"https://cloud.agenta.ai/m/w/{WORKSPACE}/p/{PROJECT}/agents/{agent_id}"
+            for agent_id in (TARGET, CALLER)
+        ]
 
     async def test_heads_are_read_in_one_batch_from_the_default_variants(self, listing):
         await _call(handle_list_agents, listing)
@@ -468,10 +498,13 @@ class TestReadAgentConfig:
         )
 
         content = result.content
-        assert content.base_revision_id == str(HEAD)
-        assert content.value == "Answer invoice questions."
+        # Led by the agent it is about, then the `read_config` answer.
+        assert list(content)[0] == "agent"
+        assert content["agent"]["name"] == "Invoice helper"
+        assert content["base_revision_id"] == str(HEAD)
+        assert content["value"] == "Answer invoice questions."
         # The draft warning is about the caller's run, not about this agent.
-        assert content.is_draft is False and not content.warnings
+        assert content["is_draft"] is False and "warnings" not in content
         # The head the target resolution loaded is the one projected: no second read.
         service.fetch_workflow_revision.assert_awaited_once()
 
@@ -932,6 +965,178 @@ class TestCreateAgent:
 
         assert result.content.code == "invalid_arguments"
         create.assert_not_awaited()
+
+
+class TestTheCreateAnswerOffersAFirstMessage:
+    """After a create, the model offers to send the new agent a first message. The answer
+    carries the operation that adds the agent to the caller's own tools as a subagent, and the
+    step names the tool that operation gives it."""
+
+    SLUG = "invoice-helper-0a1b2c3d"
+
+    @pytest.fixture
+    def created(self, monkeypatch):
+        created = SimpleWorkflow(
+            id=TARGET,
+            slug=self.SLUG,
+            name="Invoice helper",
+            description="Answers questions about invoices.",
+            revision_id=HEAD,
+        )
+        monkeypatch.setattr(
+            SimpleWorkflowsService,
+            "create_idempotent",
+            AsyncMock(
+                return_value=SimpleWorkflowCreateResult(
+                    workflow=created, replayed=False
+                )
+            ),
+        )
+        return created
+
+    async def _create(self, service):
+        return await _call(
+            handle_create_agent,
+            service,
+            name="Invoice helper",
+            description="Answers questions about invoices.",
+            caller_agent_id=str(CALLER),
+            caller_session_id=SESSION,
+        )
+
+    async def test_the_step_is_conditional_and_names_the_tool(self, service, created):
+        content = (await self._create(service)).content
+
+        assert content["next_step"] == (
+            "Offer to send Invoice helper a first message to try it. If you have "
+            "commit_revision, commit `subagent_operation` to your own configuration; "
+            f"from your next turn, call the tool `{self.SLUG}` with "
+            '{"messages": [{"role": "user", "content": "..."}]}.'
+        )
+        assert content["subagent_operation"] == {
+            "operation": "add_item",
+            "target": ["parameters", "agent", "tools"],
+            "value": {
+                "type": "reference",
+                "ref_by": "variant",
+                "slug": self.SLUG,
+                "description": "Answers questions about invoices.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "messages": {"x-ag-type-ref": "messages", "type": "array"}
+                    },
+                    "required": ["messages"],
+                },
+            },
+        }
+
+    async def test_the_operation_commits_and_becomes_that_tool(self, service, created):
+        """The operation runs through the self-edit commit engine on a new agent, and the
+        saved entry resolves to a callable tool with the name the step gives and a
+        `messages` input a model can fill."""
+        import jsonschema
+
+        from agenta.sdk.agents.platform.connection import PlatformConnection
+        from agenta.sdk.agents.platform.workflow import AgentaWorkflowToolResolver
+        from agenta.sdk.agents.tools import parse_tool_config
+        from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
+        from oss.src.core.workflows.dtos import WorkflowRevisionCommit
+
+        operation = (await self._create(service)).content["subagent_operation"]
+
+        data, message, _ = service._apply_delta(
+            base=new_agent_revision_data(),
+            workflow_revision_commit=WorkflowRevisionCommit(
+                delta={"operations": [operation]}
+            ),
+            scope_policy=AGENT_COMMIT_SCOPE,
+            agent_context=True,
+        )
+        tools = data["parameters"]["agent"]["tools"]
+        assert tools[0]["type"] == "agenta_tools"
+        resolution = await AgentaWorkflowToolResolver(
+            PlatformConnection(base_url="https://api.x/api", authorization="Access t")
+        ).resolve([parse_tool_config(tools[-1])])
+
+        spec = next(spec for spec in resolution.tool_specs if spec.name == self.SLUG)
+        assert spec.call_ref == f"workflow.variant.{self.SLUG}"
+        assert spec.description == "Answers questions about invoices."
+        jsonschema.validate(
+            {"messages": [{"role": "user", "content": "Hi, who are you?"}]},
+            spec.input_schema,
+        )
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({}, spec.input_schema)
+        assert message
+
+
+class TestEveryAgentCarriesALinkToItsPage:
+    """Each agent the tools return carries `url`, its page in the web app (`/m`), so the
+    model can give the person a link. Without a workspace or a usable web address there is
+    no `url`, never a guessed one."""
+
+    URL = f"https://cloud.agenta.ai/m/w/{WORKSPACE}/p/{PROJECT}/agents/{TARGET}"
+
+    @pytest.fixture(autouse=True)
+    def web_url(self, monkeypatch):
+        monkeypatch.setattr(env.agenta, "web_url", "https://cloud.agenta.ai/")
+
+    def _read(self, service, workspace_id=WORKSPACE):
+        return _call(
+            handle_read_agent_config,
+            service,
+            workspace_id=workspace_id,
+            agent="invoice-helper-k3x9",
+            caller_agent_id=str(CALLER),
+        )
+
+    async def test_read_and_edit_answers_link_the_agent(self, service):
+        read = await self._read(service)
+        edit = await _call(
+            handle_edit_agent_config, service, workspace_id=WORKSPACE, **_edit_args()
+        )
+
+        assert read.content["agent"] == {
+            "name": "Invoice helper",
+            "id": str(TARGET),
+            "slug": "invoice-helper-k3x9",
+            "url": self.URL,
+        }
+        assert edit.content["agent"]["url"] == self.URL
+
+    async def test_the_dispatcher_hands_the_caller_workspace_on(self, service):
+        result = await dispatch_platform_tool_handler(
+            call_ref=READ_AGENT_CONFIG_CALL_REF,
+            arguments={"agent": "invoice-helper-k3x9", "caller_agent_id": str(CALLER)},
+            headers=None,
+            project_id=PROJECT,
+            user_id=USER,
+            workflows_service=service,
+            tracing_service=None,
+            workspace_id=WORKSPACE,
+        )
+
+        assert result.content["agent"]["url"] == self.URL
+
+    async def test_no_workspace_means_no_link(self, service):
+        result = await self._read(service, workspace_id=None)
+
+        assert "url" not in result.content["agent"]
+
+    @pytest.mark.parametrize(
+        "web_url",
+        ["", "cloud.agenta.ai", "https://user:pw@cloud.agenta.ai", "https://a.ai/?x=1"],
+        ids=["empty", "no-scheme", "credentials", "query"],
+    )
+    async def test_an_unusable_web_address_means_no_link(
+        self, service, monkeypatch, web_url
+    ):
+        monkeypatch.setattr(env.agenta, "web_url", web_url)
+
+        result = await self._read(service)
+
+        assert "url" not in result.content["agent"]
 
 
 class TestCreateAgentRetry:

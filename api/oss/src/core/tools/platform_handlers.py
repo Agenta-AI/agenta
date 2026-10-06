@@ -32,6 +32,7 @@ from agenta.sdk.agents.platform.op_catalog import (
     LIST_AGENTS_DEFAULT_LIMIT,
     LIST_AGENTS_MAX_LIMIT,
 )
+from agenta.sdk.agents.tools import sanitize_tool_name
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
@@ -82,6 +83,8 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.gateways.dtos import no_cookie_jar
 from oss.src.core.gateways.egress import EgressRefusedError
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.utils.env import env
+from oss.src.utils.web_links import agent_page_url
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
 TEST_RUN_CALL_REF = "tools.agenta.test_run"
@@ -1177,8 +1180,22 @@ async def _resolve_other_agent(
     return workflow, head
 
 
-def _agent_summary(workflow: Any) -> Dict[str, Any]:
-    return {"id": str(workflow.id), "slug": workflow.slug, "name": workflow.name}
+def _agent_summary(
+    workflow: Any, *, project_id: UUID, workspace_id: Optional[UUID]
+) -> Dict[str, Any]:
+    """The agent as every answer names it. `name` comes first, because it is what the model
+    tells the person; `id` and `slug` are tool arguments. `url` opens the agent in the web
+    app, and is left out when this deployment cannot build one."""
+    summary = {"name": workflow.name, "id": str(workflow.id), "slug": workflow.slug}
+    url = agent_page_url(
+        web_url=env.agenta.web_url,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        agent_id=workflow.id,
+    )
+    if url:
+        summary["url"] = url
+    return summary
 
 
 async def _attribution(
@@ -1283,6 +1300,7 @@ async def handle_list_agents(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
+    workspace_id: Optional[UUID] = None,
 ) -> PlatformHandlerResult:
     """The agents in the caller's project, newest first, one page at a time.
 
@@ -1352,7 +1370,9 @@ async def handle_list_agents(
             if head is None or head.flags is None or not head.flags.is_agent:
                 continue
             agent = {
-                **_agent_summary(workflow),
+                **_agent_summary(
+                    workflow, project_id=project_id, workspace_id=workspace_id
+                ),
                 "description": workflow.description,
                 "version": head.version,
                 "updated_at": head.created_at.isoformat() if head.created_at else None,
@@ -1379,6 +1399,7 @@ async def handle_read_agent_config(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
+    workspace_id: Optional[UUID] = None,
 ) -> PlatformHandlerResult:
     """Another agent's latest saved configuration, with the same answer `read_config` gives.
 
@@ -1395,7 +1416,7 @@ async def handle_read_agent_config(
     try:
         parsed = _parse_arguments(arguments)
         caller_id = _bound_caller(parsed)
-        _, head = await _resolve_other_agent(
+        workflow, head = await _resolve_other_agent(
             workflows_service=workflows_service,
             project_id=project_id,
             arguments=parsed,
@@ -1411,7 +1432,17 @@ async def handle_read_agent_config(
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
-    return PlatformHandlerResult(content=_read_config_response(outcome, is_draft=False))
+    # The `read_config` answer, led by the agent it is about.
+    return PlatformHandlerResult(
+        content={
+            "agent": _agent_summary(
+                workflow, project_id=project_id, workspace_id=workspace_id
+            ),
+            **_read_config_response(outcome, is_draft=False).model_dump(
+                mode="json", exclude_none=True
+            ),
+        }
+    )
 
 
 async def handle_edit_agent_config(
@@ -1423,6 +1454,7 @@ async def handle_edit_agent_config(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+    workspace_id: Optional[UUID] = None,
 ) -> PlatformHandlerResult:
     """Commit ordered operations to another agent's latest revision. Never deploys.
 
@@ -1488,7 +1520,9 @@ async def handle_edit_agent_config(
     return PlatformHandlerResult(
         content={
             "status": outcome.status,
-            "agent": _agent_summary(workflow),
+            "agent": _agent_summary(
+                workflow, project_id=project_id, workspace_id=workspace_id
+            ),
             "version": revision.version if revision else None,
             "base_revision_id": str(revision.id) if revision else None,
             "message": revision.message if revision else None,
@@ -1498,6 +1532,32 @@ async def handle_edit_agent_config(
         # itself, and this is another agent.
         wrote_revision=outcome.status == "committed",
     )
+
+
+# A new agent's inputs, as the "New agent" template declares them. The web copies the target's
+# declared inputs into a subagent's `input_schema` the same way (`handleAddWorkflowReference`).
+_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {"messages": {"x-ag-type-ref": "messages", "type": "array"}},
+    "required": ["messages"],
+}
+
+
+def _subagent_operation(agent: Any) -> Dict[str, Any]:
+    """The operation that adds `agent` to the caller's own tools, so the caller can talk to
+    it: a `reference` tool that runs the agent's latest version, the shape the web writes
+    when a person adds a subagent (`normalizeSubagentReference`)."""
+    return {
+        "operation": "add_item",
+        "target": ["parameters", "agent", "tools"],
+        "value": {
+            "type": "reference",
+            "ref_by": "variant",
+            "slug": agent.slug,
+            "description": agent.description or agent.name,
+            "input_schema": _AGENT_INPUT_SCHEMA,
+        },
+    }
 
 
 # The engine's next steps for these reasons send the model to read the stored configuration
@@ -1527,6 +1587,7 @@ async def handle_create_agent(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+    workspace_id: Optional[UUID] = None,
 ) -> PlatformHandlerResult:
     """A new agent from the "New agent" template, with the caller's operations applied.
 
@@ -1612,13 +1673,24 @@ async def handle_create_agent(
 
     if not _sets_instructions(operations):
         warnings.append(_TEMPLATE_INSTRUCTIONS_WARNING)
+    tool_name = sanitize_tool_name(created.slug)
     return PlatformHandlerResult(
         content={
             "status": "created",
-            "agent": _agent_summary(created),
+            "agent": _agent_summary(
+                created, project_id=project_id, workspace_id=workspace_id
+            ),
             "base_revision_id": str(created.revision_id),
             "message": message,
             "warnings": [w.model_dump(mode="json") for w in warnings],
+            # Conditional: the caller may not have `commit_revision` in this run.
+            "next_step": (
+                f"Offer to send {created.name} a first message to try it. If you have "
+                "commit_revision, commit `subagent_operation` to your own configuration; "
+                f"from your next turn, call the tool `{tool_name}` with "
+                '{"messages": [{"role": "user", "content": "..."}]}.'
+            ),
+            "subagent_operation": _subagent_operation(created),
         },
         wrote_revision=True,
     )
@@ -1653,6 +1725,8 @@ class PlatformToolHandlerRegistration:
     requires_elevation: Optional[Callable[[Any], bool]] = None
     # Drive-backed handlers take the router's MountsService as `mounts_service`.
     needs_mounts: bool = False
+    # Handlers that link to a page of the web app take the caller's `workspace_id`.
+    needs_workspace: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -1691,24 +1765,28 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
         handler=handle_list_agents,
         elevated_permission=Permission.VIEW_WORKFLOWS,
+        needs_workspace=True,
     ),
     READ_AGENT_CONFIG_CALL_REF: PlatformToolHandlerRegistration(
         call_ref=READ_AGENT_CONFIG_CALL_REF,
         timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
         handler=handle_read_agent_config,
         elevated_permission=Permission.VIEW_WORKFLOWS,
+        needs_workspace=True,
     ),
     CREATE_AGENT_CALL_REF: PlatformToolHandlerRegistration(
         call_ref=CREATE_AGENT_CALL_REF,
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_create_agent,
         elevated_permission=Permission.EDIT_WORKFLOWS,
+        needs_workspace=True,
     ),
     EDIT_AGENT_CONFIG_CALL_REF: PlatformToolHandlerRegistration(
         call_ref=EDIT_AGENT_CONFIG_CALL_REF,
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_edit_agent_config,
         elevated_permission=Permission.EDIT_WORKFLOWS,
+        needs_workspace=True,
     ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
     # demand for the same act: writing a file needs EDIT_MOUNTS, reading one VIEW_MOUNTS.
@@ -1767,6 +1845,7 @@ async def dispatch_platform_tool_handler(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
     mounts_service: Any = None,
+    workspace_id: Optional[UUID] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -1777,6 +1856,8 @@ async def dispatch_platform_tool_handler(
     extra: Dict[str, Any] = (
         {"mounts_service": mounts_service} if registration.needs_mounts else {}
     )
+    if registration.needs_workspace:
+        extra["workspace_id"] = workspace_id
     return await registration.handler(
         arguments=arguments,
         headers=headers,
