@@ -14,6 +14,7 @@
  */
 import dayjs from "./dayjs"
 import {
+    elicitationPropertyOrder,
     normalizeStringFormat,
     type ElicitationFieldSchema,
     type ElicitationRequestPayload,
@@ -248,17 +249,17 @@ const buildStep = (
 }
 
 /**
- * The payload's questions, in the order the agent wrote them.
- *
- * Deliberately NOT reordered (required first, say): the agent authored these as a narrative, and
- * reordering would also desynchronise the review rows from the message above them.
+ * The payload's questions, in the order the agent wrote them (`x-ag-order`, which survives the
+ * JSONB transcript that re-sorts keys). Deliberately NOT reordered further (required first, say):
+ * the agent authored these as a narrative.
  */
 export function buildElicitationSteps(payload: ElicitationRequestPayload): ElicitationForm {
+    const {properties} = payload.requestedSchema
     const required = new Set(payload.requestedSchema.required ?? [])
     return {
         message: payload.message,
-        steps: Object.entries(payload.requestedSchema.properties).map(([name, field]) =>
-            buildStep(name, field, required.has(name)),
+        steps: elicitationPropertyOrder(payload.requestedSchema).map((name) =>
+            buildStep(name, properties[name], required.has(name)),
         ),
         groupHint: payload.requestedSchema["x-ag-stepper"] === true,
     }

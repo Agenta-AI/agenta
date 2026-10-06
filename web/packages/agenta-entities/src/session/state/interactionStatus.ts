@@ -34,6 +34,8 @@ export interface SessionInteractionRowState {
     kind: SessionInteractionKind
     resolution?: Record<string, unknown>
     toolCallId?: string
+    /** The tool input as the agent sent it. The row column is JSON, so its key order survives. */
+    requestInput?: Record<string, unknown>
 }
 
 export type SessionInteractionRowStates = ReadonlyMap<string, SessionInteractionRowState>
@@ -44,6 +46,7 @@ export function interactionStatesFromRows(rows: SessionInteraction[]): SessionIn
         if (typeof row.token !== "string" || !row.token) continue
 
         const toolCallId = row.data?.request?.tool_call_id
+        const requestInput = row.data?.request?.args
         states.set(row.token, {
             id: row.id ?? row.token,
             token: row.token,
@@ -51,6 +54,9 @@ export function interactionStatesFromRows(rows: SessionInteraction[]): SessionIn
             kind: row.kind as SessionInteractionKind,
             ...(row.data?.resolution ? {resolution: row.data.resolution} : {}),
             ...(typeof toolCallId === "string" && toolCallId ? {toolCallId} : {}),
+            ...(requestInput && typeof requestInput === "object" && !Array.isArray(requestInput)
+                ? {requestInput: requestInput as Record<string, unknown>}
+                : {}),
             ...(typeof row.turn_id === "string" && row.turn_id ? {turnId: row.turn_id} : {}),
         })
     }

@@ -2,10 +2,10 @@
  * Headless state for the question dock — which parked `request_input` call the card is answering.
  *
  * A trimmed `useConnectionDock`. Deliberately WITHOUT its group latch, batch, position/total and
- * `bringForward`: all of that exists to drive the connect dock's per-card progress dots across a
- * shingle stack, and the runner parks exactly ONE interaction per turn (a second is force-settled
- * `DEFERRED_NOT_EXECUTED` and re-asked — see `ConnectToolWidget`). Copying it would reintroduce
- * through the latches the very machinery the docked card rejects the shingle stack for.
+ * `bringForward`: all of that drives the connect dock's per-card progress dots across a shingle
+ * stack. The runner parks every pending client tool in a turn and the run resumes only once all
+ * are answered, so several questions can be parked; the dock shows them one card at a time,
+ * front first, and the next takes the front as the previous one's answer leaves.
  *
  * What IS kept from that hook is the closing latch, which is load-bearing: without it the card's
  * content vanishes the instant the call settles, and the host animates a collapse around an empty box.
@@ -51,7 +51,7 @@ export interface ElicitationDockState {
     open: boolean
     /** The card that owns the actions; null when nothing is parked. */
     front: ClientToolMeta | null
-    /** Everything parked, front first. Second and later simply wait — see the note above. */
+    /** Everything parked, front first. Second and later wait for the front one's answer. */
     queue: ClientToolMeta[]
     /** Whether the dock may bind its keyboard shortcuts (see `approvalsPending`). */
     shortcutsEnabled: boolean

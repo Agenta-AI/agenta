@@ -1,11 +1,11 @@
 /**
  * Which parked `request_input` calls the run is currently blocked on — the sibling of
- * ./connectInteractions, read by the docked question card on both /m and oss.
+ * ./connectInteractions, read by the docked question card.
  *
  * Unlike the connect dock there is no "whole batch" reader here. That one exists to feed progress
- * dots across several cards; the runner parks exactly ONE interaction per turn (a second is
- * force-settled `DEFERRED_NOT_EXECUTED` and re-asked next turn — see `ConnectToolWidget`), so the
- * question dock shows one card and any straggler simply waits behind it.
+ * dots across several cards. The runner parks every pending client tool in a turn, so several
+ * questions can be parked at once; the question dock shows one card at a time and the rest wait
+ * behind it, in the order the agent asked.
  */
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground/agent-chat"
 import {CLIENT_TOOL_DESCRIPTORS, canonicalClientToolName} from "@agenta/shared/clientTools"

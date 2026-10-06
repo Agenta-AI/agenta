@@ -106,6 +106,49 @@ describe("the reserved box", () => {
     })
 })
 
+describe("what the card shows", () => {
+    it("shows the agent's message above the questions", () => {
+        const {container} = setup()
+
+        expect(container.querySelector("[data-elicitation-message]")?.textContent).toBe(
+            "A few details",
+        )
+    })
+
+    it("opens a fully defaulted form on question one, not on a review claiming answers", () => {
+        const {container} = setup({
+            message: "Defaults are prefilled",
+            requestedSchema: {
+                type: "object",
+                properties: {
+                    region: {type: "string", title: "Region", enum: ["eu", "us"], default: "eu"},
+                    retries: {type: "integer", title: "Retries", default: 3},
+                },
+            },
+        })
+
+        expect(screen.getByText("1/2")).toBeTruthy()
+        expect(container.textContent).toContain("1. Region")
+        expect(container.textContent).not.toContain("Review your answers")
+    })
+
+    it("asks in x-ag-order when the properties arrive re-sorted", () => {
+        const {container} = setup({
+            message: "Three quick questions",
+            requestedSchema: {
+                type: "object",
+                properties: {
+                    style: {type: "string", title: "Style"},
+                    destination: {type: "string", title: "Destination"},
+                },
+                "x-ag-order": ["destination", "style"],
+            },
+        })
+
+        expect(container.textContent).toContain("1. Destination")
+    })
+})
+
 describe("chrome", () => {
     it("uses real Button components for the nav, so a disabled control stays chrome-less", () => {
         // A raw <button> here grew a visible 1px box the moment it was disabled — the exact case
@@ -685,22 +728,6 @@ describe("the controls the dialect grew", () => {
         expect(onOutput).toHaveBeenCalledTimes(1)
         const {output} = onOutput.mock.calls[0][0]
         expect(output.content.repos).toEqual(["agenta"])
-    })
-
-    it("opens on the review screen when the schema already answered everything", () => {
-        setup({
-            message: "Confirm",
-            requestedSchema: {
-                type: "object",
-                properties: {
-                    region: {type: "string", title: "Region", default: "eu"},
-                    retries: {type: "integer", title: "Retries", default: 3},
-                },
-            },
-        })
-
-        expect(screen.getByText("Send answers")).toBeTruthy()
-        expect(screen.getByText("Region")).toBeTruthy()
     })
 })
 

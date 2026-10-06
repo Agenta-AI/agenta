@@ -29,12 +29,20 @@ export const AUTO_ADVANCE_MS = 900
 const DRAFT_PREFIX = "agenta:elicitation-draft:"
 const DRAFT_DEBOUNCE_MS = 400
 
+/**
+ * Where the card is: a question by property name, the review screen (`null`), or `undefined`
+ * before the user has moved, which is whichever question comes first. Names, not indices: the
+ * same call can arrive in another key order (a cached transcript, then the server's), and the
+ * card must stay on the question the user is answering.
+ */
+type Place = string | null | undefined
+
 interface Draft {
     values: Record<string, unknown>
     /** Without this a reload turns a skipped default back into an answer and sends it. */
     skipped?: string[]
     /** Restoring the VALUES but not the place would drop the user back at question one. */
-    index: number
+    at: Place
 }
 
 const readDraft = (toolCallId: string, steps: ElicitationStep[]): Draft | null => {
@@ -54,12 +62,15 @@ const readDraft = (toolCallId: string, steps: ElicitationStep[]): Draft | null =
         // Skips count as content: a draft whose only news is "the user declined these" still has
         // something to restore, and dropping it resurrects the defaults they declined.
         if (Object.keys(kept).length === 0 && !skipped.length) return null
-        const index = typeof parsed.index === "number" ? parsed.index : 0
-        // Clamp to the real last screen, not to `steps.length`: a schema that shrank to one
-        // question has no review to land on, and an index past its only step renders neither the
-        // question nor the review while `primary()` happily completes.
-        const last = steps.length > 1 ? steps.length : Math.max(steps.length - 1, 0)
-        return {values: kept, skipped, index: Math.max(0, Math.min(index, last))}
+        // A question the form no longer asks, a review a one-question form does not have, or a
+        // pre-name draft (it saved an index) all restart at question one with the answers kept.
+        const at =
+            typeof parsed.at === "string" && names.has(parsed.at)
+                ? parsed.at
+                : parsed.at === null && steps.length > 1
+                  ? null
+                  : undefined
+        return {values: kept, skipped, at}
     } catch {
         return null
     }
@@ -89,7 +100,7 @@ const clearDraft = (toolCallId: string): void => {
 export const discardElicitationDraft = clearDraft
 
 interface State {
-    index: number
+    at: Place
     values: Record<string, unknown>
     /** Explicitly skipped, which is not the same as "not answered yet" — it clears any default. */
     skipped: string[]
@@ -99,10 +110,13 @@ interface State {
     hold: {label: string; seq: number} | null
     /** Highlighted row on an enum/boolean step, for ↑ ↓ ↵. */
     cursor: number
+    /** The answers left for the agent. The draft goes with them; an edit after a failed send
+     * clears this and the draft comes back. */
+    sent: boolean
 }
 
 type Action =
-    | {type: "goTo"; index: number}
+    | {type: "goTo"; at: Place}
     | {type: "setValue"; name: string; value: unknown}
     | {type: "setCursor"; cursor: number}
     | {
@@ -113,18 +127,28 @@ type Action =
           cursor: number
           /** Advance now instead of holding — a digit or Enter. */
           immediate: boolean
-          lastIndex: number
+          next: Place
       }
     | {type: "cancelHold"}
     | {type: "error"; error: string}
     | {type: "toggle"; name: string; option: string}
     | {type: "skip"; name: string}
-    | {type: "restore"; values: Record<string, unknown>; skipped: string[]; index: number}
+    | {type: "restore"; values: Record<string, unknown>; skipped: string[]; at: Place}
+    | {type: "sent"}
+
+/** Actions that change what would be sent, or where the user is. */
+const EDITS = new Set<Action["type"]>(["goTo", "setValue", "pick", "toggle", "skip", "restore"])
 
 const reducer = (state: State, action: Action): State => {
+    if (action.type === "sent") return {...state, sent: true}
+    const next = applyAction(state, action)
+    return EDITS.has(action.type) && next.sent ? {...next, sent: false} : next
+}
+
+const applyAction = (state: State, action: Action): State => {
     switch (action.type) {
         case "goTo":
-            return {...state, index: action.index, error: null, hold: null, cursor: 0}
+            return {...state, at: action.at, error: null, hold: null, cursor: 0}
         case "setValue":
             return {
                 ...state,
@@ -145,13 +169,7 @@ const reducer = (state: State, action: Action): State => {
                 cursor: action.cursor,
                 error: null,
             }
-            if (action.immediate)
-                return {
-                    ...picked,
-                    index: Math.min(state.index + 1, action.lastIndex),
-                    hold: null,
-                    cursor: 0,
-                }
+            if (action.immediate) return {...picked, at: action.next, hold: null, cursor: 0}
             return {...picked, hold: {label: action.label, seq: (state.hold?.seq ?? 0) + 1}}
         }
         // Multi-select never auto-advances: you are still picking, and moving on mid-selection
@@ -193,7 +211,7 @@ const reducer = (state: State, action: Action): State => {
                 ...state,
                 values: {...state.values, ...action.values},
                 skipped: action.skipped,
-                index: action.index,
+                at: action.at,
             }
         default:
             return state
@@ -258,7 +276,8 @@ export interface ElicitationStepperState {
     /** Validate and advance, or complete on the last screen. */
     primary: () => void
     skip: () => void
-    /** Drop the saved draft. The dock calls this on every settle path. */
+    /** Drop the saved draft. Sending the form drops it here; the dock calls it on every other
+     * settle path. */
     discardDraft: () => void
 }
 
@@ -303,27 +322,38 @@ export const useElicitationStepper = ({
     const submitsOnPick =
         !isMultiStep && (steps[0]?.kind === "enum" || steps[0]?.kind === "boolean")
 
-    // Read by the `pick` callback, which must stay identity-stable across steps: closing over
-    // `lastIndex` directly would clamp an immediate advance against a stale end-of-form.
-    const lastIndexRef = useRef(lastIndex)
-    lastIndexRef.current = lastIndex
+    // Every form opens on its first question. Defaults only prefill: a form that opened on its
+    // review screen read "N/N, N answered" for questions the user never saw.
+    const [state, dispatch] = useReducer(reducer, steps, (initial) => ({
+        at: undefined,
+        values: initialStepValues(initial),
+        skipped: [],
+        error: null,
+        hold: null,
+        cursor: 0,
+        sent: false,
+    }))
 
-    const [state, dispatch] = useReducer(reducer, steps, (initial) => {
-        const values = initialStepValues(initial)
-        // A form the schema already answered opens on its review screen: walking N questions to
-        // press Next N times is the one case where stepping costs the user and gives nothing back.
-        // Requires a review screen to open onto, so a single-question form is unaffected.
-        const settled =
-            initial.length > 1 && initial.every((step) => isStepAnswered(step, values[step.name]))
-        return {
-            index: settled ? initial.length : 0,
-            values,
-            skipped: [],
-            error: null,
-            hold: null,
-            cursor: 0,
-        }
-    })
+    // The place is a name; everything the card draws counts in indices.
+    const index =
+        state.at === undefined
+            ? 0
+            : state.at === null
+              ? lastIndex
+              : Math.max(
+                    0,
+                    steps.findIndex((s) => s.name === state.at),
+                )
+    const placeAt = useCallback(
+        (target: number): Place => {
+            const clamped = Math.max(0, Math.min(target, lastIndex))
+            return clamped >= total ? null : (steps[clamped]?.name ?? null)
+        },
+        [steps, total, lastIndex],
+    )
+    // Read by the `pick` callback and the hold timer, which must stay identity-stable across steps.
+    const nextPlaceRef = useRef<Place>(undefined)
+    nextPlaceRef.current = placeAt(index + 1)
 
     // Restore once per parked call. Values merge OVER the schema defaults: what the user typed wins.
     const restoredRef = useRef<string | null>(null)
@@ -336,7 +366,7 @@ export const useElicitationStepper = ({
                 type: "restore",
                 values: draft.values,
                 skipped: draft.skipped ?? [],
-                index: draft.index,
+                at: draft.at,
             })
     }, [toolCallId, steps])
 
@@ -355,38 +385,39 @@ export const useElicitationStepper = ({
         }
     }, [toolCallId])
 
-    useEffect(() => {
-        pendingRef.current = {values: state.values, skipped: state.skipped, index: state.index}
-        if (timerRef.current) clearTimeout(timerRef.current)
-        timerRef.current = setTimeout(flushDraft, DRAFT_DEBOUNCE_MS)
-        return () => {
-            if (timerRef.current) clearTimeout(timerRef.current)
-        }
-    }, [state.values, state.skipped, state.index, flushDraft])
-
-    useEffect(() => flushDraft, [flushDraft])
-
     const discardDraft = useCallback(() => {
         pendingRef.current = null
         if (timerRef.current) clearTimeout(timerRef.current)
         clearDraft(toolCallId)
     }, [toolCallId])
 
+    useEffect(() => {
+        // A one-question pick changes state in the same handler that sends it; without this the
+        // pick would be saved again right after the send discarded the draft.
+        if (state.sent) return undefined
+        pendingRef.current = {values: state.values, skipped: state.skipped, at: state.at}
+        if (timerRef.current) clearTimeout(timerRef.current)
+        timerRef.current = setTimeout(flushDraft, DRAFT_DEBOUNCE_MS)
+        return () => {
+            if (timerRef.current) clearTimeout(timerRef.current)
+        }
+    }, [state.values, state.skipped, state.at, state.sent, flushDraft, discardDraft])
+
+    useEffect(() => flushDraft, [flushDraft])
+
     // Auto-advance. Any interaction that dispatches `cancelHold` clears `state.hold`, which tears
     // this effect down before it fires — the hold IS the timer, so there is no second source of truth.
-    const holdTargetRef = useRef(state.index)
-    holdTargetRef.current = state.index
     useEffect(() => {
         if (state.hold === null) return undefined
         const timer = setTimeout(
-            () => dispatch({type: "goTo", index: Math.min(holdTargetRef.current + 1, lastIndex)}),
+            () => dispatch({type: "goTo", at: nextPlaceRef.current}),
             AUTO_ADVANCE_MS,
         )
         return () => clearTimeout(timer)
-    }, [state.hold?.seq, lastIndex])
+    }, [state.hold?.seq])
 
-    const isReview = hasReview && state.index >= total
-    const step = isReview ? null : (steps[state.index] ?? null)
+    const isReview = hasReview && index >= total
+    const step = isReview ? null : (steps[index] ?? null)
 
     const isAnswered = useCallback(
         (candidate: ElicitationStep) =>
@@ -405,8 +436,19 @@ export const useElicitationStepper = ({
     )
 
     const goTo = useCallback(
-        (index: number) => dispatch({type: "goTo", index: Math.max(0, Math.min(index, lastIndex))}),
-        [lastIndex],
+        (target: number) => dispatch({type: "goTo", at: placeAt(target)}),
+        [placeAt],
+    )
+
+    // The draft goes now, not in an effect: the host closes the dock as the answer leaves, and the
+    // card can unmount before any effect of this render runs.
+    const send = useCallback(
+        (answers: Record<string, unknown>) => {
+            discardDraft()
+            dispatch({type: "sent"})
+            onComplete(answers)
+        },
+        [discardDraft, onComplete],
     )
 
     const primary = useCallback(() => {
@@ -419,25 +461,25 @@ export const useElicitationStepper = ({
                 return
             }
         }
-        if (state.index >= lastIndex) {
-            onComplete(content)
+        if (index >= lastIndex) {
+            send(content)
             return
         }
-        dispatch({type: "goTo", index: state.index + 1})
-    }, [step, state.skipped, state.values, state.index, lastIndex, onComplete, content])
+        goTo(index + 1)
+    }, [step, state.skipped, state.values, index, lastIndex, send, content, goTo])
 
     const skip = useCallback(() => {
         if (step) dispatch({type: "skip", name: step.name})
-        dispatch({type: "goTo", index: Math.min(state.index + 1, lastIndex)})
-    }, [step, state.index, lastIndex])
+        goTo(index + 1)
+    }, [step, index, goTo])
 
     const answeredCount = steps.filter(isAnswered).length
 
     return {
         steps,
         step,
-        index: state.index,
-        position: Math.min(state.index + 1, Math.max(total, 1)),
+        index,
+        position: Math.min(index + 1, Math.max(total, 1)),
         total,
         isReview,
         hasReview,
@@ -447,11 +489,11 @@ export const useElicitationStepper = ({
         error: state.error,
         hold: state.hold?.label ?? null,
         cursor: state.cursor,
-        canGoBack: state.index > 0,
-        canGoForward: state.index < lastIndex,
+        canGoBack: index > 0,
+        canGoForward: index < lastIndex,
         answeredCount,
         skippedCount: steps.length - answeredCount,
-        primaryLabel: primaryLabelFor({index: state.index, lastIndex, hasReview, total}),
+        primaryLabel: primaryLabelFor({index, lastIndex, hasReview, total}),
         content,
         isAnswered,
         setValue: useCallback(
@@ -476,13 +518,13 @@ export const useElicitationStepper = ({
                     label,
                     cursor,
                     immediate: immediate || submitsOnPick,
-                    lastIndex: lastIndexRef.current,
+                    next: nextPlaceRef.current,
                 })
                 // Built from the pick itself, not from `content`: that memo still holds the value
                 // from before this dispatch. A one-step form has no other answers to carry.
-                if (submitsOnPick) onComplete(collectStepContent(steps, {[name]: value}))
+                if (submitsOnPick) send(collectStepContent(steps, {[name]: value}))
             },
-            [submitsOnPick, steps, onComplete],
+            [submitsOnPick, steps, send],
         ),
         toggle: useCallback(
             (name: string, option: string) => dispatch({type: "toggle", name, option}),
@@ -490,8 +532,8 @@ export const useElicitationStepper = ({
         ),
         cancelHold: useCallback(() => dispatch({type: "cancelHold"}), []),
         goTo,
-        back: useCallback(() => goTo(state.index - 1), [goTo, state.index]),
-        forward: useCallback(() => goTo(state.index + 1), [goTo, state.index]),
+        back: useCallback(() => goTo(index - 1), [goTo, index]),
+        forward: useCallback(() => goTo(index + 1), [goTo, index]),
         primary,
         skip,
         discardDraft,

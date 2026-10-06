@@ -576,6 +576,15 @@ const LiveCard = ({
                 </div>
             </Eyebrow>
 
+            {/* The agent's framing of the whole form. Capped and scrollable like the question, and
+                fixed for the card's life, so it never moves the composer mid-answer. */}
+            <p
+                data-elicitation-message
+                className="m-0 max-h-[34px] overflow-y-auto text-xs leading-snug text-colorTextSecondary"
+            >
+                {form.message}
+            </p>
+
             {stepper.isMultiStep ? (
                 <div className="flex gap-1" aria-hidden>
                     {steps.map((candidate, index) => (
