@@ -3,6 +3,7 @@ import {useCallback, useMemo} from "react"
 import {
     EMPTY_FILTERS,
     PATH,
+    bucketOf,
     bucketStarts,
     keyedSeries,
     numberSeries,
@@ -66,28 +67,66 @@ export const useAnalyticsWindowData = (
     const agentsFailedQ = useAnalyticsBuckets("agentsFailed", window, filters, focus)
     const modelsQ = useAnalyticsBuckets("models", window, filters, focus)
     const modelsFailedQ = useAnalyticsBuckets("modelsFailed", window, filters, focus)
+    const providersQ = useAnalyticsBuckets("providers", window, filters, focus)
+    const providersFailedQ = useAnalyticsBuckets("providersFailed", window, filters, focus)
 
     return useMemo(() => {
         const keyed = (data: typeof overviewQ.data, paths: string[]): KeyedSeries =>
             keyedSeries(window, data ?? [], paths)
         const agentRuns = keyed(agentsQ.data, AGENT_PATHS)
         const modelRuns = keyed(modelsQ.data, [PATH.model])
+        const providerRuns = keyed(providersQ.data, [PATH.provider])
+        const agentFailed = keyed(agentsFailedQ.data, AGENT_PATHS)
+        const modelFailed = keyed(modelsFailedQ.data, [PATH.model])
+        const agents = statusOf(agentsQ, agentsFailedQ)
+        const models = statusOf(modelsQ, modelsFailedQ)
         return {
             starts: bucketStarts(window),
             overview: toOverview(window, overviewQ.data ?? [], failedQ.data ?? []),
             agentRuns,
-            agentFailed: keyed(agentsFailedQ.data, AGENT_PATHS),
+            agentFailed,
             agentOrder: rankKeys(agentRuns),
             modelRuns,
-            modelFailed: keyed(modelsFailedQ.data, [PATH.model]),
+            modelFailed,
             modelOrder: rankKeys(modelRuns),
+            /** Runs and failures per key for each way the page can group. */
+            groups: {
+                agent: {
+                    runs: agentRuns,
+                    failed: agentFailed,
+                    order: rankKeys(agentRuns),
+                    status: agents,
+                },
+                model: {
+                    runs: modelRuns,
+                    failed: modelFailed,
+                    order: rankKeys(modelRuns),
+                    status: models,
+                },
+                provider: {
+                    runs: providerRuns,
+                    failed: keyed(providersFailedQ.data, [PATH.provider]),
+                    order: rankKeys(providerRuns),
+                    status: statusOf(providersQ, providersFailedQ),
+                },
+            },
             status: {
                 overview: statusOf(overviewQ, failedQ),
-                agents: statusOf(agentsQ, agentsFailedQ),
-                models: statusOf(modelsQ, modelsFailedQ),
+                agents,
+                models,
             },
         }
-    }, [window, overviewQ, failedQ, agentsQ, agentsFailedQ, modelsQ, modelsFailedQ])
+    }, [
+        window,
+        overviewQ,
+        failedQ,
+        agentsQ,
+        agentsFailedQ,
+        modelsQ,
+        modelsFailedQ,
+        providersQ,
+        providersFailedQ,
+    ])
 }
 
 export type AnalyticsWindowData = ReturnType<typeof useAnalyticsWindowData>
@@ -135,45 +174,47 @@ export const useAgentNames = (ids: string[]) => {
 /** Splits cost one request per key, so they stop here. */
 export const SPLIT_KEYS = 25
 
-export type KeyColor = (dim: "agent" | "model", key: string) => string
+export type GroupDim = Exclude<AnalyticsGroup, "none">
 
-/** Page data, its splits, and per-key colors the page and drawer share. */
+export type KeyColor = (dim: GroupDim, key: string) => string
+
+const GROUP_DIMS: GroupDim[] = ["agent", "model", "provider"]
+
+/** Page data, the active group's split, and per-key colors the page and drawer share. */
 export const usePageAnalytics = (
     window: AnalyticsWindow,
     filters: AnalyticsFilters,
     group: AnalyticsGroup,
 ) => {
     const data = useAnalyticsWindowData(window, filters)
-    const agentSplit = useAnalyticsSplit(
-        "agent",
-        data.agentOrder.slice(0, SPLIT_KEYS),
+    const dim: GroupDim = group === "none" ? "agent" : group
+    const split = useAnalyticsSplit(
+        dim,
+        data.groups[dim].order.slice(0, SPLIT_KEYS),
         window,
         filters,
-        group === "agent",
-    )
-    const modelSplit = useAnalyticsSplit(
-        "model",
-        data.modelOrder.slice(0, SPLIT_KEYS),
-        window,
-        filters,
-        group === "model",
+        group !== "none",
     )
     const keyColor = useMemo<KeyColor>(() => {
         const shown = (...series: KeyedSeries[]) => [
             ...new Set(series.flatMap((s) => rankKeys(s).slice(0, 4))),
         ]
-        const orders = {
-            agent: shown(data.agentRuns, agentSplit.cost, agentSplit.tokens),
-            model: shown(data.modelRuns, modelSplit.cost, modelSplit.tokens),
-        }
-        return (dim, key) => {
-            const index = orders[dim].indexOf(key)
+        const orders = Object.fromEntries(
+            GROUP_DIMS.map((d) => [
+                d,
+                d === group
+                    ? shown(data.groups[d].runs, split.cost, split.tokens)
+                    : shown(data.groups[d].runs),
+            ]),
+        ) as Record<GroupDim, string[]>
+        return (d, key) => {
+            const index = orders[d].indexOf(key)
             return index < 0
                 ? analyticsColor("other")
                 : analyticsColor(SERIES_COLORS[index % SERIES_COLORS.length])
         }
-    }, [data.agentRuns, data.modelRuns, agentSplit, modelSplit])
-    return {data, agentSplit, modelSplit, keyColor}
+    }, [data.groups, split, group])
+    return {data, split, keyColor}
 }
 
 /** Failed runs fetched to read their reasons; a window with more uses the newest. */
@@ -206,33 +247,32 @@ export const useFailureReasons = (
         }),
     )
     return useMemo(() => {
-        const width = window.interval * 60_000
         const size = bucketStarts(window).length
         const byReason: KeyedSeries = {}
         const bucketAgents = Array.from({length: size}, () => ({}) as Record<string, number>)
         const agentReasons: Record<string, Record<string, number>> = {}
-        const total: Record<string, number> = {}
         const runs = query.data ?? []
         for (const run of runs) {
             const label = categorizeFailure(run.reason).label
-            total[label] = (total[label] ?? 0) + 1
             if (run.agentId) {
                 const reasons = (agentReasons[run.agentId] ??= {})
                 reasons[label] = (reasons[label] ?? 0) + 1
             }
-            const i = Math.floor((run.startedAt - window.oldest) / width)
+            const i = bucketOf(window, run.startedAt)
             if (i < 0 || i >= size) continue
             ;(byReason[label] ??= Array.from({length: size}, () => 0))[i] += 1
             if (run.agentId) bucketAgents[i][run.agentId] = (bucketAgents[i][run.agentId] ?? 0) + 1
         }
-        const top = ranked(total)
         return {
-            top,
-            /** Failed runs per bucket for each reason, keyed by reason label. */
-            byReason,
-            /** The most common reason first, so its color is the darkest. */
-            order: top.map((r) => r.label),
             mainReason: (agentId: string) => ranked(agentReasons[agentId] ?? {})[0]?.label ?? null,
+            reasonsAt: (bucket: number) =>
+                ranked(
+                    Object.fromEntries(
+                        Object.entries(byReason)
+                            .map(([label, values]) => [label, values[bucket] ?? 0] as const)
+                            .filter(([, count]) => count > 0),
+                    ),
+                ),
             busiestAgent: (bucket: number) => ranked(bucketAgents[bucket] ?? {})[0]?.label ?? null,
             sampled: runs.length,
             status: statusOf(query),

@@ -3,6 +3,8 @@ export interface TooltipRow {
     label: string
     value: string
     share?: string
+    /** A muted line under the row. */
+    note?: string
 }
 
 export interface ChartTooltipPanelProps {
@@ -31,17 +33,28 @@ export const ChartTooltipPanel = ({
         {rows.length ? (
             <div className="flex flex-col gap-1">
                 {rowsTitle ? <span className="text-muted-foreground">{rowsTitle}</span> : null}
-                {rows.map((row) => (
-                    <div key={row.label} className="flex items-center gap-1.5">
-                        <span
-                            className="size-2 shrink-0 rounded-full"
-                            style={{background: row.color}}
-                        />
-                        <span className="min-w-0 flex-1 truncate">{row.label}</span>
-                        <span className="font-medium tabular-nums">{row.value}</span>
-                        {row.share ? (
-                            <span className="w-8 text-right text-muted-foreground tabular-nums">
-                                {row.share}
+                {rows.map((row, i) => (
+                    // Two keys can share a name (two agents called the same).
+                    <div key={`${i}-${row.label}`} className="flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                            <span
+                                className="size-2 shrink-0 rounded-full"
+                                style={{background: row.color}}
+                            />
+                            <span className="min-w-0 flex-1 truncate">{row.label}</span>
+                            <span className="font-medium tabular-nums">{row.value}</span>
+                            {row.share ? (
+                                <span className="w-8 text-right text-muted-foreground tabular-nums">
+                                    {row.share}
+                                </span>
+                            ) : null}
+                        </div>
+                        {row.note ? (
+                            <span
+                                className="truncate pl-3.5 text-muted-foreground"
+                                title={row.note}
+                            >
+                                {row.note}
                             </span>
                         ) : null}
                     </div>
@@ -51,9 +64,16 @@ export const ChartTooltipPanel = ({
         {facts.length ? (
             <div className="flex flex-col gap-1 border-0 border-t border-solid border-border pt-1.5">
                 {facts.map((fact) => (
-                    <div key={fact.label} className="flex justify-between gap-2">
-                        <span className="text-muted-foreground">{fact.label}</span>
-                        <span className="font-medium tabular-nums">{fact.value}</span>
+                    <div key={fact.label} className="flex min-w-0 justify-between gap-3">
+                        <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+                            {fact.label}
+                        </span>
+                        <span
+                            className="min-w-0 truncate font-medium tabular-nums"
+                            title={fact.value}
+                        >
+                            {fact.value}
+                        </span>
                     </div>
                 ))}
             </div>

@@ -7,6 +7,8 @@ import {filterConditions} from "../../src/analytics/queries"
 import {defaultRange, planRetention} from "../../src/analytics/ranges"
 import {
     OTHER_KEY,
+    bucketOf,
+    bucketStarts,
     bucketWindow,
     keyedSeries,
     rangeWindow,
@@ -35,6 +37,20 @@ describe("rangeWindow", () => {
         expect(w.newest).toBe(new Date(2026, 9, 3).getTime())
         expect(w.oldest).toBe(new Date(2026, 8, 26).getTime())
         expect(w.interval).toBe(1440)
+    })
+
+    it("reads ranges over a month as weeks ending after today, the oldest one short", () => {
+        const w = rangeWindow("90d", new Date(2026, 9, 2, 12, 40).getTime())
+        const end = new Date(2026, 9, 3).getTime()
+        expect(w).toEqual({oldest: end - 90 * DAY, newest: end, interval: 7 * 1440})
+        const starts = bucketStarts(w)
+        expect(starts).toHaveLength(13)
+        expect(starts[0]).toBe(w.oldest)
+        expect(starts[1]).toBe(end - 12 * 7 * DAY)
+        expect(bucketOf(w, w.oldest)).toBe(0)
+        expect(bucketOf(w, starts[1])).toBe(1)
+        expect(bucketOf(w, end - 1)).toBe(12)
+        expect(bucketWindow(w, 0)).toEqual({oldest: w.oldest, newest: starts[1], interval: 1440})
     })
 
     it("splits a day bucket by hour and an hour bucket by five minutes", () => {

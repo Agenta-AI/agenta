@@ -179,12 +179,13 @@ export const LiveConversation = ({
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const {adoptRevision} = conversation
     const adoptSecretRevision = useCallback(
         (next: string) => {
-            conversation.adoptRevision(next)
+            adoptRevision(next)
             pinRevision(next)
         },
-        [conversation.adoptRevision, pinRevision],
+        [adoptRevision, pinRevision],
     )
     const pendingSecret = useMemo(
         () => getPendingSecretInteractions(conversation.messages)[0],
@@ -388,17 +389,17 @@ export const LiveConversation = ({
     hitlPendingRef.current = conversation.hitlPending
     const [stoppingHere, setStoppingHere] = useState(false)
     const stopWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const awaitingServerStopRef = useRef(false)
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
     const retryStopRef = useRef(false)
     const stopSessionIdRef = useRef(sessionId)
     stopSessionIdRef.current = sessionId
+    const serverStopping = isSessionTurnStopping({
+        currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
+        stoppingTurnId,
+    })
     const stopping =
-        stoppingHere ||
-        isSessionTurnStopping({
-            currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
-            stoppingTurnId,
-        }) ||
-        (stopStateLoading && conversation.hitlPending)
+        stoppingHere || serverStopping || (stopStateLoading && conversation.hitlPending)
     const settleParkedStop = useCallback(() => {
         if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
         stopWatchdogTimerRef.current = null
@@ -434,12 +435,15 @@ export const LiveConversation = ({
     }, [watch.connected, running, revalidate])
     useEffect(() => {
         if (streamingHere || !stopWatchdogTimerRef.current) return
+        // A stop of a run not streamed here holds until the server marks it or the run ends.
+        if (awaitingServerStopRef.current && !serverStopping && showingTurnActivity) return
+        awaitingServerStopRef.current = false
         clearTimeout(stopWatchdogTimerRef.current)
         stopWatchdogTimerRef.current = null
         retryStopRef.current = false
         expectedStopExecutionIdRef.current = undefined
         setStoppingHere(false)
-    }, [streamingHere])
+    }, [streamingHere, serverStopping, showingTurnActivity])
     useEffect(
         () => () => {
             if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
@@ -528,9 +532,11 @@ export const LiveConversation = ({
                         expectedStopExecutionIdRef.current = undefined
                         return
                     }
+                    awaitingServerStopRef.current = action === "await-server"
                     stopWatchdogTimerRef.current = setTimeout(() => {
                         retryStopRef.current = true
                         stopWatchdogTimerRef.current = null
+                        awaitingServerStopRef.current = false
                         setStoppingHere(false)
                     }, 30_000)
                     return
@@ -819,6 +825,7 @@ export const LiveConversation = ({
                                         held={conversation.hitlPending}
                                         onRemove={conversation.removeQueued}
                                         onSendNow={conversation.sendQueuedNow}
+                                        sendNowBlocked={conversation.sendNowPending}
                                         onEdit={editQueued}
                                         onCancelEdit={cancelQueuedEdit}
                                         editingId={conversation.editingId}
@@ -925,6 +932,9 @@ export const LiveConversation = ({
                             entityId={entityId}
                             sessionId={sessionId}
                             attachments={attachments}
+                            onRefusedOverDraft={({text, parts}) =>
+                                conversation.keepRefusedSend({text, fileParts: parts})
+                            }
                             onSend={async ({text, parts, stagedFiles}) => {
                                 setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The

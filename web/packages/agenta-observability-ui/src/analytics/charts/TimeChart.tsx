@@ -1,4 +1,4 @@
-import {useMemo, type ReactNode} from "react"
+import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {niceMax} from "@agenta/observability/analytics"
 import {ChartContainer, ChartTooltip, cn, type ChartConfig} from "@agenta/ui/ui"
@@ -7,8 +7,8 @@ import {
     BarChart,
     CartesianGrid,
     Cell,
+    ComposedChart,
     Line,
-    LineChart,
     ReferenceLine,
     XAxis,
     YAxis,
@@ -33,6 +33,8 @@ export interface TimeChartProps {
     /** Line charts: the y-axis floor (success rate starts above 0). */
     yMin?: number
     yMax?: number
+    /** Line charts: counts drawn as low bars under the line, on their own hidden scale. */
+    underlay?: {key: string; color: string; values: number[]} | null
     height: number
     hovered: number | null
     onHover: (index: number | null) => void
@@ -44,6 +46,11 @@ export interface TimeChartProps {
 type Row = Record<string, number | string | null>
 
 const TICKS = 6
+const ENTER_MS = 450
+
+// Read once: charts animate in, and tooltips slide, unless the system asks for less motion.
+const prefersMotion = () =>
+    typeof window === "undefined" || !window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
 /** The average's label: a pill in the card color, right-aligned just above the line. */
 const AverageLabel = ({
@@ -90,6 +97,7 @@ export const TimeChart = ({
     average,
     yMin,
     yMax,
+    underlay,
     height,
     hovered,
     onHover,
@@ -97,15 +105,17 @@ export const TimeChart = ({
     tooltip,
     className,
 }: TimeChartProps) => {
+    const motion = useMemo(prefersMotion, [])
     const visible = useMemo(() => series.filter((s) => !s.hidden), [series])
     const data = useMemo<Row[]>(
         () =>
             labels.map((label, i) => {
                 const row: Row = {label, index: i}
                 for (const s of visible) row[s.key] = s.values[i]
+                if (underlay) row[underlay.key] = underlay.values[i]
                 return row
             }),
-        [labels, visible],
+        [labels, visible, underlay],
     )
     const config = useMemo<ChartConfig>(
         () => Object.fromEntries(series.map((s) => [s.key, {label: s.label, color: s.color}])),
@@ -128,7 +138,26 @@ export const TimeChart = ({
     const low = yMin ?? 0
     const high = yMax ?? top
     const ticks = [low, low + (high - low) / 2, high]
-    const step = Math.max(1, Math.ceil(labels.length / TICKS))
+    const ref = useRef<HTMLDivElement>(null)
+    const [width, setWidth] = useState(0)
+    useEffect(() => {
+        const el = ref.current
+        if (!el) return
+        const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width))
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [])
+    // As many ticks as the longest label fits at the 11px axis font, up to TICKS.
+    const longest = Math.max(1, ...labels.map((l) => l.length))
+    const fit = width ? Math.max(2, Math.floor((width - 48) / (longest * 7 + 16))) : TICKS
+    const step = Math.max(1, Math.ceil(labels.length / Math.min(TICKS, fit)))
+    // Counted back from the latest bucket, so the axis always ends on now.
+    const xTicks = useMemo(
+        () => labels.map((_, i) => i).filter((i) => (labels.length - 1 - i) % step === 0),
+        [labels, step],
+    )
+    // The tallest underlay bar reaches 38% of the plot, so it never crowds the line.
+    const underlayTop = underlay ? Math.max(1, ...underlay.values) / 0.38 : 0
 
     const handleMove = (state: {activeTooltipIndex?: number} | undefined) => {
         const index = state?.activeTooltipIndex
@@ -151,10 +180,13 @@ export const TimeChart = ({
         <CartesianGrid key="grid" vertical={false} strokeDasharray="0" />,
         <XAxis
             key="x"
-            dataKey="label"
+            // By index: two buckets can share a label (the same hour on two days).
+            dataKey="index"
+            tickFormatter={(i: number) => labels[i] ?? ""}
             tickLine={false}
             axisLine={false}
-            interval={step - 1}
+            ticks={xTicks}
+            interval={0}
             tickMargin={8}
             fontSize={11}
             // Lines put points on the plot edges; padding keeps edge dots and labels whole.
@@ -181,10 +213,18 @@ export const TimeChart = ({
                               radius: 4,
                           }
                 }
+                // Pinned to the top of the plot beside the cursor, so it stays in the card.
+                position={{y: -8}}
                 content={({active}) =>
-                    active && hovered !== null ? <>{tooltip(hovered)}</> : null
+                    active && hovered !== null ? (
+                        <div className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150">
+                            {tooltip(hovered)}
+                        </div>
+                    ) : null
                 }
-                isAnimationActive={false}
+                isAnimationActive={motion}
+                animationDuration={180}
+                animationEasing="ease-out"
             />
         ) : null,
     ]
@@ -203,6 +243,7 @@ export const TimeChart = ({
 
     return (
         <ChartContainer
+            ref={ref}
             config={config}
             className={cn("aspect-auto w-full", onSelect && "cursor-pointer", className)}
             style={{height}}
@@ -218,6 +259,9 @@ export const TimeChart = ({
                             fill={s.color}
                             fillOpacity={1}
                             activeBar={{style: {filter: "brightness(0.8)"}}}
+                            isAnimationActive={motion}
+                            animationDuration={ENTER_MS}
+                            animationEasing="ease-out"
                         >
                             {labels.map((_, i) => (
                                 <Cell
@@ -233,8 +277,29 @@ export const TimeChart = ({
                     {averageLine}
                 </BarChart>
             ) : (
-                <LineChart {...common}>
+                <ComposedChart {...common} barCategoryGap={labels.length > 24 ? "12%" : "18%"}>
                     {axes}
+                    {underlay
+                        ? [
+                              <YAxis
+                                  key="underlay-y"
+                                  yAxisId="underlay"
+                                  hide
+                                  domain={[0, underlayTop]}
+                              />,
+                              <Bar
+                                  key={underlay.key}
+                                  yAxisId="underlay"
+                                  dataKey={underlay.key}
+                                  fill={underlay.color}
+                                  radius={[3, 3, 0, 0]}
+                                  activeBar={{style: {filter: "brightness(0.9)"}}}
+                                  isAnimationActive={motion}
+                                  animationDuration={ENTER_MS}
+                                  animationEasing="ease-out"
+                              />,
+                          ]
+                        : null}
                     {visible.map((s) => (
                         <Line
                             key={s.key}
@@ -250,11 +315,13 @@ export const TimeChart = ({
                             }
                             activeDot={{r: 4, fill: "var(--background)", strokeWidth: 2}}
                             connectNulls
-                            isAnimationActive={false}
+                            isAnimationActive={motion}
+                            animationDuration={ENTER_MS}
+                            animationEasing="ease-out"
                         />
                     ))}
                     {averageLine}
-                </LineChart>
+                </ComposedChart>
             )}
         </ChartContainer>
     )

@@ -35,7 +35,7 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onSend, onCancel}: Qu
 
     useLayoutEffect(() => {
         setHeight(ref.current?.offsetHeight ?? 0)
-        inputRef.current?.focus()
+        inputRef.current?.focus({preventScroll: true})
     }, [])
 
     // Bound once: the box re-renders every scroll frame while it tracks its span.

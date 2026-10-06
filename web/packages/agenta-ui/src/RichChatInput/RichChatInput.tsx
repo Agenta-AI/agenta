@@ -37,6 +37,7 @@ import {
 import type {PaletteSpec} from "./assets/palette"
 import type {SlashCommandSection} from "./assets/slashCommands"
 import {slashPaletteSpec} from "./assets/slashPalette"
+import type {SubmitHandler} from "./assets/submit"
 import {chatInputTheme} from "./assets/theme"
 import {CHAT_TRANSFORMERS} from "./assets/transformers"
 import {CharacterCountPlugin} from "./plugins/CharacterCountPlugin"
@@ -79,7 +80,7 @@ export interface RichChatInputHandle {
 
 export interface RichChatInputProps {
     /** Called with the message serialized to markdown on send (plain Enter or the send button). */
-    onSubmit: (markdown: string) => void
+    onSubmit: SubmitHandler
     placeholder?: string
     /** Disables editing entirely. For streaming chats prefer leaving editable + routing to a queue. */
     disabled?: boolean
@@ -120,7 +121,7 @@ export interface RichChatInputProps {
     /** Request a durable stop (used while `streaming`). */
     onStop?: () => void
     /** Submit choices displayed beside Stop while `streaming` (for example Queue and Steer). */
-    busyActions?: {label: string; onSubmit: (markdown: string) => void}[]
+    busyActions?: {label: string; onSubmit: SubmitHandler}[]
     /** Min-height class for the editor area (default `min-h-[72px]`). */
     minHeightClassName?: string
     /** How far the editor may grow before it scrolls itself. A surface with a page behind it
@@ -233,7 +234,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         const handleSubmit = useCallback(
             (markdown: string) => {
                 dictationRef.current = null
-                onSubmit(markdown)
+                return onSubmit(markdown)
             },
             [onSubmit],
         )

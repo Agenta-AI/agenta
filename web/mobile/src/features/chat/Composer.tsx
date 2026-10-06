@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, type MutableRefObject} from "react"
 
-import {describeAccepted, isComposerRunStoppable} from "@agenta/chat/assets"
+import {canRestoreRefusedSend, describeAccepted, isComposerRunStoppable} from "@agenta/chat/assets"
 import {
     AttachmentDropOverlay,
     ChatComposer,
@@ -46,6 +46,7 @@ export const Composer = ({
     attachments,
     onSend,
     onSteer,
+    onRefusedOverDraft,
     disabled = false,
     waitingOnUser = false,
     streaming = false,
@@ -72,6 +73,8 @@ export const Composer = ({
         parts?: FileUIPart[]
         stagedFiles?: ComposerAttachment[]
     }) => void | Promise<void>
+    /** A send refused after a newer draft was typed: the host keeps it so neither is lost. */
+    onRefusedOverDraft?: (input: {text: string; parts?: FileUIPart[]}) => void
     /** No resolvable agent yet, or the screen is still hydrating. */
     disabled?: boolean
     /** The run is parked on the user (pending approval) — sends will queue. */
@@ -139,6 +142,7 @@ export const Composer = ({
         closePicker()
         richInputRef.current?.insertText("/")
     }, [closePicker, richInputRef])
+    // Held until the draft and tray leave the composer, not for the whole send.
     const sending = useRef(false)
     const presets = useMotionPresets()
     const stoppable = isComposerRunStoppable({
@@ -151,15 +155,26 @@ export const Composer = ({
      * `extraFiles` are takes that never entered the tray (a voice message sent outright), so
      * they upload here before the send — the same seam the desktop dock uses.
      */
-    const submit = async (
+    const submit = (
         text: string,
         extraFiles: File[] = [],
         policy: "queue" | "steer" = "queue",
-    ): Promise<boolean> => {
+    ): false | Promise<boolean> => {
         // Enter and the send button (and a voice take completing) can all fire while an upload
-        // is still in flight; a second pass would re-send the same staged tray.
-        if (sending.current) return false
+        // is still in flight; a second pass would re-send the same staged tray. Returning false
+        // synchronously keeps the text in the editor.
+        if (sending.current) {
+            if (extraFiles.length) attachments.addFiles(extraFiles)
+            return false
+        }
         sending.current = true
+        // Once only: a later send may hold the lock by the time this one settles.
+        let held = true
+        const release = () => {
+            if (!held) return
+            held = false
+            sending.current = false
+        }
         // The message is written; anything still coming in belongs to no draft.
         voice.endDictation()
         // Close the on-screen keyboard. It covered the transcript while you typed, and the reply
@@ -167,17 +182,14 @@ export const Composer = ({
         // blur past the editor's own clear, whose reconcile would otherwise re-focus the input and
         // pop the keyboard straight back up.
         dismissSoftKeyboardAfterSend(() => richInputRef.current?.blur())
-        try {
-            return await runSubmit(text, extraFiles, policy)
-        } finally {
-            sending.current = false
-        }
+        return runSubmit(text, extraFiles, policy, release).finally(release)
     }
 
     const runSubmit = async (
         text: string,
-        extraFiles: File[] = [],
-        policy: "queue" | "steer" = "queue",
+        extraFiles: File[],
+        policy: "queue" | "steer",
+        release: () => void,
     ): Promise<boolean> => {
         const staged = attachments.files
         const uploadedExtras = extraFiles.length
@@ -186,10 +198,12 @@ export const Composer = ({
         // A failed upload adopts the take into the tray; hold the send so nothing is lost.
         if (!uploadedExtras) return false
         const outbound = [...staged, ...uploadedExtras]
+        let parts: FileUIPart[] | undefined
+        let cleared = false
         try {
             // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
             // Enter, which the send button's `sendDisabled` guard doesn't cover.
-            const parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
+            parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
             // The message leaves the composer HERE, before the send can fail: draft and tray go
             // now, and every refusal path puts them back afterwards (the catch below for an early
             // one, the screen's `restoreRefusedSend` for a late one). Clearing after the await let
@@ -197,6 +211,8 @@ export const Composer = ({
             // holding the chips until admission read as "the attachment didn't go" (#6777).
             draft.clearDraft()
             attachments.clearAttachments(staged.map((file) => file.uid))
+            cleared = true
+            release()
             if (policy === "steer" && onSteer) await onSteer({text, parts, stagedFiles: outbound})
             else await onSend({text, parts, stagedFiles: outbound})
             return true
@@ -207,9 +223,14 @@ export const Composer = ({
             // composer's own inline channel. `outbound`, not `staged`: a voice take never sat in
             // the tray, and restoring it there is what makes it retryable. Idempotent: a throw
             // before the clear leaves the tray as it was.
-            void richInputRef.current?.setMarkdown(text)
-            attachments.restoreAttachments(outbound)
             attachments.setRejections(refusedSendRejections(error))
+            // Never over a draft typed while this send was pending: the host keeps it instead.
+            if (cleared && !canRestoreRefusedSend(richInputRef.current)) {
+                onRefusedOverDraft?.({text, parts})
+                return false
+            }
+            if (cleared) void richInputRef.current?.setMarkdown(text)
+            attachments.restoreAttachments(outbound)
             return false
         }
     }

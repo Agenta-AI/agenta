@@ -19,7 +19,7 @@ export type ScriptStep =
 
 export interface ScriptedModel {
   baseUrl: string;
-  requests: Array<{ messages: unknown[] }>;
+  requests: Array<{ messages: unknown[]; headers: import("node:http").IncomingHttpHeaders }>;
   /** Replace the rest of the script. */
   script(steps: ScriptStep[]): void;
   close(): Promise<void>;
@@ -27,7 +27,7 @@ export interface ScriptedModel {
 
 export async function startScriptedModel(initial: ScriptStep[] = [{ text: "ok" }]): Promise<ScriptedModel> {
   let steps = [...initial];
-  const requests: Array<{ messages: unknown[] }> = [];
+  const requests: ScriptedModel["requests"] = [];
   let calls = 0;
   const open = new Set<import("node:http").ServerResponse>();
   const server: Server = createServer((req, res) => {
@@ -35,7 +35,7 @@ export async function startScriptedModel(initial: ScriptStep[] = [{ text: "ok" }
     req.on("data", (d) => (body += d));
     req.on("end", async () => {
       const parsed = JSON.parse(body || "{}") as { messages?: unknown[] };
-      requests.push({ messages: parsed.messages ?? [] });
+      requests.push({ messages: parsed.messages ?? [], headers: req.headers });
       const step = steps.length > 1 ? steps.shift()! : steps[0]!;
       if ("error" in step) {
         res.writeHead(step.error.status, { "content-type": "application/json" });

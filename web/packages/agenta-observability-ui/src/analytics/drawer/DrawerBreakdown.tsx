@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
 import {
     formatCompact,
@@ -94,9 +94,6 @@ export const DrawerBreakdown = (props: DrawerBreakdownProps) => (
                     onChange={(value) => props.onDim(value as AnalyticsDimension)}
                 />
             </div>
-            {props.dim !== "tool" ? (
-                <span className="text-[11px] text-muted-foreground">Click a row to drill in</span>
-            ) : null}
         </div>
         {props.dim === "tool" ? <ToolTable {...props} /> : <RunTable {...props} dim={props.dim} />}
     </section>
@@ -116,7 +113,10 @@ const RunTable = ({
     const runs = dim === "agent" ? data.agentRuns : data.modelRuns
     const failed = dim === "agent" ? data.agentFailed : data.modelFailed
     const order = dim === "agent" ? data.agentOrder : data.modelOrder
-    const top = useMemo(() => order.slice(0, LIMIT), [order])
+    const [showAll, setShowAll] = useState(false)
+    // Show all asks for every key, so nothing is left behind as "Other".
+    const limit = showAll ? order.length : LIMIT
+    const top = useMemo(() => order.slice(0, limit), [order, limit])
     const split = useAnalyticsSplit(dim, top, window, filters, true, focus)
     const totals = data.overview.totals
 
@@ -131,7 +131,7 @@ const RunTable = ({
         }))
         const rest = {
             key: OTHER,
-            label: order.length > LIMIT ? `Other (${order.length - LIMIT})` : "Unattributed",
+            label: order.length > limit ? `Other (${order.length - limit})` : "Unattributed",
             runs: totals.runs - sum(out.map((r) => r.runs)),
             failed: totals.failed - sum(out.map((r) => r.failed)),
             cost: Math.max(0, totals.cost - sum(out.map((r) => r.cost))),
@@ -139,7 +139,7 @@ const RunTable = ({
         }
         if (rest.runs > 0) out.push(rest)
         return out
-    }, [top, order.length, runs, failed, split.cost, split.tokens, totals, dim, agentName])
+    }, [top, limit, order.length, runs, failed, split.cost, split.tokens, totals, dim, agentName])
 
     const sortKey = RUN_COLUMNS.some((c) => c.key === metric) ? metric : "cost"
     const shareKey: AnalyticsMetric = metric === "runs" || metric === "tokens" ? metric : "cost"
@@ -163,7 +163,7 @@ const RunTable = ({
         )
     }
 
-    const grid = "grid grid-cols-[minmax(96px,1fr)_40px_54px_60px_60px_64px_72px_12px] gap-2"
+    const grid = "grid grid-cols-[minmax(96px,1fr)_40px_54px_60px_60px_64px_44px_12px] gap-2"
     return (
         <div className="-mx-1 overflow-x-auto">
             <div className="min-w-[480px] px-1">
@@ -233,21 +233,8 @@ const RunTable = ({
                             <span className="text-right tabular-nums">
                                 {formatMoney(row.runs ? row.cost / row.runs : null)}
                             </span>
-                            <span className="flex items-center justify-end gap-2">
-                                <span className="h-1.5 w-8 rounded-full bg-background">
-                                    <span
-                                        className="block h-full rounded-full"
-                                        style={{
-                                            width: `${share * 100}%`,
-                                            background: analyticsColor(
-                                                shareKey === "cost" ? "cost" : shareKey,
-                                            ),
-                                        }}
-                                    />
-                                </span>
-                                <span className="w-8 text-right text-xs text-muted-foreground tabular-nums">
-                                    {Math.round(share * 100)}%
-                                </span>
+                            <span className="text-right text-muted-foreground tabular-nums">
+                                {Math.round(share * 100)}%
                             </span>
                             <span className="text-muted-foreground">
                                 {drillable ? <CaretRight size={12} /> : null}
@@ -256,6 +243,15 @@ const RunTable = ({
                     )
                 })}
             </div>
+            {order.length > LIMIT ? (
+                <button
+                    type="button"
+                    onClick={() => setShowAll(!showAll)}
+                    className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-xs text-muted-foreground hover:text-foreground"
+                >
+                    {showAll ? `Show top ${LIMIT}` : `Show all ${order.length}`}
+                </button>
+            ) : null}
         </div>
     )
 }
@@ -287,9 +283,7 @@ const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) =>
             <div className={cn(grid, "h-7 items-center text-[11px] text-muted-foreground")}>
                 <span>Tool</span>
                 <span className="text-right text-foreground">Calls ↓</span>
-                <span className="text-right">
-                    Per {unit === "day" ? "day" : unit === "hour" ? "hour" : "slot"}
-                </span>
+                <span className="text-right">Per {unit === "5 minutes" ? "slot" : unit}</span>
                 <span className="text-right">Share</span>
             </div>
             {rows.map((row, i) => (
@@ -313,19 +307,8 @@ const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) =>
                     <span className="text-right tabular-nums">
                         {(row.calls / buckets).toFixed(1)}
                     </span>
-                    <span className="flex items-center justify-end gap-2">
-                        <span className="h-1.5 w-8 rounded-full bg-background">
-                            <span
-                                className="block h-full rounded-full"
-                                style={{
-                                    width: `${total ? (row.calls / total) * 100 : 0}%`,
-                                    background: analyticsColor("tools"),
-                                }}
-                            />
-                        </span>
-                        <span className="w-8 text-right text-xs text-muted-foreground tabular-nums">
-                            {total ? Math.round((row.calls / total) * 100) : 0}%
-                        </span>
+                    <span className="text-right text-muted-foreground tabular-nums">
+                        {total ? Math.round((row.calls / total) * 100) : 0}%
                     </span>
                 </div>
             ))}

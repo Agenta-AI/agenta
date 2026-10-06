@@ -11,6 +11,8 @@ import {
     analyticsHasAgentsAtom,
     analyticsNowAtom,
     analyticsRangeAtom,
+    analyticsCustomRangeAtom,
+    analyticsRangeLabelAtom,
     analyticsWindowAtom,
     type AnalyticsFocus,
     type AnalyticsMetric,
@@ -34,7 +36,7 @@ import {
 } from "./cards/OverviewCards"
 import {ANALYTICS_COLOR_CSS} from "./colors"
 import {AnalyticsDrawer} from "./drawer/AnalyticsDrawer"
-import {bucketUnit, fullLabel, shortLabel} from "./labels"
+import {bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "./labels"
 import {useAgentNames, useFailureReasons, usePageAnalytics} from "./useAnalyticsData"
 
 export interface AnalyticsPageProps {
@@ -57,6 +59,8 @@ export const AnalyticsPage = ({
     onOpenTrace,
 }: AnalyticsPageProps) => {
     const [range, setRange] = useAtom(analyticsRangeAtom)
+    const [custom, setCustom] = useAtom(analyticsCustomRangeAtom)
+    const rangeLabel = useAtomValue(analyticsRangeLabelAtom)
     const [filters, setFilters] = useAtom(analyticsFiltersAtom)
     const window = useAtomValue(analyticsWindowAtom)
     const agents = useAtomValue(analyticsHasAgentsAtom)
@@ -83,10 +87,11 @@ export const AnalyticsPage = ({
 
     // A plan that keeps less history than the open range moves the page to what it keeps.
     useEffect(() => {
-        if (isRangeLocked(ANALYTICS_RANGE[range], retention)) setRange(defaultRange(retention))
-    }, [range, retention, setRange])
+        if (!custom && isRangeLocked(ANALYTICS_RANGE[range], retention))
+            setRange(defaultRange(retention))
+    }, [custom, range, retention, setRange])
 
-    const {data, agentSplit, modelSplit, keyColor} = usePageAnalytics(window, filters, group)
+    const {data, split, keyColor} = usePageAnalytics(window, filters, group)
 
     const agentName = useAgentNames(
         useMemo(
@@ -95,7 +100,6 @@ export const AnalyticsPage = ({
         ),
     )
     const filtered = filters.agent.length > 0 || filters.model.length > 0
-    const rangeLabel = ANALYTICS_RANGE[range].label
     const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), [setFilters])
     const emptyText = useCallback(
         (what: string) =>
@@ -109,7 +113,7 @@ export const AnalyticsPage = ({
             openDrawer({
                 bucket,
                 metric,
-                dim: group === "model" ? "model" : "agent",
+                dim: group === "agent" || group === "none" ? "agent" : "model",
                 focus: null,
                 failedOnly: false,
             }),
@@ -117,18 +121,6 @@ export const AnalyticsPage = ({
     )
 
     const failures = useFailureReasons(window, filters, data.overview.totals.failed)
-    const onFailureReason = useCallback(
-        (reason: string) =>
-            openDrawer({
-                bucket: null,
-                metric: "success",
-                dim: group === "model" ? "model" : "agent",
-                focus: null,
-                failedOnly: true,
-                reason,
-            }),
-        [openDrawer, group],
-    )
 
     const labels = useMemo(
         () => data.starts.map((s) => shortLabel(window, s)),
@@ -141,19 +133,17 @@ export const AnalyticsPage = ({
     const grouped = useMemo<GroupedData | null>(() => {
         if (group === "none") return null
         const dim = group
-        const byAgent = dim === "agent"
-        const split = byAgent ? agentSplit : modelSplit
-        const keyCount = (byAgent ? data.agentOrder : data.modelOrder).length
+        const g = data.groups[dim]
+        const keyCount = g.order.length
         const points = data.overview.points
-        const runs = byAgent ? data.agentRuns : data.modelRuns
         return {
-            keyLabel: byAgent ? agentName : (key: string) => key,
+            keyLabel: groupKeyLabel(dim, agentName),
             keyColor: (key: string) => keyColor(dim, key),
-            failed: byAgent ? data.agentFailed : data.modelFailed,
+            failed: g.failed,
             runs: {
-                series: runs,
+                series: g.runs,
                 total: points.map((p) => p.runs),
-                status: byAgent ? data.status.agents : data.status.models,
+                status: g.status,
             },
             cost: {
                 series: split.cost,
@@ -168,7 +158,7 @@ export const AnalyticsPage = ({
                 status: split.status,
             },
         }
-    }, [group, agentSplit, modelSplit, data, agentName, keyColor])
+    }, [group, split, data, agentName, keyColor])
     const ctx: OverviewContext = {
         data,
         labels,
@@ -178,7 +168,6 @@ export const AnalyticsPage = ({
         agentName,
         grouped,
         failures,
-        onFailureReason,
         emptyText,
         onExplore,
     }
@@ -214,6 +203,9 @@ export const AnalyticsPage = ({
             <AnalyticsToolbar
                 range={range}
                 onRangeChange={setRange}
+                custom={custom}
+                onCustomChange={setCustom}
+                rangeLabel={rangeLabel}
                 retention={retention}
                 onUpgrade={onUpgrade}
                 filters={filters}
@@ -250,9 +242,9 @@ export const AnalyticsPage = ({
             <CostCard ctx={ctx} />
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] gap-4">
                 <RunsCard ctx={ctx} />
-                <TokensCard ctx={ctx} />
+                <SuccessCard ctx={ctx} />
             </div>
-            <SuccessCard ctx={ctx} />
+            <TokensCard ctx={ctx} />
             <FailureRateCard
                 data={data}
                 failures={failures}

@@ -1,6 +1,7 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {PendingInputWriteOutcome} from "@agenta/entities/session"
 import {
     approvalContinuationSettled,
     hasRunningApprovalContinuation,
@@ -9,7 +10,16 @@ import {
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
-import {countUserMessages} from "../assets/pendingSendEchoes"
+import {countUserMessages, durableUserTurnIds} from "../assets/pendingSendEchoes"
+import {
+    applyQueueOps,
+    pruneQueueOps,
+    pruneQueueRowErrors,
+    type QueueOpBody,
+    type QueueOps,
+    type QueueRowError,
+    type QueueRowErrors,
+} from "../assets/queueOverlay"
 import {getPendingConnectInteractions} from "../clientTools/connectInteractions"
 import {getPendingElicitationInteractions} from "../clientTools/elicitationInteractions"
 
@@ -28,11 +38,25 @@ export interface QueuedMessage {
     editable?: boolean
     /** The send this server row came from (its `Idempotency-Key`), so its echo can step aside. */
     clientId?: string | null
+    removable?: boolean
+    error?: string
+    /** An edit that did not save; the pencil reopens it instead of the saved text. */
+    unsavedEdit?: {text: string; fileParts?: FileUIPart[]}
+    promotedExecutionId?: string | null
+    /** An edit of this row is still saving. */
+    saving?: boolean
+}
+
+/** `settledSeq`: a snapshot read with a higher sequence reflects this write. */
+export interface ServerQueueWriteResult {
+    outcome: PendingInputWriteOutcome
+    settledSeq: number
 }
 
 export interface ServerQueueAdapter {
     busy: boolean
     queued: QueuedMessage[]
+    viewSeq: number
     /**
      * Admits one input. `watcher` reports what happened to THIS send: the turn it started, the
      * durable input it was parked as, or its failure.
@@ -45,12 +69,28 @@ export interface ServerQueueAdapter {
             onParked?: (inputId: string) => void
             onFailed?: () => void
             onSettled?: () => void
+            opensTurn?: boolean
+            onTurnNamed?: () => void
         },
     ) => Promise<"queued" | "running">
-    remove: (id: string) => Promise<void>
-    sendNow?: (id: string) => Promise<void>
-    edit?: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
+    remove: (id: string) => Promise<ServerQueueWriteResult>
+    /** `executionId` is set only when the server promoted the input on the spot. */
+    sendNow?: (id: string) => Promise<ServerQueueWriteResult & {executionId: string | null}>
+    edit?: (
+        id: string,
+        item: {text: string; fileParts?: FileUIPart[]},
+    ) => Promise<ServerQueueWriteResult>
+    /** Resolves with the sequence of the read it made, or null when that read failed. */
+    refresh?: (options?: {fresh?: boolean}) => Promise<number | null>
 }
+
+const REMOVE_FAILED = "Couldn't remove this message. Try again."
+const REMOVE_ABOUT_TO_RUN = "This message is about to run and can't be removed."
+const NOT_QUEUED = "This message is no longer queued."
+const SEND_NOW_FAILED = "Couldn't send this message now. Try again."
+const SEND_NOW_BUSY = "Another message is being sent first. Try again once it starts."
+const EDIT_FAILED = "Your edit wasn't saved. Edit to try again."
+const EDIT_ABOUT_TO_RUN = "This message is about to run and can't be edited."
 
 interface UseAgentChatQueueArgs {
     messages: UIMessage[]
@@ -99,6 +139,9 @@ interface UseAgentChatQueueArgs {
  * 8-to-11 seconds a local sandbox needs to write the continuation's first record.
  */
 export const CONTINUATION_HOLD_MAX_MS = 45_000
+
+/** Longest the next send waits for this one's turn to be named before it is admitted anyway. */
+const ADMISSION_NAME_MAX_MS = 10_000
 
 /** Longest a started row stays in the dock while its user row is on its way. */
 const RELEASE_HOLD_MAX_MS = 2_000
@@ -196,60 +239,144 @@ export const useAgentChatQueue = ({
     const [editingId, setEditingId] = useState<string | null>(null)
     const stashRef = useRef("")
     const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
+    const serverQueuedRef = useRef(server.queued)
+    serverQueuedRef.current = server.queued
 
-    // A row the server stops listing has started: hold it until its user row lands (set in render, so no frame lacks it).
-    const userCount = countUserMessages(messages)
-    const removedIdsRef = useRef(new Set<string>())
-    const [releasing, setReleasing] = useState<
-        {row: QueuedMessage; atUserCount: number; until: number}[]
-    >([])
-    const queuedKey = server.queued.map((item) => item.id).join("\n")
-    const [lastServerQueued, setLastServerQueued] = useState({key: queuedKey, rows: server.queued})
-    if (lastServerQueued.key !== queuedKey) {
-        setLastServerQueued({key: queuedKey, rows: server.queued})
-        const listed = new Set(server.queued.map((item) => item.id))
-        // A steer was never a dock row (its echo shows it), so only queued rows are held.
-        const started = lastServerQueued.rows.filter(
-            (item) =>
-                item.policy !== "steer" &&
-                item.id !== editingId &&
-                !listed.has(item.id) &&
-                !removedIdsRef.current.has(item.id),
+    // Optimistic queue writes: undone on failure, dropped once a later snapshot reflects them.
+    const [ops, setOps] = useState<QueueOps>({})
+    const [rowErrors, setRowErrors] = useState<QueueRowErrors>({})
+    // Client ids of just-sent rows removed before the server named their input.
+    const [deferredRemovals, setDeferredRemovals] = useState<ReadonlySet<string>>(() => new Set())
+    const deferredRemovalsRef = useRef(new Set<string>())
+    const admissionChainRef = useRef<Promise<void>>(Promise.resolve())
+    const admittingRef = useRef(0)
+
+    const opsRef = useRef(ops)
+    opsRef.current = ops
+    const opTokenRef = useRef(0)
+    const opOwnersRef = useRef(new Map<string, number>())
+    const setOp = useCallback((id: string, body: QueueOpBody) => {
+        const token = ++opTokenRef.current
+        opOwnersRef.current.set(id, token)
+        setOps((current) => ({...current, [id]: {...body, token}}))
+        return token
+    }, [])
+    // A later write on the same row owns its overlay; an earlier one's outcome must not touch it.
+    const dropOp = useCallback((id: string, token: number) => {
+        if (opOwnersRef.current.get(id) !== token) return false
+        opOwnersRef.current.delete(id)
+        setOps((current) => {
+            if (current[id]?.token !== token) return current
+            const next = {...current}
+            delete next[id]
+            return next
+        })
+        return true
+    }, [])
+    const settleOp = useCallback((id: string, token: number, settledSeq: number) => {
+        setOps((current) =>
+            current[id]?.token === token
+                ? {...current, [id]: {...current[id], settledSeq}}
+                : current,
         )
+    }, [])
+    const setRowError = useCallback((id: string, error: QueueRowError | null) => {
+        setRowErrors((current) => {
+            if (error) return {...current, [id]: error}
+            if (!(id in current)) return current
+            const next = {...current}
+            delete next[id]
+            return next
+        })
+    }, [])
+    const forgetDeferredRemoval = useCallback((id: string) => {
+        if (!deferredRemovalsRef.current.delete(id)) return false
+        setDeferredRemovals(new Set(deferredRemovalsRef.current))
+        return true
+    }, [])
+
+    // `ops` too: a write can settle after the read that reflects it has already landed.
+    useEffect(() => {
+        setOps((current) => pruneQueueOps(current, server.queued, server.viewSeq))
+    }, [ops, server.queued, server.viewSeq])
+    useEffect(() => {
+        setRowErrors((current) => pruneQueueRowErrors(current, server.queued))
+    }, [server.queued])
+
+    // A new user row may be a started input: re-read once, hiding its echo's input until then.
+    const transcriptTurnIds = useMemo(() => durableUserTurnIds(messages), [messages])
+    const userCount = countUserMessages(messages)
+    const lastUserCountRef = useRef(userCount)
+    const retiredParkedIdsRef = useRef(echoes.retiredParkedIds)
+    retiredParkedIdsRef.current = echoes.retiredParkedIds
+    const [handoff, setHandoff] = useState<{
+        ids: ReadonlySet<string>
+        untilSeq: number | null
+    } | null>(null)
+    const refreshQueue = server.refresh
+    useEffect(() => {
+        const grew = userCount > lastUserCountRef.current
+        lastUserCountRef.current = userCount
+        if (!grew) return
+        const ids = retiredParkedIdsRef.current
+        const settle = (untilSeq: number) =>
+            setHandoff((current) => (current?.ids === ids ? {ids, untilSeq} : current))
+        setHandoff({ids, untilSeq: null})
+        if (!refreshQueue) {
+            settle(-1)
+            return
+        }
+        void refreshQueue({fresh: true}).then(
+            (seq) => settle(seq ?? -1),
+            () => settle(-1),
+        )
+    }, [userCount, refreshQueue])
+    useEffect(() => {
+        if (handoff?.untilSeq != null && server.viewSeq >= handoff.untilSeq) setHandoff(null)
+    }, [handoff, server.viewSeq])
+
+    // A promoted row the server stops listing stays, button-less, until its turn's user row lands.
+    const [held, setHeld] = useState<{row: QueuedMessage; turnId: string; until: number}[]>([])
+    const queuedKey = server.queued
+        .map((row) => `${row.id}:${row.promotedExecutionId ?? ""}`)
+        .join()
+    const [lastQueued, setLastQueued] = useState({key: queuedKey, rows: server.queued})
+    if (lastQueued.key !== queuedKey) {
+        setLastQueued({key: queuedKey, rows: server.queued})
+        const listed = new Set(server.queued.map((item) => item.id))
+        const until = Date.now() + RELEASE_HOLD_MAX_MS
+        const started = lastQueued.rows.flatMap((row) => {
+            const turnId = row.promotedExecutionId
+            if (!turnId || transcriptTurnIds.has(turnId) || listed.has(row.id)) return []
+            if (row.policy === "steer" || row.id === editingId || ops[row.id]) return []
+            return [{row: {...row, source: "local" as const, editable: false}, turnId, until}]
+        })
         if (started.length) {
-            const until = Date.now() + RELEASE_HOLD_MAX_MS
-            setReleasing((current) => [
-                ...current,
-                ...started.map((row) => ({
-                    row: {...row, source: "local" as const, editable: false},
-                    atUserCount: userCount,
-                    until,
-                })),
-            ])
+            const ids = new Set(started.map((item) => item.row.id))
+            setHeld((current) => [...current.filter((item) => !ids.has(item.row.id)), ...started])
         }
     }
-    const heldRows = useMemo(
-        () =>
-            releasing
-                .filter(
-                    (item) =>
-                        userCount <= item.atUserCount &&
-                        Date.now() < item.until &&
-                        !server.queued.some((row) => row.id === item.row.id),
-                )
-                .map((item) => item.row),
-        [releasing, userCount, server.queued],
-    )
+    const heldRows = useMemo(() => {
+        const listed = new Set(server.queued.map((item) => item.id))
+        return held
+            .filter(
+                (item) =>
+                    Date.now() < item.until &&
+                    !transcriptTurnIds.has(item.turnId) &&
+                    !listed.has(item.row.id),
+            )
+            .map((item) => item.row)
+    }, [held, server.queued, transcriptTurnIds])
     // The time limit needs a render of its own once nothing else changes.
     useEffect(() => {
-        if (!releasing.length) return
-        const next = Math.min(...releasing.map((item) => item.until)) - Date.now()
+        if (!held.length) return
+        const next = Math.min(...held.map((item) => item.until)) - Date.now()
         const timer = setTimeout(
-            () => setReleasing((current) => current.filter((item) => Date.now() < item.until)),
+            () => setHeld((current) => current.filter((item) => Date.now() < item.until)),
             Math.max(next, 0),
         )
         return () => clearTimeout(timer)
-    }, [releasing])
+    }, [held])
 
     // A steer this tab sent is on its way INTO the running turn, not held behind it, so while its
     // echo is on screen the dock leaves the row out rather than showing the same message twice.
@@ -258,12 +385,58 @@ export const useAgentChatQueue = ({
     // A docked echo steps aside the moment the server lists the input it became.
     const dockedServerQueued = useMemo(() => {
         const listedClientIds = new Set(server.queued.map((item) => item.clientId))
+        const removing = (clientId?: string | null) => !!clientId && deferredRemovals.has(clientId)
+        // The transcript already shows it: its promoted turn landed, or its echo just retired.
+        const inTranscript = (item: QueuedMessage) =>
+            (!!item.promotedExecutionId && transcriptTurnIds.has(item.promotedExecutionId)) ||
+            echoes.retiredParkedIds.has(item.id) ||
+            !!handoff?.ids.has(item.id)
         return [
             ...heldRows,
-            ...server.queued.filter((item) => !echoes.dockCoveredIds.has(item.id)),
-            ...echoes.dockRows.filter((item) => !listedClientIds.has(item.id)),
+            ...applyQueueOps(server.queued, ops, rowErrors).filter(
+                (item) =>
+                    !echoes.dockCoveredIds.has(item.id) &&
+                    !removing(item.clientId) &&
+                    !inTranscript(item),
+            ),
+            ...echoes.dockRows
+                .filter((item) => !listedClientIds.has(item.id) && !removing(item.id))
+                .map((item) => ({...item, removable: true})),
         ]
-    }, [heldRows, server.queued, echoes.dockCoveredIds, echoes.dockRows])
+    }, [
+        heldRows,
+        server.queued,
+        ops,
+        rowErrors,
+        echoes.dockCoveredIds,
+        echoes.dockRows,
+        echoes.retiredParkedIds,
+        deferredRemovals,
+        transcriptTurnIds,
+        handoff,
+    ])
+
+    const startRemove = useCallback(
+        (id: string) => {
+            setRowError(id, null)
+            const token = setOp(id, {kind: "remove", settledSeq: null})
+            const fail = (message: string) => {
+                if (dropOp(id, token)) setRowError(id, {message})
+            }
+            void server
+                .remove(id)
+                .then(({outcome, settledSeq}) => {
+                    // Gone already is the end state the user asked for.
+                    if (outcome === "applied" || outcome === "not_found") {
+                        settleOp(id, token, settledSeq)
+                    }
+                    // 409: promoted, or bound to a pending stop.
+                    else fail(outcome === "conflict" ? REMOVE_ABOUT_TO_RUN : REMOVE_FAILED)
+                })
+                .catch(() => fail(REMOVE_FAILED))
+        },
+        [dropOp, server, setOp, setRowError, settleOp],
+    )
 
     // One durable admission for both policies, so a steer gets the same echo and refusal
     // recovery a queued send has.
@@ -272,24 +445,53 @@ export const useAgentChatQueue = ({
             // Show it before the request leaves. Every exit is driven by evidence about this
             // send: the turn it started, the dock row (queue) or parked input (steer) it
             // became, or its failure.
-            // A queued send while a run is busy lands in the dock, so show it there from the start.
-            const busy = serverBusyRef.current || runActiveRef.current || echoes.inFlight
+            // A queued send while a run is busy, or behind a send still being admitted, parks.
+            const busy =
+                serverBusyRef.current ||
+                runActiveRef.current ||
+                echoes.inFlight ||
+                admittingRef.current > 0
             echoes.add({...message, policy, docked: policy === "queue" && busy})
-            return server
-                .submit(message, policy, {
+            const waiting = admittingRef.current > 0
+            admittingRef.current += 1
+            // Until the runner names this turn, the API reads the session as idle and runs both.
+            let nameTurn = () => {}
+            const named = new Promise<void>((resolve) => (nameTurn = resolve))
+            const cap = setTimeout(nameTurn, ADMISSION_NAME_MAX_MS)
+            const release = () => {
+                clearTimeout(cap)
+                admittingRef.current -= 1
+            }
+            const admit = () =>
+                server.submit(message, policy, {
+                    opensTurn: policy === "queue" && !busy,
+                    onTurnNamed: nameTurn,
                     onAccepted: (executionId) => {
+                        forgetDeferredRemoval(message.id)
                         echoes.markAccepted(message.id, executionId)
                         onSendAcceptedRef.current?.(message, executionId)
                     },
                     onParked: (inputId) => {
-                        echoes.markParked(message.id, inputId)
                         onSendAcceptedRef.current?.(message, null)
+                        if (forgetDeferredRemoval(message.id)) {
+                            echoes.drop(message.id)
+                            startRemove(inputId)
+                            return
+                        }
+                        echoes.markParked(message.id, inputId)
                     },
                     // One event, one recovery. A refusal that arrives after the promise resolved
                     // goes back to the composer exactly like one that rejected it, so there is a
                     // single place the message lives and a single wording for it. The row is the
                     // fallback only when no composer can take the text.
                     onFailed: () => {
+                        nameTurn()
+                        // Removed by the user: nothing to give back.
+                        if (forgetDeferredRemoval(message.id)) {
+                            echoes.drop(message.id)
+                            onSendFailedRef.current?.(message)
+                            return
+                        }
                         // The row goes up FIRST and comes down only once the composer confirms it
                         // took the text. It is the safe side to fail to: the message must never be
                         // in neither place, and a host cannot always answer in this tick, because
@@ -315,20 +517,33 @@ export const useAgentChatQueue = ({
                     // here would write a delivered message back into the input under "wasn't
                     // sent", which is the normal accepted path: row adopted, echo retired, stream
                     // ends.
-                    onSettled: () => echoes.markFailed(message.id),
+                    onSettled: () => {
+                        nameTurn()
+                        echoes.markFailed(message.id)
+                    },
                 })
+            const admitted = waiting ? admissionChainRef.current.then(admit) : admit()
+            admissionChainRef.current = admitted
                 .then(
-                    (admission) => {
-                        if (admission === "running") echoes.markStarted(message.id)
-                    },
-                    (error: unknown) => {
-                        echoes.drop(message.id)
-                        onSendFailedRef.current?.(message)
-                        throw error
-                    },
+                    (admission) => (admission === "running" ? named : undefined),
+                    () => undefined,
                 )
+                .then(release)
+            return admitted.then(
+                (admission) => {
+                    if (admission !== "running") return
+                    forgetDeferredRemoval(message.id)
+                    echoes.markStarted(message.id)
+                },
+                (error: unknown) => {
+                    echoes.drop(message.id)
+                    onSendFailedRef.current?.(message)
+                    if (forgetDeferredRemoval(message.id)) return
+                    throw error
+                },
+            )
         },
-        [echoes, server],
+        [echoes, forgetDeferredRemoval, server, startRemove],
     )
 
     const submit = useCallback(
@@ -351,11 +566,66 @@ export const useAgentChatQueue = ({
     const removeQueued = useCallback(
         (id: string) => {
             if (server.queued.some((message) => message.id === id)) {
-                removedIdsRef.current.add(id)
-                void server.remove(id).catch(() => {})
+                // A saving edit owns the row; removing now would lose its recovery text.
+                const op = opsRef.current[id]
+                if (op?.kind === "edit" && op.settledSeq === null) return
+                startRemove(id)
+                return
+            }
+            // Not listed yet: hidden now, removed once the server names its input.
+            if (echoes.dockRows.some((message) => message.id === id)) {
+                deferredRemovalsRef.current.add(id)
+                setDeferredRemovals(new Set(deferredRemovalsRef.current))
             }
         },
-        [server],
+        [echoes.dockRows, server.queued, startRemove],
+    )
+
+    const sendQueuedNow = useCallback(
+        (id: string) => {
+            const row = server.queued.find((message) => message.id === id)
+            const sendNow = server.sendNow
+            const op = opsRef.current[id]
+            if (!row || !sendNow || (op?.kind === "edit" && op.settledSeq === null)) return
+            // A saved edit the snapshot has not caught up with is the text that runs.
+            const sent =
+                op?.kind === "edit"
+                    ? {text: op.text, fileParts: op.fileParts ?? row.fileParts}
+                    : row
+            const echoId = `send-now-${id}`
+            setRowError(id, null)
+            const token = setOp(id, {kind: "sendNow", settledSeq: null})
+            echoes.add({id: echoId, text: sent.text, fileParts: sent.fileParts})
+            const fail = (message: string) => {
+                echoes.drop(echoId)
+                if (dropOp(id, token)) setRowError(id, {message})
+            }
+            void sendNow(id)
+                .then(({outcome, settledSeq, executionId}) => {
+                    if (outcome !== "applied") {
+                        fail(
+                            outcome === "busy"
+                                ? SEND_NOW_BUSY
+                                : outcome === "failed"
+                                  ? SEND_NOW_FAILED
+                                  : NOT_QUEUED,
+                        )
+                        return
+                    }
+                    settleOp(id, token, settledSeq)
+                    if (executionId) echoes.markAccepted(echoId, executionId)
+                })
+                .catch(() => fail(SEND_NOW_FAILED))
+        },
+        [dropOp, echoes, server, setOp, setRowError, settleOp],
+    )
+
+    // The API binds one input to a pending stop, so a second Send Now waits for it.
+    const sendNowPending = useMemo(
+        () =>
+            Object.values(ops).some((op) => op.kind === "sendNow") ||
+            server.queued.some((row) => row.policy === "steer" && !row.promotedExecutionId),
+        [ops, server.queued],
     )
 
     const steer = useCallback(
@@ -392,14 +662,17 @@ export const useAgentChatQueue = ({
     /** Open a session on `id`, stashing the composer's current draft. */
     const beginEdit = useCallback(
         (id: string, draft = "") => {
+            const op = opsRef.current[id]
+            if (op?.kind === "edit" && op.settledSeq === null) return
             editSessionRef.current = {
                 id,
                 server: server.queued.some((message) => message.id === id),
             }
             stashRef.current = draft
+            setRowError(id, null)
             setEditingId(id)
         },
-        [server],
+        [server, setRowError],
     )
 
     /** Take the stashed draft back, once. Both ends of a session hand the composer back. */
@@ -409,6 +682,16 @@ export const useAgentChatQueue = ({
         return draft
     }, [])
 
+    // A refused send the composer cannot take back (a newer draft is there) stays as a flagged row.
+    const {markFailed} = echoes
+    const keepRefusedSend = useCallback(
+        (item: {text: string; fileParts?: FileUIPart[]}) => {
+            const id = generateId()
+            markFailed(id, {id, ...item})
+        },
+        [markFailed],
+    )
+
     /** Close the session without touching the message. Returns the draft to restore. */
     const cancelEdit = useCallback(() => {
         editSessionRef.current = null
@@ -416,13 +699,49 @@ export const useAgentChatQueue = ({
         return takeStash()
     }, [takeStash])
 
+    // A refused edit stays on a row that is still queued; only a row that is gone hands it back.
+    const saveEdit = useCallback(
+        (
+            id: string,
+            item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]},
+            save: NonNullable<ServerQueueAdapter["edit"]>,
+        ) => {
+            const token = setOp(id, {
+                kind: "edit",
+                text: item.text,
+                fileParts: item.fileParts,
+                settledSeq: null,
+            })
+            const fail = (outcome: PendingInputWriteOutcome) => {
+                if (!dropOp(id, token)) return
+                if (serverQueuedRef.current.some((message) => message.id === id)) {
+                    setRowError(id, {
+                        message: outcome === "conflict" ? EDIT_ABOUT_TO_RUN : EDIT_FAILED,
+                        unsavedEdit: {text: item.text, fileParts: item.fileParts},
+                    })
+                    return
+                }
+                const recovery: QueuedMessage = {...item, id: `edit-${id}`}
+                void Promise.resolve(restoreRefusedSendRef.current?.(recovery)).then((taken) => {
+                    if (!taken) echoes.markFailed(recovery.id, recovery)
+                })
+            }
+            void save(id, {text: item.text, fileParts: item.fileParts})
+                .then(({outcome, settledSeq}) =>
+                    outcome === "applied" ? settleOp(id, token, settledSeq) : fail(outcome),
+                )
+                .catch(() => fail("failed"))
+        },
+        [dropOp, echoes, setOp, setRowError, settleOp],
+    )
+
     /**
      * Apply the composer's content to the message under edit. Deliberately NOT a branch inside
      * `submit`: that one is also called by the steer-on-denial and pending-run paths, which would
      * otherwise overwrite whatever the user happened to be editing.
      *
-     * A durable edit preserves the server's refusal; a target that is no longer held becomes a
-     * new message.
+     * A durable edit closes at once and saves in the background; a target no longer held
+     * becomes a new message.
      *
      * Returns the stashed draft, exactly as `cancelEdit` does: committing consumes the composer,
      * so the text the session displaced has to come back here too or it is lost for good.
@@ -439,30 +758,19 @@ export const useAgentChatQueue = ({
             const serverOwnsInput =
                 editSession?.server || server.queued.some((message) => message.id === id)
             if (id && serverOwnsInput) {
-                // Once seen as server-held, it stays so: a later snapshot that misses the row
-                // must not turn a failed edit into a second send.
-                if (editSession) editSession.server = true
                 const save = server.edit
                 if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
-                return save(id, item).then(
-                    () => {
-                        if (editSessionRef.current !== editSession) return ""
-                        editSessionRef.current = null
-                        setEditingId(null)
-                        return takeStash()
-                    },
-                    (error: unknown) => {
-                        if (editSessionRef.current !== editSession) return ""
-                        throw error
-                    },
-                )
+                saveEdit(id, item, save)
+                editSessionRef.current = null
+                setEditingId(null)
+                return Promise.resolve(takeStash())
             }
             return submit(item).then(() => {
                 setEditingId(null)
                 return takeStash()
             })
         },
-        [editingId, server, submit, takeStash],
+        [editingId, saveEdit, server, submit, takeStash],
     )
 
     return {
@@ -476,7 +784,8 @@ export const useAgentChatQueue = ({
         submit,
         steer,
         removeQueued,
-        sendQueuedNow: server.sendNow,
+        sendQueuedNow: server.sendNow ? sendQueuedNow : undefined,
+        sendNowPending,
         /** This tab received the durable respond body for this still-running execution. */
         ownsContinuation,
         serverBusy: server.busy,
@@ -487,5 +796,6 @@ export const useAgentChatQueue = ({
         beginEdit,
         cancelEdit,
         commitEdit,
+        keepRefusedSend,
     }
 }

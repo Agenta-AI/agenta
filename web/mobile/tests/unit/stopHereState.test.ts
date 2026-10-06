@@ -51,6 +51,30 @@ describe("mobile local Stop state", () => {
         ).toBe("abort-retry")
     })
 
+    it("keeps Stopping for a run not streamed here until the server reflects the stop", () => {
+        expect(
+            cancelledStopAction({
+                parkedAtRequest: false,
+                parkedAtResponse: false,
+                streaming: false,
+                retry: false,
+                executionState: "stopping",
+            }),
+        ).toBe("await-server")
+    })
+
+    it("settles a run not streamed here once the server reports it idle", () => {
+        expect(
+            cancelledStopAction({
+                parkedAtRequest: false,
+                parkedAtResponse: false,
+                streaming: false,
+                retry: false,
+                executionState: "idle",
+            }),
+        ).toBe("settle-idle")
+    })
+
     it("settles an acknowledged legacy Stop without waiting for the client deadline", () => {
         expect(
             cancelledStopAction({

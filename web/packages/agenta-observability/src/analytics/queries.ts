@@ -84,6 +84,12 @@ const ANALYTICS_QUERIES = {
     models: {focus: "trace", runLevel: true, where: [], specs: [cat(PATH.model)]},
     modelsFailed: {focus: "trace", runLevel: true, where: [FAILED], specs: [cat(PATH.model)]},
     providers: {focus: "trace", runLevel: true, where: [], specs: [cat(PATH.provider)]},
+    providersFailed: {
+        focus: "trace",
+        runLevel: true,
+        where: [FAILED],
+        specs: [cat(PATH.provider)],
+    },
     tools: {focus: "span", runLevel: false, where: [spanType("tool")], specs: [cat(PATH.tool)]},
 } satisfies Record<string, QueryDef>
 
@@ -143,7 +149,8 @@ export const fetchAnalyticsBuckets = async ({
     const res = await fetchSpansAnalytics({
         projectId,
         focus: def.focus,
-        interval: window.interval,
+        // The API has no weeks that end at `newest`; a weekly window fetches days and sums them.
+        interval: Math.min(window.interval, 24 * 60),
         oldest: new Date(window.oldest).toISOString(),
         newest: new Date(window.newest).toISOString(),
         filter: conditions.length ? {conditions} : undefined,

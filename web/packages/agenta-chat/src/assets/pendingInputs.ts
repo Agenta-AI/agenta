@@ -98,6 +98,10 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         source: "server",
         clientId: input.idempotency_key ?? null,
         editable: input.state === "pending" && display === undefined,
+        // Promoted: its turn is starting, so it can no longer be removed, edited or sent again.
+        ...(input.state === "promoted"
+            ? {removable: false, promotedExecutionId: input.promoted_execution_id ?? null}
+            : {}),
     }
 }
 

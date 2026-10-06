@@ -1,7 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
 import {
-    ANALYTICS_RANGE,
     bucketStarts,
     bucketWindow,
     formatCount,
@@ -13,7 +12,7 @@ import {
     analyticsDrawerAtom,
     analyticsGroupAtom,
     analyticsFiltersAtom,
-    analyticsRangeAtom,
+    analyticsRangeLabelAtom,
     analyticsWindowAtom,
     type AnalyticsMetric,
     type AnalyticsPoint,
@@ -27,7 +26,7 @@ import {stackSeries} from "../cards/GroupedCard"
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
 import {analyticsColor} from "../colors"
-import {bucketUnit, fullLabel, shortLabel} from "../labels"
+import {bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "../labels"
 import {
     SPLIT_KEYS,
     useAnalyticsSplit,
@@ -78,6 +77,13 @@ const pointValue = (metric: AnalyticsMetric, p: AnalyticsPoint, tools: number): 
     }
 }
 
+const UNIT_VIEW: Record<string, string> = {
+    week: "Week by week",
+    day: "Day by day",
+    hour: "Hour by hour",
+    "5 minutes": "5-minute view",
+}
+
 export interface AnalyticsDrawerProps {
     agentName: (id: string) => string
     /** The page's color per agent or model, so a key reads the same in the drawer. */
@@ -109,7 +115,7 @@ export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDra
 const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
     const [state, setState] = useAtom(analyticsDrawerAtom)
     const pageWindow = useAtomValue(analyticsWindowAtom)
-    const range = useAtomValue(analyticsRangeAtom)
+    const rangeLabel = useAtomValue(analyticsRangeLabelAtom)
     const [filters, setFilters] = useAtom(analyticsFiltersAtom)
     const [hovered, setHovered] = useState<number | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -134,7 +140,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
     const stackDim = group !== "none" && focus?.dim !== group ? group : null
     const stackSplit = useAnalyticsSplit(
         stackDim ?? "agent",
-        (stackDim === "model" ? data.modelOrder : data.agentOrder).slice(0, SPLIT_KEYS),
+        data.groups[stackDim ?? "agent"].order.slice(0, SPLIT_KEYS),
         window,
         filters,
         Boolean(stackDim) && (state?.metric === "cost" || state?.metric === "tokens"),
@@ -165,9 +171,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
         !stackDim || !STACKABLE.includes(metric)
             ? null
             : metric === "runs"
-              ? stackDim === "agent"
-                  ? data.agentRuns
-                  : data.modelRuns
+              ? data.groups[stackDim].runs
               : stackSplit.status.pending
                 ? null
                 : stackSplit[metric as "cost" | "tokens"]
@@ -176,15 +180,14 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
             ? stackSeries(
                   stackSource,
                   values as number[],
-                  stackDim === "agent" ? agentName : (key) => key,
+                  groupKeyLabel(stackDim, agentName),
                   (key) => keyColor(stackDim, key),
-                  (stackDim === "agent" ? data.agentOrder : data.modelOrder).length,
+                  data.groups[stackDim].order.length,
               )
             : null
 
-    const title =
-        bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : ANALYTICS_RANGE[range].label
-    const sub = `${unit === "day" ? "Day by day" : unit === "hour" ? "Hour by hour" : "5-minute view"} · ${formatCount(totals.runs)} runs`
+    const title = bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : rangeLabel
+    const sub = `${UNIT_VIEW[unit]} · ${formatCount(totals.runs)} runs`
     const focusName = focus ? (focus.dim === "agent" ? agentName(focus.key) : focus.key) : null
     const focusLabel = focus ? `${focus.dim === "agent" ? "Agent" : "Model"}: ${focusName}` : null
     const pageChips = [
@@ -268,6 +271,18 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                     </button>
                                 </span>
                             ) : null}
+                            {focus ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setFilters({...filters, [focus.dim]: [focus.key]})
+                                        setState(null)
+                                    }}
+                                    className="h-6 cursor-pointer border-0 bg-transparent px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                                >
+                                    Apply as filter
+                                </button>
+                            ) : null}
                         </div>
                     ) : null}
 
@@ -307,8 +322,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                     <section className="rounded-xl bg-muted px-4 py-3">
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-sm font-medium">
-                                {METRIC_LABEL[metric]} by{" "}
-                                {unit === "day" ? "day" : unit === "hour" ? "hour" : "5 minutes"}
+                                {METRIC_LABEL[metric]} by {unit}
                             </span>
                             <span className="text-[11px] text-muted-foreground">
                                 {bucket === null
@@ -425,8 +439,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                     />
 
                     <DrawerRuns
-                        key={`${window.oldest}-${focus?.dim ?? ""}-${focus?.key ?? ""}-${state.reason ?? ""}`}
-                        initialReason={state.reason}
+                        key={`${window.oldest}-${focus?.dim ?? ""}-${focus?.key ?? ""}`}
                         window={window}
                         filters={filters}
                         focus={focus}
@@ -442,25 +455,11 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                         failedOnly={state.failedOnly}
                         onFailedOnly={(failedOnly) => setState({...state, failedOnly})}
                         agentName={agentName}
-                        showDate={bucket === null && window.interval >= 24 * 60}
+                        showDate={window.newest - window.oldest > 24 * 60 * 60_000}
                         onOpenTrace={onOpenTrace}
                     />
                 </div>
             </div>
-
-            {focus ? (
-                <div className="flex justify-end px-5 pb-4 pt-2">
-                    <Button
-                        size="sm"
-                        onClick={() => {
-                            setFilters({...filters, [focus.dim]: [focus.key]})
-                            setState(null)
-                        }}
-                    >
-                        Apply as filter
-                    </Button>
-                </div>
-            ) : null}
         </>
     )
 }
