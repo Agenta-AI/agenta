@@ -21,12 +21,12 @@ export const useScrollFadeEdges = (
         sync()
         box.addEventListener("scroll", sync, {passive: true})
         // Content loads and resizes without a scroll event.
-        const observer = new ResizeObserver(sync)
-        observer.observe(box)
-        for (const child of Array.from(box.children)) observer.observe(child)
+        const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync)
+        observer?.observe(box)
+        for (const child of Array.from(box.children)) observer?.observe(child)
         return () => {
             box.removeEventListener("scroll", sync)
-            observer.disconnect()
+            observer?.disconnect()
             delete box.dataset.fadeTop
             delete box.dataset.fadeBottom
         }
