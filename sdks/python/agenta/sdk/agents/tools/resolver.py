@@ -189,8 +189,12 @@ def _drop_duplicate_reserved_client_tools(
     return kept
 
 
-# Their binding reads the run's session ID, so a run without one cannot call them.
-_SESSION_TOOLS = frozenset({"get_current_session", "rename_session"})
+# Their binding reads the run's session ID, so a run without one cannot call them. The runner
+# refuses a call whose `$ctx.session.id` binding has no value, so offering one of these to a
+# run without a session would only offer a tool that fails on every call.
+_SESSION_TOOLS = frozenset(
+    {"get_current_session", "rename_session", "create_agent", "edit_agent_config"}
+)
 
 
 def _expand_agenta_tools(

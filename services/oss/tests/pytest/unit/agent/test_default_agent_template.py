@@ -105,13 +105,27 @@ def test_published_default_carries_only_the_agenta_tools_entry():
     assert _inspect_agent_default()["tools"] == [
         {
             "type": "agenta_tools",
-            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+            "tools": {
+                "get_current_session": "allow",
+                "rename_session": "allow",
+                "list_agents": "allow",
+                "read_agent_config": "allow",
+                "create_agent": "allow",
+                "edit_agent_config": "allow",
+            },
         }
     ]
     assert _builtin_agent_default()["tools"] == [
         {
             "type": "agenta_tools",
-            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+            "tools": {
+                "get_current_session": "allow",
+                "rename_session": "allow",
+                "list_agents": "allow",
+                "read_agent_config": "allow",
+                "create_agent": "allow",
+                "edit_agent_config": "allow",
+            },
         }
     ]
 
