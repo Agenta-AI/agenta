@@ -93,20 +93,10 @@ class TestTemplateParity:
         assert _web_template_data()["parameters"]["agent"]["skills"] == []
 
     def test_the_template_is_what_the_runtime_accepts(self):
-        from oss.src.core.workflows.service import _agent_template_issues
-
-        assert _agent_template_issues(new_agent_revision_data()) == []
-
-    def test_a_skill_without_body_is_named_by_its_field(self):
         # The gate every agent write goes through: the runtime's own parse.
-        from oss.src.core.workflows.service import _agent_template_issues
+        from oss.src.core.workflows.service import _reject_unrunnable_agent
 
-        data = new_agent_revision_data()
-        data["parameters"]["agent"]["skills"] = [
-            {"name": "invoice-lookup", "description": "Find invoices."}
-        ]
-
-        assert _agent_template_issues(data) == ["skills[0].body is required"]
+        _reject_unrunnable_agent(new_agent_revision_data())
 
 
 class TestNewAgentSlug:

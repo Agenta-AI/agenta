@@ -11,6 +11,8 @@ from fastapi import HTTPException
 
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.core.workflows.types import (
+    InvalidAgentConfigurationError,
+    InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
     StaticWorkflowSlug,
 )
@@ -32,10 +34,14 @@ class NonEmbeddableWorkflowReferenceException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
-class InvalidAgentInstructionsException(HTTPException):
-    # 422, like the harness refusal on the commit route: the request is well-formed, the
-    # configuration in it is not.
-    def __init__(self, error: InvalidAgentInstructionsError):
+class InvalidAgentConfigurationException(HTTPException):
+    # 422: the request is well-formed, the agent configuration in it cannot run.
+    def __init__(
+        self,
+        error: InvalidAgentConfigurationError
+        | InvalidAgentHarnessError
+        | InvalidAgentInstructionsError,
+    ):
         super().__init__(status_code=422, detail=error.to_detail())
 
 
@@ -49,8 +55,12 @@ def handle_workflow_exceptions():
                 raise StaticWorkflowSlugException(message=e.message) from e
             except NonEmbeddableWorkflowReferenceError as e:
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
-            except InvalidAgentInstructionsError as e:
-                raise InvalidAgentInstructionsException(e) from e
+            except (
+                InvalidAgentConfigurationError,
+                InvalidAgentHarnessError,
+                InvalidAgentInstructionsError,
+            ) as e:
+                raise InvalidAgentConfigurationException(e) from e
 
         return wrapper
 
