@@ -1155,7 +1155,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                             starterPrompt="I want to connect"
                             onManual={openIntegrationDrawer}
                             manualTitle="Browse integrations"
-                            manualHint="Pick an app and choose what the agent can do with it."
+                            manualHint="Pick an app and its actions"
                             manualIcon={<PuzzlePiece size={16} />}
                         />
                     ) : undefined,
@@ -1241,7 +1241,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     starterPrompt="I want a skill that"
                     onManual={handleAddSkill}
                     manualTitle="Add manually"
-                    manualHint="Pick a skill from your library or write one."
+                    manualHint="From your library, or write one"
                     manualIcon={<GraduationCap size={16} />}
                 />
             ) : undefined,
