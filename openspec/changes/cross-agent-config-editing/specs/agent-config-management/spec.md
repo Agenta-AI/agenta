@@ -81,6 +81,11 @@ Both capabilities SHALL be on by default in the build kit with every tool set to
 - **WHEN** an operation fails validation or targets a path outside the agent commit scope
 - **THEN** no agent is created and the error names the failing operation
 
+#### Scenario: Unknown field
+
+- **WHEN** the call sends a field other than `name`, `description` and `operations`, for example `instructions`
+- **THEN** it is refused with `invalid_arguments`, and the next step shows the `operations` form
+
 #### Scenario: Created agent appears in the list
 
 - **WHEN** `list_agents` runs after a successful `create_agent`
@@ -114,6 +119,16 @@ Both capabilities SHALL be on by default in the build kit with every tool set to
 
 - **WHEN** the call sends a full configuration instead of operations
 - **THEN** it is refused with the same `full_data_not_committable` error as self-edit
+
+#### Scenario: Operations inside delta
+
+- **WHEN** the call sends `delta.operations` or `workflow_revision.delta.operations`, the `commit_revision` shape
+- **THEN** it is refused with `invalid_arguments`, and the next step says to send `operations` at the top level
+
+#### Scenario: A result the runtime cannot run
+
+- **WHEN** the operations leave a configuration the runtime would refuse, for example a skill without `body`
+- **THEN** nothing is saved, and the refusal names the field, for example `skills[0].body is required`
 
 #### Scenario: Self as target
 

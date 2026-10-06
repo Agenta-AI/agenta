@@ -70,6 +70,8 @@ edited agents_md (1 edit) (by agent "Support Triage" 019f2c1e-..., session 01a1b
 
 The first version of an agent that another agent created starts with `Created by agent "Support Triage" ...`.
 
+A change that would leave the agent unable to run, such as a skill without a body, is refused before it is saved. The refusal names the field to fix.
+
 An agent can change the same parts of another agent that it can change in itself: instructions, skills, tools, integrations, and model. It cannot change the harness kind, the sandbox kind, the sandbox credentials, or the harness, runner, and sandbox permissions. An agent cannot use these tools on itself; it changes its own configuration with its own tools.
 
 ### Risks of the default
