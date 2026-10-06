@@ -3133,11 +3133,15 @@ CREDENTIAL_DELIVERY_CODE = "credential_delivery_failed"
 # The sandbox provider ran out of room. This is the environment refusing to give the journey what
 # it asked for, not the product failing, so it is a SKIP with a loud reason rather than a FAIL.
 #
-# The match is deliberately narrow and quotes Daytona's own create-path refusal. It must NEVER
-# grow to cover `rate_limited`: an internal rate limit under a load the product is supposed to
-# support is a real finding, and hiding it behind a SKIP would delete the only signal the gate has.
+# The match is deliberately narrow and quotes Daytona's own create-path refusal, plus the sentence
+# the runner puts in its place (code `sandbox_capacity`) once the provider refused twice. It must
+# NEVER grow to cover `rate_limited`, nor the runner's own sandbox-slot limit, which shares the
+# `sandbox_capacity` code: an internal limit under a load the product is supposed to support is a
+# real finding, and hiding it behind a SKIP would delete the only signal the gate has.
 CAPACITY_REFUSAL_RE = re.compile(
-    r"total disk limit exceeded|disk quota exceeded|sandbox quota exceeded", re.I
+    r"total disk limit exceeded|disk quota exceeded|sandbox quota exceeded"
+    r"|sandbox provider is at its capacity limit",
+    re.I,
 )
 
 

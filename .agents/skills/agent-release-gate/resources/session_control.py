@@ -30,6 +30,20 @@ artifact:
 
     uv run resources/session_control.py --cells all --harness pi_core --sandbox local
 
+`--harness claude` runs on the vault Anthropic key by default (`ANTHROPIC_API_KEY`). To run it on
+a custom Anthropic-protocol connection instead (for example when that key has no credit), set:
+
+    AGENTA_QA_CLAUDE_MODEL            the model key, `<connection name>/custom/<model slug>`
+    AGENTA_QA_CLAUDE_PROVIDER         the protocol the connection speaks (default `anthropic`)
+    AGENTA_QA_CLAUDE_CONNECTION_SLUG  the vault slug the agent config names
+    AGENTA_QA_CLAUDE_CUSTOM_URL       the connection's base URL
+    AGENTA_QA_CLAUDE_CUSTOM_KEY       the connection's API key
+
+The driver mints a fresh account per run, so a slug from another project's vault does not resolve
+here: bootstrap stocks the minted vault with a custom provider under that slug, built from the
+model key, URL and key above. `AGENTA_QA_CLAUDE_MODEL` and `AGENTA_QA_CLAUDE_PROVIDER` also work
+alone, to pick another model on the vault Anthropic key.
+
 See `SKILL.md` for when these cells are mandatory and where the model keys live.
 """
 
@@ -934,6 +948,62 @@ HARNESSES = {
     },
 }
 
+
+def claude_spec_from_env(environ) -> tuple[dict, dict | None]:
+    """The claude entry with the `AGENTA_QA_CLAUDE_*` overrides applied, and the vault secret
+    bootstrap must stock for it (None when the run stays on the vault Anthropic key).
+
+    A connection slug names a custom provider, which must exist in the minted project's vault,
+    so a slug without its model key, URL and key is refused here rather than at the first turn.
+    """
+    spec = json.loads(json.dumps(HARNESSES["claude"]))
+    spec["model"] = environ.get("AGENTA_QA_CLAUDE_MODEL") or spec["model"]
+    spec["provider"] = environ.get("AGENTA_QA_CLAUDE_PROVIDER") or spec["provider"]
+    slug = environ.get("AGENTA_QA_CLAUDE_CONNECTION_SLUG")
+    if not slug:
+        if environ.get("AGENTA_QA_CLAUDE_CUSTOM_URL") or environ.get(
+            "AGENTA_QA_CLAUDE_CUSTOM_KEY"
+        ):
+            print(
+                "[warn] AGENTA_QA_CLAUDE_CUSTOM_URL/_KEY are ignored without "
+                "AGENTA_QA_CLAUDE_CONNECTION_SLUG; the run uses the vault Anthropic key",
+                file=sys.stderr,
+            )
+        return spec, None
+    name, sep, model_slug = spec["model"].partition("/custom/")
+    url = environ.get("AGENTA_QA_CLAUDE_CUSTOM_URL")
+    key = environ.get("AGENTA_QA_CLAUDE_CUSTOM_KEY")
+    missing = [
+        label
+        for label, ok in (
+            ("AGENTA_QA_CLAUDE_MODEL as <connection name>/custom/<model slug>", sep),
+            ("AGENTA_QA_CLAUDE_CUSTOM_URL", url),
+            ("AGENTA_QA_CLAUDE_CUSTOM_KEY", key),
+        )
+        if not ok
+    ]
+    if missing:
+        raise SystemExit(
+            "AGENTA_QA_CLAUDE_CONNECTION_SLUG is set, so the minted vault needs that custom "
+            "connection. Also set: " + ", ".join(missing) + "."
+        )
+    spec["connection"] = {"mode": "agenta", "slug": slug}
+    secret = {
+        "header": {"name": name, "description": "session-control gate"},
+        "slug": slug,
+        "secret": {
+            "kind": "custom_provider",
+            "data": {
+                "kind": "custom",
+                "protocol": spec["provider"],
+                "provider": {"url": url, "key": key},
+                "models": [{"slug": model_slug}],
+            },
+        },
+    }
+    return spec, secret
+
+
 # Read timeout for the SSE stream `invoke()` opens, per harness kind (`cfg["harness"]["kind"]`,
 # the same key HARNESSES above sets). Pi is a single in-process model loop; Codex and Claude Code
 # are agentic CLIs behind an ACP bridge and routinely take longer per turn under load, so their
@@ -1167,7 +1237,21 @@ def api(method: str, path: str, *, timeout: float = 120.0, **kw) -> httpx.Respon
     )
 
 
-def bootstrap(harness: str = "pi_core") -> None:
+def stock_custom_provider(custom_provider: dict) -> None:
+    """Create the custom connection in the minted vault, under the slug the agent config names."""
+    r = api("POST", "/vault/v1/secrets/", json=custom_provider)
+    if r.status_code != 200:
+        # A 422 echoes the request body, and the body holds the connection's key.
+        key = custom_provider["secret"]["data"]["provider"]["key"]
+        body = r.text.replace(key, "<redacted>") if key else r.text
+        raise SystemExit(f"vault create HTTP {r.status_code}: {body[:400]}")
+    print(
+        f"[bootstrap] vault stocked with custom connection {custom_provider['slug']}",
+        file=sys.stderr,
+    )
+
+
+def bootstrap(harness: str = "pi_core", custom_provider: dict | None = None) -> None:
     uid = uuid.uuid4().hex[:12]
     r = httpx.post(
         f"{BASE}/api/admin/simple/accounts/",
@@ -1207,7 +1291,9 @@ def bootstrap(harness: str = "pi_core") -> None:
         raise SystemExit(f"vault create HTTP {r.status_code}: {r.text[:400]}")
     print("[bootstrap] vault stocked with an openai provider key", file=sys.stderr)
 
-    if harness == "claude":
+    if custom_provider is not None:
+        stock_custom_provider(custom_provider)
+    elif harness == "claude":
         # The claude harness's vault connection (agent_config mode "agenta") needs a funded
         # Anthropic key, the same way the OpenAI key above covers pi_core and codex. Checked
         # here, not in resolve_env(), so a pi_core/codex-only run never needs it set.
@@ -1728,9 +1814,17 @@ def wait_for_tool(handle: dict, *, timeout: float = 60.0) -> dict | None:
 
 
 def sleep_prompt(marker: str, seconds: int) -> str:
+    """A turn that stays in one foreground shell call for `seconds`.
+
+    Not a bare `sleep N`: Claude Code refuses a standalone long sleep ("Blocked: standalone
+    sleep 45 ... use run_in_background"), so the tool ends in seconds and a later Stop finds no
+    running turn. A `timeout` around a blocking `tail` is not a sleep and runs in the foreground;
+    the trailing `echo` makes the call exit 0 when the timeout fires.
+    """
     return (
-        f"The codeword is {marker}. Run exactly this one shell command and nothing "
-        f"else: sleep {seconds}. Do not write, read or search any files. "
+        f"The codeword is {marker}. Use the bash tool to run exactly this one command, in the "
+        f"foreground and not in the background: timeout {seconds} tail -f /dev/null; "
+        f"echo {marker}. Do not run anything else. Do not write, read or search any files. "
         "When the command finishes, reply with the single word DONE."
     )
 
@@ -1763,8 +1857,28 @@ def _match_stop_command(commands: list[dict], turn_id: str | None) -> dict | Non
     return matching[-1] if matching else (commands[-1] if commands else None)
 
 
+def _stopped_execution_row(
+    executions: list[dict], target_turn_id: str | None
+) -> dict | None:
+    """The session_executions row of the stopped turn (an execution id is its turn id), or the
+    only row when none names the turn."""
+    matching = [
+        e
+        for e in executions
+        if target_turn_id and e.get("execution_id") == target_turn_id
+    ]
+    if matching:
+        return matching[0]
+    return executions[0] if len(executions) == 1 else None
+
+
 def assert_command_settled(
-    hooks: OperatorHooks, session_id: str, turn_id: str | None, *, timeout: float = 20.0
+    hooks: OperatorHooks,
+    session_id: str,
+    turn_id: str | None,
+    *,
+    timeout: float = 20.0,
+    earlier_turns: int = 0,
 ) -> dict:
     """Poll for up to `timeout` seconds after a Stop for the durable settlement invariant every
     Stop-issuing cell must observe: the session_commands row for the Stop reaches a terminal
@@ -1782,6 +1896,10 @@ def assert_command_settled(
     settled (`lost`). `stop-after-finish` and `stop-during-completion` already accept this shape;
     routing it through here shares it with every Stop-issuing cell.
 
+    A cell that ran `earlier_turns` turns to completion before the stopped one (`stale-stop` runs
+    one) has a row for each of them too, so the count it expects is `earlier_turns + 1`, and the
+    terminal outcome is read off the stopped turn's own row.
+
     Returns a dict with `settled` (bool), `command`, `execution_rows`, `natural_finish` (bool),
     `note` (set to "stop landed after a natural finish" on that path, else None), and `why` (a
     one-line reason, only set when `settled` is False). Never raises: a hookless run (`NullHooks`)
@@ -1797,13 +1915,18 @@ def assert_command_settled(
             "note": None,
             "why": None,
         }
+    expected_rows = earlier_turns + 1
     deadline = time.time() + timeout
     command: dict | None = None
     executions: list[dict] = []
+    target: str | None = turn_id
+    stopped_row: dict | None = None
     while True:
         commands = hooks.command_rows(session_id)
         command = _match_stop_command(commands, turn_id)
         executions = hooks.execution_rows(session_id)
+        target = turn_id or (command or {}).get("target_turn_id")
+        stopped_row = _stopped_execution_row(executions, target)
         settled_command = command is not None and command.get("state") in (
             "applied",
             "obsolete",
@@ -1811,8 +1934,10 @@ def assert_command_settled(
         outcome = command.get("outcome") if command else None
         # The Stop landed after a natural finish: obsolete/not_running, no execution row to expect.
         natural_finish = settled_command and outcome == "not_running"
-        settled_execution = len(executions) == 1 and bool(
-            executions[0].get("terminal_outcome")
+        settled_execution = (
+            len(executions) == expected_rows
+            and stopped_row is not None
+            and bool(stopped_row.get("terminal_outcome"))
         )
         if settled_command and (natural_finish or settled_execution):
             return {
@@ -1832,11 +1957,18 @@ def assert_command_settled(
         why = "no session_commands row was found for the Stop"
     elif command.get("state") not in ("applied", "obsolete"):
         why = f"the Stop command was left {command.get('state')!r}, expected applied or obsolete"
-    elif len(executions) != 1:
+    elif len(executions) != expected_rows and earlier_turns:
+        why = (
+            f"expected exactly {expected_rows} session_executions rows ({earlier_turns} earlier "
+            f"turn(s) and the stopped one), saw {len(executions)}"
+        )
+    elif len(executions) != expected_rows:
         why = (
             "expected exactly one session_executions row for the stopped session, saw "
             f"{len(executions)}"
         )
+    elif stopped_row is None:
+        why = f"no session_executions row names the stopped turn {target!r}"
     else:
         why = "the session_executions row settled with no terminal outcome"
     return {
@@ -2004,7 +2136,7 @@ def cell_stale_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
     bare = cancel(session_id, label="bare-stop")
     # The stale Stop (targets turn1, already settled) is expected to be REFUSED, not to produce
     # a settlement of its own — only `bare` (the real Stop, targets the live turn2) must settle.
-    settle = assert_command_settled(hooks, session_id, turn2)
+    settle = assert_command_settled(hooks, session_id, turn2, earlier_turns=1)
     handle["thread"].join(timeout=180)
     t2 = handle["out"] or {}
     time.sleep(4)
@@ -2037,7 +2169,9 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
     """Stop a parked approval and enforce the flag-specific late-answer behavior."""
     session_id = str(uuid.uuid4())
     marker = f"PEAR{uuid.uuid4().hex[:6].upper()}"
-    prompt = f"The codeword is {marker}. Run exactly this one shell command and nothing else: echo hello. Then reply DONE."
+    # A MUTATING command: Claude Code auto-approves a read-only one (a bare `echo`) whatever the
+    # permission policy says, so no approval would ever park on the claude harness.
+    prompt = f"The codeword is {marker}. Run exactly this one shell command and nothing else: echo hello > /tmp/qa-stop-approval.txt. Then reply DONE."
     t1 = invoke(
         session_id, [user_msg(prompt)], cfg_ask, references_ask, "approval-turn"
     )
@@ -2238,11 +2372,7 @@ def cell_records_outage(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return {}, _skip("no --project given: stopping Postgres needs docker")
     session_id = str(uuid.uuid4())
     marker = f"CEDAR{uuid.uuid4().hex[:6].upper()}"
-    msgs = [
-        user_msg(
-            f"The codeword is {marker}. Run exactly this one shell command and nothing else: sleep 30. When it finishes, reply with the single word DONE."
-        )
-    ]
+    msgs = [user_msg(sleep_prompt(marker, 30))]
     handle = invoke_async(session_id, msgs, cfg, references, "outage-turn1")
     wait_for_turn(session_id)
     time.sleep(6)
@@ -2812,11 +2942,7 @@ def cell_stale_tail(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return {}, _skip("no --project given: pausing the runner needs docker")
     session_id = str(uuid.uuid4())
     marker = f"ELDER{uuid.uuid4().hex[:6].upper()}"
-    msgs = [
-        user_msg(
-            f"The codeword is {marker}. Run exactly this one shell command and nothing else: sleep 20. When it finishes, reply with the single word DONE."
-        )
-    ]
+    msgs = [user_msg(sleep_prompt(marker, 20))]
     handle = invoke_async(session_id, msgs, cfg, references, "tail-turn1")
     wait_for_turn(session_id)
     time.sleep(3)
@@ -3256,8 +3382,12 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-    bootstrap(args.harness)
-    spec = HARNESSES[args.harness]
+    spec, custom_provider = (
+        claude_spec_from_env(os.environ)
+        if args.harness == "claude"
+        else (HARNESSES[args.harness], None)
+    )
+    bootstrap(args.harness, custom_provider)
     base_cfg = agent_config(
         spec["kind"], spec["model"], spec["provider"], spec["connection"], args.sandbox
     )
@@ -3283,6 +3413,7 @@ def main() -> int:
     results: dict = {
         "project_id": STATE["project_id"],
         "harness": args.harness,
+        "model": spec["model"],
         "sandbox": args.sandbox,
         "client_shape": args.client_shape,
         "durable_stop": {

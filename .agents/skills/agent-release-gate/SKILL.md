@@ -287,6 +287,33 @@ fallback:
 - `ANTHROPIC_API_KEY` — only required for `--harness claude`, stocked into the same vault the
   same way. Lives in `~/.agenta-qa-secrets.env`. A pi_core- or codex-only run does not need it.
 
+**Run `--harness claude` on a custom connection** (for example when the Anthropic key has no
+credit). Set these, and `ANTHROPIC_API_KEY` is no longer needed:
+
+- `AGENTA_QA_CLAUDE_MODEL` — the model key, `<connection name>/custom/<model slug>`, e.g.
+  `orclaude/custom/anthropic/claude-haiku-4.5`.
+- `AGENTA_QA_CLAUDE_PROVIDER` — the protocol the connection speaks; default `anthropic`.
+- `AGENTA_QA_CLAUDE_CONNECTION_SLUG` — the vault slug the agent config names.
+- `AGENTA_QA_CLAUDE_CUSTOM_URL` and `AGENTA_QA_CLAUDE_CUSTOM_KEY` — the connection's base URL
+  and key (for OpenRouter: `https://openrouter.ai/api` and `OPENROUTER_API_KEY` from
+  `~/.agenta-qa-secrets.env`).
+
+The driver mints a fresh account on every run, so a slug copied from another project's vault does
+not exist there. Bootstrap creates the custom connection in the minted vault under the slug you
+give, from the model key, URL and key. `AGENTA_QA_CLAUDE_MODEL` and `AGENTA_QA_CLAUDE_PROVIDER`
+also work alone, to change the model on the vault Anthropic key. `results.json` records the model
+the run used.
+
+**The long-turn prompt is not a bare `sleep N`.** Claude Code refuses a standalone long sleep
+(`Blocked: standalone sleep 45 ... use run_in_background`), the turn ends in seconds, and a later
+Stop gets 409 `current: none`. The cells ask for `timeout N tail -f /dev/null; echo <codeword>`,
+which runs in the foreground for N seconds.
+
+**`stop-approval` asks for a mutating command.** Claude Code auto-approves a read-only command such
+as a bare `echo` whatever the permission policy says, so no approval parks and the cell fails with
+`no pending approval was seen before the Stop`. `runner.kind` is not the cause: the SDK reads only
+`runner.permissions.default`.
+
 A Daytona run additionally needs a Secrets-capable Daytona key on the runner; the key in most
 session env files returns 403 on the Secrets endpoint, so check that before trusting a Daytona
 result.
