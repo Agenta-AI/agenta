@@ -1,6 +1,9 @@
 import {describe, expect, it} from "vitest"
 
-import {probeHasSessions} from "../../src/features/sessions/useProjectHasSessions"
+import {
+    probeHasSessions,
+    showSessionsOnboarding,
+} from "../../src/features/sessions/useProjectHasSessions"
 
 /**
  * The sessions screen swaps the list for onboarding when the project has no session at all. A
@@ -28,5 +31,37 @@ describe("probeHasSessions", () => {
 
     it("keeps a session it already found when a later refetch fails", () => {
         expect(probeHasSessions({isError: true, data: {pages: [page(["s-1"])]}})).toBe(true)
+    })
+})
+
+describe("showSessionsOnboarding", () => {
+    const settled = {listSettledEmpty: true, listError: false, search: ""}
+
+    it("teaches sessions when the probe settled on no sessions", () => {
+        expect(
+            showSessionsOnboarding({...settled, probe: {pending: false, hasSessions: false}}),
+        ).toBe(true)
+    })
+
+    it("keeps the list when the probe failed", () => {
+        expect(
+            showSessionsOnboarding({...settled, probe: {pending: false, hasSessions: undefined}}),
+        ).toBe(false)
+    })
+
+    it("keeps the list while the probe is pending", () => {
+        expect(
+            showSessionsOnboarding({...settled, probe: {pending: true, hasSessions: undefined}}),
+        ).toBe(false)
+    })
+
+    it("keeps the list when a search is applied", () => {
+        expect(
+            showSessionsOnboarding({
+                ...settled,
+                search: "deploy",
+                probe: {pending: false, hasSessions: false},
+            }),
+        ).toBe(false)
     })
 })

@@ -32,7 +32,7 @@ import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
 import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
-import {useProjectHasSessions} from "./useProjectHasSessions"
+import {showSessionsOnboarding, useProjectHasSessions} from "./useProjectHasSessions"
 import {useSessionRowMenu} from "./useSessionRowMenu"
 
 /**
@@ -93,13 +93,12 @@ export const SessionListScreen = ({
     const seedSearch = useAtomValue(sessionSearchAtom)
     const listSettledEmpty = list.isEmpty && !list.isPlaceholder && !list.isPending
     const probe = useProjectHasSessions(listSettledEmpty)
-    // No session anywhere in the project: teach sessions instead of listing them.
-    const projectEmpty =
-        listSettledEmpty &&
-        !list.isError &&
-        !probe.pending &&
-        probe.hasSessions === false &&
-        !seedSearch.trim()
+    const projectEmpty = showSessionsOnboarding({
+        listSettledEmpty,
+        listError: list.isError,
+        probe,
+        search: seedSearch,
+    })
     const search = useDebouncedAtomSearch(setSearch, 300, seedSearch)
 
     const resetFilters = useSetAtom(resetSessionFiltersAtom)

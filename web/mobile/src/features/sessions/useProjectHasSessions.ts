@@ -12,6 +12,27 @@ export const probeHasSessions = (probe: {
     return probe.isError ? undefined : false
 }
 
+/**
+ * No session anywhere in the project: teach sessions instead of listing them. Only a settled
+ * "no" from the probe counts; a failed probe keeps the list.
+ */
+export const showSessionsOnboarding = ({
+    listSettledEmpty,
+    listError,
+    probe,
+    search,
+}: {
+    listSettledEmpty: boolean
+    listError: boolean
+    probe: {pending: boolean; hasSessions: boolean | undefined}
+    search: string
+}): boolean =>
+    listSettledEmpty &&
+    !listError &&
+    !probe.pending &&
+    probe.hasSessions === false &&
+    !search.trim()
+
 /** Whether the project has any session at all, asked with every filter off; screen and table share it. */
 export const useProjectHasSessions = (enabled: boolean) => {
     const probe = useSessionList({
