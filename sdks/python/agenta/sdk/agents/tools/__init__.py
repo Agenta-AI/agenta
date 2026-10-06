@@ -1,6 +1,7 @@
 """Public agent-tool configuration and resolution API."""
 
 from .compat import (
+    SINGLE_ENTRY_TOOL_TYPES,
     ToolConfigDiagnostic,
     ToolConfigParseResult,
     coerce_tool_config,
@@ -70,6 +71,7 @@ from .parsing import parse_tool_config
 from .resolver import EnvironmentToolSecretProvider, ToolResolver
 
 __all__ = [
+    "SINGLE_ENTRY_TOOL_TYPES",
     "ToolConfigBase",
     "ToolConfig",
     "BuiltinToolConfig",

@@ -901,12 +901,11 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # The normative tool description, contracts/change-set.md section 15. About 1.5 KB and 400
 # tokens; the 3.2 KB version measured the same success rate and cost 11-13 percent more.
 # It works BECAUSE three things hold: the wrapper normalizes the repeated-list mistake,
-# every error names a next step, and the selector key is `list`.
-#
-# The target and operation reference is shared with `create_agent` and `edit_agent_config`,
-# which take the same operations against another agent's configuration.
-_OPERATIONS_REFERENCE = (
-    """TARGET: an array of segments from the configuration root. A string segment names an
+# every error names a next step, and the selector key is `list`. So it stays this size:
+# the only line added since that measurement is the `agenta_tools` key, a selector fix it
+# shares with `edit_agent_config`. The longer reference (Agenta tool names, skill fields)
+# lives in `edit_agent_config` and in the build-an-agent skill, not here.
+_TARGET_AND_OPERATIONS = """TARGET: an array of segments from the configuration root. A string segment names an
 object field. An object segment {"list": L, "key": K} names one entry of list L and
 stands in place of L's name. Keyed lists: skills, mcps, tools (by name; a
 gateway_connection entry has no name and is keyed
@@ -915,21 +914,6 @@ and the agenta_tools entry is keyed agenta_tools), files (by path).
 
     ["parameters","agent",{"list":"skills","key":"release-qa"},
      {"list":"files","key":"checklist.md"},"content"]
-
-To turn on one Agenta tool, set it in the agenta_tools entry's `tools` map:
-
-    {"operation":"set","target":["parameters","agent",{"list":"tools","key":"agenta_tools"},
-     "tools","create_schedule"],"value":"allow"}
-
-"""
-    + textwrap.fill(
-        'Agenta tools (value "allow" or "ask"): ' + ", ".join(AGENTA_TOOLS) + ".",
-        width=90,
-    )
-    + """
-A skill is {"name", "description", "body"}, all three required; `name` is lowercase
-letters and digits joined by hyphens, `body` is the SKILL.md text. When `skills` is
-missing, `set` it to a list.
 
 OPERATIONS:
 - `set` replace one field (needs `value`)
@@ -943,7 +927,6 @@ OPERATIONS:
 `edits` is a list of {old_text, new_text}. `old_text` must occur exactly once and match
 character for character, line breaks included. Copy it from the configuration you read;
 never retype it from memory."""
-)
 
 _COMMIT_REVISION_DESCRIPTION_ORDERED = (
     """Commit a change to this agent's own configuration.
@@ -956,7 +939,7 @@ Send `workflow_revision` with `base_revision_id` (the `base_revision_id` you rea
 committed.
 
 """
-    + _OPERATIONS_REFERENCE
+    + _TARGET_AND_OPERATIONS
     + """
 
 For a workspace file's content, write {"@ag.file": "<path>"} where the string would go.
@@ -1866,6 +1849,10 @@ includes you. Pass an agent's `slug` or `id` to `read_agent_config` or `edit_age
 When the answer has a `next_cursor`, call again with `cursor` set to it for the next page. A
 page can hold fewer agents than `limit`."""
 
+# Shared with the API handler, so the default the model reads is the one it gets.
+LIST_AGENTS_DEFAULT_LIMIT = 50
+LIST_AGENTS_MAX_LIMIT = 100
+
 _LIST_AGENTS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -1878,8 +1865,8 @@ _LIST_AGENTS_INPUT_SCHEMA: Dict[str, Any] = {
         "limit": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 100,
-            "description": "Agents per page. Default 50.",
+            "maximum": LIST_AGENTS_MAX_LIMIT,
+            "description": f"Agents per page. Default {LIST_AGENTS_DEFAULT_LIMIT}.",
         },
         "include_archived": {
             "type": "boolean",
@@ -1928,12 +1915,7 @@ _READ_AGENT_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
                 "Omit it to read everything."
             ),
         },
-        "max_bytes": {
-            "type": "integer",
-            "minimum": 1024,
-            "maximum": 262144,
-            "description": "Largest answer to return before refusing. Default 65536.",
-        },
+        "max_bytes": _READ_CONFIG_INPUT_SCHEMA["properties"]["max_bytes"],
         "caller_agent_id": _BOUND_FROM_RUN_SCHEMA,
     },
 }
@@ -1945,6 +1927,26 @@ _AGENT_OPERATIONS_SCHEMA: Dict[str, Any] = {
     "items": _OPERATION_SCHEMA,
     "description": "The change, as ordered operations. If one fails, nothing is saved.",
 }
+
+# The shapes models went looking for when they edited another agent (bench S2, S5, S6). Only
+# `edit_agent_config` carries them: `commit_revision` keeps its measured size, and
+# `create_agent` points here. The build-an-agent skill holds the same facts.
+_AGENT_CONFIG_SHAPES = (
+    """To turn on one Agenta tool, set it in the agenta_tools entry's `tools` map:
+
+    {"operation":"set","target":["parameters","agent",{"list":"tools","key":"agenta_tools"},
+     "tools","create_schedule"],"value":"allow"}
+
+"""
+    + textwrap.fill(
+        'Agenta tools (value "allow" or "ask"): ' + ", ".join(AGENTA_TOOLS) + ".",
+        width=90,
+    )
+    + """
+A skill is {"name", "description", "body"}, all three required; `name` is lowercase
+letters and digits joined by hyphens, `body` is the SKILL.md text. When `skills` is
+missing, `set` it to a list."""
+)
 
 _EDIT_AGENT_CONFIG_DESCRIPTION = (
     """Save a change to the configuration of another agent in this project, as its new version.
@@ -1961,7 +1963,9 @@ from `list_agents`, not the display name), `base_revision_id` (from that read) a
        "edits": [{"old_text": "Answer briefly.", "new_text": "Answer briefly, in English."}]}]}
 
 """
-    + _OPERATIONS_REFERENCE
+    + _TARGET_AND_OPERATIONS
+    + "\n\n"
+    + _AGENT_CONFIG_SHAPES
     + """
 
 Write every value inline: `@ag.file` is not resolved here. The change becomes the agent's
@@ -1988,13 +1992,13 @@ _EDIT_AGENT_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
     },
 }
 
-_CREATE_AGENT_DESCRIPTION = (
-    """Create a new agent in this project.
+_CREATE_AGENT_DESCRIPTION = """Create a new agent in this project.
 
 The new agent starts from the "New agent" template: its default instructions, tools and
 model. Send `name`, an optional `description`, and `operations` to change that configuration
 in the same call. These are the only fields: every change, instructions included, goes in
-`operations`, at the top level. Targets sit under `["parameters","agent", ...]`:
+`operations`, at the top level. An operation has the same shape as in `edit_agent_config`,
+and targets sit under `["parameters","agent", ...]`:
 
     {"name": "Invoice helper",
      "description": "Answers questions about invoices.",
@@ -2002,15 +2006,12 @@ in the same call. These are the only fields: every change, instructions included
        "target": ["parameters","agent","instructions","agents_md"],
        "value": "You answer questions about our invoices."}]}
 
-"""
-    + _OPERATIONS_REFERENCE
-    + """
-
 Write every value inline: `@ag.file` is not resolved here. If one operation fails, no agent
-is created. The answer carries the new agent's `id`, `slug` and `base_revision_id`; use them
-with `read_agent_config` and `edit_agent_config` for later changes. Agenta writes the first
-version's message, and it names you and this session."""
-)
+is created. The same arguments in the same session make one agent, so a retry after a
+failure finishes that agent and never makes a second one. The answer carries the new agent's
+`id`, `slug` and `base_revision_id`; use them with `read_agent_config` and
+`edit_agent_config` for later changes. Agenta writes the first version's message, and it
+names you and this session."""
 
 _CREATE_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
