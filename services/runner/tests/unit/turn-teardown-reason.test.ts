@@ -8,7 +8,7 @@
  * `runCold` is driven through `makeKeepaliveEngine` with `acquireEnvironment` and `runTurn`
  * replaced, so the test reads the exact reason passed to `destroy`.
  *
- * Run: pnpm exec vitest run --project unit tests/unit/one-turn-teardown-reason.test.ts
+ * Run: pnpm exec vitest run --project unit tests/unit/turn-teardown-reason.test.ts
  */
 import assert from "node:assert/strict";
 import { beforeEach, describe, it, vi } from "vitest";
