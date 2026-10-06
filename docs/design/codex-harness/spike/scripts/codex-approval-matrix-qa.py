@@ -301,9 +301,10 @@ def park(sandbox):
 
 
 def has_new_call_id(t, call):
-    """True when the resume produced tool output and none of it carries the parked call's id."""
-    ids = [o.get("toolCallId") for o in t["tool_outputs"]]
-    return bool(ids) and call["toolCallId"] not in ids
+    """True when a parked id exists, some output has an id, and no output id equals it."""
+    parked_id = call.get("toolCallId")
+    ids = {i for i in (o.get("toolCallId") for o in t["tool_outputs"]) if i}
+    return bool(parked_id) and bool(ids) and parked_id not in ids
 
 
 def run_ask_warm(sandbox):
