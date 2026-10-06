@@ -300,6 +300,12 @@ def park(sandbox):
     return sid, t["tool_calls"][0]
 
 
+def has_new_call_id(t, call):
+    """True when the resume produced tool output and none of it carries the parked call's id."""
+    ids = [o.get("toolCallId") for o in t["tool_outputs"]]
+    return bool(ids) and call["toolCallId"] not in ids
+
+
 def run_ask_warm(sandbox):
     print(f"\n===== {sandbox} / ASK -> WARM RESUME =====")
     sid, call = park(sandbox)
@@ -338,6 +344,11 @@ def run_ask_cold1(sandbox):
         f"{sandbox}/ask-cold1: tool executed",
         any(o["type"] == "tool-output-available" for o in t["tool_outputs"]),
     )
+    check(
+        f"{sandbox}/ask-cold1: NEW tool-call id (cold replay, not a warm resume)",
+        has_new_call_id(t, call),
+        f"parked {call['toolCallId']}",
+    )
     check(f"{sandbox}/ask-cold1: codeword survived the replay", CODEWORD in t["reply"])
     check(f"{sandbox}/ask-cold1: no second approval card", not t["approvals"])
 
@@ -358,6 +369,11 @@ def run_ask_cold2(sandbox):
     check(
         f"{sandbox}/ask-cold2: tool executed",
         any(o["type"] == "tool-output-available" for o in t["tool_outputs"]),
+    )
+    check(
+        f"{sandbox}/ask-cold2: NEW tool-call id (cold replay, not a warm resume)",
+        has_new_call_id(t, call),
+        f"parked {call['toolCallId']}",
     )
     check(f"{sandbox}/ask-cold2: codeword survived", CODEWORD in t["reply"])
 
