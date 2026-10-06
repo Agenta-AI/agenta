@@ -19,8 +19,6 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-const WEEK = 7 * DAY
-
 /** Ranges longer than a month read by the week; a bar per day would be a hairline. */
 const WEEKLY_AFTER_DAYS = 31
 
