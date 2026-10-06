@@ -237,6 +237,45 @@ The keys work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
 `workerStreams`, `workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`,
 `redisDurable`, `store.seaweedfs` and `alembic`.
 
+## Long streams and worker shutdown
+
+The api proxies every agent model call through the LLM gateway as a streaming
+response, and one response can run for many minutes. Gunicorn stops a worker in
+two cases: when the worker has served `api.gunicorn.maxRequests` requests (a
+guard against slow memory leaks), and when the pod gets the TERM signal. In both
+cases the worker stops taking new requests and finishes the requests it has open,
+for at most `api.gunicorn.gracefulTimeout` seconds. Then it is killed and any
+stream still open is cut.
+
+```yaml
+api:
+  gunicorn:
+    gracefulTimeout: 900      # default; cover the longest stream you allow
+    maxRequests: 100000       # default; 0 turns recycling off
+    maxRequestsJitter: 10000  # default
+    timeout: 60               # default; the hung-worker check, not a request limit
+  # terminationGracePeriodSeconds defaults to gracefulTimeout + 30
+```
+
+Three settings outside the gunicorn block must be at least as long as
+`gracefulTimeout`, or they cut the stream first:
+
+- `api.terminationGracePeriodSeconds`. The kubelet sends KILL at the end of it.
+  The chart default is `gracefulTimeout + 30`, which covers the 10-second preStop
+  delay. If you set the grace period yourself, keep that margin.
+- The load balancer's connection draining. On GKE this is
+  `connectionDraining.drainingTimeoutSec` on the api's `BackendConfig`. After that
+  timeout the load balancer stops all traffic to the old pod, open streams
+  included.
+- The load balancer's response timeout, for example `timeoutSec` on a GKE
+  `BackendConfig`. This one caps every stream, not only the ones on a pod that is
+  stopping.
+
+A worker that is draining does not take new requests, and gunicorn starts its
+replacement only after it exits. With the default of two workers, a pod serves on
+one worker while the other drains. The jitter keeps the two workers from
+recycling at the same time.
+
 ## Availability under disruption
 
 The chart renders a PodDisruptionBudget and topologySpreadConstraints per

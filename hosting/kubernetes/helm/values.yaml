@@ -326,7 +326,9 @@ redisDurable:
 #     with maxUnavailable 0, maxSurge 1 on services, web, webMobile,
 #     workerStreams, workerQueues, supertokens and api.
 #   terminationGracePeriodSeconds: 300 on agentRunner, 120 on the two
-#     workers, 60 on api, services, web and webMobile.
+#     workers, 60 on services, web and webMobile. On api it is
+#     api.gunicorn.gracefulTimeout plus 30 (930 by default), so a long LLM
+#     gateway stream can finish; see "api.gunicorn" below.
 #   lifecycle: a preStop exec `sleep 10` on agentRunner, api, services, web and
 #     webMobile. Setting a key replaces its default.
 # Liveness probes: the chart sets none on cron, workerStreams or workerQueues. Each of
@@ -351,7 +353,13 @@ redisDurable:
 # store.seaweedfs and alembic. `strategy` is for Deployments only.
 # ================================================================== #
 # api:
-#   terminationGracePeriodSeconds: 45
+#   gunicorn:                  # the api's gunicorn worker lifecycle (defaults shown)
+#     gracefulTimeout: 900     # seconds a recycled or stopped worker gets to finish its
+#                              # open requests. Must cover the longest LLM gateway stream.
+#     maxRequests: 100000      # recycle a worker after this many requests (leak guard)
+#     maxRequestsJitter: 10000 # spread the recycles so workers do not drain together
+#     timeout: 60              # hung-worker check, not a request limit
+#   terminationGracePeriodSeconds: 45   # default: gunicorn.gracefulTimeout + 30
 #   lifecycle:
 #     preStop:
 #       sleep:

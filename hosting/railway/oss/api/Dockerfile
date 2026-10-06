@@ -16,15 +16,15 @@ ENV SUPERTOKENS_CONNECTION_URI=http://supertokens.railway.internal:3567
 CMD [ \
     "gunicorn", "entrypoints.routers:app", \
     "--bind", "0.0.0.0:8000", \
-    "--worker-class", "uvicorn.workers.UvicornWorker", \
+    "--worker-class", "entrypoints.uvicorn_worker.DrainingUvicornWorker", \
     "--workers", "2", \
     "--worker-connections", "1000", \
     "--backlog", "2048", \
     "--keep-alive", "5", \
-    "--max-requests", "10000", \
-    "--max-requests-jitter", "1000", \
+    "--max-requests", "100000", \
+    "--max-requests-jitter", "10000", \
     "--timeout", "60", \
-    "--graceful-timeout", "30", \
+    "--graceful-timeout", "900", \
     "--log-level", "info", \
     "--access-logfile", "-", \
     "--error-logfile", "-" \

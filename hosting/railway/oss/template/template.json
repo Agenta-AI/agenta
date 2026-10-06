@@ -158,7 +158,7 @@
     },
     "api": {
       "image": "ghcr.io/agenta-ai/agenta-api:{app_tag}",
-      "startCommand": "gunicorn entrypoints.routers:app --bind 0.0.0.0:8000 --worker-class uvicorn.workers.UvicornWorker --workers 2 --max-requests 10000 --max-requests-jitter 1000 --timeout 60 --graceful-timeout 60 --log-level info --access-logfile - --error-logfile -",
+      "startCommand": "gunicorn entrypoints.routers:app --bind 0.0.0.0:8000 --worker-class entrypoints.uvicorn_worker.DrainingUvicornWorker --workers 2 --max-requests 100000 --max-requests-jitter 10000 --timeout 60 --graceful-timeout 900 --log-level info --access-logfile - --error-logfile -",
       "healthcheckPath": "/health",
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
@@ -198,6 +198,7 @@
         "AGENTA_STORE_JWT_PRIVATE_KEY": {
           "secret": "AGENTA_STORE_JWT_PRIVATE_KEY"
         },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": "930",
         "AGENTA_LICENSE": "oss",
         "PORT": "8000",
         "SCRIPT_NAME": "/api",
