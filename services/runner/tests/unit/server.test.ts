@@ -92,13 +92,14 @@ async function listen(
   // `/kill` lists sandboxes on Daytona when the loaded env enables it, so a test never lets it
   // reach the real client.
   killLabelledSandboxes: KillSessionSandboxes = async () => {},
+  killDeadlineMs?: number,
 ): Promise<{ url: string; close: () => Promise<void> }> {
   // Force the configured token unconditionally (default TEST_TOKEN; `null` = leave the env
   // as the test set it, for the tokenless-boot case). A loaded dev env (`load-env` before
   // the suite) sets AGENTA_RUNNER_TOKEN=replace-me; a "set only if unset" guard would let
   // that leak in and 401 every AUTH request. afterEach restores the pre-suite value.
   if (token !== null) process.env[TOKEN_ENV] = token;
-  const server = createAgentServer(run, killLabelledSandboxes);
+  const server = createAgentServer(run, killLabelledSandboxes, killDeadlineMs);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   return {
@@ -393,6 +394,104 @@ describe("createAgentServer", () => {
         "drain:proj-1:sess-1:kill",
         "sweep",
       ]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill whose pool drain outlasts the deadline answers 200 and never sweeps the labels", async () => {
+    // After the api stops waiting, a new turn may create a sandbox with the same labels on
+    // another pod; a sweep started by the late drain would delete it.
+    let drainsFinished = 0;
+    let releaseDrain!: () => void;
+    const drainReleased = new Promise<void>((resolve) => (releaseDrain = resolve));
+    vi.spyOn(SessionPool.prototype, "destroy").mockImplementation(async () => {
+      await drainReleased;
+      drainsFinished += 1;
+    });
+    const swept: string[] = [];
+    const s = await listen(
+      okRun,
+      TEST_TOKEN,
+      async ({ sessionId }) => {
+        swept.push(sessionId);
+      },
+      30,
+    );
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), { ok: true });
+      assert.equal(drainsFinished, 0, "the route answered before the drain finished");
+
+      releaseDrain();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      assert.equal(drainsFinished, 3, "the drain finished in the background");
+      assert.deepEqual(swept, []);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill logs a drain that fails after the deadline", async () => {
+    let failDrain!: () => void;
+    const drainFails = new Promise<void>((resolve) => (failDrain = resolve));
+    vi.spyOn(SessionPool.prototype, "destroy").mockImplementation(async () => {
+      await drainFails;
+      throw new Error("teardown exploded");
+    });
+    const written: string[] = [];
+    const write = process.stderr.write.bind(process.stderr);
+    vi.spyOn(process.stderr, "write").mockImplementation(((chunk: unknown, ...rest: never[]) => {
+      written.push(String(chunk));
+      return write(chunk as string, ...rest);
+    }) as typeof process.stderr.write);
+    const s = await listen(okRun, TEST_TOKEN, async () => {}, 30);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+
+      failDrain();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      assert.match(
+        written.join(""),
+        /kill: background drain failed session=sess-1: teardown exploded/,
+      );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill bounds the label sweep by the deadline it started when it began", async () => {
+    let sweepDeadline: AbortSignal | undefined;
+    const s = await listen(
+      okRun,
+      TEST_TOKEN,
+      async (_scope, deadline) => {
+        sweepDeadline = deadline;
+        assert.equal(deadline.aborted, false);
+        await new Promise<void>((resolve) =>
+          deadline.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+      30,
+    );
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(sweepDeadline?.aborted, true);
     } finally {
       await s.close();
     }

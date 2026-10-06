@@ -44,12 +44,23 @@ export interface LabelledSandbox {
 const GOING_AWAY = new Set(["destroying", "destroyed"]);
 
 /**
- * How long the label sweep may run inside `/kill`. The api waits 10 s for `/kill`
- * (`_KILL_TIMEOUT_SECONDS`) and the drain before the sweep is bounded at 5 s, so 4 s keeps the
- * two inside that wait with a second to spare. After the deadline the sweep reads no further list
- * page and starts no new delete; deletes already started finish in the background.
+ * How long one `/kill` may work, counted from the moment it begins. One deadline covers the drain
+ * of this pod's pool entry and in-flight sandboxes and the label sweep after it. The api waits
+ * 10 s for `/kill` (`_KILL_TIMEOUT_SECONDS`); 8 s answers inside that wait with 2 s to spare for
+ * the hop. After the deadline `/kill` starts no label sweep, and a sweep under way reads no further
+ * list page and starts no new delete; deletes already started finish in the background. A sweep
+ * must not run late: once the api stops waiting, a new turn of the session may create a sandbox
+ * with the same labels on another pod.
  */
-export const KILL_SWEEP_DEADLINE_MS = 4_000;
+export const KILL_DEADLINE_MS = 8_000;
+
+/** Resolves when `signal` aborts, also when it has aborted already. */
+export function whenAborted(signal: AbortSignal): Promise<"deadline"> {
+  if (signal.aborted) return Promise.resolve("deadline");
+  return new Promise((resolve) =>
+    signal.addEventListener("abort", () => resolve("deadline"), { once: true }),
+  );
+}
 
 export interface KillSandboxDependencies {
   /** The sandboxes carrying all of `labels`, across every page. */
@@ -76,9 +87,10 @@ export interface KillSandboxesResult {
  * Delete each sandbox labelled with this project and session. A failed delete is logged and does
  * not stop the others: Daytona's autostop and autodelete remove what this leaves behind.
  *
- * Once `signal` aborts, the sweep reads no further list item and starts no delete; it rejects with
- * the abort reason. A delete already started is not cancelled. A late sweep must not start deletes:
- * after `/kill` answers, a new turn of the same session may create a sandbox with the same labels.
+ * Once `signal` aborts, the sweep starts no list, reads no further list item and starts no delete;
+ * it rejects with the abort reason. A delete already started is not cancelled. A late sweep must
+ * not start deletes: after `/kill` answers, a new turn of the same session may create a sandbox
+ * with the same labels.
  */
 export async function deleteLabelledSandboxes(
   scope: { projectId: string; sessionId: string },
@@ -93,6 +105,7 @@ export async function deleteLabelledSandboxes(
     dependencies.log("kill: label sweep refused, the scope is missing a project or a session");
     return { listed: 0, deleted: 0, failed: 0 };
   }
+  signal?.throwIfAborted();
   const labels = sessionSandboxLabels(projectId, sessionId);
   const found: string[] = [];
   // The Daytona list takes no signal. Checking after each item stops the loop before it asks for
@@ -179,38 +192,42 @@ export function daytonaKillDependencies(
   };
 }
 
-/** What `/kill` runs after the drain. Never throws: the route stays best-effort. */
-export type KillSessionSandboxes = (scope: {
-  projectId: string;
-  sessionId: string;
-}) => Promise<void>;
+/**
+ * What `/kill` runs after the drain, under the deadline `/kill` started when it began
+ * (`KILL_DEADLINE_MS`). Never throws: the route stays best-effort.
+ */
+export type KillSessionSandboxes = (
+  scope: { projectId: string; sessionId: string },
+  deadline: AbortSignal,
+) => Promise<void>;
 
 /**
- * Run the label sweep for one session and wait for it at most `deadlineMs`. At the deadline the
- * route moves on and the sweep stops: it reads no further list page and starts no new delete. A
- * delete already started still finishes in the background, and what the sweep misses is left to
- * Daytona's autostop and autodelete.
+ * Run the label sweep for one session and wait for it at most until `deadline` aborts. A deadline
+ * that has already passed starts no sweep. At the deadline the route moves on and the sweep stops:
+ * it reads no further list page and starts no new delete. A delete already started still finishes
+ * in the background, and what the sweep misses is left to Daytona's autostop and autodelete.
  */
 export async function sweepSessionSandboxes(
   scope: { projectId: string; sessionId: string },
   dependencies: KillSandboxDependencies | undefined,
-  deadlineMs: number = KILL_SWEEP_DEADLINE_MS,
+  deadline: AbortSignal,
 ): Promise<void> {
   if (!dependencies) return;
   const { log } = dependencies;
-  // Node unrefs this timer, so a pending deadline never holds the process open.
-  const deadline = AbortSignal.timeout(deadlineMs);
-  const timedOut = new Promise<"timeout">((resolve) =>
-    deadline.addEventListener("abort", () => resolve("timeout"), { once: true }),
-  );
+  if (deadline.aborted) {
+    log(
+      `kill: deadline passed before the label sweep session=${scope.sessionId}; no sandbox listed or deleted, Daytona removes the rest`,
+    );
+    return;
+  }
   const sweep = deleteLabelledSandboxes(scope, dependencies, deadline);
   // The sweep rejects with the abort reason after the deadline, which the race no longer awaits.
   sweep.catch(() => {});
   try {
-    const outcome = await Promise.race([sweep, timedOut]);
-    if (outcome === "timeout") {
+    const outcome = await Promise.race([sweep, whenAborted(deadline)]);
+    if (outcome === "deadline") {
       log(
-        `kill: label sweep exceeded ${deadlineMs} ms session=${scope.sessionId}; it starts no further delete, started deletes finish in the background, Daytona removes the rest`,
+        `kill: deadline passed during the label sweep session=${scope.sessionId}; it starts no further delete, started deletes finish in the background, Daytona removes the rest`,
       );
       return;
     }
@@ -228,9 +245,10 @@ export async function sweepSessionSandboxes(
 
 export const killSessionSandboxesByLabel: KillSessionSandboxes = async (
   scope,
+  deadline,
 ) => {
   try {
-    await sweepSessionSandboxes(scope, daytonaKillDependencies());
+    await sweepSessionSandboxes(scope, daytonaKillDependencies(), deadline);
   } catch (error) {
     // Building the Daytona client failed.
     process.stderr.write(

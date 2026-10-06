@@ -175,6 +175,19 @@ describe("deleteLabelledSandboxes", () => {
     assert.deepEqual(events, []);
   });
 
+  it("a signal that aborted before the sweep starts no list and no delete", async () => {
+    const { dependencies, events, listed } = fakeDependencies([labelled("sbx-a")]);
+    const controller = new AbortController();
+    controller.abort();
+
+    await assert.rejects(
+      deleteLabelledSandboxes(SCOPE, dependencies, controller.signal),
+      { name: "AbortError" },
+    );
+    assert.deepEqual(listed, []);
+    assert.deepEqual(events, []);
+  });
+
   it("reads no further list page after the signal aborts", async () => {
     const { dependencies, events } = fakeDependencies([]);
     const controller = new AbortController();
@@ -249,7 +262,7 @@ describe("sweepSessionSandboxes", () => {
       labelled("sbx-b"),
     ]);
 
-    await sweepSessionSandboxes(SCOPE, dependencies, 1_000);
+    await sweepSessionSandboxes(SCOPE, dependencies, AbortSignal.timeout(1_000));
 
     assert.deepEqual([...events].sort(), ["plain:sbx-a", "plain:sbx-b"]);
     assert.deepEqual(logs, [
@@ -266,13 +279,13 @@ describe("sweepSessionSandboxes", () => {
       yield labelled("sbx-late");
     };
 
-    await sweepSessionSandboxes(SCOPE, dependencies, 30);
+    await sweepSessionSandboxes(SCOPE, dependencies, AbortSignal.timeout(30));
     answer();
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.deepEqual(events, []);
     assert.equal(logs.length, 1);
-    assert.match(logs[0]!, /exceeded 30 ms.*starts no further delete/);
+    assert.match(logs[0]!, /deadline passed during the label sweep.*starts no further delete/);
   });
 
   it("returns at the deadline when the list does not answer, and logs it", async () => {
@@ -282,11 +295,11 @@ describe("sweepSessionSandboxes", () => {
     });
 
     const started = Date.now();
-    await sweepSessionSandboxes(SCOPE, dependencies, 30);
+    await sweepSessionSandboxes(SCOPE, dependencies, AbortSignal.timeout(30));
 
     assert.ok(Date.now() - started < 1_000);
     assert.equal(logs.length, 1);
-    assert.match(logs[0]!, /exceeded 30 ms/);
+    assert.match(logs[0]!, /deadline passed during the label sweep/);
   });
 
   it("lets a delete that started before the deadline finish in the background", async () => {
@@ -297,11 +310,26 @@ describe("sweepSessionSandboxes", () => {
       events.push(`plain:${id}`);
     };
 
-    await sweepSessionSandboxes(SCOPE, dependencies, 30);
+    await sweepSessionSandboxes(SCOPE, dependencies, AbortSignal.timeout(30));
     assert.deepEqual(events, []);
     finish();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.deepEqual(events, ["plain:sbx-slow"]);
+  });
+
+  it("a deadline that passed before the sweep lists nothing, deletes nothing, and logs it", async () => {
+    const { dependencies, events, listed, logs } = fakeDependencies([
+      labelled("sbx-new-turn"),
+    ]);
+    const controller = new AbortController();
+    controller.abort();
+
+    await sweepSessionSandboxes(SCOPE, dependencies, controller.signal);
+
+    assert.deepEqual(listed, []);
+    assert.deepEqual(events, []);
+    assert.equal(logs.length, 1);
+    assert.match(logs[0]!, /deadline passed before the label sweep session=session-1/);
   });
 
   it("logs a failed list and does not throw", async () => {
@@ -310,13 +338,13 @@ describe("sweepSessionSandboxes", () => {
       throw new Error("list refused");
     };
 
-    await sweepSessionSandboxes(SCOPE, dependencies, 1_000);
+    await sweepSessionSandboxes(SCOPE, dependencies, AbortSignal.timeout(1_000));
 
     assert.match(logs.join("\n"), /label inventory failed.*list refused/);
   });
 
   it("does nothing without Daytona dependencies", async () => {
-    await sweepSessionSandboxes(SCOPE, undefined, 30);
+    await sweepSessionSandboxes(SCOPE, undefined, AbortSignal.timeout(30));
   });
 });
 

@@ -161,7 +161,9 @@ import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } 
 import { applySandboxRouting } from "./engines/sandbox_agent/sandbox-routing.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
 import {
+  KILL_DEADLINE_MS,
   killSessionSandboxesByLabel,
+  whenAborted,
   type KillSessionSandboxes,
 } from "./engines/sandbox_agent/kill-by-label.ts";
 import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/turn-admission.ts";
@@ -1538,6 +1540,7 @@ export async function stopParkedApprovalSession(
 export function createRequestListener(
   run: RunAgent,
   killLabelledSandboxes: KillSessionSandboxes = killSessionSandboxesByLabel,
+  killDeadlineMs: number = KILL_DEADLINE_MS,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     try {
@@ -1571,6 +1574,10 @@ export function createRequestListener(
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
+        // One deadline for all the work of this kill, started when the kill begins, so the route
+        // answers while the api still waits and no label sweep starts after that wait has ended.
+        // Node unrefs this timer, so a pending deadline never holds the process open.
+        const deadline = AbortSignal.timeout(killDeadlineMs);
         // Scoped, idempotent, best-effort: both sessionId and projectId are required so the
         // pool-key drain and the in-flight sandbox sweep agree on exactly one tenant's session
         // (pool keys are always project-scoped; see `poolKeyFor`).
@@ -1603,20 +1610,38 @@ export function createRequestListener(
           { sessionId, runContext: { project: { id: projectId } } },
           projectId,
         );
-        await Promise.all(
-          Object.values(keepalivePools).map((pool) =>
-            scope ? pool.destroy(scope.key, "kill") : Promise.resolve(),
-          ),
-        );
-        await destroyInFlightSandboxesForSession(
-          sessionId,
-          projectId,
-          5000,
-          "kill",
-        );
+        // A pool teardown has no bound of its own, so the drain is raced against the deadline.
+        // A drain that loses keeps going in the background.
+        const drain = (async () => {
+          await Promise.all(
+            Object.values(keepalivePools).map((pool) =>
+              scope ? pool.destroy(scope.key, "kill") : Promise.resolve(),
+            ),
+          );
+          await destroyInFlightSandboxesForSession(
+            sessionId,
+            projectId,
+            5000,
+            "kill",
+          );
+          return "drained" as const;
+        })();
+        const drained = await Promise.race([drain, whenAborted(deadline)]);
+        if (drained === "deadline") {
+          process.stderr.write(
+            `[sandbox-agent] kill: deadline passed during the drain session=${sessionId}; no label sweep, the drain finishes in the background, Daytona removes the rest\n`,
+          );
+          // The answer has gone, so a later drain failure has only this log.
+          drain.catch((error: unknown) => {
+            process.stderr.write(
+              `[sandbox-agent] kill: background drain failed session=${sessionId}: ${error instanceof Error ? error.message : String(error)}\n`,
+            );
+          });
+          return send(res, 200, { ok: true });
+        }
         // The drain above reaches only what this pod holds. The labels reach the rest of the
         // session's sandboxes, whichever pod created them.
-        await killLabelledSandboxes({ sessionId, projectId });
+        await killLabelledSandboxes({ sessionId, projectId }, deadline);
         return send(res, 200, { ok: true });
       }
 
@@ -1771,8 +1796,11 @@ export function createRequestListener(
 export function createAgentServer(
   run: RunAgent = runAgent,
   killLabelledSandboxes?: KillSessionSandboxes,
+  killDeadlineMs?: number,
 ): Server {
-  return createServer(createRequestListener(run, killLabelledSandboxes));
+  return createServer(
+    createRequestListener(run, killLabelledSandboxes, killDeadlineMs),
+  );
 }
 
 /**
