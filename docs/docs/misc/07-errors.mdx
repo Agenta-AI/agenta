@@ -297,6 +297,10 @@ underlying text on purpose, so do not replace it with a trace's error text.
 | `runner_error` | The run failed for a reason no other code names. `errorText` says what is known. | Depends on `errorText` |
 | `rate_limited` | The model provider or a proxy in front of it throttled the request. | Yes, after a moment |
 | `provider_error` | The model provider refused this request with an error of its own (a content filter, a refusal, an invalid request). `errorText` quotes the provider's reason with credentials removed. | Not as is: change the request or the model |
+| `wallet_balance_exhausted` | The organization has used all its credits. The turn did not start, and nothing was charged. | No: wait for daily credits, buy credits, or upgrade. See [Plans and credits](/administration/billing/plans-and-credits) |
+| `concurrent_turns_limit` | The organization already runs as many agents at once as its plan allows. The turn did not start, and nothing was charged. | Yes, when another agent finishes |
+| `turn_time_limit_reached` | The turn ran for the longest time the plan allows and was stopped. Saved work is kept. | Send a message to continue |
+| `builtin_models_not_enabled` | Agenta's built-in models are not turned on for the organization. A model on your own provider key still works. | No: use your own provider key |
 | `starter_credits_exhausted` | The organization's free Agenta credits are used up. | No: add a provider key |
 | `starter_credits_program_paused` | Free Agenta credits are paused for everyone. | No: add a provider key |
 | `starter_credits_unavailable` | The credits service could not be reached. | Yes, after a moment |

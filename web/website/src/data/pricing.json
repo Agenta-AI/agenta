@@ -46,10 +46,14 @@
         },
         "includesLabel": "Includes",
         "features": [
+          "$5 of credits at signup (500 credits)",
+          "75 free credits every day",
+          "2 agents at once, up to 30 minutes per request",
           "2 team members",
           "Unlimited projects",
           "Unlimited agents and workflows",
-          "5,000 agent runs / month",
+          "5,000 traces / month",
+          "20 evaluations / month",
           "1-week trace data retention",
           "Community support through GitHub Issues"
         ]
@@ -66,12 +70,16 @@
           "href": "https://cloud.agenta.ai/",
           "style": "primary"
         },
-        "includesLabel": "Everything in Hobby, plus",
+        "includesLabel": "Includes",
         "features": [
+          "2,900 credits / month",
+          "Buy more credits from $10",
+          "10 agents at once, up to 4 hours per request",
           "Unlimited team members",
+          "Unlimited projects, agents, and workflows",
           "Unlimited schedules and event triggers",
-          "10,000 agent runs / month included",
-          "$5 per additional 10,000 runs",
+          "10,000 traces / month included",
+          "$5 per additional 10,000 traces",
           "Unlimited evaluations",
           "1-month trace data retention",
           "Community support through GitHub Issues"
@@ -91,8 +99,8 @@
         },
         "includesLabel": "Everything in Pro, plus",
         "features": [
-          "10,000 agent runs / month included",
-          "$5 per additional 10,000 runs",
+          "29,900 credits / month",
+          "25 agents at once, up to 11 hours per request",
           "Team roles and role-based access control",
           "SSO",
           "SOC 2 Type II report",
@@ -244,7 +252,43 @@
               ]
             },
             {
-              "label": "Agent runs per month",
+              "label": "Credits included",
+              "cells": [
+                "500 at signup, plus 75 a day",
+                "2,900 a month",
+                "29,900 a month",
+                "Custom"
+              ]
+            },
+            {
+              "label": "Buy more credits",
+              "cells": [
+                false,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Agents running at once",
+              "cells": [
+                "2",
+                "10",
+                "25",
+                "Custom"
+              ]
+            },
+            {
+              "label": "Longest request",
+              "cells": [
+                "30 minutes",
+                "4 hours",
+                "11 hours",
+                "Custom"
+              ]
+            },
+            {
+              "label": "Traces per month",
               "cells": [
                 "5,000",
                 "10,000, then $5 per 10,000",
@@ -850,40 +894,52 @@
   },
   "faqs": [
     {
-      "question": "What counts as an agent run?",
-      "answer": "An agent run is any tracked execution that creates a trace. Sending a message to an agent, creating an annotation, or starting an agent from a schedule or event each creates one agent run and one trace. Each new message, annotation, or trigger is a separate run."
+      "question": "What is a credit?",
+      "answer": "One credit is worth $0.01. Credits pay for Agenta's built-in models and for sandbox time, the time an agent runs in a sandbox that Agenta hosts."
     },
     {
-      "question": "Is an agent run the same as a trace?",
-      "answer": "An agent run is the customer-facing usage unit. A trace is the technical record Agenta creates for that run so you can inspect its model calls, tool calls, timing, outputs, and errors. Every agent run creates one trace."
+      "question": "How many credits does each plan include?",
+      "answer": "Every new organization gets $5 of credits (500 credits) at signup. Hobby also gets 75 free credits every day. Daily credits reset at midnight UTC and do not roll over. Pro includes 2,900 credits every month and Business includes 29,900 credits every month. Monthly credits expire at the end of the billing period."
+    },
+    {
+      "question": "How much does an agent use?",
+      "answer": "Built-in models cost the provider's list price times 1.75. Sandbox time costs Daytona's list price times 3, or times 2.5 on Business. When an agent uses your own provider key, the model costs no credits and only sandbox time is charged."
+    },
+    {
+      "question": "What is a trace?",
+      "answer": "A trace is the record Agenta creates for each agent run so you can inspect its model calls, tool calls, timing, outputs, and errors. Sending a message to an agent, creating an annotation, or starting an agent from a schedule or event each creates one trace."
     },
     {
       "question": "Are users, projects, agents, and workflows really unlimited?",
-      "answer": "Yes, on every paid Cloud plan and both self-hosted plans. Invite as many team members as you need and create as many projects, agents, workflows, schedules, and triggers as you want. The free Cloud Hobby plan includes two team members. You pay based on agent runs, not seats, projects, agents, steps, or workflows."
+      "answer": "Yes, on every paid Cloud plan and both self-hosted plans. Invite as many team members as you need and create as many projects, agents, workflows, schedules, and triggers as you want. The free Cloud Hobby plan includes two team members. You pay for credits and traces, not for seats, projects, agents, steps, or workflows."
     },
     {
       "question": "Are AI model costs included?",
-      "answer": "No. Connect your own model-provider credentials and pay the provider directly."
+      "answer": "Agenta's built-in models are paid with credits. You can also connect your own model-provider credentials and pay the provider directly. Then the model costs no credits, and only sandbox time is charged."
     },
     {
       "question": "Which model providers can I use?",
       "answer": "Connect OpenAI, Anthropic, Gemini, Mistral, Groq, MiniMax, Together AI, OpenRouter, Azure OpenAI, AWS Bedrock, or Google Vertex AI. You can also connect an OpenAI-compatible endpoint."
     },
     {
-      "question": "What happens when I reach my usage limit?",
-      "answer": "Hobby stops running agents after 5,000 agent runs in a monthly billing period. Upgrade to Pro to continue. Pro and Business include 10,000 agent runs per month. Additional runs are billed automatically at $5 per 10,000, and your agents continue running without interruption."
+      "question": "What happens when I run out of credits?",
+      "answer": "New requests do not start until you have credits again. Requests that are already running finish. On Hobby, your free daily credits come back at midnight UTC. On Pro and Business, you can buy more credits."
     },
     {
-      "question": "Do unused agent runs roll over?",
-      "answer": "No. Included agent runs reset at the start of each monthly billing period."
+      "question": "Can I buy more credits?",
+      "answer": "Yes, on Pro and Business. $10 buys 1,000 credits, $25 buys 2,500 credits, and $100 buys 10,000 credits. Purchased credits expire after 12 months."
+    },
+    {
+      "question": "How many agents can run at once, and for how long?",
+      "answer": "Hobby runs 2 agents at once, and each request can run for up to 30 minutes. Pro runs 10 agents at once, for up to 4 hours per request. Business runs 25 agents at once, for up to 11 hours per request."
+    },
+    {
+      "question": "What happens when I reach my trace limit?",
+      "answer": "Hobby records up to 5,000 traces in a monthly billing period. After that, Agenta stops recording new traces until the next period. Pro and Business include 10,000 traces per month. Additional traces are billed automatically at $5 per 10,000."
     },
     {
       "question": "Where can I monitor usage?",
-      "answer": "Open Settings, then Billing to see your current agent-run usage and plan allowance."
-    },
-    {
-      "question": "How can I estimate how many agent runs I need?",
-      "answer": "Count each message sent to an agent, each annotation, and each invocation started by a schedule or event. For example, one daily scheduled agent uses about 30 or 31 runs per month, one agent triggered every hour uses about 720 to 744 runs per month, and a chat with 20 user messages uses 20 runs."
+      "answer": "Open Settings, then Credits to see your credit balance and what used your credits. Open Settings, then Usage & Billing to see your plan and its limits."
     },
     {
       "question": "What does trace data retention cover?",
