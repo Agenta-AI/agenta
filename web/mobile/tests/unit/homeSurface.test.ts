@@ -6,6 +6,8 @@ const input = (overrides: Partial<HomeSurfaceInput> = {}): HomeSurfaceInput => (
     agentCount: 0,
     isPending: false,
     isError: false,
+    onboardingFlow: false,
+    onboardingPreview: false,
     ...overrides,
 })
 
@@ -35,5 +37,19 @@ describe("resolveHomeSurface", () => {
     it("walks a cold start: hold while pending, then Home once it settles empty", () => {
         expect(resolveHomeSurface(input({isPending: true}))).toBe("loading")
         expect(resolveHomeSurface(input())).toBe("home")
+    })
+
+    it("opens a settled empty project on the guided flow when it is enabled", () => {
+        const flow = {onboardingFlow: true}
+        expect(resolveHomeSurface(input(flow))).toBe("onboarding")
+        expect(resolveHomeSurface(input({...flow, isPending: true}))).toBe("loading")
+        expect(resolveHomeSurface(input({...flow, agentCount: 1}))).toBe("home")
+        expect(resolveHomeSurface(input({...flow, isError: true}))).toBe("home")
+    })
+
+    it("previews the flow on any project only while the flow is enabled", () => {
+        const preview = {onboardingPreview: true, agentCount: 4}
+        expect(resolveHomeSurface(input({...preview, onboardingFlow: true}))).toBe("onboarding")
+        expect(resolveHomeSurface(input(preview))).toBe("home")
     })
 })

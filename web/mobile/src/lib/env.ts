@@ -28,6 +28,8 @@ const buildEnv: Record<string, string | undefined> = {
     NEXT_PUBLIC_AGENT_CHAT_STEER: process.env.NEXT_PUBLIC_AGENT_CHAT_STEER,
     NEXT_PUBLIC_SETTINGS_NESTED_NAV: process.env.NEXT_PUBLIC_SETTINGS_NESTED_NAV,
     NEXT_PUBLIC_AGENT_BROWSE_RAIL: process.env.NEXT_PUBLIC_AGENT_BROWSE_RAIL,
+    NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED:
+        process.env.NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED,
 }
 
 export function getEnv(key: string): string {
@@ -37,6 +39,10 @@ export function getEnv(key: string): string {
     // `__env.js` first (runtime config wins), then the build-time value.
     return buildEnv[key] ?? process.env[key] ?? ""
 }
+
+/** The guided first-agent onboarding replaces the empty project's Home. */
+export const isOnboardingFlowEnabled = (): boolean =>
+    getEnv("NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED").toLowerCase() === "true"
 
 export function getApiUrl(): string {
     return getEnv("NEXT_PUBLIC_AGENTA_API_URL")
