@@ -9,6 +9,7 @@ from oss.src.core.sessions.records.utils import (
     REPLAY_PREFIX,
     coalesce_events,
     strip_replay,
+    with_schema_property_order,
 )
 
 
@@ -215,3 +216,70 @@ class TestCoalesceEvents:
         assert result[1]["record_type"] == "user_message"
         assert result[2]["attributes"]["text"] == "second"
         assert result[2]["record_type"] == "agent_message"
+
+
+# ---------------------------------------------------------------------------
+# with_schema_property_order
+# ---------------------------------------------------------------------------
+
+
+def _form(*names):
+    return {
+        "message": "Three quick questions.",
+        "requestedSchema": {
+            "type": "object",
+            "properties": {name: {"type": "string"} for name in names},
+        },
+    }
+
+
+class TestWithSchemaPropertyOrder:
+    def test_stamps_tool_call_input_in_authored_order(self):
+        attributes = {
+            "type": "tool_call",
+            "name": "request_input",
+            "input": _form("destination", "budget", "style"),
+        }
+        stamped = with_schema_property_order(attributes)
+        assert stamped["input"]["requestedSchema"]["x-ag-order"] == [
+            "destination",
+            "budget",
+            "style",
+        ]
+
+    def test_stamps_every_copy_in_an_interaction_request(self):
+        form = _form("topic", "sources", "schedule", "delivery")
+        attributes = {
+            "type": "interaction_request",
+            "payload": {
+                "input": form,
+                "toolCall": {"input": form, "rawInput": form},
+            },
+        }
+        stamped = with_schema_property_order(attributes)
+        expected = ["topic", "sources", "schedule", "delivery"]
+        payload = stamped["payload"]
+        assert payload["input"]["requestedSchema"]["x-ag-order"] == expected
+        assert payload["toolCall"]["input"]["requestedSchema"]["x-ag-order"] == expected
+        assert (
+            payload["toolCall"]["rawInput"]["requestedSchema"]["x-ag-order"] == expected
+        )
+
+    def test_keeps_an_existing_order(self):
+        form = _form("b", "a")
+        form["requestedSchema"]["x-ag-order"] = ["a", "b"]
+        stamped = with_schema_property_order({"input": form})
+        assert stamped["input"]["requestedSchema"]["x-ag-order"] == ["a", "b"]
+
+    def test_does_not_mutate_the_input(self):
+        attributes = {"input": _form("b", "a")}
+        with_schema_property_order(attributes)
+        assert "x-ag-order" not in attributes["input"]["requestedSchema"]
+
+    def test_leaves_records_without_a_form_unchanged(self):
+        attributes = {"type": "message", "text": "hi", "attachments": []}
+        assert with_schema_property_order(attributes) == attributes
+
+    def test_ignores_a_schema_without_properties(self):
+        attributes = {"input": {"requestedSchema": {"type": "object"}}}
+        assert with_schema_property_order(attributes) == attributes

@@ -11,13 +11,19 @@ coalesce_events: folds a run's event list so that:
   - standalone empty agent_message events are dropped (they would shadow
     the real assembled message)
 
-Both functions are pure (no I/O) so they are easy to unit-test and to call
+with_schema_property_order: stamps every elicitation ``requestedSchema`` with
+  its authored property order (``x-ag-order``) before the attributes reach the
+  JSONB column, which re-sorts object keys.
+
+All functions are pure (no I/O) so they are easy to unit-test and to call
 from any ingest path.
 """
 
 from typing import Any, Dict, List, Optional
 
 REPLAY_PREFIX = "__replay__:"
+
+SCHEMA_ORDER_KEY = "x-ag-order"
 
 
 def strip_replay(payload: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -141,3 +147,27 @@ def coalesce_events(
 
     _flush_chunks()
     return result
+
+
+def with_schema_property_order(value: Any) -> Any:
+    """Copy each ``requestedSchema``'s property order into ``x-ag-order``.
+
+    JSONB re-sorts object keys (length, then bytes) but keeps arrays as written, and a
+    ``request_input`` form's question order is its property order.
+    """
+    if isinstance(value, list):
+        return [with_schema_property_order(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    stamped = {key: with_schema_property_order(item) for key, item in value.items()}
+    schema = stamped.get("requestedSchema")
+    if (
+        isinstance(schema, dict)
+        and isinstance(schema.get("properties"), dict)
+        and SCHEMA_ORDER_KEY not in schema
+    ):
+        stamped["requestedSchema"] = {
+            **schema,
+            SCHEMA_ORDER_KEY: list(schema["properties"]),
+        }
+    return stamped
