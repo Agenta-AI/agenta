@@ -6,7 +6,7 @@ never raise ``HTTPException`` directly.
 """
 
 from math import isfinite
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -142,6 +142,43 @@ class InvalidAgentInstructionsError(Exception):
                 "received_type": self.received_type,
                 "expected": {"agents_md": "string"},
             },
+        }
+
+
+class InvalidAgentConfigurationError(Exception):
+    """The commit carries an agent configuration the runtime refuses to parse.
+
+    Before every run the runtime parses ``parameters`` with ``AgentTemplate.from_params``. A
+    skill without ``body`` was stored with 200, and then every run of the agent failed with a
+    500. Refused at the write boundary for the same reason as
+    :class:`InvalidAgentHarnessError`, and kept outside the :class:`WorkflowError` family for
+    the same reason too.
+
+    The rule reads the RESULT, not the change. An agent stored before this rule existed can
+    hold such a field, and then a change to any other field is refused too, until the same
+    change corrects it. The issues name the field, so the caller knows what to correct.
+    """
+
+    code = "invalid_agent_configuration"
+
+    def __init__(self, *, issues: List[str]) -> None:
+        message = f"The agent configuration cannot run: {'; '.join(issues)}."
+        super().__init__(message)
+        self.issues = list(issues)
+        self.message = message
+
+    def to_detail(self) -> Dict[str, Any]:
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`."""
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": (
+                "Correct the fields listed in `details.issues` and send the call again. "
+                "If the stored agent already holds one of them, correct it in the same "
+                "change: no other change is accepted until it is corrected."
+            ),
+            "details": {"issues": self.issues},
         }
 
 

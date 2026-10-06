@@ -659,8 +659,9 @@ class TestEditAgentConfig:
         self, service, tool
     ):
         # Bench S6: saved with only a warning, then every run of the agent failed with a
-        # 500. Each write tool routes the result through the runtime's parse; the parse
-        # itself is tested in test_new_agent_template.py.
+        # 500. Each write tool's result reaches the revision build, which runs the
+        # runtime's parse; the parse itself is tested in
+        # test_commit_agent_template_validation.py.
         operation = {
             "operation": "set",
             "target": ["parameters", "agent", "skills"],
@@ -691,8 +692,10 @@ class TestEditAgentConfig:
                 },
             )
 
-        assert result.content.code == "final_validation_failed"
-        assert result.content.details["issues"] == ["skills[0].body is required"]
+        assert result.content.code == "invalid_agent_configuration"
+        assert result.content.details["issues"] == [
+            "parameters.agent.skills[0].body is required"
+        ]
         service.commit_workflow_revision.assert_not_awaited()
 
     async def test_the_build_kit_cannot_be_committed_into_another_agent(self, service):

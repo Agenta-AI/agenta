@@ -46,7 +46,7 @@
 - [x] 6.5 Attribution: suffix present, model values refused
 - [x] 6.6 Web: capability toggle adds and removes all grouped ops; per-op permission persists
 - [ ] 6.7 Live QA on a test stack: one agent creates a helper, edits its instructions, and the helper's history shows the attributed message
-- [x] 6.8 Review fixes: the `agenta_tools` entry is keyed by its type in the operations engine; an agent's commit runs the runtime's parse on its result; the build kit's off switch also drops the tools from the saved `agenta_tools` map of the run copy; the template seeds `skills: []`
+- [x] 6.8 Review fixes: the `agenta_tools` entry is keyed by its type in the operations engine; every agent revision write runs the runtime's parse on its result; the build kit's off switch also drops the tools from the saved `agenta_tools` map of the run copy; the template seeds `skills: []`
 
 ## 7. Docs
 

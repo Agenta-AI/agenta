@@ -2,26 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
+
+from ..config_errors import ConfigEntryError
 
 
 class ToolError(RuntimeError):
     """Base error for the agent tools domain."""
 
 
-class ToolConfigurationError(ToolError):
+class ToolConfigurationError(ToolError, ConfigEntryError):
     """Raised when tool configuration cannot be converted to a canonical model."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        index: Optional[int] = None,
-        value: Any = None,
-    ) -> None:
-        super().__init__(message)
-        self.index = index
-        self.value = value
 
 
 ToolConfigError = ToolConfigurationError

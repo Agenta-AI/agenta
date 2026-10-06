@@ -40,7 +40,6 @@ from agenta.sdk.engines.running.utils import (
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.agents import (
     AgentTemplate,
-    HarnessKind,
     InvalidHarnessKindError,
     InvalidAgentInstructionsError as AgentInstructionsShapeError,
     MCPConfigurationError,
@@ -48,7 +47,6 @@ from agenta.sdk.agents import (
     ToolConfigurationError,
     validate_agent_instructions,
 )
-from pydantic import ValidationError as PydanticValidationError
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -162,6 +160,7 @@ from oss.src.core.workflows.interfaces import StaticWorkflowProvider
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
+    InvalidAgentConfigurationError,
     InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
     StaticWorkflowSlug,
@@ -180,6 +179,7 @@ from oss.src.core.embeds.dtos import (
 )
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.core.embeds.utils import (
+    AG_EMBED_KEY,
     find_object_embeds,
     find_snippet_embeds,
     find_string_embeds,
@@ -253,34 +253,6 @@ class RevisionConflictError(Exception):
         }
 
 
-def _reject_unreadable_harness_kind(data: Optional[dict]) -> None:
-    """Refuse a commit whose agent template names a harness that does not exist.
-
-    Deliberately narrow. It reads ONE field, and only when the commit actually carries it, so
-    a workflow that is not an agent (and an agent commit that leaves the harness alone) takes
-    exactly the path it took before. An absent or null kind means "use the default" and is
-    left to the runtime, which is the behaviour every existing config relies on.
-    """
-    if not isinstance(data, dict):
-        return
-    parameters = data.get("parameters")
-    if not isinstance(parameters, dict):
-        return
-    agent = parameters.get("agent")
-    if not isinstance(agent, dict):
-        return
-    harness = agent.get("harness")
-    if not isinstance(harness, dict):
-        return
-    kind = harness.get("kind")
-    if kind is None or not str(kind).strip():
-        return
-    try:
-        HarnessKind.coerce(kind)
-    except InvalidHarnessKindError as e:
-        raise InvalidAgentHarnessError(value=kind, message=e.message) from e
-
-
 def _reject_unreadable_agent_instructions(data: Any) -> None:
     """Refuse a commit whose agent instructions the runtime would read as "no prompt".
 
@@ -325,8 +297,8 @@ _AGENT_TEMPLATE_LISTS = (
 )
 
 
-def _holds_embed(entry: Any) -> bool:
-    wrapped = {"entry": entry}
+def _holds_embed(value: Any) -> bool:
+    wrapped = {"value": value}
     return bool(
         find_object_embeds(wrapped)
         or find_string_embeds(wrapped)
@@ -334,64 +306,60 @@ def _holds_embed(entry: Any) -> bool:
     )
 
 
-def _agent_template_issues(data: dict) -> List[str]:
-    """What the runtime would refuse in this agent configuration, by field path.
+def _reject_unrunnable_agent(data: Any) -> None:
+    """Refuse a configuration the agent runtime cannot run.
 
-    Before every run the runtime parses `parameters` with `AgentTemplate.from_params`, and a
-    refusal there fails every run of the agent. This runs the same parse on the result of
-    an agent's commit, so a slip such as a skill without `body` is refused while the agent
-    that made it can still fix it, not later in a run of an agent nobody is watching.
+    Called by `_build_revision_commit`, which builds every stored revision, and by the
+    simple create and edit paths before their first write, where a refusal at the final
+    commit would leave the earlier writes behind.
 
-    An entry that holds an embed is left out: embeds resolve server-side before a run, so
+    The instructions rule applies to any workflow that carries `parameters.agent`. The
+    runtime's own parse, `AgentTemplate.from_params`, applies to an agent (the uri key the
+    `is_agent` flag is inferred from): it runs before every run, and a refusal there fails
+    every run of the agent. It reads the result, not the change, so an agent stored with
+    such a field refuses every change until the change corrects it.
+
+    A part that holds an embed is left out: embeds resolve server-side before a run, so
     its content is only known then.
     """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump(mode="json", exclude_none=True)
+    if not isinstance(data, dict):
+        return
+    _reject_unreadable_agent_instructions(data)
+
+    _, _, key, _ = parse_uri(data.get("uri"))
     parameters = data.get("parameters")
-    if not isinstance(parameters, dict) or not isinstance(
-        parameters.get("agent"), dict
+    if (
+        key != "agent"
+        or not isinstance(parameters, dict)
+        or not isinstance(parameters.get("agent"), dict)
+        or AG_EMBED_KEY in parameters["agent"]
     ):
-        return []
-    agent = dict(parameters["agent"])
+        return
+
+    agent: Dict[str, Any] = {}
     positions: Dict[str, List[int]] = {}
-    for name, _ in _AGENT_TEMPLATE_LISTS:
-        entries = agent.get(name)
-        if isinstance(entries, list):
+    lists = {name for name, _ in _AGENT_TEMPLATE_LISTS}
+    for name, value in parameters["agent"].items():
+        if name in lists and isinstance(value, list):
             positions[name] = [
-                index for index, entry in enumerate(entries) if not _holds_embed(entry)
+                index for index, entry in enumerate(value) if not _holds_embed(entry)
             ]
-            agent[name] = [entries[index] for index in positions[name]]
+            agent[name] = [value[index] for index in positions[name]]
+        elif not _holds_embed(value):
+            agent[name] = value
+
     try:
         AgentTemplate.from_params({**parameters, "agent": agent})
-    except Exception as error:  # noqa: BLE001 - every refusal is reported the same way
+    except InvalidHarnessKindError as e:
+        raise InvalidAgentHarnessError(value=e.value, message=e.message) from e
+    except Exception as e:  # noqa: BLE001 - every refusal is reported the same way
         for name, error_type in _AGENT_TEMPLATE_LISTS:
-            index = getattr(error, "index", None)
-            if isinstance(error, error_type) and index is not None:
-                return _entry_issues(f"{name}[{positions[name][index]}]", error)
-        return [str(error)]
-    return []
-
-
-def _entry_issues(field: str, error: Exception) -> List[str]:
-    """One issue per pydantic error under a list entry, e.g. `skills[0].body is required`."""
-    cause = error.__cause__
-    while cause is not None and not isinstance(cause, PydanticValidationError):
-        cause = cause.__cause__
-    if cause is None:
-        return [f"{field}: {error}"]
-    entry = getattr(error, "value", None)
-    kind = entry.get("type") if isinstance(entry, dict) else None
-    issues = []
-    for issue in cause.errors(include_url=False):
-        # A tool's errors sit under its union tag, which is the entry's own `type`.
-        loc = list(issue["loc"])
-        if loc and loc[0] == kind:
-            loc = loc[1:]
-        path = "".join(f".{part}" for part in loc)
-        issues.append(
-            f"{field}{path} is required"
-            if issue["type"] == "missing"
-            else f"{field}{path} is invalid: {issue['msg']}"
-        )
-    return issues
+            if isinstance(e, error_type) and e.index is not None:
+                field = f"parameters.agent.{name}[{positions[name][e.index]}]"
+                raise InvalidAgentConfigurationError(issues=e.describe(field)) from e
+        raise InvalidAgentConfigurationError(issues=[str(e)]) from e
 
 
 def read_revision_config(
@@ -2571,11 +2539,6 @@ class WorkflowsService:
             workflow_revision_commit=workflow_revision_commit,
         )
 
-        # Checked on the CANDIDATE, so both commit forms are covered by one call: the delta arm
-        # has already merged its operations onto the head by here, and a full-data commit is
-        # the data as sent. An unrunnable agent config must not become a revision.
-        _reject_unreadable_harness_kind(candidate.data)
-
         # There is ONE decision point, and it is inside the lock. Deciding here, before the
         # call, reads a head another writer can move afterwards: the caller was then told
         # `no_change` about a revision that was no longer the head, and the conflict the DAO
@@ -2876,7 +2839,7 @@ class WorkflowsService:
         # Here, and not only on the checked commit, because every writer (the builder's
         # tool, the commit endpoint, simple application and workflow create/edit) builds
         # its revision through this method.
-        _reject_unreadable_agent_instructions(data)
+        _reject_unrunnable_agent(data)
 
         _revision_slug = workflow_revision_commit.slug or uuid4().hex[-12:]
         return RevisionCommit(
@@ -3041,21 +3004,12 @@ class WorkflowsService:
             delta = {**delta, "operations": operations}
 
         # The scope is the caller's: only the agent's builder tool is confined to
-        # `parameters.agent` (read-config.md 11.2), so it passes AGENT_COMMIT_SCOPE. An
-        # agent's result must also parse the way the runtime parses it before every run.
+        # `parameters.agent` (read-config.md 11.2), so it passes AGENT_COMMIT_SCOPE.
         result = apply_change_set(
             base,
             delta,
             scope_policy,
-            # An agent's result must be storable AND runnable.
-            validate=(
-                (
-                    lambda data: _validate_persisted_shape(data)
-                    or _agent_template_issues(data)
-                )
-                if agent_context
-                else _validate_persisted_shape
-            ),
+            validate=_validate_persisted_shape,
         )
         warnings = warnings + list(result.warnings)
 
@@ -3868,7 +3822,7 @@ class SimpleWorkflowsService:
             raise ValueError("request_fingerprint must not be empty")
 
         # Before any write: a refusal at the final commit would leave earlier writes behind.
-        _reject_unreadable_agent_instructions(simple_workflow_create.data)
+        _reject_unrunnable_agent(simple_workflow_create.data)
 
         workflow_id = resource_identity(
             project_id,
@@ -4096,7 +4050,7 @@ class SimpleWorkflowsService:
     ) -> Optional[SimpleWorkflow]:
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
-        _reject_unreadable_agent_instructions(simple_workflow_create.data)
+        _reject_unrunnable_agent(simple_workflow_create.data)
 
         simple_workflow_flags = SimpleWorkflowFlags(
             **WorkflowsService._dump_flags(simple_workflow_create.flags)
@@ -4381,7 +4335,7 @@ class SimpleWorkflowsService:
         simple_workflow_edit: SimpleWorkflowEdit,
     ) -> Optional[SimpleWorkflow]:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
-        _reject_unreadable_agent_instructions(simple_workflow_edit.data)
+        _reject_unrunnable_agent(simple_workflow_edit.data)
 
         workflow_ref = Reference(id=simple_workflow_edit.id)
 

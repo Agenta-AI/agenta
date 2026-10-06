@@ -133,7 +133,7 @@ Both capabilities SHALL be on by default in the build kit with every tool set to
 #### Scenario: A result the runtime cannot run
 
 - **WHEN** the operations leave a configuration the runtime would refuse, for example a skill without `body`
-- **THEN** nothing is saved, and the refusal names the field, for example `skills[0].body is required`
+- **THEN** nothing is saved, and the refusal is `invalid_agent_configuration` with the field in `details.issues`, for example `parameters.agent.skills[0].body is required`
 
 #### Scenario: Self as target
 
