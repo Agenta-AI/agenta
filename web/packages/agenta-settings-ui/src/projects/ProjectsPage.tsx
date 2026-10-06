@@ -69,7 +69,10 @@ export interface ProjectsPageProps {
     /** Create / delete dialogs — the host's. Rename happens in place on the row. */
     renderCreateDialog?: (state: ProjectDialogState<ProjectFormValues>) => React.ReactNode
     renderDeleteDialog?: (state: ProjectDialogState<void>) => React.ReactNode
-    /** After a create, rename or delete lands, for a host that caches projects elsewhere. */
+    /**
+     * After a create, rename, set-default or delete lands, for a host that caches projects
+     * elsewhere.
+     */
     onChanged?: () => void
 }
 

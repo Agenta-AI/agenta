@@ -26,6 +26,27 @@ describe("SsoProvidersSection", () => {
         expect(onEdit).not.toHaveBeenCalled()
     })
 
+    it("does not open the edit drawer from a disabled Enable button", () => {
+        const onEdit = vi.fn()
+        const onEnable = vi.fn()
+        render(
+            <SsoProvidersSection
+                providers={[PROVIDER]}
+                onEdit={onEdit}
+                onEnable={onEnable}
+                enabling
+            />,
+        )
+
+        const enable = screen.getByRole("button", {name: "Enable"}) as HTMLButtonElement
+        expect(enable.disabled).toBe(true)
+        // The button has `pointer-events: none` when disabled, so the click lands on its cell.
+        fireEvent.click(enable.parentElement as HTMLElement)
+
+        expect(onEnable).not.toHaveBeenCalled()
+        expect(onEdit).not.toHaveBeenCalled()
+    })
+
     it("still opens the edit drawer from the row", () => {
         const onEdit = vi.fn()
         render(<SsoProvidersSection providers={[PROVIDER]} onEdit={onEdit} onEnable={vi.fn()} />)
