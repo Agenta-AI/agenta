@@ -17,11 +17,13 @@ import {
 export type FeatureGuideKey = "agents" | "automations" | "skills" | "sessions"
 
 export interface GuideVideo {
-    /** Cloudflare Stream id of the walkthrough. */
+    /** The clip's id on its host: a Cloudflare Stream id, or a YouTube video id. */
     id: string
+    /** Where the clip lives; Cloudflare Stream when absent. */
+    source?: "stream" | "youtube"
     /** The player's accessible name. */
     title: string
-    /** Where the banner still is taken; playback always starts at 0. */
+    /** Where the banner still is taken (Stream only); playback always starts at 0. */
     stillSeconds: number
 }
 
