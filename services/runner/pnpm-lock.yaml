@@ -21,6 +21,9 @@ patchedDependencies:
   '@agentclientprotocol/sdk@0.16.1':
     hash: b1e535c03be4f19383f2741026f6231cda7f757d0827a9fd98ea2e2198b09473
     path: patches/@agentclientprotocol__sdk@0.16.1.patch
+  '@earendil-works/pi-coding-agent@0.99.1':
+    hash: 0b70d95afa7c214e8692a7a055f1b4ee0364622231c0c19b87aacbabc652ffac
+    path: patches/@earendil-works__pi-coding-agent@0.99.1.patch
   acp-http-client@0.4.2:
     hash: a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d
     path: patches/acp-http-client@0.4.2.patch
@@ -52,7 +55,7 @@ importers:
         version: 0.80.6(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(ws@8.21.0)(zod@4.6.5)
       '@earendil-works/pi-coding-agent':
         specifier: 0.99.1
-        version: 0.99.1(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(@smithy/signature-v4@5.7.4)(ws@8.21.0)(zod@4.6.5)
+        version: 0.99.1(patch_hash=0b70d95afa7c214e8692a7a055f1b4ee0364622231c0c19b87aacbabc652ffac)(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(@smithy/signature-v4@5.7.4)(ws@8.21.0)(zod@4.6.5)
       '@opentelemetry/api':
         specifier: 1.9.1
         version: 1.9.1
@@ -3625,7 +3628,7 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@0.99.1(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(@smithy/signature-v4@5.7.4)(ws@8.21.0)(zod@4.6.5)':
+  '@earendil-works/pi-coding-agent@0.99.1(patch_hash=0b70d95afa7c214e8692a7a055f1b4ee0364622231c0c19b87aacbabc652ffac)(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(@smithy/signature-v4@5.7.4)(ws@8.21.0)(zod@4.6.5)':
     dependencies:
       '@earendil-works/chord': 0.99.1
       '@earendil-works/pi-agent-core': 0.99.1(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.21.0)(zod@4.6.5)

@@ -22,7 +22,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { InMemoryModelsStore, type CredentialStore } from "pi-coding-agent-pi-ai";
 import { createAgentaExtension } from "../../../extensions/agenta.ts";
-import { apiKeysFromModelEnvironment } from "./credentials.ts";
+import { apiKeysFromModelEnvironment, sessionAuthContext } from "./credentials.ts";
 import { GATEWAY_PLACEHOLDER_API_KEY } from "../../../extensions/model-provider-override.ts";
 import { transcriptFileForSession } from "../../sandbox_agent/pi-error.ts";
 
@@ -81,8 +81,9 @@ async function findSessionFile(sessionDir: string | undefined, agentSessionId: s
 /**
  * The session's model runtime. Every credential is this session's own: a `$VAR` that the runner
  * wrote into models.json (the gateway credential header, `pi-model-config.ts`) is expanded from
- * the custom provider's credential `env`, never from `process.env`, which every in-process
- * session of every organization shares. A subprocess or Daytona harness gets the same value
+ * the custom provider's credential `env`, and an Anthropic bearer token from the session's own
+ * auth context, never from `process.env`, which every in-process session of every organization
+ * shares. A subprocess or Daytona harness gets the same value
  * from its own process environment (`runtime-lifecycle.ts`).
  */
 export async function createSessionModelRuntime(
@@ -101,6 +102,7 @@ export async function createSessionModelRuntime(
     modelsPath: spec.modelsPath ?? null,
     modelsStore: new InMemoryModelsStore(),
     allowModelNetwork: false,
+    authContext: sessionAuthContext(spec.modelEnv),
   });
   const providerIds = runtime.getProviders().map((p) => p.id);
   for (const [providerId, key] of apiKeysFromModelEnvironment(spec.modelEnv, providerIds)) {

@@ -75,6 +75,34 @@ describe("a gateway route (the gateway credential header)", () => {
   }, 30_000);
 });
 
+describe("a direct Anthropic connection with a bearer token", () => {
+  // pi-ai reads ANTHROPIC_AUTH_TOKEN only from its auth context, whose default is the runner's
+  // shared process environment, so such a turn sent no auth at all.
+  it("sends each session's own token as the bearer header, ahead of an API key, never the runner's environment", async () => {
+    expect(process.env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
+    model.script([{ text: "through anthropic" }]);
+    const first = model.requests.length;
+    const sessions = await Promise.all(
+      [{ authToken: "token-org-a" }, { authToken: "token-org-b", apiKey: "sk-ant-org-b" }].map(async (anthropic) => {
+        const fixture = createHostFixture(model.baseUrl, { anthropic });
+        const { host } = fixture.runner().host();
+        const session = await host.createSession({ agent: "pi", cwd: fixture.cwd, sessionInit: { cwd: fixture.cwd, mcpServers: [] } });
+        await session.setModel("anthropic/claude-sonnet-4-5");
+        return { session, turn: capture(session) };
+      }),
+    );
+    const results = await Promise.all(sessions.map(({ session }) => session.prompt(prompt("hello"))));
+    expect(results).toEqual([{ stopReason: "end_turn" }, { stopReason: "end_turn" }]);
+    for (const { turn } of sessions) expect(turn.text()).toContain("through anthropic");
+    const sent = model.requests.slice(first).map((r) => [r.headers.authorization, r.headers["x-api-key"]]);
+    expect(sent.sort()).toEqual([
+      ["Bearer token-org-a", undefined],
+      ["Bearer token-org-b", undefined],
+    ]);
+    expect(process.env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
+  }, 30_000);
+});
+
 describe("admission and accounting (decision 8)", () => {
   it("refuses a session past the runner's maximum, and counts a session's transcript after a turn", async () => {
     const fixture = createHostFixture(model.baseUrl);

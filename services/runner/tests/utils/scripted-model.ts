@@ -2,7 +2,7 @@
  * A scripted OpenAI-compatible model server (streaming chat completions) for tests that run the
  * real Pi agent loop. Each model request takes the next step of the script: text, one tool call,
  * or silence that never answers (to trip a watchdog). The last step repeats once the script is
- * used up.
+ * used up. A request to `/v1/messages` gets its text step in the Anthropic Messages format.
  */
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -47,6 +47,19 @@ export async function startScriptedModel(initial: ScriptStep[] = [{ text: "ok" }
       res.on("close", () => open.delete(res));
       if ("silence" in step) return;
       calls += 1;
+      if (new URL(req.url ?? "/", "http://mock").pathname.endsWith("/messages")) {
+        if (!("text" in step) || "think" in step) throw new Error("the Anthropic Messages format answers text steps only");
+        const event = (type: string, data: Record<string, unknown>) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
+        const usage = { input_tokens: 10, output_tokens: 5 };
+        event("message_start", { message: { id: `msg_${calls}`, type: "message", role: "assistant", model: "mock-1", content: [], stop_reason: null, usage } });
+        event("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
+        event("content_block_delta", { index: 0, delta: { type: "text_delta", text: step.text } });
+        event("content_block_stop", { index: 0 });
+        event("message_delta", { delta: { stop_reason: "end_turn" }, usage });
+        event("message_stop", {});
+        res.end();
+        return;
+      }
       const base = { id: `chatcmpl-${calls}`, object: "chat.completion.chunk", created: 0, model: "mock-1" };
       const send = (obj: unknown) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
       if ("think" in step) {
