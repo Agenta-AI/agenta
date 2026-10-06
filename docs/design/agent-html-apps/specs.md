@@ -35,7 +35,7 @@ meets these rules:
 - `name` is a non-empty string.
 - `entry` is a bare filename in the application folder. It defaults to `index.html` and cannot
   contain `/`, `\`, or `..`.
-- `access` is `read` or `read-write`. It defaults to `read`.
+- `access` is `read` or `read-write`. When it is absent, access is asked per file call.
 - `kit` is a boolean and defaults to `true`.
 - `icon`, `template`, `data`, `config`, `refresh`, and `tools` are optional.
 - Malformed optional fields are ignored. Unknown top-level fields are preserved as `extra`.
@@ -68,12 +68,16 @@ behavior remains.
 Choosing Run for an application that has no suitable grant opens a grant sheet. The grant:
 
 - names the application and its folder;
-- offers read or read and write access, up to the access requested by the manifest;
+- asks for read and write in one question when the manifest requests `read-write`, with
+  **Read only** and **Don't allow** as the other answers;
+- asks for read on the first read and for write on the first write when the manifest has no
+  `access`;
 - is keyed by mount, application folder, and level;
 - lives in browser session storage;
 - survives application file edits and ordinary reloads in that browser session;
 - is not persisted in workspace layout data;
-- is requested again when the manifest grows from `read` to `read-write`; and
+- shows **Read only · Allow editing** outside the application when the stored level is read and
+  the manifest requests `read-write` or a write failed with `read_only`; and
 - is forgotten by a new browser session.
 
 The application never receives an authentication token. The parent page performs file calls on
@@ -90,7 +94,7 @@ file request carries a numeric `id` that its response repeats.
 
 - `version`, `ready`, `canWrite`, `dir`, and `visible`;
 - `fs.read`, `readJSON`, `write`, `writeJSON`, `list`, `exists`, `stat`, and `remove`; and
-- `visibilitychange`, `changed`, and `theme` events.
+- `visibilitychange`, `changed`, `theme`, and `access` (`{canWrite}`) events.
 
 Bridge paths are relative to the application folder, use `/`, and have no leading slash.
 `list("")` lists the application folder itself. Every other method rejects an empty path.
