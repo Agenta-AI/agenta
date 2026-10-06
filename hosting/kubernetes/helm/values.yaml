@@ -316,11 +316,14 @@ redisDurable:
 #                              # new turns, lets running ones finish for this long, cancels the
 #                              # rest and deletes its sandboxes. Default: the grace period minus
 #                              # 100 (never below 0), which leaves room for the preStop delay, the
-#                              # cancel and the teardown. The render fails for a larger value. The
+#                              # cancel and the teardown. The render fails for a larger value, here
+#                              # or in env/extraEnv AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS. The
 #                              # 100 assumes the default AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS
 #                              # (10 s); a larger settle time needs a shorter wait, by twice the
 #                              # increase.
-#   env:
+#   env:                       # AGENTA_RUNNER_REPLICA_ID is always the pod name; the render
+#                              # fails when env or extraEnv sets it, because pods that share an
+#                              # id can take the same turn.
 #     AGENTA_RUNNER_REPLICA_ADDRESS: ""  # chart default http://$(POD_IP):<port>, where the api
 #                              # sends Stop for this pod's turns and Services sends the
 #                              # session's follow-up messages. A NetworkPolicy that blocks api or

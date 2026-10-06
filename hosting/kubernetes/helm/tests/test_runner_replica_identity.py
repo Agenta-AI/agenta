@@ -13,7 +13,10 @@ must carry:
   * `AGENTA_RUNNER_REPLICA_ADDRESS`, built from `status.podIP` and the configured runner port.
     Kubernetes expands `$(POD_IP)` only when `POD_IP` is defined EARLIER in the env list.
 
-An operator value in `agentRunner.env` replaces any of these entries, without a duplicate.
+An operator value in `agentRunner.env` replaces the address or `POD_IP` entry, without a
+duplicate. An operator value for the replica id, in `agentRunner.env` or `agentRunner.extraEnv`, fails
+the render at any replica count: even one pod shares its id with the surge pod of a rolling
+update.
 
 Run: uv run hosting/kubernetes/helm/tests/test_runner_replica_identity.py
 Requires the `helm` binary on PATH.
@@ -60,8 +63,8 @@ TWO_REMOTE_REPLICAS = [
 ]
 
 
-def render(extra_args: list[str]) -> list[dict]:
-    result = subprocess.run(
+def helm_template(extra_args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         [
             "helm",
             "template",
@@ -72,8 +75,13 @@ def render(extra_args: list[str]) -> list[dict]:
         ],
         capture_output=True,
         text=True,
-        check=True,
     )
+
+
+def render(extra_args: list[str]) -> list[dict]:
+    result = helm_template(extra_args)
+    if result.returncode != 0:
+        raise AssertionError(f"render failed for {extra_args}:\n{result.stderr}")
     return [doc for doc in yaml.safe_load_all(result.stdout) if doc]
 
 
@@ -154,8 +162,6 @@ def collect_failures() -> list[str]:
         render(
             [
                 "--set",
-                "agentRunner.env.AGENTA_RUNNER_REPLICA_ID=pinned-runner",
-                "--set",
                 "agentRunner.env.AGENTA_RUNNER_REPLICA_ADDRESS=http://runner.internal:8765",
                 "--set",
                 "agentRunner.env.POD_IP=10.0.0.9",
@@ -163,14 +169,53 @@ def collect_failures() -> list[str]:
         )
     )
     for name, value in (
-        ("AGENTA_RUNNER_REPLICA_ID", "pinned-runner"),
         ("AGENTA_RUNNER_REPLICA_ADDRESS", "http://runner.internal:8765"),
         ("POD_IP", "10.0.0.9"),
     ):
         found = entries(env, name)
         if [entry.get("value") for entry in found] != [value]:
             failures.append(f"override: {name} rendered as {found!r}")
+    replica_ids = entries(env, "AGENTA_RUNNER_REPLICA_ID")
+    if len(replica_ids) != 1 or field_ref(replica_ids[0]) != "metadata.name":
+        failures.append(
+            f"address override: AGENTA_RUNNER_REPLICA_ID rendered as {replica_ids!r}"
+        )
 
+    failures += replica_id_override_failures()
+    return failures
+
+
+def replica_id_override_failures() -> list[str]:
+    """A replica id in `agentRunner.env` or `agentRunner.extraEnv` would give every pod one id,
+    so the render fails. An extraEnv entry comes after the chart's entry, and the kubelet keeps
+    the last of two entries with one name."""
+    failures: list[str] = []
+    pinned = ["--set", "agentRunner.env.AGENTA_RUNNER_REPLICA_ID=pinned-runner"]
+    for label, args in (
+        ("replicas=1", pinned),
+        ("replicas=2", TWO_REMOTE_REPLICAS + pinned),
+        (
+            "extraEnv",
+            [
+                "--set",
+                "agentRunner.extraEnv[0].name=AGENTA_RUNNER_REPLICA_ID",
+                "--set",
+                "agentRunner.extraEnv[0].value=pinned-runner",
+            ],
+        ),
+    ):
+        result = helm_template(args)
+        if result.returncode == 0:
+            failures.append(
+                f"{label}: a replica id override rendered instead of failing"
+            )
+        elif (
+            "CONFIGURATION ERROR" not in result.stderr
+            or "AGENTA_RUNNER_REPLICA_ID" not in result.stderr
+        ):
+            failures.append(
+                f"{label}: the failure does not name the key:\n{result.stderr}"
+            )
     return failures
 
 

@@ -505,16 +505,21 @@ only remote providers the runner rolls out with `RollingUpdate` (`maxSurge: 1`,
 `maxUnavailable: 0`); with `local` it keeps `Recreate`, and the render fails for an
 explicit `agentRunner.strategy` of another type.
 
-Each turn is bound to the pod that runs it. The api sends a Stop to that pod's
-IP, and Services sends the session's follow-up messages there. A NetworkPolicy
-that blocks api or Services traffic to runner pod IPs on the runner port breaks
-Stop and follow-up routing.
+Each turn is bound to the pod that runs it, by the pod's replica id. The chart
+sets that id to the pod name, and the render fails when `agentRunner.env` or
+`agentRunner.extraEnv` sets `AGENTA_RUNNER_REPLICA_ID`: a shared id would let two
+pods take the same turn. The api sends a Stop to that pod's IP, and Services
+sends the session's follow-up messages there. A NetworkPolicy that blocks api or
+Services traffic to runner pod IPs on the runner port breaks Stop and follow-up
+routing.
 
 On SIGTERM a runner pod refuses new turns with a 503, lets its running turns
 finish for `agentRunner.shutdownWaitSeconds`, cancels the rest, and deletes its
 sandboxes. The default wait is the grace period minus 100 seconds (200 of the
-default 300), and the render fails for a longer one. The 100 seconds cover the
-preStop delay, the cancel and the teardown with the default
+default 300), and the render fails for a longer one, also when it comes from
+`AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS` in `agentRunner.env` or
+`agentRunner.extraEnv`, and for a value that is not plain digits. The 100 seconds
+cover the preStop delay, the cancel and the teardown with the default
 `AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS`.
 
 ## Checking a values file before you install

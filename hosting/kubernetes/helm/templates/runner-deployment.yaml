@@ -89,7 +89,7 @@ spec:
                    :<port>/health got connection refused and the pod never became ready.
                    Bind all interfaces. Override with agentRunner.host, or through the
                    agentRunner.env map below, which suppresses this entry the same way
-                   AGENTA_RUNNER_REPLICA_ID and PI_CODING_AGENT_DIR do. */}}
+                   PI_CODING_AGENT_DIR does. */}}
             {{- if not (hasKey (default dict $runner.env) "AGENTA_RUNNER_HOST") }}
             - name: AGENTA_RUNNER_HOST
               value: {{ include "agenta.agentRunner.host" . | quote }}
@@ -102,13 +102,13 @@ spec:
               value: {{ default "local" $providers.default | quote }}
             {{- /* Each pod is its own replica: the API binds every turn to the pod that first
                    beats it and refuses any other pod for that turn, so two pods must never
-                   share an id. The pod name is unique per pod and appears in the logs. */}}
-            {{- if not (hasKey (default dict $runner.env) "AGENTA_RUNNER_REPLICA_ID") }}
+                   share an id. The pod name is unique per pod and appears in the logs, so
+                   agenta.validateRunnerReplicaId refuses an agentRunner.env or extraEnv
+                   override. */}}
             - name: AGENTA_RUNNER_REPLICA_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            {{- end }}
             {{- /* The address the API posts a Stop to for this pod's turns, and where Services
                    sends a session's follow-up messages. Kubernetes expands $(POD_IP) only from a
                    variable defined earlier in this list. The api and Services must be able to

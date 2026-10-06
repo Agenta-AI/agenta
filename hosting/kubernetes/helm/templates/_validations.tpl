@@ -342,22 +342,90 @@ uses Recreate) or set:
 {{- end }}
 
 {{/* ================================================================
+   The api binds each turn to one replica id and refuses beats from
+   any other id. Pods that share an id (an override in agentRunner.env
+   or agentRunner.extraEnv, or the surge pod of a rolling update beside
+   the old one) pass as one replica: both can take the same turn, and
+   either one's last beat can release the other's lock. The pod name is
+   the only id. An extraEnv entry comes after the chart's entry, and
+   the kubelet keeps the last of two entries with one name, so it
+   replaces the pod name too.
+   ================================================================ */}}
+{{- define "agenta.validateRunnerReplicaId" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- $source := "" -}}
+{{- if hasKey (default dict $runner.env) "AGENTA_RUNNER_REPLICA_ID" -}}
+{{- $source = "agentRunner.env" -}}
+{{- end -}}
+{{- range $entry := (default list $runner.extraEnv) -}}
+{{- if and (kindIs "map" $entry) (eq (toString $entry.name) "AGENTA_RUNNER_REPLICA_ID") -}}
+{{- $source = "agentRunner.extraEnv" -}}
+{{- end -}}
+{{- end -}}
+{{- if and (eq (include "agenta.agentRunner.enabled" .) "true") $source -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: %s sets AGENTA_RUNNER_REPLICA_ID.
+
+The api binds each turn to the runner pod that runs it, by replica id, so every pod needs its own
+id. A value in %s gives every pod the same id, including the new pod that a rolling update starts
+beside the old one. The chart sets the id to the pod name. Remove AGENTA_RUNNER_REPLICA_ID from
+%s.
+` $source $source $source) -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
    The runner's shutdown runs inside the grace period: the preStop
    delay, the wait, then the cancel and the teardown, which take up to
    80 s with the default AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS. A wait
    past grace - 100 lets the KILL signal land before the sandboxes are
-   deleted, so refuse it.
+   deleted, so refuse it. A value in agentRunner.env replaces the
+   chart's entry, and an agentRunner.extraEnv entry comes last and wins
+   in the kubelet, so the last of these is the wait the runner reads.
+   The runner accepts forms such as "1e3" that Sprig's int reads as 0,
+   so only plain digits pass; an empty value is unset (the runner's 0).
    ================================================================ */}}
 {{- define "agenta.validateRunnerShutdownWait" -}}
 {{- $runner := default dict .Values.agentRunner -}}
-{{- if and (eq (include "agenta.agentRunner.enabled" .) "true") (not (kindIs "invalid" $runner.shutdownWaitSeconds)) -}}
+{{- $name := "AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS" -}}
+{{- $env := default dict $runner.env -}}
+{{- $key := "" -}}
+{{- $value := "" -}}
+{{- if not (kindIs "invalid" $runner.shutdownWaitSeconds) -}}
+{{- $key = "agentRunner.shutdownWaitSeconds" -}}
+{{- $value = $runner.shutdownWaitSeconds -}}
+{{- end -}}
+{{- if hasKey $env $name -}}
+{{- $key = printf "agentRunner.env.%s" $name -}}
+{{- $value = get $env $name -}}
+{{- end -}}
+{{- range $entry := (default list $runner.extraEnv) -}}
+{{- if and (kindIs "map" $entry) (eq (toString $entry.name) $name) (hasKey $entry "value") -}}
+{{- $key = printf "agentRunner.extraEnv.%s" $name -}}
+{{- $value = $entry.value -}}
+{{- end -}}
+{{- end -}}
+{{- if and (eq (include "agenta.agentRunner.enabled" .) "true") $key -}}
+{{- $raw := "" -}}
+{{- if not (kindIs "invalid" $value) -}}
+{{- $raw = trim (toString $value) -}}
+{{- end -}}
+{{- if and $raw (not (regexMatch "^[0-9]+$" $raw)) -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: %s is %q, not a whole number of seconds.
+
+Set the wait as plain digits, for example 200.
+` $key $raw) -}}
+{{- end -}}
 {{- $grace := int (include "agenta.agentRunner.terminationGracePeriodSeconds" .) -}}
 {{- $limit := max 0 (sub $grace 100) -}}
-{{- $wait := int $runner.shutdownWaitSeconds -}}
+{{- $wait := int (default "0" $raw) -}}
 {{- if gt $wait $limit -}}
 {{- fail (printf `
 
-CONFIGURATION ERROR: agentRunner.shutdownWaitSeconds=%d is more than
+CONFIGURATION ERROR: %s=%d is more than
 agentRunner.terminationGracePeriodSeconds (%d) minus 100.
 
 After the wait the runner cancels the turns that still run and deletes its sandboxes, which
@@ -365,7 +433,7 @@ takes up to 80 seconds, after a 10-second preStop delay. Lower the wait to %d or
 the grace period:
 
   agentRunner.terminationGracePeriodSeconds: %d
-` $wait $grace $limit (add $wait 100)) -}}
+` $key $wait $grace $limit (add $wait 100)) -}}
 {{- end -}}
 {{- end -}}
 {{- end }}

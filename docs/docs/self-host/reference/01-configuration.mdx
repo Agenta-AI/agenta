@@ -289,7 +289,8 @@ so the Services container can reach the runner across the Compose network. `AGEN
 that reports it, and refuses the same turn from a runner with a different id. Every runner must
 therefore have its own id. When the value is unset the runner generates a fresh id on each start.
 The bundled Compose files set a fixed value, which is safe because Compose runs one runner. The Helm
-chart sets the pod name.
+chart sets the pod name, and the render fails when `agentRunner.env` or `agentRunner.extraEnv`
+sets this variable.
 
 `AGENTA_RUNNER_REPLICA_ADDRESS` is where the platform API sends Stop for a turn that this runner
 runs, and where Services sends the session's follow-up messages. Leave it empty when one runner
