@@ -888,6 +888,253 @@ async def test_an_unlisted_model_is_still_refused_on_a_registered_custom_provide
     assert resolver.resolve_calls == []
 
 
+# --- custom endpoints: the upstream receives its own model id ----------------- #
+
+_FIREWORKS_SLUG = "openai-compatible-endpoint-0fbcbb114d58"
+
+# Model ids with 0, 1 and 3 slashes, and an OpenRouter routing variant. The provider's
+# own id may hold any number of slashes, so none of them may be split on.
+_UPSTREAM_MODEL_IDS = [
+    "kimi-k3-fast",
+    "moonshotai/kimi-k3",
+    "accounts/fireworks/routers/kimi-k3-fast",
+    "deepseek/deepseek-v4-flash:nitro",
+]
+
+
+def _fireworks_row(model_slugs: List[str]) -> LLMEndpoint:
+    """The endpoint row the vault registrar writes for a Fireworks custom provider."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug=_FIREWORKS_SLUG,
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                "kind": "custom",
+                "provider": {"url": "https://93.184.216.34/v1", "key": "fw-key"},
+                "models": [{"slug": slug} for slug in model_slugs],
+                "provider_slug": "Fireworks",
+            },
+            header={"name": "Fireworks"},
+        )
+    )
+    return _custom_row(slug=_FIREWORKS_SLUG, models=endpoint.data.models)
+
+
+def _fireworks_dao(model_slugs: List[str]) -> _MockLlmEndpointsDAO:
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug[_FIREWORKS_SLUG] = _fireworks_row(model_slugs)
+    return dao
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("upstream_id", _UPSTREAM_MODEL_IDS)
+@pytest.mark.parametrize("qualified", [True, False])
+async def test_resolve_names_a_custom_model_by_its_upstream_id(upstream_id, qualified):
+    """The production canary: `Fireworks/custom/accounts/fireworks/routers/kimi-k3-fast`
+    resolved unchanged, the harness sent it, and Fireworks answered 404."""
+    requested = f"Fireworks/custom/{upstream_id}" if qualified else upstream_id
+
+    resolved = await _service(
+        dao=_fireworks_dao([upstream_id])
+    ).resolve_agent_connection(
+        scope=_scope(),
+        model=requested,
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+
+    assert resolved.model == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_resolve_picks_the_model_the_qualified_key_names_among_nested_ids():
+    """Two saved models where one id is a suffix of the other: the key names the longer."""
+    dao = _fireworks_dao(["kimi-k3-fast", "accounts/fireworks/routers/kimi-k3-fast"])
+    service = _service(dao=dao)
+
+    for upstream_id in ("kimi-k3-fast", "accounts/fireworks/routers/kimi-k3-fast"):
+        resolved = await service.resolve_agent_connection(
+            scope=_scope(),
+            model=f"Fireworks/custom/{upstream_id}",
+            provider_key=None,
+            connection_slug=_FIREWORKS_SLUG,
+        )
+        assert resolved.model == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_resolve_leaves_a_model_the_endpoint_does_not_list_unchanged():
+    resolved = await _service(
+        dao=_fireworks_dao(["kimi-k3-fast"])
+    ).resolve_agent_connection(
+        scope=_scope(),
+        model="Fireworks/custom/other-model",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+
+    assert resolved.model == "Fireworks/custom/other-model"
+
+
+@pytest.mark.asyncio
+async def test_a_bare_id_shaped_like_a_qualified_key_is_kept_through_resolve_and_relay():
+    """`a/b/x` is a saved model of its own, not a qualified key for `x`. Resolve then
+    relay must reach the model the caller named, whichever spelling it used."""
+    model_slugs = ["x", "a/b/x"]
+    service = _service(dao=_fireworks_dao(model_slugs))
+
+    for requested, upstream_id in (
+        ("a/b/x", "a/b/x"),
+        ("Fireworks/custom/a/b/x", "a/b/x"),
+        ("x", "x"),
+        ("Fireworks/custom/x", "x"),
+    ):
+        resolved = await service.resolve_agent_connection(
+            scope=_scope(),
+            model=requested,
+            provider_key=None,
+            connection_slug=_FIREWORKS_SLUG,
+        )
+        assert resolved.model == upstream_id
+
+        call = await _relay_to_fireworks(
+            model_slugs, {"model": resolved.model, "messages": []}
+        )
+        assert json.loads(call["body"])["model"] == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_resolve_strips_a_provider_name_that_holds_a_slash():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["team"] = _custom_row(
+        slug="team",
+        models=LLMModelFilter(
+            allowlist=["Team/Fireworks/custom/kimi-k3-fast", "kimi-k3-fast"]
+        ),
+    )
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(),
+        model="Team/Fireworks/custom/kimi-k3-fast",
+        provider_key=None,
+        connection_slug="team",
+    )
+
+    assert resolved.model == "kimi-k3-fast"
+
+
+@pytest.mark.asyncio
+async def test_resolve_strips_the_deployment_prefixed_spelling_like_the_direct_path():
+    resolved = await _service(
+        dao=_fireworks_dao(["accounts/fireworks/routers/kimi-k3-fast"])
+    ).resolve_agent_connection(
+        scope=_scope(),
+        model="custom/accounts/fireworks/routers/kimi-k3-fast",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+
+    assert resolved.model == "accounts/fireworks/routers/kimi-k3-fast"
+
+
+@pytest.mark.asyncio
+async def test_relay_refuses_a_model_denied_under_its_bare_name():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug[_FIREWORKS_SLUG] = _custom_row(
+        slug=_FIREWORKS_SLUG,
+        models=LLMModelFilter(
+            allowlist=["Fireworks/custom/kimi-k3-fast", "kimi-k3-fast"],
+            denylist=["kimi-k3-fast"],
+        ),
+    )
+    adapter = _MockAdapter(
+        result=LLMRelayResult(status_code=200, headers={}, body=_one_chunk_body(b"{}"))
+    )
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _service(
+            dao=dao,
+            resolver=_MockResolver(secret=_secret()),
+            registry=LLMUpstreamRegistry(adapters={"relay": adapter}),
+        ).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name=_FIREWORKS_SLUG,
+            body=json.dumps(
+                {"model": "Fireworks/custom/kimi-k3-fast", "messages": []}
+            ).encode(),
+            headers={},
+        )
+
+    assert adapter.calls == []
+
+
+async def _relay_to_fireworks(model_slugs: List[str], payload: dict) -> dict:
+    adapter = _MockAdapter(
+        result=LLMRelayResult(status_code=200, headers={}, body=_one_chunk_body(b"{}"))
+    )
+    await _service(
+        dao=_fireworks_dao(model_slugs),
+        resolver=_MockResolver(secret=_secret()),
+        registry=LLMUpstreamRegistry(adapters={"relay": adapter}),
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name=_FIREWORKS_SLUG,
+        body=json.dumps(payload).encode(),
+        headers={},
+    )
+    (call,) = adapter.calls
+    return call
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("upstream_id", _UPSTREAM_MODEL_IDS)
+@pytest.mark.parametrize("qualified", [True, False])
+async def test_relay_sends_the_upstream_its_own_model_id(upstream_id, qualified):
+    """The playground relays Agenta's qualified key; the upstream must get the bare id."""
+    requested = f"Fireworks/custom/{upstream_id}" if qualified else upstream_id
+
+    call = await _relay_to_fireworks(
+        [upstream_id], {"model": requested, "messages": [], "stream": True}
+    )
+
+    sent = json.loads(call["body"])
+    assert sent["model"] == upstream_id
+    assert sent["stream"] is True
+    assert call["route"].model == upstream_id
+    assert call["context"].model == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_relay_renames_qualified_fallback_models_too():
+    call = await _relay_to_fireworks(
+        ["kimi-k3-fast", "accounts/fireworks/routers/kimi-k3-fast"],
+        {
+            "model": "Fireworks/custom/kimi-k3-fast",
+            "models": [
+                "Fireworks/custom/accounts/fireworks/routers/kimi-k3-fast",
+                "kimi-k3-fast",
+            ],
+            "messages": [],
+        },
+    )
+
+    sent = json.loads(call["body"])
+    assert sent["model"] == "kimi-k3-fast"
+    assert sent["models"] == ["accounts/fireworks/routers/kimi-k3-fast", "kimi-k3-fast"]
+
+
+@pytest.mark.asyncio
+async def test_relay_of_a_bare_model_keeps_the_body_byte_for_byte():
+    body = {"model": "accounts/fireworks/routers/kimi-k3-fast", "messages": []}
+
+    call = await _relay_to_fireworks(["accounts/fireworks/routers/kimi-k3-fast"], body)
+
+    assert call["body"] == json.dumps(body).encode()
+
+
 @pytest.mark.asyncio
 async def test_policy_denial_records_once_before_raising():
     dao = _MockLlmEndpointsDAO()
