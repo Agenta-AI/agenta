@@ -94,6 +94,22 @@ describe("mobile TurnRow: a turn the user stopped", () => {
         expect(text).not.toContain("Stopped")
     })
 
+    it("reads Stopped after the denied step when the stop landed on a pending approval", () => {
+        // The shape `transcriptToMessages` leaves when a stop settles an approval card.
+        const deniedCall = {
+            type: "tool-write_file",
+            toolCallId: "call-write",
+            state: "output-denied",
+            input: {path: "notes.md"},
+            approval: {id: "approval-1"},
+        }
+        const text = renderTurn([deniedCall], {runStopped: true})
+
+        expect(text).toContain("You denied writing a file")
+        expect(text).toContain("Stopped")
+        expect(text.indexOf("You denied writing a file")).toBeLessThan(text.indexOf("Stopped"))
+    })
+
     it("does not read Stopped on a turn the user did not stop", () => {
         expect(renderTurn([interruptedCall])).not.toContain("Stopped")
     })
