@@ -2004,6 +2004,14 @@ def cell_inprocess_holder_killed(ctx: Ctx) -> tuple[dict, dict]:
         )
     if not ev["b_sandbox_created"]:
         problems.append("B created no command sandbox")
+    # A created sandbox is not a working one: the bash call on B must have run. A failed call
+    # (for example the agent drive that cannot mount in the sandbox) is named, not hidden.
+    tool_states = list(t2.tool_outcomes.values())
+    if not tool_states or any(state != "available" for state in tool_states):
+        problems.append(
+            f"turn 2's bash call on B did not run (outcomes={tool_states}, "
+            f"error={json.dumps(t2.tool_payloads)[:200]})"
+        )
     if problems:
         return ev, _fail("; ".join(problems))
     return ev, _pass(
