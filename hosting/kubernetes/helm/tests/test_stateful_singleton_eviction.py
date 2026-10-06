@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["PyYAML>=6"]
+# ///
 """Rendered-chart coverage: the single-replica stateful workloads resist autoscaler scale-down.
 
 `redisVolatile`, `redisDurable` and `supertokens` each run one replica and hold state. A cluster
