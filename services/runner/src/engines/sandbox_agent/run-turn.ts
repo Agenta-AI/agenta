@@ -79,6 +79,7 @@ import {
   conciseError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   type RunErrorCode,
+  runLimitError,
   TURN_TIME_LIMIT_CODE,
   withinCredentialPropagationWindow,
   withPublicCode,
@@ -439,8 +440,9 @@ export async function runTurn(
   );
   let runLimitTrip: (() => void) | undefined;
   let runLimitReason: string | undefined;
-  // The plan's turn limit ends the turn with a line written for the person in the chat.
-  let turnLimitError: Error | undefined;
+  // A tripped run limit ends the turn with a line written for the person in the chat; the plan's
+  // turn limit uses the platform's own line.
+  let runLimitPublicError: Error | undefined;
   let outputLimitReason: string | undefined;
   // Which limit fired, when it was one of the run limits. Left undefined by the sandbox-liveness
   // probe below, which shares this trip path but is not a run limit: a dead sandbox is a real
@@ -453,9 +455,20 @@ export async function runTurn(
     runLimitReason = reason;
     runLimitKind = kind;
     if (kind === "total" && resolvedRunLimits.turnLimitMessage) {
-      turnLimitError = withPublicCode(
+      runLimitPublicError = withPublicCode(
         new Error(resolvedRunLimits.turnLimitMessage),
         TURN_TIME_LIMIT_CODE,
+      );
+    } else {
+      // The log keeps `reason`; the person reads which limit ended the turn.
+      runLimitPublicError = runLimitError(
+        kind,
+        {
+          total: resolvedRunLimits.totalMs,
+          idle: resolvedRunLimits.idleMs,
+          ttfb: resolvedRunLimits.ttfbMs,
+          "tool-call": resolvedRunLimits.toolCallMs,
+        }[kind],
       );
     }
     runLimitTrip?.();
@@ -1578,7 +1591,7 @@ export async function runTurn(
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
     if (raced === RUN_LIMIT_TRIPPED || outputLimitReason) {
-      throw turnLimitError ?? new Error(runLimitReason ?? "run limit tripped");
+      throw runLimitPublicError ?? new Error(runLimitReason ?? "run limit tripped");
     }
     let stopReason =
       raced === CANCELLED

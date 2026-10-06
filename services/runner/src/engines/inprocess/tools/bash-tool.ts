@@ -9,6 +9,7 @@ import { createBashToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type Ba
 import type { CommandRequest, CommandResult } from "../conversation-workspace.ts";
 import { CommandOutput } from "./command-output.ts";
 import { TIMER_MAX_MS } from "../../../env.ts";
+import { commandTimeoutSeconds } from "../../sandbox_agent/run-limits.ts";
 
 /** Pi's own limit on a timeout, in seconds (a 32-bit millisecond timer). */
 const MAX_TIMEOUT_SECONDS = TIMER_MAX_MS / 1000;
@@ -34,12 +35,17 @@ export function createSandboxBashTool(
   run: RunCommand,
   /** Counts the command's output buffer against its session while it runs; returns the release. */
   track: (output: CommandOutput) => () => void = () => () => {},
+  /**
+   * The longest a command runs, in seconds: the per-tool-call limit. A command is stopped here and
+   * the model is told so, which keeps the turn going; past it the run-wide watchdog ends the turn.
+   */
+  maxSeconds: number = commandTimeoutSeconds(undefined),
 ): ToolDefinition<any, any> {
   const definition = createBashToolDefinition(cwd, { exposeSessionEnvironment: false });
   const tool: typeof definition = {
     ...definition,
     execute: async (toolCallId, params, signal, onUpdate, ctx) => {
-      const seconds = timeoutSeconds(params.timeout);
+      const seconds = commandTimeoutSeconds(timeoutSeconds(params.timeout), maxSeconds * 1000);
       const output = new CommandOutput();
       const untrack = track(output);
       const outputPath = outputPathFor(toolCallId);
@@ -60,7 +66,7 @@ export function createSandboxBashTool(
         const result = await run({
           command: params.command,
           cwd: ctx?.cwd || cwd,
-          ...(seconds ? { timeoutSeconds: seconds } : {}),
+          timeoutSeconds: seconds,
           ...(signal ? { signal } : {}),
           outputPath,
           // Half of Pi's limits: the notices appended after the command can never push output
@@ -83,7 +89,8 @@ export function createSandboxBashTool(
         }
         if (outcome.kind === "aborted") throw new Error(withStatus(output.format(shownPath, "").text, "Command aborted"));
         if (outcome.kind === "timed_out") {
-          throw new Error(withStatus(output.format(shownPath, "").text, `Command timed out after ${outcome.seconds} seconds`));
+          const atLimit = outcome.seconds >= maxSeconds ? ` Commands can run for at most ${maxSeconds} seconds; split long work into smaller steps.` : "";
+          throw new Error(withStatus(output.format(shownPath, "").text, `Command timed out after ${outcome.seconds} seconds and was stopped.${atLimit}`));
         }
         const { text, truncation } = output.format(shownPath);
         const details: BashToolDetails | undefined = truncation ? { truncation, ...(shownPath ? { fullOutputPath: shownPath } : {}) } : undefined;

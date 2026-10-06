@@ -149,7 +149,8 @@ const LIFETIME_GRACE_SECONDS = 60;
 
 /**
  * The most a command lives in the sandbox: its own timeout, never more than the per-tool-call limit
- * (`AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS`, which ends the turn anyway), plus a grace.
+ * (`AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS`), plus a grace. The runner stops it at its timeout first and
+ * reports that to the model; this cap is for a command whose runner is gone.
  */
 export function commandLifetimeSeconds(timeoutSeconds: number | undefined, toolCallMs = resolveRunLimits().toolCallMs): number {
   const limit = Math.ceil(toolCallMs / 1000);

@@ -109,6 +109,13 @@ export type RunErrorCode =
   // The turn ran for the longest time the caller's plan allows and was stopped. What it did so
   // far is kept; the platform's turn admission writes the message.
   | "turn_time_limit_reached"
+  // One of the runner's own run limits (`run-limits.ts`) ended the turn: a tool call that never
+  // returned a result, no progress for the idle limit, no first response, or the total deadline.
+  // Set by `runLimitError`; the message names the limit.
+  | "tool_call_time_limit"
+  | "run_idle_time_limit"
+  | "run_first_response_time_limit"
+  | "run_total_time_limit"
   | "credential_delivery_failed"
   | "rate_limited"
   // Not a failure: the turn was REFUSED before it started because another turn already owns
@@ -723,6 +730,58 @@ export function isPublicError(err: unknown): err is PublicError {
     err instanceof Error &&
     typeof (err as Partial<PublicError>).publicCode === "string"
   );
+}
+
+/** A run limit as a person reads it: "20 seconds", "5 minutes", "11 hours". */
+export function formatRunLimit(ms: number): string {
+  const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  if (ms < 120_000) return unit(Math.max(1, Math.round(ms / 1000)), "second");
+  if (ms < 2 * 60 * 60_000) return unit(Math.round(ms / 60_000), "minute");
+  return unit(Math.round(ms / (60 * 60_000)), "hour");
+}
+
+/**
+ * The error a tripped run limit ends the turn with, written for the person in the chat. Without
+ * it the limit's log line reached the classifier as an unknown error, and the person read only
+ * "The agent run failed". A tool call that is too slow normally never gets here: its command is
+ * stopped at the limit and the agent is told so (`commandTimeoutSeconds`), so this copy is for
+ * the call whose result did not arrive even after that.
+ */
+export function runLimitError(
+  kind: "total" | "idle" | "ttfb" | "tool-call",
+  limitMs: number,
+): PublicError {
+  const limit = formatRunLimit(limitMs);
+  switch (kind) {
+    case "tool-call":
+      return withPublicCode(
+        new Error(
+          `A tool call ran longer than ${limit} and did not stop, so the turn was ended. Ask for smaller steps, or send the message again.`,
+        ),
+        "tool_call_time_limit",
+      );
+    case "idle":
+      return withPublicCode(
+        new Error(
+          `The agent made no progress for ${limit}, so the turn was ended. Send the message again to retry.`,
+        ),
+        "run_idle_time_limit",
+      );
+    case "ttfb":
+      return withPublicCode(
+        new Error(
+          `The agent did not start responding within ${limit}, so the turn was ended. Send the message again to retry.`,
+        ),
+        "run_first_response_time_limit",
+      );
+    case "total":
+      return withPublicCode(
+        new Error(
+          `This turn ran longer than ${limit}, so it was ended.`,
+        ),
+        "run_total_time_limit",
+      );
+  }
 }
 
 /** Give `err` a public code, keeping its (already readable) message. */
