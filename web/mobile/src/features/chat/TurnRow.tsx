@@ -42,7 +42,7 @@ import {cn} from "@/lib/utils"
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
-import {useBillingRoute, useProviderRecovery} from "./providerRecovery"
+import {useBillingRoute, useBuyCreditsRoute, useProviderRecovery} from "./providerRecovery"
 import {RunErrorCallout} from "./RunErrorCallout"
 import {runRetryAction} from "./runRetry"
 import {mobileTurnRowClass} from "./turnRowClass"
@@ -108,6 +108,7 @@ const TurnRowInner = ({
     const usage = getMessageUsage(turn.message)
     const openProviders = useProviderRecovery()
     const openBilling = useBillingRoute()
+    const openBuyCredits = useBuyCreditsRoute(turn.status.errorCode)
 
     /**
      * Notices about a server that did not join the run, above the timeline rather than in it.
@@ -260,6 +261,7 @@ const TurnRowInner = ({
                     onAddKey={openProviders}
                     onSignIn={openProviders}
                     onOpenBilling={openBilling}
+                    onBuyCredits={openBuyCredits}
                 />
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">

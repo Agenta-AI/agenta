@@ -14,6 +14,7 @@ export {
 } from "../../mcp-permission.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
 import { materializeGatewayHeaders } from "./run-plan.ts";
+import { commandTimeoutSeconds } from "./run-limits.ts";
 import {
   configuredIngestBases,
   isAgentaIngest,
@@ -260,6 +261,15 @@ export function applyClaudeConnectionEnv(
   // so it is never stripped. `buildRuntimeEnvironment` writes it to the Daytona env on Daytona.
   env.ENABLE_TOOL_SEARCH = "false";
 
+  // Claude Code runs its own Bash tool, so the runner cannot stop a command; it can only bound the
+  // timeout Claude Code allows. At that timeout Claude Code stops the command or moves it to the
+  // background; either way the tool call returns and the turn continues. A timeout allowed past the
+  // per-tool-call limit would trip the run-wide watchdog and end the turn instead. Claude Code's own
+  // defaults are 2 and 10 minutes.
+  const commandMs = commandTimeoutSeconds(undefined) * 1000;
+  env.BASH_MAX_TIMEOUT_MS = String(commandMs);
+  env.BASH_DEFAULT_TIMEOUT_MS = String(Math.min(120_000, commandMs));
+
   const deployment = request.modelConnection?.deployment;
   const selectedModel = request.model;
   const baseUrl = request.modelConnection?.endpoint?.baseUrl;
@@ -284,7 +294,15 @@ export function applyClaudeConnectionEnv(
     );
   }
 
-  if (deployment === "bedrock") {
+  if (deployment === "bedrock" && headerLines) {
+    // Bedrock through the gateway: Claude Code speaks Anthropic Messages to the gateway base
+    // URL, and the gateway relays to Bedrock's Messages endpoint. CLAUDE_CODE_USE_BEDROCK
+    // would make it ignore that URL and call Bedrock itself. Bedrock refuses the newest
+    // `anthropic-beta` values Claude Code sends, so its own switch drops them. "0", not
+    // absent: a local run inherits the runner's own environment, which may set it.
+    env.CLAUDE_CODE_USE_BEDROCK = "0";
+    env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = "1";
+  } else if (deployment === "bedrock") {
     env.CLAUDE_CODE_USE_BEDROCK = "1";
     const region = request.modelConnection?.endpoint?.region;
     if (region) {

@@ -346,6 +346,21 @@ class WalletsDAO(WalletsDAOInterface):
 
             return balance_dbe_to_dto(balance)
 
+    async def get_awarded_credit(
+        self,
+        *,
+        organization_id: UUID,
+        idempotency_key: str,
+    ) -> Optional[WalletCreditDTO]:
+        async with self.engine.session() as session:
+            stmt = select(WalletCreditDBE).where(
+                WalletCreditDBE.organization_id == organization_id,
+                WalletCreditDBE.data["references"]["award_idempotency_key"].astext
+                == idempotency_key,
+            )
+            credit = (await session.execute(stmt)).scalar_one_or_none()
+            return credit_dbe_to_dto(credit) if credit is not None else None
+
     async def award_credit(
         self,
         *,

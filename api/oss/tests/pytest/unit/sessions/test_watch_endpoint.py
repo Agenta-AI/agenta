@@ -126,25 +126,31 @@ async def test_stream_terminates_on_server_shutdown_signal():
     assert pubsub.closed is True
 
 
-def test_uvicorn_exit_hook_is_installed_and_requests_shutdown():
-    # The release only works if uvicorn's handle_exit actually reaches
-    # request_shutdown — pin both the installation and the effect.
+@pytest.mark.asyncio
+async def test_uvicorn_shutdown_hook_is_installed_and_requests_shutdown(monkeypatch):
+    # The release only works if uvicorn's shutdown actually reaches request_shutdown
+    # before the drain. A signal and a gunicorn max-requests recycle both end there.
     uvicorn_server = pytest.importorskip("uvicorn.server")
     from oss.src.apis.fastapi.sessions import watch as watch_module
 
-    assert getattr(uvicorn_server.Server.handle_exit, "_agenta_watch_hook", False)
+    assert getattr(uvicorn_server.Server.shutdown, "_agenta_watch_hook", False)
 
-    class _FakeServer:
-        handle_exit = uvicorn_server.Server.handle_exit
+    released_before_drain = []
 
-        def __init__(self):
-            self.should_exit = False
-            self.force_exit = False
-            self._captured_signals = []
+    async def _wait_tasks_to_complete(self):
+        released_before_drain.append(watch_module._shutdown.is_set())
 
+    monkeypatch.setattr(
+        uvicorn_server.Server, "_wait_tasks_to_complete", _wait_tasks_to_complete
+    )
+    server = uvicorn_server.Server(
+        config=uvicorn_server.Config(app=None, lifespan="off")
+    )
+    server.servers = []  # never started, so nothing to close
+    server.force_exit = True  # skip the lifespan shutdown; no app is loaded
     try:
-        _FakeServer().handle_exit(None, None)
-        assert watch_module._shutdown.is_set()
+        await server.shutdown()
+        assert released_before_drain == [True]
     finally:
         watch_module._shutdown.clear()
 

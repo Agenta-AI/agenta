@@ -175,6 +175,59 @@ async def test_a_refused_llm_plane_resolves_the_model_from_the_vault(
     assert routes.paths() == [RESOLVE_PATH, SECRETS_PATH]
 
 
+async def test_a_bedrock_connection_the_gateway_does_not_serve_runs_from_the_vault(
+    platform, monkeypatch
+):
+    """An organization on the gateway: resolve still refuses a Bedrock connection with the
+    vault-fallback code, so Claude Code drives Bedrock natively with the project's key, as
+    before the gateway."""
+    bedrock = {
+        "slug": "my-bedrock",
+        "kind": "custom_provider",
+        "header": {"name": "my-bedrock"},
+        "data": {
+            "kind": "bedrock",
+            "provider_slug": "my-bedrock",
+            "provider": {
+                "extras": {
+                    "aws_region_name": "us-east-1",
+                    "aws_bearer_token_bedrock": "bedrock-key",
+                }
+            },
+            "models": [{"slug": "us.anthropic.claude-haiku-4-5-20251001-v1:0"}],
+            "model_keys": [
+                "my-bedrock/bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0"
+            ],
+        },
+    }
+    routes = _Routes(
+        {
+            RESOLVE_PATH: _Response(
+                403,
+                _envelope(
+                    "llm_gateway_disabled",
+                    "This connection is not served through the LLM gateway.",
+                ),
+            ),
+            SECRETS_PATH: _Response(200, [bedrock]),
+        }
+    ).install(monkeypatch, connections, platform_connection)
+
+    resolved = await VaultConnectionResolver(platform).resolve(
+        model=ModelRef(
+            provider="anthropic",
+            model="my-bedrock/bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            connection={"mode": "agenta", "slug": "my-bedrock"},
+        ),
+        context=RuntimeAuthContext(harness="claude", backend="local"),
+    )
+
+    assert resolved.deployment == "bedrock"
+    assert resolved.credential_mode == "env"
+    assert resolved.gateway_credentials is None
+    assert routes.paths() == [RESOLVE_PATH, SECRETS_PATH]
+
+
 async def test_the_vault_fallback_reads_with_the_caller_own_credential(
     platform, monkeypatch
 ):

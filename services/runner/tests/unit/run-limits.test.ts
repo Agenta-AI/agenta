@@ -21,6 +21,8 @@ import {
   IDLE_TIMEOUT_ENV,
   TTFB_TIMEOUT_ENV,
   TOOL_CALL_TIMEOUT_ENV,
+  TOOL_CALL_GRACE_MS,
+  commandTimeoutSeconds,
   type Clock,
   type RunLimitKind,
 } from "../../src/engines/sandbox_agent/run-limits.ts";
@@ -435,6 +437,76 @@ describe("createRunLimits", () => {
     limits.noteProgress();
     advance(5000);
 
+    assert.deepEqual(kinds, ["idle"]);
+  });
+});
+
+describe("a slow tool call is stopped by its command, not by the turn (EU 2026-10-06)", () => {
+  // A `bash` call ran past the 300 s tool-call limit and the watchdog ended the whole turn. The
+  // command is now stopped at the limit, so the watchdog waits a grace for that result first.
+  it("gives a command the tool-call limit as its timeout, never more, whatever the model asked", () => {
+    assert.equal(commandTimeoutSeconds(undefined, 300_000), 300);
+    assert.equal(commandTimeoutSeconds(600, 300_000), 300);
+    assert.equal(commandTimeoutSeconds(20, 300_000), 20);
+    assert.equal(commandTimeoutSeconds(0, 300_000), 300);
+    assert.equal(commandTimeoutSeconds(undefined, 500), 1);
+  });
+
+  it("reads the command timeout from AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS", () => {
+    withEnv({ [TOOL_CALL_TIMEOUT_ENV]: "20000" }, () => {
+      assert.equal(commandTimeoutSeconds(undefined), 20);
+      assert.equal(resolveRunLimits().toolCallGraceMs, TOOL_CALL_GRACE_MS);
+    });
+  });
+
+  it("lets a tool call whose result arrives within the grace end normally", () => {
+    const { clock, advance } = fakeClock();
+    const limits = createRunLimits(
+      { totalMs: 1e7, idleMs: 1e7, ttfbMs: 1e7, toolCallMs: 1000, toolCallGraceMs: 500 },
+      { clock },
+    );
+    const trips: string[] = [];
+    limits.onTrip((reason) => trips.push(reason));
+    limits.noteToolCallStart("call-1");
+    advance(1200); // past the limit: the command was stopped and its result is on its way
+    assert.equal(trips.length, 0);
+    limits.noteToolCallEnd("call-1");
+    advance(10_000);
+    assert.equal(trips.length, 0);
+  });
+
+  it("still ends the turn over a hung tool call once the grace is spent", () => {
+    const { clock, advance } = fakeClock();
+    const limits = createRunLimits(
+      { totalMs: 1e7, idleMs: 1e7, ttfbMs: 1e7, toolCallMs: 1000, toolCallGraceMs: 500 },
+      { clock },
+    );
+    const trips: Array<[string, RunLimitKind]> = [];
+    limits.onTrip((reason, kind) => trips.push([reason, kind]));
+    limits.noteToolCallStart("call-hung");
+    advance(1499);
+    assert.equal(trips.length, 0);
+    advance(1);
+    assert.equal(trips.length, 1);
+    assert.equal(trips[0]![1], "tool-call");
+    assert.match(trips[0]![0], /tool call call-hung exceeded 1000ms and returned no result within 500ms more/);
+  });
+
+  it("does not let the idle limit cut a silent command before its own timer (both default to 30 min)", () => {
+    const { clock, advance } = fakeClock();
+    const limits = createRunLimits(
+      { totalMs: 1e7, idleMs: 1000, ttfbMs: 1e7, toolCallMs: 1000, toolCallGraceMs: 500 },
+      { clock },
+    );
+    const kinds: RunLimitKind[] = [];
+    limits.onTrip((_reason, kind) => kinds.push(kind));
+    limits.noteToolCallStart("call-silent");
+    advance(1200); // idle has elapsed, but the call is in flight and inside its grace
+    assert.deepEqual(kinds, []);
+    limits.noteToolCallEnd("call-silent");
+    advance(999);
+    assert.deepEqual(kinds, []);
+    advance(1); // nothing in flight any more: idle applies again
     assert.deepEqual(kinds, ["idle"]);
   });
 });

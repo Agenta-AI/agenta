@@ -15,7 +15,6 @@ and transport helpers.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Sequence
 
 from ..dtos import (
@@ -31,6 +30,7 @@ from ..interfaces import Backend, Sandbox, Session
 from ..streaming import AgentStream
 from ..tools.models import ResolvedGatewayPolicy
 from ..utils import (
+    RUNNER_TIMEOUT_SECONDS,
     deliver_http_result,
     deliver_http_stream,
     deliver_subprocess_result,
@@ -160,7 +160,7 @@ class SandboxAgentBackend(Backend):
         url: Optional[str] = None,
         command: Optional[Sequence[str]] = None,
         cwd: Optional[str] = None,
-        timeout: float = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180")),
+        timeout: float = RUNNER_TIMEOUT_SECONDS,
     ) -> None:
         self._sandbox = sandbox
         self._url = url

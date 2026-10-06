@@ -10,7 +10,6 @@ export {
     activeUserIdAtom,
     agentaChannelSurfaceEnabledAtom,
     channelDebugEnabledAtom,
-    inprocessSandboxEnabledAtom,
     playgroundInspectorEnabledAtom,
     userScopedFlagAtom,
     userSettingsKey,

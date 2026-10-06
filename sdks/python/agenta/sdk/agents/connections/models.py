@@ -148,6 +148,8 @@ class Endpoint(BaseModel):
     resolved connection.
     """
 
+    # The provider's API base: the prefix a client puts before an operation path, in the
+    # provider's own shape (Gemini's includes the version: `.../v1beta`). Harnesses use it as is.
     base_url: Optional[str] = None
     api_version: Optional[str] = None
     region: Optional[str] = None

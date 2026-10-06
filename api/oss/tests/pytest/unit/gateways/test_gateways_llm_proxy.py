@@ -771,3 +771,44 @@ async def test_an_upstream_failure_does_not_relay_its_adapters_message():
     assert _LEAKY not in response.body.decode()
     payload = json.loads(response.body)
     assert payload["error"]["code"] == "upstream_error"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "exc",
+    [
+        SecretNotFoundError(
+            mode=SecretMode.PROJECT_ONLY, missing=SecretOwnerKind.PROJECT, target="t"
+        ),
+        SecretInvalidError(target="t", detail="revoked"),
+    ],
+)
+async def test_a_secret_refusal_tells_the_harness_not_to_retry(exc):
+    """409 is a status the Anthropic and OpenAI SDKs retry. Claude Code retried a
+    `secret_invalid` for four minutes and the person saw "no first response" instead of
+    the message; `x-should-retry: false` is read by both SDKs before the status."""
+    service = _MockLlmGatewayService(relay_exception=exc)
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body()), "my-slug"
+        )
+
+    assert response.status_code == 409
+    assert response.headers.get("x-should-retry") == "false"
+
+
+@pytest.mark.asyncio
+async def test_an_upstream_failure_leaves_retrying_to_the_harness():
+    service = _MockLlmGatewayService(
+        relay_exception=LLMUpstreamError(provider_key="openai", status_code=503)
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body()), "my-slug"
+        )
+
+    assert "x-should-retry" not in response.headers

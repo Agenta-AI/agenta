@@ -12,7 +12,7 @@
  *   connection, and a login the API delivers are serialized by the same lock, and a refresh keeps
  *   the lineage sidecar, so it can never overwrite a newer sign-in.
  */
-import { InMemoryCredentialStore, type AuthOperationOptions, type Credential, type CredentialInfo, type CredentialStore } from "pi-coding-agent-pi-ai";
+import { defaultProviderAuthContext, InMemoryCredentialStore, type AuthContext, type AuthOperationOptions, type Credential, type CredentialInfo, type CredentialStore } from "pi-coding-agent-pi-ai";
 import { findEnvKeys, getProviders } from "pi-coding-agent-pi-ai/compat";
 import type { SubscriptionLogin } from "../../../protocol.ts";
 import {
@@ -49,6 +49,21 @@ export function providerKeysInEnvironment(env: Record<string, string | undefined
   return [...found].sort();
 }
 
+/**
+ * pi-ai's auth context for one session: the run's Anthropic bearer token, which pi-ai reads only
+ * from ambient env and sends as `Authorization: Bearer`, then pi-ai's default context. Undefined
+ * when the run has no token.
+ */
+export function sessionAuthContext(modelEnv: Record<string, string>): AuthContext | undefined {
+  const token = modelEnv.ANTHROPIC_AUTH_TOKEN?.trim() ? modelEnv.ANTHROPIC_AUTH_TOKEN : undefined;
+  if (!token) return undefined;
+  const base = defaultProviderAuthContext();
+  return {
+    env: async (name) => (name === "ANTHROPIC_AUTH_TOKEN" ? token : base.env(name)),
+    fileExists: (path) => base.fileExists(path),
+  };
+}
+
 /** Provider id -> key, taken only from the run's own model environment, named by pi-ai's table. */
 export function apiKeysFromModelEnvironment(
   modelEnv: Record<string, string>,
@@ -56,7 +71,8 @@ export function apiKeysFromModelEnvironment(
 ): Map<string, string> {
   const keys = new Map<string, string>();
   for (const id of providerIds) {
-    // ANTHROPIC_AUTH_TOKEN is a bearer header, not an API key; pi-ai skips it the same way.
+    // pi-ai tries the bearer token before an API key, and a runtime key would hide the token.
+    if (id === "anthropic" && modelEnv.ANTHROPIC_AUTH_TOKEN?.trim()) continue;
     const name = (findEnvKeys(id, modelEnv) ?? []).find((n) => !!modelEnv[n] && n !== "ANTHROPIC_AUTH_TOKEN");
     if (name) keys.set(id, modelEnv[name]!);
   }

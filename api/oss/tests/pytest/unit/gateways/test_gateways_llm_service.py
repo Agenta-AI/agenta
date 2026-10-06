@@ -31,6 +31,7 @@ from oss.src.core.gateways.llms.catalog import standard_llm_endpoint
 from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.types import LLMGatewayConnectionNotServedError
 from oss.src.core.gateways.llms.types import (
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
@@ -226,7 +227,7 @@ async def _one_chunk_body(data: bytes) -> AsyncIterator[bytes]:
 
 
 def _service(
-    *, dao=None, policy=None, resolver=None, registry=None
+    *, dao=None, policy=None, resolver=None, registry=None, repair=None
 ) -> LLMGatewayService:
     return LLMGatewayService(
         llm_endpoints_dao=dao if dao is not None else _MockLlmEndpointsDAO(),
@@ -235,6 +236,7 @@ def _service(
         upstream_registry=registry
         if registry is not None
         else LLMUpstreamRegistry(adapters={}),
+        missing_endpoint_repair=repair,
     )
 
 
@@ -427,6 +429,72 @@ async def test_a_gemini_provider_key_resolves_to_an_openai_compatible_route(mode
     assert resolved.provider_key == "openai"
     assert resolved.deployment_kind == LLMDeploymentKind.CUSTOM
     assert resolved.model == "gemini-3.7-flash"
+
+
+def _bedrock_row(models: List[str]) -> LLMEndpoint:
+    """The endpoint row the vault registrar writes for a Bedrock card saved from the UI."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug="my-bedrock",
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                "kind": "bedrock",
+                "provider": {
+                    "extras": {
+                        "aws_region_name": "us-east-1",
+                        "aws_bearer_token_bedrock": "bedrock-api-key-test",
+                    }
+                },
+                "models": [{"slug": slug} for slug in models],
+                "provider_slug": "my-bedrock",
+            },
+            header={"name": "my-bedrock"},
+        )
+    )
+    return _custom_row(
+        slug="my-bedrock",
+        provider_key=endpoint.provider_key,
+        deployment_kind=endpoint.deployment_kind,
+        models=endpoint.data.models,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_active", [True, False])
+@pytest.mark.parametrize(
+    "model",
+    [
+        "anthropic.claude-haiku-4-5",
+        "my-bedrock/bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "openai.gpt-oss-20b",
+    ],
+)
+async def test_an_agent_on_a_bedrock_connection_is_sent_to_the_vault_path(
+    model, is_active
+):
+    """The gateway relays Bedrock to `bedrock-mantle`, whose model ids are not the runtime ids
+    people save, and which has no Claude in some regions. Resolve answers with the code the
+    agent SDK reads as "resolve from the vault", for an organization the gateway serves."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["my-bedrock"] = _bedrock_row(
+        [
+            "anthropic.claude-haiku-4-5",
+            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "openai.gpt-oss-20b",
+        ]
+    )
+    # A deactivated gateway endpoint does not stop the run: the gateway takes no part in it.
+    dao.rows_by_slug["my-bedrock"].flags.is_active = is_active
+    resolver = _MockResolver()
+
+    with pytest.raises(LLMGatewayConnectionNotServedError) as refused:
+        await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+            scope=_scope(), model=model, provider_key=None, connection_slug="my-bedrock"
+        )
+
+    assert refused.value.code == "llm_gateway_disabled"
+    assert resolver.resolve_calls == []
 
 
 @pytest.mark.asyncio
@@ -886,6 +954,253 @@ async def test_an_unlisted_model_is_still_refused_on_a_registered_custom_provide
         )
 
     assert resolver.resolve_calls == []
+
+
+# --- custom endpoints: the upstream receives its own model id ----------------- #
+
+_FIREWORKS_SLUG = "openai-compatible-endpoint-0fbcbb114d58"
+
+# Model ids with 0, 1 and 3 slashes, and an OpenRouter routing variant. The provider's
+# own id may hold any number of slashes, so none of them may be split on.
+_UPSTREAM_MODEL_IDS = [
+    "kimi-k3-fast",
+    "moonshotai/kimi-k3",
+    "accounts/fireworks/routers/kimi-k3-fast",
+    "deepseek/deepseek-v4-flash:nitro",
+]
+
+
+def _fireworks_row(model_slugs: List[str]) -> LLMEndpoint:
+    """The endpoint row the vault registrar writes for a Fireworks custom provider."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug=_FIREWORKS_SLUG,
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                "kind": "custom",
+                "provider": {"url": "https://93.184.216.34/v1", "key": "fw-key"},
+                "models": [{"slug": slug} for slug in model_slugs],
+                "provider_slug": "Fireworks",
+            },
+            header={"name": "Fireworks"},
+        )
+    )
+    return _custom_row(slug=_FIREWORKS_SLUG, models=endpoint.data.models)
+
+
+def _fireworks_dao(model_slugs: List[str]) -> _MockLlmEndpointsDAO:
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug[_FIREWORKS_SLUG] = _fireworks_row(model_slugs)
+    return dao
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("upstream_id", _UPSTREAM_MODEL_IDS)
+@pytest.mark.parametrize("qualified", [True, False])
+async def test_resolve_names_a_custom_model_by_its_upstream_id(upstream_id, qualified):
+    """The production canary: `Fireworks/custom/accounts/fireworks/routers/kimi-k3-fast`
+    resolved unchanged, the harness sent it, and Fireworks answered 404."""
+    requested = f"Fireworks/custom/{upstream_id}" if qualified else upstream_id
+
+    resolved = await _service(
+        dao=_fireworks_dao([upstream_id])
+    ).resolve_agent_connection(
+        scope=_scope(),
+        model=requested,
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+
+    assert resolved.model == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_resolve_picks_the_model_the_qualified_key_names_among_nested_ids():
+    """Two saved models where one id is a suffix of the other: the key names the longer."""
+    dao = _fireworks_dao(["kimi-k3-fast", "accounts/fireworks/routers/kimi-k3-fast"])
+    service = _service(dao=dao)
+
+    for upstream_id in ("kimi-k3-fast", "accounts/fireworks/routers/kimi-k3-fast"):
+        resolved = await service.resolve_agent_connection(
+            scope=_scope(),
+            model=f"Fireworks/custom/{upstream_id}",
+            provider_key=None,
+            connection_slug=_FIREWORKS_SLUG,
+        )
+        assert resolved.model == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_resolve_leaves_a_model_the_endpoint_does_not_list_unchanged():
+    resolved = await _service(
+        dao=_fireworks_dao(["kimi-k3-fast"])
+    ).resolve_agent_connection(
+        scope=_scope(),
+        model="Fireworks/custom/other-model",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+
+    assert resolved.model == "Fireworks/custom/other-model"
+
+
+@pytest.mark.asyncio
+async def test_a_bare_id_shaped_like_a_qualified_key_is_kept_through_resolve_and_relay():
+    """`a/b/x` is a saved model of its own, not a qualified key for `x`. Resolve then
+    relay must reach the model the caller named, whichever spelling it used."""
+    model_slugs = ["x", "a/b/x"]
+    service = _service(dao=_fireworks_dao(model_slugs))
+
+    for requested, upstream_id in (
+        ("a/b/x", "a/b/x"),
+        ("Fireworks/custom/a/b/x", "a/b/x"),
+        ("x", "x"),
+        ("Fireworks/custom/x", "x"),
+    ):
+        resolved = await service.resolve_agent_connection(
+            scope=_scope(),
+            model=requested,
+            provider_key=None,
+            connection_slug=_FIREWORKS_SLUG,
+        )
+        assert resolved.model == upstream_id
+
+        call = await _relay_to_fireworks(
+            model_slugs, {"model": resolved.model, "messages": []}
+        )
+        assert json.loads(call["body"])["model"] == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_resolve_strips_a_provider_name_that_holds_a_slash():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["team"] = _custom_row(
+        slug="team",
+        models=LLMModelFilter(
+            allowlist=["Team/Fireworks/custom/kimi-k3-fast", "kimi-k3-fast"]
+        ),
+    )
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(),
+        model="Team/Fireworks/custom/kimi-k3-fast",
+        provider_key=None,
+        connection_slug="team",
+    )
+
+    assert resolved.model == "kimi-k3-fast"
+
+
+@pytest.mark.asyncio
+async def test_resolve_strips_the_deployment_prefixed_spelling_like_the_direct_path():
+    resolved = await _service(
+        dao=_fireworks_dao(["accounts/fireworks/routers/kimi-k3-fast"])
+    ).resolve_agent_connection(
+        scope=_scope(),
+        model="custom/accounts/fireworks/routers/kimi-k3-fast",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+
+    assert resolved.model == "accounts/fireworks/routers/kimi-k3-fast"
+
+
+@pytest.mark.asyncio
+async def test_relay_refuses_a_model_denied_under_its_bare_name():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug[_FIREWORKS_SLUG] = _custom_row(
+        slug=_FIREWORKS_SLUG,
+        models=LLMModelFilter(
+            allowlist=["Fireworks/custom/kimi-k3-fast", "kimi-k3-fast"],
+            denylist=["kimi-k3-fast"],
+        ),
+    )
+    adapter = _MockAdapter(
+        result=LLMRelayResult(status_code=200, headers={}, body=_one_chunk_body(b"{}"))
+    )
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _service(
+            dao=dao,
+            resolver=_MockResolver(secret=_secret()),
+            registry=LLMUpstreamRegistry(adapters={"relay": adapter}),
+        ).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name=_FIREWORKS_SLUG,
+            body=json.dumps(
+                {"model": "Fireworks/custom/kimi-k3-fast", "messages": []}
+            ).encode(),
+            headers={},
+        )
+
+    assert adapter.calls == []
+
+
+async def _relay_to_fireworks(model_slugs: List[str], payload: dict) -> dict:
+    adapter = _MockAdapter(
+        result=LLMRelayResult(status_code=200, headers={}, body=_one_chunk_body(b"{}"))
+    )
+    await _service(
+        dao=_fireworks_dao(model_slugs),
+        resolver=_MockResolver(secret=_secret()),
+        registry=LLMUpstreamRegistry(adapters={"relay": adapter}),
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name=_FIREWORKS_SLUG,
+        body=json.dumps(payload).encode(),
+        headers={},
+    )
+    (call,) = adapter.calls
+    return call
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("upstream_id", _UPSTREAM_MODEL_IDS)
+@pytest.mark.parametrize("qualified", [True, False])
+async def test_relay_sends_the_upstream_its_own_model_id(upstream_id, qualified):
+    """The playground relays Agenta's qualified key; the upstream must get the bare id."""
+    requested = f"Fireworks/custom/{upstream_id}" if qualified else upstream_id
+
+    call = await _relay_to_fireworks(
+        [upstream_id], {"model": requested, "messages": [], "stream": True}
+    )
+
+    sent = json.loads(call["body"])
+    assert sent["model"] == upstream_id
+    assert sent["stream"] is True
+    assert call["route"].model == upstream_id
+    assert call["context"].model == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_relay_renames_qualified_fallback_models_too():
+    call = await _relay_to_fireworks(
+        ["kimi-k3-fast", "accounts/fireworks/routers/kimi-k3-fast"],
+        {
+            "model": "Fireworks/custom/kimi-k3-fast",
+            "models": [
+                "Fireworks/custom/accounts/fireworks/routers/kimi-k3-fast",
+                "kimi-k3-fast",
+            ],
+            "messages": [],
+        },
+    )
+
+    sent = json.loads(call["body"])
+    assert sent["model"] == "kimi-k3-fast"
+    assert sent["models"] == ["accounts/fireworks/routers/kimi-k3-fast", "kimi-k3-fast"]
+
+
+@pytest.mark.asyncio
+async def test_relay_of_a_bare_model_keeps_the_body_byte_for_byte():
+    body = {"model": "accounts/fireworks/routers/kimi-k3-fast", "messages": []}
+
+    call = await _relay_to_fireworks(["accounts/fireworks/routers/kimi-k3-fast"], body)
+
+    assert call["body"] == json.dumps(body).encode()
 
 
 @pytest.mark.asyncio
@@ -1401,3 +1716,63 @@ async def test_an_endpoint_with_no_ceiling_relays_the_body_byte_for_byte():
     await _relay(service, body)
 
     assert adapter.calls[0]["body"] == json.dumps(body).encode()
+
+
+# --- a missing custom endpoint can be repaired once ------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_a_repaired_custom_endpoint_resolves_on_the_same_call():
+    """An existing starter-credits row seeded without an endpoint resolves on its first
+    gateway call, with no secrets read before it."""
+    dao = _MockLlmEndpointsDAO()
+    calls = []
+
+    async def repair(*, project_id, slug):
+        calls.append((project_id, slug))
+        dao.rows_by_slug[slug] = _custom_row(slug=slug)
+        return True
+
+    resolved = await _service(dao=dao, repair=repair).resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-4o",
+        provider_key=None,
+        connection_slug="starter-credits",
+        connection_namespace=GatewayEndpointNamespace.CUSTOM,
+    )
+
+    assert (resolved.namespace, resolved.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        "starter-credits",
+    )
+    assert [slug for _, slug in calls] == ["starter-credits"]
+
+
+@pytest.mark.asyncio
+async def test_a_repair_that_registers_nothing_keeps_the_not_found_error():
+    async def repair(*, project_id, slug):
+        return False
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service(repair=repair).resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-4o",
+            provider_key=None,
+            connection_slug="gone",
+            connection_namespace=GatewayEndpointNamespace.CUSTOM,
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_repair_that_raises_keeps_the_not_found_error():
+    async def repair(*, project_id, slug):
+        raise RuntimeError("vault down")
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service(repair=repair).resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-4o",
+            provider_key=None,
+            connection_slug="starter-credits",
+            connection_namespace=GatewayEndpointNamespace.CUSTOM,
+        )

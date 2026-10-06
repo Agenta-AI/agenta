@@ -89,6 +89,11 @@ export function createHostFixture(
      * value only in the run's harness environment.
      */
     gatewayCredential?: string;
+    /**
+     * Reach the model as a direct Anthropic connection with a bearer token: the built-in
+     * `anthropic` provider pointed at the model server, the credentials only in the run's model environment.
+     */
+    anthropic?: { authToken: string; apiKey?: string };
   } = {},
 ): HostFixture {
   const skills = options.skills ?? [];
@@ -112,6 +117,7 @@ export function createHostFixture(
             : { apiKey: "$OPENAI_API_KEY" }),
           models: [{ id: "mock-1" }],
         },
+        ...(options.anthropic ? { anthropic: { baseUrl: modelBaseUrl.replace(/\/v1$/, "") } } : {}),
       },
     }),
   );
@@ -141,7 +147,14 @@ export function createHostFixture(
       ...(options.gatewayCredential ? { AGENTA_GATEWAY_CREDENTIALS_VALUE: options.gatewayCredential } : {}),
     },
     extensionEnv: gating ? { AGENTA_AGENT_BUILTIN_GATING: "true" } : {},
-    modelEnvironment: options.gatewayCredential ? {} : { OPENAI_API_KEY: "test-key" },
+    modelEnvironment: options.anthropic
+      ? {
+          ANTHROPIC_AUTH_TOKEN: options.anthropic.authToken,
+          ...(options.anthropic.apiKey ? { ANTHROPIC_API_KEY: options.anthropic.apiKey } : {}),
+        }
+      : options.gatewayCredential
+        ? {}
+        : { OPENAI_API_KEY: "test-key" },
     customProvider: { providerId: "mock", keyEnv: "OPENAI_API_KEY" },
   });
   return {

@@ -57,6 +57,11 @@ PlanReader = Callable[[UUID], Awaitable[Optional[str]]]
 DAILY_GRANT_TIMEOUT_SECONDS = 0.5
 
 
+def _purchase_key(checkout_session_id: str) -> str:
+    """The award idempotency key of a top-up: one credit per Stripe Checkout session."""
+    return f"purchase:checkout_session:{checkout_session_id}"
+
+
 class WalletsService(WalletCheckPort, WalletSettlementPort):
     def __init__(
         self,
@@ -274,12 +279,25 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         now = now or datetime.now(timezone.utc)
         return await self.wallets_dao.award_credit(
             organization_id=organization_id,
-            idempotency_key=f"purchase:checkout_session:{checkout_session_id}",
+            idempotency_key=_purchase_key(checkout_session_id),
             credit_kind=PURCHASE_CREDIT_KIND,
             amount_musd=amount_musd,
             priority=PURCHASE_PRIORITY,
             end_time=now + timedelta(days=PURCHASE_LIFETIME_DAYS),
             now=now,
+        )
+
+    async def read_purchase(
+        self,
+        *,
+        organization_id: UUID,
+        checkout_session_id: str,
+    ) -> Optional[WalletCreditDTO]:
+        """The credit a top-up's Checkout session granted, or `None` while its payment
+        event has not arrived."""
+        return await self.wallets_dao.get_awarded_credit(
+            organization_id=organization_id,
+            idempotency_key=_purchase_key(checkout_session_id),
         )
 
     async def grant_starter_credits(

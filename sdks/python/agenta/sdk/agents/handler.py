@@ -55,6 +55,7 @@ from agenta.sdk.agents.platform import (
 
 from agenta.sdk.agents.fold import fold, trim_to_trailing_unit
 from agenta.sdk.agents.tracing import (
+    record_sandbox as ambient_record_sandbox,
     record_usage as ambient_record_usage,
     run_context as ambient_run_context,
     trace_context as ambient_trace_context,
@@ -90,6 +91,7 @@ SelectBackendFn = Callable[[AgentTemplate], Backend]
 TraceContextFn = Callable[[], Any]
 RunContextFn = Callable[[], Any]
 RecordUsageFn = Callable[[Optional[Dict[str, Any]]], None]
+RecordSandboxFn = Callable[[Optional[str]], None]
 
 
 def _default_template() -> AgentTemplate:
@@ -390,16 +392,18 @@ def _agent_model_ref(agent_template: AgentTemplate) -> Optional[ModelRef]:
     return None
 
 
-def _bind_workflow_span(record_usage: RecordUsageFn, span: Any) -> RecordUsageFn:
-    """Run the usage recorder with the workflow span that was current at run start.
+def _bind_workflow_span(
+    record: Callable[[Any], None], span: Any
+) -> Callable[[Any], None]:
+    """Run a recorder (usage, sandbox) with the workflow span that was current at run start.
 
-    Usage is written from the run's teardown, which on the streaming path runs after many pulls,
+    They are written from the run's teardown, which on the streaming path runs after many pulls,
     possibly in another context where the workflow span is no longer current.
     """
 
-    def _record_under_span(usage: Optional[Dict[str, Any]]) -> None:
+    def _record_under_span(value: Any) -> None:
         with otel_trace.use_span(span, end_on_exit=False):
-            record_usage(usage)
+            record(value)
 
     return _record_under_span
 
@@ -421,9 +425,9 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         stream = flags.stream
         session_id = request.session_id
 
-        record_usage = _bind_workflow_span(
-            comp.record_usage, otel_trace.get_current_span()
-        )
+        workflow_span = otel_trace.get_current_span()
+        record_usage = _bind_workflow_span(comp.record_usage, workflow_span)
+        record_sandbox = _bind_workflow_span(ambient_record_sandbox, workflow_span)
 
         params = parameters or {}
         agent_template = AgentTemplate.from_params(
@@ -580,7 +584,11 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             return _stream_in_redaction_scope(
                 redactor,
                 agent_event_stream(
-                    harness, session_config, msgs, record_usage=record_usage
+                    harness,
+                    session_config,
+                    msgs,
+                    record_usage=record_usage,
+                    record_sandbox=record_sandbox,
                 ),
             )
         with redaction_context(redactor):
@@ -590,6 +598,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                 msgs,
                 trim=flags.trim,
                 record_usage=record_usage,
+                record_sandbox=record_sandbox,
             )
 
     return _agent
@@ -610,7 +619,12 @@ async def _stream_in_redaction_scope(redactor: Redactor, events):
 
 
 async def agent_event_stream(
-    harness, session_config, msgs, *, record_usage: RecordUsageFn = ambient_record_usage
+    harness,
+    session_config,
+    msgs,
+    *,
+    record_usage: RecordUsageFn = ambient_record_usage,
+    record_sandbox: RecordSandboxFn = ambient_record_sandbox,
 ):
     """Run one streaming turn, yielding the live `{type, data}` agenta event wire."""
     await harness.setup()
@@ -639,7 +653,9 @@ async def agent_event_stream(
             yield {"type": "done", "data": {"stopReason": terminal_stop_reason}}
     finally:
         try:
-            record_usage(run.result().usage)
+            result = run.result()
+            record_usage(result.usage)
+            record_sandbox(result.sandbox)
         except Exception:  # result unavailable on a failed/aborted stream
             pass
         await harness.cleanup()
@@ -652,6 +668,7 @@ async def agent_batch(
     *,
     trim: Optional[bool] = None,
     record_usage: RecordUsageFn = ambient_record_usage,
+    record_sandbox: RecordSandboxFn = ambient_record_sandbox,
 ) -> Dict[str, Any]:
     """Drain the same stream, fold it into the real turn, trim when asked."""
     await harness.setup()
@@ -668,6 +685,7 @@ async def agent_batch(
     finally:
         await harness.cleanup()
     record_usage(result.usage)
+    record_sandbox(result.sandbox)
 
     # The terminal result's stop_reason is authoritative: the runner's `done` event carries
     # no stopReason (the engine settles paused-vs-ended after the event stream closes).

@@ -9,6 +9,8 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {TurnRow} from "@/features/chat/TurnRow"
 
+import {WithQueryClient} from "../support/queryClient"
+
 vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -43,9 +45,11 @@ const renderAssistantTurn = (inspectorEnabled: boolean) => {
     root = createRoot(host)
     flushSync(() => {
         root!.render(
-            <Provider store={store}>
-                <TurnRow turn={turn} sessionId="session-1" />
-            </Provider>,
+            <WithQueryClient>
+                <Provider store={store}>
+                    <TurnRow turn={turn} sessionId="session-1" />
+                </Provider>
+            </WithQueryClient>,
         )
     })
     return host
