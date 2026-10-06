@@ -884,7 +884,9 @@ jobs:
           uv run hosting/kubernetes/helm/tests/test_lifecycle_rollout.py
           uv run hosting/kubernetes/helm/tests/test_availability.py
           uv run hosting/kubernetes/helm/tests/test_web_crisp.py
+          uv run hosting/kubernetes/helm/tests/test_probe_commands.py
           uv run hosting/kubernetes/helm/tests/test_notes_default_secrets.py
+          uv run hosting/kubernetes/helm/tests/test_redis_durable_ca.py
 
   run-runner-integration-tests:
     if: |

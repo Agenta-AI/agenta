@@ -782,6 +782,47 @@ imagePullSecrets:
 {{- end }}
 
 {{/* ================================================================
+   Redis Durable CA certificate (external instance over TLS)
+
+   A managed Redis service (Cloud Memorystore, ElastiCache, Azure Cache)
+   presents a certificate signed by its own authority, not by a public root.
+   `rediss://` then fails with CERTIFICATE_VERIFY_FAILED until the client is
+   given that authority. These helpers mount it as a file so the connection
+   string can point at it with `?ssl_ca_certs=`, which is the redis-py query
+   parameter, instead of turning verification off.
+
+   Set `redisDurable.external.caCert` to the PEM, or to the string
+   "from-existing-secret" when `secrets.existingSecret` supplies the key
+   REDIS_DURABLE_CA_CERT itself.
+   ================================================================ */}}
+{{- define "agenta.redisDurable.caPath" -}}/etc/agenta/redis-durable/ca.pem{{- end }}
+
+{{- define "agenta.redisDurable.caEnabled" -}}
+{{- $rd := default dict .Values.redisDurable -}}
+{{- $ext := default dict $rd.external -}}
+{{- if and (ne (include "agenta.redisDurable.enabled" .) "true") $ext.caCert }}true{{- else }}false{{- end }}
+{{- end }}
+
+{{- define "agenta.redisDurableCaVolume" -}}
+{{- if eq (include "agenta.redisDurable.caEnabled" .) "true" }}
+- name: redis-durable-ca
+  secret:
+    secretName: {{ include "agenta.secretName" . }}
+    items:
+      - key: REDIS_DURABLE_CA_CERT
+        path: ca.pem
+{{- end }}
+{{- end }}
+
+{{- define "agenta.redisDurableCaVolumeMount" -}}
+{{- if eq (include "agenta.redisDurable.caEnabled" .) "true" }}
+- name: redis-durable-ca
+  mountPath: {{ include "agenta.redisDurable.caPath" . | dir }}
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
    SuperTokens connection URI
    ================================================================ */}}
 {{- define "agenta.supertokensUri" -}}
@@ -1584,7 +1625,11 @@ imagePullSecrets:
 - component: web-mobile
   key: webMobile
   replicas: {{ include "agenta.webMobile.replicas" . }}
-  enabled: {{ include "agenta.web.enabled" . }}
+  {{- /* Not web.enabled. web-mobile-deployment.yaml renders unconditionally, and
+         values.schema.json refuses webMobile.enabled: false, so the mobile app is
+         always deployed. Tying its budget to the desktop app left it with none
+         whenever someone turned the desktop app off. */}}
+  enabled: true
 - component: services
   key: services
   replicas: {{ include "agenta.services.replicas" . }}
@@ -1646,8 +1691,11 @@ imagePullSecrets:
 {{- $root := .root -}}
 {{- $values := include "agenta.values" $root | fromYaml -}}
 {{- $wl := default dict (get $values .key) -}}
-{{- if $wl.topologySpreadConstraints -}}
-{{- toYaml $wl.topologySpreadConstraints }}
+{{- /* hasKey, not truthiness. An empty list is falsy in Go templates, so
+       `topologySpreadConstraints: []` fell through to the generated block and the
+       documented way to remove the constraints quietly regenerated them. */ -}}
+{{- if hasKey $wl "topologySpreadConstraints" -}}
+{{- with $wl.topologySpreadConstraints }}{{- toYaml . }}{{- end }}
 {{- else if and (eq (include "agenta.topologySpread.enabled" $root) "true") (gt (int .replicas) 1) -}}
 - maxSkew: 1
   topologyKey: kubernetes.io/hostname

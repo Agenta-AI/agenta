@@ -130,6 +130,7 @@ ROLLING_NO_GAP = {
     "rollingUpdate": {"maxUnavailable": 0, "maxSurge": 1},
 }
 DEFAULT_STRATEGIES = {
+    "api": ROLLING_NO_GAP,
     "runner": {"type": "Recreate"},
     "cron": {"type": "Recreate"},
     "redis-volatile": {"type": "Recreate"},
@@ -141,6 +142,7 @@ DEFAULT_STRATEGIES = {
     "supertokens": ROLLING_NO_GAP,
 }
 DEFAULT_GRACE_PERIODS = {
+    "api": 60,
     "runner": 300,
     "worker-streams": 120,
     "worker-queues": 120,
@@ -150,6 +152,7 @@ DEFAULT_GRACE_PERIODS = {
 }
 SLEEP_10 = {"preStop": {"exec": {"command": ["sleep", "10"]}}}
 DEFAULT_LIFECYCLES = {
+    "api": SLEEP_10,
     "runner": SLEEP_10,
     "services": SLEEP_10,
     "web": SLEEP_10,
