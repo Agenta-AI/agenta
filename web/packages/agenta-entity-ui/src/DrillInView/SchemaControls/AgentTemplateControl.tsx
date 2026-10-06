@@ -1226,6 +1226,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
                     addOpen={addMcpOpen}
                     onAddClose={() => setAddMcpOpen(false)}
+                    onAddOpen={() => setAddMcpOpen(true)}
                 />
             ),
         },

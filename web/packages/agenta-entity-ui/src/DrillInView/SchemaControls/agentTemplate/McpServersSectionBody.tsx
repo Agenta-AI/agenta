@@ -55,6 +55,8 @@ export interface McpServersSectionBodyProps {
     /** Driven by the section header's add button, which renders outside this body. */
     addOpen: boolean
     onAddClose: () => void
+    /** Reopens the add drawer, for the permission drawer's back button. */
+    onAddOpen: () => void
     /** The agent's own `runner.permissions.default`, which the permission drawer's "Follow agent
      *  policy" preset names: that preset's whole meaning is this value. */
     agentPolicy?: PermissionPolicy | null
@@ -72,6 +74,7 @@ export function McpServersSectionBody({
     emptyAdd,
     addOpen,
     onAddClose,
+    onAddOpen,
 }: McpServersSectionBodyProps) {
     // The endpoint being reauthorized. Held here, not on a row, for the reason in the header.
     const [connectingEndpoint, setConnectingEndpoint] = useState<MCPEndpoint | null>(null)
@@ -81,6 +84,11 @@ export function McpServersSectionBody({
     // Which saved item has its permission drawer open, by its index in `mcps` — the same key
     // every other control in this section addresses an item by.
     const [permissionIndex, setPermissionIndex] = useState<number | null>(null)
+    // Opened by adding from the add drawer, so its header offers the way back there.
+    const [permissionFromAdd, setPermissionFromAdd] = useState(false)
+    // The add drawer's panel: a connect started there opens inside it, not over the page.
+    const [addPanel, setAddPanel] = useState<HTMLDivElement | null>(null)
+    const journeyContainer = addOpen ? addPanel : null
 
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
@@ -147,6 +155,7 @@ export function McpServersSectionBody({
             onChangeItems([...items, buildMcpAgentItem(option)])
             onAddClose()
             setPermissionIndex(items.length)
+            setPermissionFromAdd(true)
         },
         [items, onChangeItems, onAddClose],
     )
@@ -181,6 +190,7 @@ export function McpServersSectionBody({
                 return
             }
             setPermissionIndex(index)
+            setPermissionFromAdd(false)
         },
         [endpointForItem, openForm],
     )
@@ -218,6 +228,7 @@ export function McpServersSectionBody({
                 loading={endpointsQuery.isPending}
                 onConnectServer={() => setConnectingNew(true)}
                 onAdd={addConnection}
+                panelRef={setAddPanel}
                 onReconnect={({slug}) => {
                     const endpoint = findCustomMcpEndpoint(endpoints, slug)
                     if (endpoint) setConnectingEndpoint(endpoint)
@@ -228,6 +239,14 @@ export function McpServersSectionBody({
                 <McpPermissionDrawer
                     open
                     onClose={() => setPermissionIndex(null)}
+                    onBack={
+                        permissionFromAdd
+                            ? () => {
+                                  setPermissionIndex(null)
+                                  onAddOpen()
+                              }
+                            : undefined
+                    }
                     slug={readMcpConnectionSlug(permissionItem) ?? undefined}
                     connectionName={permissionEndpoint?.name || undefined}
                     toolPrefix={
@@ -266,6 +285,7 @@ export function McpServersSectionBody({
             {connectingNew ? (
                 <McpConnectJourney
                     open
+                    container={journeyContainer}
                     onClose={() => setConnectingNew(false)}
                     existingNames={endpoints.map((endpoint) => endpoint.name)}
                     // The new connection joins this agent and its permissions open, so
@@ -280,6 +300,7 @@ export function McpServersSectionBody({
             {connectingEndpoint?.id && connectingEndpoint.slug ? (
                 <McpConnectJourney
                     open
+                    container={journeyContainer}
                     onClose={() => setConnectingEndpoint(null)}
                     reconnect={{
                         id: connectingEndpoint.id,

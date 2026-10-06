@@ -837,9 +837,8 @@ export function IntegrationPermissionDrawer({
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={onClose}
-            // A bottom sheet below lg and the app's right-edge drawer above it, which is what makes
-            // one component correct in both apps rather than a desktop panel squeezed onto a phone.
-            placement="responsive"
+            // The side on every screen, as every playground drawer opens; the width clamps on a phone.
+            placement="right"
             width={INTEGRATION_DRAWER_WIDTH}
             destroyOnClose
             title={
@@ -854,7 +853,9 @@ export function IntegrationPermissionDrawer({
                 readOnly ? undefined : (
                     // items-end, not items-center: the left column grows downward when an inline
                     // confirm opens under its link, and Done stays on the bottom line with it.
-                    <div className="flex items-end justify-between gap-2">
+                    // w-full: the sheet footer is a flex row, so without it there is no space to
+                    // push the destructive action away from Done.
+                    <div className="flex w-full items-end justify-between gap-2">
                         <div className="flex min-w-0 flex-col items-start gap-2">
                             {source?.footerStart}
                         </div>

@@ -180,6 +180,7 @@ const mounts: [string, () => Promise<void>][] = [
                     emptyAdd: null,
                     addOpen: true,
                     onAddClose: vi.fn(),
+                    onAddOpen: vi.fn(),
                 }),
             )
             await click("Reconnect from the add drawer")
