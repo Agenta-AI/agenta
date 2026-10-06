@@ -10,6 +10,8 @@
  * legitimate, human-timescale wait, not a wedge, and must never be reaped by these deadlines.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { clampTimerMs, envTimerMs } from "../../env.ts";
 
 export interface Clock {
@@ -43,13 +45,51 @@ export const DEFAULT_TTFB_TIMEOUT_MS = 2 * 60_000; // 2 min
 // 30 minutes; override with AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS.
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000;
 
-/** Every field is a usable timer delay (integer ms, at least 1, within Node's timer range) —
+/**
+ * The longest turn the caller's plan allows, as the platform's turn admission states it, with the
+ * line the person reads when a turn is stopped at it. Absent on a deployment that does not meter
+ * sandboxes, where the env deadline above is the only one.
+ */
+export interface TurnLimit {
+  ms: number;
+  message: string;
+}
+
+interface AdmittedTurnLimit {
+  limit: TurnLimit;
+  deadlineMs: number;
+}
+
+const turnLimitStorage = new AsyncLocalStorage<AdmittedTurnLimit | undefined>();
+
+/**
+ * Run `fn` with the plan's turn limit in scope for every turn it starts. The limit runs from
+ * this call, so an attempt started later in the same admitted turn (a stall retry) gets only
+ * the time left, not a fresh limit.
+ */
+export function runWithTurnLimit<T>(limit: TurnLimit | undefined, fn: () => T): T {
+  return turnLimitStorage.run(limit && { limit, deadlineMs: Date.now() + limit.ms }, fn);
+}
+
+/** The plan's turn limit in scope, shortened to the time left since admission. */
+function remainingTurnLimit(): TurnLimit | undefined {
+  const admitted = turnLimitStorage.getStore();
+  if (!admitted) return undefined;
+  return {
+    ms: Math.max(1, admitted.deadlineMs - Date.now()),
+    message: admitted.limit.message,
+  };
+}
+
+/** Every timer field is a usable timer delay (integer ms, at least 1, within Node's timer range) —
  *  `resolveRunLimits` guarantees it, so callers can arm any of them without re-checking. */
 export interface ResolvedRunLimits {
   totalMs: number;
   idleMs: number;
   ttfbMs: number;
   toolCallMs: number;
+  /** Set when the plan's turn limit, not the env deadline, is what `totalMs` enforces. */
+  turnLimitMessage?: string;
 }
 
 /**
@@ -59,14 +99,20 @@ export interface ResolvedRunLimits {
  */
 export function resolveRunLimits(
   log: (message: string) => void = () => {},
+  turnLimit: TurnLimit | undefined = remainingTurnLimit(),
 ): ResolvedRunLimits {
   const envMs = (name: string, defaultMs: number): number =>
     envTimerMs(name, defaultMs, { log });
-  const totalMs = envMs(TOTAL_DEADLINE_ENV, DEFAULT_TOTAL_DEADLINE_MS);
+  const envTotalMs = envMs(TOTAL_DEADLINE_ENV, DEFAULT_TOTAL_DEADLINE_MS);
+  // The plan can only shorten a turn: an operator's lower env deadline still wins.
+  const planBinds = turnLimit !== undefined && turnLimit.ms > 0 && turnLimit.ms <= envTotalMs;
+  const totalMs = planBinds ? turnLimit.ms : envTotalMs;
   let idleMs = envMs(IDLE_TIMEOUT_ENV, DEFAULT_IDLE_TIMEOUT_MS);
   const ttfbMs = envMs(TTFB_TIMEOUT_ENV, DEFAULT_TTFB_TIMEOUT_MS);
   const toolCallMs = envMs(TOOL_CALL_TIMEOUT_ENV, DEFAULT_TOOL_CALL_TIMEOUT_MS);
-  if (idleMs >= totalMs) {
+  // A plan's short turn limit is not a misconfigured idle timeout: the total deadline simply
+  // fires first, so only an operator's own env pair is clamped.
+  if (idleMs >= totalMs && !planBinds) {
     log(
       `[run-limits] idle timeout (${idleMs}ms) >= total deadline (${totalMs}ms); clamping idle to half the total`,
     );
@@ -81,6 +127,7 @@ export function resolveRunLimits(
     idleMs: clampTimerMs(idleMs),
     ttfbMs: clampTimerMs(ttfbMs),
     toolCallMs: clampTimerMs(toolCallMs),
+    ...(planBinds ? { turnLimitMessage: turnLimit.message } : {}),
   };
 }
 

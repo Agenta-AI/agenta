@@ -225,6 +225,13 @@ people can reach.
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
 | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
+| `AGENTA_SERVICES_PATH_PREFIX` | n/a (read by the services entrypoint) | `services.env.AGENTA_SERVICES_PATH_PREFIX` |
+
+`AGENTA_SERVICES_PATH_PREFIX` is the public path prefix the services backend strips from an inbound
+request. The default is `/services`. The backend strips it in a loop, so a request arrives correctly
+whether your proxy forwards the prefix or strips it first. Set the variable to an empty string to
+turn the strip off. The platform API strips a leading `/api` the same way, and that prefix is not
+configurable.
 
 :::warning Custom-code evaluator runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/1.0/evaluation/configure-evaluators/custom-evaluator) execute:
@@ -911,6 +918,8 @@ it calls the server. In 0.119.0 only, that save-time check read
 | `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `gateway_egress.insecure_allowed` (api) | `gatewayEgress.insecureAllowed` |
 | `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | n/a (read by the services and runner containers, not by the api) | `gatewayEgress.insecureHttpAllowed` |
 | `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `gateway_credentials.ttl_seconds` (api) | `gatewayCredentials.ttlSeconds` |
+| `AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64` | `llm_gateway.vertex_sa_json_b64` (api) | not rendered by the chart |
+| `AGENTA_LLM_GATEWAY_VERTEX_PROJECT` | `llm_gateway.vertex_project` (api) | not rendered by the chart |
 
 Two of these ship a value in the Docker Compose env templates that differs from the default
 the code applies when the variable is absent. An upgraded deployment keeps its existing env
@@ -956,6 +965,29 @@ Both are read by the API, which is the authority. The agent SDK carries no switc
 it asks the API and takes the older path when the API says that gateway is not serving. The
 web container reads `AGENTA_MCP_GATEWAY_ENABLED` from the same env file to decide whether to
 show the MCP settings tab, so set these in the file every container loads and recreate them.
+:::
+
+:::note Models your deployment pays for
+The LLM gateway can serve models from a Google Cloud Vertex AI account that your deployment
+owns, instead of from a key in the project's vault. An agent then picks them from the
+**Built-in: agenta** group in the model picker, and the call is made with your account's
+credential. Today these are Gemini 3.7 Flash and Gemini 3.8 Flash.
+
+To turn this on, set both of these on the API container:
+
+- `AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64`: the service account's JSON key, base64-encoded
+  (`base64 -w0 key.json`). The service account needs the Vertex AI User role on the project.
+- `AGENTA_LLM_GATEWAY_VERTEX_PROJECT`: the Google Cloud project id.
+
+The models are called on the Vertex AI `global` location, where both are available. If
+either variable is not set, the models are not offered. The LLM gateway must also be on
+(`AGENTA_LLM_GATEWAY_ENABLED=true`).
+
+Only function tools are available on these models. A request that asks for a provider-side
+tool, such as Google Search grounding (`web_search_options`), is refused with
+`capability_not_allowed`, because the provider bills it apart from the tokens.
+
+In Agenta Cloud with the wallet on, each call is charged to the organization's credits.
 :::
 
 :::note How long a run may keep reaching a gateway

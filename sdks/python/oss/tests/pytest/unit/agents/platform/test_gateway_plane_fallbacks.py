@@ -330,3 +330,24 @@ async def test_any_other_refused_exchange_still_fails_the_run(
         await resolve_mcp(
             [_server()], secret_provider=_EmptySecrets(), connection=platform
         )
+
+
+async def test_a_builtin_pick_never_falls_back_to_the_vault(platform, monkeypatch):
+    # The vault has no built-in record, and may hold a custom connection of the same slug
+    # that the customer pays for. With the gateway off, a built-in model cannot run at all.
+    routes = _Routes(
+        {
+            RESOLVE_PATH: _Response(403, _envelope("llm_gateway_disabled")),
+            SECRETS_PATH: _Response(200, _vault()),
+        }
+    ).install(monkeypatch, connections, platform_connection)
+    model = ModelRef(
+        provider="openai",
+        model="gpt-5.5",
+        connection={"mode": "agenta", "slug": "openai", "namespace": "builtin"},
+    )
+
+    with pytest.raises(GatewayConnectionRefusedError):
+        await VaultConnectionResolver(platform).resolve(model=model, context=_context())
+
+    assert routes.paths() == [RESOLVE_PATH]

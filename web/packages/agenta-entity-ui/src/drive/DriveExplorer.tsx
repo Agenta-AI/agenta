@@ -113,6 +113,7 @@ export function DriveExplorer({
     driveIds,
     expanded: drawerExpanded = false,
     onToggleExpand,
+    expandPlacement,
     stagedFiles,
     onStagedChange,
     mirrored = false,
@@ -138,6 +139,7 @@ export function DriveExplorer({
     /** The host drawer is at expanded (near-full) width — reflected by row 1's expand toggle. */
     expanded?: boolean
     onToggleExpand?: () => void
+    expandPlacement?: "leading" | "before-options"
     /** Files dropped on a recents peek, staged (unwritten) until the user picks a destination folder
      * and clicks "Upload here" — shown as ghost tiles in the grid. The host owns the list. */
     stagedFiles?: DroppedFile[]
@@ -833,6 +835,7 @@ export function DriveExplorer({
                         closeVariant={closeVariant}
                         expanded={drawerExpanded}
                         onToggleExpand={onToggleExpand}
+                        expandPlacement={expandPlacement}
                         partialErrored={drive.partialErrored}
                         onRetry={drive.retry}
                         retrying={drive.isFetching}

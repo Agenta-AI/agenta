@@ -8,11 +8,11 @@ import {
     type AgentTemplateSectionDescriptor,
     type ItemDescriptor,
 } from "@agenta/entity-ui/drill-in"
+import {FilesPaneToggle} from "@agenta/entity-ui/drive"
 import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {
     Cpu,
     FileText,
-    FolderOpen,
     GraduationCap,
     PuzzlePiece,
     Robot,
@@ -120,15 +120,17 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
 ]
 
-/** Stand-in for the app-layer `StorageFilesHeader` (it needs live drive state). Same markup. */
-const FilesCount = () => (
-    <button
-        type="button"
-        className="-mr-1 flex cursor-pointer items-center rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)]"
-    >
-        <ConfigRowTrailing affordance={<FolderOpen size={13} />}>12 files</ConfigRowTrailing>
-    </button>
-)
+const FilesCount = () => {
+    const [open, setOpen] = useState(false)
+    return (
+        <div className="flex items-center gap-1.5">
+            <ConfigRowTrailing reserve={false}>
+                <span title="Total files">12 files</span>
+            </ConfigRowTrailing>
+            <FilesPaneToggle open={open} onToggle={() => setOpen(!open)} />
+        </div>
+    )
+}
 
 const Pane = () => {
     const [open, setOpen] = useState<Record<string, boolean>>({tools: true, subagents: true})
@@ -151,7 +153,7 @@ const Pane = () => {
                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">None</span>
                 </ConfigRowTrailing>
             </AgentRegionHeaderBar>
-            <AgentRegionHeaderBar title="Files" sticky={false}>
+            <AgentRegionHeaderBar title="Recent files" sticky={false}>
                 <FilesCount />
             </AgentRegionHeaderBar>
         </div>

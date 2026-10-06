@@ -106,6 +106,35 @@ async def test_custom_authenticates_with_its_key_and_sends_no_extras_as_headers(
 
 
 @pytest.mark.asyncio
+async def test_custom_authenticates_with_the_key_the_ui_saves_in_extras():
+    """The UI saves a custom provider's key as `extras["api_key"]`. Read only from
+    `provider.key`, the call went out with no key and Fireworks answered 401."""
+    headers = await build_auth_headers(
+        _route(deployment_kind=LLMDeploymentKind.CUSTOM),
+        _custom_secret(key=None, extras={"api_key": "fw-key"}),
+    )
+    assert headers == {"Authorization": "Bearer fw-key"}
+
+
+@pytest.mark.asyncio
+async def test_custom_prefers_the_stored_key_over_the_extras_one():
+    headers = await build_auth_headers(
+        _route(deployment_kind=LLMDeploymentKind.CUSTOM),
+        _custom_secret("sk-c", extras={"api_key": "fw-key"}),
+    )
+    assert headers == {"Authorization": "Bearer sk-c"}
+
+
+@pytest.mark.asyncio
+async def test_azure_takes_the_key_the_ui_saves_in_extras():
+    headers = await build_auth_headers(
+        _route(deployment_kind=LLMDeploymentKind.AZURE),
+        _custom_secret(key=None, extras={"api_key": "az-key"}),
+    )
+    assert headers == {"api-key": "az-key"}
+
+
+@pytest.mark.asyncio
 async def test_azure_uses_api_key_header_not_authorization():
     headers = await build_auth_headers(
         _route(deployment_kind=LLMDeploymentKind.AZURE), _custom_secret("sk-azure")
