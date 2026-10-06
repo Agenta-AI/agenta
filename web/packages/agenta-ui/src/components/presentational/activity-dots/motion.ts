@@ -1,11 +1,6 @@
-/**
- * Motion for the agent activity dots: three dots on 3D paths, measured from Claude Code's
- * thinking indicator and extended per kind of agent work. Pure functions of time, no physics,
- * so every frame is exact. Coordinates are in ring radii, centred on 0.
- */
+// Three dots on 3D paths as pure functions of time; coordinates are in ring radii, centred on 0.
 
 export type AgentActivityFormat =
-    | "idle"
     | "working"
     | "thinking"
     | "tool"
@@ -23,25 +18,21 @@ interface Point {
     s: number
 }
 
-export interface PaintedDot {
+interface PaintedDot {
     x: number
     y: number
     r: number
     alpha: number
 }
 
-export interface DotsFrame {
+interface DotsFrame {
     dots: PaintedDot[]
-    /** Leaf scale, 0 to hide it. */
-    leaf: number
     alpha: number
-    /** False once the frame stops changing, so the host can stop painting. */
-    animating: boolean
 }
 
 const TAU = Math.PI * 2
 const FOCAL = 2.8
-const DOT = 0.17
+const DOT = 0.25
 const MERGED = 0.6
 const SHRUNK = 0.33
 const T_MERGE = 0.12
@@ -49,13 +40,7 @@ const T_SHRINK = 0.16
 const T_BURST = 0.26
 
 /** Half the drawing's width in ring radii; the host maps this to half the canvas. */
-export const DOTS_EXTENT = 1.35
-/** Leaf height in ring radii. */
-export const LEAF_HEIGHT = 2
-/** The leaf path's own box (viewBox 0 0 171 140) and its centre. */
-export const LEAF_PATH =
-    "M115.504 95.9335C115.221 98.4384 116.607 99.1695 118.671 98.2233C124.787 95.4184 149.253 82.6572 162.347 82.6572C166.663 82.6572 184.04 84.7181 149.838 117.918C121.062 145.85 113.265 139.835 111.236 137.807C105.889 132.459 108.817 117.798 109.715 110.453C110.039 107.807 109.134 106.985 106.571 108.131C83.5096 118.441 40.4169 140 16.5021 140C-29.3433 140 33.8427 64.9164 43.6743 52.9651C76.3083 13.2951 97.3726 0 109.234 0C130.713 0 121.893 39.2078 115.504 95.9335Z"
-export const LEAF_BOX = {width: 171, height: 140, cx: 85.5, cy: 70}
+export const DOTS_EXTENT = 1.41
 
 const clamp = (v: number) => Math.max(0, Math.min(1, v))
 const smooth = (v: number) => v * v * (3 - 2 * v)
@@ -63,7 +48,6 @@ const lerp = (a: number, b: number, e: number) => a + (b - a) * e
 const inOut = (e: number) => (e < 0.5 ? 4 * e * e * e : 1 - Math.pow(-2 * e + 2, 3) / 2)
 const easeOut = (e: number) => 1 - Math.pow(1 - e, 3)
 const easeIn = (e: number) => e * e * e
-const outBack = (e: number) => 1 + 2.2 * Math.pow(e - 1, 3) + 1.2 * Math.pow(e - 1, 2)
 /** Step counter that holds for `hold` of each period, then eases to the next step. */
 const stepped = (t: number, period: number, hold: number) => {
     const k = Math.floor(t / period)
@@ -83,7 +67,7 @@ const TRIANGLE = THREE.map((j) => {
     return [0.95 * Math.cos(a), 0.95 * Math.sin(a)] as const
 })
 
-const FORMATS: Record<Exclude<AgentActivityFormat, "idle">, (t: number) => Point[]> = {
+const FORMATS: Record<AgentActivityFormat, (t: number) => Point[]> = {
     // Edge-on ring turning in eased 60° steps with a hold after each.
     working: (t) => {
         const th = (stepped(t, 0.7, 0.5) * TAU) / 6
@@ -182,10 +166,6 @@ const STILL_ROW: Point[] = [-0.9, 0, 0.9].map((x) => ({x, y: 0, z: 0, s: 0.85}))
 
 /** One format's frame; `g` pulls it into the centre (1 = fully merged). */
 function compose(format: AgentActivityFormat, t: number, g: number, merged: number, reduced: boolean) {
-    if (format === "idle") {
-        const dots = g > 0.001 ? [{x: 0, y: 0, r: DOT * SHRUNK, alpha: smooth(g)}] : []
-        return {dots, leaf: g > 0 ? outBack(1 - g) : 1}
-    }
     const points = reduced ? STILL_ROW : FORMATS[format](t)
     const dots = points
         .map((p) => {
@@ -193,23 +173,19 @@ function compose(format: AgentActivityFormat, t: number, g: number, merged: numb
             return {x: p.x * P, y: p.y * P, z: p.z, r: Math.max(0, DOT * lerp(p.s, merged, g)), alpha: 1}
         })
         .sort((a, b) => a.z - b.z)
-        .map(({x, y, r, alpha}) => ({x, y, r, alpha}))
-    return {dots, leaf: 0}
+    return dots
 }
 
-/** Where a format change stands: the format shown, the one it left, and when it began. */
+/** A format change in flight: the format shown, the one it left, and when it began. */
 export interface DotsSwitch {
     format: AgentActivityFormat
     previous: AgentActivityFormat | null
     since: number
-    /** How merged the old format already was when this switch began (a switch can cut in). */
+    /** How merged the old format already was when this switch cut in. */
     mergeFrom: number
 }
 
-/**
- * Applies a format change at `t`. A change that lands while the old dots are still merging
- * only retargets the burst; one that lands mid-burst merges back from where the dots are.
- */
+/** Applies a format change at `t`; a change mid-switch retargets or merges back from where the dots are. */
 export function switchTo(state: DotsSwitch, format: AgentActivityFormat, t: number): DotsSwitch {
     if (format === state.format) return state
     const dt = t - state.since
@@ -219,10 +195,7 @@ export function switchTo(state: DotsSwitch, format: AgentActivityFormat, t: numb
     return {format, previous: state.format, since: t, mergeFrom}
 }
 
-/**
- * The frame at time `t` (seconds). A change of format merges the old dots into the centre,
- * shrinks the merged dot, then bursts the new format out of it. `since` is when `format` began.
- */
+/** The frame at `t` seconds: a switch merges the old dots, shrinks them, then bursts the new format. */
 export function dotsFrame({
     format,
     previous,
@@ -231,21 +204,20 @@ export function dotsFrame({
     t,
     reduced = false,
 }: DotsSwitch & {t: number; reduced?: boolean}): DotsFrame {
-    const alpha = reduced && format !== "idle" ? 0.55 + 0.45 * (0.5 + 0.5 * Math.cos(t * 4)) : 1
+    const alpha = reduced ? 0.55 + 0.45 * (0.5 + 0.5 * Math.cos(t * 4)) : 1
     const dt = t - since
     const switching = previous !== null && !reduced
     if (switching && dt < T_MERGE) {
         const g = mergeFrom + (1 - mergeFrom) * easeIn(dt / T_MERGE)
-        return {...compose(previous, t, g, MERGED, reduced), alpha, animating: true}
+        return {dots: compose(previous, t, g, MERGED, reduced), alpha}
     }
     if (switching && dt < T_MERGE + T_SHRINK) {
-        if (previous === "idle") return {...compose("idle", t, 1, MERGED, reduced), alpha, animating: true}
         const r = DOT * lerp(MERGED, SHRUNK, smooth((dt - T_MERGE) / T_SHRINK))
-        return {dots: [{x: 0, y: 0, r, alpha: 1}], leaf: 0, alpha, animating: true}
+        return {dots: [{x: 0, y: 0, r, alpha: 1}], alpha}
     }
     if (switching && dt < T_MERGE + T_SHRINK + T_BURST) {
         const g = 1 - easeOut((dt - T_MERGE - T_SHRINK) / T_BURST)
-        return {...compose(format, t, g, SHRUNK, reduced), alpha, animating: true}
+        return {dots: compose(format, t, g, SHRUNK, reduced), alpha}
     }
-    return {...compose(format, t, 0, MERGED, reduced), alpha, animating: format !== "idle"}
+    return {dots: compose(format, t, 0, MERGED, reduced), alpha}
 }

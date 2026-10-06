@@ -208,15 +208,6 @@ const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
 /** How long a settled step's verb bridges the gap before the line reads "Working". */
 const VERB_HOLD_MS = 2500
 
-/** What the collapsed line narrates for a step. */
-const liveVerb = (step: ActivityStep): string => {
-    if (step.kind === "thought") return step.source === "text" ? "Writing" : "Thinking"
-    const part = step.part
-    // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
-    return resolveToolDisplay(partToolName(part), (part as {input?: unknown}).input).activity
-        .running
-}
-
 /** The dots' motion for a step's glyph; anything unlisted reads as a plain tool call. */
 const ICON_FORMAT: Partial<Record<ActivityIcon, AgentActivityFormat>> = {
     "file-search": "searching",
@@ -232,11 +223,21 @@ const ICON_FORMAT: Partial<Record<ActivityIcon, AgentActivityFormat>> = {
     "file-write": "writing",
 }
 
-/** What the header's dots do for a step: the same reading as `liveVerb`, in motion. */
-const stepFormat = (step: ActivityStep): AgentActivityFormat => {
-    if (step.kind === "thought") return step.source === "text" ? "writing" : "thinking"
-    const {icon} = resolveToolDisplay(partToolName(step.part), (step.part as {input?: unknown}).input)
-    return ICON_FORMAT[icon] ?? "tool"
+interface LiveLine {
+    text: string
+    format: AgentActivityFormat
+}
+
+/** What the collapsed line narrates for a step, in words and in the dots' motion. */
+const liveStep = (step: ActivityStep): LiveLine => {
+    if (step.kind === "thought") {
+        return step.source === "text"
+            ? {text: "Writing", format: "writing"}
+            : {text: "Thinking", format: "thinking"}
+    }
+    // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
+    const display = resolveToolDisplay(partToolName(step.part), (step.part as {input?: unknown}).input)
+    return {text: display.activity.running, format: ICON_FORMAT[display.icon] ?? "tool"}
 }
 
 export interface ActivityTimelineProps {
@@ -342,37 +343,21 @@ export const ActivityTimeline = ({
         elapsed === null || awaiting || !count ? "" : ` · ${formatElapsed(elapsed, {live: true})}`
 
     let title: ReactNode
-    // Mirrors the live line's branches below, so the dots and the words always agree.
-    const dotsFormat: AgentActivityFormat =
-        beforeFirstStep || (resuming && !current)
-            ? "working"
-            : answerStarted && !current
-              ? "writing"
-              : idle || !verbStep
-                ? "working"
-                : stepFormat(verbStep)
-    if (live || awaiting) {
-        title = (
-            <>
-                <SwapLabel
-                    shimmer
-                    suffix={clock}
-                    text={
-                        awaiting
-                            ? "Waiting for you"
-                            : beforeFirstStep
-                              ? stageWord
-                              : resuming && !current
-                                ? "Working"
-                                : answerStarted && !current
-                                  ? "Answering"
-                                  : idle || !verbStep
-                                    ? "Working"
-                                    : liveVerb(verbStep)
-                    }
-                />
-            </>
-        )
+    const line: LiveLine | null = !(live || awaiting)
+        ? null
+        : awaiting
+          ? {text: "Waiting for you", format: "working"}
+          : beforeFirstStep
+            ? {text: stageWord, format: "working"}
+            : resuming && !current
+              ? {text: "Working", format: "working"}
+              : answerStarted && !current
+                ? {text: "Answering", format: "writing"}
+                : idle || !verbStep
+                  ? {text: "Working", format: "working"}
+                  : liveStep(verbStep)
+    if (line) {
+        title = <SwapLabel shimmer suffix={clock} text={line.text} />
     } else {
         title = elapsed === null ? "Worked" : `Worked for ${formatElapsed(elapsed, {live: false})}`
     }
@@ -387,8 +372,8 @@ export const ActivityTimeline = ({
             >
                 {awaiting ? (
                     <WaitingGlyph kind={waitingKind(steps)} />
-                ) : live ? (
-                    <AgentActivityDots format={dotsFormat} size={14} />
+                ) : line ? (
+                    <AgentActivityDots format={line.format} />
                 ) : null}
                 <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-colorText">
                     {title}

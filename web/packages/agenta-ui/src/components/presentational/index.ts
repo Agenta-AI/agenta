@@ -156,12 +156,8 @@ export {Tag, type TagProps, type SyncState} from "./tag"
 
 export {
     AgentActivityDots,
-    dotsFrame,
-    switchTo,
     type AgentActivityDotsProps,
     type AgentActivityFormat,
-    type DotsFrame,
-    type DotsSwitch,
 } from "./activity-dots"
 
 export {

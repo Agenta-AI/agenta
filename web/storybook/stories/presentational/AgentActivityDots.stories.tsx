@@ -3,8 +3,7 @@ import {useEffect, useState} from "react"
 import {AgentActivityDots, type AgentActivityFormat} from "@agenta/ui/components/presentational"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// AgentActivityDots — three dots orbiting in 3D, one motion per kind of agent work, and the
-// Agenta leaf at rest. A format change merges the dots into the centre and bursts the next one.
+// AgentActivityDots — three dots orbiting in 3D, one motion per kind of agent work.
 const meta = {
     title: "@agenta/ui/Presentational/Status/AgentActivityDots",
     component: AgentActivityDots,
@@ -13,16 +12,15 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The live run indicator. Paints in `currentColor` (the brand primary by default). Under reduced motion it shows a still row of dots with an opacity pulse, and the still leaf at idle.\n\n**Used in:** the agent chat activity timeline header, while a turn runs.",
+                    "The live run indicator. Paints in `currentColor` (the brand primary by default). Under reduced motion it shows a still row of dots with an opacity pulse.\n\n**Used in:** the agent chat activity timeline header, while a turn runs.",
             },
         },
     },
-    args: {format: "thinking", size: 14},
+    args: {format: "thinking", size: 18},
     argTypes: {
         format: {
             control: "select",
             options: [
-                "idle",
                 "working",
                 "thinking",
                 "tool",
@@ -41,7 +39,6 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 const FORMATS: {format: AgentActivityFormat; label: string}[] = [
-    {format: "idle", label: "Idle"},
     {format: "working", label: "Working"},
     {format: "thinking", label: "Thinking"},
     {format: "tool", label: "Running a command"},
@@ -54,7 +51,7 @@ const FORMATS: {format: AgentActivityFormat; label: string}[] = [
 
 export const Playground: Story = {}
 
-/** Every format at once, large and at the 14px it ships at beside a 13px label. */
+/** Every format at once, large and at the 18px it ships at beside a 13px label. */
 export const AllFormats: Story = {
     render: () => (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4">
@@ -65,7 +62,7 @@ export const AllFormats: Story = {
                 >
                     <AgentActivityDots format={format} size={72} />
                     <span className="flex items-center gap-2.5 text-[13px] text-colorTextSecondary">
-                        <AgentActivityDots format={format} size={14} />
+                        <AgentActivityDots format={format} size={18} />
                         {label}
                     </span>
                 </div>
@@ -86,7 +83,7 @@ export const Switching: Story = {
             <div className="flex flex-col items-start gap-6">
                 <AgentActivityDots format={FORMATS[i].format} size={96} />
                 <span className="flex items-center gap-2.5 text-[13px] text-colorTextSecondary">
-                    <AgentActivityDots format={FORMATS[i].format} size={14} />
+                    <AgentActivityDots format={FORMATS[i].format} size={18} />
                     {FORMATS[i].label}
                 </span>
             </div>
