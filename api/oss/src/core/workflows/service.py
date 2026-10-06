@@ -2416,12 +2416,17 @@ class WorkflowsService:
         #
         scope_policy=None,
         agent_context: bool = False,
+        attribution: Optional[str] = None,
     ) -> "CommitOutcome":
         """Commit with the base check, the no-change answer, and the warning list.
 
         The commit wrapper of ``contracts/commit-transaction.md``. Every other caller of
         ``commit_workflow_revision`` keeps its signature and its behavior; only the
         workflow commit endpoint routes through here.
+
+        ``attribution`` is appended to the message in parentheses. Only an agent editing
+        ANOTHER agent passes one (see ``agent_attribution``): that edit lands in a history
+        whose owner did not watch it happen.
         """
         self._reject_static_slug(workflow_revision_commit.slug)
 
@@ -2455,6 +2460,13 @@ class WorkflowsService:
             self._check_base_revision(
                 workflow_revision_commit=workflow_revision_commit,
                 current=head,
+            )
+
+        if attribution:
+            workflow_revision_commit = workflow_revision_commit.model_copy(
+                update={
+                    "message": f"{workflow_revision_commit.message} ({attribution})"
+                }
             )
 
         # Built before the comparison, because the comparison runs on what would be
@@ -3965,7 +3977,13 @@ class SimpleWorkflowsService:
         platform_meta: bool = False,
         #
         workflow_id: Optional[UUID] = None,
+        #
+        message: Optional[str] = None,
     ) -> Optional[SimpleWorkflow]:
+        """Create the artifact, its variant, the blank v0 and the v1 that holds ``data``.
+
+        ``message`` is v1's commit message: the first revision a person sees in history.
+        """
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
@@ -4074,6 +4092,8 @@ class SimpleWorkflowsService:
             meta=workflow_create.meta,
             #
             data=simple_workflow_create.data,
+            #
+            message=message,
             #
             workflow_id=workflow.id,
             workflow_variant_id=workflow_variant.id,
