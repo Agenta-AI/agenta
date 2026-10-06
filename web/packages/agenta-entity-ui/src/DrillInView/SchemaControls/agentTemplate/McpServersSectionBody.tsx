@@ -51,7 +51,6 @@ export interface McpServersSectionBodyProps {
     closeEditor: () => void
     /** The panel's draft and validation markers. Health is layered on top of them here. */
     statusFor: (item: unknown, index: number) => ItemRowStatus | undefined
-    emptyAdd: ReactNode
     /** Driven by the section header's add button, which renders outside this body. */
     addOpen: boolean
     onAddClose: () => void
@@ -71,7 +70,6 @@ export function McpServersSectionBody({
     closeEditor,
     statusFor,
     agentPolicy,
-    emptyAdd,
     addOpen,
     onAddClose,
     onAddOpen,
@@ -218,7 +216,6 @@ export function McpServersSectionBody({
                 disabled={disabled}
                 statusFor={statusForRow}
                 extraFor={extraForRow}
-                emptyAdd={emptyAdd}
             />
 
             <McpAddServerDrawer

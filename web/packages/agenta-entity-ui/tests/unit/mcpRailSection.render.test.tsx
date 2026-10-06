@@ -97,7 +97,6 @@ const renderSection = async ({
                         : openPermissions(index),
                 removeItem: vi.fn(),
                 closeEditor: vi.fn(),
-                emptyAdd: null,
                 statusFor: (row): ItemRowStatus | undefined =>
                     loginExpired(row) ? {tone: "incomplete"} : undefined,
                 extraFor: (row) =>

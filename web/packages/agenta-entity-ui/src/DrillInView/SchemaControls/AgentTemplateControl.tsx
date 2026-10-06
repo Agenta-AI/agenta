@@ -62,7 +62,6 @@ import {useAtom, useAtomValue, useStore} from "jotai"
 import {ChangedPathsProvider} from "../../drawers/shared"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
-import {AddTextLink} from "./AddTextLink"
 import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
@@ -1081,9 +1080,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         closeEditor,
         disabled,
         statusFor: toolStatusFor,
-        emptyAdd: openSubagentSelector ? (
-            <AddTextLink label="add a subagent" onClick={openSubagentSelector} />
-        ) : undefined,
     }
 
     // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
@@ -1172,15 +1168,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                             removeIntegration(row)
                             closeEditor()
                         }}
-                        // The empty-state add opens the header's drawer, and hides when there is none.
-                        emptyAdd={
-                            openIntegrationDrawer ? (
-                                <AddTextLink
-                                    label="add an integration"
-                                    onClick={openIntegrationDrawer}
-                                />
-                            ) : undefined
-                        }
                     />
                 ),
             },
@@ -1222,7 +1209,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     removeItem={(index: number) => removeItem("mcp", index)}
                     closeEditor={closeEditor}
                     statusFor={mcpStatusFor}
-                    emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
                     addOpen={addMcpOpen}
                     onAddClose={() => setAddMcpOpen(false)}
                     onAddOpen={() => setAddMcpOpen(true)}
@@ -1261,7 +1247,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         closeEditor={closeEditor}
                         disabled={disabled}
                         statusFor={skillStatusFor}
-                        emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
                     />
                 </>
             ),

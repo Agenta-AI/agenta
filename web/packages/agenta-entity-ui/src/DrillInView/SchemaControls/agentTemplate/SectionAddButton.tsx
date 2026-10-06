@@ -5,8 +5,7 @@
  * skill / instruction file). Presentational: a ghost icon button with a tooltip, nothing else.
  *
  * `forwardRef` + prop spread so it can BE the trigger of a Popover/DropdownMenu (Radix `asChild`
- * injects `onClick`, `aria-expanded`, and a positioning ref) — the same contract `AddTextLink`
- * already carries for the empty-state links.
+ * injects `onClick`, `aria-expanded`, and a positioning ref).
  *
  * Migrated from antd `Tooltip title` + `Button type="text" icon`. A disabled button swallows
  * pointer events, so the disabled case keeps antd's `<span>` wrapper as the tooltip trigger.
