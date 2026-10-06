@@ -25,17 +25,28 @@ hardcodes a price.
    grants the `purchase` credit (idempotent per Checkout session).
 
 The free plan (Hobby) cannot buy packs. Where a paid plan sees "Buy credits", Hobby sees
-"Credit packs are available on paid plans." and an "Upgrade" button. Where the wallet is off,
-or not enforced for the organization, or Stripe is not configured, the app shows nothing.
+"Credit packs are available on paid plans." and an "Upgrade" button.
+
+Everything new appears only for an organization whose wallet mode is `enforce`. Where the
+wallet is off or in shadow (or Stripe is not configured), the app shows exactly what it showed
+before: no section, no chat button, no return notice, and no error state. The checkout endpoint
+refuses those organizations. The rule lives in one place, the API's `status` (`available` or
+`paid_plan_required` are only answered for an enforced organization); the UI reads it.
+
+Each top-up creates a paid Stripe invoice (Checkout `invoice_creation`), so the customer gets
+an invoice and a receipt, and the purchase is listed in the billing portal. The invoice's own
+webhook events belong to no subscription, so the API acknowledges and skips them; the credit
+still comes from `checkout.session.completed`, once per session.
 
 ### Where the entry points are
 
 | App | Place | What it shows |
 | --- | --- | --- |
 | `/m` (`web/mobile`) | Settings, Credits tab, below "Credits remaining" | "Buy credits" (paid) or "Upgrade" (Hobby) |
+| `/m` | Settings, Usage & Billing, at the bottom | "Buy credits" (paid) or "Upgrade" (Hobby) |
 | `/m` | Chat, the "You're out of credits" callout | "Buy credits" next to "Plans and billing" (paid plans only) |
 | `/w` (`web/oss` + `web/ee`) | Settings, Usage & Billing, at the bottom | "Buy credits" (paid) or "Upgrade" (Hobby) |
-| `/w` | Chat, the out-of-credit callout | "Buy credits" next to "Plans and billing" (paid plans only) |
+| `/w` | Chat, the out-of-credit callout | "Buy credits" next to "Plans and billing" (paid plans only); "Plans and billing" for every plan limit (new in `/w`) |
 
 The chat button opens the settings page with the picker already open: `/m` goes to
 `?tab=credits&buy_credits=1`, `/w` goes to `?tab=billing&buy_credits=1`. The chat callout
@@ -89,7 +100,8 @@ Chat callout:
 
 App bindings (thin; they only pass URL state and the upgrade path):
 
-- `web/mobile/src/features/wallet/CreditTopUps.tsx`, mounted in `CreditsTab.tsx`.
+- `web/mobile/src/features/wallet/CreditTopUps.tsx`, mounted in `CreditsTab.tsx` and in
+  `web/mobile/src/features/settings/BillingTab.tsx`.
 - `web/ee/src/components/pages/settings/Billing/index.tsx` (the `/w` billing page).
 
 ## Run it locally
@@ -138,6 +150,10 @@ You need the EE dev stack and Stripe test keys. Use test keys only (`sk_test_...
 Stripe adds tax when the billing address is in a taxed country (automatic tax is on). The
 webhook checks the subtotal against the pack price, so tax does not block the grant.
 
+Step-by-step screenshots of every flow in both apps (purchase from each entry, out of credits,
+cancel, Hobby, error states, the Stripe invoice) are in the PR's evidence; ask Mahmoud for the
+`flows/` folder and its `index.md`.
+
 ## Test it
 
 Unit tests:
@@ -171,17 +187,15 @@ on `/w`.
    the right) and one "Continue to checkout" button. Options: three cards with one button
    each, a "most popular" mark, the price per 100 credits. There is no volume bonus
    (product decision), so all packs cost the same per credit.
-2. Where the entry points live. `/m` has the entry on the Credits tab only, not on its Usage
-   & Billing tab; `/w` has it at the bottom of Usage & Billing because it has no Credits tab.
-   Should both apps show it in both places? Should the sidebar credits meter link to the
-   picker?
+2. Where the entry points live. `/m` has the entry on the Credits tab and on Usage &
+   Billing; `/w` has it on Usage & Billing (it has no Credits tab). Should the sidebar credits
+   meter link to the picker?
 3. Low-balance nudge. Nothing prompts a purchase before the balance reaches zero. A nudge
    could live in the sidebar meter, the Credits tab, or the chat. It needs a threshold
    decision (for example a share of the monthly allowance).
-4. Receipt or invoice. A top-up creates a Stripe Checkout payment, not an invoice, so it
-   does not appear in the billing portal's invoice list. Stripe can email a receipt if
-   receipts are on in the Stripe account. Decide whether top-ups need an invoice
-   (`invoice_creation` on the Checkout session) and where the person finds past purchases.
+4. Past purchases. Each top-up now has a paid Stripe invoice (in the billing portal and by
+   email). The app itself lists purchased lots on the Credits tab but no purchase history with
+   links to invoices. Is the portal enough?
 5. Copy review. Every new string is listed in the PR description. None of them are
    approved yet. The API sentences in `caps.py` are approved and stay as they are.
 6. Waiting state. The return screen waits 2 minutes, then offers "Check again". Is that
