@@ -34,7 +34,14 @@ export function useRefreshToolConnection() {
                     if (popup) popup.location.href = redirectUrl
                     else popup = window.open(redirectUrl, "tools_oauth", OAUTH_POPUP)
 
+                    // Runs once, whichever exit fires first (the message or the popup closing).
+                    let done = false
+                    let pollTimer: ReturnType<typeof setInterval> | undefined
                     const cleanup = async () => {
+                        if (done) return
+                        done = true
+                        if (pollTimer) clearInterval(pollTimer)
+                        window.removeEventListener("message", handler)
                         window.focus()
                         // Poll the individual connection endpoint which checks
                         // Composio for status and updates is_valid in the DB.
@@ -62,19 +69,22 @@ export function useRefreshToolConnection() {
                             event.data?.type === "tools:oauth:complete" &&
                             trustedOrigins.has(event.origin)
                         ) {
-                            window.removeEventListener("message", handler)
                             void cleanup()
                         }
+                    }
+
+                    // A blocked popup never closes, so polling for it would never end.
+                    if (!popup) {
+                        message.error(
+                            "Your browser blocked the sign-in popup. Allow pop-ups and refresh again.",
+                        )
+                        return
                     }
                     window.addEventListener("message", handler)
 
                     // Fallback: detect popup closed
-                    const pollTimer = setInterval(() => {
-                        if (popup && popup.closed) {
-                            clearInterval(pollTimer)
-                            window.removeEventListener("message", handler)
-                            void cleanup()
-                        }
+                    pollTimer = setInterval(() => {
+                        if (popup?.closed) void cleanup()
                     }, 1000)
                 } else {
                     popup?.close()

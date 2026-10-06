@@ -43,6 +43,7 @@ export function ConnectionActionConfirm({
     onClose: () => void
 }) {
     const [working, setWorking] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const copy = COPY[action]
 
     return (
@@ -60,6 +61,11 @@ export function ConnectionActionConfirm({
                     </DialogTitle>
                     <DialogDescription>{copy.body}</DialogDescription>
                 </DialogHeader>
+                {error ? (
+                    <p role="alert" className="m-0 text-sm text-colorError">
+                        {error}
+                    </p>
+                ) : null}
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>
                         Cancel
@@ -69,9 +75,16 @@ export function ConnectionActionConfirm({
                         loading={working}
                         onClick={async () => {
                             setWorking(true)
+                            setError(null)
                             try {
                                 await onConfirm()
                                 onClose()
+                            } catch (cause) {
+                                // Stays open with the reason, so the user knows nothing changed.
+                                setError(
+                                    (cause as Error)?.message ||
+                                        `Couldn't ${action} this connection.`,
+                                )
                             } finally {
                                 setWorking(false)
                             }
