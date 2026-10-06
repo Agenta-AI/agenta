@@ -129,7 +129,8 @@ NEXT_STEPS: Dict[str, str] = {
     Reason.ITEM_NOT_FOUND: (
         "Read that list again with a {list, key} selector: its refusal lists every key "
         "the list actually holds. A gateway_connection entry's key is "
-        "gateway_connection:<connection.provider>:<connection.integration>."
+        "gateway_connection:<connection.provider>:<connection.integration>; an "
+        "agenta_tools entry's key is agenta_tools."
     ),
     Reason.ITEM_RENAME_NOT_ALLOWED: (
         "Send remove_item for the old key, then add_item with the new value."
@@ -143,7 +144,7 @@ NEXT_STEPS: Dict[str, str] = {
         "file. For a tool the key depends on its type: gateway_connection needs "
         "connection.provider and connection.integration (together they are its key); "
         "gateway needs an explicit name; reference needs name or slug; platform is keyed "
-        "by op; everything else needs name."
+        "by op; agenta_tools is keyed agenta_tools; everything else needs name."
     ),
     Reason.UNKEYED_COLLECTION: (
         "That list is not addressed by name. Use set to replace the whole list."
@@ -471,6 +472,12 @@ def _tool_name(entry: Dict[str, Any], *, allow_legacy_fallback: bool) -> Optiona
         return entry.get("name") or entry.get("slug")
     if kind == "platform":
         return entry.get("op")
+    if kind == "agenta_tools":
+        # The entry has no name: it is the agent's one map of Agenta tools, and the runtime
+        # refuses a second one. Its type is its key, so an operation can reach its `tools`
+        # map instead of replacing the whole list around it. A legacy list holding two is a
+        # duplicate key, which the engine already reports.
+        return kind
     return entry.get("name")
 
 
@@ -1535,7 +1542,13 @@ def _warn_wholesale(
     index: int,
     segments: Sequence[Segment],
 ) -> None:
-    if name in ("tools", "skills", "mcps") and isinstance(value, list):
+    # Only when every entry has a key. An entry without one (an `@ag.embed`) is out of
+    # reach of the item operations, so replacing the whole list was the only way to write it.
+    if (
+        name in ("tools", "skills", "mcps")
+        and isinstance(value, list)
+        and all(item_key(name, entry) is not None for entry in value)
+    ):
         warnings.append(
             Warning(
                 code=WarningCode.WHOLESALE_LIST_REPLACE,
