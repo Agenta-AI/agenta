@@ -72,6 +72,7 @@ from oss.src.core.tracing.dtos import (
 )
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.workflows.dtos import (
+    CommitWarning,
     WorkflowRevisionCommit,
     WorkflowRevisionDelta,
     WorkflowServiceBatchResponse,
@@ -1182,6 +1183,30 @@ async def _attribution(
     )
 
 
+_TEMPLATE_INSTRUCTIONS_WARNING = CommitWarning(
+    code="template_instructions",
+    message=(
+        "The new agent still has the template's placeholder instructions. To give it its "
+        "job, call edit_agent_config with "
+        f"{_SET_INSTRUCTIONS_EXAMPLE} and the base_revision_id above."
+    ),
+    target=["parameters", "agent", "instructions", "agents_md"],
+)
+
+
+def _sets_instructions(operations: Optional[list]) -> bool:
+    """Whether any operation writes the instructions or a block that holds them."""
+    instructions = ["parameters", "agent", "instructions"]
+    for operation in operations or []:
+        target = operation.get("target") if isinstance(operation, dict) else None
+        if isinstance(target, list) and (
+            target[: len(instructions)] == instructions
+            or instructions[: len(target)] == target
+        ):
+            return True
+    return False
+
+
 def _operations(arguments: Dict[str, Any], *, required: bool) -> Optional[list]:
     operations = arguments.get("operations")
     if operations is None and not required:
@@ -1567,6 +1592,8 @@ async def handle_create_agent(
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
+    if not _sets_instructions(operations):
+        warnings.append(_TEMPLATE_INSTRUCTIONS_WARNING)
     return PlatformHandlerResult(
         content={
             "status": "created",

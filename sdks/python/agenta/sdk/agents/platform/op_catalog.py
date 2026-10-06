@@ -1993,9 +1993,9 @@ _EDIT_AGENT_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
 
 _CREATE_AGENT_DESCRIPTION = """Create a new agent in this project.
 
-The new agent starts from the "New agent" template: its default instructions, tools and
-model. Send `name`, an optional `description`, and `operations` to change that configuration
-in the same call. These are the only fields: every change, instructions included, goes in
+The new agent starts from the "New agent" template: its default tools and model, and
+placeholder instructions. Send `name`, an optional `description`, and `operations` to change
+that configuration in the same call; set the instructions there to give the agent its job. These are the only fields: every change, instructions included, goes in
 `operations`, at the top level. An operation has the same shape as in `edit_agent_config`,
 and targets sit under `["parameters","agent", ...]`:
 
