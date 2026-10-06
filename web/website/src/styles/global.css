@@ -819,42 +819,105 @@ html,
 .ag-prose a:hover {
   text-decoration-color: var(--th-link);
 }
-/* In-article CTA must beat .ag-prose a/h2/p, which otherwise underline the
-   button, inflate its spacing, and split the secondary link from its sentence. */
+/* In-article CTA card. Scoped under .ag-prose so it beats the prose rules for
+   a/h2/p (underlines, spacing, link colour). Markup lives in the post MDX on
+   single lines so MDX does not wrap the button labels in extra paragraphs. */
 .ag-prose .post-cta {
-  background: var(--th-bg-2);
-  border: 1px solid var(--th-border);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 2.8em 0 0;
+  padding: 36px 36px 30px;
   border-radius: 16px;
-  padding: 28px;
-  margin: 2.4em 0 0;
+  background: var(--icta-bg, var(--th-bg-2));
+  box-shadow: var(--icta-ring, inset 0 0 0 1px var(--th-border));
+}
+.ag-prose .post-cta::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -56px;
+  width: 260px;
+  height: 260px;
+  transform: translateY(-50%);
+  background: url("/logos/Agenta-symbol-light.svg") center / contain no-repeat;
+  opacity: 0.06;
+  pointer-events: none;
+}
+.ag-prose .post-cta > * {
+  position: relative;
+  z-index: 1;
+}
+.ag-prose .post-cta .post-cta-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 520px;
+}
+.ag-prose .post-cta .post-cta-eyebrow {
+  margin: 0;
+  font: var(--text-caption);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--th-text-body);
 }
 .ag-prose .post-cta h2 {
-  margin: 0 0 12px;
-  font: 400 28px/1.2 var(--font-display);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: 400 30px/1.15 var(--font-display);
+  letter-spacing: -0.01em;
+  color: var(--th-text-hi);
+  text-wrap: balance;
 }
-.ag-prose .post-cta p {
-  margin: 0 0 18px;
+.ag-prose .post-cta .post-cta-body {
+  margin: 0;
+  font: var(--text-body-sm);
+  color: var(--th-text-body);
+  text-wrap: pretty;
 }
-.ag-prose .post-cta .ag-btn {
-  display: inline-flex;
-  width: auto;
-  margin: 0 0 14px;
-  color: var(--ink-900);
+.ag-prose .post-cta .post-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ag-prose .post-cta .post-cta-btn {
+  height: 44px;
+  padding: 0 20px;
+  margin: 0;
   font-weight: 500;
   text-decoration: none;
   overflow-wrap: normal;
 }
-.ag-prose .post-cta .ag-btn:hover {
+.ag-prose .post-cta .ag-btn--primary {
+  color: var(--ink-900);
+}
+.ag-prose .post-cta .ag-btn--outline {
+  color: var(--th-btn-ghost-text);
+}
+.ag-prose .post-cta .post-cta-btn:hover {
   text-decoration: none;
+  filter: brightness(0.97);
 }
 .ag-prose .post-cta .post-cta-note {
-  margin: 0;
-  font-size: 14px;
+  margin: -8px 0 0;
+  font-size: 13px;
   line-height: 1.5;
+  color: var(--th-text-body);
+  opacity: 0.8;
 }
-.ag-prose .post-cta .post-cta-note a {
-  display: inline;
-  font-weight: 500;
+@media (max-width: 560px) {
+  .ag-prose .post-cta {
+    padding: 28px 22px 24px;
+  }
+  .ag-prose .post-cta h2 {
+    font-size: 25px;
+  }
+  .ag-prose .post-cta .post-cta-btn {
+    flex: 1 1 100%;
+  }
 }
 .ag-prose strong {
   color: var(--th-text-hi);
