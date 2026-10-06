@@ -32,7 +32,7 @@ const status = (phase: string) =>
 
 describe("readRunAdmission", () => {
     it("narrates the startup phases, before and after acceptance, and accepts only once", async () => {
-        const w = {...watcher(), onStartupPhase: vi.fn()}
+        const w = {...watcher(), onTurnStage: vi.fn()}
         await readRunAdmission(
             streamOf([
                 status("environment_starting"),
@@ -44,20 +44,31 @@ describe("readRunAdmission", () => {
             ]),
             w,
         )
-        expect(w.onStartupPhase.mock.calls.map(([label]) => label)).toEqual([
-            "Getting things ready",
-            "Loading details",
-            "Ready",
+        expect(w.onTurnStage.mock.calls.map(([stage]) => stage)).toEqual([
+            "environment_starting",
+            "started",
+            "preparing_workspace",
+            "environment_ready",
         ])
         expect(w.onAccepted).toHaveBeenCalledTimes(1)
         expect(w.onFailed).not.toHaveBeenCalled()
     })
 
     it("reads a status frame that shares the acceptance's chunk", async () => {
-        const w = {...watcher(), onStartupPhase: vi.fn()}
+        const w = {...watcher(), onTurnStage: vi.fn()}
         await readRunAdmission(streamOf([accepted("turn-0") + status("environment_ready")]), w)
-        expect(w.onStartupPhase).toHaveBeenCalledWith("Ready")
+        expect(w.onTurnStage).toHaveBeenCalledWith("environment_ready")
         expect(w.onAccepted).toHaveBeenCalledTimes(1)
+    })
+
+    it("names the turn once, from its turn id or its acceptance", async () => {
+        const w = {...watcher(), onTurnStage: vi.fn()}
+        const turnId = `data: ${JSON.stringify({
+            type: "message-metadata",
+            messageMetadata: {turnId: "t"},
+        })}\n`
+        await readRunAdmission(streamOf([turnId, accepted("turn-0"), turnId]), w)
+        expect(w.onTurnStage.mock.calls).toEqual([["started"]])
     })
 
     it("reports the accepted turn id", async () => {

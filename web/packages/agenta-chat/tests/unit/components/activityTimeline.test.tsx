@@ -115,30 +115,64 @@ describe("ActivityTimeline", () => {
         expect(screen.getByRole("button", {expanded: false}).textContent).toMatch(/0:00/)
     })
 
-    it("narrates the startup on a session's first turn; a later turn just works", () => {
+    it("narrates the turn's stage on any turn, and rotates its words while it lasts", () => {
         const store = createStore()
-        store.set(startTurnClockAtom, "s1", "Starting the sandbox")
-        const at = (firstTurn: boolean) =>
-            render(
-                <Provider store={store}>
-                    <ActivityTimeline
-                        messageId="m1"
-                        sessionId="s1"
-                        steps={[]}
-                        streaming
-                        answerStarted={false}
-                        firstTurn={firstTurn}
-                    />
-                </Provider>,
-            )
-        at(true)
-        expect(screen.getByRole("button").textContent).toContain("Starting the sandbox")
+        store.set(startTurnClockAtom, "s1", "opening_session")
+        render(
+            <Provider store={store}>
+                <ActivityTimeline
+                    messageId="m1"
+                    sessionId="s1"
+                    steps={[]}
+                    streaming
+                    answerStarted={false}
+                />
+            </Provider>,
+        )
+        const line = () => screen.getByRole("button").textContent ?? ""
+        expect(line()).toContain("Almost there")
+        act(() => {
+            vi.advanceTimersByTime(3000)
+        })
+        expect(line()).toContain("Opening the agent session")
+        // A long phase never falls back to a bare "Working".
+        act(() => {
+            vi.advanceTimersByTime(60_000)
+        })
+        expect(line()).not.toContain("Working")
+        act(() => {
+            store.set(startTurnClockAtom, "s1", "environment_ready")
+        })
+        expect(line()).toContain("Working")
+    })
+
+    it("says Sending until the turn is named, then rotates neutral words", () => {
+        const store = createStore()
+        store.set(startTurnClockAtom, "s1", "sending")
+        render(
+            <Provider store={store}>
+                <ActivityTimeline
+                    messageId="m1"
+                    sessionId="s1"
+                    steps={[]}
+                    streaming
+                    answerStarted={false}
+                />
+            </Provider>,
+        )
+        const line = () => screen.getByRole("button").textContent ?? ""
+        expect(line()).toContain("Sending")
+        act(() => {
+            store.set(startTurnClockAtom, "s1", "started")
+        })
+        expect(line()).toContain("Working")
+        act(() => {
+            vi.advanceTimersByTime(2000)
+        })
+        expect(line()).toContain("Thinking")
         cleanup()
-        at(false)
+        mount({streaming: true, sessionId: "s2"})
         expect(screen.getByRole("button").textContent).toContain("Working")
-        cleanup()
-        mount({streaming: true, sessionId: "s2", firstTurn: true})
-        expect(screen.getByRole("button").textContent).toContain("Waking up the agent")
     })
 
     it("settles to the worked time and stays closed", () => {
@@ -204,10 +238,10 @@ describe("ActivityTimeline", () => {
     })
 
     it("shows no clock and no caret before the first step, and starts counting at the first", () => {
-        const view = mount({streaming: true, firstTurn: true})
+        const view = mount({streaming: true})
         const button = screen.getByRole("button")
         const line = button.textContent ?? ""
-        expect(line).toContain("Waking up the agent")
+        expect(line).toContain("Working")
         expect(line).not.toMatch(/\d:\d\d/)
         expect(button.querySelector("svg")).toBeNull()
         // Ten seconds of warm-up add nothing: the count begins with the first step.
@@ -278,6 +312,33 @@ describe("ActivityTimeline", () => {
         expect(screen.getAllByRole("button")[0].getAttribute("aria-expanded")).toBe("true")
         rerender(tree("output-available", false))
         expect(screen.getAllByRole("button")[0].getAttribute("aria-expanded")).toBe("false")
+    })
+
+    it("never rotates stage words once a step exists, in a live or a settled turn", () => {
+        const store = createStore()
+        store.set(startTurnClockAtom, "s1", "opening_session")
+        const tree = (streaming: boolean) => (
+            <Provider store={store}>
+                <ActivityTimeline
+                    messageId="m1"
+                    sessionId="s1"
+                    steps={[toolStep("output-available")]}
+                    streaming={streaming}
+                    answerStarted={false}
+                />
+            </Provider>
+        )
+        const {rerender} = render(tree(true))
+        const line = () => screen.getAllByRole("button")[0].textContent ?? ""
+        act(() => {
+            vi.advanceTimersByTime(10_000)
+        })
+        expect(line()).toContain("Working")
+        for (const word of ["Almost there", "Opening the agent session", "Thinking", "Still"]) {
+            expect(line()).not.toContain(word)
+        }
+        rerender(tree(false))
+        expect(line()).toContain("Worked")
     })
 
     it("keeps narrating while the run streams past an answer, and stays folded for a gate", () => {

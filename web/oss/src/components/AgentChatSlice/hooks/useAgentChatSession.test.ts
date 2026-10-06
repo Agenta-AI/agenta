@@ -59,7 +59,7 @@ vi.mock("@agenta/chat/assets", () => ({
         build: () => Promise<unknown>,
     ) => build(),
     resolveStopExecution: state.resolveStopExecution,
-    startupLabelFromDataPart: () => undefined,
+    startupPhaseFromDataPart: () => undefined,
     submitServerOwnedApproval: async ({
         submit,
         retire,

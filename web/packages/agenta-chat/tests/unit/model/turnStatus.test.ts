@@ -18,6 +18,18 @@ describe("deriveTurnStatus", () => {
         expect(status.noResponse).toBe(true)
     })
 
+    it("does not read a turn the user stopped as a non-response", () => {
+        const message = {
+            id: "a1",
+            role: "assistant",
+            parts: [],
+            metadata: {runStopped: true},
+        } as unknown as UIMessage
+        const status = deriveTurnStatus(message, {isUser: false, isStreaming: false})
+        expect(status.stopped).toBe(true)
+        expect(status.noResponse).toBe(false)
+    })
+
     it("counts a server notice as the turn's answer", () => {
         // Without this the turn is answer-less, which makes it a "no response" turn: the
         // desktop then renders the bubble as a failure and, after another empty turn, drops
