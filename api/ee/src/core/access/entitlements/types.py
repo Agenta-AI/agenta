@@ -701,6 +701,17 @@ AGENT_TURN_CAPS: dict[str, AgentTurnCaps] = {
 }
 
 
+# DECIDED 2026-10-06: the most projects an organization on the plan can create. A plan not
+# listed here has no limit. Checked against the current count at creation, so an
+# organization already above it keeps its projects and cannot create more.
+PROJECT_LIMITS: dict[str, int] = {
+    DefaultPlan.CLOUD_V0_HOBBY.value: 1,
+}
+PROJECT_LIMIT_MESSAGE = (
+    "The Hobby plan includes 1 project. Upgrade to Pro for unlimited projects."
+)
+
+
 # Internal Counter/Gauge slug -> Stripe-side meter slot name. Membership in
 # this map doubles as the "reportable to Stripe" set: a meter is reported iff
 # its key is present here (`key in REPORTS`), and the value is the Stripe-side

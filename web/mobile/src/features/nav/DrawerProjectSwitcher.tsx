@@ -6,6 +6,7 @@ import {
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
+import {message} from "@agenta/ui/app-message"
 import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
 import {useMutation, useQuery} from "@tanstack/react-query"
@@ -43,7 +44,7 @@ export const DrawerProjectSwitcher = ({
     const helpItem = useMobileHelpItem({
         onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
     })
-    const liveChatEnabled = useLiveChatEnabled()
+    const liveChatEnabled = useLiveChatEnabled(projectId)
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
@@ -114,6 +115,12 @@ export const DrawerProjectSwitcher = ({
             // Refetch first: the destination reads this same query for its title.
             await query.refetch()
             goTo(created.workspace_id ?? workspaceId, created.project_id)
+        },
+        // The API's refusal is written for people (e.g. the plan's project limit).
+        onError: (error) => {
+            const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data
+                ?.detail
+            message.error(typeof detail === "string" ? detail : "Unable to create project")
         },
     })
 

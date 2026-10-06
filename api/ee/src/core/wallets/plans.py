@@ -39,7 +39,15 @@ _ALLOWANCE_MUSD_BY_PLAN: dict = {
 }
 
 # The plans whose organizations get the daily free credits (`grants.DAILY_FREE_ACTIVITY`).
-DAILY_FREE_CREDIT_PLANS = frozenset({DefaultPlan.CLOUD_V0_HOBBY.value})
+# PRODUCT DECISION (2026-10-06): every public cloud plan; not the internal or self-hosted
+# plans.
+DAILY_FREE_CREDIT_PLANS = frozenset(
+    {
+        DefaultPlan.CLOUD_V0_HOBBY.value,
+        DefaultPlan.CLOUD_V0_PRO.value,
+        DefaultPlan.CLOUD_V0_BUSINESS.value,
+    }
+)
 
 # Hard stop at launch: every plan floors at 0. Kept as a per-plan mapping (rather than a
 # bare constant) so a later hand-set customer overdraft (a negative floor) is a data

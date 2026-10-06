@@ -1,4 +1,5 @@
 import {inferQueueMaxFromPlan} from "@agenta/entities/trace/etl"
+import {liveChatAllowed, type LiveChatPlan} from "@agenta/settings-ui"
 import {lowPriorityWhenCached} from "@agenta/shared/api"
 import {isBillingEnabled, isEE} from "@agenta/shared/api"
 import {idleReadyAtom} from "@agenta/shared/state"
@@ -7,6 +8,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {selectedOrgIdAtom} from "@/oss/state/org"
 import {profileQueryAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
@@ -212,6 +214,24 @@ export const isOnFreePlanAtom = atom((get): boolean => {
     const plan = get(currentSubscriptionQueryAtom).data?.plan
     const freeSlug = get(freePlanSlugAtom)
     return Boolean(plan && freeSlug && plan === freeSlug)
+})
+
+// Derived: whether Crisp live chat may load and show. Paid plans only; see `liveChatAllowed`.
+export const liveChatAllowedAtom = atom((get): boolean => {
+    const subscription = get(currentSubscriptionQueryAtom)
+    const pricing = get(pricingQueryAtom)
+    const plan: LiveChatPlan = subscription.isError
+        ? "unreadable"
+        : !subscription.data || pricing.isPending
+          ? "loading"
+          : subscription.data.plan === get(freePlanSlugAtom)
+            ? "free"
+            : "paid"
+    return liveChatAllowed({
+        deploymentEnabled: !!getEnv("NEXT_PUBLIC_CRISP_WEBSITE_ID"),
+        billingEnabled: isBillingEnabled(),
+        plan,
+    })
 })
 
 // Derived: catalog entry for the current subscription's plan, if any.

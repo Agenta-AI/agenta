@@ -1,11 +1,12 @@
 import {useState, useCallback, useEffect} from "react"
 
 import {Crisp} from "crisp-sdk-web"
+import {useAtomValue} from "jotai"
 
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+import {liveChatAllowedAtom} from "@/oss/state/access/atoms"
 
 export const useCrispChat = () => {
-    const isCrispEnabled = !!getEnv("NEXT_PUBLIC_CRISP_WEBSITE_ID")
+    const isCrispEnabled = useAtomValue(liveChatAllowedAtom)
 
     const [isVisible, setIsVisible] = useState(false)
 
@@ -30,11 +31,10 @@ export const useCrispChat = () => {
         }
     }, [isVisible, updateVisibility, isCrispEnabled])
 
-    // Hide Crisp chat on mount (state is already initialized to false)
+    // Hidden on mount, and again if the organization loses live chat mid-session.
     useEffect(() => {
-        if (isCrispEnabled) {
-            Crisp.chat.hide()
-        }
+        Crisp.chat.hide()
+        setIsVisible(false)
     }, [isCrispEnabled])
 
     return {

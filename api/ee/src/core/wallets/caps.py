@@ -21,6 +21,7 @@ from ee.src.core.access.entitlements.types import (
     AgentTurnCaps,
     DefaultPlan,
 )
+from ee.src.core.wallets.grants import DAILY_FREE_GRANTS_PER_MONTH
 
 WALLET_BALANCE_EXHAUSTED_CODE = "wallet_balance_exhausted"
 CONCURRENT_TURNS_LIMIT_CODE = "concurrent_turns_limit"
@@ -154,7 +155,8 @@ def turn_length_message(plan: str, caps: AgentTurnCaps) -> str:
 def _credit_next_step(plan: Optional[str]) -> str:
     if plan == _HOBBY:
         next_step = (
-            "Your free daily credits come back at midnight UTC, or upgrade to Pro for "
+            "Free daily credits come back at midnight UTC, up to "
+            f"{DAILY_FREE_GRANTS_PER_MONTH} days a month, or upgrade to Pro for "
             f"{_MONTHLY_CREDITS[_PRO]} credits a month."
         )
     elif plan == _PRO:
