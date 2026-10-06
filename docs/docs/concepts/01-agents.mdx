@@ -62,6 +62,13 @@ All four are on by default and set to **Allow**. To change this, open **Advanced
 
 Each tool has its own **Allow**, **Ask**, or **Deactivate** choice, like every other tool in those lists. To let an agent find other agents but not change them, keep `list_agents` on and deactivate the other three.
 
+### How the agent talks about other agents
+
+- **A new agent sets itself up.** If you ask a new agent, one that still has its starting instructions, for "an agent that ...", it takes on that job itself.
+- **An agent with a job asks first.** If the agent already has a job and you ask it for "an agent that ...", it asks whether to change itself or create a separate agent. It does not ask when you say you want a separate agent.
+- **It names agents and links to them.** The agent refers to other agents by their names and gives you a link that opens each one in Agenta.
+- **It offers a first message.** After it creates an agent, it offers to send the new agent a first message so you can try it. To do that, it adds the new agent to its own tools as a [subagent](/reference/agents/subagents) and calls it on its next turn. This changes the agent's own configuration, so it works only where the agent can do that, for example in the playground.
+
 ### What a change does
 
 A change to another agent is saved as that agent's latest version. It is not deployed. The version message says which agent made the change and in which session:

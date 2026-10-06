@@ -91,6 +91,26 @@ Both capabilities SHALL be on by default in the build kit with every tool set to
 - **WHEN** the call sends a field other than `name`, `description` and `operations`, for example `instructions`
 - **THEN** it is refused with `invalid_arguments`, and the next step shows the `operations` form
 
+#### Scenario: A fresh agent sets itself up
+
+- **WHEN** an agent whose instructions are still the "New agent" placeholder, and which has `commit_revision`, is asked for "an agent that ..."
+- **THEN** it sets itself up for the job without asking; the placeholder instructions, the `create_agent` description and the build-an-agent skill say so
+
+#### Scenario: An agent with a job asks first
+
+- **WHEN** an agent whose instructions were configured for a job is asked for "an agent that ..." without being asked for a separate agent
+- **THEN** it first asks one short question: change itself, or create a new agent
+
+#### Scenario: A separate agent is created without asking
+
+- **WHEN** the person asks for a separate agent
+- **THEN** the agent calls `create_agent` without asking
+
+#### Scenario: The answer offers a first message
+
+- **WHEN** `create_agent` succeeds
+- **THEN** the answer carries `subagent_operation`, an `add_item` of a `reference` tool for the new agent onto the caller's own `tools`, and a `next_step` that says: offer to send the new agent a first message; if the caller has `commit_revision`, commit that operation, then from its next turn call the tool named after the new agent's slug with `messages`
+
 #### Scenario: Created agent appears in the list
 
 - **WHEN** `list_agents` runs after a successful `create_agent`

@@ -52,3 +52,10 @@
 
 - [x] 7.1 Document both capabilities, the defaults, and the accepted risks in the agents docs
 - [x] 7.2 Update the `build-an-agent` built-in skill so the model knows when to use the self tools and when to use these
+
+## 8. Product follow-ups
+
+- [x] 8.1 "An agent that ..." sets up a fresh default agent itself; an agent that already has a job asks first whether to change itself or create a new agent; "a separate agent" never asks (`create_agent` description, the placeholder instructions, the build-an-agent skill)
+- [x] 8.2 Answers lead with the agent's `name`; the `list_agents` description says to name agents by name, not slug or id
+- [x] 8.3 Every agent the four tools return carries `url`, its page in the web app at `/m`
+- [x] 8.4 The `create_agent` answer offers a first message: `subagent_operation` adds the new agent to the caller's tools, and `next_step` says how to call it
