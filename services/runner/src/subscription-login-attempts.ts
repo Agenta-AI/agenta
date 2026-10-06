@@ -155,15 +155,23 @@ export interface OutcomeReportDeps {
 }
 
 /**
- * POST one outcome to the API, retrying a few times on a transport failure, a 5xx, a 408 or a 429.
+ * POST one outcome to the API, retrying a few times on a transport failure, a 5xx, a 404, a 408
+ * or a 429.
  *
  * Authenticates with the shared runner token, not a project credential: a device login runs on
  * behalf of a browser, and the runner holds no credential of that project. The ids in the body
  * tell the API which connection to update, and the API applies the outcome only while that
  * connection still waits on this attempt id.
  *
- * Any other answer ends the report. A 404 means the user cancelled or replaced the attempt, and
- * repeating the same body cannot change an API decision.
+ * A 404 is retried because it can come too early, not only too late. The API stores the attempt
+ * on the connection only after the start answer comes back from this runner, so a flow that fails
+ * just after the provider issues the code can report before that record exists. A retry cannot
+ * land on another attempt: each attempt id is a fresh UUID minted here, and the API applies a
+ * report only to the record with that id. A 404 for an attempt the user cancelled or replaced is
+ * retried to no effect and then dropped. A 404 on every try logs as `refused`: the API answered
+ * each time, so it is not an outage.
+ *
+ * Any other answer ends the report: repeating the same body cannot change an API decision.
  */
 export async function reportAttemptOutcome(
   outcome: AttemptOutcome,
@@ -193,6 +201,7 @@ export async function reportAttemptOutcome(
   for (let attempt = 0; ; attempt += 1) {
     let status: number | undefined;
     let retryable = true;
+    let notFound = false;
     try {
       const res = await doFetch(url, {
         method: "POST",
@@ -214,7 +223,8 @@ export async function reportAttemptOutcome(
         });
         return;
       }
-      retryable = status >= 500 || status === 408 || status === 429;
+      notFound = status === 404;
+      retryable = notFound || status >= 500 || status === 408 || status === 429;
     } catch {
       // A transport failure or the timeout. The error text is not recorded: it can quote the
       // request.
@@ -222,7 +232,7 @@ export async function reportAttemptOutcome(
     if (!retryable || attempt >= delays.length) {
       observeSubscription(log, "subscription.attempt", {
         ...event,
-        report: retryable ? "unanswered" : "refused",
+        report: retryable && !notFound ? "unanswered" : "refused",
         status,
         tries: attempt + 1,
       });

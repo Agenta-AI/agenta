@@ -407,9 +407,9 @@ describe("reportAttemptOutcome", () => {
     assert.equal(calls.length, 3);
   });
 
-  it("does not retry an API decision such as a 404 for a cancelled attempt", async () => {
+  it("retries a 404 that comes before the API stored the attempt, then delivers", async () => {
     const lines: string[] = [];
-    const { calls, fetchImpl } = scriptedFetch([404]);
+    const { calls, fetchImpl } = scriptedFetch([404, 200]);
 
     await reportAttemptOutcome(OUTCOME, {
       fetchImpl,
@@ -419,8 +419,63 @@ describe("reportAttemptOutcome", () => {
       log: (line) => lines.push(line),
     });
 
+    assert.equal(calls.length, 2);
+    assert.ok(lines.some((line) => line.includes("report=delivered")));
+  });
+
+  it("stops after its retry budget when every try answers 404, and logs it as refused", async () => {
+    const lines: string[] = [];
+    const { calls, fetchImpl } = scriptedFetch([404, 404, 404, 404, 404]);
+
+    await reportAttemptOutcome(OUTCOME, {
+      fetchImpl,
+      apiBase: "http://api:8000",
+      token: "t",
+      retryDelaysMs: [0, 0, 0],
+      log: (line) => lines.push(line),
+    });
+
+    assert.equal(calls.length, 4, "one try plus one per retry delay");
+    assert.ok(lines.some((line) => line.includes("report=refused")));
+    assert.ok(!lines.some((line) => line.includes("report=unanswered")));
+  });
+
+  it("tries a 404 once when retries are off, as the shutdown report runs", async () => {
+    const lines: string[] = [];
+    const { calls, fetchImpl } = scriptedFetch([404, 200]);
+
+    await reportAttemptOutcome(
+      {
+        ...OUTCOME,
+        state: "failed",
+        login: undefined,
+        error: ABANDONED_ATTEMPT_REASON,
+      },
+      {
+        fetchImpl,
+        apiBase: "http://api:8000",
+        token: "t",
+        retryDelaysMs: [],
+        log: (line) => lines.push(line),
+      },
+    );
+
     assert.equal(calls.length, 1);
     assert.ok(lines.some((line) => line.includes("report=refused")));
+  });
+
+  it("does not retry any other API decision", async () => {
+    const { calls, fetchImpl } = scriptedFetch([409, 200]);
+
+    await reportAttemptOutcome(OUTCOME, {
+      fetchImpl,
+      apiBase: "http://api:8000",
+      token: "t",
+      retryDelaysMs: [0, 0, 0],
+      log: () => {},
+    });
+
+    assert.equal(calls.length, 1);
   });
 
   it("gives up after its retry budget", async () => {

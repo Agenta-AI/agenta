@@ -108,8 +108,11 @@ POST /secrets/subscription-login/attempts/{attempt_id}/outcome
 - `succeeded` with a usable login: the API stores the login, sets `login_state=ready`, bumps
   `login_version` and `login_generation`, and marks the record `succeeded`. An unusable or
   missing login marks it `failed` with `invalid_login`.
-- The runner retries a transport failure, 5xx, 408 and 429 (four tries, at most 27 s, which is
-  inside the 30 s grace above). It stops on any other answer.
+- The runner retries a transport failure, 5xx, 404, 408 and 429 (four tries, at most 27 s, which
+  is inside the 30 s grace above). It stops on any other answer. A 404 is retried because a
+  report can arrive before the API stored the record: the API writes it only after the runner's
+  start answer comes back. A retry cannot reach another attempt, because each attempt id is a
+  fresh UUID.
 - On a graceful shutdown (after the drain wait) the runner reports each live attempt as `failed`
   with `attempt not found; try again`, one try each.
 

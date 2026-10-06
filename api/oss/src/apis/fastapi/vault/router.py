@@ -544,7 +544,8 @@ class VaultRouter:
         credential for a device login. The body names the row, and the service applies
         the outcome only while that row still waits on this attempt id, which the runner
         minted. A report for an attempt the user cancelled or replaced is a 404 and
-        changes nothing, so the runner stops retrying it.
+        changes nothing. The runner still retries a 404 within its bounded budget: a
+        report can also arrive before the start answer stored the record.
         """
         await self.subscription_login_service.report_attempt_outcome(
             project_id=body.project_id,
