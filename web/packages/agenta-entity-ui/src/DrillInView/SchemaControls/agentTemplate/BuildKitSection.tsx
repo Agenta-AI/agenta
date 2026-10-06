@@ -90,6 +90,7 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                 </span>
             </div>
             <PermissionDrawerBody
+                flush
                 catalogKey="playground-build-kit"
                 catalog={{
                     status: "ready",

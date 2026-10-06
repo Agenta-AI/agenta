@@ -100,6 +100,7 @@ export function AgentaToolsSection({
                 </span>
             </div>
             <PermissionDrawerBody
+                flush
                 catalogKey="agenta-tools"
                 catalog={{status: "ready", complete: true, tools: rows}}
                 emptyLabel="No Agenta tools available."

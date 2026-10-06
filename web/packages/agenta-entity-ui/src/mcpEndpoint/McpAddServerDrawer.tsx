@@ -18,6 +18,8 @@ import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, EmptyState, IconTile, SearchInput, SkeletonRows} from "@agenta/ui/ui"
 import {Plugs, Plus} from "@phosphor-icons/react"
 
+import {ScrollFadeArea} from "../shared/ScrollFadeArea"
+
 import {ConnectionListRow} from "./components/ConnectionListRow"
 
 /** One connection in the project registry, as this drawer needs it. */
@@ -156,7 +158,7 @@ export function McpAddServerDrawer({
                     </EmptyState>
                 </div>
             ) : (
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+                <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 p-4">
                     <SearchInput
                         placeholder="Search servers"
                         aria-label="Search servers"
@@ -187,7 +189,7 @@ export function McpAddServerDrawer({
                             ))}
                         </div>
                     )}
-                </div>
+                </ScrollFadeArea>
             )}
         </EnhancedDrawer>
     )

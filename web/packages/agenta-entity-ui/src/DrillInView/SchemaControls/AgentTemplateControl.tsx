@@ -1125,7 +1125,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             key: "instructions",
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
-            summary: countSummary(1, "file"),
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
             content: (
@@ -1523,6 +1522,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 disabled={disabled || !sectionDirty}
                 dirty={sectionDirty}
                 width={mh.advancedDrawerWidth}
+                // No top or bottom gutter: the rail and its divider run header to footer.
+                bodyPadding="0 12px"
             >
                 <ChangedPathsProvider changes={drawerChangedPaths}>
                     <ModelHarnessSectionBody

@@ -35,6 +35,7 @@ import {
 } from "../../../drawers/shared/FocusPathsContext"
 import {FieldLayoutProvider, RailField} from "../../../drawers/shared/RailField"
 import {SectionRail, type SectionRailItem} from "../../../drawers/shared/SectionRail"
+import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
 import type {PickerSelection} from "../connectionPicker"
 import {
     allowedConnectionModes,
@@ -807,11 +808,15 @@ export function useModelHarness({
         advancedPanels.find((panel) => panel.item.value === advancedPanelValue) ?? advancedPanels[0]
 
     const activeAdvancedPanelBody = (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-3 pr-1">
+        // -ml/pl: the field rings keep 4px clear of the scroll clip. Keyed so each panel re-measures.
+        <ScrollFadeArea
+            key={activeAdvancedPanel?.item.value}
+            className="-ml-1 flex min-h-0 flex-1 flex-col gap-4 pb-4 pl-1 pr-1 pt-1"
+        >
             {activeAdvancedPanel?.header ? (
                 <div className="flex items-start gap-2">
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="text-xs font-medium">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="text-sm font-medium text-colorText">
                             {activeAdvancedPanel.header.title}
                         </span>
                         <span className="text-xs leading-snug text-colorTextDescription">
@@ -822,7 +827,7 @@ export function useModelHarness({
                 </div>
             ) : null}
             {activeAdvancedPanel?.body}
-        </div>
+        </ScrollFadeArea>
     )
 
     // One panel needs no nav — a single-item rail is chrome around nothing.
@@ -830,10 +835,9 @@ export function useModelHarness({
         advancedPanels.length > 1 ? (
             <SectionRail
                 fill
-                // The drawer body is the rail's only host, so the divider runs its full height.
-                bleed
-                // Wider than the default rail: these labels carry an icon as well.
-                railWidth="w-[112px] sm:w-[148px]"
+                // Wider than the default rail: these labels carry an icon as well. The pt keeps
+                // the focus ring clear of the body's clip and lines up with the panel title.
+                railWidth="w-[112px] pt-1 sm:w-[148px]"
                 drillIn
                 listLabel="Advanced"
                 items={advancedPanels.map((panel) => panel.item)}
@@ -877,6 +881,7 @@ export function useModelHarness({
         runnerPermissionSummary,
         advancedSummary,
         advancedDrawerBody,
-        advancedDrawerWidth: INTEGRATION_DRAWER_WIDTH,
+        // 50px past the integration drawer: the rail takes room from the panel.
+        advancedDrawerWidth: INTEGRATION_DRAWER_WIDTH + 50,
     }
 }
