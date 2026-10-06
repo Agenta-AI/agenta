@@ -8,7 +8,9 @@
     ready before it stops an old one (`RollingUpdate`, maxSurge 1, maxUnavailable 0).
   * With the local provider, a local sandbox lives inside the pod that started it, so the old
     pod stops before the new one starts (`Recreate`). More than one runner pod, and an explicit
-    rolling update, are refused at render time.
+    rolling update, are refused at render time. Those checks read `agentRunner.providers`, so
+    `agentRunner.env` or `agentRunner.extraEnv` setting a sandbox provider variable fails the
+    render.
   * `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS` defaults to the grace period minus 100 seconds,
     never below 0. `agentRunner.shutdownWaitSeconds` replaces it, and a value past that limit
     is refused. The chart owns the variable: `agentRunner.env` or `agentRunner.extraEnv`
@@ -288,6 +290,85 @@ def local_strategy_failures() -> list[str]:
     return failures
 
 
+PROVIDER_VARIABLES = (
+    "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS",
+    "AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER",
+)
+
+
+def provider_override_failures() -> list[str]:
+    """The replica and strategy checks read `agentRunner.providers`. A provider variable in
+    `agentRunner.env` or `agentRunner.extraEnv` would pass those checks with remote providers and
+    then run the local provider, so the render fails and points at `agentRunner.providers`."""
+    failures: list[str] = []
+    for name in PROVIDER_VARIABLES:
+        for source, args in (
+            ("agentRunner.env", ["--set", f"agentRunner.env.{name}=local"]),
+            (
+                "agentRunner.extraEnv",
+                [
+                    "--set",
+                    f"agentRunner.extraEnv[0].name={name}",
+                    "--set-string",
+                    "agentRunner.extraEnv[0].value=local",
+                ],
+            ),
+        ):
+            label = f"{source} sets {name}"
+            result = helm_template(args)
+            if result.returncode == 0:
+                failures.append(f"{label}: rendered instead of failing")
+            elif (
+                f"{source} sets {name}" not in result.stderr
+                or "agentRunner.providers.enabled" not in result.stderr
+            ):
+                failures.append(
+                    f"{label}: the failure does not name the key and the fix:\n{result.stderr}"
+                )
+
+    # Two rolling runner pods on remote providers, with both variables switched to local
+    # through agentRunner.env: the local provider on more than one pod.
+    result = helm_template(
+        REMOTE_ONLY
+        + TWO_REPLICAS
+        + [
+            "--set",
+            "agentRunner.env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local",
+            "--set",
+            "agentRunner.env.AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER=local",
+        ]
+    )
+    if result.returncode == 0:
+        failures.append(
+            "two daytona pods with env overrides to local rendered instead of failing"
+        )
+    elif "agentRunner.env sets AGENTA_RUNNER_" not in result.stderr:
+        failures.append(
+            f"two daytona pods with env overrides to local: unexpected failure:\n{result.stderr}"
+        )
+
+    # The runner lowercases and trims each provider id, and the chart's local check matches the
+    # exact id `local`, so a variant must fail the render, not reach two rolling pods as local.
+    for label, providers in (
+        ("enabled [Local]", ["--set", "agentRunner.providers.enabled={Local}"]),
+        (
+            "enabled [' local']",
+            ["--set-json", 'agentRunner.providers.enabled=[" local"]'],
+        ),
+        ("default Local", ["--set", "agentRunner.providers.default=Local"]),
+    ):
+        result = helm_template(TWO_REPLICAS + providers)
+        if result.returncode == 0:
+            failures.append(
+                f"two runner pods with {label}: rendered instead of failing"
+            )
+        elif "agentRunner.providers" not in result.stderr:
+            failures.append(
+                f"two runner pods with {label}: the failure does not name the key:\n{result.stderr}"
+            )
+    return failures
+
+
 def pdb_failures() -> list[str]:
     docs = render(REMOTE_ONLY + TWO_REPLICAS)
     budgets = [doc for doc in docs if is_runner(doc, "PodDisruptionBudget")]
@@ -304,6 +385,7 @@ def collect_failures() -> list[str]:
         + replica_guard_failures()
         + shutdown_wait_failures()
         + local_strategy_failures()
+        + provider_override_failures()
         + pdb_failures()
     )
 

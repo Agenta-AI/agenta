@@ -361,6 +361,10 @@ templates apply it to both.
 | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` | Providers this deployment can use | `local` | `agentRunner.providers.enabled` (list, rendered comma-joined) |
 | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` | Provider used when a run does not choose | `local` | `agentRunner.providers.default` |
 
+The Helm chart checks `agentRunner.providers` before it allows more than one runner pod or a
+rolling update, and the render fails when `agentRunner.env` or `agentRunner.extraEnv` sets either
+variable. Set them with `agentRunner.providers.enabled` and `agentRunner.providers.default`.
+
 Rules:
 
 - Values are lowercase provider ids separated by commas. The known ids are `local`, `daytona` and

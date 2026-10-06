@@ -927,13 +927,15 @@
             "enabled": {
               "type": "array",
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": ["local", "daytona", "inprocess"]
               },
-              "description": "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS as a list; rendered comma-joined. Unset means [local]."
+              "description": "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS as a list of lowercase provider ids; rendered comma-joined. Unset means [local]. Exact ids only: the runner lowercases and trims, so a variant such as Local would enable local past the chart's single-pod check."
             },
             "default": {
               "type": "string",
-              "description": "AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER; must be one of the enabled providers."
+              "enum": ["local", "daytona", "inprocess"],
+              "description": "AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER, a lowercase provider id; must be one of the enabled providers."
             },
             "daytona": {
               "type": "object",

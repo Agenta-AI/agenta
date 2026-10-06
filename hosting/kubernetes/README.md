@@ -503,7 +503,11 @@ sandbox runs inside the runner pod that started it, so the render fails when
 `agentRunner.providers.enabled` lists `local` with more than one runner. With
 only remote providers the runner rolls out with `RollingUpdate` (`maxSurge: 1`,
 `maxUnavailable: 0`); with `local` it keeps `Recreate`, and the render fails for an
-explicit `agentRunner.strategy` of another type.
+explicit `agentRunner.strategy` of another type. These checks read
+`agentRunner.providers`, so the chart owns `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`
+and `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER`: the render fails when
+`agentRunner.env` or `agentRunner.extraEnv` sets either one. Set them with
+`agentRunner.providers.enabled` and `agentRunner.providers.default`.
 
 Each turn is bound to the pod that runs it, by the pod's replica id. The chart
 sets that id to the pod name, and the render fails when `agentRunner.env` or

@@ -342,9 +342,9 @@ uses Recreate) or set:
 {{- end }}
 
 {{/* ================================================================
-   The chart owns two runner variables, and an entry in agentRunner.env
+   The chart owns four runner variables, and an entry in agentRunner.env
    or agentRunner.extraEnv (which comes last and wins in the kubelet)
-   would replace either one, so refuse both there.
+   would replace any of them, so refuse them there.
    AGENTA_RUNNER_REPLICA_ID: the api binds each turn to one replica id
    and refuses beats from any other id. A fixed value gives every pod
    one id, the surge pod of a rolling update too, and pods that share
@@ -352,6 +352,11 @@ uses Recreate) or set:
    AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: the wait must end inside the
    grace period, which agenta.validateRunnerShutdownWait checks on
    agentRunner.shutdownWaitSeconds.
+   AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS and
+   AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: agenta.validateRunnerReplicas
+   and agenta.validateRunnerStrategy read agentRunner.providers to keep
+   the local provider on one pod. An override would run local sandboxes
+   on pods those checks allowed for remote providers only.
    ================================================================ */}}
 {{- define "agenta.validateRunnerChartOwnedEnv" -}}
 {{- $runner := default dict .Values.agentRunner -}}
@@ -364,8 +369,16 @@ beside the old one. The chart always sets the id to the pod name.` -}}
 against that limit, so set the wait there:
 
   agentRunner.shutdownWaitSeconds: <seconds>` -}}
+{{- $providersFix := `The chart allows more than one runner pod, or a rolling update, only when the runner has no local
+sandbox provider, and it checks agentRunner.providers to decide. Set the providers there, so the
+check, the runner, Services and the web all use the same value:
+
+  agentRunner.providers.enabled: [<provider>, ...]
+  agentRunner.providers.default: <provider>` -}}
+{{- $_ = set $fixes "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS" $providersFix -}}
+{{- $_ = set $fixes "AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER" $providersFix -}}
 {{- if eq (include "agenta.agentRunner.enabled" .) "true" -}}
-{{- range $name := list "AGENTA_RUNNER_REPLICA_ID" "AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS" -}}
+{{- range $name := list "AGENTA_RUNNER_REPLICA_ID" "AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS" "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS" "AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER" -}}
 {{- $source := "" -}}
 {{- if hasKey $env $name -}}
 {{- $source = "agentRunner.env" -}}

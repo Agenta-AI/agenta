@@ -323,8 +323,10 @@ redisDurable:
 #   env:                       # The chart owns AGENTA_RUNNER_REPLICA_ID (always the pod name,
 #                              # because pods that share an id can take the same turn) and
 #                              # AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS (set it with
-#                              # shutdownWaitSeconds). The render fails when env or extraEnv
-#                              # sets either one.
+#                              # shutdownWaitSeconds), AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
+#                              # and AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER (set them with
+#                              # providers.enabled and providers.default). The render fails when
+#                              # env or extraEnv sets any of them.
 #     AGENTA_RUNNER_REPLICA_ADDRESS: ""  # chart default http://$(POD_IP):<port>, where the api
 #                              # sends Stop for this pod's turns and Services sends the
 #                              # session's follow-up messages. A NetworkPolicy that blocks api or

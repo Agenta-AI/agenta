@@ -96,6 +96,9 @@ spec:
             {{- end }}
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
+            {{- /* The replica and strategy checks read agentRunner.providers to keep the local
+                   provider on one pod, so agenta.validateRunnerChartOwnedEnv refuses an
+                   agentRunner.env or extraEnv override of these two. */}}
             - name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
               value: {{ join "," $enabledProviders | quote }}
             - name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
