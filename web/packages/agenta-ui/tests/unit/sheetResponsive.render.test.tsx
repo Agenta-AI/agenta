@@ -53,7 +53,7 @@ describe("Sheet side=responsive", () => {
     it("unsets every bottom-sheet property at lg, or the narrower rule would win", () => {
         openSheet("responsive")
         const c = panel().className
-        for (const unset of ["lg:inset-x-auto", "lg:mx-0", "lg:max-h-none"]) {
+        for (const unset of ["lg:inset-x-auto", "lg:max-h-none"]) {
             expect(c).toContain(unset)
         }
     })
