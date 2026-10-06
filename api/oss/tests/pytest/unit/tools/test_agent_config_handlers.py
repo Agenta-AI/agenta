@@ -85,7 +85,9 @@ def _head(*, is_agent=True, is_static=False, workflow_id=TARGET, archived=False)
             parameters={
                 "agent": {
                     "instructions": {"agents_md": "Answer invoice questions."},
-                    "tools": [],
+                    "tools": [
+                        {"type": "agenta_tools", "tools": {"rename_session": "allow"}}
+                    ],
                     "sandbox": {"kind": "local", "credentials": {"x": "y"}},
                 }
             },
@@ -561,21 +563,28 @@ class TestEditAgentConfig:
                     "policy": {"permissions": {"default": "allow", "tools": {}}},
                 },
             },
-            # An `agenta_tools` entry has no key to select it by, so turning Agent config
-            # on means setting the list, the same as it does for a self-edit.
+            # The `agenta_tools` entry is keyed by its type, so turning Agent config on
+            # changes its map and leaves the rest of the list alone.
+            {
+                "operation": "merge",
+                "target": [
+                    "parameters",
+                    "agent",
+                    {"list": "tools", "key": "agenta_tools"},
+                    "tools",
+                ],
+                "value": {"read_agent_config": "allow", "create_agent": "allow"},
+            },
             {
                 "operation": "set",
-                "target": ["parameters", "agent", "tools"],
-                "value": [
-                    {
-                        "type": "agenta_tools",
-                        "tools": {
-                            "read_agent_config": "allow",
-                            "create_agent": "allow",
-                            "edit_agent_config": "allow",
-                        },
-                    },
+                "target": [
+                    "parameters",
+                    "agent",
+                    {"list": "tools", "key": "agenta_tools"},
+                    "tools",
+                    "edit_agent_config",
                 ],
+                "value": "ask",
             },
         ]
 
@@ -585,14 +594,24 @@ class TestEditAgentConfig:
 
         assert result.ok, result.content
         tools = _committed(service).data.parameters["agent"]["tools"]
-        assert tools[0]["tools"]["edit_agent_config"] == "allow"
+        assert [tool["type"] for tool in tools] == [
+            "agenta_tools",
+            "gateway_connection",
+        ]
+        assert tools[0]["tools"] == {
+            "rename_session": "allow",
+            "read_agent_config": "allow",
+            "create_agent": "allow",
+            "edit_agent_config": "ask",
+        }
+        assert not result.content["warnings"]
 
         result = await _call(
             handle_edit_agent_config, service, **_edit_args(operations=operations[:1])
         )
         assert result.ok, result.content
         tools = _committed(service).data.parameters["agent"]["tools"]
-        assert tools[0]["type"] == "gateway_connection"
+        assert tools[-1]["type"] == "gateway_connection"
 
     async def test_the_build_kit_cannot_be_committed_into_another_agent(self, service):
         operation = {

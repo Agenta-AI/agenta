@@ -233,6 +233,31 @@ class TestErrors:
         assert error.reason == Reason.ITEM_NOT_FOUND
         assert error.children == ["release-qa"]
 
+    def test_a_missing_item_says_retry_with_a_listed_key(self):
+        error = refusal(AGENT + [{"list": "skills", "key": "nope"}])
+        assert "details.children" in error.to_detail()["next_step"]
+
+    def test_a_missing_item_in_a_list_with_unkeyed_entries_never_circles(self):
+        # Bench S5: an empty `children` with "retry with one of them" left no way out.
+        data = config()
+        data["parameters"]["agent"]["tools"] = [
+            {"@ag.embed": {"@ag.references": {"workflow": {"slug": "lookup"}}}}
+        ]
+        error = refusal(AGENT + [{"list": "tools", "key": "lookup"}], data)
+        assert error.reason == Reason.ITEM_NOT_FOUND
+        assert error.children == []
+        next_step = error.to_detail()["next_step"]
+        assert "without a selector" in next_step
+        assert "retry with one of them" not in next_step
+
+    def test_the_agenta_tools_entry_reads_by_its_type(self):
+        data = config()
+        data["parameters"]["agent"]["tools"].append(
+            {"type": "agenta_tools", "tools": {"list_agents": "allow"}}
+        )
+        result = read(AGENT + [{"list": "tools", "key": "agenta_tools"}], data)
+        assert result.value["tools"] == {"list_agents": "allow"}
+
     def test_a_duplicate_key_is_refused(self):
         data = config()
         data["parameters"]["agent"]["skills"].append(

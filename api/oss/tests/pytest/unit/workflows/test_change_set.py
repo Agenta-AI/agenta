@@ -1585,6 +1585,14 @@ class TestChangeSetResult:
         codes = warning_codes({"set": {"parameters": {"agent": {"skills": []}}}})
         assert WarningCode.WHOLESALE_LIST_REPLACE in codes
 
+    def test_no_wholesale_warning_when_an_entry_has_no_key(self):
+        # Bench S5: the warning advised add/replace/remove for an entry those cannot reach.
+        embed = {"@ag.embed": {"@ag.references": {"workflow": {"slug": "lookup"}}}}
+        codes = warning_codes(
+            ops({"operation": "set", "target": AGENT + ["tools"], "value": [embed]})
+        )
+        assert WarningCode.WHOLESALE_LIST_REPLACE not in codes
+
     def test_an_ordinary_field_set_does_not_warn_about_lists(self):
         codes = warning_codes(
             ops({"operation": "set", "target": AGENT + ["llm", "model"], "value": "z"})
@@ -3602,6 +3610,89 @@ class TestNextStepsNameAnActionTheModelCanTake:
 
         assert "nearest_lines" in guidance
         assert "character for character" not in guidance
+
+
+# --------------------------------------------------------------------------------------
+# The agenta_tools entry is keyed by its type (bench S5)
+# --------------------------------------------------------------------------------------
+
+
+AGENTA_TOOLS_ENTRY = {"list": "tools", "key": "agenta_tools"}
+
+
+def with_agenta_tools():
+    base = base_config()
+    base["parameters"]["agent"]["tools"].append(
+        {"type": "agenta_tools", "tools": {"rename_session": "allow"}}
+    )
+    return base
+
+
+class TestTheAgentaToolsEntryIsAddressable:
+    def test_its_key_is_its_type(self):
+        assert item_key("tools", {"type": "agenta_tools", "tools": {}}) == (
+            "agenta_tools"
+        )
+
+    def test_set_turns_on_one_agenta_tool_and_keeps_the_rest_of_the_list(self):
+        base = with_agenta_tools()
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + [AGENTA_TOOLS_ENTRY, "tools", "create_schedule"],
+                    "value": "allow",
+                }
+            ),
+            base,
+            scope_policy=AGENT_COMMIT_SCOPE,
+        )
+        tools = result.data["parameters"]["agent"]["tools"]
+        assert tools[:3] == base["parameters"]["agent"]["tools"][:3]
+        assert tools[3]["tools"] == {
+            "rename_session": "allow",
+            "create_schedule": "allow",
+        }
+        assert not result.warnings
+
+    def test_merge_and_replace_item_reach_it_too(self):
+        merged = apply(
+            ops(
+                {
+                    "operation": "merge",
+                    "target": AGENT + [AGENTA_TOOLS_ENTRY, "tools"],
+                    "value": {"list_agents": "ask"},
+                }
+            ),
+            with_agenta_tools(),
+        )
+        assert merged["parameters"]["agent"]["tools"][3]["tools"]["list_agents"] == (
+            "ask"
+        )
+        replaced = apply(
+            ops(
+                {
+                    "operation": "replace_item",
+                    "target": AGENT + [AGENTA_TOOLS_ENTRY],
+                    "value": {"type": "agenta_tools", "tools": {}},
+                }
+            ),
+            with_agenta_tools(),
+        )
+        assert replaced["parameters"]["agent"]["tools"][3]["tools"] == {}
+
+    def test_a_second_entry_is_a_duplicate_key(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["tools"],
+                    "value": {"type": "agenta_tools", "tools": {}},
+                }
+            ),
+            with_agenta_tools(),
+        )
+        assert error.reason == Reason.ITEM_ALREADY_EXISTS
 
 
 class TestSharedNextStepsNameNoTool:
