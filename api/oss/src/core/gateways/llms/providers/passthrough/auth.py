@@ -8,6 +8,7 @@ from oss.src.core.gateways.egress import EgressRefusedError, open_egress
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind, LLMResolvedRoute
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import ResolvedSecret
+from oss.src.core.gateways.policy.types import SecretInvalidError
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.utils.env import env
 
@@ -95,14 +96,21 @@ async def _bedrock_auth(
     route: LLMResolvedRoute, secret: Optional[ResolvedSecret]
 ) -> Dict[str, str]:
     # Bedrock API keys are sent as bearer tokens.
-    token = (secret and _secret_extras(secret).get("aws_bearer_token_bedrock")) or (
-        secret and _secret_key(secret)
-    )
+    extras = _secret_extras(secret) if secret else {}
+    token = extras.get("aws_bearer_token_bedrock") or (secret and _secret_key(secret))
     if not token:
-        raise LLMUpstreamError(
-            provider_key=route.provider_key,
-            status_code=None,
-            detail="bedrock endpoint has no bearer key",
+        # The connection card accepts an AWS access key pair instead of a Bedrock API key,
+        # and the gateway cannot sign with one. Said as a secret the caller can fix, not as
+        # an upstream failure: that one reaches the person as "upstream request failed".
+        holds_access_key = bool(extras.get("aws_access_key_id"))
+        raise SecretInvalidError(
+            target="this Bedrock connection",
+            detail=(
+                "it holds an AWS access key, and the gateway calls Bedrock only with a "
+                "Bedrock API key. Add a Bedrock API key to the connection"
+                if holds_access_key
+                else "it has no Bedrock API key. Add one to the connection"
+            ),
         )
     return {"Authorization": f"Bearer {token}"}
 

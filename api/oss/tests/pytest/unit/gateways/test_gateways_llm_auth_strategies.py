@@ -12,6 +12,7 @@ import pytest
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind, LLMResolvedRoute
 from oss.src.core.gateways.llms.providers.passthrough.auth import build_auth_headers
 from oss.src.core.gateways.llms.types import LLMUpstreamError
+from oss.src.core.gateways.policy.types import SecretInvalidError
 from oss.src.core.gateways.policy.dtos import (
     ResolvedSecret,
     SecretOrigin,
@@ -129,12 +130,33 @@ async def test_bedrock_uses_bearer_key_from_extras():
 
 
 @pytest.mark.asyncio
-async def test_bedrock_with_no_bearer_key_raises():
-    with pytest.raises(LLMUpstreamError):
+async def test_bedrock_with_no_bearer_key_is_a_secret_the_caller_can_fix():
+    with pytest.raises(SecretInvalidError, match="has no Bedrock API key"):
         await build_auth_headers(
             _route(deployment_kind=LLMDeploymentKind.BEDROCK),
             _custom_secret(key=None, extras=None),
         )
+
+
+@pytest.mark.asyncio
+async def test_bedrock_with_an_access_key_pair_says_the_gateway_needs_an_api_key():
+    """The card accepts an access key pair instead of a Bedrock API key. Raised as an
+    upstream failure, the person read "upstream request failed" for a connection the UI
+    had accepted."""
+    with pytest.raises(SecretInvalidError, match="AWS access key") as raised:
+        await build_auth_headers(
+            _route(deployment_kind=LLMDeploymentKind.BEDROCK),
+            _custom_secret(
+                key=None,
+                extras={
+                    "aws_region_name": "us-east-1",
+                    "aws_access_key_id": "AKIAEXAMPLE",
+                    "aws_secret_access_key": "secret-value",
+                },
+            ),
+        )
+    assert "secret-value" not in raised.value.message
+    assert "AKIAEXAMPLE" not in raised.value.message
 
 
 @pytest.mark.asyncio
