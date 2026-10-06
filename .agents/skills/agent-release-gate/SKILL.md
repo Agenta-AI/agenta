@@ -736,6 +736,26 @@ lands on a pool miss and takes the cold decision-map path, which is exactly the 
   Claude Code refuses a standalone `sleep N`, so its
   long turns run `timeout N tail -f /dev/null`; and a queued input must carry only the trailing
   user message, as the browser sends it, or the runner sees a history mismatch and goes cold.
+  `--subscription hosted` (plus `--subscription-slug`, `--subscription-sandbox daytona|inprocess`,
+  `--pi-model`) runs the six routing cells on Pi with the project's hosted ChatGPT connection
+  and SKIPs them all when that connection is not `ready`; `--subscription mounted` is the
+  operator's Pi login mounted into the runners, `inprocess` only. The other cells SKIP under a
+  subscription shape. Under
+  `hosted`, `hosted-both-pods` (phase 1), `hosted-refresh-across-pods` and
+  `hosted-restart-reconnect` (phase 2) check the hosted login itself on both pods from the pods'
+  `event=subscription.materialize|publish` lines and the row's `login_version` /
+  `login_generation`: both pods run on the login the request delivers, one refresh is pushed
+  back once and reused by the other pod, and a restarted pod needs no device login.
+  `--daytona-harness pi_core` runs the Daytona cells on Pi with the `--custom-name` /
+  `--custom-model` connection instead of Claude Code. `--kube-namespace <ns>` (with
+  `--kube-context`, `--kubeconfig`, `--kube-release`, optional `--kube-secret`) runs against a
+  Helm release with two runner pods: logs are followed per pod from the run start, Postgres is
+  read with `psql` inside an api pod, posts to a pod go through `kubectl port-forward`. There,
+  kill is a force pod delete (the Deployment starts a new pod, so the follow-up may run on B or
+  A's replacement), the drain is a graceful pod delete, `identity-mismatch` SKIPs, and two
+  kube-only phase 2 cells run: `rollout-during-turn` (`rollout restart` under a long turn) and
+  `drain-node-parked-approval` (cordon and drain A's node with a runner-only pod selector, through
+  the PodDisruptionBudget; always uncordoned).
   Mandatory (via `path_triggers.py`) when the turn binding, Stop routing, follow-up routing, Kill
   by label, or the drain changes.
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
