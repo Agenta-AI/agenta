@@ -37,6 +37,7 @@ import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import ConnectionStatusBadge from "../../../gatewayTool/components/ConnectionStatusBadge"
+import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
 import {
     INTEGRATION_PRESETS,
     TOOL_PERMISSION_OPTIONS,
@@ -281,16 +282,17 @@ const ToolRow = memo(function ToolRow({
 
     return (
         <div
-            className={`flex flex-col gap-1 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 first:border-t-0 ${
-                expanded ? "bg-[var(--ag-colorFillQuaternary)]" : ""
+            className={`flex flex-col border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2.5 transition-colors first:border-t-0 ${
+                expanded
+                    ? "bg-[var(--ag-colorFillQuaternary)]"
+                    : "hover:bg-[var(--ag-colorFillQuaternary)]"
             }`}
         >
-            {/* items-start, not items-center: the select must stay put while the row grows. */}
-            <div className="flex items-start gap-2.5">
-                <div className="flex min-w-0 flex-1 flex-col">
-                    {/* Matches the select's h-control so the name line stays level with it. */}
-                    <div className="flex min-h-[28px] items-center gap-1.5">
-                        <span className="truncate text-[13px] font-medium">
+            {/* Centred while collapsed; open, the select stays on the name line as the row grows. */}
+            <div className={`flex gap-3 ${expanded ? "items-start" : "items-center"}`}>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-[13px] font-medium leading-5">
                             {tool.name || humanizeActionKey(tool.key)}
                         </span>
                         {tool.stale ? (
@@ -321,14 +323,16 @@ const ToolRow = memo(function ToolRow({
                         size="sm"
                         triggerTitle={triggerTitle}
                         aria-label={`Permission for ${tool.key}`}
-                        // Narrower and smaller-set on a phone, so the tool name beside it stays legible.
-                        triggerClassName={
+                        // A compact 28px chip, so a long list reads as rows, not a column of fields.
+                        triggerClassName={`w-auto min-w-[96px] shrink-0 !h-7 !px-2 !text-[13px] sm:min-w-[116px] ${
                             permission === "deny"
-                                ? "w-auto min-w-[104px] shrink-0 border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)] max-sm:!text-field-sm sm:min-w-[132px]"
-                                : "w-auto min-w-[104px] shrink-0 max-sm:!text-field-sm sm:min-w-[132px]"
-                        }
+                                ? "border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
+                                : ""
+                        }`}
                         // The panel is pinned to the trigger; a compact chip wraps every option label.
                         contentClassName="w-auto min-w-[220px] sm:min-w-[260px]"
+                        // Wider than the chip, so it opens leftward with its right edge on the chip's.
+                        align="end"
                     />
                 )}
             </div>
@@ -386,7 +390,7 @@ function ToolGroup({
     const remaining = matching.length - visible.length
 
     return (
-        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
+        <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)]">
             <div
                 onClick={setOpen}
                 role="button"
@@ -488,7 +492,10 @@ export function PermissionDrawerBody({
     controlsDisabled,
     footNote,
     readOnly,
+    flush = false,
 }: {
+    /** Embedded under a host's own header and gutter: no outer padding of its own. */
+    flush?: boolean
     catalog: PermissionDrawerCatalog
     catalogKey: string
     emptyLabel: string
@@ -566,7 +573,12 @@ export function PermissionDrawerBody({
 
     return (
         // Stable gutter: expanding a row must not summon a scrollbar that shifts every control left.
-        <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4 [scrollbar-gutter:stable]">
+        <ScrollFadeArea
+            className={`flex min-h-0 flex-1 flex-col gap-3.5 [scrollbar-gutter:stable] ${
+                // -mx/px: the field rings keep 4px clear of the scroll clip.
+                flush ? "-mx-1 px-1 pb-1 pt-4" : "p-4"
+            }`}
+        >
             {banner}
 
             {/* One wrapper, so "everything under the banner is inert" reads as one block rather
@@ -691,7 +703,7 @@ export function PermissionDrawerBody({
                     </span>
                 )}
             </div>
-        </div>
+        </ScrollFadeArea>
     )
 }
 
@@ -837,9 +849,8 @@ export function IntegrationPermissionDrawer({
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={onClose}
-            // A bottom sheet below lg and the app's right-edge drawer above it, which is what makes
-            // one component correct in both apps rather than a desktop panel squeezed onto a phone.
-            placement="responsive"
+            // The side on every screen, as every playground drawer opens; the width clamps on a phone.
+            placement="right"
             width={INTEGRATION_DRAWER_WIDTH}
             destroyOnClose
             title={
@@ -854,7 +865,9 @@ export function IntegrationPermissionDrawer({
                 readOnly ? undefined : (
                     // items-end, not items-center: the left column grows downward when an inline
                     // confirm opens under its link, and Done stays on the bottom line with it.
-                    <div className="flex items-end justify-between gap-2">
+                    // w-full: the sheet footer is a flex row, so without it there is no space to
+                    // push the destructive action away from Done.
+                    <div className="flex w-full items-end justify-between gap-2">
                         <div className="flex min-w-0 flex-col items-start gap-2">
                             {source?.footerStart}
                         </div>

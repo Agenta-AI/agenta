@@ -93,15 +93,12 @@ afterEach(async () => {
 })
 
 describe("McpAddServerDrawer, a project with servers", () => {
-    it("names the drawer, the section and the one connect action", async () => {
+    it("names the drawer and the one connect action", async () => {
         await render()
 
         expect(text()).toContain("Add MCP server")
-        expect(text()).toContain("Connected in this project · 3")
         expect(buttonReading("Connect server")).toBeDefined()
-        expect(text()).toContain(
-            "Add opens the permission drawer for this agent. Connect server adds the new server once it's connected.",
-        )
+        expect(text()).toContain("Pick a connected server, or connect a new one.")
     })
 
     it("draws the three row states, and only those", async () => {
@@ -281,7 +278,8 @@ describe("the connection row's actions on a phone", () => {
         for (const label of ["Add Axiom to this agent", "Reconnect Octolens"]) {
             const action = buttonNamed(label)
             expect(action, label).toBeDefined()
-            expect(action!.className, label).toContain("h-control-sm")
+            // Add is icon-only (`size-control-sm`), Reconnect keeps its label (`h-control-sm`).
+            expect(action!.className, label).toMatch(/(?:^|\s)(?:h|size)-control-sm(?:\s|$)/)
             expect(touchTargetHeight(action!.className), label).toBe(TOUCH_TARGET_MINIMUM_PX)
         }
     })

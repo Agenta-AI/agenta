@@ -148,7 +148,7 @@ export function AgentOperationsSections({
                                 starterPrompt="I want an automation that"
                                 onManual={onAdd}
                                 manualTitle="Create manually"
-                                manualHint="Set a schedule or an event, then what the agent does."
+                                manualHint="Run on a schedule or an event"
                                 manualIcon={<Lightning size={16} />}
                             />
                         )}

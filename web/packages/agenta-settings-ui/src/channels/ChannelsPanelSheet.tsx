@@ -6,6 +6,11 @@ import type {ChannelsPanelRenderProps} from "./useChannelPanel"
 export interface ChannelsPanelSheetProps extends ChannelsPanelRenderProps {
     /** The panel's width from `lg` up, in px; 480 when unset. `wide` (720) wins. */
     width?: number
+    /**
+     * `responsive` (default): a bottom sheet on a phone. `right`: the right-edge drawer on every
+     * screen, clamped to the viewport, as the playground's drawers open.
+     */
+    side?: "responsive" | "right"
 }
 
 /**
@@ -23,6 +28,7 @@ export const ChannelsPanelSheet = ({
     onBack,
     icon,
     width,
+    side = "responsive",
 }: ChannelsPanelSheetProps) => (
     <Sheet
         open={open}
@@ -30,15 +36,20 @@ export const ChannelsPanelSheet = ({
             if (!next) onClose()
         }}
     >
-        {/* `responsive`: a bottom sheet on a phone, the right-edge drawer from lg up. */}
+        {/* `responsive`: a bottom sheet on a phone, the right-edge drawer from lg up. `right`: the
+            right edge everywhere. */}
         <SheetContent
-            side="responsive"
+            side={side}
+            // The right edge takes the width inline, clamped so the floating panel fits a phone.
+            className={side === "right" ? "sm:max-w-none" : undefined}
             style={
-                wide || width
-                    ? ({
-                          "--ag-sheet-responsive-width": `${wide ? 720 : width}px`,
-                      } as React.CSSProperties)
-                    : undefined
+                side === "right"
+                    ? {width: wide ? 720 : (width ?? 480), maxWidth: "calc(100% - 1rem)"}
+                    : wide || width
+                      ? ({
+                            "--ag-sheet-responsive-width": `${wide ? 720 : width}px`,
+                        } as React.CSSProperties)
+                      : undefined
             }
         >
             <SheetHeader className="py-3.5">

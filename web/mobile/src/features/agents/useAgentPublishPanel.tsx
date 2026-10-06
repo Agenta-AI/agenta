@@ -23,6 +23,7 @@ export const useAgentPublishPanel = ({
     resolveAgentName,
     projectId,
     workspaceId,
+    side,
 }: {
     agentId: string
     agentName?: string
@@ -32,6 +33,8 @@ export const useAgentPublishPanel = ({
     resolveAgentName?: (id: string) => string | null
     projectId: string
     workspaceId: string
+    /** Where the panel opens on a phone; the playground passes `right`. */
+    side?: "responsive" | "right"
 }) => {
     const {connections, loading, loadError, actions} = useAgentChannels(agentId, {
         resolveAgentName,
@@ -44,7 +47,9 @@ export const useAgentPublishPanel = ({
         loading,
         loadError,
         actions,
-        renderPanel: (props: ChannelsPanelRenderProps) => <ChannelsPanelSheet {...props} />,
+        renderPanel: (props: ChannelsPanelRenderProps) => (
+            <ChannelsPanelSheet {...props} side={side} />
+        ),
         // The same hub the header's Publish opens, API included.
         api: (
             <AgentApiPanel

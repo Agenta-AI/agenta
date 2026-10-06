@@ -1,9 +1,8 @@
 import {useConfigDrive} from "@agenta/entities/drive"
 import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
-import {CircleNotch, Warning} from "@phosphor-icons/react"
+import {CircleNotch} from "@phosphor-icons/react"
 
-import {DriveWarningBadge} from "./DriveFileRow"
 import {FilesPaneToggle} from "./FilesPaneToggle"
 import {useSessionFilesPane} from "./SessionFilesPane"
 
@@ -41,16 +40,7 @@ export default function StorageFilesHeader({
                     <SkeletonBlock className="h-[14px] w-[44px]" />
                 </ConfigRowTrailing>
             ) : drive.errored ? null : (
-                <ConfigRowTrailing
-                    reserve={false}
-                    affordance={
-                        drive.partialErrored ? (
-                            <DriveWarningBadge show>
-                                <Warning size={13} className="text-[var(--ag-colorTextTertiary)]" />
-                            </DriveWarningBadge>
-                        ) : undefined
-                    }
-                >
+                <ConfigRowTrailing reserve={false}>
                     {drive.isFetching ? (
                         <CircleNotch size={11} className="animate-spin" aria-label="Refreshing" />
                     ) : null}

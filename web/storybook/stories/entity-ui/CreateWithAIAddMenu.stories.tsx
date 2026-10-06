@@ -43,7 +43,7 @@ const meta = {
         starterPrompt: "I want a skill that",
         onManual: () => undefined,
         manualTitle: "Add manually",
-        manualHint: "Pick a skill from your library or write one.",
+        manualHint: "From your library, or write one",
         manualIcon: <GraduationCap size={16} />,
     },
     render: (args) => <MenuWithReadout {...args} />,
@@ -59,7 +59,7 @@ export const Integrations: Story = {
         label: "Add integration",
         starterPrompt: "I want to connect",
         manualTitle: "Browse integrations",
-        manualHint: "Pick an app and choose what the agent can do with it.",
+        manualHint: "Pick an app and its actions",
         manualIcon: <PuzzlePiece size={16} />,
     },
 }
@@ -69,7 +69,7 @@ export const Automations: Story = {
         label: "Add automation",
         starterPrompt: "I want an automation that",
         manualTitle: "Create manually",
-        manualHint: "Set a schedule or an event, then what the agent does.",
+        manualHint: "Run on a schedule or an event",
         manualIcon: <Lightning size={16} />,
     },
 }

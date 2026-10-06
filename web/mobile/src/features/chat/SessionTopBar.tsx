@@ -4,10 +4,9 @@ import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-
 import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {useAtomValue} from "jotai"
 
-import {AgentPublishButton} from "../agents/AgentPublishButton"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {SaveAsTemplateButton} from "./SaveAsTemplateButton"
+import {ShareMenu} from "./ShareMenu"
 
 /**
  * The session workspace's top bar — the desktop playground's header on this surface: which agent
@@ -30,7 +29,7 @@ export const SessionTopBar = ({
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
     entityId: string | null
-    /** The session on screen; Save as template sends its request here. */
+    /** The session on screen; the Share menu's template items send their request here. */
     sessionId: string
     /** Pin this session to a newer version the user asked for. */
     onUpdate: (revisionId: string) => void
@@ -64,18 +63,23 @@ export const SessionTopBar = ({
             // The desktop puts this at the header's right edge too, not on the tab strip.
             actions={
                 <>
-                    <ShortcutsHelpButton />
-                    {/* Needs a live conversation to send in: without a revision the session is
-                        the read-only replay (or not created yet). */}
-                    {agentId && entityId ? (
-                        <SaveAsTemplateButton agentId={agentId} sessionId={sessionId} />
-                    ) : null}
+                    {/* Keyboard shortcuts mean nothing on a phone. */}
+                    <ShortcutsHelpButton className="hidden h-7 w-7 shrink-0 p-0 md:inline-flex" />
                     {agentId ? (
-                        <AgentPublishButton
-                            agentId={agentId}
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                        />
+                        <>
+                            <span
+                                aria-hidden
+                                className="hidden h-5 w-px shrink-0 bg-colorBorderSecondary md:block"
+                            />
+                            <ShareMenu
+                                agentId={agentId}
+                                sessionId={sessionId}
+                                // No revision = read-only replay: no conversation to send into.
+                                canRequestTemplate={Boolean(entityId)}
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                            />
+                        </>
                     ) : null}
                 </>
             }

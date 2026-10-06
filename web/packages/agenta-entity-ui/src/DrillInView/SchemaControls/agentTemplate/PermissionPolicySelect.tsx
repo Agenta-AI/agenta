@@ -53,6 +53,8 @@ export interface PermissionPolicySelectProps {
      */
     triggerTitle?: string
     size?: "sm" | "default"
+    /** Which trigger edge the menu lines up with. A row's trailing chip opens leftward ("end"). */
+    align?: "start" | "end"
 }
 
 export function PermissionPolicySelect({
@@ -68,6 +70,7 @@ export function PermissionPolicySelect({
     contentClassName,
     triggerTitle,
     size,
+    align,
 }: PermissionPolicySelectProps) {
     const selected = options.find((option) => option.value === value)
     return (
@@ -86,15 +89,25 @@ export function PermissionPolicySelect({
                     </span>
                 </SelectValue>
             </SelectTrigger>
-            <SelectContent container={container} className={contentClassName}>
+            <SelectContent container={container} className={contentClassName} align={align}>
                 {options.map((option) => (
                     <div key={option.value}>
                         {option.separatorBefore ? <SelectSeparator /> : null}
-                        <SelectItem value={option.value} disabled={option.disabled}>
-                            <span className="flex items-center gap-2.5 py-0.5">
-                                {option.icon}
-                                <span className="flex flex-col">
-                                    <span className="whitespace-nowrap max-sm:text-xs">
+                        <SelectItem
+                            value={option.value}
+                            disabled={option.disabled}
+                            // Neutral rows: hover and the picked row share the accent wash, and the
+                            // check alone marks the value. The check sits on the title line.
+                            className="items-start px-2 py-1.5 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:mt-1 [&>svg]:text-foreground"
+                        >
+                            <span className="flex items-start gap-2.5">
+                                {option.icon ? (
+                                    <span className="mt-[3px] flex shrink-0 text-colorTextSecondary">
+                                        {option.icon}
+                                    </span>
+                                ) : null}
+                                <span className="flex min-w-0 flex-col gap-0.5">
+                                    <span className="whitespace-nowrap font-medium max-sm:text-xs">
                                         {option.title}
                                     </span>
                                     <span className="text-xs leading-snug text-colorTextTertiary max-sm:text-[11px]">

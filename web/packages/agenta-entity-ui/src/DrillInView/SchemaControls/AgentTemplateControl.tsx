@@ -50,11 +50,11 @@ import {
     FileText,
     GraduationCap,
     Plugs,
-    PuzzlePiece,
     Robot,
     ShieldCheck,
     SlidersHorizontal,
     UploadSimple,
+    Wrench,
 } from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
@@ -62,7 +62,6 @@ import {useAtom, useAtomValue, useStore} from "jotai"
 import {ChangedPathsProvider} from "../../drawers/shared"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
-import {AddTextLink} from "./AddTextLink"
 import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
@@ -1081,9 +1080,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         closeEditor,
         disabled,
         statusFor: toolStatusFor,
-        emptyAdd: openSubagentSelector ? (
-            <AddTextLink label="add a subagent" onClick={openSubagentSelector} />
-        ) : undefined,
     }
 
     // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
@@ -1125,7 +1121,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             key: "instructions",
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
-            summary: countSummary(1, "file"),
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
             content: (
@@ -1143,7 +1138,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
                 key: "tools",
-                icon: <PuzzlePiece size={16} />,
+                icon: <Wrench size={16} />,
                 title: "Integrations",
                 summary: countSummary(integrationCount, "integration"),
                 indicator: sectionIndicator("tools"),
@@ -1155,8 +1150,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                             starterPrompt="I want to connect"
                             onManual={openIntegrationDrawer}
                             manualTitle="Browse integrations"
-                            manualHint="Pick an app and choose what the agent can do with it."
-                            manualIcon={<PuzzlePiece size={16} />}
+                            manualHint="Pick an app and its actions"
+                            manualIcon={<Wrench size={16} />}
                         />
                     ) : undefined,
                 defaultOpen: integrationCount > 0,
@@ -1173,15 +1168,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                             removeIntegration(row)
                             closeEditor()
                         }}
-                        // The empty-state add opens the header's drawer, and hides when there is none.
-                        emptyAdd={
-                            openIntegrationDrawer ? (
-                                <AddTextLink
-                                    label="add an integration"
-                                    onClick={openIntegrationDrawer}
-                                />
-                            ) : undefined
-                        }
                     />
                 ),
             },
@@ -1223,9 +1209,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     removeItem={(index: number) => removeItem("mcp", index)}
                     closeEditor={closeEditor}
                     statusFor={mcpStatusFor}
-                    emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
                     addOpen={addMcpOpen}
                     onAddClose={() => setAddMcpOpen(false)}
+                    onAddOpen={() => setAddMcpOpen(true)}
                 />
             ),
         },
@@ -1241,7 +1227,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     starterPrompt="I want a skill that"
                     onManual={handleAddSkill}
                     manualTitle="Add manually"
-                    manualHint="Pick a skill from your library or write one."
+                    manualHint="From your library, or write one"
                     manualIcon={<GraduationCap size={16} />}
                 />
             ) : undefined,
@@ -1261,7 +1247,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         closeEditor={closeEditor}
                         disabled={disabled}
                         statusFor={skillStatusFor}
-                        emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
                     />
                 </>
             ),
@@ -1522,6 +1507,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 disabled={disabled || !sectionDirty}
                 dirty={sectionDirty}
                 width={mh.advancedDrawerWidth}
+                // No top or bottom gutter: the rail and its divider run header to footer.
+                bodyPadding="0 12px"
             >
                 <ChangedPathsProvider changes={drawerChangedPaths}>
                     <ModelHarnessSectionBody

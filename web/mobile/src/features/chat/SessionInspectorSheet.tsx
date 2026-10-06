@@ -54,7 +54,11 @@ export const SessionInspectorSheet = ({
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent side="responsive" className="gap-0 overflow-hidden p-0">
+            {/* Right edge on every screen, like the playground's drawers; clamped on a phone. */}
+            <SheetContent
+                side="right"
+                className="w-[480px] max-w-[calc(100%-1rem)] gap-0 overflow-hidden p-0 sm:max-w-[calc(100%-1rem)]"
+            >
                 <SheetHeader>
                     <SheetTitle>Session inspector</SheetTitle>
                     <SheetDescription className="break-all font-mono text-xs">

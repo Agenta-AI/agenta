@@ -1,6 +1,13 @@
+import {useState} from "react"
+
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import type {AgentVersionRow} from "@agenta/playground/state"
-import {ChangesPane, RevertFooter, VersionList} from "@agenta/playground-ui/agent-version-history"
+import {
+    ChangesPane,
+    RevertConfirmDialog,
+    RevertFooter,
+    VersionList,
+} from "@agenta/playground-ui/agent-version-history"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // The version-history drawer's three panes (#6405), in the states a reviewer cannot click to.
@@ -226,9 +233,28 @@ export const FooterDisabled: FooterStory = {
     args: {...footerArgs, phase: "idle", disabled: true},
 }
 
-export const FooterConfirm: FooterStory = {
-    ...FooterIdle,
-    args: {...footerArgs, phase: "confirm"},
+/** The revert confirmation, masked and centred inside the drawer panel. */
+const ConfirmInPanel = () => {
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
+    return (
+        <div
+            ref={setPanel}
+            className="relative h-[420px] w-[780px] rounded-xl border border-solid border-[var(--ag-colorBorderSecondary)]"
+        >
+            <RevertConfirmDialog
+                open
+                container={panel}
+                selectedVersion={2}
+                latestVersion={4}
+                onCancel={() => undefined}
+                onConfirm={() => undefined}
+            />
+        </div>
+    )
+}
+
+export const RevertConfirm: StoryObj = {
+    render: () => <ConfirmInPanel />,
 }
 
 export const FooterReverting: FooterStory = {

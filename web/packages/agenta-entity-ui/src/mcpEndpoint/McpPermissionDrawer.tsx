@@ -39,7 +39,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {formatCount} from "@agenta/shared/utils"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Alert, Button, IconTile, InlineConfirm} from "@agenta/ui/ui"
-import {ArrowClockwise, Plugs, WarningCircle} from "@phosphor-icons/react"
+import {ArrowClockwise, CaretLeft, Plugs, Trash, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {
@@ -104,6 +104,8 @@ export interface McpPermissionDrawerProps {
     onReconnect?: () => void
     /** Detach the server from THIS agent. Omitted, the footer link is not offered. */
     onRemove?: () => void
+    /** Present when this drawer was opened from the add-server drawer: go back to that list. */
+    onBack?: () => void
     /**
      * The agent-wide `runner.permissions.default`, for the note under the preset.
      *
@@ -161,15 +163,28 @@ function DrawerTitle({
     toolPrefix,
     status,
     toolCount,
+    onBack,
 }: {
     connectionName: string
     toolPrefix?: string
     status: McpConnectionStatus
     toolCount?: number
+    onBack?: () => void
 }) {
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the health past the edge.
         <div className="flex w-full min-w-0 items-center gap-3">
+            {onBack ? (
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Back to servers"
+                    onClick={onBack}
+                    className="-ml-1 -mr-1 shrink-0"
+                >
+                    <CaretLeft />
+                </Button>
+            ) : null}
             {/* One generic glyph for every server: an MCP endpoint has no branding to show, and a
                 per-server logo would have to be guessed from a URL (decision 3). */}
             <IconTile size={24}>
@@ -225,11 +240,11 @@ function RemoveFromAgent({
         // the app's focus ring, and this is the destructive control.
         <Button
             variant="ghost"
-            size="sm"
             disabled={disabled}
             onClick={() => setConfirming(true)}
-            className="px-0 text-[13px] font-normal text-colorError hover:bg-transparent hover:opacity-80"
+            className="-ml-2 px-2 font-normal !text-colorError hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)]"
         >
+            <Trash data-icon="inline-start" />
             Remove from agent
         </Button>
     )
@@ -248,6 +263,7 @@ export default function McpPermissionDrawer({
     onChange,
     onReconnect,
     onRemove,
+    onBack,
     agentPolicy,
     readOnly,
     disabled,
@@ -514,6 +530,7 @@ export default function McpPermissionDrawer({
                 catalogKey: slug ?? "mcp",
                 title: (
                     <DrawerTitle
+                        onBack={onBack}
                         connectionName={name}
                         toolPrefix={toolPrefix}
                         status={status}

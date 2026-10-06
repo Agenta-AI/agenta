@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
-    fetchToolConnection,
     isConnectionActive,
     isConnectionValid,
     toolExecutionDrawerAtom,
@@ -11,10 +10,15 @@ import {
     useToolIntegrationDetail,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
-import {ConnectDrawer, ToolExecutionDrawer} from "@agenta/entity-ui/gatewayTool"
+import {
+    ConnectDrawer,
+    FinishConnectionDialog,
+    ToolExecutionDrawer,
+    useRefreshToolConnection,
+} from "@agenta/entity-ui/gatewayTool"
 import {getSettingsSidebarIcon} from "@agenta/settings"
-import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {connectionDisplayName} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, MagnifyingGlass, Play, Trash, XCircle} from "@phosphor-icons/react"
@@ -30,7 +34,6 @@ import {
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
-import {FinishConnectionDialog} from "./FinishConnectionDialog"
 import {useToolsIntegrations, type CatalogIntegrationItem} from "./hooks/useToolsIntegrations"
 import {IntegrationCatalog, IntegrationLogo} from "./IntegrationCatalog"
 
@@ -55,8 +58,6 @@ const DEFAULT_COPY: GatewayToolsSectionCopy = {
     emptyBody: "Connect a tool to let your agents call it.",
     noMatch: (term) => `No tools match “${term}”`,
 }
-
-const OAUTH_POPUP = "width=600,height=700,popup=yes"
 
 /** The same reading as ConnectionStatusBadge. */
 const connectionStatus = (
@@ -103,6 +104,18 @@ const AppName = ({
     return <>{entry?.name ?? connection.name ?? connection.slug}</>
 }
 
+/** The connection's name; one stored only as its slug reads as the app ("YouTube (main)"). */
+const ConnectionName = ({
+    connection,
+    known,
+}: {
+    connection: ToolConnection
+    known?: CatalogIntegrationItem
+}) => {
+    const entry = useCatalogEntry(connection.integration_key ?? "", known)
+    return <>{connectionDisplayName(connection, entry?.name) || "—"}</>
+}
+
 const ConnectionDescription = ({
     integrationKey,
     known,
@@ -141,8 +154,7 @@ export default function GatewayToolsSection({
         [copyOverrides],
     )
     const {connections, isLoading, refetch} = useToolConnectionsQuery()
-    const {handleDelete, handleRefresh, handleRevoke, invalidateConnections} =
-        useToolConnectionActions()
+    const {handleDelete, handleRevoke} = useToolConnectionActions()
     // The catalog's first page: the logos, and the Popular rows.
     const {integrations, isLoading: integrationsLoading} = useToolsIntegrations()
     const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
@@ -175,76 +187,7 @@ export default function GatewayToolsSection({
         [setExecutionDrawer],
     )
 
-    const onRefresh = useCallback(
-        async (connection: ToolConnection) => {
-            if (!connection.id) return
-            const connectionId = connection.id
-            // An OAuth popup opens inside the click, before the await, so it is not blocked.
-            const oauth = /oauth/i.test(String(connection.data?.auth_scheme ?? ""))
-            let popup = oauth ? window.open("", "tools_oauth", OAUTH_POPUP) : null
-            try {
-                const result = await handleRefresh(connectionId)
-
-                const redirectUrl = (result.connection?.data as Record<string, unknown> | undefined)
-                    ?.redirect_url
-
-                if (typeof redirectUrl === "string" && redirectUrl) {
-                    if (popup) popup.location.href = redirectUrl
-                    else popup = window.open(redirectUrl, "tools_oauth", OAUTH_POPUP)
-
-                    const cleanup = async () => {
-                        window.focus()
-                        // Poll the individual connection endpoint which checks
-                        // Composio for status and updates is_valid in the DB.
-                        try {
-                            await fetchToolConnection(connectionId)
-                        } catch {
-                            /* best-effort */
-                        }
-                        invalidateConnections()
-                        message.success("Connection refreshed")
-                    }
-
-                    const trustedOrigins = new Set<string>([window.location.origin])
-                    for (const url of [getAgentaApiUrl(), getAgentaWebUrl()]) {
-                        if (!url) continue
-                        try {
-                            trustedOrigins.add(new URL(url).origin)
-                        } catch {
-                            // ignore invalid env URLs
-                        }
-                    }
-
-                    const handler = (event: MessageEvent) => {
-                        if (
-                            event.data?.type === "tools:oauth:complete" &&
-                            trustedOrigins.has(event.origin)
-                        ) {
-                            window.removeEventListener("message", handler)
-                            void cleanup()
-                        }
-                    }
-                    window.addEventListener("message", handler)
-
-                    // Fallback: detect popup closed
-                    const pollTimer = setInterval(() => {
-                        if (popup && popup.closed) {
-                            clearInterval(pollTimer)
-                            window.removeEventListener("message", handler)
-                            void cleanup()
-                        }
-                    }, 1000)
-                } else {
-                    popup?.close()
-                    message.success("Connection refreshed")
-                }
-            } catch {
-                popup?.close()
-                message.error("Failed to refresh connection")
-            }
-        },
-        [handleRefresh, invalidateConnections],
-    )
+    const onRefresh = useRefreshToolConnection()
 
     const confirmDelete = useCallback(
         (connection: ToolConnection) => {
@@ -313,7 +256,7 @@ export default function GatewayToolsSection({
                                 name={name}
                             />
                         ),
-                        name,
+                        name: <ConnectionName connection={connection} known={integration} />,
                         description: (
                             <ConnectionDescription
                                 integrationKey={connection.integration_key ?? ""}

@@ -402,7 +402,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             // comes in, so every shortcut they advertise is inert.
                             <div
                                 className={clsx(
-                                    "flex flex-wrap items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out",
+                                    // Below md: phones have no Enter/Cmd chords worth advertising.
+                                    "flex flex-wrap items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out max-md:hidden",
                                     hintsVisible
                                         ? "translate-y-0 opacity-100"
                                         : "pointer-events-none translate-y-0.5 opacity-0",

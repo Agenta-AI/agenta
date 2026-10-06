@@ -96,6 +96,8 @@ export interface McpConnectJourneyProps {
     } | null
     /** The connection, once it is real. Agents reference it by `slug`. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
+    /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
+    container?: HTMLElement | null
 }
 
 /** The header, which says what is being done rather than where in it we are. */
@@ -366,6 +368,7 @@ export function McpConnectSheet({
     journey,
     existingNames = [],
     reconnect = null,
+    container = null,
 }: McpConnectSheetProps) {
     const {state} = journey
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
@@ -655,6 +658,8 @@ export function McpConnectSheet({
             footer={null}
             width={480}
             destroyOnClose
+            getContainer={container ?? false}
+            contained={!!container}
         >
             <ModalContent>
                 <div className="flex flex-col gap-4" data-testid="mcp-connect-journey">

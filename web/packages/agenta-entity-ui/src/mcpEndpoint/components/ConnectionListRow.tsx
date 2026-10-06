@@ -18,7 +18,6 @@
  */
 import {getMcpConnectionStatusLabel, type McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
 import {formatCount} from "@agenta/shared/utils"
-import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {Button, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
 import {ArrowClockwise, Check, Plugs, Plus} from "@phosphor-icons/react"
@@ -58,12 +57,18 @@ export function ConnectionListRow({
         : toolCount == null
           ? host
           : `${host} · ${formatCount(toolCount, "tool")}`
+    // The whole row runs its one action; the button stays the keyboard path to it.
+    const rowAction = added || busy ? undefined : working ? onAdd : onReconnect
 
     return (
         <div
             data-state={added ? "added" : status}
+            onClick={rowAction}
             className={cn(
-                "flex items-center gap-3 rounded-lg border border-solid border-colorBorderSecondary px-3.5 py-3",
+                // Borderless; the -mx/px pair keeps the icon on the search field's edge while
+                // the hover fill reaches past it.
+                "-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors",
+                rowAction && "cursor-pointer hover:bg-accent/60",
                 added && "opacity-70",
             )}
         >
@@ -90,33 +95,31 @@ export function ConnectionListRow({
                         Added
                     </span>
                 ) : working ? (
-                    <>
-                        {/* The spec draws a bare dot. The label stays for a screen reader,
-                            which would otherwise hear an unexplained control. */}
-                        <StatusIndicator
-                            tone="success"
-                            label={<span className="sr-only">Connected</span>}
-                        />
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={busy}
-                            onClick={onAdd}
-                            aria-label={`Add ${name} to this agent`}
-                            // 28px of chrome on both actions, so the row keeps the desktop
-                            // rhythm, and an invisible box around it for a finger.
-                            className={touchTargetExpansion(28)}
-                        >
-                            <Plus size={12} />
-                            Add
-                        </Button>
-                    </>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={busy}
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            onAdd?.()
+                        }}
+                        aria-label={`Add ${name} to this agent`}
+                        title="Add to this agent"
+                        // 28px of chrome on both actions, so the row keeps the desktop
+                        // rhythm, and an invisible box around it for a finger.
+                        className={touchTargetExpansion(28)}
+                    >
+                        <Plus size={16} />
+                    </Button>
                 ) : (
                     <Button
                         variant="outline"
                         size="sm"
                         disabled={busy}
-                        onClick={onReconnect}
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            onReconnect?.()
+                        }}
                         aria-label={`Reconnect ${name}`}
                         className={touchTargetExpansion(28)}
                     >

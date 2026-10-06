@@ -18,14 +18,14 @@ const IDENTITY_SIZE: Record<
     bar: {
         row: "flex min-w-0 items-center gap-1.5 sm:gap-2",
         chip: AGENT_CHIP_BOX,
-        glyph: 15,
+        glyph: 13,
         initialsFallback: false,
         label: "span",
     },
     title: {
         row: "flex min-w-0 items-center gap-2",
         // ::after hit extender — 28px is under the touch guideline. Below `sm` the chip drops to
-        // the playground bar's 24px, so a phone header carries one identity size, not two.
+        // 24px to fit a phone header.
         chip: "relative flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold after:absolute after:-inset-1.5 after:content-[''] sm:size-7 sm:rounded-lg",
         glyph: 16,
         initialsFallback: true,
@@ -37,7 +37,7 @@ export interface AgentIdentityProps {
     /** Workflow (artifact) id. Null = no agent resolved yet, so neither half is editable. */
     workflowId: string | null | undefined
     name: string
-    /** `bar` is the playground header's 24px chip + 14/16px name; `title` a page's 28px + 24px. */
+    /** `bar` is the playground header's 20px chip + 14/16px name; `title` a page's 28px + 24px. */
     size?: AgentIdentitySize
     /** Off for a surface that only shows the agent — no picker, no rename. */
     editable?: boolean

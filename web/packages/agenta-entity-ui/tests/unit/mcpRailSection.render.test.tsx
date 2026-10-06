@@ -97,7 +97,6 @@ const renderSection = async ({
                         : openPermissions(index),
                 removeItem: vi.fn(),
                 closeEditor: vi.fn(),
-                emptyAdd: null,
                 statusFor: (row): ItemRowStatus | undefined =>
                     loginExpired(row) ? {tone: "incomplete"} : undefined,
                 extraFor: (row) =>
@@ -139,8 +138,8 @@ afterEach(async () => {
 })
 
 describe("the MCP section's count line", () => {
-    it("says None, one server, or a plural", () => {
-        expect(countSummary(0, "server")).toBe("None")
+    it("says nothing, one server, or a plural", () => {
+        expect(countSummary(0, "server")).toBe("")
         expect(countSummary(1, "server")).toBe("1 server")
         expect(countSummary(2, "server")).toBe("2 servers")
     })
