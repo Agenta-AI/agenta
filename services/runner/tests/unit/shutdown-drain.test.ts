@@ -54,6 +54,13 @@ import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import {
+  ABANDONED_ATTEMPT_REASON,
+  SubscriptionLoginAttempts,
+  setSubscriptionLoginAttempts,
+  type AttemptOutcome,
+  type DeviceCodeLogin,
+} from "../../src/subscription-login-attempts.ts";
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const TEST_TOKEN = "test-runner-token";
@@ -70,6 +77,7 @@ afterEach(() => {
   resetDrainForTest();
   resetExecutionsForTest();
   resetActiveTurns();
+  setSubscriptionLoginAttempts(undefined);
   vi.restoreAllMocks();
   if (previousToken === undefined) delete process.env[TOKEN_ENV];
   else process.env[TOKEN_ENV] = previousToken;
@@ -689,5 +697,74 @@ describe("teardown at the end of the shutdown", () => {
     }
     assert.deepEqual(inFlightSweeps, ["shutdown-in-flight"]);
     assert.equal(teardownDisposition("shutdown-in-flight"), "delete");
+  });
+});
+
+describe("device logins at shutdown", () => {
+  /** A device-code provider whose approval the test resolves, and a store over it. */
+  function loginStore() {
+    let approve: () => void = () => {};
+    const login: DeviceCodeLogin = (opts) => {
+      opts.onDeviceCode({
+        userCode: "ABCD-1234",
+        verificationUri: "https://auth.openai.com/codex/device",
+        expiresInSeconds: 900,
+      });
+      return new Promise((resolve, reject) => {
+        approve = () =>
+          resolve({ access: "a", refresh: "r", expires: 1_800_000_000_000 });
+        opts.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      });
+    };
+    const outcomes: AttemptOutcome[] = [];
+    const attempts = new SubscriptionLoginAttempts(
+      login,
+      async (outcome) => {
+        outcomes.push(outcome);
+      },
+      noLog,
+    );
+    setSubscriptionLoginAttempts(attempts);
+    return { attempts, outcomes, approve: () => approve() };
+  }
+
+  const OWNER = { projectId: "project-1", secretId: "secret-1" };
+
+  it("reports a sign-in still waiting at teardown as failed, so its user can start again", async () => {
+    const { attempts, outcomes } = loginStore();
+    const { attemptId } = await attempts.start("chatgpt", OWNER);
+
+    await tearDownHeldSandboxes([], async () => {});
+
+    assert.deepEqual(outcomes, [
+      { attemptId, ...OWNER, state: "failed", error: ABANDONED_ATTEMPT_REASON },
+    ]);
+    assert.equal(attempts.size(), 0);
+  });
+
+  it("lets a sign-in that finishes during the drain wait report its success", async () => {
+    const { attempts, outcomes, approve } = loginStore();
+    const { attemptId } = await attempts.start("chatgpt", OWNER);
+    let now = 0;
+
+    await drainThenTearDown({
+      waitMs: 1_000,
+      busy: () => now < 500,
+      cancelRunning: async () => {},
+      cancelParked: async () => {},
+      tearDown: () => tearDownHeldSandboxes([], async () => {}),
+      log: noLog,
+      now: () => now,
+      sleep: async (ms) => {
+        // The user approves the code while the pod waits for its turns.
+        approve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        now += ms;
+      },
+    });
+
+    assert.equal(outcomes.length, 1);
+    assert.equal(outcomes[0].attemptId, attemptId);
+    assert.equal(outcomes[0].state, "succeeded");
   });
 });

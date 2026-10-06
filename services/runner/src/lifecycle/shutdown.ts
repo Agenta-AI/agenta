@@ -18,7 +18,8 @@
  *     `applyCommand`. No Stop outcome reaches the api, so the pending approval stays answerable,
  *     and the user's answer later runs cold on another pod through the stored decision. Routing
  *     this through the Stop path would make the api cancel the approval.
- *  4. Tear down. Delete every sandbox the process holds, then exit.
+ *  4. Tear down. Report every device login still waiting on its provider as failed, so its user
+ *     can start again at once, delete every sandbox the process holds, then exit.
  *
  * Every step is bounded, so the sequence fits inside the orchestrator's grace period.
  */

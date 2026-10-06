@@ -147,45 +147,42 @@ class _FakeSecretsDAO:
 
 
 class _FakeRunner:
-    """Answers the runner routes from a script the test sets."""
+    """Answers the runner routes from a script the test sets, and records every call."""
 
     def __init__(self, *, configured: bool = True):
         self.configured = configured
         self.next_attempt: Optional[RunnerLoginAttempt] = None
-        self.next_start: Optional[RunnerLoginAttempt] = None
         # One entry per start, taken in order, for the tests that start twice at once.
         self.starts: list = []
         self.raises: Optional[Exception] = None
         self.deleted: list = []
-        self.reads = 0
+        # The address each DELETE went to, in the order of `deleted`. None is the Service URL.
+        self.deleted_at: list = []
+        self.started_with: list = []
         self.started = 0
         # Set it to hold both starts inside the runner call, so two tabs reach the row
         # with an attempt each.
         self.start_gate: Optional[asyncio.Event] = None
-        # Set it to hold a poll inside the runner call, so the test can move the row on
-        # underneath a poll that is already in flight.
-        self.read_gate: Optional[asyncio.Event] = None
 
-    async def start_attempt(self, *, provider):
+    @property
+    def calls(self) -> int:
+        return self.started + len(self.deleted)
+
+    async def start_attempt(self, *, provider, project_id, secret_id):
         self.started += 1
+        self.started_with.append(
+            {"provider": provider, "project_id": project_id, "secret_id": secret_id}
+        )
         if self.raises is not None:
             raise self.raises
         answer = self.starts.pop(0) if self.starts else None
         if self.start_gate is not None:
             await self.start_gate.wait()
-        return answer or self.next_start or self.next_attempt
+        return answer or self.next_attempt
 
-    async def read_attempt(self, *, attempt_id):
-        self.reads += 1
-        if self.raises is not None:
-            raise self.raises
-        answer = self.next_attempt
-        if self.read_gate is not None:
-            await self.read_gate.wait()
-        return answer
-
-    async def delete_attempt(self, *, attempt_id):
+    async def delete_attempt(self, *, attempt_id, base_url=None):
         self.deleted.append(attempt_id)
+        self.deleted_at.append(base_url)
         return True
 
 
@@ -234,13 +231,20 @@ async def _read(vault: VaultService, secret_id):
     return await vault.get_secret_by_id(secret_id=secret_id, project_id=PROJECT_ID)
 
 
-async def _wait_for_the_poll(runner: "_FakeRunner") -> None:
-    """Let a polling task run until it is parked inside the gated runner call."""
-    for _ in range(100):
-        if runner.reads:
-            return
-        await asyncio.sleep(0)
-    raise AssertionError("the poll never reached the runner")
+async def _report(service, secret_id, attempt_id="att-1", **outcome):
+    """Report an outcome the way the runner pod that ran the attempt does."""
+    await service.report_attempt_outcome(
+        project_id=PROJECT_ID,
+        secret_id=secret_id,
+        attempt_id=attempt_id,
+        **outcome,
+    )
+
+
+async def _poll(service, secret_id, attempt_id="att-1"):
+    return await service.read_attempt(
+        project_id=PROJECT_ID, secret_id=secret_id, attempt_id=attempt_id
+    )
 
 
 class TestCreateRules:
@@ -286,6 +290,7 @@ class TestAttemptLifecycle:
             verification_uri="https://example.test/device",
             expires_at=_later(),
             poll_after_ms=5000,
+            runner_address="http://10.8.2.17:8765",
         )
 
         view = await service.start_attempt(
@@ -302,6 +307,30 @@ class TestAttemptLifecycle:
         assert (
             stored.data.login_attempt.verification_uri == "https://example.test/device"
         )
+        assert stored.data.login_attempt.state == "pending"
+
+    async def test_start_tells_the_runner_where_to_report_and_keeps_its_address(
+        self, vault, runner, service
+    ):
+        secret = await _make_secret(vault)
+        runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-1",
+            state="pending",
+            expires_at=_later(),
+            runner_address="http://10.8.2.17:8765",
+        )
+
+        await service.start_attempt(project_id=PROJECT_ID, secret_id=secret.id)
+
+        assert runner.started_with == [
+            {
+                "provider": "chatgpt",
+                "project_id": str(PROJECT_ID),
+                "secret_id": str(secret.id),
+            }
+        ]
+        stored = (await _read(vault, secret.id)).data.login_attempt
+        assert stored.runner_address == "http://10.8.2.17:8765"
 
     async def test_start_is_idempotent_while_an_attempt_is_live(
         self, vault, runner, service
@@ -335,54 +364,74 @@ class TestAttemptLifecycle:
 
         assert view.attempt_id == "att-new"
 
-    async def test_a_succeeded_attempt_stores_the_login_and_bumps_both_counters(
+    async def test_start_replaces_a_finished_attempt_nobody_polled(
+        self, vault, runner, service
+    ):
+        # The browser closed before it read the outcome. The record is finished, not
+        # waiting, so a new sign-in must not be handed the old one back.
+        secret = await _make_secret(
+            vault,
+            {
+                "login_attempt": {
+                    "id": "att-old",
+                    "expires_at": _later(),
+                    "state": "failed",
+                    "error": "login_failed",
+                }
+            },
+        )
+        runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-new", state="pending", expires_at=_later()
+        )
+
+        view = await service.start_attempt(project_id=PROJECT_ID, secret_id=secret.id)
+
+        assert view.attempt_id == "att-new"
+        stored = (await _read(vault, secret.id)).data.login_attempt
+        assert stored.id == "att-new"
+        assert stored.state == "pending"
+        assert stored.error is None
+
+    async def test_a_reported_success_stores_the_login_and_the_next_poll_answers_it(
         self, vault, runner, service
     ):
         secret = await _make_secret(
             vault,
             {"login_attempt": {"id": "att-1", "expires_at": _later()}},
         )
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1", state="succeeded", login=LOGIN
-        )
 
-        view = await service.read_attempt(
-            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
-        )
-
-        assert view.state == "succeeded"
-        assert runner.deleted == ["att-1"]
+        await _report(service, secret.id, state="succeeded", login=LOGIN)
 
         stored = await _read(vault, secret.id)
         assert stored.data.login.access == LOGIN["access"]
         assert stored.data.login_version == 1
         assert stored.data.login_generation == 1
         assert stored.data.login_state == SubscriptionLoginState.READY
-        assert stored.data.login_attempt is None
+        # The record waits for the browser's poll; the credential is not in it.
+        assert stored.data.login_attempt.state == "succeeded"
+        assert LOGIN["refresh"] not in stored.data.login_attempt.model_dump_json()
 
-    async def test_a_second_poll_of_the_same_success_does_not_bump_again(
-        self, vault, runner, service
-    ):
+        view = await _poll(service, secret.id)
+
+        assert view.state == "succeeded"
+        assert view.error is None
+        assert (await _read(vault, secret.id)).data.login_attempt is None
+        assert runner.calls == 0
+
+        # The answer is read once. A second poll finds no attempt, as it did when the
+        # first poll stored the login itself.
+        with pytest.raises(SubscriptionLoginAttemptNotFound):
+            await _poll(service, secret.id)
+
+    async def test_a_repeated_success_report_does_not_bump_again(self, vault, service):
         secret = await _make_secret(
             vault,
             {"login_attempt": {"id": "att-1", "expires_at": _later()}},
         )
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1", state="succeeded", login=LOGIN
-        )
 
-        await service.read_attempt(
-            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
-        )
-        # The runner keeps handing the login out until the DELETE lands, so replay the
-        # same store the way a second concurrent poll would.
-        await service._store_new_login(
-            project_id=PROJECT_ID,
-            secret_id=secret.id,
-            user_id=None,
-            attempt_id="att-1",
-            login=LOGIN,
-        )
+        # The runner retries a report whose answer it lost.
+        await _report(service, secret.id, state="succeeded", login=LOGIN)
+        await _report(service, secret.id, state="succeeded", login=LOGIN)
 
         stored = await _read(vault, secret.id)
         assert stored.data.login_version == 1
@@ -419,6 +468,7 @@ class TestAttemptLifecycle:
         assert stored.data.login_version == 1
         assert stored.data.login_generation == 1
         assert stored.data.login_attempt.id == "att-1"
+        assert stored.data.login_attempt.state == "succeeded"
 
     async def test_a_failed_attempt_reports_its_reason_without_touching_the_row(
         self, vault, runner, service
@@ -436,36 +486,76 @@ class TestAttemptLifecycle:
                 "login_error": "refresh_rejected",
             },
         )
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1", state="failed", error="access_denied"
-        )
 
-        view = await service.read_attempt(
-            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
-        )
+        await _report(service, secret.id, state="failed", error="access_denied")
+        view = await _poll(service, secret.id)
 
         assert view.state == "failed"
         assert view.error == "access_denied"
         stored = await _read(vault, secret.id)
         assert stored.data.login_attempt is None
         assert stored.data.login_error == "refresh_rejected"
+        assert runner.calls == 0
 
-    async def test_an_attempt_the_runner_forgot_reads_as_failed(
-        self, vault, runner, service
-    ):
+    async def test_a_reported_expiry_polls_as_expired(self, vault, service):
         secret = await _make_secret(
             vault,
             {"login_attempt": {"id": "att-1", "expires_at": _later()}},
         )
-        runner.raises = SubscriptionLoginAttemptNotFound()
 
-        view = await service.read_attempt(
-            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
+        await _report(service, secret.id, state="expired", error="timed_out")
+        view = await _poll(service, secret.id)
+
+        assert view.state == "expired"
+        assert view.error == "timed_out"
+        assert (await _read(vault, secret.id)).data.login_attempt is None
+
+    async def test_a_long_reported_reason_is_clipped(self, vault, service):
+        secret = await _make_secret(
+            vault,
+            {"login_attempt": {"id": "att-1", "expires_at": _later()}},
         )
 
-        assert view.state == "failed"
-        assert view.error == "attempt not found; try again"
+        await _report(service, secret.id, state="failed", error="x" * 1000)
+
+        assert len((await _poll(service, secret.id)).error) == 200
+
+    async def test_a_pending_attempt_past_its_deadline_polls_as_expired(
+        self, vault, runner, service
+    ):
+        """The runner pod that ran the provider poll died before it reported.
+
+        Nothing will ever report this attempt. Its deadline is the provider's own window,
+        so once it has passed the attempt cannot succeed any more.
+        """
+        secret = await _make_secret(
+            vault,
+            {"login_attempt": {"id": "att-1", "expires_at": _later(-5)}},
+        )
+
+        view = await _poll(service, secret.id)
+
+        assert view.state == "expired"
+        assert view.error == "timed_out"
         assert (await _read(vault, secret.id)).data.login_attempt is None
+        assert runner.calls == 0
+
+    async def test_a_pending_attempt_just_past_its_deadline_still_waits_for_a_report(
+        self, vault, service
+    ):
+        # The runner reports the provider's last answer at about the deadline. A success
+        # that lands a moment late must still find its record.
+        just_past = (datetime.now(timezone.utc) - timedelta(seconds=5)).isoformat()
+        secret = await _make_secret(
+            vault,
+            {"login_attempt": {"id": "att-1", "expires_at": just_past}},
+        )
+
+        assert (await _poll(service, secret.id)).state == "pending"
+
+        await _report(service, secret.id, state="succeeded", login=LOGIN)
+
+        assert (await _poll(service, secret.id)).state == "succeeded"
 
     async def test_polling_another_connections_attempt_id_is_refused(
         self, vault, runner, service
@@ -474,56 +564,47 @@ class TestAttemptLifecycle:
             vault,
             {"login_attempt": {"id": "att-mine", "expires_at": _later()}},
         )
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-theirs", state="succeeded", login=LOGIN
-        )
 
         with pytest.raises(SubscriptionLoginAttemptNotFound):
-            await service.read_attempt(
-                project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-theirs"
-            )
+            await _poll(service, secret.id, "att-theirs")
 
-        assert runner.reads == 0
+        assert runner.calls == 0
 
     async def test_a_pending_poll_does_not_rewrite_an_unchanged_attempt(
         self, vault, runner, service
     ):
-        expires_at = _later()
         secret = await _make_secret(
             vault,
             {
                 "login_attempt": {
                     "id": "att-1",
-                    "expires_at": expires_at,
+                    "expires_at": _later(),
                     "user_code": "ABCD",
                     "verification_uri": "https://example.test/device",
                     "poll_after_ms": 5000,
                 }
             },
         )
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1",
-            state="pending",
-            user_code="ABCD",
-            verification_uri="https://example.test/device",
-            expires_at=expires_at,
-            poll_after_ms=5000,
-        )
         before = (await _read(vault, secret.id)).data.model_dump(mode="json")
 
-        view = await service.read_attempt(
-            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
-        )
+        view = await _poll(service, secret.id)
 
         assert view.state == "pending"
         assert (await _read(vault, secret.id)).data.model_dump(mode="json") == before
+        assert runner.calls == 0
 
-    async def test_cancel_clears_the_attempt_and_purges_the_runner(
+    async def test_cancel_clears_the_attempt_and_stops_it_on_its_own_pod(
         self, vault, runner, service
     ):
         secret = await _make_secret(
             vault,
-            {"login_attempt": {"id": "att-1", "expires_at": _later()}},
+            {
+                "login_attempt": {
+                    "id": "att-1",
+                    "expires_at": _later(),
+                    "runner_address": "http://10.8.2.17:8765",
+                }
+            },
         )
 
         view = await service.cancel_attempt(
@@ -532,7 +613,129 @@ class TestAttemptLifecycle:
 
         assert view.state == "cancelled"
         assert runner.deleted == ["att-1"]
+        assert runner.deleted_at == ["http://10.8.2.17:8765"]
         assert (await _read(vault, secret.id)).data.login_attempt is None
+
+    async def test_cancel_without_a_recorded_address_uses_the_service_url(
+        self, vault, runner, service
+    ):
+        secret = await _make_secret(
+            vault,
+            {"login_attempt": {"id": "att-1", "expires_at": _later()}},
+        )
+
+        await service.cancel_attempt(
+            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
+        )
+
+        assert runner.deleted == ["att-1"]
+        assert runner.deleted_at == [None]
+
+    async def test_cancel_clears_the_record_before_it_sends_the_delete(
+        self, vault, runner, service
+    ):
+        """A DELETE to a dead pod waits out its timeout. The record must already be gone,
+        so a sign-in started again meanwhile gets a new code, and a report that lands
+        meanwhile finds nothing to apply to."""
+        secret = await _make_secret(
+            vault,
+            {"login_attempt": {"id": "att-1", "expires_at": _later()}},
+        )
+        seen_during_delete: list = []
+        late_report: list = []
+        send_delete = runner.delete_attempt
+
+        async def delete_while_a_report_lands(**kwargs):
+            seen_during_delete.append(
+                (await _read(vault, secret.id)).data.login_attempt
+            )
+            try:
+                await _report(service, secret.id, state="succeeded", login=LOGIN)
+            except SubscriptionLoginAttemptNotFound as e:
+                late_report.append(e)
+            return await send_delete(**kwargs)
+
+        runner.delete_attempt = delete_while_a_report_lands
+
+        view = await service.cancel_attempt(
+            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
+        )
+
+        assert view.state == "cancelled"
+        assert seen_during_delete == [None]
+        assert len(late_report) == 1, "the late report is refused with not-found"
+        stored = (await _read(vault, secret.id)).data
+        assert stored.login is None
+        assert stored.login_version == 0
+        assert stored.login_attempt is None
+
+    async def test_cancel_after_a_reported_success_answers_the_success(
+        self, vault, runner, service
+    ):
+        # The user approved the code and the runner reported it before the cancel arrived.
+        # The login the user authorized stays, and the cancel says so.
+        secret = await _make_secret(
+            vault,
+            {"login_attempt": {"id": "att-1", "expires_at": _later()}},
+        )
+        await _report(service, secret.id, state="succeeded", login=LOGIN)
+
+        view = await service.cancel_attempt(
+            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
+        )
+
+        assert view.state == "succeeded"
+        assert view.error is None
+        # The provider poll already ended, so there is nothing to stop.
+        assert runner.deleted == []
+        stored = (await _read(vault, secret.id)).data
+        assert stored.login_state == SubscriptionLoginState.READY
+        assert stored.login_attempt is None
+
+    async def test_cancel_after_a_reported_failure_answers_the_failure(
+        self, vault, runner, service
+    ):
+        secret = await _make_secret(
+            vault,
+            {"login_attempt": {"id": "att-1", "expires_at": _later()}},
+        )
+        await _report(service, secret.id, state="failed", error="login_failed")
+
+        view = await service.cancel_attempt(
+            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
+        )
+
+        assert view.state == "failed"
+        assert view.error == "login_failed"
+        assert runner.deleted == []
+
+    async def test_a_dead_attempt_poll_does_not_clear_a_success_that_landed_meanwhile(
+        self, vault, service
+    ):
+        """The poll read a pending record past its deadline; the runner's success report
+        landed before the poll took the lock to clear it. The success must win."""
+        secret = await _make_secret(
+            vault,
+            {"login_attempt": {"id": "att-1", "expires_at": _later(-5)}},
+        )
+        stale = await _read(vault, secret.id)
+        await _report(service, secret.id, state="succeeded", login=LOGIN)
+
+        load = service._load
+        loads: list = []
+
+        async def stale_first(**kwargs):
+            loads.append(kwargs)
+            return stale if len(loads) == 1 else await load(**kwargs)
+
+        service._load = stale_first
+
+        view = await _poll(service, secret.id)
+
+        assert view.state == "succeeded"
+        stored = (await _read(vault, secret.id)).data
+        assert stored.login_state == SubscriptionLoginState.READY
+        assert stored.login_attempt is None
 
     async def test_a_missing_connection_is_not_found(self, service):
         with pytest.raises(SubscriptionSecretNotFound):
@@ -573,20 +776,10 @@ class TestAttemptLifecycle:
                 }
             },
         )
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1",
-            state="pending",
-            user_code="ABCD-EFGH",
-            verification_uri="https://example.test/device",
-            expires_at=_later(),
-            poll_after_ms=5000,
-        )
         vault.secrets_dao.writes = 0
 
         for _ in range(3):
-            view = await service.read_attempt(
-                project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
-            )
+            view = await _poll(service, secret.id)
 
         assert vault.secrets_dao.writes == 0
         assert view.state == "pending"
@@ -614,12 +807,14 @@ class TestTwoTabsStartAtOnce:
                 state="pending",
                 user_code="FIRST-CODE",
                 expires_at=_later(),
+                runner_address="http://pod-first:8765",
             ),
             RunnerLoginAttempt(
                 attempt_id="att-second",
                 state="pending",
                 user_code="SECOND-CODE",
                 expires_at=_later(),
+                runner_address="http://pod-second:8765",
             ),
         ]
 
@@ -647,6 +842,12 @@ class TestTwoTabsStartAtOnce:
         # The redundant attempt is cancelled on the runner rather than left to expire.
         loser = "att-second" if views[0].attempt_id == "att-first" else "att-first"
         assert runner.deleted == [loser]
+        # On the pod that runs the redundant attempt, not whichever pod the Service URL picks.
+        assert runner.deleted_at == [
+            "http://pod-second:8765"
+            if loser == "att-second"
+            else "http://pod-first:8765"
+        ]
 
 
 class TestTheRunsReasonSurvivesAnAttempt:
@@ -709,35 +910,33 @@ class TestTheRunsReasonSurvivesAnAttempt:
             project_id=PROJECT_ID, secret_id=secret.id, user_id=USER_ID
         )
 
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id=started.attempt_id,
+        await _report(
+            service,
+            secret.id,
+            started.attempt_id,
             state="succeeded",
             login={**LOGIN, "refresh": "refresh-2"},
         )
-        await service.read_attempt(
-            project_id=PROJECT_ID,
-            secret_id=secret.id,
-            attempt_id=started.attempt_id,
-            user_id=USER_ID,
-        )
+        await _poll(service, secret.id, started.attempt_id)
 
         stored = (await _read(vault, secret.id)).data
         assert stored.login_state == SubscriptionLoginState.READY
         assert stored.login_error is None
 
 
-class TestAPollThatOutlivesItsAttempt:
-    """A poll is in flight when the user cancels and starts another login.
+class TestAReportThatOutlivesItsAttempt:
+    """The user cancels and starts another login while the old attempt's pod reports.
 
-    The old runner answer arrives after the row already carries the replacement. It must
-    change nothing: not the stored login, not the new attempt, not the stored error.
+    The DELETE may not reach the pod that runs the old provider poll, so its report can
+    arrive after the row already carries the replacement. It must change nothing: not the
+    stored login, not the new attempt, not the stored error.
     """
 
     async def _cancel_then_restart(self, vault, runner, service, secret):
         await service.cancel_attempt(
             project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
         )
-        runner.next_start = RunnerLoginAttempt(
+        runner.next_attempt = RunnerLoginAttempt(
             attempt_id="att-2",
             state="pending",
             user_code="NEW-CODE",
@@ -757,57 +956,50 @@ class TestAPollThatOutlivesItsAttempt:
         self, vault, runner, service
     ):
         secret = await self._live_attempt(vault)
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1", state="succeeded", login=LOGIN
-        )
-        runner.read_gate = asyncio.Event()
-
-        poll = asyncio.create_task(
-            service.read_attempt(
-                project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
-            )
-        )
-        await _wait_for_the_poll(runner)
-
         await self._cancel_then_restart(vault, runner, service, secret)
-        runner.read_gate.set()
 
-        # It answers the way a poll of an attempt the row never held answers. Reporting
-        # `succeeded` would show the old tab a sign-in that was never installed.
+        # The route answers 404, and the runner stops retrying.
         with pytest.raises(SubscriptionLoginAttemptNotFound):
-            await poll
+            await _report(service, secret.id, state="succeeded", login=LOGIN)
 
         stored = await _read(vault, secret.id)
         assert stored.data.login is None
         assert stored.data.login_version == 0
         assert stored.data.login_generation == 0
         assert stored.data.login_attempt.id == "att-2"
+        assert stored.data.login_attempt.state == "pending"
         assert stored.data.login_attempt.user_code == "NEW-CODE"
         assert stored.data.login_error is None
 
-    async def test_a_late_failure_does_not_clear_the_replacement_attempt(
+    async def test_a_late_failure_does_not_touch_the_replacement_attempt(
         self, vault, runner, service
     ):
         secret = await self._live_attempt(vault)
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1", state="failed", error="access_denied"
-        )
-        runner.read_gate = asyncio.Event()
-
-        poll = asyncio.create_task(
-            service.read_attempt(
-                project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
-            )
-        )
-        await _wait_for_the_poll(runner)
-
         await self._cancel_then_restart(vault, runner, service, secret)
-        runner.read_gate.set()
-        await poll
+
+        with pytest.raises(SubscriptionLoginAttemptNotFound):
+            await _report(service, secret.id, state="failed", error="access_denied")
 
         stored = await _read(vault, secret.id)
         assert stored.data.login_attempt.id == "att-2"
+        assert stored.data.login_attempt.state == "pending"
+        assert stored.data.login_attempt.error is None
         assert stored.data.login_error is None
+
+    async def test_a_report_after_a_cancel_with_no_replacement_changes_nothing(
+        self, vault, runner, service
+    ):
+        secret = await self._live_attempt(vault)
+        await service.cancel_attempt(
+            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
+        )
+        vault.secrets_dao.writes = 0
+
+        with pytest.raises(SubscriptionLoginAttemptNotFound):
+            await _report(service, secret.id, state="succeeded", login=LOGIN)
+
+        assert vault.secrets_dao.writes == 0
+        assert (await _read(vault, secret.id)).data.login is None
 
 
 class TestPushedLogin:
@@ -1176,27 +1368,38 @@ class TestAnUnusableDeviceLogin:
         secret = await _make_secret(
             vault, {"login_attempt": {"id": "att-1", "expires_at": _later()}}
         )
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1",
+
+        await _report(
+            service,
+            secret.id,
             state="succeeded",
             login={**LOGIN, "access": "not-a-jwt"},
         )
-
-        view = await service.read_attempt(
-            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
-        )
-
-        assert view.state == "failed"
-        assert view.error == "invalid_login"
-        assert runner.deleted == ["att-1"]
 
         stored = (await _read(vault, secret.id)).data
         assert stored.login is None
         assert stored.login_version == 0
         assert stored.login_generation == 0
-        assert stored.login_attempt is None
         # The refusal is the attempt's, so it is reported on the attempt and nowhere else.
         assert stored.login_error is None
+
+        view = await _poll(service, secret.id)
+
+        assert view.state == "failed"
+        assert view.error == "invalid_login"
+        assert (await _read(vault, secret.id)).data.login_attempt is None
+
+    async def test_a_success_without_a_login_fails_the_attempt(self, vault, service):
+        secret = await _make_secret(
+            vault, {"login_attempt": {"id": "att-1", "expires_at": _later()}}
+        )
+
+        await _report(service, secret.id, state="succeeded")
+
+        view = await _poll(service, secret.id)
+        assert view.state == "failed"
+        assert view.error == "invalid_login"
+        assert (await _read(vault, secret.id)).data.login is None
 
 
 class TestAConnectionRemovedMidWrite:
@@ -1260,14 +1463,9 @@ class TestAConnectionRemovedMidWrite:
             vault,
             {"login_attempt": {"id": "att-1", "expires_at": _later()}},
         )
-        runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1", state="succeeded", login=LOGIN
-        )
 
         with pytest.raises(SubscriptionSecretNotFound):
-            await service.read_attempt(
-                project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
-            )
+            await _report(service, secret.id, state="succeeded", login=LOGIN)
 
 
 class TestReportedFailure:

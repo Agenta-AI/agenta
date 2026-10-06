@@ -3,16 +3,15 @@
  *
  * These boot the REAL server (`createAgentServer`) on an ephemeral port and make real `fetch`
  * calls, exactly like `tests/unit/server.test.ts` does for `/health`, `/run` and `/kill`. The
- * device-login provider is MOCKED through `setSubscriptionLoginAttempts`, which
- * `subscription-login-attempts.ts` exposes for precisely this reason: no OAuth, no network, no
- * human approving a code.
+ * device-login provider and the outcome report are MOCKED through `setSubscriptionLoginAttempts`,
+ * which `subscription-login-attempts.ts` exposes for precisely this reason: no OAuth, no network,
+ * no human approving a code, no API.
  *
  * WHY AT THIS LAYER. The attempt state machine is already covered one level down in
- * `subscription-login-attempts.test.ts`. What has had no coverage is the HTTP contract the API
- * actually calls: status codes, the token gate, the request-body limits, and the SHAPE of what
- * comes back. Every assertion here is on a status code or a response field, never on an internal
- * function name, so a refactor inside `subscription-*.ts` cannot break these without breaking the
- * contract in `docs/design/hosted-subscription-connections/implementation-contract.md` section 2.
+ * `subscription-login-attempts.test.ts`. What this file pins is the HTTP contract the API calls:
+ * status codes, the token gate, the request-body limits, and the SHAPE of what comes back. Every
+ * assertion here is on a status code, a response field, or an outcome the report received, never
+ * on an internal function name.
  *
  * Run: pnpm exec vitest run --project unit tests/unit/subscription-login-routes.test.ts
  */
@@ -21,14 +20,23 @@ import assert from "node:assert/strict";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { createAgentServer, type RunAgent } from "../../src/server.ts";
-import {
-  SubscriptionLoginAttempts,
-  setSubscriptionLoginAttempts,
-  type DeviceCodeInfo,
-  type DeviceCodeLogin,
+import type { RunAgent } from "../../src/server.ts";
+import type {
+  AttemptOutcome,
+  DeviceCodeInfo,
+  DeviceCodeLogin,
+  SubscriptionLoginAttempts as AttemptsStore,
 } from "../../src/subscription-login-attempts.ts";
 import { makeLogin } from "../utils/subscription-login.ts";
+
+// The pod address is read once per process, like the replica id, so it is set before the import.
+const REPLICA_ADDRESS = "http://10.8.2.17:8765";
+process.env.AGENTA_RUNNER_REPLICA_ADDRESS = REPLICA_ADDRESS;
+const { createAgentServer } = await import("../../src/server.ts");
+const { SubscriptionLoginAttempts, setSubscriptionLoginAttempts } = await import(
+  "../../src/subscription-login-attempts.ts"
+);
+delete process.env.AGENTA_RUNNER_REPLICA_ADDRESS;
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -39,6 +47,10 @@ const JSON_HEADERS = { ...AUTH, "content-type": "application/json" };
 
 /** The provider the runner accepts. Anything else is a 400 at the route. */
 const PROVIDER = "chatgpt";
+
+/** The connection the API starts a sign-in for. Ids, not secrets. */
+const OWNER = { projectId: "project-1", secretId: "secret-1" };
+const START_BODY = { provider: PROVIDER, ...OWNER };
 
 /** Values a mocked provider hands back. None of them is a credential. */
 const USER_CODE = "WXYZ-9876";
@@ -64,6 +76,7 @@ function mockProvider(options: { announceOnCall?: boolean } = {}) {
   let approve: (login: Record<string, unknown>) => void = () => {};
   let refuse: (err: unknown) => void = () => {};
   let calls = 0;
+  let aborted = false;
 
   const login: DeviceCodeLogin = (opts) => {
     calls += 1;
@@ -79,6 +92,10 @@ function mockProvider(options: { announceOnCall?: boolean } = {}) {
     return new Promise((resolve, reject) => {
       approve = resolve as (login: Record<string, unknown>) => void;
       refuse = reject;
+      opts.signal?.addEventListener("abort", () => {
+        aborted = true;
+        reject(new Error("aborted"));
+      });
     }) as ReturnType<DeviceCodeLogin>;
   };
 
@@ -90,7 +107,23 @@ function mockProvider(options: { announceOnCall?: boolean } = {}) {
     get calls() {
       return calls;
     },
+    get aborted() {
+      return aborted;
+    },
   };
+}
+
+/** A store over `provider` whose outcome reports land in `outcomes`. */
+function store(provider: ReturnType<typeof mockProvider>) {
+  const outcomes: AttemptOutcome[] = [];
+  const attempts = new SubscriptionLoginAttempts(
+    provider.login,
+    async (outcome) => {
+      outcomes.push(outcome);
+    },
+    () => {},
+  );
+  return { attempts, outcomes };
 }
 
 const okRun: RunAgent = async () => ({ ok: true, output: "hi", events: [] });
@@ -100,7 +133,7 @@ const okRun: RunAgent = async () => ({ ok: true, output: "hi", events: [] });
  * the tokenless case can be probed.
  */
 async function listen(
-  attempts?: SubscriptionLoginAttempts,
+  attempts?: AttemptsStore,
   token: string | null = TEST_TOKEN,
 ): Promise<{ url: string; close: () => Promise<void> }> {
   if (token !== null) process.env[TOKEN_ENV] = token;
@@ -119,35 +152,28 @@ async function startAttempt(url: string): Promise<Record<string, unknown>> {
   const res = await fetch(`${url}/subscription-login/attempts`, {
     method: "POST",
     headers: JSON_HEADERS,
-    body: JSON.stringify({ provider: PROVIDER }),
+    body: JSON.stringify(START_BODY),
   });
   assert.equal(res.status, 200);
   return (await res.json()) as Record<string, unknown>;
 }
 
-/** Poll the GET route until `state` matches, so a settled background promise is observed. */
-async function getUntil(
-  url: string,
-  attemptId: string,
-  state: string,
-): Promise<Record<string, unknown>> {
+/** Wait until the store has reported `count` outcomes. */
+async function outcomesReach(
+  outcomes: AttemptOutcome[],
+  count: number,
+): Promise<void> {
   for (let i = 0; i < 50; i += 1) {
-    const res = await fetch(
-      `${url}/subscription-login/attempts/${encodeURIComponent(attemptId)}`,
-      { headers: AUTH },
-    );
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as Record<string, unknown>;
-    if (body.state === state) return body;
+    if (outcomes.length >= count) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error(`attempt never reached state=${state}`);
+  throw new Error(`only ${outcomes.length} outcome(s) were reported`);
 }
 
 describe("POST /subscription-login/attempts", () => {
-  it("returns the device code fields and never a token or a login", async () => {
+  it("returns the device code fields and this pod's address, never a token or a login", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       const body = await startAttempt(s.url);
 
@@ -160,6 +186,8 @@ describe("POST /subscription-login/attempts", () => {
       assert.equal(body.intervalSeconds, 7);
       assert.equal(typeof body.expiresAt, "string");
       assert.ok(!Number.isNaN(Date.parse(body.expiresAt as string)));
+      // What the API needs to send a cancel to this pod rather than to the Service URL.
+      assert.equal(body.replicaAddress, REPLICA_ADDRESS);
 
       // What must never ride the start response: the login blob, or anything token-shaped.
       assert.equal(body.login, undefined);
@@ -171,14 +199,62 @@ describe("POST /subscription-login/attempts", () => {
     }
   });
 
+  it("reports the outcome for the connection the start named", async () => {
+    const provider = mockProvider();
+    const { attempts, outcomes } = store(provider);
+    const s = await listen(attempts);
+    try {
+      const started = await startAttempt(s.url);
+      const login = makeLogin({ refresh: "fixture-refresh", accountId: "acct_wire" });
+      provider.approve({ ...login });
+      await outcomesReach(outcomes, 1);
+
+      assert.equal(outcomes.length, 1);
+      const [outcome] = outcomes;
+      assert.equal(outcome.attemptId, started.attemptId);
+      assert.equal(outcome.projectId, OWNER.projectId);
+      assert.equal(outcome.secretId, OWNER.secretId);
+      assert.equal(outcome.state, "succeeded");
+      assert.equal(outcome.login?.type, "oauth");
+      assert.equal(outcome.login?.refresh, "fixture-refresh");
+      assert.equal(attempts.size(), 0, "the pod keeps nothing once the outcome is out");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("requires the connection ids, so the outcome has somewhere to go", async () => {
+    const provider = mockProvider();
+    const s = await listen(store(provider).attempts);
+    try {
+      for (const body of [
+        { provider: PROVIDER },
+        { provider: PROVIDER, projectId: "project-1" },
+        { provider: PROVIDER, secretId: "secret-1" },
+        { provider: PROVIDER, projectId: "  ", secretId: "secret-1" },
+        { provider: PROVIDER, projectId: 7, secretId: "secret-1" },
+      ]) {
+        const res = await fetch(`${s.url}/subscription-login/attempts`, {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify(body),
+        });
+        assert.equal(res.status, 400, JSON.stringify(body));
+      }
+      assert.equal(provider.calls, 0);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("gates on the runner token: absent 401, wrong 401, right 200", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       const noToken = await fetch(`${s.url}/subscription-login/attempts`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: PROVIDER }),
+        body: JSON.stringify(START_BODY),
       });
       assert.equal(noToken.status, 401);
       assert.equal(((await noToken.json()) as { ok: boolean }).ok, false);
@@ -189,7 +265,7 @@ describe("POST /subscription-login/attempts", () => {
           authorization: "Bearer definitely-not-the-token",
           "content-type": "application/json",
         },
-        body: JSON.stringify({ provider: PROVIDER }),
+        body: JSON.stringify(START_BODY),
       });
       assert.equal(wrongToken.status, 401);
 
@@ -199,7 +275,7 @@ describe("POST /subscription-login/attempts", () => {
       const right = await fetch(`${s.url}/subscription-login/attempts`, {
         method: "POST",
         headers: JSON_HEADERS,
-        body: JSON.stringify({ provider: PROVIDER }),
+        body: JSON.stringify(START_BODY),
       });
       assert.equal(right.status, 200);
       assert.equal(provider.calls, 1);
@@ -210,7 +286,7 @@ describe("POST /subscription-login/attempts", () => {
 
   it("accepts the header form of the token too", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       const res = await fetch(`${s.url}/subscription-login/attempts`, {
         method: "POST",
@@ -218,7 +294,7 @@ describe("POST /subscription-login/attempts", () => {
           "x-agenta-runner-token": TEST_TOKEN,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ provider: PROVIDER }),
+        body: JSON.stringify(START_BODY),
       });
       assert.equal(res.status, 200);
     } finally {
@@ -228,12 +304,12 @@ describe("POST /subscription-login/attempts", () => {
 
   it("rejects an unknown or missing provider with 400", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       for (const body of [
-        JSON.stringify({ provider: "claude-max" }),
-        JSON.stringify({ provider: "" }),
-        JSON.stringify({}),
+        JSON.stringify({ ...OWNER, provider: "claude-max" }),
+        JSON.stringify({ ...OWNER, provider: "" }),
+        JSON.stringify(OWNER),
         "",
       ]) {
         const res = await fetch(`${s.url}/subscription-login/attempts`, {
@@ -255,7 +331,7 @@ describe("POST /subscription-login/attempts", () => {
 
   it("rejects an unparseable JSON body with 400", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       const res = await fetch(`${s.url}/subscription-login/attempts`, {
         method: "POST",
@@ -273,12 +349,12 @@ describe("POST /subscription-login/attempts", () => {
 
   it("rejects an oversize body with 413, not buffered in full", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       // The start body is capped at 4 KiB; this is well past it and still valid JSON, so the
       // rejection proves the CAP fired rather than the parser.
       const oversized = JSON.stringify({
-        provider: PROVIDER,
+        ...START_BODY,
         pad: "x".repeat(64 * 1024),
       });
       // Streamed in small chunks with a real event-loop tick between them (rather than one
@@ -328,12 +404,12 @@ describe("POST /subscription-login/attempts", () => {
 
   it("accepts a start body that sits inside the cap", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       const res = await fetch(`${s.url}/subscription-login/attempts`, {
         method: "POST",
         headers: JSON_HEADERS,
-        body: JSON.stringify({ provider: PROVIDER, pad: "x".repeat(512) }),
+        body: JSON.stringify({ ...START_BODY, pad: "x".repeat(512) }),
       });
       assert.equal(res.status, 200);
       assert.equal(provider.calls, 1);
@@ -344,12 +420,13 @@ describe("POST /subscription-login/attempts", () => {
 
   it("reports a provider that refuses before issuing a code as 502", async () => {
     const provider = mockProvider({ announceOnCall: false });
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const { attempts, outcomes } = store(provider);
+    const s = await listen(attempts);
     try {
       const pending = fetch(`${s.url}/subscription-login/attempts`, {
         method: "POST",
         headers: JSON_HEADERS,
-        body: JSON.stringify({ provider: PROVIDER }),
+        body: JSON.stringify(START_BODY),
       });
       // Let the route reach the provider before failing it.
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -360,118 +437,8 @@ describe("POST /subscription-login/attempts", () => {
       assert.equal(body.ok, false);
       // The provider's own words never reach the wire, only a short reason.
       assert.ok(!body.error.includes("device authorization endpoint"));
-    } finally {
-      await s.close();
-    }
-  });
-});
-
-describe("GET /subscription-login/attempts/{id}", () => {
-  it("returns pending, then succeeded with the login once the provider resolves", async () => {
-    const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
-    try {
-      const started = await startAttempt(s.url);
-      const attemptId = started.attemptId as string;
-
-      const pending = await getUntil(s.url, attemptId, "pending");
-      assert.equal(pending.attemptId, attemptId);
-      assert.equal(pending.userCode, USER_CODE);
-      assert.equal(pending.verificationUri, VERIFICATION_URI);
-      // Nothing to hand over yet.
-      assert.equal(pending.login, undefined);
-
-      const login = makeLogin({ refresh: "fixture-refresh", accountId: "acct_wire" });
-      provider.approve({ ...login });
-
-      const succeeded = await getUntil(s.url, attemptId, "succeeded");
-      assert.equal(succeeded.attemptId, attemptId);
-      const delivered = succeeded.login as Record<string, unknown>;
-      assert.ok(delivered, "a succeeded attempt hands the login to the API");
-      assert.equal(delivered.type, "oauth");
-      assert.equal(delivered.refresh, "fixture-refresh");
-      assert.equal(delivered.accountId, "acct_wire");
-      assert.equal(typeof delivered.access, "string");
-      assert.equal(typeof delivered.expires, "number");
-      // The login is handed out on every poll until the API acknowledges with DELETE.
-      const again = await getUntil(s.url, attemptId, "succeeded");
-      assert.ok(again.login, "a second poll still carries the login");
-      assert.equal(succeeded.error, undefined);
-    } finally {
-      await s.close();
-    }
-  });
-
-  it("keeps handing the login out on repeat reads until the DELETE", async () => {
-    const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
-    try {
-      const started = await startAttempt(s.url);
-      const attemptId = started.attemptId as string;
-      provider.approve({ ...makeLogin({ refresh: "second-read" }) });
-      await getUntil(s.url, attemptId, "succeeded");
-
-      // A poll whose response was lost in flight must be able to ask again (amendment A5).
-      const second = await getUntil(s.url, attemptId, "succeeded");
-      assert.equal(
-        (second.login as Record<string, unknown>).refresh,
-        "second-read",
-      );
-    } finally {
-      await s.close();
-    }
-  });
-
-  it("surfaces a failed provider poll as a state, not an HTTP error", async () => {
-    const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
-    try {
-      const started = await startAttempt(s.url);
-      const attemptId = started.attemptId as string;
-      provider.refuse(new Error("approval was declined"));
-
-      const failed = await getUntil(s.url, attemptId, "failed");
-      assert.equal(failed.login, undefined);
-      assert.equal(typeof failed.error, "string");
-      assert.ok(!(failed.error as string).includes("declined"));
-    } finally {
-      await s.close();
-    }
-  });
-
-  it("is 404 for an id this runner never started", async () => {
-    const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
-    try {
-      const res = await fetch(
-        `${s.url}/subscription-login/attempts/00000000-0000-4000-8000-000000000000`,
-        { headers: AUTH },
-      );
-      assert.equal(res.status, 404);
-      const body = (await res.json()) as { ok: boolean };
-      assert.equal(body.ok, false);
-    } finally {
-      await s.close();
-    }
-  });
-
-  it("is 401 without a token, and does not leak whether the id exists", async () => {
-    const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
-    try {
-      const started = await startAttempt(s.url);
-      const attemptId = started.attemptId as string;
-
-      const real = await fetch(
-        `${s.url}/subscription-login/attempts/${attemptId}`,
-        {},
-      );
-      const fake = await fetch(
-        `${s.url}/subscription-login/attempts/does-not-exist`,
-        {},
-      );
-      assert.equal(real.status, 401);
-      assert.equal(fake.status, 401);
+      // The API stored no record for a start that failed, so there is nothing to report.
+      assert.deepEqual(outcomes, []);
     } finally {
       await s.close();
     }
@@ -479,49 +446,53 @@ describe("GET /subscription-login/attempts/{id}", () => {
 });
 
 describe("DELETE /subscription-login/attempts/{id}", () => {
-  it("is 204 and idempotent, and the attempt is gone afterwards", async () => {
+  it("is 204, stops the provider poll, and reports nothing", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const { attempts, outcomes } = store(provider);
+    const s = await listen(attempts);
     try {
       const started = await startAttempt(s.url);
       const attemptId = started.attemptId as string;
-      provider.approve({ ...makeLogin() });
-      await getUntil(s.url, attemptId, "succeeded");
 
       const first = await fetch(
         `${s.url}/subscription-login/attempts/${attemptId}`,
         { method: "DELETE", headers: AUTH },
       );
       assert.equal(first.status, 204);
+      assert.equal(first.headers.get("cache-control"), "no-store");
+      assert.equal(provider.aborted, true);
+      assert.equal(attempts.size(), 0);
 
-      // Repeat delete: still 204, never a 404 and never a 500.
-      const second = await fetch(
-        `${s.url}/subscription-login/attempts/${attemptId}`,
-        { method: "DELETE", headers: AUTH },
-      );
-      assert.equal(second.status, 204);
-
-      // And an id nothing ever held.
-      const unknown = await fetch(
-        `${s.url}/subscription-login/attempts/never-existed`,
-        { method: "DELETE", headers: AUTH },
-      );
-      assert.equal(unknown.status, 204);
-
-      // The credential is no longer readable through the route.
-      const after = await fetch(
-        `${s.url}/subscription-login/attempts/${attemptId}`,
-        { headers: AUTH },
-      );
-      assert.equal(after.status, 404);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      assert.deepEqual(outcomes, [], "the API cleared the record before it sent the DELETE");
     } finally {
       await s.close();
     }
   });
 
-  it("is 401 without a token", async () => {
+  it("is 204 and idempotent, for a repeat and for an id this pod never held", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
+    try {
+      const started = await startAttempt(s.url);
+      const attemptId = started.attemptId as string;
+
+      for (const id of [attemptId, attemptId, "never-existed"]) {
+        const res = await fetch(`${s.url}/subscription-login/attempts/${id}`, {
+          method: "DELETE",
+          headers: AUTH,
+        });
+        assert.equal(res.status, 204, id);
+      }
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("is 401 without a token, and the attempt keeps running", async () => {
+    const provider = mockProvider();
+    const { attempts } = store(provider);
+    const s = await listen(attempts);
     try {
       const started = await startAttempt(s.url);
       const res = await fetch(
@@ -529,12 +500,8 @@ describe("DELETE /subscription-login/attempts/{id}", () => {
         { method: "DELETE" },
       );
       assert.equal(res.status, 401);
-      // Still readable: the refused delete did nothing.
-      const after = await fetch(
-        `${s.url}/subscription-login/attempts/${started.attemptId as string}`,
-        { headers: AUTH },
-      );
-      assert.equal(after.status, 200);
+      assert.equal(provider.aborted, false);
+      assert.equal(attempts.size(), 1);
     } finally {
       await s.close();
     }
@@ -542,19 +509,24 @@ describe("DELETE /subscription-login/attempts/{id}", () => {
 });
 
 describe("subscription-login route shape", () => {
-  it("answers 405 for an unsupported method on an attempt", async () => {
+  it("serves no read: the outcome reaches the API as a report instead", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       const started = await startAttempt(s.url);
-      for (const method of ["PUT", "PATCH"]) {
+      for (const method of ["GET", "PUT", "PATCH"]) {
         const res = await fetch(
           `${s.url}/subscription-login/attempts/${started.attemptId as string}`,
-          { method, headers: JSON_HEADERS, body: "{}" },
+          {
+            method,
+            headers: JSON_HEADERS,
+            ...(method === "GET" ? {} : { body: "{}" }),
+          },
         );
         assert.equal(res.status, 405, method);
-        const body = (await res.json()) as { ok: boolean };
+        const body = (await res.json()) as Record<string, unknown>;
         assert.equal(body.ok, false);
+        assert.equal(body.userCode, undefined);
       }
     } finally {
       await s.close();
@@ -563,7 +535,7 @@ describe("subscription-login route shape", () => {
 
   it("answers 404 for the collection route under a method it does not serve", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       // No attempt id in the path, and not the POST that creates one.
       const res = await fetch(`${s.url}/subscription-login/attempts`, {
@@ -577,7 +549,7 @@ describe("subscription-login route shape", () => {
 
   it("does not treat a nested path as an attempt id", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       const res = await fetch(
         `${s.url}/subscription-login/attempts/abc/../../health`,
@@ -595,54 +567,32 @@ describe("subscription-login route shape", () => {
   });
 
   it("answers 404, not 500, for an id with a malformed escape", async () => {
-    // `decodeURIComponent` throws on `%ZZ`. An id this runner never minted must read as 404, which
-    // the API translates to "expired", rather than as a server fault.
+    // `decodeURIComponent` throws on `%ZZ`. An id this runner never minted must read as 404
+    // rather than as a server fault.
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
-      for (const method of ["GET", "DELETE"]) {
-        const res = await fetch(`${s.url}/subscription-login/attempts/%ZZ`, {
-          method,
-          headers: AUTH,
-        });
-        assert.equal(res.status, 404, `${method} on a malformed id`);
-      }
+      const res = await fetch(`${s.url}/subscription-login/attempts/%ZZ`, {
+        method: "DELETE",
+        headers: AUTH,
+      });
+      assert.equal(res.status, 404);
     } finally {
       await s.close();
     }
   });
 
-  it("marks every answer no-store, so no cache keeps a code or a login", async () => {
+  it("marks the start answer no-store, so no cache keeps a code", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const s = await listen(store(provider).attempts);
     try {
       const start = await fetch(`${s.url}/subscription-login/attempts`, {
         method: "POST",
         headers: JSON_HEADERS,
-        body: JSON.stringify({ provider: PROVIDER }),
+        body: JSON.stringify(START_BODY),
       });
       assert.equal(start.status, 200);
       assert.equal(start.headers.get("cache-control"), "no-store");
-      const attemptId = ((await start.json()) as { attemptId: string }).attemptId;
-
-      provider.approve({ ...makeLogin() });
-      const succeeded = await getUntil(s.url, attemptId, "succeeded");
-      assert.notEqual(succeeded.login, undefined);
-
-      // The read that carries the login is the one that must never be cached.
-      const read = await fetch(
-        `${s.url}/subscription-login/attempts/${encodeURIComponent(attemptId)}`,
-        { headers: AUTH },
-      );
-      assert.equal(read.status, 200);
-      assert.equal(read.headers.get("cache-control"), "no-store");
-
-      const removed = await fetch(
-        `${s.url}/subscription-login/attempts/${encodeURIComponent(attemptId)}`,
-        { method: "DELETE", headers: AUTH },
-      );
-      assert.equal(removed.status, 204);
-      assert.equal(removed.headers.get("cache-control"), "no-store");
     } finally {
       await s.close();
     }
@@ -650,16 +600,16 @@ describe("subscription-login route shape", () => {
 
   it("ignores a query string when reading the attempt id", async () => {
     const provider = mockProvider();
-    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    const { attempts } = store(provider);
+    const s = await listen(attempts);
     try {
       const started = await startAttempt(s.url);
       const res = await fetch(
         `${s.url}/subscription-login/attempts/${started.attemptId as string}?wait=1`,
-        { headers: AUTH },
+        { method: "DELETE", headers: AUTH },
       );
-      assert.equal(res.status, 200);
-      const body = (await res.json()) as Record<string, unknown>;
-      assert.equal(body.attemptId, started.attemptId);
+      assert.equal(res.status, 204);
+      assert.equal(provider.aborted, true, "the id before the query string was cancelled");
     } finally {
       await s.close();
     }

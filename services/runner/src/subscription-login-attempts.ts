@@ -4,26 +4,25 @@
  * ACP cannot carry a login and Pi has no `login` subcommand, so the OAuth exchange happens HERE,
  * in the runner, through the same client code Pi's own `/login openai-codex` runs
  * (`loginOpenAICodexDeviceCode` from `@earendil-works/pi-ai/oauth`). The API relays the user code
- * and the verification address to the browser, polls this runner, and stores the login when it
- * lands. Nothing here writes to disk.
+ * and the verification address to the browser. Nothing here writes to disk.
  *
  * ONE ATTEMPT IS ONE RUNNING PROMISE. The device-code flow is a long poll against
  * `auth.openai.com` that Pi drives itself; there is no step-by-step API to advance. So an attempt
- * is that promise plus an `AbortController`, held in a process map, and the HTTP routes only read
- * its settled state. That is also why an attempt cannot survive a runner restart, and why the API
- * treats a missing attempt as expired rather than as an error.
+ * is that promise plus an `AbortController`, held in a process map only so a DELETE can stop it.
  *
- * THE LOGIN IS HANDED OUT UNTIL THE API SAYS IT IS SAFE TO STOP. Every GET on a `succeeded`
- * attempt returns it, and only the DELETE that follows the API's own durable write drops it. A GET
- * is a token-authenticated call from the API, so re-reading it discloses nothing new; the DELETE
- * and the purge timer below are what bound the credential's residency in this process.
+ * THE OUTCOME GOES TO THE API, NOT BACK THROUGH A READ. Runner pods behind one Service URL are
+ * interchangeable, so a later request about this attempt can land on a pod that never held it.
+ * The pod whose loop ends reports the outcome (the login, a failure, an expiry) to the API itself,
+ * and the API answers the browser from the record it keeps on the connection. The login lives in
+ * this process only between the provider's answer and that report.
  *
  * NOTHING HERE IS LOGGED. Not the login, not the user code (it authorizes an account takeover for
  * the length of the flow), not the verification address with its code embedded. The log lines
- * carry an attempt id, a state word, and nothing else.
+ * carry an attempt id, a state word, an HTTP status, and nothing else.
  */
 import { randomUUID } from "node:crypto";
 
+import { apiBase } from "./apiBase.ts";
 import { observeSubscription } from "./subscription-events.ts";
 import type { SubscriptionLogin } from "./protocol.ts";
 
@@ -32,23 +31,67 @@ type Log = (message: string) => void;
 /** The only provider this runner can log in to today. The API sends it explicitly all the same. */
 export const SUBSCRIPTION_LOGIN_PROVIDER = "chatgpt";
 
-/** How long a finished or abandoned attempt stays in the map before it is dropped. */
-export const ATTEMPT_PURGE_MS = 20 * 60 * 1000;
-
 /** The floor the API's `poll_after_ms` is derived from when the provider names no interval. */
 export const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 
-export type AttemptState =
-  /** The device code is out and the flow is waiting for the user to approve it. */
-  | "pending"
-  /** The provider returned a login. Every read returns it until the API deletes the attempt. */
+/** The bound on one outcome report to the API. */
+export const OUTCOME_REPORT_TIMEOUT_MS = 5_000;
+
+/**
+ * The waits between outcome report tries. A login the API never hears about is lost, and the
+ * user's poll ends as expired at the provider's deadline, so a short API outage is worth riding
+ * out; a long one is not worth holding a credential in memory for.
+ *
+ * Four tries of `OUTCOME_REPORT_TIMEOUT_MS` plus these waits is at most 27 s. The API waits 30 s
+ * past the provider's deadline before it calls a silent attempt expired
+ * (`_DEADLINE_GRACE` in `api/oss/src/core/secrets/subscription_service.py`), so a success at the
+ * deadline still lands. Keep the sum below that grace.
+ */
+export const OUTCOME_REPORT_RETRY_DELAYS_MS: readonly number[] = [
+  1_000, 2_000, 4_000,
+];
+
+/** How an attempt ended, in the words the API stores. A cancelled attempt reports nothing. */
+export type AttemptOutcomeState =
+  /** The provider returned a login. */
   | "succeeded"
   /** The flow failed. `error` says why, in words that carry no account detail. */
   | "failed"
   /** The provider's own 15 minute device-code window ran out. */
-  | "expired"
-  /** A DELETE ended it, or the runner is shutting down. */
-  | "cancelled";
+  | "expired";
+
+/** The connection an attempt signs in, as the API names it. Not a secret. */
+export interface AttemptOwner {
+  projectId: string;
+  secretId: string;
+}
+
+/** One outcome report. `login` rides only a `succeeded` outcome. */
+export interface AttemptOutcome extends AttemptOwner {
+  attemptId: string;
+  state: AttemptOutcomeState;
+  login?: SubscriptionLogin;
+  error?: string;
+}
+
+/**
+ * Delivers an outcome to the API. Never throws. `retry: false` makes one try only, for a process
+ * that is about to exit.
+ */
+export type ReportAttemptOutcome = (
+  outcome: AttemptOutcome,
+  options?: { retry?: boolean },
+) => Promise<void>;
+
+/**
+ * The reason an attempt carries when this process stops before its provider poll ends. It is the
+ * text the API answered when an attempt was lost before outcomes were reported, so the browser
+ * keeps its sentence for it ("start it again").
+ */
+export const ABANDONED_ATTEMPT_REASON = "attempt not found; try again";
+
+/** The bound on reporting every live attempt as abandoned at shutdown. */
+export const ABANDON_REPORT_BUDGET_MS = 3_000;
 
 /** What the device-code callback reported, before the user approved anything. */
 export interface DeviceCodeInfo {
@@ -67,28 +110,23 @@ export type DeviceCodeLogin = (options: {
 interface Attempt {
   id: string;
   provider: string;
-  state: AttemptState;
+  owner: AttemptOwner;
   createdAt: number;
   userCode?: string;
   verificationUri?: string;
   intervalSeconds?: number;
   expiresAt?: number;
-  error?: string;
-  login?: SubscriptionLogin;
   abort: AbortController;
-  purgeTimer?: ReturnType<typeof setTimeout>;
 }
 
-/** One attempt as a route answers it. `login` appears while the attempt is succeeded. */
+/** A started attempt as the start route answers it. Always pending: the user has seen nothing yet. */
 export interface AttemptView {
   attemptId: string;
-  state: AttemptState;
+  state: "pending";
   userCode?: string;
   verificationUri?: string;
   expiresAt?: string;
   intervalSeconds?: number;
-  login?: SubscriptionLogin;
-  error?: string;
 }
 
 function defaultLog(message: string): void {
@@ -108,38 +146,126 @@ function safeErrorReason(err: unknown): string {
   return "login_failed";
 }
 
+export interface OutcomeReportDeps {
+  fetchImpl?: typeof fetch;
+  apiBase?: string;
+  token?: string;
+  retryDelaysMs?: readonly number[];
+  log?: Log;
+}
+
 /**
- * The attempt store. One per process; `createSubscriptionLoginAttempts` exists so a test gets its
- * own, and so the injected login function is a constructor argument rather than a module global.
+ * POST one outcome to the API, retrying a few times on a transport failure, a 5xx, a 408 or a 429.
+ *
+ * Authenticates with the shared runner token, not a project credential: a device login runs on
+ * behalf of a browser, and the runner holds no credential of that project. The ids in the body
+ * tell the API which connection to update, and the API applies the outcome only while that
+ * connection still waits on this attempt id.
+ *
+ * Any other answer ends the report. A 404 means the user cancelled or replaced the attempt, and
+ * repeating the same body cannot change an API decision.
+ */
+export async function reportAttemptOutcome(
+  outcome: AttemptOutcome,
+  deps: OutcomeReportDeps = {},
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  const event = { attempt: outcome.attemptId, state: outcome.state };
+  const token = deps.token ?? process.env.AGENTA_RUNNER_TOKEN;
+  if (!token) {
+    observeSubscription(log, "subscription.attempt", {
+      ...event,
+      report: "unconfigured",
+    });
+    return;
+  }
+  const doFetch = deps.fetchImpl ?? fetch;
+  const delays = deps.retryDelaysMs ?? OUTCOME_REPORT_RETRY_DELAYS_MS;
+  const url = `${deps.apiBase ?? apiBase()}/secrets/subscription-login/attempts/${encodeURIComponent(outcome.attemptId)}/outcome`;
+  const body = JSON.stringify({
+    project_id: outcome.projectId,
+    secret_id: outcome.secretId,
+    state: outcome.state,
+    ...(outcome.login ? { login: outcome.login } : {}),
+    ...(outcome.error ? { error: outcome.error } : {}),
+  });
+
+  for (let attempt = 0; ; attempt += 1) {
+    let status: number | undefined;
+    let retryable = true;
+    try {
+      const res = await doFetch(url, {
+        method: "POST",
+        // A redirect would carry the token and the login to wherever it points.
+        redirect: "error",
+        headers: {
+          "content-type": "application/json",
+          "x-agenta-runner-token": token,
+        },
+        body,
+        signal: AbortSignal.timeout(OUTCOME_REPORT_TIMEOUT_MS),
+      });
+      status = res.status;
+      if (res.ok) {
+        observeSubscription(log, "subscription.attempt", {
+          ...event,
+          report: "delivered",
+          status,
+        });
+        return;
+      }
+      retryable = status >= 500 || status === 408 || status === 429;
+    } catch {
+      // A transport failure or the timeout. The error text is not recorded: it can quote the
+      // request.
+    }
+    if (!retryable || attempt >= delays.length) {
+      observeSubscription(log, "subscription.attempt", {
+        ...event,
+        report: retryable ? "unanswered" : "refused",
+        status,
+        tries: attempt + 1,
+      });
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+  }
+}
+
+/**
+ * The attempt store. One per process. The login and report functions are constructor arguments
+ * rather than module globals, so a test builds its own store with neither a provider nor an API.
  */
 export class SubscriptionLoginAttempts {
   private readonly attempts = new Map<string, Attempt>();
 
   constructor(
     private readonly login: DeviceCodeLogin,
+    private readonly report: ReportAttemptOutcome,
     private readonly log: Log = defaultLog,
-    private readonly purgeMs: number = ATTEMPT_PURGE_MS,
   ) {}
 
   /**
-   * Start a device login. Resolves as soon as the provider has issued a user code, so the caller
-   * can render it; the approval poll keeps running in the background.
+   * Start a device login for `owner`. Resolves as soon as the provider has issued a user code, so
+   * the caller can render it; the approval poll keeps running in the background and reports its
+   * outcome to the API when it ends.
    *
    * A start that never reaches the device-code callback (the provider refused the request) fails
-   * here rather than leaving a pending attempt nobody can act on.
+   * here rather than leaving a pending attempt nobody can act on, and reports nothing.
    */
-  async start(provider: string): Promise<AttemptView> {
+  async start(provider: string, owner: AttemptOwner): Promise<AttemptView> {
     const id = randomUUID();
     const abort = new AbortController();
     const attempt: Attempt = {
       id,
       provider,
-      state: "pending",
+      owner,
       createdAt: Date.now(),
       abort,
     };
     this.attempts.set(id, attempt);
 
+    let codeIssued = false;
     let announced: ((info: DeviceCodeInfo) => void) | undefined;
     let announceFailed: ((err: unknown) => void) | undefined;
     const deviceCode = new Promise<DeviceCodeInfo>((resolve, reject) => {
@@ -150,6 +276,7 @@ export class SubscriptionLoginAttempts {
     const flow = this.login({
       signal: abort.signal,
       onDeviceCode: (info) => {
+        codeIssued = true;
         attempt.userCode = info.userCode;
         attempt.verificationUri = info.verificationUri;
         attempt.intervalSeconds =
@@ -161,26 +288,32 @@ export class SubscriptionLoginAttempts {
       },
     });
 
-    // The flow's own outcome is recorded whenever it settles, which is usually long after this
-    // method has returned. `void` is deliberate: the caller waits for the device code, not for the
-    // user. The catch below is what keeps an unhandled rejection out of the process.
-    void flow
-      .then((credentials) => {
-        // `type` is what Pi's own AuthStorage stamps on an OAuth credential before writing it, and
-        // the vault stores the file-ready shape, so it is added here rather than three layers on.
-        attempt.login = { type: "oauth", ...credentials } as SubscriptionLogin;
-        this.settle(attempt, "succeeded");
-      })
-      .catch((err) => {
-        if (abort.signal.aborted) {
-          this.settle(attempt, "cancelled");
+    // The flow's outcome is reported whenever it settles, which is usually long after this
+    // method has returned. `void` is deliberate: the caller waits for the device code, not for
+    // the user. `finish` never rejects, so nothing here can become an unhandled rejection.
+    void flow.then(
+      (credentials) =>
+        // `type` is what Pi's own AuthStorage stamps on an OAuth credential before writing it,
+        // and the vault stores the file-ready shape, so it is added here rather than three
+        // layers on.
+        this.finish(attempt, {
+          state: "succeeded",
+          login: { type: "oauth", ...credentials } as SubscriptionLogin,
+        }),
+      (err: unknown) => {
+        // A cancel already forgot the attempt, and the API already cleared its record.
+        if (abort.signal.aborted) return;
+        if (!codeIssued) {
+          announceFailed?.(err);
           return;
         }
         const reason = safeErrorReason(err);
-        attempt.error = reason;
-        this.settle(attempt, reason === "timed_out" ? "expired" : "failed");
-        announceFailed?.(err);
-      });
+        return this.finish(attempt, {
+          state: reason === "timed_out" ? "expired" : "failed",
+          error: reason,
+        });
+      },
+    );
 
     try {
       await deviceCode;
@@ -195,45 +328,20 @@ export class SubscriptionLoginAttempts {
       state: "pending",
       provider,
     });
-    return this.view(attempt, false);
+    return this.view(attempt);
   }
 
   /**
-   * Read an attempt, handing out the login on EVERY read while it is succeeded. Undefined when the
-   * id is unknown, which includes an attempt that was purged.
+   * Stop an attempt and forget it. Idempotent: an unknown id is a no-op, like a repeated DELETE,
+   * and so is an id another pod holds.
    *
-   * The credential leaves this process at DELETE, which the API sends after it has stored the login
-   * durably.
-   */
-  get(id: string): AttemptView | undefined {
-    const attempt = this.attempts.get(id);
-    if (!attempt) return undefined;
-    const deliverNow = attempt.state === "succeeded" && attempt.login !== undefined;
-    if (deliverNow) {
-      observeSubscription(this.log, "subscription.attempt", {
-        attempt: id,
-        state: attempt.state,
-        delivered: true,
-      });
-    }
-    return this.view(attempt, deliverNow);
-  }
-
-  /**
-   * End an attempt and forget it, dropping the credential with it. Idempotent: an unknown id is a
-   * no-op, like a repeated DELETE.
-   *
-   * This is BOTH halves of the DELETE route: the API sends it to abandon a pending login AND to
-   * purge a succeeded one it has now stored. The second half is what bounds the token's residency
-   * in this process, so it clears `login` explicitly rather than relying on the map entry going
-   * away.
+   * The API sends this when the user cancels, after it has already cleared the attempt's record,
+   * so the loop it stops reports nothing.
    */
   cancel(id: string): void {
     const attempt = this.attempts.get(id);
     if (!attempt) return;
     attempt.abort.abort();
-    attempt.login = undefined;
-    if (attempt.purgeTimer) clearTimeout(attempt.purgeTimer);
     this.attempts.delete(id);
     observeSubscription(this.log, "subscription.attempt", {
       attempt: id,
@@ -241,50 +349,95 @@ export class SubscriptionLoginAttempts {
     });
   }
 
+  /**
+   * Give up every live attempt because this process is stopping, and tell the API so.
+   *
+   * Without this the user's poll would answer pending until the provider's window closed, while
+   * the provider itself may already say "signed in". Each attempt leaves the map and its flow is
+   * aborted first, so the flow reports nothing of its own; then each gets one report try, all of
+   * them bounded together by `budgetMs`. A report the API does not answer in time is lost, and the
+   * poll falls back to the deadline.
+   */
+  async abandonAll(budgetMs: number = ABANDON_REPORT_BUDGET_MS): Promise<void> {
+    const live = [...this.attempts.values()];
+    if (live.length === 0) return;
+    this.attempts.clear();
+    for (const attempt of live) {
+      attempt.abort.abort();
+      observeSubscription(this.log, "subscription.attempt", {
+        attempt: attempt.id,
+        state: "failed",
+        abandoned: true,
+      });
+    }
+    const reports = Promise.allSettled(
+      live.map((attempt) =>
+        this.report(
+          {
+            attemptId: attempt.id,
+            projectId: attempt.owner.projectId,
+            secretId: attempt.owner.secretId,
+            state: "failed",
+            error: ABANDONED_ATTEMPT_REASON,
+          },
+          { retry: false },
+        ),
+      ),
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const expired = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, budgetMs);
+    });
+    try {
+      await Promise.race([reports, expired]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /** Test seam: how many attempts the map still holds. */
   size(): number {
     return this.attempts.size;
   }
 
-  private settle(attempt: Attempt, state: AttemptState): void {
-    // A cancel already removed the attempt; the flow settling afterwards must not resurrect it.
+  /**
+   * Report how the attempt ended, then let the login go out of scope with the report.
+   *
+   * The attempt leaves the map first, so a DELETE that races the report is a no-op here; the API
+   * then finds no record for the late report and drops it.
+   */
+  private async finish(
+    attempt: Attempt,
+    result: { state: AttemptOutcomeState; login?: SubscriptionLogin; error?: string },
+  ): Promise<void> {
+    // A cancel already removed the attempt; the flow settling afterwards must not report it.
     if (!this.attempts.has(attempt.id)) return;
-    attempt.state = state;
+    this.attempts.delete(attempt.id);
     observeSubscription(this.log, "subscription.attempt", {
       attempt: attempt.id,
-      state,
+      state: result.state,
     });
-    this.schedulePurge(attempt);
+    try {
+      await this.report({
+        attemptId: attempt.id,
+        projectId: attempt.owner.projectId,
+        secretId: attempt.owner.secretId,
+        ...result,
+      });
+    } catch {
+      // The reporter does not throw. This guard keeps a broken one from crashing the process.
+    }
   }
 
-  /**
-   * Forget the attempt after the purge window, whatever its state.
-   *
-   * This is the backstop, not the main path: a cancel removes the entry outright. The timer covers
-   * the caller that starts a login and walks away, so an unread credential cannot sit in memory for
-   * the life of the process.
-   */
-  private schedulePurge(attempt: Attempt): void {
-    if (attempt.purgeTimer) clearTimeout(attempt.purgeTimer);
-    attempt.purgeTimer = setTimeout(() => {
-      attempt.login = undefined;
-      this.attempts.delete(attempt.id);
-    }, this.purgeMs);
-    // The runner must be able to exit with an attempt outstanding.
-    attempt.purgeTimer.unref?.();
-  }
-
-  private view(attempt: Attempt, withLogin: boolean): AttemptView {
+  private view(attempt: Attempt): AttemptView {
     const view: AttemptView = {
       attemptId: attempt.id,
-      state: attempt.state,
+      state: "pending",
     };
     if (attempt.userCode) view.userCode = attempt.userCode;
     if (attempt.verificationUri) view.verificationUri = attempt.verificationUri;
     if (attempt.expiresAt) view.expiresAt = new Date(attempt.expiresAt).toISOString();
     if (attempt.intervalSeconds) view.intervalSeconds = attempt.intervalSeconds;
-    if (withLogin && attempt.login) view.login = attempt.login;
-    if (attempt.error) view.error = attempt.error;
     return view;
   }
 }
@@ -305,9 +458,22 @@ export function subscriptionLoginAttempts(): SubscriptionLoginAttempts {
       );
       return loginOpenAICodexDeviceCode(options);
     };
-    shared = new SubscriptionLoginAttempts(login);
+    shared = new SubscriptionLoginAttempts(login, (outcome, options) =>
+      reportAttemptOutcome(
+        outcome,
+        options?.retry === false ? { retryDelaysMs: [] } : {},
+      ),
+    );
   }
   return shared;
+}
+
+/**
+ * The shutdown step for device logins: abandon every live attempt of the process-wide store. A
+ * process that never served a login has no store, and builds none here.
+ */
+export async function abandonSubscriptionLogins(): Promise<void> {
+  await shared?.abandonAll();
 }
 
 /** Test seam: install a store with an injected login function. */
