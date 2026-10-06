@@ -10,12 +10,12 @@
 ## 2. Handlers (API)
 
 - [x] 2.1 Add a target resolver: id or slug to the agent's default variant, in the caller's project. Refuse unknown, archived, non-`is_agent`, static and self targets
-- [x] 2.2 `list_agents`: query `is_agent` workflows, compact fields, cursor pagination, exclude archived and static workflows. One row per agent from the default-variant head; pages run over applications, so a page can be short.
+- [x] 2.2 `list_agents`: query `is_agent` workflows, compact fields, cursor pagination, exclude archived and static workflows. One row per agent from the default-variant head, read in batch; the scan continues over applications until the page holds `limit` agents.
 - [x] 2.3 `read_agent_config`: call `read_workflow_revision_config` for the resolved variant; same response and errors as `read_config`, without the draft warning
 - [x] 2.4 `edit_agent_config`: call `commit_workflow_revision_checked` with `AGENT_COMMIT_SCOPE` and `agent_context=True`; map errors the same way as `handle_commit_revision`
-- [x] 2.5 `create_agent`: build the default agent configuration server-side from the catalog template the web app uses; create the workflow, variant and first revision; apply operations; roll back on failure. Operations are applied in memory before any write; a create that fails half way is archived, and the refusal says whether the archive worked (not retryable). The composition lives in `SimpleWorkflowsService.create_agent`. The web path's per-person model choice stays in the browser; the template's model is used (`api/oss/src/core/workflows/new_agent.py`).
+- [x] 2.5 `create_agent`: build the default agent configuration server-side from the catalog template the web app uses; create the workflow, variant and first revision; apply operations. Operations are applied in memory before any write; the writes are the idempotent create keyed by the session and the arguments, so a create that fails half way is finished by the same call (retryable). The composition lives in `SimpleWorkflowsService.create_agent`. The web path's per-person model choice stays in the browser; the template's model is used (`api/oss/src/core/workflows/new_agent.py`).
 - [x] 2.6 Register all four in `PLATFORM_TOOL_HANDLERS`
-- [x] 2.7 Handle runs without a session: attribution writes `session none`; the ops are not in the resolver's `_SESSION_TOOLS` skip list. Changed: the runner refuses a call whose `$ctx.session.id` binding has no value (`applyContextBindings`, `services/runner/src/tools/direct.ts`), so `create_agent` and `edit_agent_config` join `_SESSION_TOOLS` and a run without a session is not offered them. The handler still writes `session none` when the field is absent. `list_agents` and `read_agent_config` bind no session and stay.
+- [x] 2.7 Handle runs without a session. Changed: the runner refuses a call whose `$ctx.session.id` binding has no value (`applyContextBindings`, `services/runner/src/tools/direct.ts`), so `create_agent` and `edit_agent_config` join `_SESSION_TOOLS` and a run without a session is not offered them. The handlers refuse a call without a bound session; there is no `session none`. `list_agents` and `read_agent_config` bind no session and stay.
 
 ## 3. Attribution
 
@@ -43,7 +43,7 @@
 - [x] 6.2 Handlers: each scenario in `specs/`, including self-target, cross-project, archived, static and stale-revision refusals
 - [x] 6.3 Scope parity: a refused self-edit path is refused for `edit_agent_config` too
 - [x] 6.4 Template parity: `create_agent` with no operations equals a "New agent" configuration
-- [x] 6.5 Attribution: suffix present, model values ignored
+- [x] 6.5 Attribution: suffix present, model values refused
 - [x] 6.6 Web: capability toggle adds and removes all grouped ops; per-op permission persists
 - [ ] 6.7 Live QA on a test stack: one agent creates a helper, edits its instructions, and the helper's history shows the attributed message
 - [x] 6.8 Review fixes: the `agenta_tools` entry is keyed by its type in the operations engine; an agent's commit runs the runtime's parse on its result; the build kit's off switch also drops the tools from the saved `agenta_tools` map of the run copy; the template seeds `skills: []`
