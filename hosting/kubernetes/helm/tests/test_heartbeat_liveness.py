@@ -47,22 +47,38 @@ WANT_PROBE = {
 }
 
 URL_ARGS = [
-    "--set", "agenta.webUrl=https://agenta.example.com",
-    "--set", "agenta.apiUrl=https://agenta.example.com/api",
-    "--set", "agenta.servicesUrl=https://agenta.example.com/services",
+    "--set",
+    "agenta.webUrl=https://agenta.example.com",
+    "--set",
+    "agenta.apiUrl=https://agenta.example.com/api",
+    "--set",
+    "agenta.servicesUrl=https://agenta.example.com/services",
 ]
 KEY_ARGS = [
-    "--set", "agenta.authKey=0000000000000000000000000000000000000000000000000000000000000000",
-    "--set", "agenta.cryptKey=1111111111111111111111111111111111111111111111111111111111111111",
-    "--set", "agenta.servicesInternalKey=2222222222222222222222222222222222222222222222222222222222222222",
-    "--set", "agenta.runnerToken=3333333333333333333333333333333333333333333333333333333333333333",
-    "--set", "postgres.password=a-real-password",
+    "--set",
+    "agenta.authKey=0000000000000000000000000000000000000000000000000000000000000000",
+    "--set",
+    "agenta.cryptKey=1111111111111111111111111111111111111111111111111111111111111111",
+    "--set",
+    "agenta.servicesInternalKey=2222222222222222222222222222222222222222222222222222222222222222",
+    "--set",
+    "agenta.runnerToken=3333333333333333333333333333333333333333333333333333333333333333",
+    "--set",
+    "postgres.password=a-real-password",
 ]
 
 
 def render(extra: list[str] | None = None) -> list[dict]:
     result = subprocess.run(
-        ["helm", "template", RELEASE, str(CHART_DIR), *URL_ARGS, *KEY_ARGS, *(extra or [])],
+        [
+            "helm",
+            "template",
+            RELEASE,
+            str(CHART_DIR),
+            *URL_ARGS,
+            *KEY_ARGS,
+            *(extra or []),
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -103,11 +119,21 @@ def main() -> int:
 
     # --- the default shape ----------------------------------------------------
     parsed = render()
-    probed = {ref for ref, c in workloads(parsed) if (c.get("livenessProbe") or {}).get("exec")
-              and "heartbeat" in " ".join(c["livenessProbe"]["exec"]["command"])}
-    check(probed == WANT_PROBE,
-          "exactly cron and the two workers get a heartbeat probe"
-          + ("" if probed == WANT_PROBE else f" (extra {sorted(probed - WANT_PROBE)}, missing {sorted(WANT_PROBE - probed)})"))
+    probed = {
+        ref
+        for ref, c in workloads(parsed)
+        if (c.get("livenessProbe") or {}).get("exec")
+        and "heartbeat" in " ".join(c["livenessProbe"]["exec"]["command"])
+    }
+    check(
+        probed == WANT_PROBE,
+        "exactly cron and the two workers get a heartbeat probe"
+        + (
+            ""
+            if probed == WANT_PROBE
+            else f" (extra {sorted(probed - WANT_PROBE)}, missing {sorted(WANT_PROBE - probed)})"
+        ),
+    )
 
     # --- the writer and the reader must agree, which is the whole point -------
     mismatched = []
@@ -117,19 +143,28 @@ def main() -> int:
         configured = env_of(c).get(ENV_NAME)
         command = " ".join(c["livenessProbe"]["exec"]["command"])
         if not configured or configured not in command:
-            mismatched.append(f"{ref}: env={configured!r} not found in the probe command")
-    check(not mismatched,
-          "every probed workload reads the same path the application is told to write"
-          + ("" if not mismatched else f" ({mismatched})"))
+            mismatched.append(
+                f"{ref}: env={configured!r} not found in the probe command"
+            )
+    check(
+        not mismatched,
+        "every probed workload reads the same path the application is told to write"
+        + ("" if not mismatched else f" ({mismatched})"),
+    )
 
     # --- the arithmetic, run for real ----------------------------------------
-    sample = next(c["livenessProbe"]["exec"]["command"]
-                  for ref, c in workloads(parsed) if ref in WANT_PROBE)
+    sample = next(
+        c["livenessProbe"]["exec"]["command"]
+        for ref, c in workloads(parsed)
+        if ref in WANT_PROBE
+    )
     with tempfile.TemporaryDirectory() as directory:
         beats = Path(directory)
         # Point the rendered command at a directory this test controls, changing
         # nothing else about the command.
-        rendered_path = env_of(next(c for ref, c in workloads(parsed) if ref in WANT_PROBE))[ENV_NAME]
+        rendered_path = env_of(
+            next(c for ref, c in workloads(parsed) if ref in WANT_PROBE)
+        )[ENV_NAME]
         command = [part.replace(rendered_path, str(beats)) for part in sample]
 
         def fresh(name: str) -> None:
@@ -150,14 +185,21 @@ def main() -> int:
         # THE CASE THE REVIEW FOUND. Several consumer loops share one process, so a
         # healthy loop must not cover for a stalled one.
         stale("records")
-        check(run_probe(command) != 0,
-              "one stalled loop fails the probe even while another is fresh")
+        check(
+            run_probe(command) != 0,
+            "one stalled loop fails the probe even while another is fresh",
+        )
 
-        clear(); fresh("spans"); fresh("records"); fresh("events")
+        clear()
+        fresh("spans")
+        fresh("records")
+        fresh("events")
         check(run_probe(command) == 0, "three fresh loops pass")
 
         (beats / "events").write_text("")
-        check(run_probe(command) != 0, "an empty file fails rather than reading as fresh")
+        check(
+            run_probe(command) != 0, "an empty file fails rather than reading as fresh"
+        )
 
         (beats / "events").write_text("not-a-number\n")
         check(run_probe(command) != 0, "a file that is not a timestamp fails")
@@ -170,18 +212,36 @@ def main() -> int:
         spaced.mkdir()
         spaced_command = [part.replace(rendered_path, str(spaced)) for part in sample]
         (spaced / "spans").write_text(f"{int(time.time())}\n")
-        check(run_probe(spaced_command) == 0, "a directory whose name contains a space still passes")
+        check(
+            run_probe(spaced_command) == 0,
+            "a directory whose name contains a space still passes",
+        )
         (spaced / "records").write_text(f"{int(time.time()) - 10_000}\n")
         check(run_probe(spaced_command) != 0, "and a stalled loop there still fails")
 
     # --- the switch and the settings -----------------------------------------
     parsed = render(["--set", "heartbeat.enabled=false"])
     any_env = any(ENV_NAME in env_of(c) for _, c in workloads(parsed))
-    any_probe = any("heartbeat" in " ".join(((c.get("livenessProbe") or {}).get("exec") or {}).get("command") or [])
-                    for _, c in workloads(parsed))
-    check(not any_env and not any_probe, "turning it off removes the variable and the probes together")
+    any_probe = any(
+        "heartbeat"
+        in " ".join(
+            ((c.get("livenessProbe") or {}).get("exec") or {}).get("command") or []
+        )
+        for _, c in workloads(parsed)
+    )
+    check(
+        not any_env and not any_probe,
+        "turning it off removes the variable and the probes together",
+    )
 
-    parsed = render(["--set", "heartbeat.path=/var/run/agenta/beat", "--set", "heartbeat.staleSeconds=45"])
+    parsed = render(
+        [
+            "--set",
+            "heartbeat.path=/var/run/agenta/beat",
+            "--set",
+            "heartbeat.staleSeconds=45",
+        ]
+    )
     bad = []
     for ref, c in workloads(parsed):
         if ref not in WANT_PROBE:
@@ -195,21 +255,39 @@ def main() -> int:
             bad.append(f"{ref}: custom path missing from the environment")
         if c["livenessProbe"].get("initialDelaySeconds") != 45:
             bad.append(f"{ref}: initial delay should follow staleSeconds")
-    check(not bad, "a custom path and threshold reach both the writer and the reader"
-          + ("" if not bad else f" ({bad})"))
+    check(
+        not bad,
+        "a custom path and threshold reach both the writer and the reader"
+        + ("" if not bad else f" ({bad})"),
+    )
 
     # --- an operator override still wins -------------------------------------
     override = {"httpGet": {"path": "/healthz", "port": 8080}, "periodSeconds": 11}
-    parsed = render(["--set-json", f"workerQueues.livenessProbe={json.dumps(override)}"])
-    got = next((c.get("livenessProbe") for ref, c in workloads(parsed)
-                if ref == f"Deployment/{RELEASE}-agenta-worker-queues" and c.get("livenessProbe")), None)
-    check(got is not None and got.get("httpGet", {}).get("path") == "/healthz" and got.get("periodSeconds") == 11,
-          "an operator's own probe replaces the generated one")
+    parsed = render(
+        ["--set-json", f"workerQueues.livenessProbe={json.dumps(override)}"]
+    )
+    got = next(
+        (
+            c.get("livenessProbe")
+            for ref, c in workloads(parsed)
+            if ref == f"Deployment/{RELEASE}-agenta-worker-queues"
+            and c.get("livenessProbe")
+        ),
+        None,
+    )
+    check(
+        got is not None
+        and got.get("httpGet", {}).get("path") == "/healthz"
+        and got.get("periodSeconds") == 11,
+        "an operator's own probe replaces the generated one",
+    )
 
     print(f"\n{total - len(failures)}/{total} checks passed")
     if failures:
         return 1
-    print("OK: the heartbeat probe reads what the application writes, and the arithmetic holds.")
+    print(
+        "OK: the heartbeat probe reads what the application writes, and the arithmetic holds."
+    )
     return 0
 
 

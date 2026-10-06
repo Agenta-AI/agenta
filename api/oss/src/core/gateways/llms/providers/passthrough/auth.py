@@ -19,9 +19,19 @@ _DEFAULT_AUTH_HEADER: Tuple[str, str] = ("Authorization", "Bearer ")
 
 
 def _secret_key(secret: ResolvedSecret) -> Optional[str]:
+    """The record's API key.
+
+    A custom provider saved from the UI keeps its key in `extras["api_key"]`, not in
+    `provider.key` (`web/packages/agenta-entities/src/secret/core/transforms.ts`). The SDK's
+    direct path reads it there too (`platform/connections.py`), and `api_key` is classified
+    as credential material in the shared extras vocabulary. Reading only `provider.key` sent
+    such a connection's calls with no key, and the upstream answered 401.
+    """
     data = secret.secret.data
-    if secret.secret.kind in (SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER):
+    if secret.secret.kind == SecretKind.PROVIDER_KEY:
         return data.provider.key
+    if secret.secret.kind == SecretKind.CUSTOM_PROVIDER:
+        return data.provider.key or (data.provider.extras or {}).get("api_key")
     return None
 
 

@@ -102,6 +102,16 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- $redisCaMount := include "agenta.redisDurableCaVolumeMount" . }}
+          {{- if $redisCaMount }}
+          volumeMounts:
+            {{- $redisCaMount | nindent 12 }}
+          {{- end }}
+      {{- $redisCaVolume := include "agenta.redisDurableCaVolume" . }}
+      {{- if $redisCaVolume }}
+      volumes:
+        {{- $redisCaVolume | nindent 8 }}
+      {{- end }}
       {{- with $workerQueues.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

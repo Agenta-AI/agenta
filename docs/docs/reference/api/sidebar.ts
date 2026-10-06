@@ -3876,6 +3876,24 @@ const sidebar: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Wallets",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/fetch-wallet-summary",
+          label: "Fetch Summary",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-wallet-usage",
+          label: "Query Usage",
+          className: "api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
       label: "Events",
       items: [
         {

@@ -218,9 +218,52 @@ global:
 #   redisVolatile:
 #     safeToEvict: false        # default; true lets the autoscaler consolidate the node
 #     podAnnotations: {}        # merged over the default, so a key set here wins
+# Both bundled Redis instances probe startup every five seconds and restart after
+# 60 failures by default (about five minutes). The durable instance must replay its
+# append-only file before ping succeeds. Measure recovery with your CPU/storage limits
+# and allow enough time, or restarts can repeat the same unfinished replay.
+# Increase the threshold per instance without changing the error-aware ping command:
+#   redisDurable:
+#     startupProbe:
+#       failureThreshold: 360  # example: about 30 minutes, not a recovery guarantee
+# The same key works on redisVolatile; it leaves the other instance's threshold alone.
 redisDurable:
   persistence:
     size: "5Gi"
+
+# An external durable Redis over TLS.
+#
+# Set `caCert` only when the service presents a certificate from an authority the
+# client does not already trust. Then `rediss://` fails with
+# CERTIFICATE_VERIFY_FAILED until you supply that authority. Google Cloud
+# Memorystore is the case we measured: it signs with a per-instance authority, and
+# the connection is refused without it. Managed services that present a publicly
+# trusted certificate need nothing here, so do not go looking for a CA you do not
+# need. Check your provider's documentation, or try the connection first and add
+# the authority only if it is refused.
+#
+# Put the authority in `redisDurable.external.caCert` and the chart mounts it at
+# /etc/agenta/redis-durable/ca.pem on every workload that talks to the durable
+# Redis: api, services, cron, the two workers and the alembic job. Then point the
+# connection string at that path. `ssl_ca_certs` is a redis-py query parameter.
+#
+# redisDurable:
+#   enabled: false
+#   password: from-existing-secret   # defines REDIS_DURABLE_PASSWORD from the Secret
+#   external:
+#     uri: "rediss://:$(REDIS_DURABLE_PASSWORD)@redis.internal.example.com:6378/0?ssl_ca_certs=/etc/agenta/redis-durable/ca.pem"
+#     caCert: |
+#       -----BEGIN CERTIFICATE-----
+#       ...
+#       -----END CERTIFICATE-----
+#
+# With `secrets.existingSecret` the chart writes no Secret, so put the PEM in
+# that Secret yourself under the key REDIS_DURABLE_CA_CERT and set
+# `caCert: from-existing-secret` so the chart still mounts it.
+#
+# Do NOT reach for `?ssl_cert_reqs=none` instead. The traffic stays encrypted,
+# but nothing then proves the server is the server, and the AUTH password is
+# handed to whatever answers that address.
 
 # ================================================================== #
 # store — object store (AGENTA_STORE_*).
@@ -311,10 +354,10 @@ redisDurable:
 # Chart defaults when a key is unset:
 #   strategy: Recreate on agentRunner, cron and redisVolatile; RollingUpdate
 #     with maxUnavailable 0, maxSurge 1 on services, web, webMobile,
-#     workerStreams, workerQueues and supertokens; none on api.
+#     workerStreams, workerQueues, supertokens and api.
 #   terminationGracePeriodSeconds: 300 on agentRunner, 120 on the two
-#     workers, 60 on services, web and webMobile.
-#   lifecycle: a preStop exec `sleep 10` on agentRunner, services, web and
+#     workers, 60 on api, services, web and webMobile.
+#   lifecycle: a preStop exec `sleep 10` on agentRunner, api, services, web and
 #     webMobile. Setting a key replaces its default.
 # Liveness probes on cron, workerStreams and workerQueues come from the heartbeat file.
 # See the `heartbeat` section near the top of this file for what each one proves. Setting

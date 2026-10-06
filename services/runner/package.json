@@ -64,12 +64,13 @@
       "@sandbox-agent/cli-linux-arm64",
       "esbuild"
     ],
-    "_patchedDependenciesComment": "@agentclientprotocol/sdk@0.16.1 patch: backports the later SDK behavior of failing pending requests when the connection closes (fixed upstream in 0.29 and 1.x). It exists because acp-http-client (pinned via sandbox-agent 0.4.2) requires ^0.16.1, and even acp-http-client 0.5.0-rc still does. Drop the patch once sandbox-agent/acp-http-client move to an SDK >= 0.29.",
+    "_patchedDependenciesComment": "@agentclientprotocol/sdk@0.16.1 patch: backports the later SDK behavior of failing pending requests when the connection closes (fixed upstream in 0.29 and 1.x). It exists because acp-http-client (pinned via sandbox-agent 0.4.2) requires ^0.16.1, and even acp-http-client 0.5.0-rc still does. Drop the patch once sandbox-agent/acp-http-client move to an SDK >= 0.29. @earendil-works/pi-coding-agent@0.99.1 patch: adds an `authContext` option to `ModelRuntime.create` (pi-ai's `createModels` already takes one), so an in-process session resolves ambient auth such as ANTHROPIC_AUTH_TOKEN from its own run, not the shared process.env. Port it on every Pi bump until upstream has the option.",
     "patchedDependencies": {
       "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
       "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
       "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch",
-      "@agentclientprotocol/sdk@0.16.1": "patches/@agentclientprotocol__sdk@0.16.1.patch"
+      "@agentclientprotocol/sdk@0.16.1": "patches/@agentclientprotocol__sdk@0.16.1.patch",
+      "@earendil-works/pi-coding-agent@0.99.1": "patches/@earendil-works__pi-coding-agent@0.99.1.patch"
     },
     "overrides": {
       "@hono/node-server": "1.19.15",
