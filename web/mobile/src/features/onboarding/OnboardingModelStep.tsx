@@ -1,5 +1,3 @@
-import type {ReactNode} from "react"
-
 import {
     ProviderDrawer,
     SubscriptionConnectionCard,
@@ -17,7 +15,11 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, Check, Coins} from "@phosphor-icons/react"
 
+import {cn} from "@/lib/utils"
+
 import {ONBOARDING_COPY} from "./onboardingCopy"
+import {onboardingHeadingId} from "./onboardingDraft"
+import {OnboardingModelOption} from "./OnboardingModelOption"
 import {OnboardingModelSkeleton} from "./states/OnboardingModelSkeleton"
 import type {OnboardingModel} from "./useOnboardingModel"
 
@@ -30,37 +32,16 @@ const BYOM_ICONS = ["openai", "anthropic", "gemini", "openrouter"].map((key) => 
 }))
 const SELF_HOST_DOCS = "https://docs.agenta.ai/self-host/quick-start"
 
-const OptionRow = ({
-    icon,
-    title,
-    hint,
-    action,
-    muted = false,
-}: {
-    icon: ReactNode
-    title: ReactNode
-    hint: string
-    action: ReactNode
-    muted?: boolean
-}) => (
-    <div className="border-border bg-background flex items-center justify-between gap-4 rounded-xl border border-solid p-4">
-        <span className={`flex min-w-0 items-center gap-3 ${muted ? "text-muted-foreground" : ""}`}>
-            {icon}
-            <span className="min-w-0">
-                <span className="block text-sm font-semibold">{title}</span>
-                <span className="text-muted-foreground block text-xs">{hint}</span>
-            </span>
-        </span>
-        <span className="shrink-0">{action}</span>
-    </div>
-)
-
 /** How the first agent runs: credits when the deployment has them, else a subscription or key. */
 export const OnboardingModelStep = ({model}: {model: OnboardingModel}) => {
     const {chatgpt, keys} = model
     return (
         <div className="flex flex-col">
-            <h1 className="m-0 text-center text-2xl font-semibold leading-tight lg:text-[30px]">
+            <h1
+                id={onboardingHeadingId("model")}
+                tabIndex={-1}
+                className={cn(ONBOARDING_COPY.headingClass, "text-center lg:text-[30px]")}
+            >
                 {model.managed ? copy.creditsTitle : copy.title}
             </h1>
             <p className="text-muted-foreground mb-8 mt-2 text-center text-[15px]">
@@ -104,7 +85,7 @@ export const OnboardingModelStep = ({model}: {model: OnboardingModel}) => {
                     </p>
                     <div className="flex flex-col gap-3">
                         {chatgpt.available ? (
-                            <OptionRow
+                            <OnboardingModelOption
                                 icon={<OpenAIIcon className="size-7 shrink-0" />}
                                 title={copy.chatgpt}
                                 hint={copy.chatgptHint}
@@ -124,7 +105,7 @@ export const OnboardingModelStep = ({model}: {model: OnboardingModel}) => {
                                 }
                             />
                         ) : null}
-                        <OptionRow
+                        <OnboardingModelOption
                             muted
                             icon={<AnthropicIcon className="size-7 shrink-0" />}
                             title={
@@ -145,7 +126,7 @@ export const OnboardingModelStep = ({model}: {model: OnboardingModel}) => {
                                 </a>
                             }
                         />
-                        <OptionRow
+                        <OnboardingModelOption
                             icon={
                                 <span className="flex shrink-0 items-center">
                                     {BYOM_ICONS.map(({key, Icon}) => (

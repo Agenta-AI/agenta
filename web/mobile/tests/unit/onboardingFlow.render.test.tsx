@@ -15,6 +15,7 @@ vi.mock("@agenta/ui/agent-icon", () => ({
         ["#222222", "#dddddd"],
     ],
     AGENT_ICON_CHIP_CLASS: "",
+    DEFAULT_AGENT_ICON: {icon: "robot", color: "#111111"},
     AgentIcon: () => null,
     agentIconChipStyle: () => ({}),
     loadAgentIconCatalog: () => Promise.resolve([]),
@@ -22,7 +23,11 @@ vi.mock("@agenta/ui/agent-icon", () => ({
 vi.mock("@/components/AgentaLogo", () => ({AgentaLogo: () => null}))
 vi.mock("motion/react", () => ({
     AnimatePresence: ({children}: {children: ReactNode}) => <>{children}</>,
-    motion: {section: ({children}: {children: ReactNode}) => <section>{children}</section>},
+    motion: {
+        section: ({children, className}: {children: ReactNode; className?: string}) => (
+            <section className={className}>{children}</section>
+        ),
+    },
     useReducedMotion: () => true,
 }))
 
@@ -129,7 +134,7 @@ describe("first agent onboarding", () => {
         expect(props.onCreate).toHaveBeenCalledWith({
             name: "My agent",
             seedMessage: "Set up My agent: help me define what this agent should do.",
-            icon: null,
+            icon: {icon: "robot", color: "#111111"},
         })
         render(baseProps({draftKey: "onboarding:other"}))
         expect(heading()).toBe("What will you be working on most?")
@@ -211,7 +216,7 @@ describe("first agent onboarding", () => {
         expect(onCreate).toHaveBeenCalledWith({
             name: "My agent",
             seedMessage: "Set up My agent: help me define what this agent should do.",
-            icon: null,
+            icon: {icon: "robot", color: "#111111"},
         })
     })
 
@@ -246,5 +251,49 @@ describe("first agent onboarding", () => {
         click(/^Next/)
         expect(host!.textContent).toContain("Models")
         expect(host!.textContent).toContain("Step 2 of 4")
+    })
+
+    it("keeps name-first Create off while a picked template is not loaded", () => {
+        window.sessionStorage.setItem(
+            "onboarding:test",
+            JSON.stringify({
+                step: "agent",
+                role: "Engineering",
+                source: "GitHub",
+                name: "PR reviewer",
+                task: "",
+                pick: {kind: "template", key: "review"},
+                icon: null,
+            }),
+        )
+        render(baseProps({catalog: {templates: [], status: "error", retry: vi.fn()}}))
+        expect(button("Get started").disabled).toBe(true)
+    })
+
+    it("says why Create is off when no model is ready, and goes back to choose one", () => {
+        render(baseProps({modelReady: false}))
+        click("Engineering")
+        click(/^Next/)
+        click(/^Next/)
+        render(baseProps({modelReady: true}))
+        click(/^Continue with credits/)
+        click("GitHub")
+        click(/^Next/)
+        render(baseProps({modelReady: false}))
+        expect(host!.textContent).toContain("Your agent needs a model to run.")
+        click("Choose one")
+        expect(host!.textContent).toContain("Models")
+        expect(button(/^Continue with credits/).disabled).toBe(true)
+    })
+
+    it("moves focus to the new step's heading and labels the choices by it", () => {
+        render(baseProps())
+        const roles = host!.querySelector('[role="group"]')!
+        expect(document.getElementById(roles.getAttribute("aria-labelledby")!)?.textContent).toBe(
+            "What will you be working on most?",
+        )
+        click("Engineering")
+        click(/^Next/)
+        expect(document.activeElement?.textContent).toBe("What do you use every day?")
     })
 })

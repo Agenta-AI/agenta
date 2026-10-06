@@ -9,6 +9,8 @@ export const ONBOARDING_COPY = {
     retry: "Try again",
     stepCounter: (current: number, total: number) => `Step ${current} of ${total}`,
     back: "Back",
+    /** Focus target for each step's heading; it needs no ring of its own. */
+    headingClass: "m-0 text-2xl font-semibold leading-tight outline-none",
     next: "Next",
     headings: {
         role: {
@@ -91,5 +93,7 @@ export const ONBOARDING_COPY = {
         exampleHint: "Illustration only. Your agent hasn't run yet.",
         iconLabel: (name: string) => `Agent icon ${name}`,
         colorLabel: (color: string) => `Agent color ${color}`,
+        modelMissing: "Your agent needs a model to run.",
+        modelMissingAction: "Choose one",
     },
 } as const

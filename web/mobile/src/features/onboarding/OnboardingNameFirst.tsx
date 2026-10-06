@@ -10,11 +10,12 @@ import {cn} from "@/lib/utils"
 import {OnboardingAgentIdentity} from "./OnboardingAgentIdentity"
 import {choiceCardClass, toneAt, type OnboardingCatalog} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
-import {ONBOARDING_NAME_MAX, type OnboardingIconPick} from "./onboardingDraft"
+import {ONBOARDING_NAME_MAX, onboardingHeadingId, type OnboardingIconPick} from "./onboardingDraft"
 import {OnboardingSuggestionsError} from "./states/OnboardingSuggestionsError"
 import {OnboardingSuggestionsSkeleton} from "./states/OnboardingSuggestionsSkeleton"
 
 const copy = ONBOARDING_COPY.agent
+const SUGGESTIONS_ID = "onboarding-suggestions"
 
 /** Control: give the agent a face and a name; role suggestions fill both in one tap. */
 export const OnboardingNameFirst = ({
@@ -42,7 +43,11 @@ export const OnboardingNameFirst = ({
 }) => (
     <div className="flex flex-col gap-8">
         <div className="flex flex-col items-center gap-6 py-4">
-            <h1 className="m-0 text-center text-2xl font-semibold leading-tight lg:text-[30px]">
+            <h1
+                id={onboardingHeadingId("agent")}
+                tabIndex={-1}
+                className={cn(ONBOARDING_COPY.headingClass, "text-center lg:text-[30px]")}
+            >
                 {copy.title("control")}
             </h1>
             <OnboardingAgentIdentity value={icon} onChange={onIcon} />
@@ -65,8 +70,14 @@ export const OnboardingNameFirst = ({
             ) : null}
             {suggestions.length > 0 ? (
                 <>
-                    <p className="text-muted-foreground m-0 text-sm">{copy.suggestionsFor(role)}</p>
-                    <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden">
+                    <p id={SUGGESTIONS_ID} className="text-muted-foreground m-0 text-sm">
+                        {copy.suggestionsFor(role)}
+                    </p>
+                    <div
+                        role="group"
+                        aria-labelledby={SUGGESTIONS_ID}
+                        className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden"
+                    >
                         {suggestions.map((template, index) => (
                             <button
                                 key={template.key}

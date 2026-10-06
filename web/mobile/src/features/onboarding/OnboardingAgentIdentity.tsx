@@ -14,7 +14,7 @@ import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
-import type {OnboardingIconPick} from "./onboardingDraft"
+import {DEFAULT_IDENTITY, type OnboardingIconPick} from "./onboardingDraft"
 
 const GLYPHS = [
     "robot",
@@ -49,8 +49,8 @@ export const OnboardingAgentIdentity = ({
             active = false
         }
     }, [])
-    const color = value?.color ?? COLORS[0]
-    const chosen = glyphs.find((item) => item.name === value?.icon) ?? glyphs[0]
+    const {icon, color} = value ?? DEFAULT_IDENTITY
+    const chosen = glyphs.find((item) => item.name === icon) ?? glyphs[0]
 
     return (
         <div className="flex flex-col items-center gap-4">

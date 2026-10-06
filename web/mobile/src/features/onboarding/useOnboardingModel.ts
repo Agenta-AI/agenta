@@ -1,15 +1,18 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    agentModelSelectionIsRunnable,
     providerConnectionsAtom,
+    resolveAgentModelSelection,
     useVaultSecret,
     type AgentModelCandidate,
+    type AgentModelSelection,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     readHarnessKind,
-    readModelConnectionSlug,
+    readModelConnection,
     readModelId,
     withHarnessKind,
     withModel,
@@ -48,6 +51,14 @@ export interface OnboardingModel {
     retry: () => void
 }
 
+/** The model the config names, in the shape the candidate list is matched against. */
+const configuredSelection = (configuration: unknown): AgentModelSelection | null => {
+    const modelId = readModelId(configuration)
+    const harness = readHarnessKind(configuration)
+    const connection = readModelConnection(configuration)
+    return modelId && harness && connection ? {modelId, harness, ...connection} : null
+}
+
 /**
  * The model the first agent runs on. There is no picker: credits win by default, a ChatGPT
  * sign-in or a key saved here takes over, and the first available candidate is the fallback.
@@ -61,15 +72,12 @@ export const useOnboardingModel = (entityId: string): OnboardingModel => {
     const allConnections = useAtomValue(providerConnectionsAtom)
     const {mutate: refreshVault} = useVaultSecret()
 
-    const currentModel = readModelId(configuration)
-    const currentHarness = readHarnessKind(configuration)
-    const currentSlug = readModelConnectionSlug(configuration)
-    const selected = candidates.candidates.find(
-        (item) =>
-            item.modelId === currentModel &&
-            item.harness === currentHarness &&
-            item.slug === currentSlug,
-    )
+    const selection = useMemo(() => configuredSelection(configuration), [configuration])
+    const runnable = agentModelSelectionIsRunnable(candidates.candidates, selection)
+    const selected = runnable
+        ? (resolveAgentModelSelection({candidates: candidates.candidates, explicit: selection}) ??
+          undefined)
+        : undefined
     const managed = candidates.candidates.find((item) => item.managed)
     const chatgptConnection = candidates.connections.find((item) => item.subscription) ?? null
     const chatgptReady = chatgptConnection?.subscription?.loginState === "ready"
@@ -91,12 +99,9 @@ export const useOnboardingModel = (entityId: string): OnboardingModel => {
     // `configuration` re-runs the pick when the config lands after the candidates did.
     useEffect(() => {
         if (candidates.status !== "ready" || selected || !configuration) return
-        const preferred =
-            managed ??
-            candidates.candidates.find((item) => item.harness === "codex") ??
-            candidates.candidates[0]
+        const preferred = resolveAgentModelSelection({candidates: candidates.candidates})
         if (preferred) select(preferred)
-    }, [candidates.status, candidates.candidates, configuration, selected, managed, select])
+    }, [candidates.status, candidates.candidates, configuration, selected, select])
 
     const candidatesRef = useRef(candidates.candidates)
     candidatesRef.current = candidates.candidates
@@ -119,17 +124,19 @@ export const useOnboardingModel = (entityId: string): OnboardingModel => {
     const [chatgptDialogOpen, setChatgptDialogOpen] = useState(false)
     const dialogOpenRef = useRef(chatgptDialogOpen)
     dialogOpenRef.current = chatgptDialogOpen
-    const wasChatgptReady = useRef(chatgptReady)
+    // Baseline taken once the candidates answer, so a sign-in that already existed never switches.
+    const wasChatgptReady = useRef<boolean | null>(null)
     useEffect(() => {
-        if (chatgptReady && !wasChatgptReady.current) {
-            arm((list) => list.find((item) => item.harness === "codex"))
-            if (dialogOpenRef.current) {
-                setChatgptDialogOpen(false)
-                message.success(ONBOARDING_COPY.model.chatgptConnected)
-            }
-        }
+        if (candidates.status !== "ready") return
+        const was = wasChatgptReady.current
         wasChatgptReady.current = chatgptReady
-    }, [chatgptReady, arm])
+        if (was === null || !chatgptReady || was) return
+        arm((list) => list.find((item) => item.harness === "codex"))
+        if (dialogOpenRef.current) {
+            setChatgptDialogOpen(false)
+            message.success(ONBOARDING_COPY.model.chatgptConnected)
+        }
+    }, [candidates.status, chatgptReady, arm])
 
     const [drawerOpen, setDrawerOpen] = useState(false)
     const knownKeysRef = useRef<Set<string>>(new Set())

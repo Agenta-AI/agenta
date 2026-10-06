@@ -10,21 +10,12 @@ import {cn} from "@/lib/utils"
 
 import {choiceCardClass, taskTitle, type OnboardingCatalog} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
-import {ONBOARDING_TASK_MAX, type TemplatePick} from "./onboardingDraft"
+import {ONBOARDING_TASK_MAX, onboardingHeadingId, type TemplatePick} from "./onboardingDraft"
+import {OnboardingRadioMark} from "./OnboardingRadioMark"
 import {OnboardingSuggestionsError} from "./states/OnboardingSuggestionsError"
 import {OnboardingSuggestionsSkeleton} from "./states/OnboardingSuggestionsSkeleton"
 
 const copy = ONBOARDING_COPY.agent
-
-const RadioMark = ({active}: {active: boolean}) => (
-    <span
-        aria-hidden
-        className={cn(
-            "ml-auto size-4 shrink-0 rounded-full border-solid",
-            active ? "border-foreground border-[5px]" : "border-border border",
-        )}
-    />
-)
 
 /** Task first: pick what the agent should do, preview it, and the agent is built around it. */
 export const OnboardingTaskFirst = ({
@@ -52,11 +43,19 @@ export const OnboardingTaskFirst = ({
     return (
         <div className="grid w-full gap-8 md:grid-cols-2">
             <div className="flex flex-col">
-                <h1 className="m-0 text-2xl font-semibold leading-tight">
+                <h1
+                    id={onboardingHeadingId("agent")}
+                    tabIndex={-1}
+                    className={ONBOARDING_COPY.headingClass}
+                >
                     {copy.title("task-first")}
                 </h1>
                 <p className="text-muted-foreground mb-4 mt-1 text-sm">{copy.taskSubtitle}</p>
-                <div className="flex flex-col gap-2">
+                <div
+                    role="group"
+                    aria-labelledby={onboardingHeadingId("agent")}
+                    className="flex flex-col gap-2"
+                >
                     {catalog.status === "pending" ? <OnboardingSuggestionsSkeleton rows /> : null}
                     {catalog.status === "error" ? (
                         <OnboardingSuggestionsError onRetry={catalog.retry} />
@@ -83,7 +82,7 @@ export const OnboardingTaskFirst = ({
                                     {index === 0 ? (
                                         <Badge variant="info">{copy.recommended}</Badge>
                                     ) : null}
-                                    <RadioMark active={active} />
+                                    <OnboardingRadioMark active={active} />
                                 </span>
                                 <span className="text-muted-foreground text-xs">
                                     {template.description}
@@ -99,7 +98,7 @@ export const OnboardingTaskFirst = ({
                     >
                         <span className="flex w-full items-center gap-2">
                             <strong className="text-sm">{copy.somethingElse}</strong>
-                            <RadioMark active={custom} />
+                            <OnboardingRadioMark active={custom} />
                         </span>
                         <span className="text-muted-foreground text-xs">
                             {copy.somethingElseHint}
