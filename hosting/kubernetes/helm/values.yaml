@@ -379,6 +379,8 @@ redisDurable:
 #   gunicorn:                  # the api's gunicorn worker lifecycle (defaults shown)
 #     gracefulTimeout: 900     # seconds a recycled or stopped worker gets to finish its
 #                              # open requests. Must cover the longest LLM gateway stream.
+#                              # GKE Autopilot caps the pod grace period at 600 s: there,
+#                              # use 560 and terminationGracePeriodSeconds 600.
 #     maxRequests: 100000      # recycle a worker after this many requests (leak guard)
 #     maxRequestsJitter: 10000 # spread the recycles so workers do not drain together
 #     timeout: 60              # hung-worker check, not a request limit

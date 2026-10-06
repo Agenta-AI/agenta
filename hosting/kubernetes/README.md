@@ -263,6 +263,11 @@ Three settings outside the gunicorn block must be at least as long as
 - `api.terminationGracePeriodSeconds`. The kubelet sends KILL at the end of it.
   The chart default is `gracefulTimeout + 30`, which covers the 10-second preStop
   delay. If you set the grace period yourself, keep that margin.
+  GKE Autopilot caps the grace period at 600 seconds and silently rewrites a
+  larger value to 600, so the default of 930 does not hold there. On Autopilot,
+  set `gracefulTimeout` to 560 or less and `terminationGracePeriodSeconds` to
+  600. Check the value the cluster applied with
+  `kubectl get deploy <release>-api -o jsonpath='{.spec.template.spec.terminationGracePeriodSeconds}'`.
 - The load balancer's connection draining. On GKE this is
   `connectionDraining.drainingTimeoutSec` on the api's `BackendConfig`. After that
   timeout the load balancer stops all traffic to the old pod, open streams

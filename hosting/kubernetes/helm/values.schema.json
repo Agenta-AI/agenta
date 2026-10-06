@@ -1300,7 +1300,7 @@
                 "gracefulTimeout": {
                   "type": "integer",
                   "minimum": 1,
-                  "description": "Seconds a recycled or stopped worker gets to finish its open requests before it is killed. Default 900 (15 minutes)."
+                  "description": "Seconds a recycled or stopped worker gets to finish its open requests before it is killed. Default 900 (15 minutes). GKE Autopilot caps the pod grace period at 600 seconds, so use 560 or less there."
                 }
               }
             }
