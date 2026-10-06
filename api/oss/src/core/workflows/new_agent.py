@@ -12,7 +12,9 @@ template's. A tool call has no person to ask, so the template's model stays, and
 agent can set ``llm`` in the same call.
 """
 
+import re
 from typing import Any, Dict, Optional, Sequence
+from uuid import uuid4
 
 from oss.src.resources.workflows.catalog import get_workflow_catalog_template
 from oss.src.utils.env import env
@@ -61,3 +63,10 @@ def new_agent_revision_data(
         "parameters": parameters,
         "schemas": data.get("schemas"),
     }
+
+
+def new_agent_slug(name: str) -> str:
+    """The web's slug rule (`generateSlug`) plus a suffix, so two agents may share a name."""
+    slug = re.sub(r"[^a-z0-9_.\-\s]", "", name.lower().strip())
+    slug = re.sub(r"-+", "-", re.sub(r"\s+", "-", slug)).strip("-.")
+    return f"{slug or 'agent'}-{uuid4().hex[:6]}"
