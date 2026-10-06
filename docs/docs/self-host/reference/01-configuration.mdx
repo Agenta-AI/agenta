@@ -562,8 +562,9 @@ Four rules govern how they interact:
   cancels it and arms the idle timer instead.
 - A shell command that runs longer than `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` is stopped, and the
   agent receives a "command timed out" result and continues the turn. This applies to Pi on every
-  provider and to Claude Code. The run is aborted only when a tool call returns no result 60 seconds
-  after the limit, for example a Codex command or a tool that did not stop.
+  provider and to Claude Code. The run is aborted only when a tool call returns no result two minutes
+  after the limit, for example a Codex command or a tool that did not stop. The idle timeout does
+  not apply while a tool call runs.
 
 `AGENTA_RUNNER_RUN_TTFB_RETRIES` sets how many times the runner runs a turn again when the model
 sends nothing before the TTFB timeout. The default is `1` and the range is `0` to `3`. Set it to `0`

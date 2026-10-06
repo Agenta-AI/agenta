@@ -491,4 +491,22 @@ describe("a slow tool call is stopped by its command, not by the turn (EU 2026-1
     assert.equal(trips[0]![1], "tool-call");
     assert.match(trips[0]![0], /tool call call-hung exceeded 1000ms and returned no result within 500ms more/);
   });
+
+  it("does not let the idle limit cut a silent command before its own timer (both default to 30 min)", () => {
+    const { clock, advance } = fakeClock();
+    const limits = createRunLimits(
+      { totalMs: 1e7, idleMs: 1000, ttfbMs: 1e7, toolCallMs: 1000, toolCallGraceMs: 500 },
+      { clock },
+    );
+    const kinds: RunLimitKind[] = [];
+    limits.onTrip((_reason, kind) => kinds.push(kind));
+    limits.noteToolCallStart("call-silent");
+    advance(1200); // idle has elapsed, but the call is in flight and inside its grace
+    assert.deepEqual(kinds, []);
+    limits.noteToolCallEnd("call-silent");
+    advance(999);
+    assert.deepEqual(kinds, []);
+    advance(1); // nothing in flight any more: idle applies again
+    assert.deepEqual(kinds, ["idle"]);
+  });
 });

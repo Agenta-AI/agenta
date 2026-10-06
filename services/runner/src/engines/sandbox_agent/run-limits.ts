@@ -54,7 +54,9 @@ export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000;
  * arrived even this long after the limit ends the turn: its kill did not work, or the tool is one
  * the runner cannot configure.
  */
-export const TOOL_CALL_GRACE_MS = 60_000;
+// Covers the kill's confirmation (5 s) and the drive flush after a stopped in-process command (up
+// to 65 s with its control allowance), with room to spare.
+export const TOOL_CALL_GRACE_MS = 120_000;
 
 /**
  * The timeout, in seconds, a shell command gets: what the model asked for, never more than the
@@ -230,11 +232,12 @@ export function createRunLimits(
   const armIdle = (): void => {
     if (tripped || paused) return;
     if (idleTimer) clock.clearTimeout(idleTimer);
-    idleTimer = clock.setTimeout(
-      () =>
-        trip(`idle timeout after ${limits.idleMs}ms with no progress`, "idle"),
-      limits.idleMs,
-    );
+    idleTimer = clock.setTimeout(() => {
+      // A tool call in flight is bounded by its own timer, which waits for the stopped command's
+      // result; a silent command must not be cut by the idle limit first (both default to 30 min).
+      if (toolCallTimers.size > 0) return armIdle();
+      trip(`idle timeout after ${limits.idleMs}ms with no progress`, "idle");
+    }, limits.idleMs);
   };
 
   totalTimer = clock.setTimeout(
