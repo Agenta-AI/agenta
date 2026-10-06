@@ -88,14 +88,15 @@ export const useOnboardingModel = (entityId: string): OnboardingModel => {
         [entityId, updateConfiguration],
     )
 
+    // `configuration` re-runs the pick when the config lands after the candidates did.
     useEffect(() => {
-        if (candidates.status !== "ready" || selected) return
+        if (candidates.status !== "ready" || selected || !configuration) return
         const preferred =
             managed ??
             candidates.candidates.find((item) => item.harness === "codex") ??
             candidates.candidates[0]
         if (preferred) select(preferred)
-    }, [candidates.status, candidates.candidates, selected, managed, select])
+    }, [candidates.status, candidates.candidates, configuration, selected, managed, select])
 
     const candidatesRef = useRef(candidates.candidates)
     candidatesRef.current = candidates.candidates
