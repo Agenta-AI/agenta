@@ -12,7 +12,7 @@ The `list_agents` tool SHALL return the agents in the caller's project, with eac
 #### Scenario: Results are paginated
 
 - **WHEN** the project has more agents than one page holds
-- **THEN** the result includes a cursor, and calling `list_agents` with that cursor returns the next page
+- **THEN** the result includes a cursor, and calling `list_agents` with that cursor returns the next page, with no agent listed twice
 
 #### Scenario: Other projects are invisible
 
