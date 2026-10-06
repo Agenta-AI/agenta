@@ -427,8 +427,8 @@ export function withinCredentialPropagationWindow(
   );
 }
 
-const MALFORMED_FUNCTION_CALL = /finish_reason: malformed_function_call/;
-const MALFORMED_FUNCTION_CALL_MESSAGE =
+export const MALFORMED_FUNCTION_CALL = /finish_reason: malformed_function_call/;
+export const MALFORMED_FUNCTION_CALL_MESSAGE =
   "The model sent a tool call that could not be read (malformed_function_call). Try again, or pick another model.";
 
 /** The proxy answered but cannot reach its own store, or was not reachable at all. */

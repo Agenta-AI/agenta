@@ -27,6 +27,7 @@ import { SESSION_TURN_IN_USE_CODE, SESSION_TURN_IN_USE_MESSAGE } from "../../../
 import { withPublicCode } from "../../sandbox_agent/errors.ts";
 import type { EditDiffs } from "../tools/edit-diffs.ts";
 import { ExtensionUiChannel } from "./extension-ui-channel.ts";
+import { malformedToolCallError, retryMalformedToolCallOnce, type MalformedToolCallRetry } from "./malformed-tool-call.ts";
 import { toRpcEvent } from "./rpc-event.ts";
 import { TurnWatchdog, type TurnWatchdogLimits } from "./turn-watchdog.ts";
 
@@ -89,6 +90,7 @@ export class InProcessAcpSession {
   private readonly ui: ExtensionUiChannel;
   private readonly acp: PiAcpSession;
   private readonly watchdog: TurnWatchdog;
+  private readonly malformedRetry: MalformedToolCallRetry;
   private readonly eventListeners = new Set<Listener<SessionEvent>>();
   private readonly permissionListeners = new Set<Listener<SessionPermissionRequest>>();
   private readonly pendingPermissions = new Map<string, PendingPermission>();
@@ -123,9 +125,11 @@ export class InProcessAcpSession {
     const offUi = this.ui.onRequest((request) => {
       for (const handler of handlers) handler(request);
     });
+    this.malformedRetry = retryMalformedToolCallOnce(this.session);
     this.unsubscribe = () => {
       offSession();
       offUi();
+      this.malformedRetry.stop();
     };
     const proc: PiProcess = {
       onEvent: (handler) => {
@@ -196,6 +200,8 @@ export class InProcessAcpSession {
       // rolled back.
       if (stopReason !== "error") this.turnStart = undefined;
       return { stopReason };
+    } catch (err) {
+      throw malformedToolCallError(err, this.malformedRetry.retried()) ?? err;
     } finally {
       this.watchdog.stop();
       this.silence = undefined;
