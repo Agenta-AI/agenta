@@ -69,6 +69,52 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
 
 
+def _custom_upstream_names(allowlist: List[str]) -> Dict[str, str]:
+    """Each Agenta spelling of a custom endpoint's models, mapped to the upstream's own id.
+
+    The registrar writes the allowlist as one qualified key `<provider_slug>/<kind>/<slug>`
+    per saved model slug, then the slugs (`custom_provider_model_allowlist`). The row keeps
+    no record of which entry is which, and neither half can be told apart by its shape: a
+    provider's own id may hold any number of slashes (`accounts/fireworks/routers/<name>`),
+    and so may a provider name. So the shared `<provider_slug>/<kind>` envelope is recovered
+    from the structure instead: it is the one prefix that splits the allowlist exactly into
+    keys and the slugs they name. Anything else, or more than one such prefix, maps nothing,
+    and the model then relays as the caller spelled it.
+
+    The deployment-prefixed `<kind>/<slug>` spelling maps too, as the SDK's direct path
+    accepts it (`selected_model_id`). A slug never maps, so mapping twice changes nothing.
+    """
+    entries = set(allowlist)
+    candidates = {
+        entry[: -len(slug) - 1]
+        for entry in entries
+        for slug in entries
+        if entry != slug and entry.endswith(f"/{slug}")
+    }
+
+    envelopes = []
+    for prefix in candidates:
+        keys = {
+            entry
+            for entry in entries
+            if entry.startswith(f"{prefix}/") and entry[len(prefix) + 1 :] in entries
+        }
+        slugs = {key[len(prefix) + 1 :] for key in keys}
+        if len(keys) == len(slugs) and keys | slugs == entries and not keys & slugs:
+            envelopes.append((prefix, slugs))
+    if len(envelopes) != 1:
+        return {}
+
+    prefix, slugs = envelopes[0]
+    names = {f"{prefix}/{slug}": slug for slug in slugs}
+    kind = prefix.rsplit("/", 1)[-1]
+    for slug in slugs:
+        deployment_spelling = f"{kind}/{slug}"
+        if deployment_spelling not in entries:
+            names[deployment_spelling] = slug
+    return names
+
+
 @dataclass
 class _ResolvedLlmTarget:
     """A resolved endpoint and its namespace."""
@@ -108,6 +154,26 @@ class _ResolvedLlmTarget:
             return ProviderKeyRef(provider_key=self.provider_key)
         # Custom endpoints without a secret require no secret resolution.
         return None
+
+    def upstream_model(self, model: str) -> str:
+        """The name the upstream knows a model by, for a model this endpoint allows.
+
+        A custom endpoint's allowlist holds two spellings of each model
+        (`custom_provider_model_allowlist`): Agenta's qualified key
+        `<provider_slug>/<kind>/<model slug>` and the bare model slug. Only the bare slug
+        means anything to the upstream, so a qualified key is mapped back to it here, the
+        same strip the SDK's direct path does (`selected_model_id`). The id is never split
+        on `/`; `_custom_upstream_names` says why and how the pairs are found instead.
+
+        Every other namespace, and every model that is not a qualified key, is returned
+        unchanged.
+        """
+        if (
+            self.namespace != GatewayEndpointNamespace.CUSTOM
+            or not self.models.allowlist
+        ):
+            return model
+        return _custom_upstream_names(self.models.allowlist).get(model, model)
 
     def route(self, context: LLMCallContext) -> LLMResolvedRoute:
         return LLMResolvedRoute(
@@ -431,7 +497,9 @@ class LLMGatewayService:
             name=target.name,
             provider_key=resolved_provider,
             deployment_kind=deployment_kind,
-            model=model,
+            # The harness sends this id to the gateway, and the gateway relays it to the
+            # upstream, so it must be the upstream's own name for the model.
+            model=target.upstream_model(model),
         )
 
     # Data plane
@@ -494,6 +562,16 @@ class LLMGatewayService:
             target=target, context=context, body=body, payload=payload
         )
         body = self._request_stream_usage(target=target, context=context, body=body)
+        upstream_body, context = self._upstream_model_names(
+            target=target, context=context, body=body
+        )
+        if upstream_body is not body:
+            # The renamed spelling is measured too, so a model denied under one of its two
+            # names is not reached through the other.
+            self._check_allowlist(
+                target=target, context=context, payload=_json_object(upstream_body)
+            )
+            body = upstream_body
 
         policy_target = target.as_policy_target(model=context.model)
         decision = await self.policy.authorize(
@@ -874,6 +952,41 @@ class LLMGatewayService:
         }
         rewritten[aliases[0]] = ceiling
         return json.dumps(rewritten).encode()
+
+    @staticmethod
+    def _upstream_model_names(
+        *, target: _ResolvedLlmTarget, context: LLMCallContext, body: bytes
+    ) -> Tuple[bytes, LLMCallContext]:
+        """Name every model in the request the way the upstream knows it.
+
+        After the allowlist check, which measures the spelling the caller sent. A caller may
+        name a custom endpoint's model by Agenta's qualified key (the playground does, and so
+        did the agent resolve), and relaying that key unchanged made the upstream answer 404
+        "model not found". The fallback array is renamed the same way, since each entry is a
+        model the upstream must serve. A request that names no qualified key relays unchanged.
+        """
+        payload = _json_object(body)
+        changed = False
+
+        model = target.upstream_model(context.model)
+        if model != context.model:
+            payload["model"] = model
+            context = context.model_copy(update={"model": model})
+            changed = True
+
+        fallbacks = payload.get(_FALLBACK_MODELS_FIELD)
+        if isinstance(fallbacks, list):
+            renamed = [
+                target.upstream_model(entry) if isinstance(entry, str) else entry
+                for entry in fallbacks
+            ]
+            if renamed != fallbacks:
+                payload[_FALLBACK_MODELS_FIELD] = renamed
+                changed = True
+
+        if not changed:
+            return body, context
+        return json.dumps(payload).encode(), context
 
     @staticmethod
     def _request_stream_usage(
