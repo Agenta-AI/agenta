@@ -14,15 +14,24 @@ from typing import Any, AsyncIterator, Dict, Optional, Sequence
 from agenta.sdk.utils.logging import get_module_logger
 
 # AGENTA_RUNNER_TIMEOUT_SECONDS is an IDLE timeout on the streaming transports: it bounds the
-# gap between successive records, not the whole run. The runner now owns the true end-to-end run
+# gap between successive records, not the whole run. The runner owns the true end-to-end run
 # deadline server-side (it aborts a wedged run and returns a terminal record), so a long-but-
 # progressing run must not be killed here just for running long — only a stalled connection
 # (no records flowing) should trip. The HTTP transport's httpx read timeout is already per-read
 # (idle); the subprocess transport resets its deadline on each received line to match. On the
 # one-shot (dev-only) result transports there is a single request, so idle and total coincide.
-# Must stay strictly wider than the runner's own idle timeout (run-limits.ts DEFAULT_IDLE_TIMEOUT_MS,
-# 300s) so the runner — the authority — always trips first and its terminal record reaches us.
-_DEFAULT_TIMEOUT = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "360"))
+#
+# A tool call sends no record while it runs, so this must stay wider than the longest silent
+# tool call the runner allows: its tool-call limit (AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS, 300 s on
+# Agenta Cloud) plus the grace before its watchdog ends the turn (TOOL_CALL_GRACE_MS, 120 s in
+# run-limits.ts). Below that, a slow command is cut here as "agent run failed" before the runner
+# can stop it and hand the agent its timeout result. A runner configured with a longer tool-call
+# limit needs this raised to match.
+DEFAULT_RUNNER_TIMEOUT_SECONDS = 480.0
+
+RUNNER_TIMEOUT_SECONDS = float(
+    os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", str(DEFAULT_RUNNER_TIMEOUT_SECONDS))
+)
 
 log = get_module_logger(__name__)
 
@@ -71,7 +80,7 @@ async def deliver_http_result(
     base_url: str,
     payload: Dict[str, Any],
     *,
-    timeout: float = _DEFAULT_TIMEOUT,
+    timeout: float = RUNNER_TIMEOUT_SECONDS,
 ) -> Dict[str, Any]:
     """POST ``/run`` to a running runner and return the parsed JSON body. DEV-ONLY (unused)."""
     import httpx  # local import: only the HTTP transport needs it
@@ -123,7 +132,7 @@ async def deliver_subprocess_result(
     *,
     cwd: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
-    timeout: float = _DEFAULT_TIMEOUT,
+    timeout: float = RUNNER_TIMEOUT_SECONDS,
 ) -> Dict[str, Any]:
     """Spawn the runner CLI, feed the request on stdin, parse JSON on stdout. DEV-ONLY (unused)."""
     proc = await asyncio.create_subprocess_exec(
@@ -176,7 +185,7 @@ async def deliver_http_stream(
     base_url: str,
     payload: Dict[str, Any],
     *,
-    timeout: float = _DEFAULT_TIMEOUT,
+    timeout: float = RUNNER_TIMEOUT_SECONDS,
 ) -> AsyncIterator[Dict[str, Any]]:
     """POST ``/run`` asking for NDJSON and yield each parsed record as it arrives.
 
@@ -231,7 +240,7 @@ async def deliver_subprocess_stream(
     *,
     cwd: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
-    timeout: float = _DEFAULT_TIMEOUT,
+    timeout: float = RUNNER_TIMEOUT_SECONDS,
 ) -> AsyncIterator[Dict[str, Any]]:
     """Spawn the runner CLI in ``--stream`` mode and yield each NDJSON record from stdout.
 
