@@ -1,7 +1,7 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
-import {HeightCollapse} from "@agenta/ui"
+import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
 import {CaretRight, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -21,6 +21,7 @@ import {
     type ActivityStep,
 } from "../../model"
 import {resolveToolDisplay} from "../../skin"
+import type {ActivityIcon} from "../../skin/types"
 import {activityFoldKey, expandedValueAtomFamily, setExpandedAtom} from "../../state"
 import {useTurnStage, useTurnStageSince} from "../../state/turnClock"
 import RevealCollapse from "../RevealCollapse"
@@ -216,6 +217,28 @@ const liveVerb = (step: ActivityStep): string => {
         .running
 }
 
+/** The dots' motion for a step's glyph; anything unlisted reads as a plain tool call. */
+const ICON_FORMAT: Partial<Record<ActivityIcon, AgentActivityFormat>> = {
+    "file-search": "searching",
+    "web-search": "searching",
+    "web-fetch": "searching",
+    "tool-search": "searching",
+    subtask: "subagents",
+    agent: "subagents",
+    "task-list": "planning",
+    test: "evaluating",
+    runs: "evaluating",
+    annotation: "evaluating",
+    "file-write": "writing",
+}
+
+/** What the header's dots do for a step: the same reading as `liveVerb`, in motion. */
+const stepFormat = (step: ActivityStep): AgentActivityFormat => {
+    if (step.kind === "thought") return step.source === "text" ? "writing" : "thinking"
+    const {icon} = resolveToolDisplay(partToolName(step.part), (step.part as {input?: unknown}).input)
+    return ICON_FORMAT[icon] ?? "tool"
+}
+
 export interface ActivityTimelineProps {
     messageId: string
     /** Keys the clock and the fold's open state; a host passes `runKey` so the placeholder's carry over. */
@@ -319,6 +342,15 @@ export const ActivityTimeline = ({
         elapsed === null || awaiting || !count ? "" : ` · ${formatElapsed(elapsed, {live: true})}`
 
     let title: ReactNode
+    // Mirrors the live line's branches below, so the dots and the words always agree.
+    const dotsFormat: AgentActivityFormat =
+        beforeFirstStep || (resuming && !current)
+            ? "working"
+            : answerStarted && !current
+              ? "writing"
+              : idle || !verbStep
+                ? "working"
+                : stepFormat(verbStep)
     if (live || awaiting) {
         title = (
             <>
@@ -353,7 +385,11 @@ export const ActivityTimeline = ({
                 aria-expanded={open}
                 className="-ml-1.5 flex w-fit max-w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
             >
-                {awaiting ? <WaitingGlyph kind={waitingKind(steps)} /> : null}
+                {awaiting ? (
+                    <WaitingGlyph kind={waitingKind(steps)} />
+                ) : live ? (
+                    <AgentActivityDots format={dotsFormat} size={14} />
+                ) : null}
                 <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-colorText">
                     {title}
                 </span>
