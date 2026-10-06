@@ -17,19 +17,10 @@ from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.records.events import durable_events_from_records
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
-from oss.src.core.sessions.records.utils import with_schema_property_order
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
-
-
-def _with_schema_property_order(event: SessionRecordEvent) -> SessionRecordEvent:
-    if event.attributes is None:
-        return event
-    return event.model_copy(
-        update={"attributes": with_schema_property_order(event.attributes)}
-    )
 
 
 def _written_by_watchdog(event: SessionRecordEvent) -> bool:
@@ -59,9 +50,7 @@ class RecordsService:
         event: SessionRecordEvent,
         session: Optional[Any] = None,
     ) -> Optional[SessionRecord]:
-        return await self.records_dao.append(
-            event=_with_schema_property_order(event), session=session
-        )
+        return await self.records_dao.append(event=event, session=session)
 
     async def append_many(
         self,
@@ -89,7 +78,6 @@ class RecordsService:
         if not events:
             return []
 
-        events = [_with_schema_property_order(event) for event in events]
         guarded = await self._handle_late_events(events=events)
         records = await self.records_dao.append_many(events=guarded)
         await self._settle_completed_continuations(records=records)
