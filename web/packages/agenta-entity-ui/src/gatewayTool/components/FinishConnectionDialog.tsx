@@ -20,6 +20,7 @@ export const FinishConnectionDialog = ({
     onAuthorize,
     onDelete,
     onClose,
+    container = null,
 }: {
     open: boolean
     /** The app's display name. */
@@ -29,12 +30,23 @@ export const FinishConnectionDialog = ({
     onAuthorize: () => Promise<void>
     onDelete?: () => void
     onClose: () => void
+    /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
+    container?: HTMLElement | null
 }) => {
     const [authorizing, setAuthorizing] = useState(false)
 
     return (
-        <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-            <DialogContent className="sm:max-w-[440px]">
+        <Dialog
+            open={open}
+            onOpenChange={(next) => (next ? undefined : onClose())}
+            // Contained runs non-modal: the host drawer already traps focus.
+            modal={!container}
+        >
+            <DialogContent
+                className="sm:max-w-[440px]"
+                container={container ?? undefined}
+                contained={!!container}
+            >
                 <DialogHeader className="gap-3 text-left">
                     <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs [&_img]:size-[18px] [&_img]:object-contain">
                         {logo}
@@ -53,7 +65,8 @@ export const FinishConnectionDialog = ({
                     {onDelete ? (
                         <Button
                             variant="ghost"
-                            className="mr-auto text-destructive"
+                            // Full width in the stacked phone footer; pushed left above sm.
+                            className="w-full text-destructive hover:text-destructive sm:mr-auto sm:w-auto"
                             onClick={() => {
                                 onClose()
                                 onDelete()
