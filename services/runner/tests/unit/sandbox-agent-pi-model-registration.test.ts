@@ -9,7 +9,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-pi-model-registration.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import {
   existsSync,
@@ -20,9 +20,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { InMemoryCredentialStore } from "pi-coding-agent-pi-ai";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
+  DEFAULT_PI_MAX_OUTPUT_TOKENS,
+  PI_MAX_OUTPUT_TOKENS_ENV,
   PI_MODELS_AHEAD_OF_CATALOG,
   buildPiModelRegistrationPlan,
   describePiModelsJsonPlan,
@@ -38,6 +41,8 @@ import {
   type PiBuiltinRegistry,
 } from "../../src/engines/sandbox_agent/pi-builtin-registry.ts";
 import { prepareLocalPiAssets } from "../../src/engines/sandbox_agent/pi-assets.ts";
+import { createSessionModelRuntime } from "../../src/engines/inprocess/pi/pi-session-factory.ts";
+import { resetEnvWarnings } from "../../src/env.ts";
 
 /** A stand-in for Pi's static table: one gateway provider with one reasoning model. */
 const OPENROUTER_BASE: PiBuiltinModel = {
@@ -102,7 +107,8 @@ describe("buildPiModelRegistrationPlan (an id Pi does not carry)", () => {
     assert.equal(entry?.reasoning, true);
     assert.deepEqual(entry?.thinkingLevelMap, OPENROUTER_BASE.thinkingLevelMap);
     assert.equal(entry?.contextWindow, 1048576);
-    assert.equal(entry?.maxTokens, 65536);
+    // Lowered from the base's 65,536: OpenRouter reserves the full output cap up front.
+    assert.equal(entry?.maxTokens, DEFAULT_PI_MAX_OUTPUT_TOKENS);
     assert.deepEqual(entry?.cost, OPENROUTER_BASE.cost);
     // The variant is its own model id, never relabelled as the base's display name.
     assert.deepEqual(Object.keys(entry ?? {}).includes("name"), false);
@@ -134,20 +140,14 @@ describe("buildPiModelRegistrationPlan (an id Pi does not carry)", () => {
       registry,
     );
 
-    assert.equal(plan?.models[0].id, "gpt-5.6-luna:preview");
-    assert.equal(plan?.models[0].contextWindow, 272000);
+    assert.equal(plan?.models[0]?.id, "gpt-5.6-luna:preview");
+    assert.equal(plan?.models[0]?.contextWindow, 272000);
   });
 });
 
 describe("buildPiModelRegistrationPlan (no plan — the cases that must stay untouched)", () => {
   it("writes NO entry for a model the provider already has built in", () => {
-    assert.equal(
-      buildPiModelRegistrationPlan(
-        piRequest("openrouter/deepseek/deepseek-v4-flash"),
-        fakeRegistry,
-      ),
-      undefined,
-    );
+    // No output limit in the catalog, so there is nothing to cap either.
     assert.equal(
       buildPiModelRegistrationPlan(
         piRequest("openrouter/z-ai/glm-5.2"),
@@ -234,7 +234,7 @@ describe("serializePiModelsJson (registration document)", () => {
     assert.equal(isPiModelRegistrationPlan(plan), true);
     assert.equal(piModelsJsonProviderId(plan), "openrouter");
     assert.equal(
-      `${piModelsJsonProviderId(plan)}/${plan.models[0].id}`,
+      `${piModelsJsonProviderId(plan)}/${plan.models[0]?.id}`,
       "openrouter/deepseek/deepseek-v4-flash:nitro",
     );
     assert.match(describePiModelsJsonPlan(plan), /builtin-model-registration/);
@@ -267,18 +267,196 @@ describe("Pi's real built-in registry (the table the pinned harness runs)", () =
     );
 
     assert.equal(plan?.builtinProvider, "openrouter");
-    assert.equal(plan?.models[0].id, "deepseek/deepseek-v4-flash:nitro");
+    assert.equal(plan?.models[0]?.id, "deepseek/deepseek-v4-flash:nitro");
     // Real metadata off the real base model, not Pi's generic defaults.
-    assert.equal(plan?.models[0].reasoning, true);
-    assert.ok((plan?.models[0].contextWindow ?? 0) > 128000);
+    assert.equal(plan?.models[0]?.reasoning, true);
+    assert.ok((plan?.models[0]?.contextWindow ?? 0) > 128000);
 
-    // A model the catalog offers stays Pi's own.
-    assert.equal(
+    // A model the catalog offers stays Pi's own: at most its output cap changes.
+    assert.deepEqual(
       buildPiModelRegistrationPlan(
         piRequest("openrouter/tencent/hy3"),
         registry,
-      ),
+      )?.models ?? [],
+      [],
+    );
+  });
+});
+
+describe("the output cap on a provider that reserves output up front", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    resetEnvWarnings();
+  });
+
+  function registryOf(
+    provider: string,
+    models: PiBuiltinModel[],
+  ): PiBuiltinRegistry {
+    return {
+      hasProvider: (candidate) => candidate === provider,
+      models: (candidate) => (candidate === provider ? models : []),
+    };
+  }
+
+  it("lowers a catalog OpenRouter model's cap through modelOverrides and registers no model", () => {
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("openrouter/deepseek/deepseek-v4-flash"),
+      fakeRegistry,
+    );
+
+    assert.deepEqual(plan, {
+      builtinProvider: "openrouter",
+      models: [],
+      modelOverrides: {
+        "deepseek/deepseek-v4-flash": { maxTokens: DEFAULT_PI_MAX_OUTPUT_TOKENS },
+      },
+    });
+    // Only the override is written, so Pi keeps every other field of its own definition.
+    const document = JSON.parse(serializePiModelsJson(plan as PiModelRegistrationPlan));
+    assert.deepEqual(document, {
+      providers: {
+        openrouter: {
+          modelOverrides: {
+            "deepseek/deepseek-v4-flash": { maxTokens: DEFAULT_PI_MAX_OUTPUT_TOKENS },
+          },
+        },
+      },
+    });
+    assert.equal(
+      describePiModelsJsonPlan(plan as PiModelRegistrationPlan),
+      "kind=builtin-model-override provider=openrouter " +
+        `override=deepseek/deepseek-v4-flash:maxTokens=${DEFAULT_PI_MAX_OUTPUT_TOKENS}`,
+    );
+  });
+
+  it("leaves a catalog model whose limit is already at or under the cap", () => {
+    const registry = registryOf("openrouter", [
+      { id: "vendor/small", maxTokens: 8192 },
+      { id: "vendor/exact", maxTokens: DEFAULT_PI_MAX_OUTPUT_TOKENS },
+    ]);
+
+    assert.equal(
+      buildPiModelRegistrationPlan(piRequest("openrouter/vendor/small"), registry),
       undefined,
+    );
+    assert.equal(
+      buildPiModelRegistrationPlan(piRequest("openrouter/vendor/exact"), registry),
+      undefined,
+    );
+    // A variant inherits the smaller limit unchanged.
+    assert.equal(
+      buildPiModelRegistrationPlan(piRequest("openrouter/vendor/small:nitro"), registry)
+        ?.models[0]?.maxTokens,
+      8192,
+    );
+  });
+
+  it("keeps Pi's value on a provider that bills only the output a turn uses", () => {
+    const registry = registryOf("anthropic", [
+      { id: "claude-large", maxTokens: 128000 },
+    ]);
+
+    assert.equal(
+      buildPiModelRegistrationPlan(piRequest("anthropic/claude-large"), registry),
+      undefined,
+    );
+    assert.equal(
+      buildPiModelRegistrationPlan(piRequest("anthropic/claude-large:preview"), registry)
+        ?.models[0]?.maxTokens,
+      128000,
+    );
+  });
+
+  it(`takes the cap from ${PI_MAX_OUTPUT_TOKENS_ENV}`, () => {
+    vi.stubEnv(PI_MAX_OUTPUT_TOKENS_ENV, "8000");
+
+    assert.deepEqual(
+      buildPiModelRegistrationPlan(
+        piRequest("openrouter/deepseek/deepseek-v4-flash"),
+        fakeRegistry,
+      )?.modelOverrides,
+      { "deepseek/deepseek-v4-flash": { maxTokens: 8000 } },
+    );
+    // A model with no limit of its own would get Pi's 16,384 default, which is above this cap.
+    assert.equal(
+      buildPiModelRegistrationPlan(
+        piRequest("openrouter/some-vendor/model-released-last-week"),
+        fakeRegistry,
+      )?.models[0]?.maxTokens,
+      8000,
+    );
+  });
+
+  it("uses the default cap when the override is not a number", () => {
+    vi.stubEnv(PI_MAX_OUTPUT_TOKENS_ENV, "lots");
+    const warnings: string[] = [];
+    vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      warnings.push(String(chunk));
+      return true;
+    });
+
+    assert.deepEqual(
+      buildPiModelRegistrationPlan(
+        piRequest("openrouter/deepseek/deepseek-v4-flash"),
+        fakeRegistry,
+      )?.modelOverrides,
+      { "deepseek/deepseek-v4-flash": { maxTokens: DEFAULT_PI_MAX_OUTPUT_TOKENS } },
+    );
+    assert.ok(warnings.some((line) => line.includes(PI_MAX_OUTPUT_TOKENS_ENV)));
+  });
+});
+
+describe("the output cap Pi sends to OpenRouter (the pinned Pi, no network)", () => {
+  const MODEL = "deepseek/deepseek-v4.1-flash";
+
+  /**
+   * Load `models.json` the way an in-process session does, start one OpenRouter turn, and read
+   * the output cap off the request body. The fake `fetch` stops the request before it leaves.
+   */
+  async function sentOutputCap(modelsJson: string | undefined): Promise<number> {
+    const dir = mkdtempSync(join(tmpdir(), "pi-output-cap-"));
+    const modelsPath = join(dir, "models.json");
+    if (modelsJson) writeFileSync(modelsPath, modelsJson);
+    try {
+      const runtime = await createSessionModelRuntime({
+        credentials: new InMemoryCredentialStore(),
+        modelsPath: modelsJson ? modelsPath : undefined,
+        modelEnv: { OPENROUTER_API_KEY: "not-a-real-key" },
+      });
+      const model = runtime.getModel("openrouter", MODEL);
+      assert.ok(model, `the pinned Pi catalog must carry openrouter/${MODEL}`);
+      let body: Record<string, unknown> | undefined;
+      const fetch: typeof globalThis.fetch = async (_url, init) => {
+        body = JSON.parse(String(init?.body));
+        throw new Error("stopped before the network");
+      };
+      await runtime.completeSimple(
+        model,
+        { messages: [{ role: "user", content: "hi", timestamp: 0 }] },
+        { fetch, maxRetries: 0 },
+      );
+      assert.ok(body, "Pi must have built a request body");
+      return Number(body.max_tokens ?? body.max_completion_tokens);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("asks for nearly the whole context window without the override (the 402)", async () => {
+    assert.ok((await sentOutputCap(undefined)) > 900_000);
+  });
+
+  it("asks for the cap once the run's models.json is loaded", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    const plan = buildPiModelRegistrationPlan(piRequest(`openrouter/${MODEL}`), registry);
+    assert.ok(plan, "a catalog model over the cap must produce an override plan");
+
+    assert.equal(
+      await sentOutputCap(serializePiModelsJson(plan)),
+      DEFAULT_PI_MAX_OUTPUT_TOKENS,
     );
   });
 });
