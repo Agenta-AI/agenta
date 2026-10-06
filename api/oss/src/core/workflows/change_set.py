@@ -4,7 +4,8 @@ Implements ``docs/design/agent-config-editing/contracts/change-set.md`` (slice S
 contract is authoritative; this module is its executable half.
 
 The engine is dependency-free: plain dicts in, a plain result out, no pydantic, no I/O, no
-database. Two wrappers call it. The commit wrapper checks ``base_revision_id`` against the
+database. Its one import from the SDK is a constant: the tool types the runtime allows once
+per list, which the engine keys by type. Two wrappers call it. The commit wrapper checks ``base_revision_id`` against the
 head and persists; the invoke-override wrapper resolves an immutable revision, applies with
 the ``parameters``-only scope policy, and persists nothing.
 
@@ -19,6 +20,8 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+
+from agenta.sdk.agents.tools import SINGLE_ENTRY_TOOL_TYPES
 
 __all__ = [
     "ChangeSetError",
@@ -176,13 +179,13 @@ NEXT_STEPS: Dict[str, str] = {
         "That file is not readable as text. Reference a UTF-8 text file."
     ),
     Reason.PLATFORM_TOOL_NOT_COMMITTABLE: (
-        "Remove those entries from `tools` and send the commit again."
+        "Remove those entries from `tools` and send the call again."
     ),
     Reason.NON_EMBEDDABLE_REFERENCE: (
-        "Remove the embedded reference to that workflow and send the commit again."
+        "Remove the embedded reference to that workflow and send the call again."
     ),
     Reason.FINAL_VALIDATION_FAILED: (
-        "Correct the fields listed in `issues` and send the commit again."
+        "Correct the fields listed in `issues` and send the call again."
     ),
     Reason.VALUE_TOO_DEEP: (
         "Flatten the value: the configuration nests a few levels deep, not hundreds."
@@ -472,11 +475,10 @@ def _tool_name(entry: Dict[str, Any], *, allow_legacy_fallback: bool) -> Optiona
         return entry.get("name") or entry.get("slug")
     if kind == "platform":
         return entry.get("op")
-    if kind == "agenta_tools":
-        # The entry has no name: it is the agent's one map of Agenta tools, and the runtime
-        # refuses a second one. Its type is its key, so an operation can reach its `tools`
-        # map instead of replacing the whole list around it. A legacy list holding two is a
-        # duplicate key, which the engine already reports.
+    if kind in SINGLE_ENTRY_TOOL_TYPES:
+        # A type the runtime allows once per list has no name, so its type is its key, and
+        # an operation can reach inside the entry instead of replacing the whole list around
+        # it. A legacy list holding two is a duplicate key, which the engine already reports.
         return kind
     return entry.get("name")
 
@@ -1889,10 +1891,10 @@ def _scope_next_step(scope_policy: ScopePolicy) -> str:
     """
     prefix = ".".join(getattr(scope_policy, "_prefix", ()) or ())
     if not prefix:
-        return "Remove the operation on that path and send the commit again."
+        return "Remove the operation on that path and send the call again."
     return (
         f"Write only under `{prefix}`. Remove the operation on the path this refusal "
-        "names, then send the commit again."
+        "names, then send the call again."
     )
 
 
