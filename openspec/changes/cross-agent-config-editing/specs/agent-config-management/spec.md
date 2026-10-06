@@ -81,6 +81,11 @@ Both capabilities SHALL be on by default in the build kit with every tool set to
 - **WHEN** an operation fails validation or targets a path outside the agent commit scope
 - **THEN** no agent is created and the error names the failing operation
 
+#### Scenario: Retry after a partial failure
+
+- **WHEN** a `create_agent` call stops after some of its writes, and the agent sends the same arguments again in the same session
+- **THEN** the second call finishes the same agent and returns its id, slug and `base_revision_id`; no second agent is created
+
 #### Scenario: Unknown field
 
 - **WHEN** the call sends a field other than `name`, `description` and `operations`, for example `instructions`
