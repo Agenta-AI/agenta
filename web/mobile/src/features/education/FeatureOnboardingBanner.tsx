@@ -12,7 +12,9 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
     const guide = FEATURE_GUIDES[guideKey]
     const {video} = guide
     const openGuide = useSetAtom(openFeatureGuideAtom)
-    const watch = () => openGuide(guideKey)
+    const watch = () =>
+        video &&
+        openGuide({title: guide.title, headline: guide.headline, docsUrl: guide.docsUrl, video})
 
     return (
         <section className="relative grid items-center gap-5 overflow-hidden rounded-[14px] border border-solid border-colorBorderSecondary bg-muted px-7 py-6 @xl:grid-cols-2 @xl:gap-6 @3xl:grid-cols-[1fr_420px] @3xl:gap-10">

@@ -14,11 +14,15 @@ export const HowThisWorksButton = ({
     className?: string
 }) => {
     const openGuide = useSetAtom(openFeatureGuideAtom)
-    const {title, video} = FEATURE_GUIDES[guide]
+    const {title, headline, docsUrl, video} = FEATURE_GUIDES[guide]
     if (!video) return null
 
     return (
-        <Button variant="ghost" className={className} onClick={() => openGuide(guide)}>
+        <Button
+            variant="ghost"
+            className={className}
+            onClick={() => openGuide({title, headline, docsUrl, video})}
+        >
             <PlayCircle aria-hidden />
             How {title.toLowerCase()} work
         </Button>

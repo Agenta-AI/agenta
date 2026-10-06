@@ -1,6 +1,6 @@
 import {atom} from "jotai"
 
-import type {FeatureGuideKey} from "./featureGuides"
+import type {Walkthrough} from "./featureGuides"
 
-/** Which feature guide's video is open; `GlobalDrawers` mounts the dialog once. */
-export const openFeatureGuideAtom = atom<FeatureGuideKey | null>(null)
+/** The walkthrough the lightbox is showing; `GlobalDrawers` mounts the dialog once. */
+export const openFeatureGuideAtom = atom<Walkthrough | null>(null)

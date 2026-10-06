@@ -3,17 +3,15 @@ import {ArrowSquareOut} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
 import {openFeatureGuideAtom} from "./featureGuideAtom"
-import {FEATURE_GUIDES} from "./featureGuides"
 import {streamPlayerUrl} from "./streamMedia"
 
 /** The walkthrough lightbox; `GlobalDrawers` mounts it and `openFeatureGuideAtom` opens it. */
 export const FeatureGuideDialog = () => {
-    const [guideKey, setGuideKey] = useAtom(openFeatureGuideAtom)
-    const guide = guideKey ? FEATURE_GUIDES[guideKey] : null
+    const [guide, setGuide] = useAtom(openFeatureGuideAtom)
     const video = guide?.video
 
     return (
-        <Dialog open={Boolean(video)} onOpenChange={(open) => !open && setGuideKey(null)}>
+        <Dialog open={Boolean(video)} onOpenChange={(open) => !open && setGuide(null)}>
             {guide && video ? (
                 <DialogContent
                     showCloseButton={false}
@@ -50,7 +48,7 @@ export const FeatureGuideDialog = () => {
                                     <ArrowSquareOut aria-hidden />
                                 </a>
                             </Button>
-                            <Button size="sm" onClick={() => setGuideKey(null)}>
+                            <Button size="sm" onClick={() => setGuide(null)}>
                                 Close
                                 <Kbd tone="inverse">Esc</Kbd>
                             </Button>

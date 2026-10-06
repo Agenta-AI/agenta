@@ -16,6 +16,23 @@ import {
 
 export type FeatureGuideKey = "agents" | "automations" | "skills" | "sessions"
 
+export interface GuideVideo {
+    /** Cloudflare Stream id of the walkthrough. */
+    id: string
+    /** The player's accessible name. */
+    title: string
+    /** Where the banner still is taken; playback always starts at 0. */
+    stillSeconds: number
+}
+
+/** What the walkthrough lightbox shows: a page's clip, its headline and its docs. */
+export interface Walkthrough {
+    title: string
+    headline: string
+    docsUrl: string
+    video: GuideVideo
+}
+
 export interface FeatureGuide {
     /** The page's own name; the banner's pill reads "{title} walkthrough". */
     title: string
@@ -23,14 +40,7 @@ export interface FeatureGuide {
     body: string
     docsUrl: string
     /** Absent until the page has its own walkthrough clip. */
-    video?: {
-        /** Cloudflare Stream id of the walkthrough. */
-        id: string
-        /** The player's accessible name. */
-        title: string
-        /** Where the banner still is taken; playback always starts at 0. */
-        stillSeconds: number
-    }
+    video?: GuideVideo
     /** The banner's illustration when there is no video: the feature flanked by two related ones. */
     icons: {main: Icon; left: Icon; right: Icon}
     /** Agent-template catalog keys, in display order. */
