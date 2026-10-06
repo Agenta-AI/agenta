@@ -98,7 +98,7 @@ export const SessionListScreen = ({
         listSettledEmpty &&
         !list.isError &&
         !probe.pending &&
-        !probe.hasSessions &&
+        probe.hasSessions === false &&
         !seedSearch.trim()
     const search = useDebouncedAtomSearch(setSearch, 300, seedSearch)
 
