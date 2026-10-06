@@ -723,6 +723,11 @@ class SessionStreamsService:
                     session_id=request.session_id,
                     state=WATCH_LIFECYCLE_ENDED,
                 )
+            elif request.turn_id:
+                # Releasing nothing means this turn does not hold `running`. A turn refused at
+                # admission still sends this beat, and its id on the row would route the next
+                # follow-up to its pod and show the live turn's next beat a foreign `turn_id`.
+                is_current_turn = False
 
         liveness = await get_session_liveness(
             self._lock, project_id=str(project_id), session_id=request.session_id
