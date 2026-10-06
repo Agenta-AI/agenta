@@ -7,6 +7,7 @@ tears the subscription down. RBAC mirrors `query_records` (VIEW_SESSIONS).
 """
 
 import asyncio
+import importlib
 import json
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -54,6 +55,22 @@ class _FakePubSub:
 
 def _msg(payload: dict) -> dict:
     return {"type": "message", "data": json.dumps(payload).encode()}
+
+
+@pytest.fixture
+def uvicorn_exit_hook():
+    uvicorn_server = pytest.importorskip("uvicorn.server")
+    from oss.src.apis.fastapi.sessions import watch as watch_module
+
+    importlib.reload(uvicorn_server)
+    server_class = uvicorn_server.Server
+    original_handle_exit = server_class.handle_exit
+    importlib.reload(watch_module)
+    try:
+        yield uvicorn_server, watch_module
+    finally:
+        watch_module._shutdown.clear()
+        server_class.handle_exit = original_handle_exit
 
 
 @pytest.mark.asyncio
@@ -126,12 +143,10 @@ async def test_stream_terminates_on_server_shutdown_signal():
     assert pubsub.closed is True
 
 
-def test_uvicorn_exit_hook_is_installed_and_requests_shutdown():
+def test_uvicorn_exit_hook_is_installed_and_requests_shutdown(uvicorn_exit_hook):
     # The release only works if uvicorn's handle_exit actually reaches
     # request_shutdown — pin both the installation and the effect.
-    uvicorn_server = pytest.importorskip("uvicorn.server")
-    from oss.src.apis.fastapi.sessions import watch as watch_module
-
+    uvicorn_server, watch_module = uvicorn_exit_hook
     assert getattr(uvicorn_server.Server.handle_exit, "_agenta_watch_hook", False)
 
     class _FakeServer:
@@ -143,8 +158,10 @@ def test_uvicorn_exit_hook_is_installed_and_requests_shutdown():
             self._captured_signals = []
 
     try:
-        _FakeServer().handle_exit(None, None)
+        fake_server = _FakeServer()
+        fake_server.handle_exit(None, None)
         assert watch_module._shutdown.is_set()
+        assert fake_server.should_exit is True
     finally:
         watch_module._shutdown.clear()
 
