@@ -1846,8 +1846,7 @@ _LIST_AGENTS_DESCRIPTION = """List the agents in this project, newest first.
 Each agent has `id`, `slug`, `name`, `description`, `version` and `updated_at`. The list
 includes you. Pass an agent's `slug` or `id` to `read_agent_config` or `edit_agent_config`.
 
-When the answer has a `next_cursor`, call again with `cursor` set to it for the next page. A
-page can hold fewer agents than `limit`."""
+When the answer has a `next_cursor`, call again with `cursor` set to it for the next page."""
 
 # Shared with the API handler, so the default the model reads is the one it gets.
 LIST_AGENTS_DEFAULT_LIMIT = 50

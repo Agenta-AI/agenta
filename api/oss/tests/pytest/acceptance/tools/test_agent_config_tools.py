@@ -104,6 +104,27 @@ class TestAnAgentCreatesListsReadsAndEditsAnother:
         assert listed["slug"] == agents["target"]["agent"]["slug"]
         assert listed["description"] == "Answers questions about invoices."
 
+    def test_the_same_create_in_the_same_session_returns_the_same_agent(
+        self, authed_api, agents
+    ):
+        # A retry after a create that failed part of the way finishes that agent.
+        again = _create(
+            authed_api,
+            "Invoice helper",
+            agents["caller"]["id"],
+            description="Answers questions about invoices.",
+            operations=[
+                {
+                    "operation": "set",
+                    "target": INSTRUCTIONS,
+                    "value": "You answer questions about invoices.",
+                }
+            ],
+        )
+
+        assert again["agent"] == agents["target"]["agent"]
+        assert again["base_revision_id"] == agents["target"]["base_revision_id"]
+
     def test_it_reads_the_same_by_slug_and_by_id(self, authed_api, agents):
         target = agents["target"]["agent"]
 
