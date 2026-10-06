@@ -21,7 +21,7 @@ export const ToolsEmpty = ({
     description?: ReactNode
     action?: ReactNode
 }) => (
-    <Empty className="rounded-xl border border-dashed border-border py-10">
+    <Empty className="py-10">
         <EmptyHeader>
             <EmptyMedia
                 variant="icon"
