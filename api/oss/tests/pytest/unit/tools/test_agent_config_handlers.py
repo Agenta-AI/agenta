@@ -57,6 +57,7 @@ TARGET = UUID("00000000-0000-4000-8000-000000000004")
 TARGET_VARIANT = UUID("00000000-0000-4000-8000-000000000005")
 HEAD = UUID("00000000-0000-4000-8000-000000000006")
 STATIC_ID = "00000000-0000-4000-8000-000000000007"
+OTHER = UUID("00000000-0000-4000-8000-000000000008")
 SESSION = "01a1-session"
 INSTRUCTIONS = ["parameters", "agent", "instructions", "agents_md"]
 
@@ -209,15 +210,26 @@ class TestTheCallerBindingFailsClosed:
 
 
 class TestListAgents:
+    """One row per agent, from the head read and edit act on, paged over agents."""
+
     @pytest.fixture
     def listing(self, service, workflows):
-        caller_head = _head(workflow_id=CALLER)
-        target_head = _head()
-        second_variant = _head()  # the same agent's other variant
-        service.query_workflow_head_revisions = AsyncMock(
-            return_value=[target_head, second_variant, caller_head]
+        workflows[OTHER] = _workflow(OTHER, "Old prompt app", "old-prompt-app")
+        heads = {
+            TARGET: _head(),
+            CALLER: _head(workflow_id=CALLER),
+            # Was an agent once; its default variant's head is not one today.
+            OTHER: _head(workflow_id=OTHER, is_agent=False),
+        }
+
+        async def fetch_head(*, project_id, workflow_ref, include_archived=True):
+            assert project_id == PROJECT
+            return heads[workflow_ref.id]
+
+        service.query_workflows = AsyncMock(
+            return_value=[workflows[TARGET], workflows[OTHER], workflows[CALLER]]
         )
-        service.query_workflows = AsyncMock(return_value=list(workflows.values()))
+        service.fetch_workflow_revision = AsyncMock(side_effect=fetch_head)
         return service
 
     async def test_lists_agents_including_the_caller_one_row_each(self, listing):
@@ -240,35 +252,49 @@ class TestListAgents:
         assert agents[0]["version"] == "3"
         assert result.content["next_cursor"] is None
 
-    async def test_queries_agents_only_in_the_credential_project(self, listing):
+    async def test_each_row_is_the_default_variant_head_that_read_and_edit_use(
+        self, listing
+    ):
+        await _call(handle_list_agents, listing)
+
+        # No variant: the service resolves the artifact to its default variant, exactly
+        # as it does for `read_agent_config` and `edit_agent_config`.
+        for call in listing.fetch_workflow_revision.await_args_list:
+            assert set(call.kwargs) == {
+                "project_id",
+                "workflow_ref",
+                "include_archived",
+            }
+            assert call.kwargs["workflow_ref"].id is not None
+
+    async def test_pages_run_over_applications_in_the_credential_project(self, listing):
         # A project in the arguments is not a parameter; the credential decides.
         await _call(handle_list_agents, listing, project_id=str(uuid4()))
 
-        kwargs = listing.query_workflow_head_revisions.await_args.kwargs
+        kwargs = listing.query_workflows.await_args.kwargs
         assert kwargs["project_id"] == PROJECT
-        assert kwargs["workflow_revision_query"].flags.is_agent is True
+        assert kwargs["workflow_query"].flags.is_application is True
         assert kwargs["include_archived"] is False
-        assert listing.query_workflows.await_args.kwargs["project_id"] == PROJECT
 
     async def test_a_full_page_hands_back_a_cursor_that_fetches_the_next(self, listing):
+        # Three applications on the page, two of them agents: the page is full because
+        # the cursor counts what was scanned, so no agent is skipped or listed twice.
         first = await _call(handle_list_agents, listing, limit=3)
         cursor = first.content["next_cursor"]
-        assert cursor == str(HEAD)
+        assert len(first.content["agents"]) == 2
+        assert cursor == str(CALLER)
 
         await _call(handle_list_agents, listing, limit=3, cursor=cursor)
-        windowing = listing.query_workflow_head_revisions.await_args.kwargs["windowing"]
+        windowing = listing.query_workflows.await_args.kwargs["windowing"]
         assert str(windowing.next) == cursor and windowing.limit == 3
 
     async def test_archived_agents_only_on_request_and_marked(self, listing, workflows):
-        workflows[TARGET] = _workflow(TARGET, "Old", "old", archived=True)
-        listing.query_workflows.return_value = list(workflows.values())
+        archived = _workflow(TARGET, "Old", "old", archived=True)
+        listing.query_workflows.return_value = [archived, workflows[CALLER]]
 
         result = await _call(handle_list_agents, listing, include_archived=True)
 
-        assert (
-            listing.query_workflow_head_revisions.await_args.kwargs["include_archived"]
-            is True
-        )
+        assert listing.query_workflows.await_args.kwargs["include_archived"] is True
         assert result.content["agents"][0]["archived"] is True
         assert "archived" not in result.content["agents"][1]
 
