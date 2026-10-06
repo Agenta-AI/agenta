@@ -26,13 +26,14 @@ imported platform package.
 
 from __future__ import annotations
 
+import textwrap
 from copy import deepcopy
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agenta.sdk.agents.tools.errors import UnknownPlatformOpError
-from agenta.sdk.agents.tools.models import ToolCall
+from agenta.sdk.agents.tools.models import AGENTA_TOOLS, ToolCall
 from agenta.sdk.utils.types import CATALOG_TYPES
 
 from ._schema import expand_type_refs
@@ -904,15 +905,31 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 #
 # The target and operation reference is shared with `create_agent` and `edit_agent_config`,
 # which take the same operations against another agent's configuration.
-_OPERATIONS_REFERENCE = """TARGET: an array of segments from the configuration root. A string segment names an
+_OPERATIONS_REFERENCE = (
+    """TARGET: an array of segments from the configuration root. A string segment names an
 object field. An object segment {"list": L, "key": K} names one entry of list L and
-stands in place of L's name. Keyed lists: skills, mcps, tools (by name — but a
+stands in place of L's name. Keyed lists: skills, mcps, tools (by name; a
 gateway_connection entry has no name and is keyed
-gateway_connection:{provider}:{integration}, e.g. "gateway_connection:composio:github"),
-files (by path).
+gateway_connection:{provider}:{integration}, e.g. "gateway_connection:composio:github",
+and the agenta_tools entry is keyed agenta_tools), files (by path).
 
     ["parameters","agent",{"list":"skills","key":"release-qa"},
      {"list":"files","key":"checklist.md"},"content"]
+
+To turn on one Agenta tool, set it in the agenta_tools entry's `tools` map:
+
+    {"operation":"set","target":["parameters","agent",{"list":"tools","key":"agenta_tools"},
+     "tools","create_schedule"],"value":"allow"}
+
+"""
+    + textwrap.fill(
+        'Agenta tools (value "allow" or "ask"): ' + ", ".join(AGENTA_TOOLS) + ".",
+        width=90,
+    )
+    + """
+A skill is {"name", "description", "body"}, all three required; `name` is lowercase
+letters and digits joined by hyphens, `body` is the SKILL.md text. When `skills` is
+missing, `set` it to a list.
 
 OPERATIONS:
 - `set` replace one field (needs `value`)
@@ -926,6 +943,7 @@ OPERATIONS:
 `edits` is a list of {old_text, new_text}. `old_text` must occur exactly once and match
 character for character, line breaks included. Copy it from the configuration you read;
 never retype it from memory."""
+)
 
 _COMMIT_REVISION_DESCRIPTION_ORDERED = (
     """Commit a change to this agent's own configuration.
@@ -1468,7 +1486,6 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
         "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 120,
             "pattern": r"\S",
         },
         "description": {
@@ -1505,7 +1522,6 @@ _RENAME_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
         "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 120,
             "pattern": r"\S",
         },
         "description": {
@@ -1842,12 +1858,13 @@ CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
 # run's credential, never from an argument. The caller and its session are bound from run
 # context, so the attribution the server writes into every commit message is the run's, never
 # the model's. Self-edits keep their own tools (`read_config`, `commit_revision`).
-_LIST_AGENTS_DESCRIPTION = """List the agents in this project, most recently changed first.
+_LIST_AGENTS_DESCRIPTION = """List the agents in this project, newest first.
 
 Each agent has `id`, `slug`, `name`, `description`, `version` and `updated_at`. The list
 includes you. Pass an agent's `slug` or `id` to `read_agent_config` or `edit_agent_config`.
 
-When the answer has a `next_cursor`, call again with `cursor` set to it for the next page."""
+When the answer has a `next_cursor`, call again with `cursor` set to it for the next page. A
+page can hold fewer agents than `limit`."""
 
 _LIST_AGENTS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1885,8 +1902,9 @@ _READ_AGENT_CONFIG_DESCRIPTION = """Read the configuration of another agent in t
 
 Use it for any agent except yourself. To read your own configuration, use `read_config`.
 
-Send `agent` (its `slug` or `id` from `list_agents`). Add `path`, an array of segments from
-the configuration root, to read one part. Omit `path` to read everything you can change.
+Send `agent`: the exact `slug` or `id` from `list_agents`, not the display name. Add `path`,
+an array of segments from the configuration root, to read one part. Omit `path` to read
+everything you can change.
 
     {"agent": "invoice-helper-k3x9"}
     {"agent": "invoice-helper-k3x9", "path": ["parameters","agent","instructions"]}
@@ -1933,8 +1951,9 @@ _EDIT_AGENT_CONFIG_DESCRIPTION = (
 
 Use it for any agent except yourself. To change yourself, use `commit_revision`.
 
-First call `read_agent_config` for that agent. Then send `agent` (the same `slug` or `id`),
-`base_revision_id` (from that read) and `operations`, which run in order:
+First call `read_agent_config` for that agent. Then send `agent` (the exact `slug` or `id`
+from `list_agents`, not the display name), `base_revision_id` (from that read) and
+`operations`, which run in order. `operations` sits at the top level, beside `agent`:
 
     {"agent": "invoice-helper-k3x9", "base_revision_id": "<from read_agent_config>",
      "operations": [{"operation": "edit_text",
@@ -1945,8 +1964,9 @@ First call `read_agent_config` for that agent. Then send `agent` (the same `slug
     + _OPERATIONS_REFERENCE
     + """
 
-Write every value inline. The change becomes the agent's latest version; it is not deployed.
-Agenta writes the version message, and it names you and this session.
+Write every value inline: `@ag.file` is not resolved here. The change becomes the agent's
+latest version; it is not deployed. Agenta writes the version message, and it names you and
+this session.
 
 If the call is refused, read `next_step`. A conflict means the agent changed after your read:
 call `read_agent_config` again and send the edit with the new `base_revision_id`."""
@@ -1968,12 +1988,13 @@ _EDIT_AGENT_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
     },
 }
 
-_CREATE_AGENT_DESCRIPTION = """Create a new agent in this project.
+_CREATE_AGENT_DESCRIPTION = (
+    """Create a new agent in this project.
 
-The new agent starts from the same template as "New agent" in Agenta, with its default
-instructions, model and tools. To change that configuration in the same call, send
-`operations`, the same operations `edit_agent_config` takes, with targets under
-`["parameters","agent", ...]`:
+The new agent starts from the "New agent" template: its default instructions, tools and
+model. Send `name`, an optional `description`, and `operations` to change that configuration
+in the same call. These are the only fields: every change, instructions included, goes in
+`operations`, at the top level. Targets sit under `["parameters","agent", ...]`:
 
     {"name": "Invoice helper",
      "description": "Answers questions about invoices.",
@@ -1981,12 +2002,15 @@ instructions, model and tools. To change that configuration in the same call, se
        "target": ["parameters","agent","instructions","agents_md"],
        "value": "You answer questions about our invoices."}]}
 
-The template has no `skills` list yet: add the first skills with one `set` on
-`["parameters","agent","skills"]` whose value is the list.
+"""
+    + _OPERATIONS_REFERENCE
+    + """
 
-If one operation fails, no agent is created. The answer carries the new agent's `id`, `slug`
-and `base_revision_id`; use them with `read_agent_config` and `edit_agent_config` for later
-changes. Agenta writes the first version's message, and it names you and this session."""
+Write every value inline: `@ag.file` is not resolved here. If one operation fails, no agent
+is created. The answer carries the new agent's `id`, `slug` and `base_revision_id`; use them
+with `read_agent_config` and `edit_agent_config` for later changes. Agenta writes the first
+version's message, and it names you and this session."""
+)
 
 _CREATE_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1996,13 +2020,11 @@ _CREATE_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
         "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 120,
             "pattern": r"\S",
             "description": 'The new agent\'s name, a few words, e.g. "Invoice helper".',
         },
         "description": {
             "type": "string",
-            "maxLength": 300,
             "description": "Optional. One sentence on what the agent is for.",
         },
         "operations": {

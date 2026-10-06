@@ -140,8 +140,64 @@ def test_the_descriptions_send_the_model_to_the_self_tools_for_itself():
     # Self-sufficient: an agent with only these tools still learns the operations.
     for word in ("TARGET", "OPERATIONS", "edit_text", "read_agent_config", "conflict"):
         assert word in edit
-    # File markers resolve only on commit_revision's shape; this tool must not offer them.
-    assert "@ag.file" not in edit
+    # File markers resolve only on commit_revision's shape; these tools say so and never
+    # show the marker form.
+    for op in ("create_agent", "edit_agent_config"):
+        description = get_platform_op(op).description
+        assert "`@ag.file` is not resolved here" in description
+        assert '{"@ag.file"' not in description
+
+
+def test_create_teaches_the_operations_without_edit():
+    # `edit_agent_config` can be off while `create_agent` is on.
+    create = get_platform_op("create_agent").description
+    for word in ("TARGET", "OPERATIONS", "add_item", "edit_text"):
+        assert word in create
+    assert "edit_agent_config` takes" not in create
+    assert "These are the only fields" in create
+    assert "no `skills` list" not in create
+
+
+@pytest.mark.parametrize(
+    "op", ["read_agent_config", "edit_agent_config"], ids=["read", "edit"]
+)
+def test_the_agent_is_the_slug_or_id_not_the_display_name(op):
+    assert "not the display name" in get_platform_op(op).description
+
+
+@pytest.mark.parametrize("op", ["commit_revision", "create_agent", "edit_agent_config"])
+def test_the_shapes_the_models_went_hunting_for_are_in_the_description(op):
+    description = " ".join(get_platform_op(op).description.split())
+    # Generated from AGENTA_TOOLS, so a new tool cannot be missing from the list.
+    names = description.split('Agenta tools (value "allow" or "ask"): ')[1]
+    assert names.split(".")[0].split(", ") == list(AGENTA_TOOLS)
+    assert '{"name", "description", "body"}, all three required' in description
+    assert "When `skills` is missing, `set` it to a list." in description
+    assert '{"list":"tools","key":"agenta_tools"}' in description
+    assert "—" not in description
+
+
+def test_the_agenta_tools_example_is_a_valid_operation():
+    jsonschema.validate(
+        {
+            "operation": "set",
+            "target": [
+                "parameters",
+                "agent",
+                {"list": "tools", "key": "agenta_tools"},
+                "tools",
+                "create_schedule",
+            ],
+            "value": "allow",
+        },
+        OPERATION_ITEMS,
+    )
+
+
+def test_name_and_description_carry_no_invented_length_limit():
+    properties = _schema("create_agent")["properties"]
+    assert "maxLength" not in properties["name"]
+    assert "maxLength" not in properties["description"]
 
 
 async def test_the_resolved_spec_carries_the_call_ref_and_the_bindings(connection):
