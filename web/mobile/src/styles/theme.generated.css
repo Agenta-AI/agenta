@@ -130,6 +130,8 @@
     --ag-run-status-success: #12B76A;
     --ag-run-status-warning: #F79009;
     --ag-run-status-default: #98A2B3;
+    --ag-run-status-processing: #3B82F6;
+    --ag-run-status-error: #F04438;
     --ag-surface-paper: #fbfaf8;
     --hero-action-bg: #f2f25c;
     --hero-action-hover-bg: #e7e712;
@@ -274,6 +276,8 @@
     --ag-run-status-success: #12B76A;
     --ag-run-status-warning: #F79009;
     --ag-run-status-default: #98A2B3;
+    --ag-run-status-processing: #3B82F6;
+    --ag-run-status-error: #F04438;
     --ag-surface-paper: #272727;
     --hero-action-bg: #d1d151;
     --hero-action-hover-bg: #dcdc6b;

@@ -310,6 +310,11 @@ const VARS: Record<string, [string, string]> = {
     "ag-run-status-success": [color(p.runStatus.success.light), color(p.runStatus.success.dark)],
     "ag-run-status-warning": [color(p.runStatus.warning.light), color(p.runStatus.warning.dark)],
     "ag-run-status-default": [color(p.runStatus.default.light), color(p.runStatus.default.dark)],
+    "ag-run-status-processing": [
+        color(p.runStatus.processing.light),
+        color(p.runStatus.processing.dark),
+    ],
+    "ag-run-status-error": [color(p.runStatus.error.light), color(p.runStatus.error.dark)],
     // The tinted panel surface, under its desktop name: the shared PanelSection styles itself
     // with `var(--ag-surface-paper)` literally, so /m must publish the same name or every panel
     // header renders on no background at all.

@@ -10,7 +10,9 @@ import {
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
     sessionStatusAtomFamily,
+    sessionStatusesAtom,
     setSessionStatusAtom,
+    trackOwnedRunAtom,
 } from "../../../src/state/sessionMessages"
 
 const MESSAGES_KEY = "agenta:agent-chat:messages:v2"
@@ -177,5 +179,32 @@ describe("sessionMessages state", () => {
         // Idle is stored as absence (clear-on-unmount semantics).
         store.set(setSessionStatusAtom, {id: "sx", status: "idle"})
         expect(store.get(sessionStatusAtomFamily("sx"))).toBe("idle")
+    })
+
+    it("statuses record lists only non-idle sessions and notifies only on a change", () => {
+        const store = createStore()
+        const heard: Record<string, string>[] = []
+        store.sub(sessionStatusesAtom, () => heard.push(store.get(sessionStatusesAtom)))
+        store.set(setSessionStatusAtom, {id: "a", status: "running"})
+        store.set(setSessionStatusAtom, {id: "a", status: "running"})
+        store.set(setSessionStatusAtom, {id: "b", status: "error"})
+        store.set(setSessionStatusAtom, {id: "a", status: "idle"})
+        expect(heard).toEqual([{a: "running"}, {a: "running", b: "error"}, {b: "error"}])
+    })
+
+    it("counts a run this tab owns until its last stream closes, under the mount's own status", () => {
+        const store = createStore()
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        expect(store.get(sessionStatusAtomFamily("s1"))).toBe("running")
+        expect(store.get(sessionStatusesAtom)).toEqual({s1: "running"})
+        store.set(setSessionStatusAtom, {id: "s1", status: "error"})
+        expect(store.get(sessionStatusesAtom)).toEqual({s1: "error"})
+        store.set(setSessionStatusAtom, {id: "s1", status: "idle"})
+        store.set(trackOwnedRunAtom, {id: "s1", open: false})
+        expect(store.get(sessionStatusAtomFamily("s1"))).toBe("running")
+        store.set(trackOwnedRunAtom, {id: "s1", open: false})
+        expect(store.get(sessionStatusAtomFamily("s1"))).toBe("idle")
+        expect(store.get(sessionStatusesAtom)).toEqual({})
     })
 })

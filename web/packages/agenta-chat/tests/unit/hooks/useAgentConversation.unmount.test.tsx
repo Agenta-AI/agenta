@@ -73,7 +73,9 @@ vi.mock("../../../src/state/sessionMessages", async (importOriginal) => {
 
 import type {SessionTranscript} from "../../../src/assets/loadSession"
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
+import {hasSessionChat} from "../../../src/state/sessionChats"
 import {acceptedRunBySession, markSessionFresh} from "../../../src/state/sessionEphemera"
+import {sessionStatusAtomFamily} from "../../../src/state/sessionMessages"
 
 const message = (n: number): UIMessage =>
     ({
@@ -122,11 +124,8 @@ describe.each([
         // Fresh: the hydration and revalidate-on-open effects stay out of the way, so every
         // adoption below is one this test asked for.
         markSessionFresh(sessionId)
-        // A durable send whose turn the runner has accepted. This is the state an unmount
-        // mid-stream actually happens in, and it is what makes mobile PRESERVE the chat across the
-        // remount (`shouldPreserve: () => busyRef.current`). It leaves `localRenderBusyRef` false,
-        // because a shared turn is not a stream this client renders, so adoption stays open — the
-        // combination the blocker needs.
+        // A durable send whose turn the runner has accepted. It leaves `localRenderBusyRef` false,
+        // because a shared turn is not a stream this client renders, so adoption stays open.
         acceptedRunBySession.set(sessionId, "turn-1")
 
         const first = mountConversation(store, sessionId)
@@ -149,10 +148,10 @@ describe.each([
         // The user leaves the session view mid-stream.
         first.unmount()
 
-        // ...and comes back. Same session id, so the registry hands back the SAME chat instance,
-        // which is why the transcript below is still two messages long.
+        // ...and comes back. The accepted run's stream had closed, so nothing was preserved: the
+        // new mount starts from its own seed, and the stale read must still not reach it.
         const second = mountConversation(store, sessionId)
-        expect(second.result.current.messages).toHaveLength(2)
+        expect(second.result.current.messages).toHaveLength(0)
         await act(async () => {
             await second.result.current.revalidate(transcript(6, 6))
         })
@@ -231,5 +230,22 @@ describe.each([
         })
         expect(second.result.current.messages).toHaveLength(6)
         second.unmount()
+    })
+
+    it("releases the chat and retires the status when only an accepted, closed run remains", async () => {
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        acceptedRunBySession.set(sessionId, "turn-1")
+
+        const first = mountConversation(store, sessionId)
+        await waitFor(() => expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("running"))
+        expect(hasSessionChat(sessionId)).toBe(true)
+
+        first.unmount()
+
+        expect(hasSessionChat(sessionId)).toBe(false)
+        expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("idle")
     })
 })
