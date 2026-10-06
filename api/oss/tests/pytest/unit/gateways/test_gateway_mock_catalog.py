@@ -13,7 +13,6 @@ from oss.src.utils.env import env
 def test_llm_mock_entries_are_absent_without_the_explicit_switch(monkeypatch):
     monkeypatch.setattr(env.mock_gateways, "enabled", False)
 
-    assert builtin_llm_endpoint(provider_key="agenta") is None
     assert builtin_llm_endpoint(provider_key="mock") is None
     assert standard_llm_endpoint(provider_key="mock") is None
 
@@ -21,7 +20,7 @@ def test_llm_mock_entries_are_absent_without_the_explicit_switch(monkeypatch):
 def test_llm_mock_entries_have_distinct_namespaces_and_use_mock_adapter(monkeypatch):
     monkeypatch.setattr(env.mock_gateways, "enabled", True)
 
-    builtin = builtin_llm_endpoint(provider_key="agenta")
+    builtin = builtin_llm_endpoint(provider_key="mock")
     standard = standard_llm_endpoint(provider_key="mock")
 
     assert builtin is not None

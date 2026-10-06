@@ -4,6 +4,7 @@ import {
     getSettingsSidebarTabs,
     getSettingsTabDescription,
     getSettingsTabLabel,
+    isSettingsTabVisible,
     resolveSettingsTab,
     SETTINGS_SCOPES,
     SETTINGS_TABS,
@@ -134,8 +135,36 @@ describe("settings sidebar scopes", () => {
             "organization",
             "auditLog",
             "billing",
+            "credits",
+            "walletUsage",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
+    })
+
+    it("shows the wallet debug view only while the wallet is on, in a development build", () => {
+        expect(isSettingsTabVisible("walletUsage", baseAccess)).toBe(false)
+        expect(isSettingsTabVisible("walletUsage", {...baseAccess, walletsEnabled: true})).toBe(
+            false,
+        )
+        expect(
+            isSettingsTabVisible("walletUsage", {
+                ...baseAccess,
+                walletsEnabled: true,
+                walletDebug: true,
+            }),
+        ).toBe(true)
+    })
+
+    it("shows the credits view only where the organization's wallet is enforced", () => {
+        expect(isSettingsTabVisible("credits", {...baseAccess, walletsEnabled: true})).toBe(false)
+        expect(
+            isSettingsTabVisible("credits", {
+                ...baseAccess,
+                walletsEnabled: true,
+                walletEnforced: true,
+            }),
+        ).toBe(true)
+        expect(getSettingsTabLabel("credits", baseAccess)).toBe("Credits")
     })
 
     it("exposes separate LLM and MCP pages", () => {

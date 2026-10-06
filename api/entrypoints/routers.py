@@ -299,6 +299,7 @@ from oss.src.routers import (
 from oss.src.apis.fastapi.access.router import AccessRouter
 
 from oss.src.utils.env import env
+from oss.src.core.rollout.switches import prefetch_rollout_flags
 from oss.src.core.evaluations.runtime.broker import (
     build_evaluations_broker,
     build_evaluations_worker,
@@ -357,6 +358,8 @@ async def lifespan(*args, **kwargs):
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()
+
+    prefetch_rollout_flags()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).
@@ -1313,7 +1316,59 @@ secrets_resolver = SecretsResolver(
     vault_service=vault_service,
 )
 
-gateway_policy_service = GatewayPolicyService(resolver=secrets_resolver)
+# The wallet's side of the gateway seam, bound only in EE with the wallet on. Otherwise the
+# policy service keeps its null ports: every call admitted, no usage handed off.
+gateway_spend_admission = None
+gateway_usage_sink = None
+if ee and is_ee() and env.wallets.enabled:
+    from ee.src.core.access.entitlements.service import plan_for
+    from ee.src.core.measurements.sink import MeasurementUsageSink
+    from ee.src.core.wallets.admission import WalletSpendAdmission
+    from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
+    from ee.src.dbs.redis.wallets.turns import RedisSessionTurnHolds
+
+    gateway_spend_admission = WalletSpendAdmission(
+        wallet=ee.wallets_service,
+        session_holds=RedisSessionTurnHolds(redis_client=_lock_engine),
+        plan_for=plan_for,
+    )
+    gateway_usage_sink = MeasurementUsageSink(
+        publisher=RedisMeasurementPublisher(redis_client=_streams_engine.get_redis())
+    )
+
+# Managed tool actions spend Agenta's own provider accounts, so they exist only where the
+# wallet does. The only providers today are the mocks.
+managed_mcp_adapter = None
+if ee and is_ee() and env.wallets.enabled and env.mock_gateways.enabled:
+    from oss.src.core.gateways.mcps.providers.managed.adapter import ManagedMCPAdapter
+    from oss.src.core.managed_tools.limits import RedisManagedActionRateLimiter
+    from oss.src.core.managed_tools.mock.actions import MOCK_ACTIONS
+    from oss.src.core.managed_tools.mock.providers import build_mock_providers
+    from oss.src.core.managed_tools.registry import ManagedActionRegistry
+    from oss.src.core.managed_tools.service import ManagedToolsService
+    from ee.src.core.measurements.tools import WalletManagedActionBilling
+    from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
+
+    managed_mcp_adapter = ManagedMCPAdapter(
+        managed_tools=ManagedToolsService(
+            registry=ManagedActionRegistry(
+                actions=MOCK_ACTIONS, providers=build_mock_providers()
+            ),
+            billing=WalletManagedActionBilling(
+                wallet=ee.wallets_service,
+                publisher=RedisMeasurementPublisher(
+                    redis_client=_streams_engine.get_redis()
+                ),
+            ),
+            rate_limiter=RedisManagedActionRateLimiter(),
+        )
+    )
+
+gateway_policy_service = GatewayPolicyService(
+    resolver=secrets_resolver,
+    spend_admission=gateway_spend_admission,
+    usage_sink=gateway_usage_sink,
+)
 
 llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
@@ -1378,6 +1433,7 @@ mcp_gateway_service = MCPGatewayService(
     # The stored grant is renewed on the data-plane path, and the connect service is what
     # holds the vault and the OAuth client that can spend a refresh token (OR55).
     oauth_refresher=mcp_oauth_connect_service,
+    managed_tools=managed_mcp_adapter,
 )
 
 gateway_credentials_router = GatewayCredentialsRouter()

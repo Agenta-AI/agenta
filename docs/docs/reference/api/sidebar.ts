@@ -3036,13 +3036,13 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method put",
+          className: "api-method post",
         },
         {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method post",
+          className: "api-method put",
         },
         {
           type: "doc",
@@ -3580,6 +3580,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/create-top-up-checkout",
+          label: "Create Top Up Checkout User Route",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/fetch-plans",
           label: "Fetch Plan User Route",
           className: "api-method get",
@@ -3865,6 +3871,24 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/configs-fetch-variants-configs-fetch-post",
           label: "Configs Fetch",
           className: "menu__list-item--deprecated api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Wallets",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/fetch-wallet-summary",
+          label: "Fetch Summary",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-wallet-usage",
+          label: "Query Usage",
+          className: "api-method post",
         },
       ],
     },

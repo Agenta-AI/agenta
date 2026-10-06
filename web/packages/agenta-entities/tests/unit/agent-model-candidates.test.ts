@@ -224,3 +224,105 @@ describe("selectableAgentHarnesses", () => {
         ).toEqual(["pi_core", "claude", "codex"])
     })
 })
+
+describe("built-in model candidates", () => {
+    const capabilities = {
+        pi_core: {
+            providers: ["openai", "anthropic"],
+            model_selection: "provider/id",
+            connection_modes: ["agenta"],
+            models: {openai: ["gpt-5.5"], anthropic: ["anthropic/claude-sonnet-5"]},
+        },
+        claude: {
+            providers: ["anthropic"],
+            model_selection: "alias",
+            connection_modes: ["agenta"],
+            models: {anthropic: ["sonnet"]},
+        },
+    }
+
+    const build = (models: string[]) =>
+        buildAgentModelCandidates({
+            connections: [],
+            capabilities,
+            harnessIds: ["pi_core", "claude"],
+            showSubscriptions: false,
+            builtinEndpoints: [{slug: "agenta", models, deploymentKind: "mock"}],
+        })
+
+    it("offers each catalogued model to the id-naming harnesses, routed by the endpoint slug", () => {
+        expect(build(["mock/echo", "gpt-5.5", "claude-sonnet-5"])).toEqual([
+            {
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode: "agenta",
+                slug: "agenta",
+                namespace: "builtin",
+                harness: "pi_core",
+                source: "connection",
+                connectionKey: "builtin:agenta",
+                connectionName: "Built-in: agenta",
+                managed: false,
+            },
+            expect.objectContaining({
+                modelId: "claude-sonnet-5",
+                provider: "anthropic",
+                harness: "pi_core",
+            }),
+        ])
+    })
+
+    it("tells a built-in pick apart from a custom connection of the same slug", () => {
+        // A custom endpoint may be named `agenta` too; only the namespace says which one runs.
+        const [builtin] = build(["gpt-5.5"])
+        const customPick = {...builtin, namespace: null}
+
+        expect(agentModelSelectionIsRunnable([builtin], builtin)).toBe(true)
+        expect(agentModelSelectionIsRunnable([builtin], customPick)).toBe(false)
+    })
+
+    it("offers a real built-in endpoint's models to the OpenAI-compatible custom-route harnesses", () => {
+        const gemini = ["google/gemini-3.7-flash", "google/gemini-3.8-flash"]
+        const candidates = buildAgentModelCandidates({
+            connections: [],
+            capabilities: {
+                ...capabilities,
+                pi_core: {...capabilities.pi_core, deployments: ["direct", "custom"]},
+                // Drives an OpenAI-compatible route with the Responses API, which Vertex lacks.
+                codex: {
+                    providers: ["openai"],
+                    deployments: ["direct", "custom"],
+                    model_selection: "provider/id",
+                    connection_modes: ["agenta"],
+                    models: {openai: ["gpt-5.5"]},
+                },
+            },
+            harnessIds: ["pi_core", "claude", "codex"],
+            showSubscriptions: false,
+            builtinEndpoints: [{slug: "agenta", models: gemini, deploymentKind: "vertex_ai"}],
+        })
+
+        // Uncatalogued ids are offered: the endpoint's allowlist, not a harness catalog, decides.
+        expect(candidates.map((c) => [c.harness, c.modelId, c.provider])).toEqual([
+            ["pi_core", "google/gemini-3.7-flash", "openai"],
+            ["pi_core", "google/gemini-3.8-flash", "openai"],
+        ])
+        expect(candidates[0]).toMatchObject({
+            mode: "agenta",
+            slug: "agenta",
+            namespace: "builtin",
+            connectionKey: "builtin:agenta",
+        })
+    })
+
+    it("offers nothing when the deployment lists no built-in endpoint", () => {
+        expect(
+            buildAgentModelCandidates({
+                connections: [],
+                capabilities,
+                harnessIds: ["pi_core"],
+                showSubscriptions: false,
+            }),
+        ).toEqual([])
+    })
+})
