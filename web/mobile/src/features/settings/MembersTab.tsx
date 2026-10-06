@@ -9,6 +9,7 @@ import {
 } from "@agenta/entities/organization"
 import {updateUsername, useProfile} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -42,9 +43,8 @@ const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
 /** Mobile binding for Members: invite and remove as dialogs, your own name renamed in place. */
 export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) => {
     const {user: signedInUser} = useProfile()
-    const {projects, organizationId, org} = useSettingsOrg(routeWorkspaceId)
+    const {organizationId, org, loading, failed, retry} = useSettingsOrg(routeWorkspaceId)
     const members = org.data?.default_workspace?.members ?? []
-    const loading = projects.isPending || org.isPending
     const ownerId = org.data?.owner_id
     const workspaceId = org.data?.default_workspace?.id
     const onChanged = () => void org.refetch()
@@ -112,6 +112,9 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
         onError: (cause: unknown) =>
             setError((cause as Error)?.message || "Unable to remove the member"),
     })
+
+    if (failed)
+        return <LoadError title="Could not load this organization's members" onRetry={retry} />
 
     return (
         <MembersPage

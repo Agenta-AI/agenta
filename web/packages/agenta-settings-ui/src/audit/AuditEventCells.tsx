@@ -15,10 +15,10 @@ import type {Event} from "@agenta/entities/event"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {UserAuthorLabel, useIsCurrentUser, useUserDisplayName} from "@agenta/entities/shared/user"
 import {dayjs} from "@agenta/shared/utils"
-import {message} from "@agenta/ui/app-message"
 import {Copy, Eye} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {copyWithMessage} from "../shared/copyWithMessage"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 import {eventTypeLabel} from "./eventTypeLabels"
@@ -40,10 +40,7 @@ const readCount = (event: Event): number | null => {
 const shortId = (id: string) => (id.length > 13 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id)
 
 const copyId = (text: string, what: string) =>
-    void navigator.clipboard?.writeText(text).then(
-        () => message.success(`${what} copied`),
-        () => message.error("Couldn't copy the ID"),
-    )
+    void copyWithMessage(text, `${what} copied`, "Couldn't copy the ID")
 
 /** "Oct 5, 22:35:03" this year, "Oct 5 2025, 22:35" before; the full value is the title. */
 export const EventTimestampCell = ({eventId}: {eventId: string}) => {

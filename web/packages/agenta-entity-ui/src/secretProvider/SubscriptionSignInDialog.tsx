@@ -108,7 +108,8 @@ export const SubscriptionSignInDialog = ({
     }, [open, isReady, connect])
 
     const close = () => {
-        if (pending) signIn.cancel()
+        // Also ends a sign-in that is still starting.
+        signIn.cancel()
         onClose()
     }
 

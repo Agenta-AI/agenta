@@ -71,6 +71,8 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
             onKeyDown={
                 open
                     ? (event: KeyboardEvent<HTMLDivElement>) => {
+                          // Keys on a nested control (the kebab) belong to that control.
+                          if (event.target !== event.currentTarget) return
                           if (event.key !== "Enter" && event.key !== " ") return
                           event.preventDefault()
                           open()
