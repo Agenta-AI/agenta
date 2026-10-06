@@ -58,6 +58,7 @@ import {
 } from "./engines/sandbox_agent.ts";
 import type { SandboxAgentDeps } from "./engines/sandbox_agent/runtime-contracts.ts";
 import { readLatestSessionTurn } from "./engines/sandbox_agent/session-continuity-durable.ts";
+import { sessionContinuityStore } from "./engines/sandbox_agent/session-continuity.ts";
 import { withGatewayErrorDetail } from "./engines/sandbox_agent/engine.ts";
 import {
   cancelHarnessTurn,
@@ -1525,6 +1526,14 @@ export async function stopParkedApprovalSession(
     env.nonParkablePauseCount = 0;
     env.commitAuthorization = undefined;
     env.clearTurn();
+    // The paused turn wrote its turn-log row and will never be resumed, so its index is spent.
+    // A paused turn records nothing, so without this the next fresh prompt on this warm
+    // environment would take the same index, and the turn-start write refuses a fresh prompt on
+    // a written index.
+    if (env.sessionId && env.continuityTurnIndex !== undefined) {
+      const store = env.deps.sessionContinuityStore ?? sessionContinuityStore;
+      store.restoreLatestTurn(env.sessionId, env.continuityTurnIndex);
+    }
     if (!(await input.repark())) {
       throw new Error("released approval could not return to the pool");
     }
