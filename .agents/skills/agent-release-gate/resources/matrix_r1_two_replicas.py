@@ -528,20 +528,39 @@ class Ctx:
         self._configs: dict[str, tuple[dict, dict]] = {}
         self._custom_slug: str | None = args.custom_slug
 
-    def custom_slug(self) -> str:
-        if self._custom_slug:
+    def custom_slug(self, name: str | None = None) -> str:
+        name = name or self.args.custom_name
+        if name == self.args.custom_name and self._custom_slug:
             return self._custom_slug
         r = lib.api_call("GET", "/vault/v1/secrets/")
         r.raise_for_status()
         for secret in r.json():
-            if (secret.get("header") or {}).get("name") == self.args.custom_name and (
+            if (secret.get("header") or {}).get("name") == name and (
                 secret.get("kind") == "custom_provider"
             ):
-                self._custom_slug = secret.get("slug")
-                return self._custom_slug
-        raise RuntimeError(
-            f"no custom_provider secret named {self.args.custom_name!r} in the vault"
-        )
+                if name == self.args.custom_name:
+                    self._custom_slug = secret.get("slug")
+                return secret.get("slug")
+        raise RuntimeError(f"no custom_provider secret named {name!r} in the vault")
+
+    def claude_llm(self) -> dict:
+        """The Claude cells' model: the vault Anthropic key, or a custom Anthropic-protocol
+        connection when `--claude-custom-name` names one (when the Anthropic key has no credit)."""
+        name = self.args.claude_custom_name
+        if not name:
+            return {
+                "model": self.args.claude_model,
+                "provider": "anthropic",
+                "connection": {"mode": "agenta", "slug": None},
+                "extras": {},
+            }
+        return {
+            "model": f"{name}/custom/{self.args.claude_model}",
+            # The playground's shape for a named custom connection: the family the harness speaks.
+            "provider": "anthropic",
+            "connection": {"mode": "agenta", "slug": self.custom_slug(name)},
+            "extras": {},
+        }
 
     def config(self, shape: str) -> tuple[dict, dict]:
         """(agent config, references) for a named shape, committed once per run."""
@@ -551,12 +570,7 @@ class Ctx:
             permission = shape.split("-", 1)[1]
             cfg = {
                 "instructions": {"agents_md": INSTRUCTIONS},
-                "llm": {
-                    "model": self.args.claude_model,
-                    "provider": "anthropic",
-                    "connection": {"mode": "agenta", "slug": None},
-                    "extras": {},
-                },
+                "llm": self.claude_llm(),
                 "tools": [],
                 "mcps": [],
                 "skills": [],
@@ -719,11 +733,13 @@ def holder_runner(stack: Stack, binding: dict) -> Runner | None:
     return stack.by_replica(replica) if replica else None
 
 
-def respond_like_the_app(interaction: dict, tool_call_id: str | None) -> dict:
+def respond_like_the_app(interaction: dict, approval_id: str | None) -> dict:
     """Answer an approval the way `web/mobile` does: the durable respond route plus a key."""
     answer: dict = {"approved": True}
-    if tool_call_id:
-        answer["tool_call_id"] = tool_call_id
+    # The app sends the stream's approval id (the interaction token) as `tool_call_id`, not the
+    # harness call id (`interactionAnswer.ts`); the cell must hit the server with that same shape.
+    if approval_id:
+        answer["tool_call_id"] = approval_id
     body: dict = {"answer": answer}
     if interaction.get("turn_id"):
         body["expected_execution_id"] = interaction["turn_id"]
@@ -869,7 +885,7 @@ def cell_approval_warm(ctx: Ctx) -> tuple[dict, dict]:
     ev["interaction"] = row
     if row is None:
         return ev, _fail("no pending interaction row after the park")
-    answer = respond_like_the_app(row, t1.approvals[-1].get("toolCallId"))
+    answer = respond_like_the_app(row, t1.approvals[-1].get("approvalId"))
     ev["answer"] = {k: answer[k] for k in ("status", "body")}
     if answer["status"] not in (200, 202):
         return ev, _fail(f"the respond route answered HTTP {answer['status']}")
@@ -1631,7 +1647,7 @@ def cell_kill_holder_parked_approval(ctx: Ctx) -> tuple[dict, dict]:
         return ev, _fail("no pending interaction row after the park")
     try:
         ev["kill"] = stack.kill(holder)
-        answer = respond_like_the_app(row, t1.approvals[-1].get("toolCallId"))
+        answer = respond_like_the_app(row, t1.approvals[-1].get("approvalId"))
         ev["answer"] = {k: answer[k] for k in ("status", "body")}
         continuation = ((answer["body"] or {}).get("execution") or {}).get("id")
         settled = wait_turn_settled(s, continuation, TURN_WAIT_S)
@@ -2314,6 +2330,11 @@ def main() -> int:
     )
     ap.add_argument("--allow-destructive", action="store_true")
     ap.add_argument("--claude-model", default="haiku")
+    ap.add_argument(
+        "--claude-custom-name",
+        help="run the Claude cells on this custom Anthropic-protocol vault connection; "
+        "--claude-model is then its model slug (e.g. anthropic/claude-haiku-4.5)",
+    )
     ap.add_argument("--custom-name", default="orqa")
     ap.add_argument("--custom-slug", default=None)
     ap.add_argument("--custom-model", default="openai/gpt-4o-mini")
