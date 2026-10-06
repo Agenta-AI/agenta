@@ -80,6 +80,10 @@ def test_catalog_ships_platform_builder_ops():
         "read_channel_messages",
         "search_channel_messages",
         "validate_template",
+        "list_agents",
+        "read_agent_config",
+        "create_agent",
+        "edit_agent_config",
     }
 
 

@@ -39,11 +39,16 @@ from agenta.sdk.engines.running.utils import (
 )
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.agents import (
+    AgentTemplate,
     HarnessKind,
     InvalidHarnessKindError,
     InvalidAgentInstructionsError as AgentInstructionsShapeError,
+    MCPConfigurationError,
+    SkillValidationError,
+    ToolConfigurationError,
     validate_agent_instructions,
 )
+from pydantic import ValidationError as PydanticValidationError
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -55,6 +60,7 @@ from oss.src.core.shared.exceptions import (
 from oss.src.core.shared.idempotency import (
     idempotent_workflow_slug,
     resource_identity,
+    request_fingerprint as fingerprint_of,
     request_key_hash,
 )
 from oss.src.core.git.dtos import (
@@ -134,10 +140,12 @@ from oss.src.core.git.types import (
     validate_retrieve_refs_consistent,
 )
 from oss.src.core.workflows.change_set import (
+    AGENT_COMMIT_SCOPE,
     ChangeSetError,
     Reason,
     apply_change_set,
 )
+from oss.src.core.workflows.new_agent import new_agent_revision_data, new_agent_slug
 from oss.src.core.workflows.read_config import (
     ReadConfigError,
     clamp_max_bytes,
@@ -238,8 +246,8 @@ class RevisionConflictError(Exception):
             "message": "The workflow head changed. No revision was committed.",
             "retryable": False,
             "next_step": (
-                "Call read_config for the new revision, re-anchor your edits to it, and "
-                "send the commit again with the new base_revision_id."
+                "Read the configuration again for the new revision, re-anchor your edits "
+                "to it, and send the commit again with the new base_revision_id."
             ),
             "details": details,
         }
@@ -307,6 +315,106 @@ def _validate_persisted_shape(data: dict) -> None:
     error rather than a 422 naming the field (contract commit-transaction.md 3, step 5).
     """
     WorkflowRevisionData(**data)
+
+
+# The lists whose entries the runtime parses one by one, and the error that names an entry.
+_AGENT_TEMPLATE_LISTS = (
+    ("skills", SkillValidationError),
+    ("mcps", MCPConfigurationError),
+    ("tools", ToolConfigurationError),
+)
+
+
+def _holds_embed(entry: Any) -> bool:
+    wrapped = {"entry": entry}
+    return bool(
+        find_object_embeds(wrapped)
+        or find_string_embeds(wrapped)
+        or find_snippet_embeds(wrapped)
+    )
+
+
+def _agent_template_issues(data: dict) -> List[str]:
+    """What the runtime would refuse in this agent configuration, by field path.
+
+    Before every run the runtime parses `parameters` with `AgentTemplate.from_params`, and a
+    refusal there fails every run of the agent. This runs the same parse on the result of
+    an agent's commit, so a slip such as a skill without `body` is refused while the agent
+    that made it can still fix it, not later in a run of an agent nobody is watching.
+
+    An entry that holds an embed is left out: embeds resolve server-side before a run, so
+    its content is only known then.
+    """
+    parameters = data.get("parameters")
+    if not isinstance(parameters, dict) or not isinstance(
+        parameters.get("agent"), dict
+    ):
+        return []
+    agent = dict(parameters["agent"])
+    positions: Dict[str, List[int]] = {}
+    for name, _ in _AGENT_TEMPLATE_LISTS:
+        entries = agent.get(name)
+        if isinstance(entries, list):
+            positions[name] = [
+                index for index, entry in enumerate(entries) if not _holds_embed(entry)
+            ]
+            agent[name] = [entries[index] for index in positions[name]]
+    try:
+        AgentTemplate.from_params({**parameters, "agent": agent})
+    except Exception as error:  # noqa: BLE001 - every refusal is reported the same way
+        for name, error_type in _AGENT_TEMPLATE_LISTS:
+            index = getattr(error, "index", None)
+            if isinstance(error, error_type) and index is not None:
+                return _entry_issues(f"{name}[{positions[name][index]}]", error)
+        return [str(error)]
+    return []
+
+
+def _entry_issues(field: str, error: Exception) -> List[str]:
+    """One issue per pydantic error under a list entry, e.g. `skills[0].body is required`."""
+    cause = error.__cause__
+    while cause is not None and not isinstance(cause, PydanticValidationError):
+        cause = cause.__cause__
+    if cause is None:
+        return [f"{field}: {error}"]
+    entry = getattr(error, "value", None)
+    kind = entry.get("type") if isinstance(entry, dict) else None
+    issues = []
+    for issue in cause.errors(include_url=False):
+        # A tool's errors sit under its union tag, which is the entry's own `type`.
+        loc = list(issue["loc"])
+        if loc and loc[0] == kind:
+            loc = loc[1:]
+        path = "".join(f".{part}" for part in loc)
+        issues.append(
+            f"{field}{path} is required"
+            if issue["type"] == "missing"
+            else f"{field}{path} is invalid: {issue['msg']}"
+        )
+    return issues
+
+
+def read_revision_config(
+    revision: WorkflowRevision,
+    *,
+    path: Optional[list] = None,
+    max_bytes: Optional[int] = None,
+) -> ConfigReadOutcome:
+    """One part of a revision the caller already holds, as the config read answers it."""
+    data = (
+        revision.data.model_dump(mode="json", exclude_none=True)
+        if revision.data
+        else None
+    )
+    result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
+    return ConfigReadOutcome(
+        revision=revision,
+        path=result.path,
+        value=result.value,
+        bytes=result.bytes,
+        is_draft=False,
+        warnings=list(result.warnings),
+    )
 
 
 class WorkflowsService:
@@ -2389,20 +2497,7 @@ class WorkflowsService:
                 "That variant has no revision to read.",
                 status_code=404,
             )
-
-        data = (
-            head.data.model_dump(mode="json", exclude_none=True) if head.data else None
-        )
-        result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
-
-        return ConfigReadOutcome(
-            revision=head,
-            path=result.path,
-            value=result.value,
-            bytes=result.bytes,
-            is_draft=False,
-            warnings=list(result.warnings),
-        )
+        return read_revision_config(head, path=path, max_bytes=max_bytes)
 
     async def commit_workflow_revision_checked(
         self,
@@ -2416,12 +2511,17 @@ class WorkflowsService:
         #
         scope_policy=None,
         agent_context: bool = False,
+        attribution: Optional[str] = None,
     ) -> "CommitOutcome":
         """Commit with the base check, the no-change answer, and the warning list.
 
         The commit wrapper of ``contracts/commit-transaction.md``. Every other caller of
         ``commit_workflow_revision`` keeps its signature and its behavior; only the
         workflow commit endpoint routes through here.
+
+        ``attribution`` is appended to the message in parentheses. Only an agent editing
+        ANOTHER agent passes one (see ``agent_attribution``): that edit lands in a history
+        whose owner did not watch it happen.
         """
         self._reject_static_slug(workflow_revision_commit.slug)
 
@@ -2455,6 +2555,13 @@ class WorkflowsService:
             self._check_base_revision(
                 workflow_revision_commit=workflow_revision_commit,
                 current=head,
+            )
+
+        if attribution:
+            workflow_revision_commit = workflow_revision_commit.model_copy(
+                update={
+                    "message": f"{workflow_revision_commit.message} ({attribution})"
+                }
             )
 
         # Built before the comparison, because the comparison runs on what would be
@@ -2934,12 +3041,21 @@ class WorkflowsService:
             delta = {**delta, "operations": operations}
 
         # The scope is the caller's: only the agent's builder tool is confined to
-        # `parameters.agent` (read-config.md 11.2), so it passes AGENT_COMMIT_SCOPE.
+        # `parameters.agent` (read-config.md 11.2), so it passes AGENT_COMMIT_SCOPE. An
+        # agent's result must also parse the way the runtime parses it before every run.
         result = apply_change_set(
             base,
             delta,
             scope_policy,
-            validate=_validate_persisted_shape,
+            # An agent's result must be storable AND runnable.
+            validate=(
+                (
+                    lambda data: _validate_persisted_shape(data)
+                    or _agent_template_issues(data)
+                )
+                if agent_context
+                else _validate_persisted_shape
+            ),
         )
         warnings = warnings + list(result.warnings)
 
@@ -3536,6 +3652,10 @@ return 0
 """
 
 
+# The idempotency namespace of `create_agent`, the agent tool that creates another agent.
+_CREATE_AGENT_NAMESPACE = "agent_tools.create_agent"
+
+
 class SimpleWorkflowsService:
     def __init__(
         self,
@@ -3734,7 +3854,14 @@ class SimpleWorkflowsService:
         component: str,
         simple_workflow_create: SimpleWorkflowCreate,
         trusted_meta: Optional[dict] = None,
+        message: Optional[str] = None,
     ) -> SimpleWorkflowCreateResult:
+        """Create a workflow whose every write is keyed by ``request_key``, so a retry of a
+        create that stopped part of the way finishes it instead of starting another one.
+
+        ``message`` is the commit message of the revision that holds ``data``: the first
+        revision a person sees in history.
+        """
         if not namespace.strip() or not request_key.strip() or not component.strip():
             raise ValueError("namespace, request_key, and component must not be empty")
         if not request_fingerprint.strip():
@@ -3903,6 +4030,7 @@ class SimpleWorkflowsService:
                             tags=request.tags,
                             meta=request.meta,
                             data=request.data,
+                            message=message,
                             workflow_id=workflow_id,
                             workflow_variant_id=variant.id,
                         ),
@@ -4116,6 +4244,65 @@ class SimpleWorkflowsService:
         )
 
         return simple_workflow
+
+    async def create_agent(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        name: str,
+        description: Optional[str] = None,
+        operations: Optional[list] = None,
+        #
+        message: str,
+        idempotency_scope: str,
+    ) -> tuple[SimpleWorkflow, str, List[CommitWarning]]:
+        """A new agent from the "New agent" template, with an agent's operations applied.
+
+        The operations run in memory, under the agent's commit scope, BEFORE anything is
+        written, so one that fails creates nothing. The first saved revision then holds the
+        template and the operations together, and ``message`` (plus the derived clauses) is
+        its commit message. Returns the agent, that message and the engine's warnings.
+
+        The writes are the idempotent create, keyed by ``idempotency_scope`` and the
+        arguments: the same arguments in the same scope make one agent. A create that stops
+        part of the way is finished by the next call with the same arguments, not left
+        behind beside a second agent.
+        """
+        data = new_agent_revision_data()
+        warnings: List[CommitWarning] = []
+        if operations:
+            data, derived, warnings = self.workflows_service._apply_delta(
+                base=data,
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    delta={"operations": operations}
+                ),
+                scope_policy=AGENT_COMMIT_SCOPE,
+                agent_context=True,
+            )
+            message = f"{message}; {derived}"
+
+        fingerprint = fingerprint_of(
+            {"name": name, "description": description, "operations": operations or []}
+        )
+        outcome = await self.create_idempotent(
+            project_id=project_id,
+            user_id=user_id,
+            namespace=_CREATE_AGENT_NAMESPACE,
+            request_key=f"{idempotency_scope}:{fingerprint}",
+            request_fingerprint=fingerprint,
+            component="agent",
+            simple_workflow_create=SimpleWorkflowCreate(
+                slug=new_agent_slug(name),
+                name=name,
+                description=description,
+                flags=SimpleWorkflowFlags(is_application=True, is_agent=True),
+                data=SimpleWorkflowData(**data),
+            ),
+            message=message,
+        )
+        return outcome.workflow, message, warnings
 
     async def fetch(
         self,

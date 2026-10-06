@@ -116,6 +116,22 @@ const BUILD_KIT_TOOL_COPY: Record<string, BuildKitCopy> = {
         name: "Remove a trigger",
         description: "Deletes one of this agent's triggers.",
     },
+    list_agents: {
+        name: "List agents",
+        description: "Lists the agents in this project.",
+    },
+    read_agent_config: {
+        name: "Read another agent's setup",
+        description: "Reads how another agent in this project is configured.",
+    },
+    create_agent: {
+        name: "Create an agent",
+        description: "Creates a new agent in this project from the default setup.",
+    },
+    edit_agent_config: {
+        name: "Save changes to another agent",
+        description: "Saves an edit to another agent's setup as a new version. It is not deployed.",
+    },
 }
 
 /** Copy for the Agenta-owned tools and skills the kit embeds, keyed by the referenced slug. */

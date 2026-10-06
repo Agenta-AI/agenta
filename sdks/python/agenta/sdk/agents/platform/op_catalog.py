@@ -26,13 +26,14 @@ imported platform package.
 
 from __future__ import annotations
 
+import textwrap
 from copy import deepcopy
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agenta.sdk.agents.tools.errors import UnknownPlatformOpError
-from agenta.sdk.agents.tools.models import ToolCall
+from agenta.sdk.agents.tools.models import AGENTA_TOOLS, ToolCall
 from agenta.sdk.utils.types import CATALOG_TYPES
 
 from ._schema import expand_type_refs
@@ -63,6 +64,10 @@ _HANDLER_CALL_REFS = frozenset(
         f"{PLATFORM_OP_NAMESPACE}commit_revision",
         f"{PLATFORM_OP_NAMESPACE}create_app",
         f"{PLATFORM_OP_NAMESPACE}list_starters",
+        f"{PLATFORM_OP_NAMESPACE}list_agents",
+        f"{PLATFORM_OP_NAMESPACE}read_agent_config",
+        f"{PLATFORM_OP_NAMESPACE}create_agent",
+        f"{PLATFORM_OP_NAMESPACE}edit_agent_config",
     }
 )
 
@@ -896,22 +901,16 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # The normative tool description, contracts/change-set.md section 15. About 1.5 KB and 400
 # tokens; the 3.2 KB version measured the same success rate and cost 11-13 percent more.
 # It works BECAUSE three things hold: the wrapper normalizes the repeated-list mistake,
-# every error names a next step, and the selector key is `list`.
-_COMMIT_REVISION_DESCRIPTION_ORDERED = """Commit a change to this agent's own configuration.
-
-Editing files in your workspace does not change your configuration. That copy is rebuilt,
-and the edits are lost. Change your instructions and configuration only through this tool.
-
-Send `workflow_revision` with `base_revision_id` (the `base_revision_id` you read) and
-`delta`. `delta` holds `operations`; they run in order, and if one fails nothing is
-committed.
-
-TARGET: an array of segments from the configuration root. A string segment names an
+# every error names a next step, and the selector key is `list`. So it stays this size:
+# the only line added since that measurement is the `agenta_tools` key, a selector fix it
+# shares with `edit_agent_config`. The longer reference (Agenta tool names, skill fields)
+# lives in `edit_agent_config` and in the build-an-agent skill, not here.
+_TARGET_AND_OPERATIONS = """TARGET: an array of segments from the configuration root. A string segment names an
 object field. An object segment {"list": L, "key": K} names one entry of list L and
-stands in place of L's name. Keyed lists: skills, mcps, tools (by name — but a
+stands in place of L's name. Keyed lists: skills, mcps, tools (by name; a
 gateway_connection entry has no name and is keyed
-gateway_connection:{provider}:{integration}, e.g. "gateway_connection:composio:github"),
-files (by path).
+gateway_connection:{provider}:{integration}, e.g. "gateway_connection:composio:github",
+and the agenta_tools entry is keyed agenta_tools), files (by path).
 
     ["parameters","agent",{"list":"skills","key":"release-qa"},
      {"list":"files","key":"checklist.md"},"content"]
@@ -927,7 +926,21 @@ OPERATIONS:
 
 `edits` is a list of {old_text, new_text}. `old_text` must occur exactly once and match
 character for character, line breaks included. Copy it from the configuration you read;
-never retype it from memory.
+never retype it from memory."""
+
+_COMMIT_REVISION_DESCRIPTION_ORDERED = (
+    """Commit a change to this agent's own configuration.
+
+Editing files in your workspace does not change your configuration. That copy is rebuilt,
+and the edits are lost. Change your instructions and configuration only through this tool.
+
+Send `workflow_revision` with `base_revision_id` (the `base_revision_id` you read) and
+`delta`. `delta` holds `operations`; they run in order, and if one fails nothing is
+committed.
+
+"""
+    + _TARGET_AND_OPERATIONS
+    + """
 
 For a workspace file's content, write {"@ag.file": "<path>"} where the string would go.
 Put the file under `.agenta-imports/` first.
@@ -943,6 +956,7 @@ If a commit is refused, read `next_step`: it says what to do, and it is there wh
 the error is retryable. `retryable` only tells you whether sending the SAME call again could
 work; it is false for most refusals, and that means correct the call rather than repeat
 it."""
+)
 
 _COMMIT_REVISION_DESCRIPTION = _COMMIT_REVISION_DESCRIPTION_ORDERED
 
@@ -1455,7 +1469,6 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
         "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 120,
             "pattern": r"\S",
         },
         "description": {
@@ -1492,7 +1505,6 @@ _RENAME_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
         "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 120,
             "pattern": r"\S",
         },
         "description": {
@@ -1824,10 +1836,261 @@ _CHANNEL_TOOL_OPS: tuple = (
 CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
 
 
+# Other agents in the project: list, read, create and edit them. Two capabilities in the UI:
+# "List agents" (`list_agents`) and "Agent config" (the other three). The project comes from the
+# run's credential, never from an argument. The caller and its session are bound from run
+# context, so the attribution the server writes into every commit message is the run's, never
+# the model's. Self-edits keep their own tools (`read_config`, `commit_revision`).
+_LIST_AGENTS_DESCRIPTION = """List the agents in this project, newest first.
+
+Each agent has `id`, `slug`, `name`, `description`, `version` and `updated_at`. The list
+includes you. Pass an agent's `slug` or `id` to `read_agent_config` or `edit_agent_config`.
+
+When the answer has a `next_cursor`, call again with `cursor` set to it for the next page."""
+
+# Shared with the API handler, so the default the model reads is the one it gets.
+LIST_AGENTS_DEFAULT_LIMIT = 50
+LIST_AGENTS_MAX_LIMIT = 100
+
+_LIST_AGENTS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "cursor": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The `next_cursor` of the previous page. Omit it for the first page.",
+        },
+        "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": LIST_AGENTS_MAX_LIMIT,
+            "description": f"Agents per page. Default {LIST_AGENTS_DEFAULT_LIMIT}.",
+        },
+        "include_archived": {
+            "type": "boolean",
+            "description": (
+                "Also list archived agents. Default false. An archived agent cannot be "
+                "read or edited."
+            ),
+        },
+    },
+}
+
+_AGENT_REF_SCHEMA: Dict[str, Any] = {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 200,
+    "description": "The agent's `slug` or `id`, as `list_agents` returns it.",
+}
+
+_READ_AGENT_CONFIG_DESCRIPTION = """Read the configuration of another agent in this project, or one part of it.
+
+Use it for any agent except yourself. To read your own configuration, use `read_config`.
+
+Send `agent`: the exact `slug` or `id` from `list_agents`, not the display name. Add `path`,
+an array of segments from the configuration root, to read one part. Omit `path` to read
+everything you can change.
+
+    {"agent": "invoice-helper-k3x9"}
+    {"agent": "invoice-helper-k3x9", "path": ["parameters","agent","instructions"]}
+
+The answer carries `base_revision_id`. Pass it to `edit_agent_config`. Text comes back exactly
+as stored, so an `old_text` you copy from it will match. A value larger than the limit is
+refused, never shortened: the answer then lists `children`, and you read one of those."""
+
+_READ_AGENT_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["agent"],
+    "properties": {
+        "agent": _AGENT_REF_SCHEMA,
+        "path": {
+            "type": "array",
+            "maxItems": 12,
+            "items": _TARGET_SEGMENT_SCHEMA,
+            "description": (
+                'Segments from the configuration root, e.g. ["parameters","agent","llm"]. '
+                "Omit it to read everything."
+            ),
+        },
+        "max_bytes": _READ_CONFIG_INPUT_SCHEMA["properties"]["max_bytes"],
+        "caller_agent_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_AGENT_OPERATIONS_SCHEMA: Dict[str, Any] = {
+    "type": "array",
+    "minItems": 1,
+    "maxItems": 64,
+    "items": _OPERATION_SCHEMA,
+    "description": "The change, as ordered operations. If one fails, nothing is saved.",
+}
+
+# The shapes models went looking for when they edited another agent (bench S2, S5, S6). Only
+# `edit_agent_config` carries them: `commit_revision` keeps its measured size, and
+# `create_agent` points here. The build-an-agent skill holds the same facts.
+_AGENT_CONFIG_SHAPES = (
+    """To turn on one Agenta tool, set it in the agenta_tools entry's `tools` map:
+
+    {"operation":"set","target":["parameters","agent",{"list":"tools","key":"agenta_tools"},
+     "tools","create_schedule"],"value":"allow"}
+
+"""
+    + textwrap.fill(
+        'Agenta tools (value "allow" or "ask"): ' + ", ".join(AGENTA_TOOLS) + ".",
+        width=90,
+    )
+    + """
+A skill is {"name", "description", "body"}, all three required; `name` is lowercase
+letters and digits joined by hyphens, `body` is the SKILL.md text. When `skills` is
+missing, `set` it to a list."""
+)
+
+_EDIT_AGENT_CONFIG_DESCRIPTION = (
+    """Save a change to the configuration of another agent in this project, as its new version.
+
+Use it for any agent except yourself. To change yourself, use `commit_revision`.
+
+First call `read_agent_config` for that agent. Then send `agent` (the exact `slug` or `id`
+from `list_agents`, not the display name), `base_revision_id` (from that read) and
+`operations`, which run in order. `operations` sits at the top level, beside `agent`:
+
+    {"agent": "invoice-helper-k3x9", "base_revision_id": "<from read_agent_config>",
+     "operations": [{"operation": "edit_text",
+       "target": ["parameters","agent","instructions","agents_md"],
+       "edits": [{"old_text": "Answer briefly.", "new_text": "Answer briefly, in English."}]}]}
+
+"""
+    + _TARGET_AND_OPERATIONS
+    + "\n\n"
+    + _AGENT_CONFIG_SHAPES
+    + """
+
+Write every value inline: `@ag.file` is not resolved here. The change becomes the agent's
+latest version; it is not deployed. Agenta writes the version message, and it names you and
+this session.
+
+If the call is refused, read `next_step`. A conflict means the agent changed after your read:
+call `read_agent_config` again and send the edit with the new `base_revision_id`."""
+)
+
+_EDIT_AGENT_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["agent", "base_revision_id", "operations"],
+    "properties": {
+        "agent": _AGENT_REF_SCHEMA,
+        "base_revision_id": {
+            "type": "string",
+            "description": "The `base_revision_id` of your last `read_agent_config` of this agent.",
+        },
+        "operations": _AGENT_OPERATIONS_SCHEMA,
+        "caller_agent_id": _BOUND_FROM_RUN_SCHEMA,
+        "caller_session_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_CREATE_AGENT_DESCRIPTION = """Create a new agent in this project.
+
+The new agent starts from the "New agent" template: its default tools and model, and
+placeholder instructions. Send `name`, an optional `description`, and `operations` to change
+that configuration in the same call; set the instructions there to give the agent its job. These are the only fields: every change, instructions included, goes in
+`operations`, at the top level. An operation has the same shape as in `edit_agent_config`,
+and targets sit under `["parameters","agent", ...]`:
+
+    {"name": "Invoice helper",
+     "description": "Answers questions about invoices.",
+     "operations": [{"operation": "set",
+       "target": ["parameters","agent","instructions","agents_md"],
+       "value": "You answer questions about our invoices."}]}
+
+Write every value inline: `@ag.file` is not resolved here. If one operation fails, no agent
+is created. The same arguments in the same session make one agent, so a retry after a
+failure finishes that agent and never makes a second one. The answer carries the new agent's
+`id`, `slug` and `base_revision_id`; use them with `read_agent_config` and
+`edit_agent_config` for later changes. Agenta writes the first version's message, and it
+names you and this session."""
+
+_CREATE_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["name"],
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": r"\S",
+            "description": 'The new agent\'s name, a few words, e.g. "Invoice helper".',
+        },
+        "description": {
+            "type": "string",
+            "description": "Optional. One sentence on what the agent is for.",
+        },
+        "operations": {
+            **_AGENT_OPERATIONS_SCHEMA,
+            "description": (
+                "Optional. Changes to the default configuration, applied in order before "
+                "the agent is saved."
+            ),
+        },
+        "caller_agent_id": _BOUND_FROM_RUN_SCHEMA,
+        "caller_session_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+# Bound on every op that names or writes another agent: the self check needs the caller, and
+# the attribution needs the caller and the session.
+_CALLER_BINDINGS: Dict[str, str] = {
+    "caller_agent_id": "$ctx.workflow.artifact.id",
+    "caller_session_id": "$ctx.session.id",
+}
+
+_AGENT_DIRECTORY_OPS: tuple = (
+    PlatformOp(
+        op="list_agents",
+        description=_LIST_AGENTS_DESCRIPTION,
+        handler=f"{PLATFORM_OP_NAMESPACE}list_agents",
+        input_schema=_LIST_AGENTS_INPUT_SCHEMA,
+        read_only=True,
+        timeout_ms=15000,
+    ),
+    PlatformOp(
+        op="read_agent_config",
+        description=_READ_AGENT_CONFIG_DESCRIPTION,
+        handler=f"{PLATFORM_OP_NAMESPACE}read_agent_config",
+        input_schema=_READ_AGENT_CONFIG_INPUT_SCHEMA,
+        # No session: a read writes nothing to attribute.
+        context_bindings={"caller_agent_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+        timeout_ms=15000,
+    ),
+    PlatformOp(
+        op="create_agent",
+        description=_CREATE_AGENT_DESCRIPTION,
+        handler=f"{PLATFORM_OP_NAMESPACE}create_agent",
+        input_schema=_CREATE_AGENT_INPUT_SCHEMA,
+        context_bindings=dict(_CALLER_BINDINGS),
+        read_only=False,
+        timeout_ms=30000,
+    ),
+    PlatformOp(
+        op="edit_agent_config",
+        description=_EDIT_AGENT_CONFIG_DESCRIPTION,
+        handler=f"{PLATFORM_OP_NAMESPACE}edit_agent_config",
+        input_schema=_EDIT_AGENT_CONFIG_INPUT_SCHEMA,
+        context_bindings=dict(_CALLER_BINDINGS),
+        read_only=False,
+        timeout_ms=30000,
+    ),
+)
+
+
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in _READ_CONFIG_OPS
     + _CHANNEL_TOOL_OPS
+    + _AGENT_DIRECTORY_OPS
     + (
         PlatformOp(
             op="create_app",

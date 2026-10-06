@@ -135,7 +135,7 @@ class InvalidAgentInstructionsError(Exception):
             "retryable": False,
             "next_step": (
                 'Set agent.instructions to {"agents_md": "<the full AGENTS.md text>"} '
-                "and send the commit again."
+                "and send the call again."
             ),
             "details": {
                 "field": "parameters.agent.instructions",

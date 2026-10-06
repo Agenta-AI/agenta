@@ -57,6 +57,10 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "list_starters",
     "create_app",
     "validate_template",
+    "list_agents",
+    "read_agent_config",
+    "create_agent",
+    "edit_agent_config",
 )
 
 

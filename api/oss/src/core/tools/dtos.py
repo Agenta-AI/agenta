@@ -497,6 +497,10 @@ class PlatformHandlerResult(BaseModel):
     # `no_change` answer, a refusal, a read) leaves it None and nothing is emitted. Plain
     # ids rather than a workflow DTO: the tools layer does not depend on the workflows one.
     committed_revision: Optional[Dict[str, Any]] = None
+    # Set when this call stored a revision the caller's own session does not need to hear
+    # about (another agent's). The boundary clears the caches every write clears, and emits
+    # nothing. `committed_revision` implies it.
+    wrote_revision: bool = False
 
     @classmethod
     def failure(cls, error: AgentError) -> "PlatformHandlerResult":

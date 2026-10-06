@@ -12,7 +12,10 @@ went with it.
 
 from __future__ import annotations
 
+import textwrap
+
 from ..skills import SkillFile, SkillTemplate
+from ..tools.models import AGENTA_TOOLS
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
@@ -70,7 +73,8 @@ it: a misplaced or misspelled field inside an entry commits fine and only bites 
 next runs. Get the shape right from this reference before you commit.
 """
 
-_CONFIG_SCHEMA_FIELDS = """\
+_CONFIG_SCHEMA_FIELDS = (
+    """\
 
 ## The whole object
 
@@ -182,7 +186,12 @@ read it when a revision carries one, never write a new one:
 - `agenta_tools` — which Agenta tools the agent gets in every run, not only here:
   `{ "type": "agenta_tools", "tools": { "get_current_session": "allow", "rename_session":
   "allow" } }`. Each value is `allow` or `ask`; a tool not listed is off. Keep this entry when
-  you edit `tools`; the author manages it in the Agenta tools section.
+  you edit `tools`; the author manages it in the Agenta tools section. Its selector key is
+  `agenta_tools`, so one tool is one `set` on
+  `[..., {"list":"tools","key":"agenta_tools"}, "tools", "<tool>"]`. The Agenta tools:
+"""
+    + textwrap.indent(textwrap.fill(", ".join(AGENTA_TOOLS) + ".", width=94), "  ")
+    + """
 
 ### mcps
 
@@ -261,6 +270,7 @@ the run:
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":
   "strict"|"best_effort" }`.
 """
+)
 
 # The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the
 # contracts (docs/design/agent-config-editing/contracts/) actually produce. Every example
@@ -797,6 +807,19 @@ File tools, or raw HTTP only when your wired tools cannot do the job, and say so
   against `references/config-schema.md`.
 """
 
+_BUILD_OTHER_AGENTS = """\
+
+## Other agents
+
+When the person asks for a new agent, or for a change to an agent other than you, use the
+agent tools: `list_agents` to find it, `read_agent_config` to read it, `edit_agent_config` to
+change it, and `create_agent` for a new one. They take the same operations as
+`commit_revision`, with the agent's `slug` or `id` from `list_agents`. `read_config` and
+`commit_revision` only ever read and change you, and the agent tools refuse you. A change to
+another agent becomes its latest version, names you in the version message, and is not
+deployed.
+"""
+
 _BUILD_FOOTGUNS = """\
 
 ## Footguns
@@ -816,6 +839,7 @@ _BUILD_AN_AGENT_BODY = (
     + _BUILD_LOOP_ORDERED
     + _BUILD_INSTRUCTIONS_WRITING
     + _BUILD_TOOLS_AND_FAILURES_ORDERED
+    + _BUILD_OTHER_AGENTS
     + _BUILD_FOOTGUNS
 )
 
@@ -823,8 +847,9 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
     name="build-an-agent",
     description=(
         "How to change this agent's own configuration: instructions, memory, skills, "
-        "integrations, and triggers. Read it when the request is a change to you rather "
-        "than a task: a role, a recurring job, or an integration to connect. A default "
+        "integrations, and triggers, and which tools change another agent instead. Read "
+        "it when the request is a change to you or to another agent rather than a task: "
+        "a role, a recurring job, or an integration to connect. A default "
         "name and default instructions do not make a request a change. Do not read it "
         "for a task."
     ),

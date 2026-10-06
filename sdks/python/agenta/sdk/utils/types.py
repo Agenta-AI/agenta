@@ -1502,6 +1502,8 @@ def build_agent_v0_default(
         # on the Agenta tools every new agent gets, in every run.
         "tools": [{"type": "agenta_tools", "tools": dict(DEFAULT_AGENTA_TOOLS)}],
         "mcps": [],
+        # Present and empty, so a first skill is an `add_item` like every later one.
+        "skills": [],
     }
     if skill_slug is not None:
         template["skills"] = [

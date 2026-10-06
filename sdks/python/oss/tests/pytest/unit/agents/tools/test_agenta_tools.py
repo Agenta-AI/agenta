@@ -76,11 +76,19 @@ def _permissions(resolved) -> dict:
 # --------------------------------------------------------------------------- #
 # The entry
 # --------------------------------------------------------------------------- #
-def test_the_default_entry_turns_on_the_two_session_tools():
+def test_the_default_entry_turns_on_the_session_and_agent_tools():
+    # The agent tools are on by default, unlike the self-edit pair (`read_config`,
+    # `commit_revision`), by product decision: do not "fix" the asymmetry.
     assert DEFAULT_AGENTA_TOOLS == {
         "get_current_session": "allow",
         "rename_session": "allow",
+        "list_agents": "allow",
+        "read_agent_config": "allow",
+        "create_agent": "allow",
+        "edit_agent_config": "allow",
     }
+    assert "read_config" not in DEFAULT_AGENTA_TOOLS
+    assert "commit_revision" not in DEFAULT_AGENTA_TOOLS
     assert set(DEFAULT_AGENTA_TOOLS) < set(AGENTA_TOOLS)
     assert "search_skills" not in AGENTA_TOOLS
 
@@ -161,6 +169,38 @@ async def test_the_session_tools_are_skipped_without_a_session_id():
         session_id=None,
     )
     assert _permissions(resolved) == {"list_schedules": "allow"}
+
+
+async def test_the_agent_writes_need_a_session_and_the_reads_do_not():
+    # create_agent and edit_agent_config bind `$ctx.session.id` for the attribution, and the
+    # runner refuses a call whose binding has no value. Offered to a run without a session,
+    # they would fail on every call; the reads bind no session and stay.
+    tools = dict(
+        list_agents="allow",
+        read_agent_config="allow",
+        create_agent="allow",
+        edit_agent_config="allow",
+    )
+    without = await _resolve([_entry(**tools)], session_id=None)
+    assert _permissions(without) == {
+        "list_agents": "allow",
+        "read_agent_config": "allow",
+    }
+    with_session = await _resolve([_entry(**tools)])
+    assert _permissions(with_session) == tools
+
+
+def test_the_session_tool_list_is_every_agenta_tool_that_binds_the_session():
+    # The resolver cannot import the op catalog (an import cycle), so its list is written
+    # out. This keeps it equal to the ops whose binding reads `$ctx.session.id`.
+    from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+    from agenta.sdk.agents.tools.resolver import _SESSION_TOOLS
+
+    assert _SESSION_TOOLS == {
+        op
+        for op in AGENTA_TOOLS
+        if "$ctx.session.id" in PLATFORM_OPS[op].context_bindings.values()
+    }
 
 
 async def test_the_entry_is_skipped_with_a_warning_without_an_api_address(caplog):

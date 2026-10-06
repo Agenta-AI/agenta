@@ -275,11 +275,21 @@ AGENTA_TOOLS: tuple = (
     "read_config",
     "check_skill_updates",
     "apply_skill_update",
+    # Other agents in the project: "List agents" and "Agent config".
+    "list_agents",
+    "read_agent_config",
+    "create_agent",
+    "edit_agent_config",
 )
 # What a new agent's entry holds. The defaults live in the saved entry, never in the resolver.
+# The four agent tools are on by default, unlike the self-edit pair, by product decision.
 DEFAULT_AGENTA_TOOLS: Dict[str, Literal["allow", "ask"]] = {
     "get_current_session": "allow",
     "rename_session": "allow",
+    "list_agents": "allow",
+    "read_agent_config": "allow",
+    "create_agent": "allow",
+    "edit_agent_config": "allow",
 }
 
 

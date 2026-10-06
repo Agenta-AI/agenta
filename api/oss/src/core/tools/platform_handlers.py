@@ -22,12 +22,16 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
 from uuid import UUID
 
 import httpx
 from pydantic import ValidationError
 
+from agenta.sdk.agents.platform.op_catalog import (
+    LIST_AGENTS_DEFAULT_LIMIT,
+    LIST_AGENTS_MAX_LIMIT,
+)
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
@@ -68,6 +72,7 @@ from oss.src.core.tracing.dtos import (
 )
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.workflows.dtos import (
+    CommitWarning,
     WorkflowRevisionCommit,
     WorkflowRevisionDelta,
     WorkflowServiceBatchResponse,
@@ -637,7 +642,15 @@ def _verdict(
 # public API carries no agent-specific surface and one error contract covers everything.
 
 
-class _ArgumentsRefused(Exception):
+class _Refusal(Exception):
+    """An expected refusal the model can act on, carried as the canonical envelope."""
+
+    def __init__(self, error: AgentError) -> None:
+        super().__init__(error.message)
+        self.error = error
+
+
+class _ArgumentsRefused(_Refusal):
     """The MODEL authored these arguments, so the model is the one who can fix them.
 
     Refusals split by WHO CAUSED THEM. A malformed argument object is model-caused and
@@ -648,12 +661,13 @@ class _ArgumentsRefused(Exception):
     """
 
     def __init__(self, message: str, *, next_step: str) -> None:
-        super().__init__(message)
-        self.error = AgentError(
-            code="invalid_arguments",
-            message=message,
-            retryable=False,
-            next_step=next_step,
+        super().__init__(
+            AgentError(
+                code="invalid_arguments",
+                message=message,
+                retryable=False,
+                next_step=next_step,
+            )
         )
 
 
@@ -682,17 +696,23 @@ def _bound_variant_id(arguments: Dict[str, Any], *, key: str) -> UUID:
     handler that edits whatever it happens to find.
     """
     target = arguments.get(key)
-    raw = target.get("workflow_variant_id") if isinstance(target, dict) else None
+    return _bound_uuid(
+        target.get("workflow_variant_id") if isinstance(target, dict) else None,
+        field=f"{key}.workflow_variant_id",
+    )
+
+
+def _bound_uuid(raw: Any, *, field: str) -> UUID:
+    """An id the runner binds from run context. Missing or malformed is refused, never
+    guessed: a handler acts only on what the run is bound to."""
     if not raw:
         raise PlatformToolHandlerRefused(
-            f"{key}.workflow_variant_id is bound from the run and was missing."
+            f"{field} is bound from the run and was missing."
         )
     try:
         return UUID(str(raw))
     except ValueError as e:
-        raise PlatformToolHandlerRefused(
-            f"{key}.workflow_variant_id is not a valid id."
-        ) from e
+        raise PlatformToolHandlerRefused(f"{field} is not a valid id.") from e
 
 
 async def handle_read_config(
@@ -705,11 +725,7 @@ async def handle_read_config(
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
 ) -> PlatformHandlerResult:
-    from oss.src.apis.fastapi.workflows.models import (
-        ReadConfigResponse,
-        ReadConfigRevision,
-    )
-    from oss.src.core.workflows.read_config import ReadConfigError, draft_warning
+    from oss.src.core.workflows.read_config import ReadConfigError
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("read_config is unavailable.")
@@ -736,28 +752,149 @@ async def handle_read_config(
     # assert it about itself. The read always answers from the stored head; on a draft run
     # that is not what is executing, and the warning says so, which is what keeps the read
     # and the commit agreeing (the commit applies to the head too).
-    run_is_draft = bool(target.get("run_is_draft"))
-    revision = outcome.revision
-    warnings = list(outcome.warnings)
-    if run_is_draft:
-        warnings.append(draft_warning(getattr(revision, "version", None)))
     return PlatformHandlerResult(
-        content=ReadConfigResponse(
-            revision=ReadConfigRevision(
-                id=str(revision.id),
-                version=getattr(revision, "version", None),
-                workflow_variant_id=str(getattr(revision, "variant_id", "") or "")
-                or None,
-                created_at=str(getattr(revision, "created_at", "") or "") or None,
-            ),
-            base_revision_id=str(revision.id),
-            is_draft=run_is_draft,
-            path=outcome.path,
-            value=outcome.value,
-            bytes=outcome.bytes,
-            warnings=warnings or None,
+        content=_read_config_response(
+            outcome, is_draft=bool(target.get("run_is_draft"))
         )
     )
+
+
+def _read_config_response(outcome: Any, *, is_draft: bool):
+    """The read answer, shared by `read_config` and `read_agent_config`."""
+    from oss.src.apis.fastapi.workflows.models import (
+        ReadConfigResponse,
+        ReadConfigRevision,
+    )
+    from oss.src.core.workflows.read_config import draft_warning
+
+    revision = outcome.revision
+    warnings = list(outcome.warnings)
+    if is_draft:
+        warnings.append(draft_warning(getattr(revision, "version", None)))
+    return ReadConfigResponse(
+        revision=ReadConfigRevision(
+            id=str(revision.id),
+            version=getattr(revision, "version", None),
+            workflow_variant_id=str(getattr(revision, "variant_id", "") or "") or None,
+            created_at=str(getattr(revision, "created_at", "") or "") or None,
+        ),
+        base_revision_id=str(revision.id),
+        is_draft=is_draft,
+        path=outcome.path,
+        value=outcome.value,
+        bytes=outcome.bytes,
+        warnings=warnings or None,
+    )
+
+
+def _commit_payload_refusal(error: Exception) -> AgentError:
+    return AgentError(
+        code="commit_payload_invalid",
+        message=str(error),
+        retryable=False,
+        next_step="Correct the fields named above and send the commit again.",
+    )
+
+
+async def _commit_as_agent(
+    *,
+    workflows_service: WorkflowsService,
+    project_id: UUID,
+    user_id: UUID,
+    commit: Any,
+    attribution: Optional[str] = None,
+) -> Any:
+    """Commit a change an agent authored, under the agent's scope and transformations.
+
+    The one commit path for an agent, its own configuration or another agent's: the scope,
+    the selector normalization, the build-kit rejection, the stale-base check and the derived
+    message all apply. Every expected refusal is raised as the canonical envelope, a commit
+    that reports success without a revision included.
+
+    Enforcement happens inside the engine, through `scope_policy`, because the engine sees
+    the RESULT of an operation. A check here would see only what the agent named, and an
+    operation that writes an ancestor object can change a refused path without naming it.
+    """
+    from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+    from oss.src.core.git.types import CommitLockTimeout, VariantNotFound
+    from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
+    from oss.src.core.workflows.service import RevisionConflictError
+    from oss.src.core.workflows.types import (
+        InvalidAgentHarnessError,
+        InvalidAgentInstructionsError,
+        StaticWorkflowSlug,
+    )
+
+    try:
+        outcome = await workflows_service.commit_workflow_revision_checked(
+            project_id=project_id,
+            user_id=user_id,
+            workflow_revision_commit=commit,
+            scope_policy=AGENT_COMMIT_SCOPE,
+            # An agent's commit: selector normalization, the build-kit rejection and the
+            # derived message all apply here and nowhere else.
+            agent_context=True,
+            attribution=attribution,
+        )
+    except (
+        ChangeSetError,
+        InvalidAgentHarnessError,
+        InvalidAgentInstructionsError,
+        RevisionConflictError,
+    ) as e:
+        raise _Refusal(AgentError(**e.to_detail())) from e
+    except CommitLockTimeout as e:
+        raise _Refusal(
+            AgentError(
+                code="commit_lock_timeout",
+                message=e.message,
+                # The write never happened, so the identical call can win the lock next
+                # time. One of the few genuinely replayable failures.
+                retryable=True,
+                next_step=(
+                    "Wait for the commit in flight to finish, then send this commit again."
+                ),
+            )
+        ) from e
+    except VariantNotFound as e:
+        raise _Refusal(
+            AgentError(
+                code="workflow_variant_not_found",
+                message=e.message,
+                retryable=False,
+            )
+        ) from e
+    except NonEmbeddableWorkflowReferenceError as e:
+        raise _Refusal(
+            AgentError(
+                code="non_embeddable_reference",
+                message=str(e),
+                retryable=False,
+                next_step=(
+                    "Remove the embedded reference to that workflow and send the commit "
+                    "again."
+                ),
+            )
+        ) from e
+    except StaticWorkflowSlug as e:
+        raise _Refusal(
+            AgentError(
+                code="static_workflow_slug",
+                message=str(e),
+                retryable=False,
+            )
+        ) from e
+    if outcome.status == "committed" and not outcome.revision:
+        # The write layer reported success and produced nothing. Not retryable and no next
+        # step: retrying a write whose state is unknown invites a duplicate commit.
+        raise _Refusal(
+            AgentError(
+                code="commit_failed",
+                message="The commit did not produce a revision.",
+                retryable=False,
+            )
+        )
+    return outcome
 
 
 async def handle_commit_revision(
@@ -781,16 +918,7 @@ async def handle_commit_revision(
     sees the RESULT of an operation. A check here would see only what the agent named, and
     an operation that writes an ancestor object can change a refused path without naming it.
     """
-    from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
-    from oss.src.core.git.types import CommitLockTimeout, VariantNotFound
-    from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
     from oss.src.core.workflows.dtos import WorkflowRevisionCommit
-    from oss.src.core.workflows.service import RevisionConflictError
-    from oss.src.core.workflows.types import (
-        InvalidAgentHarnessError,
-        InvalidAgentInstructionsError,
-        StaticWorkflowSlug,
-    )
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("commit_revision is unavailable.")
@@ -829,87 +957,19 @@ async def handle_commit_revision(
     try:
         commit = WorkflowRevisionCommit(**payload)
     except Exception as e:
-        return PlatformHandlerResult.failure(
-            AgentError(
-                code="commit_payload_invalid",
-                message=str(e),
-                retryable=False,
-                next_step="Correct the fields named above and send the commit again.",
-            )
-        )
+        return PlatformHandlerResult.failure(_commit_payload_refusal(e))
 
     try:
-        outcome = await workflows_service.commit_workflow_revision_checked(
+        outcome = await _commit_as_agent(
+            workflows_service=workflows_service,
             project_id=project_id,
             user_id=user_id,
-            workflow_revision_commit=commit,
-            scope_policy=AGENT_COMMIT_SCOPE,
-            # The agent's own commit: selector normalization, the build-kit rejection and
-            # the derived message all apply here and nowhere else.
-            agent_context=True,
+            commit=commit,
         )
-    except ChangeSetError as e:
-        return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
-    except InvalidAgentHarnessError as e:
-        return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
-    except InvalidAgentInstructionsError as e:
-        return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
-    except RevisionConflictError as e:
-        return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
-    except CommitLockTimeout as e:
-        return PlatformHandlerResult.failure(
-            AgentError(
-                code="commit_lock_timeout",
-                message=e.message,
-                # The write never happened, so the identical call can win the lock next
-                # time. One of the few genuinely replayable failures.
-                retryable=True,
-                next_step=(
-                    "Wait for the commit in flight to finish, then send this commit again."
-                ),
-            )
-        )
-    except VariantNotFound as e:
-        return PlatformHandlerResult.failure(
-            AgentError(
-                code="workflow_variant_not_found",
-                message=e.message,
-                retryable=False,
-            )
-        )
-    except NonEmbeddableWorkflowReferenceError as e:
-        return PlatformHandlerResult.failure(
-            AgentError(
-                code="non_embeddable_reference",
-                message=str(e),
-                retryable=False,
-                next_step=(
-                    "Remove the embedded reference to that workflow and send the commit "
-                    "again."
-                ),
-            )
-        )
-    except StaticWorkflowSlug as e:
-        return PlatformHandlerResult.failure(
-            AgentError(
-                code="static_workflow_slug",
-                message=str(e),
-                retryable=False,
-            )
-        )
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
 
     revision = outcome.revision
-    if outcome.status == "committed" and not revision:
-        # The write layer reported success and produced nothing. Not retryable and no next
-        # step: retrying a write whose state is unknown invites a duplicate commit.
-        return PlatformHandlerResult.failure(
-            AgentError(
-                code="commit_failed",
-                message="The commit did not produce a revision.",
-                retryable=False,
-            )
-        )
-
     return PlatformHandlerResult(
         content={
             "status": outcome.status,
@@ -928,6 +988,621 @@ async def handle_commit_revision(
             if outcome.status == "committed" and revision
             else None
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# list_agents / read_agent_config / create_agent / edit_agent_config: the
+# OTHER agents in the caller's project
+# ---------------------------------------------------------------------------
+#
+# The project comes from the run's credential (`project_id` here), never from an argument, so
+# no call can see or touch another project. The caller and its session are bound from run
+# context, never read from the model: the self check needs the caller, and the attribution
+# every write appends to the target's history needs both. Edits go through the same commit
+# path as the agent's own `commit_revision`, scope and stale-base check included.
+
+LIST_AGENTS_CALL_REF = "tools.agenta.list_agents"
+READ_AGENT_CONFIG_CALL_REF = "tools.agenta.read_agent_config"
+CREATE_AGENT_CALL_REF = "tools.agenta.create_agent"
+EDIT_AGENT_CONFIG_CALL_REF = "tools.agenta.edit_agent_config"
+
+_FIND_AGENT_STEP = (
+    "Call list_agents and pass the agent's `slug` or `id` as `agent`, not its name."
+)
+_SET_INSTRUCTIONS_EXAMPLE = (
+    '{"operation": "set", "target": ["parameters","agent","instructions","agents_md"], '
+    '"value": "..."}'
+)
+_BOUND_FIELDS = frozenset({"caller_agent_id", "caller_session_id"})
+# The keys a whole configuration arrives in. Sent instead of operations, they are refused
+# with the same code as self-edit's whole-configuration refusal.
+_CONFIGURATION_KEYS = frozenset({"data", "parameters"})
+
+
+def _bound_caller(arguments: Dict[str, Any]) -> UUID:
+    """The calling agent's artifact id, bound from the run."""
+    return _bound_uuid(arguments.get("caller_agent_id"), field="caller_agent_id")
+
+
+def _bound_session(arguments: Dict[str, Any]) -> str:
+    """The run's session, bound from the run. The write tools are offered only to a run with a
+    session, so a missing one is refused like a missing caller, not written as unknown."""
+    session_id = arguments.get("caller_session_id")
+    if not isinstance(session_id, str) or not session_id.strip():
+        raise PlatformToolHandlerRefused(
+            "caller_session_id is bound from the run and was missing."
+        )
+    return session_id.strip()
+
+
+def _agent_refusal(code: str, message: str, next_step: str) -> _Refusal:
+    return _Refusal(
+        AgentError(code=code, message=message, retryable=False, next_step=next_step)
+    )
+
+
+def _not_found(raw: str) -> _Refusal:
+    return _agent_refusal(
+        "agent_not_found",
+        f"No agent in this project has the slug or id '{raw}'.",
+        _FIND_AGENT_STEP,
+    )
+
+
+def _reject_unknown_fields(
+    arguments: Dict[str, Any], fields: Sequence[str], *, tool: str
+) -> None:
+    """One rule for every key the tool does not take, a forged `message` included.
+
+    A key outside the schema would otherwise be dropped in silence and the call answered as a
+    success: a top-level `instructions` would create the bare template, a `delta` copied from
+    `commit_revision` would save nothing. A whole configuration keeps the code self-edit
+    gives it.
+    """
+    unknown = sorted(set(arguments) - set(fields) - _BOUND_FIELDS)
+    if not unknown:
+        return
+    names = ", ".join(f"`{key}`" for key in unknown)
+    verb = "is not a field" if len(unknown) == 1 else "are not fields"
+    listed = ", ".join(f"`{field}`" for field in fields[:-1]) + f" and `{fields[-1]}`"
+    message = f"{names} {verb} of {tool}. Its fields are {listed}."
+    next_step = (
+        "Put every change in `operations`, at the top level, for example "
+        f'"operations": [{_SET_INSTRUCTIONS_EXAMPLE}].'
+    )
+    if _CONFIGURATION_KEYS & set(unknown):
+        raise _agent_refusal(
+            "full_data_not_committable",
+            f"{tool} saves a change to an agent's configuration, not a whole "
+            f"configuration. {message}",
+            next_step,
+        )
+    raise _ArgumentsRefused(message, next_step=next_step)
+
+
+def _agent_reference(arguments: Dict[str, Any]) -> tuple[str, Reference]:
+    raw = arguments.get("agent")
+    if not isinstance(raw, str) or not raw.strip():
+        raise _ArgumentsRefused(
+            "`agent` is required: the slug or id of the agent.",
+            next_step=_FIND_AGENT_STEP,
+        )
+    raw = raw.strip()
+    try:
+        return raw, Reference(id=UUID(raw))
+    except ValueError:
+        pass
+    try:
+        return raw, Reference(slug=raw)
+    except ValidationError as e:
+        # Most often the agent's NAME, which is not a slug.
+        raise _not_found(raw) from e
+
+
+async def _resolve_other_agent(
+    *,
+    workflows_service: WorkflowsService,
+    project_id: UUID,
+    arguments: Dict[str, Any],
+    caller_id: UUID,
+    self_step: str,
+) -> tuple[Any, Any]:
+    """The named agent and its latest revision, or a refusal the model can act on.
+
+    Refused: an unknown name, a static platform workflow, the caller itself, an archived
+    agent, and a workflow that is not an agent. The lookup is scoped to the caller's
+    project, so an agent from another project is simply unknown. A static workflow is
+    served from code with `is_static` set; a reserved slug the catalog does not hold is
+    simply unknown.
+    """
+    raw, reference = _agent_reference(arguments)
+    head = await workflows_service.fetch_workflow_revision(
+        project_id=project_id,
+        workflow_ref=reference,
+        include_archived=True,
+    )
+    if head is not None and head.flags is not None and head.flags.is_static:
+        raise _agent_refusal(
+            "agent_is_static",
+            f"'{raw}' is a built-in Agenta workflow, not an agent you can read or change.",
+            _FIND_AGENT_STEP,
+        )
+    if head is None or head.workflow_id is None:
+        raise _not_found(raw)
+    if head.workflow_id == caller_id:
+        raise _agent_refusal(
+            "agent_is_self",
+            f"'{raw}' is you. This tool works on other agents only.",
+            self_step,
+        )
+    workflow = await workflows_service.fetch_workflow(
+        project_id=project_id,
+        workflow_ref=Reference(id=head.workflow_id),
+        include_archived=True,
+    )
+    if workflow is None:
+        raise _not_found(raw)
+    if workflow.deleted_at is not None or head.deleted_at is not None:
+        raise _agent_refusal(
+            "agent_archived",
+            f"'{workflow.name or raw}' is archived. An archived agent cannot be read or "
+            "changed.",
+            "Pick an agent that is not archived: call list_agents.",
+        )
+    if head.flags is None or not head.flags.is_agent:
+        raise _agent_refusal(
+            "not_an_agent",
+            f"'{workflow.name or raw}' is a workflow, not an agent.",
+            _FIND_AGENT_STEP,
+        )
+    return workflow, head
+
+
+def _agent_summary(workflow: Any) -> Dict[str, Any]:
+    return {"id": str(workflow.id), "slug": workflow.slug, "name": workflow.name}
+
+
+async def _attribution(
+    *,
+    workflows_service: WorkflowsService,
+    project_id: UUID,
+    caller_id: UUID,
+    session_id: str,
+) -> str:
+    from oss.src.core.workflows.commit_support import agent_attribution
+
+    caller = await workflows_service.fetch_workflow(
+        project_id=project_id,
+        workflow_ref=Reference(id=caller_id),
+    )
+    return agent_attribution(
+        agent_id=str(caller_id),
+        agent_name=caller.name if caller else None,
+        session_id=session_id,
+    )
+
+
+_TEMPLATE_INSTRUCTIONS_WARNING = CommitWarning(
+    code="template_instructions",
+    message=(
+        "The new agent still has the template's placeholder instructions. To give it its "
+        "job, call edit_agent_config with "
+        f"{_SET_INSTRUCTIONS_EXAMPLE} and the base_revision_id above."
+    ),
+    target=["parameters", "agent", "instructions", "agents_md"],
+)
+
+
+def _sets_instructions(operations: Optional[list]) -> bool:
+    """Whether any operation writes the instructions or a block that holds them."""
+    instructions = ["parameters", "agent", "instructions"]
+    for operation in operations or []:
+        target = operation.get("target") if isinstance(operation, dict) else None
+        if isinstance(target, list) and (
+            target[: len(instructions)] == instructions
+            or instructions[: len(target)] == target
+        ):
+            return True
+    return False
+
+
+def _operations(arguments: Dict[str, Any], *, required: bool) -> Optional[list]:
+    operations = arguments.get("operations")
+    if operations is None and not required:
+        return None
+    if not isinstance(operations, list) or not operations:
+        raise _ArgumentsRefused(
+            "`operations` must be a non-empty list of operations.",
+            next_step=(
+                f"Send the change as `operations`, for example [{_SET_INSTRUCTIONS_EXAMPLE}]."
+            ),
+        )
+    return operations
+
+
+async def _default_heads(
+    *,
+    workflows_service: WorkflowsService,
+    project_id: UUID,
+    workflows: Sequence[Any],
+    include_archived: bool,
+) -> Dict[UUID, Any]:
+    """Each workflow's default-variant head, the revision read and edit act on, in two queries.
+
+    The default variant is the oldest one, the rule `fetch_workflow_revision` applies when it
+    is given only the workflow.
+    """
+    from oss.src.core.git.dtos import RevisionGrouping
+
+    variants = await workflows_service.query_workflow_variants(
+        project_id=project_id,
+        workflow_refs=[Reference(id=workflow.id) for workflow in workflows],
+        include_archived=include_archived,
+    )
+    default_variants: Dict[UUID, Any] = {}
+    for variant in sorted(variants, key=lambda v: (v.created_at, v.id)):
+        default_variants.setdefault(variant.workflow_id, variant)
+    if not default_variants:
+        return {}
+    heads = await workflows_service.query_workflow_revisions(
+        project_id=project_id,
+        workflow_variant_refs=[
+            Reference(id=variant.id) for variant in default_variants.values()
+        ],
+        include_archived=include_archived,
+        grouping=RevisionGrouping(by="variant", get="latest"),
+    )
+    return {head.workflow_id: head for head in heads}
+
+
+async def handle_list_agents(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
+) -> PlatformHandlerResult:
+    """The agents in the caller's project, newest first, one page at a time.
+
+    One row per agent, from the head `read_agent_config` and `edit_agent_config` act on: the
+    default variant's latest revision. The scan runs over the project's applications, in
+    batches, and keeps the ones whose head is flagged `is_agent` today, until the page holds
+    `limit` agents or the applications run out. `next_cursor` is the last application
+    scanned. Static platform workflows are served from code and never stored, so they never
+    appear.
+    """
+    from oss.src.core.workflows.dtos import WorkflowArtifactQueryFlags, WorkflowQuery
+
+    if workflows_service is None:
+        raise PlatformToolHandlerRefused("list_agents is unavailable.")
+
+    try:
+        parsed = _parse_arguments(arguments)
+        limit = parsed.get("limit", LIST_AGENTS_DEFAULT_LIMIT)
+        if (
+            isinstance(limit, bool)
+            or not isinstance(limit, int)
+            or not 1 <= limit <= LIST_AGENTS_MAX_LIMIT
+        ):
+            raise _ArgumentsRefused(
+                f"`limit` must be a whole number from 1 to {LIST_AGENTS_MAX_LIMIT}.",
+                next_step=(
+                    f"Omit `limit` to get {LIST_AGENTS_DEFAULT_LIMIT} agents per page."
+                ),
+            )
+        cursor = parsed.get("cursor")
+        try:
+            cursor = UUID(str(cursor)) if cursor else None
+        except ValueError as e:
+            raise _ArgumentsRefused(
+                "`cursor` is not a cursor this tool returned.",
+                next_step="Pass the `next_cursor` of the previous page, or omit `cursor`.",
+            ) from e
+        include_archived = parsed.get("include_archived") is True
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
+
+    agents: List[Dict[str, Any]] = []
+    more = True
+    while more and len(agents) < limit:
+        batch = await workflows_service.query_workflows(
+            project_id=project_id,
+            workflow_query=WorkflowQuery(
+                flags=WorkflowArtifactQueryFlags(is_application=True)
+            ),
+            include_archived=include_archived,
+            windowing=Windowing(limit=LIST_AGENTS_MAX_LIMIT, next=cursor),
+        )
+        more = len(batch) == LIST_AGENTS_MAX_LIMIT
+        heads = (
+            await _default_heads(
+                workflows_service=workflows_service,
+                project_id=project_id,
+                workflows=batch,
+                include_archived=include_archived,
+            )
+            if batch
+            else {}
+        )
+        for index, workflow in enumerate(batch):
+            cursor = workflow.id
+            head = heads.get(workflow.id)
+            if head is None or head.flags is None or not head.flags.is_agent:
+                continue
+            agent = {
+                **_agent_summary(workflow),
+                "description": workflow.description,
+                "version": head.version,
+                "updated_at": head.created_at.isoformat() if head.created_at else None,
+            }
+            if workflow.deleted_at is not None:
+                agent["archived"] = True
+            agents.append(agent)
+            if len(agents) == limit:
+                # Stopped inside the batch: what is left of it is the next page.
+                more = more or index < len(batch) - 1
+                break
+
+    return PlatformHandlerResult(
+        content={"agents": agents, "next_cursor": str(cursor) if more else None}
+    )
+
+
+async def handle_read_agent_config(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
+) -> PlatformHandlerResult:
+    """Another agent's latest saved configuration, with the same answer `read_config` gives.
+
+    There is no draft warning: that warning is about the CALLER's run, and this reads an
+    agent that is not running here. It answers from the head the target resolution already
+    loaded, which is what `edit_agent_config` edits.
+    """
+    from oss.src.core.workflows.read_config import ReadConfigError
+    from oss.src.core.workflows.service import read_revision_config
+
+    if workflows_service is None:
+        raise PlatformToolHandlerRefused("read_agent_config is unavailable.")
+
+    try:
+        parsed = _parse_arguments(arguments)
+        caller_id = _bound_caller(parsed)
+        _, head = await _resolve_other_agent(
+            workflows_service=workflows_service,
+            project_id=project_id,
+            arguments=parsed,
+            caller_id=caller_id,
+            self_step="To read your own configuration, use read_config.",
+        )
+        try:
+            outcome = read_revision_config(
+                head, path=parsed.get("path"), max_bytes=parsed.get("max_bytes")
+            )
+        except ReadConfigError as e:
+            raise _Refusal(AgentError(**e.to_detail())) from e
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
+
+    return PlatformHandlerResult(content=_read_config_response(outcome, is_draft=False))
+
+
+async def handle_edit_agent_config(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+) -> PlatformHandlerResult:
+    """Commit ordered operations to another agent's latest revision. Never deploys.
+
+    The same commit as `commit_revision`: `AGENT_COMMIT_SCOPE`, the build-kit rejection, the
+    stale-base check and the derived message. Only the target differs, and the message gains
+    the attribution, because the owner of this history did not watch the change happen.
+    """
+    from oss.src.core.workflows.dtos import WorkflowRevisionCommit
+
+    if workflows_service is None:
+        raise PlatformToolHandlerRefused("edit_agent_config is unavailable.")
+
+    try:
+        parsed = _parse_arguments(arguments)
+        caller_id = _bound_caller(parsed)
+        session_id = _bound_session(parsed)
+        _reject_unknown_fields(
+            parsed,
+            ("agent", "base_revision_id", "operations"),
+            tool="edit_agent_config",
+        )
+        operations = _operations(parsed, required=True)
+        base_revision_id = parsed.get("base_revision_id")
+        if not base_revision_id:
+            raise _ArgumentsRefused(
+                "`base_revision_id` is required.",
+                next_step=(
+                    "Call read_agent_config for this agent and pass the "
+                    "`base_revision_id` it returns."
+                ),
+            )
+        workflow, head = await _resolve_other_agent(
+            workflows_service=workflows_service,
+            project_id=project_id,
+            arguments=parsed,
+            caller_id=caller_id,
+            self_step="To change your own configuration, use commit_revision.",
+        )
+        try:
+            commit = WorkflowRevisionCommit(
+                workflow_variant_id=head.workflow_variant_id,
+                base_revision_id=base_revision_id,
+                delta={"operations": operations},
+            )
+        except Exception as e:
+            raise _Refusal(_commit_payload_refusal(e)) from e
+        outcome = await _commit_as_agent(
+            workflows_service=workflows_service,
+            project_id=project_id,
+            user_id=user_id,
+            commit=commit,
+            attribution=await _attribution(
+                workflows_service=workflows_service,
+                project_id=project_id,
+                caller_id=caller_id,
+                session_id=session_id,
+            ),
+        )
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
+
+    revision = outcome.revision
+    return PlatformHandlerResult(
+        content={
+            "status": outcome.status,
+            "agent": _agent_summary(workflow),
+            "version": revision.version if revision else None,
+            "base_revision_id": str(revision.id) if revision else None,
+            "message": revision.message if revision else None,
+            "warnings": [w.model_dump(mode="json") for w in outcome.warnings],
+        },
+        # Not `committed_revision`: that signal tells the CALLER's playground it committed
+        # itself, and this is another agent.
+        wrote_revision=outcome.status == "committed",
+    )
+
+
+# The engine's next steps for these reasons send the model to read the stored configuration
+# again. A create has nothing stored to read, so it is told to fix the operation instead.
+_READ_AGAIN_REASONS = frozenset(
+    {"target_not_found", "target_type_mismatch", "item_not_found", "text_not_found"}
+)
+
+
+def _create_refusal(error: AgentError) -> AgentError:
+    """A refusal from the operations of a create: the engine's next step, said of a create."""
+    index = (error.details or {}).get("operation_index")
+    if error.code in _READ_AGAIN_REASONS or not error.next_step:
+        fix = "the operations" if index is None else f"operation {index}"
+        step = f"Fix {fix} as the message says, then call create_agent again."
+    else:
+        step = error.next_step
+    return error.model_copy(update={"next_step": f"No agent was created. {step}"})
+
+
+async def handle_create_agent(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+) -> PlatformHandlerResult:
+    """A new agent from the "New agent" template, with the caller's operations applied.
+
+    The service owns the composition (template, operations, slug, flags, first message) and
+    the idempotent writes, keyed by the session and the arguments, so a retry of a create
+    that stopped part of the way finishes the same agent. This handler reads the arguments,
+    names the creator, and turns each failure into a refusal the model can act on.
+    """
+    from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+    from oss.src.core.shared.exceptions import EntityCreationConflict
+    from oss.src.core.workflows.change_set import ChangeSetError
+    from oss.src.core.workflows.service import SimpleWorkflowsService
+    from oss.src.core.workflows.types import InvalidAgentInstructionsError
+
+    if workflows_service is None:
+        raise PlatformToolHandlerRefused("create_agent is unavailable.")
+
+    try:
+        parsed = _parse_arguments(arguments)
+        caller_id = _bound_caller(parsed)
+        session_id = _bound_session(parsed)
+        _reject_unknown_fields(
+            parsed, ("name", "description", "operations"), tool="create_agent"
+        )
+        name = parsed.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise _ArgumentsRefused(
+                "`name` is required.",
+                next_step='Send the new agent\'s name as `name`, e.g. "Invoice helper".',
+            )
+        description = parsed.get("description")
+        if description is not None and not isinstance(description, str):
+            raise _ArgumentsRefused(
+                "`description` must be text.",
+                next_step="Send one short sentence, or omit `description`.",
+            )
+        operations = _operations(parsed, required=False)
+        attribution = await _attribution(
+            workflows_service=workflows_service,
+            project_id=project_id,
+            caller_id=caller_id,
+            session_id=session_id,
+        )
+        try:
+            created, message, warnings = await SimpleWorkflowsService(
+                workflows_service=workflows_service
+            ).create_agent(
+                project_id=project_id,
+                user_id=user_id,
+                name=name.strip(),
+                description=description,
+                operations=operations,
+                message=f"Created {attribution}",
+                idempotency_scope=session_id,
+            )
+        except ValidationError as e:
+            raise _Refusal(_create_refusal(_commit_payload_refusal(e))) from e
+        except (ChangeSetError, InvalidAgentInstructionsError) as e:
+            raise _Refusal(_create_refusal(AgentError(**e.to_detail()))) from e
+        except NonEmbeddableWorkflowReferenceError as e:
+            raise _agent_refusal(
+                "non_embeddable_reference",
+                str(e),
+                "Remove the embedded reference to that workflow, then call create_agent "
+                "again.",
+            ) from e
+        except EntityCreationConflict as e:
+            # A write stopped part of the way. Every write is keyed by the session and the
+            # arguments, so the same call finishes this agent rather than making another.
+            raise _Refusal(
+                AgentError(
+                    code="create_failed",
+                    message="The agent could not be created: a write stopped part of the way.",
+                    retryable=True,
+                    next_step=(
+                        "Call create_agent again with the same arguments; it finishes the "
+                        "same agent."
+                    ),
+                )
+            ) from e
+    except _Refusal as e:
+        return PlatformHandlerResult.failure(e.error)
+
+    if not _sets_instructions(operations):
+        warnings.append(_TEMPLATE_INSTRUCTIONS_WARNING)
+    return PlatformHandlerResult(
+        content={
+            "status": "created",
+            "agent": _agent_summary(created),
+            "base_revision_id": str(created.revision_id),
+            "message": message,
+            "warnings": [w.model_dump(mode="json") for w in warnings],
+        },
+        wrote_revision=True,
     )
 
 
@@ -988,6 +1663,33 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         call_ref=COMMIT_REVISION_CALL_REF,
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_commit_revision,
+        elevated_permission=Permission.EDIT_WORKFLOWS,
+    ),
+    # Other agents in the project. The same permissions as the self pair: reading a
+    # configuration needs VIEW_WORKFLOWS, writing one EDIT_WORKFLOWS, and RUN_TOOLS alone
+    # reaches neither.
+    LIST_AGENTS_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=LIST_AGENTS_CALL_REF,
+        timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
+        handler=handle_list_agents,
+        elevated_permission=Permission.VIEW_WORKFLOWS,
+    ),
+    READ_AGENT_CONFIG_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=READ_AGENT_CONFIG_CALL_REF,
+        timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
+        handler=handle_read_agent_config,
+        elevated_permission=Permission.VIEW_WORKFLOWS,
+    ),
+    CREATE_AGENT_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=CREATE_AGENT_CALL_REF,
+        timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+        handler=handle_create_agent,
+        elevated_permission=Permission.EDIT_WORKFLOWS,
+    ),
+    EDIT_AGENT_CONFIG_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=EDIT_AGENT_CONFIG_CALL_REF,
+        timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+        handler=handle_edit_agent_config,
         elevated_permission=Permission.EDIT_WORKFLOWS,
     ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
