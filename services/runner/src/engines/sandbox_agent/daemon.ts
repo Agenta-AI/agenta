@@ -74,7 +74,7 @@ function ensureExecutable(path: string): string {
  * `_CLOUD_SECRET_ENV_BY_DEPLOYMENT`.
  */
 export const KNOWN_PROVIDER_ENV_VARS = [
-  // Direct provider api keys (the nine vault-mapped Pi providers + the legacy aliases).
+  // Direct provider api keys (the ten vault-mapped Pi providers + the legacy aliases).
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
   "GEMINI_API_KEY",
@@ -85,6 +85,7 @@ export const KNOWN_PROVIDER_ENV_VARS = [
   "TOGETHER_API_KEY",
   "OPENROUTER_API_KEY",
   "XAI_API_KEY",
+  "LLMAPI_API_KEY",
   // Anthropic / Claude auth tokens and OAuth.
   "ANTHROPIC_AUTH_TOKEN",
   "ANTHROPIC_OAUTH_TOKEN",
@@ -149,6 +150,7 @@ const PROVIDER_ENV_VAR_GROUPS: Record<string, readonly string[]> = {
   together_ai: ["TOGETHER_API_KEY", "TOGETHERAI_API_KEY"],
   openrouter: ["OPENROUTER_API_KEY"],
   xai: ["XAI_API_KEY"],
+  llmapi: ["LLMAPI_API_KEY"],
   // Pi's ChatGPT/Codex subscription authenticates via its own OAuth file, not an env key.
   "openai-codex": [],
 };

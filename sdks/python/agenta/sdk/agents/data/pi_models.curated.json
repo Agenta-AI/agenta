@@ -3,7 +3,7 @@
   "_curation": {
     "target": "pi_models.generated.json",
     "note": "Human overlay for the generated Pi catalog. Keyed by the entry `id` (the `provider/model` join key). Only `label`, `description`, and `ratings` may appear here; the objective facts (name/pricing/context_window/modalities) always come from the generated file. The SDK loader merges this on top of the generated facts, so a pi-ai regeneration never overwrites these judgments. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest). Sourced from the current lineup (Fable 5 is the Anthropic frontier, above Opus), not a model's memory. Uncurated ids are valid and fall back to `name` in the picker; seed only the models worth a description. The separate `additions` list carries WHOLE entries (facts included, `source`: `curated`) for models released after the pinned pi-ai snapshot, which the generated file cannot carry at all. A generated entry of the same id always wins, so an addition retires itself on the next regeneration; drop it then.",
-    "sources": "@earendil-works/pi-ai@0.99.1 (regenerated 2026-09-30; the Claude Sonnet 5.5 addition retired because pi-ai 0.99.1 carries it); vendor model and pricing pages, checked 2026-09-07; GPT-6 Sol and Luna from OpenAI's 2026-09-22 launch (openai.com/index/introducing-gpt-6-sol-and-luna, VentureBeat, MarkTechPost), checked 2026-09-27. GPT-6.1 Sol from OpenAI's 2026-09-29 DevDay launch ($2/$10 per Mtok, $0.10 cached input, near-Astra agentic coding at one fifth of Astra's price; pi-ai 0.99.1 carries it and makes it the Codex default), checked 2026-09-30."
+    "sources": "@earendil-works/pi-ai@0.99.1 (regenerated 2026-09-30; the Claude Sonnet 5.5 addition retired because pi-ai 0.99.1 carries it); vendor model and pricing pages, checked 2026-09-07; GPT-6 Sol and Luna from OpenAI's 2026-09-22 launch (openai.com/index/introducing-gpt-6-sol-and-luna, VentureBeat, MarkTechPost), checked 2026-09-27. GPT-6.1 Sol from OpenAI's 2026-09-29 DevDay launch ($2/$10 per Mtok, $0.10 cached input, near-Astra agentic coding at one fifth of Astra's price; pi-ai 0.99.1 carries it and makes it the Codex default), checked 2026-09-30. LLM API additions: https://api.llmapi.ai/v1/models, checked 2026-09-23."
   },
   "overlay": {
     "openai/gpt-6-astra": {
@@ -90,5 +90,59 @@
       "ratings": {"cost": 4, "intelligence": 4, "speed": 4}
     }
   },
-  "additions": []
+  "additions": [
+    {
+      "id": "llmapi/gpt-5.4",
+      "provider": "llmapi",
+      "source": "curated",
+      "name": "GPT-5.4",
+      "pricing": {
+        "input_per_mtok": 2.5,
+        "output_per_mtok": 15.0,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ]
+    },
+    {
+      "id": "llmapi/claude-sonnet-4-6",
+      "provider": "llmapi",
+      "source": "curated",
+      "name": "Claude Sonnet 4.6",
+      "pricing": {
+        "input_per_mtok": 3.0,
+        "output_per_mtok": 15.0,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.3,
+        "cache_write_per_mtok": 3.75
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ]
+    },
+    {
+      "id": "llmapi/gemini-2.5-flash",
+      "provider": "llmapi",
+      "source": "curated",
+      "name": "Gemini 2.5 Flash",
+      "pricing": {
+        "input_per_mtok": 0.3,
+        "output_per_mtok": 2.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.03
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image",
+        "audio"
+      ]
+    }
+  ]
 }

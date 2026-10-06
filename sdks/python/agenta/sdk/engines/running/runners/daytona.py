@@ -166,6 +166,7 @@ class DaytonaRunner(CodeRunner):
             # Secret kind is "together_ai" (underscore) even though the env var is TOGETHERAI_API_KEY
             "together_ai": "TOGETHERAI_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
+            "llmapi": "LLMAPI_API_KEY",
             "gemini": "GEMINI_API_KEY",
             "xai": "XAI_API_KEY",
         }

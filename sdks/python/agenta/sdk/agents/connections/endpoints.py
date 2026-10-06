@@ -30,6 +30,7 @@ _DIRECT_ENDPOINTS: Dict[str, str] = {
     "together_ai": "https://api.together.xyz/v1",
     "openrouter": "https://openrouter.ai/api/v1",
     "xai": "https://api.x.ai/v1",
+    "llmapi": "https://api.llmapi.ai/v1",
 }
 _NON_SECRET_ENV = {
     "AWS_REGION",
