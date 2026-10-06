@@ -1769,10 +1769,19 @@ def assert_command_settled(
     """Poll for up to `timeout` seconds after a Stop for the durable settlement invariant every
     Stop-issuing cell must observe: the session_commands row for the Stop reaches a terminal
     state (`applied` or `obsolete` — never left `pending` or `claimed`), and exactly one
-    session_executions row exists for the stopped session with a non-empty terminal outcome. This
+    session_executions row exists for the STOPPED EXECUTION with a non-empty terminal outcome. This
     is the check that would have caught the repeat-stop false pass on 2026-09-04 (session
     190e9118: command stuck `claimed` forever, zero session_executions rows, yet every driver-
     level assertion — one terminal trace record, a warm resume — still passed).
+
+    The stopped execution is the one the Stop command targeted (its `target_turn_id`, which is the
+    execution id), or `turn_id` when the command row carries no target. Only that execution's rows
+    are judged, not every row of the session: the runner also writes a session_executions row for
+    an execution that COMPLETED, so a cell whose stopped turn is not the session's first execution
+    (`stale-stop` stops turn 2 after turn 1 completed) sees one extra row per earlier execution.
+    Counting the whole session failed that cell on a correct product (v0.122.3 local gate). When
+    no target id is known at all, the whole-session one-row rule applies as before. Zero rows for
+    the target is never accepted on an `applied`/`stopped` or `lost` command.
 
     A Stop can also land AFTER the turn already finished naturally — common on a fast Claude Code
     turn: the valid Stop returns 202, but the runner has nothing to cancel, so the command settles
@@ -1782,17 +1791,20 @@ def assert_command_settled(
     settled (`lost`). `stop-after-finish` and `stop-during-completion` already accept this shape;
     routing it through here shares it with every Stop-issuing cell.
 
-    Returns a dict with `settled` (bool), `command`, `execution_rows`, `natural_finish` (bool),
-    `note` (set to "stop landed after a natural finish" on that path, else None), and `why` (a
-    one-line reason, only set when `settled` is False). Never raises: a hookless run (`NullHooks`)
-    reads as `settled=True` so a cell that runs without --project is not blocked by a check it has
-    no way to make (the cell's own `hooks.available` guard already SKIPs it).
+    Returns a dict with `settled` (bool), `command`, `execution_rows` (every row of the session,
+    kept as evidence), `target_execution_id` (the execution judged, or None when unknown),
+    `natural_finish` (bool), `note` (set to "stop landed after a natural finish" on that path, else
+    None), and `why` (a one-line reason, only set when `settled` is False). Never raises: a
+    hookless run (`NullHooks`) reads as `settled=True` so a cell that runs without --project is not
+    blocked by a check it has no way to make (the cell's own `hooks.available` guard already SKIPs
+    it).
     """
     if not hooks.available:
         return {
             "settled": True,
             "command": None,
             "execution_rows": [],
+            "target_execution_id": None,
             "natural_finish": False,
             "note": None,
             "why": None,
@@ -1800,10 +1812,19 @@ def assert_command_settled(
     deadline = time.time() + timeout
     command: dict | None = None
     executions: list[dict] = []
+    target_id: str | None = turn_id
+    target_rows: list[dict] = []
     while True:
         commands = hooks.command_rows(session_id)
         command = _match_stop_command(commands, turn_id)
         executions = hooks.execution_rows(session_id)
+        target_id = (command.get("target_turn_id") if command else None) or turn_id
+        # Judge only the stopped execution's rows; a completed earlier execution has its own row.
+        target_rows = (
+            [e for e in executions if e.get("execution_id") == target_id]
+            if target_id
+            else executions
+        )
         settled_command = command is not None and command.get("state") in (
             "applied",
             "obsolete",
@@ -1811,14 +1832,15 @@ def assert_command_settled(
         outcome = command.get("outcome") if command else None
         # The Stop landed after a natural finish: obsolete/not_running, no execution row to expect.
         natural_finish = settled_command and outcome == "not_running"
-        settled_execution = len(executions) == 1 and bool(
-            executions[0].get("terminal_outcome")
+        settled_execution = len(target_rows) == 1 and bool(
+            target_rows[0].get("terminal_outcome")
         )
         if settled_command and (natural_finish or settled_execution):
             return {
                 "settled": True,
                 "command": command,
                 "execution_rows": executions,
+                "target_execution_id": target_id,
                 "natural_finish": natural_finish,
                 "note": "stop landed after a natural finish"
                 if natural_finish
@@ -1832,10 +1854,15 @@ def assert_command_settled(
         why = "no session_commands row was found for the Stop"
     elif command.get("state") not in ("applied", "obsolete"):
         why = f"the Stop command was left {command.get('state')!r}, expected applied or obsolete"
-    elif len(executions) != 1:
+    elif len(target_rows) != 1:
+        scope = (
+            f"the stopped execution {target_id}"
+            if target_id
+            else "the stopped session (no target execution id known)"
+        )
         why = (
-            "expected exactly one session_executions row for the stopped session, saw "
-            f"{len(executions)}"
+            f"expected exactly one session_executions row for {scope}, saw "
+            f"{len(target_rows)} (session has {len(executions)})"
         )
     else:
         why = "the session_executions row settled with no terminal outcome"
@@ -1843,6 +1870,7 @@ def assert_command_settled(
         "settled": False,
         "command": command,
         "execution_rows": executions,
+        "target_execution_id": target_id,
         "natural_finish": False,
         "note": None,
         "why": why,
