@@ -60,12 +60,13 @@ describe("onboarding draft storage", () => {
 })
 
 describe("onboarding answers", () => {
-    it("drops the pick, task and name when the role changes", () => {
+    it("drops the pick, task, name and icon when the role changes", () => {
         const picked = draft({
             role: "Engineering",
             name: "Reviewer",
             task: "Do it",
             pick: {kind: "template", key: "review"},
+            icon: {icon: "bug", color: "#111111"},
         })
         expect(onboardingReducer(picked, {type: "role", role: "Sales"})).toEqual({
             ...picked,
@@ -73,7 +74,13 @@ describe("onboarding answers", () => {
             name: "",
             task: "",
             pick: null,
+            icon: null,
         })
+    })
+
+    it("keeps every answer when the same role is picked again", () => {
+        const picked = draft({role: "Engineering", name: "Reviewer"})
+        expect(onboardingReducer(picked, {type: "role", role: "Engineering"})).toBe(picked)
     })
 
     it("names the agent after a picked template only in name-first", () => {

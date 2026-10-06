@@ -10,15 +10,20 @@ export const OnboardingChoiceGrid = <Label extends string>({
     choices,
     value,
     onPick,
+    labelledBy,
     tall = false,
 }: {
     choices: readonly OnboardingChoice<Label>[]
     value: Label | null
     onPick: (label: Label) => void
+    /** The step heading that asks the question. */
+    labelledBy: string
     /** Icon above the label, three across on wide screens. */
     tall?: boolean
 }) => (
     <div
+        role="group"
+        aria-labelledby={labelledBy}
         className={cn(
             "grid gap-3",
             tall ? "grid-cols-2 md:grid-cols-3" : "grid-cols-1 sm:grid-cols-2",

@@ -21,7 +21,9 @@ import {
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {
     canLeaveStep,
+    DEFAULT_IDENTITY,
     ONBOARDING_STEPS,
+    onboardingHeadingId,
     onboardingReducer,
     readOnboardingDraft,
     saveOnboardingDraft,
@@ -92,7 +94,14 @@ export const OnboardingFlow = ({
     const presets = useMotionPresets()
     const [direction, setDirection] = useState(1)
     const scrollerRef = useRef<HTMLElement | null>(null)
+    const movedRef = useRef(false)
     const {step} = draft
+    useEffect(() => {
+        if (!movedRef.current) return
+        scrollerRef.current
+            ?.querySelector<HTMLElement>(`#${onboardingHeadingId(step)}`)
+            ?.focus({preventScroll: true})
+    }, [step])
     const previous = stepBefore(steps, step)
     const following = stepAfter(steps, step)
     const go = (next: OnboardingStep | null) => {
@@ -100,6 +109,7 @@ export const OnboardingFlow = ({
         const forward = steps.indexOf(next) > steps.indexOf(step)
         if (forward) onStepCompleted(step, draft)
         setDirection(forward ? 1 : -1)
+        movedRef.current = true
         dispatch({type: "step", step: next})
         if (scrollerRef.current) scrollerRef.current.scrollTop = 0
     }
@@ -111,8 +121,8 @@ export const OnboardingFlow = ({
     const pick = draft.pick
     const selected =
         pick?.kind === "template" ? suggestions.find((item) => item.key === pick.key) : undefined
-    // A restored pick waits for the catalog instead of creating without its first message.
-    const pickPending = pick?.kind === "template" && !selected && catalog.status === "pending"
+    // A pick creates only from its own template; a catalog that loaded without it drops it.
+    const pickPending = pick?.kind === "template" && !selected && catalog.status !== "success"
     const input = pickPending ? null : firstAgentInput(variant, draft, selected)
 
     const create = (
@@ -121,7 +131,9 @@ export const OnboardingFlow = ({
             loading={creating}
             disabled={!input || !modelReady}
             onClick={() => {
-                if (input) onCreate({...input, icon: draft.icon})
+                if (!input) return
+                const icon = draft.icon ?? (variant === "control" ? DEFAULT_IDENTITY : null)
+                onCreate({...input, icon})
             }}
         >
             {ONBOARDING_COPY.agent.create(variant)}
@@ -138,6 +150,7 @@ export const OnboardingFlow = ({
         role: () => (
             <OnboardingChoiceGrid
                 tall
+                labelledBy={onboardingHeadingId("role")}
                 choices={ONBOARDING_ROLES}
                 value={draft.role}
                 onPick={(role) => dispatch({type: "role", role})}
@@ -147,6 +160,7 @@ export const OnboardingFlow = ({
         model: () => model,
         referral: () => (
             <OnboardingChoiceGrid
+                labelledBy={onboardingHeadingId("referral")}
                 choices={ONBOARDING_SOURCES}
                 value={draft.source}
                 onPick={(source) => dispatch({type: "source", source})}
@@ -226,7 +240,14 @@ export const OnboardingFlow = ({
                     >
                         {heading ? (
                             <>
-                                <h1 className="m-0 text-center text-2xl font-semibold leading-tight lg:text-[30px]">
+                                <h1
+                                    id={onboardingHeadingId(step)}
+                                    tabIndex={-1}
+                                    className={cn(
+                                        ONBOARDING_COPY.headingClass,
+                                        "text-center lg:text-[30px]",
+                                    )}
+                                >
                                     {heading.title}
                                 </h1>
                                 <p className="text-muted-foreground mb-8 mt-2 text-center text-[15px]">
@@ -235,6 +256,18 @@ export const OnboardingFlow = ({
                             </>
                         ) : null}
                         {body[step]()}
+                        {step === "agent" && !modelReady ? (
+                            <p className="text-muted-foreground m-0 mt-4 text-center text-sm">
+                                {ONBOARDING_COPY.agent.modelMissing}{" "}
+                                <button
+                                    type="button"
+                                    onClick={() => go("model")}
+                                    className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-sm underline"
+                                >
+                                    {ONBOARDING_COPY.agent.modelMissingAction}
+                                </button>
+                            </p>
+                        ) : null}
                         {step === "agent" && error ? (
                             <p
                                 role="alert"

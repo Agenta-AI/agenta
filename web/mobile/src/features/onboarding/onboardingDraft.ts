@@ -1,5 +1,5 @@
 import type {AgentStarterTemplate} from "@agenta/entities/workflow"
-import {AGENT_ICON_COLORS} from "@agenta/ui/agent-icon"
+import {AGENT_ICON_COLORS, DEFAULT_AGENT_ICON} from "@agenta/ui/agent-icon"
 import {z} from "zod"
 
 import {
@@ -13,6 +13,9 @@ import {
 /** Canonical order; analytics numbers steps by it even when one is skipped. */
 export const ONBOARDING_STEPS = ["role", "tools", "model", "referral", "agent"] as const
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
+
+/** Each step's heading id: focus lands on it, and its choices are labelled by it. */
+export const onboardingHeadingId = (step: OnboardingStep) => `onboarding-heading-${step}`
 
 export const onboardingStepNumber = (step: OnboardingStep) => ONBOARDING_STEPS.indexOf(step) + 1
 
@@ -51,6 +54,12 @@ export const EMPTY_ONBOARDING_DRAFT: OnboardingDraft = {
 export const ONBOARDING_NAME_MAX = 100
 export const ONBOARDING_TASK_MAX = 10000
 
+/** What name-first shows before a pick, and saves when nothing else was chosen. */
+export const DEFAULT_IDENTITY: OnboardingIconPick = {
+    icon: DEFAULT_AGENT_ICON.icon,
+    color: DEFAULT_AGENT_ICON.color,
+}
+
 /** One glyph per suggestion slot, so each picked template brings its own identity. */
 const TEMPLATE_GLYPHS = [
     "git-pull-request",
@@ -88,8 +97,9 @@ export const onboardingReducer = (
         case "step":
             return {...draft, step: action.step}
         case "role":
+            if (action.role === draft.role) return draft
             // Suggestions follow the role, so a new role drops the pick made from the old list.
-            return {...draft, role: action.role, pick: null, task: "", name: ""}
+            return {...draft, role: action.role, pick: null, task: "", name: "", icon: null}
         case "source":
             return {...draft, source: action.source}
         case "name":
