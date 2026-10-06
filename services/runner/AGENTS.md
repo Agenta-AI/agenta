@@ -84,6 +84,9 @@ When you bump `@earendil-works/pi-coding-agent` or `pi-ai`, re-check
 `src/tools/pi-provider-cost-patch.json` against the new Pi: the file name of the CLI's bundled
 chunk (`cli.bundlePath`) and both anchors. Then update `piVersion`, and rebuild the runner image
 and the Daytona snapshot. `tests/unit/pi-provider-cost-patch-pi-version.test.ts` fails until you do.
+Also move `patches/@earendil-works__pi-coding-agent@<version>.patch` to the new version (it adds
+the `authContext` option to `ModelRuntime.create`, which in-process sessions need), or drop it
+once upstream Pi has that option.
 
 ## Changing the Daytona snapshot recipe
 
