@@ -7,9 +7,11 @@
  *
  * Run: pnpm exec vitest run tests/unit/session-continuity-durable.test.ts
  */
-import { describe, it } from "vitest";
+import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
+import { CONTROL_PLANE_BUDGET_MS } from "../../src/sessions/control-plane-fetch.ts";
+import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
 import {
   appendSessionTurn,
   completeSessionTurn,
@@ -36,6 +38,17 @@ function okResponse(body: unknown): Response {
 function errResponse(status: number): Response {
   return { ok: false, status, json: async () => ({}) } as unknown as Response;
 }
+
+/** An API that accepted the connection and never answers: only the request's signal ends it. */
+const stallingFetch = ((_url: string, init?: RequestInit) =>
+  new Promise<Response>((_resolve, reject) => {
+    const signal = init?.signal;
+    assert.ok(signal, "the write must carry a signal");
+    if (signal.aborted) return reject(signal.reason);
+    signal.addEventListener("abort", () => reject(signal.reason), {
+      once: true,
+    });
+  })) as unknown as typeof fetch;
 
 describe("fetchLatestSessionTurn", () => {
   it("POSTs a query scoped to session (+harness when given), windowed to the latest one", async () => {
@@ -515,6 +528,109 @@ describe("appendSessionTurn", () => {
         },
       ),
     );
+  });
+
+  it("ends a stalled POST at the control-plane budget, logged, without throwing", async () => {
+    // The real bound is 30 s; hand the write a timer the test fires, and check which bound it asked for.
+    const bound = new AbortController();
+    const timeout = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockImplementation(() => bound.signal);
+    const logs: string[] = [];
+    try {
+      const append = appendSessionTurn(
+        "sess-1",
+        "claude",
+        2,
+        { streamId: "stream-1" },
+        {
+          apiBase: "http://api:8000",
+          authorization: "ApiKey abc",
+          fetchImpl: stallingFetch,
+          log: (message) => logs.push(message),
+        },
+      );
+      assert.deepEqual(timeout.mock.calls, [[CONTROL_PLANE_BUDGET_MS]]);
+      bound.abort(new DOMException("timed out", "TimeoutError"));
+      await assert.doesNotReject(() => append);
+    } finally {
+      timeout.mockRestore();
+    }
+    assert.equal(logs.length, 1);
+    assert.match(logs[0]!, /^append failed session=sess-1 harness=claude: timed out/);
+  });
+
+  it("ends a stalled POST when the turn is stopped, without throwing", async () => {
+    const stop = new AbortController();
+    const logs: string[] = [];
+    const append = appendSessionTurn(
+      "sess-1",
+      "claude",
+      2,
+      { streamId: "stream-1" },
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        fetchImpl: stallingFetch,
+        log: (message) => logs.push(message),
+        signal: stop.signal,
+      },
+    );
+    stop.abort(USER_STOP_ABORT_REASON);
+    await assert.doesNotReject(() => append);
+    assert.deepEqual(logs, [
+      "append failed session=sess-1 harness=claude: the turn was cancelled",
+    ]);
+  });
+
+  it("still reports a 409 as SessionTurnIndexTaken when the turn carries a signal", async () => {
+    await assert.rejects(
+      () =>
+        appendSessionTurn(
+          "sess-1",
+          "claude",
+          4,
+          { streamId: "stream-1" },
+          {
+            apiBase: "http://api:8000",
+            authorization: "ApiKey abc",
+            fetchImpl: (async () => errResponse(409)) as unknown as typeof fetch,
+            log: SILENT,
+            signal: new AbortController().signal,
+          },
+        ),
+      SessionTurnIndexTaken,
+    );
+  });
+});
+
+describe("completeSessionTurn bound", () => {
+  it("ends a stalled completion at the control-plane budget, logged, without throwing", async () => {
+    const bound = new AbortController();
+    const timeout = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockImplementation(() => bound.signal);
+    const logs: string[] = [];
+    try {
+      const complete = completeSessionTurn(
+        "sess-1",
+        2,
+        { endTime: "2026-07-21T10:00:00.000Z" },
+        {
+          apiBase: "http://api:8000",
+          authorization: "ApiKey abc",
+          fetchImpl: stallingFetch,
+          log: (message) => logs.push(message),
+        },
+      );
+      assert.deepEqual(timeout.mock.calls, [[CONTROL_PLANE_BUDGET_MS]]);
+      bound.abort(new DOMException("timed out", "TimeoutError"));
+      await assert.doesNotReject(() => complete);
+    } finally {
+      timeout.mockRestore();
+    }
+    assert.equal(logs.length, 1);
+    assert.match(logs[0]!, /^complete failed session=sess-1 turn=2: timed out/);
   });
 });
 

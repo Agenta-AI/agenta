@@ -153,6 +153,24 @@ describe("turn ledger credential rotation", () => {
     });
   }
 
+  it("hands the run's signal to the turn-start write and not to the completion", async () => {
+    const fake = fakeTurn(async () => "cancelled");
+    const seen: Array<AbortSignal | undefined> = [];
+    const ledger = fake.deps.appendSessionTurn!;
+    const watched: AppendSessionTurnFn = (id, harness, index, turn, deps) => {
+      seen.push(deps.signal);
+      return ledger(id, harness, index, turn, deps);
+    };
+    watched.complete = (id, index, turn, deps) => {
+      seen.push(deps.signal);
+      return ledger.complete!(id, index, turn, deps);
+    };
+    fake.deps.appendSessionTurn = watched;
+    await runSandboxAgent(fake.request, undefined, fake.signal, fake.deps, { credential: fake.credential });
+    // A Stop must not cut the completion: a settled cancel is a resume point.
+    assert.deepEqual(seen, [fake.signal, undefined]);
+  });
+
   it("uses an already-refreshed credential when appending the start row", async () => {
     const fake = fakeTurn(async () => "completed");
     fake.rotate("Secret fresh-before-start");

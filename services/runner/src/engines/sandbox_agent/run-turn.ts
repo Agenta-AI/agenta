@@ -784,7 +784,7 @@ export async function runTurn(
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,
         },
-        { authorization: credential(), log: logger },
+        { authorization: credential(), log: logger, signal },
       ).catch((err: unknown) => {
         if (!(err instanceof SessionTurnIndexTaken) || resumesPausedTurn)
           return;

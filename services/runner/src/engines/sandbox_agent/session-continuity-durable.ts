@@ -8,7 +8,10 @@
  * race. It replaces the old `syncHarnessSessionDurable`, which GET-then-PUT the whole
  * `session_states.data` blob.
  */
-import { fetchControlPlane } from "../../sessions/control-plane-fetch.ts";
+import {
+  CONTROL_PLANE_BUDGET_MS,
+  fetchControlPlane,
+} from "../../sessions/control-plane-fetch.ts";
 import { apiBase } from "../../apiBase.ts";
 import type { ReferenceKey } from "../../sessions/interactions.ts";
 import type { SessionContinuityStore } from "./session-continuity.ts";
@@ -47,6 +50,8 @@ export interface DurableContinuityDeps {
   authorization: string;
   fetchImpl?: typeof fetch;
   log?: (msg: string) => void;
+  /** The turn's own cancel (a user Stop): it ends a ledger write the turn is waiting on. */
+  signal?: AbortSignal;
 }
 
 /** The fields the turn-start write carries, beyond the (session, harness, turnIndex) key. */
@@ -222,6 +227,16 @@ export async function hydrateHarnessSessionFromDurable(
   );
 }
 
+/**
+ * A ledger write is a single attempt the turn awaits, so it gets the control-plane budget and the
+ * turn's cancel: an API that accepts the connection and then stalls must not hold the turn, and a
+ * Stop must not wait on it. Not retried: a repeated turn-start would answer its own 409.
+ */
+function ledgerWriteSignal(deps: DurableContinuityDeps): AbortSignal {
+  const bound = AbortSignal.timeout(CONTROL_PLANE_BUDGET_MS);
+  return deps.signal ? AbortSignal.any([deps.signal, bound]) : bound;
+}
+
 /** Complete a started row once; retries leave the first completion unchanged. */
 export async function completeSessionTurn(
   sessionId: string,
@@ -235,6 +250,7 @@ export async function completeSessionTurn(
   try {
     const res = await doFetch(`${base}/sessions/turns/complete`, {
       method: "POST",
+      signal: ledgerWriteSignal(deps),
       headers: {
         "content-type": "application/json",
         authorization: deps.authorization,
@@ -277,6 +293,7 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
   try {
     res = await doFetch(`${base}/sessions/turns/`, {
       method: "POST",
+      signal: ledgerWriteSignal(deps),
       headers: {
         "content-type": "application/json",
         authorization: deps.authorization,
@@ -298,9 +315,12 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
       }),
     });
   } catch (err) {
-    log(
-      `append failed session=${sessionId} harness=${harness}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
-    );
+    // A Stop aborts with a frozen marker object, and Node's fetch then rejects with its own failure
+    // to attach a stack to it, which names nothing about the Stop.
+    const detail = deps.signal?.aborted
+      ? "the turn was cancelled"
+      : String(err instanceof Error ? err.message : err).slice(0, 160);
+    log(`append failed session=${sessionId} harness=${harness}: ${detail}`);
     return;
   }
   if (res.status === 409) throw new SessionTurnIndexTaken(sessionId, turnIndex);
