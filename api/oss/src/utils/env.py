@@ -455,6 +455,17 @@ class WorkersConfig(BaseModel):
     streams: list[str] = _load_csv_env_list("AGENTA_WORKER_STREAMS")
     queues: list[str] = _load_csv_env_list("AGENTA_WORKER_QUEUES")
 
+    # Where a long-running loop records that it is still turning. A liveness probe
+    # then fails when the file goes stale, which is the only way to notice a worker
+    # that is alive and no longer working: its process is PID 1 in its container, so
+    # the container lifecycle already covers a process that exits, and nothing covers
+    # one that stops making progress.
+    #
+    # Empty means write nothing, which is the default. A deployment that wants the
+    # probe sets this and points the probe at the same path, so the writer and the
+    # reader can never disagree. The Helm chart does both from one value.
+    heartbeat_file: str = os.getenv("AGENTA_HEARTBEAT_FILE") or ""
+
     model_config = ConfigDict(extra="ignore")
 
 

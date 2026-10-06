@@ -662,8 +662,11 @@ export interface GatewayCredentials {
  * - `deployment` is HOW that provider is reached: `direct` (the provider's own API), `custom`
  *   (an OpenAI-compatible third party such as OpenRouter or a self-hosted gateway), or `bedrock`
  *   / `vertex` (a cloud reseller with its own auth scheme).
- * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is what an
- *   OpenAI-compatible deployment needs; `apiVersion` is what Azure needs; `region` is what AWS
+ * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is the
+ *   provider's API base, the prefix a client puts before an operation path, so its shape is the
+ *   provider's own (`https://api.openai.com/v1`, `https://api.anthropic.com`,
+ *   `https://generativelanguage.googleapis.com/v1beta`); the runner hands it to the harness as
+ *   written. `apiVersion` is what Azure needs; `region` is what AWS
  *   and Vertex need; `headers` carries non-secret routing headers some gateways require. A
  *   given deployment fills in the subset that applies to it and leaves the rest unset. AWS and
  *   the other cloud resellers are covered by exactly this: `deployment: "bedrock"` plus

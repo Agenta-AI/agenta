@@ -1365,6 +1365,26 @@
     "fullnameOverride": {
       "type": "string"
     },
+    "heartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Liveness for cron and the two workers, from a file the application keeps fresh. One value sets the path the application writes and the path the probe reads.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "false removes the variable and the probes together."
+        },
+        "path": {
+          "type": "string",
+          "description": "Directory each loop writes its own file into, inside every container that reports. Default /tmp/agenta-heartbeat. Avoid whitespace: it works, because the probe quotes it, but it makes every command harder to read."
+        },
+        "staleSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How old a loop's file may be before the probe fails, in seconds. Also the probe's initial delay. Default 120. An integer, because the value goes into an integer shell comparison and into initialDelaySeconds: a string there renders a probe that can never pass."
+        }
+      }
+    },
     "podDisruptionBudgets": {
       "type": "object",
       "additionalProperties": false,

@@ -110,6 +110,20 @@ describe("RunFailureCallout", () => {
         expect(rendered).not.toContain("Add your key")
     })
 
+    it("offers Try again when the runner ended a turn that stopped making progress", () => {
+        const rendered = text(
+            <RunFailureCallout
+                text="The agent made no progress for 30 minutes, so the turn was ended. Send the message again to retry."
+                stateKey="turn-idle"
+                code="run_idle_time_limit"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("The agent made no progress for 30 minutes")
+        expect(rendered).toContain("Try again")
+    })
+
     it("offers Try again for an offline send that failed before acceptance", () => {
         const rendered = text(
             <RunFailureCallout
