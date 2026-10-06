@@ -152,14 +152,21 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     raise ToolConfigurationError("Unsupported tool configuration shape", value=value)
 
 
+# Tool types a revision holds at most one entry of. Such an entry has no name: its type is
+# its identity, which is also how the change-set engine keys it in the `tools` list.
+# `agenta_tools`: two maps would need a rule to combine them, and an empty one would stop
+# meaning "off".
+SINGLE_ENTRY_TOOL_TYPES = frozenset({"agenta_tools"})
+
+
 def _check_single_entries(tool_config: ToolConfig, seen: set[tuple[str, str]]) -> None:
-    if isinstance(tool_config, AgentaToolsConfig):
-        # Two maps would need a rule to combine them, and an empty one would stop meaning "off".
-        if ("agenta_tools", "") in seen:
+    kind = getattr(tool_config, "type", None)
+    if kind in SINGLE_ENTRY_TOOL_TYPES:
+        if (kind, "") in seen:
             raise ToolConfigurationError(
-                "Duplicate agenta_tools entry: an agent revision holds at most one"
+                f"Duplicate {kind} entry: an agent revision holds at most one"
             )
-        seen.add(("agenta_tools", ""))
+        seen.add((kind, ""))
         return
     """One revision holds at most one connection entry per provider and integration.
 

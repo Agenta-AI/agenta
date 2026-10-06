@@ -190,6 +190,19 @@ async def test_the_agent_writes_need_a_session_and_the_reads_do_not():
     assert _permissions(with_session) == tools
 
 
+def test_the_session_tool_list_is_every_agenta_tool_that_binds_the_session():
+    # The resolver cannot import the op catalog (an import cycle), so its list is written
+    # out. This keeps it equal to the ops whose binding reads `$ctx.session.id`.
+    from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+    from agenta.sdk.agents.tools.resolver import _SESSION_TOOLS
+
+    assert _SESSION_TOOLS == {
+        op
+        for op in AGENTA_TOOLS
+        if "$ctx.session.id" in PLATFORM_OPS[op].context_bindings.values()
+    }
+
+
 async def test_the_entry_is_skipped_with_a_warning_without_an_api_address(caplog):
     with caplog.at_level(logging.WARNING):
         resolved = await _resolve([_entry(**DEFAULT_AGENTA_TOOLS)], platform=_NoApi())

@@ -12,7 +12,10 @@ went with it.
 
 from __future__ import annotations
 
+import textwrap
+
 from ..skills import SkillFile, SkillTemplate
+from ..tools.models import AGENTA_TOOLS
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
@@ -70,7 +73,8 @@ it: a misplaced or misspelled field inside an entry commits fine and only bites 
 next runs. Get the shape right from this reference before you commit.
 """
 
-_CONFIG_SCHEMA_FIELDS = """\
+_CONFIG_SCHEMA_FIELDS = (
+    """\
 
 ## The whole object
 
@@ -184,7 +188,10 @@ read it when a revision carries one, never write a new one:
   "allow" } }`. Each value is `allow` or `ask`; a tool not listed is off. Keep this entry when
   you edit `tools`; the author manages it in the Agenta tools section. Its selector key is
   `agenta_tools`, so one tool is one `set` on
-  `[..., {"list":"tools","key":"agenta_tools"}, "tools", "<tool>"]`.
+  `[..., {"list":"tools","key":"agenta_tools"}, "tools", "<tool>"]`. The Agenta tools:
+"""
+    + textwrap.indent(textwrap.fill(", ".join(AGENTA_TOOLS) + ".", width=94), "  ")
+    + """
 
 ### mcps
 
@@ -263,6 +270,7 @@ the run:
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":
   "strict"|"best_effort" }`.
 """
+)
 
 # The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the
 # contracts (docs/design/agent-config-editing/contracts/) actually produce. Every example

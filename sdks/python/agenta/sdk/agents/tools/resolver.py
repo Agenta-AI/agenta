@@ -189,9 +189,10 @@ def _drop_duplicate_reserved_client_tools(
     return kept
 
 
-# Their binding reads the run's session ID, so a run without one cannot call them. The runner
-# refuses a call whose `$ctx.session.id` binding has no value, so offering one of these to a
-# run without a session would only offer a tool that fails on every call.
+# The Agenta tools whose binding reads the run's session ID. The runner refuses a call whose
+# `$ctx.session.id` binding has no value, so offering one of these to a run without a session
+# would only offer a tool that fails on every call. Written out because importing the op
+# catalog here is an import cycle; a test keeps it equal to the catalog's bindings.
 _SESSION_TOOLS = frozenset(
     {"get_current_session", "rename_session", "create_agent", "edit_agent_config"}
 )
