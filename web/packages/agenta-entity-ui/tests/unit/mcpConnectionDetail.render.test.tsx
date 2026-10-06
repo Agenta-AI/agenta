@@ -19,12 +19,16 @@ import type {MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {listMcpTools} = vi.hoisted(() => ({listMcpTools: vi.fn()}))
+const {listMcpTools, editMcpEndpoint} = vi.hoisted(() => ({
+    listMcpTools: vi.fn(),
+    editMcpEndpoint: vi.fn(),
+}))
 
 // The component imports the api module directly, so the package barrel is the wrong seam.
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../../agenta-entities/src/mcpEndpoint/api/api")>()),
     listMcpTools,
+    editMcpEndpoint,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
@@ -88,6 +92,7 @@ const button = (label: string) =>
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
     listMcpTools.mockReset()
+    editMcpEndpoint.mockReset()
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
@@ -297,5 +302,50 @@ describe("McpConnectionDetail: a tool list that could not be read", () => {
 
         expect(text()).not.toContain("The gateway timed out.")
         expect(toolNames()).toEqual(["deploy"])
+    })
+})
+
+describe("McpConnectionDetail: renaming", () => {
+    const typeName = async (value: string) => {
+        const box = document.querySelector<HTMLInputElement>('[aria-label="Connection name"]')!
+        await act(async () => {
+            const setter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype,
+                "value",
+            )!.set!
+            setter.call(box, value)
+            box.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await settle()
+    }
+
+    const pressEnter = async () => {
+        const box = document.querySelector<HTMLInputElement>('[aria-label="Connection name"]')!
+        await act(async () => {
+            box.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
+        })
+    }
+
+    it("sends one rename when Enter is pressed again while the save is in flight", async () => {
+        listMcpTools.mockResolvedValue([])
+        // Held in flight, so the second Enter lands while the first save is still pending.
+        let finishSave!: () => void
+        editMcpEndpoint.mockImplementation(
+            () =>
+                new Promise<void>((resolve) => {
+                    finishSave = resolve
+                }),
+        )
+        await open(connected())
+        await typeName("Acme Prod")
+
+        await pressEnter()
+        await pressEnter()
+        await act(async () => {
+            finishSave()
+        })
+        await settle()
+
+        expect(editMcpEndpoint).toHaveBeenCalledTimes(1)
     })
 })
