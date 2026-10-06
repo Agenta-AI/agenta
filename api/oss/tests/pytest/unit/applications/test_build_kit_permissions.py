@@ -1,8 +1,16 @@
 from copy import deepcopy
 
 import pytest
+from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+from agenta.sdk.agents.tools import (
+    CallbackToolSpec,
+    GatewayToolResolution,
+    ToolCallback,
+    ToolResolver,
+)
 from agenta.sdk.agents.tools.models import effective_permission
+from agenta.sdk.utils.types import build_agent_v0_default
 from oss.src.apis.fastapi.agent_templates.models import TemplateLoadRequest
 from oss.src.core.workflows.build_kit import (
     DEFAULT_BUILD_KIT_OPS,
@@ -97,3 +105,56 @@ def test_shared_frontend_resolution_fixtures_apply_identically():
             if t.get("op") in {"read_config", "create_schedule"}
         }
         assert actual == case["expected"]
+
+
+class _Platform:
+    """One spec per platform tool, so the test reads the final tool list of the run."""
+
+    async def resolve(self, tools, *, permission_default="allow_reads"):
+        return GatewayToolResolution(
+            tool_specs=[
+                CallbackToolSpec(
+                    name=tool.op,
+                    description=tool.op,
+                    call={"method": "POST", "path": f"/api/{tool.op}"},
+                    permission=tool.permission,
+                )
+                for tool in tools
+            ],
+            tool_callback=ToolCallback(endpoint="https://example/tools/call"),
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_switched_off_kit_tool_is_gone_from_the_run_even_when_saved():
+    """Codex review #1: the saved `agenta_tools` map brought the tools back.
+
+    The resolver expands every tool the saved map lists, so the kit's off switch has to
+    reach that map too. The default saved map holds the four agent tools; `read_config` and
+    `commit_revision` show the same switch works for the self-edit pair.
+    """
+    agent = build_agent_v0_default()
+    agent["tools"][0]["tools"].update(read_config="allow", commit_revision="ask")
+    saved = deepcopy(agent)
+    switched_off = [
+        "read_agent_config",
+        "create_agent",
+        "edit_agent_config",
+        "read_config",
+        "commit_revision",
+    ]
+
+    run = apply_ui_build_kit({"agent": agent}, switched_off)["agent"]
+    # The kit's embeds resolve server-side before a run; they carry no platform tool.
+    run["tools"] = [tool for tool in run["tools"] if "@ag.embed" not in tool]
+    run["skills"] = []
+    template = AgentTemplate.from_params({"agent": run})
+    resolved = await ToolResolver(platform_resolver=_Platform()).resolve(
+        template.tools, session_id="s-1"
+    )
+
+    names = {spec.name for spec in resolved.tool_specs}
+    assert names.isdisjoint(switched_off)
+    assert {"list_agents", "rename_session", "test_run"} <= names
+    # Only the run copy changes.
+    assert agent == saved
