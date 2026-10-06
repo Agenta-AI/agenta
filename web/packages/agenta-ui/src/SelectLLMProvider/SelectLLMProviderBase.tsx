@@ -732,7 +732,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 variant="ghost"
                                 className={clsx(
-                                    "rounded-none py-1.5",
+                                    // 13px on a phone, 14px from md up (Input defaults to 16px).
+                                    "rounded-none py-1.5 text-[13px] md:text-sm",
                                     searchSuffix ? "pr-20" : "pr-8",
                                 )}
                             />

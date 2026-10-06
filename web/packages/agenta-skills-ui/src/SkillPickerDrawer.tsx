@@ -79,7 +79,7 @@ function SkillRow({
                     Agenta
                 </span>
             ) : option.source ? (
-                <span className="max-w-32 shrink-0 truncate rounded bg-muted px-1.5 py-px font-mono text-[10px] text-muted-foreground">
+                <span className="hidden max-w-32 shrink-0 truncate rounded bg-muted px-1.5 py-px font-mono text-[10px] text-muted-foreground sm:block">
                     {option.source.label}
                 </span>
             ) : null}

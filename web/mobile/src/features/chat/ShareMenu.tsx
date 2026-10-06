@@ -60,6 +60,7 @@ export const ShareMenu = ({
         resolveAgentName,
         projectId,
         workspaceId,
+        side: "right",
     })
 
     const sendTemplateRequest = (text: string) => {
