@@ -16,6 +16,7 @@ import {useWalletSummary} from "../wallet/useWalletSummary"
 export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "apiKeys",
     "llms",
+    "analytics",
     "secrets",
     "webhooks",
     "tools",

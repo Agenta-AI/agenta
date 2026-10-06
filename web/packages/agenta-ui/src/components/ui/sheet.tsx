@@ -77,17 +77,16 @@ const sheetVariants = cva(
                     "inset-x-0 bottom-0 h-auto w-full border-t",
                     "data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
                 ],
-                // The app's form-panel idiom, promoted from web/mobile's local sheet: a bottom
-                // sheet on a phone, the floating right-edge drawer from `lg` up. The literal edges stay
-                // literal. A panel this wide would otherwise stretch a two-field form across a
-                // tablet, so the sheet half caps and centres and rounds its top.
+                // The app's form-panel idiom, promoted from web/mobile's local sheet: a full-width
+                // bottom sheet below `lg`, the floating right-edge drawer from `lg` up. The literal
+                // edges stay literal.
                 responsive: [
-                    "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] rounded-t-2xl border-t max-lg:shadow-drawer-bottom",
+                    "inset-x-0 bottom-0 h-auto max-h-[85vh] w-full rounded-t-2xl border-t max-lg:shadow-drawer-bottom",
                     "data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
                     // Every bottom-sheet property is unset explicitly: Tailwind would otherwise
                     // keep the narrower rule. The width reads a variable so a caller's `width`
                     // applies at `lg` only, where there is room for it.
-                    "lg:inset-x-auto lg:mx-0 lg:max-h-none lg:w-[var(--ag-sheet-responsive-width,480px)] lg:max-w-[90vw]",
+                    "lg:inset-x-auto lg:max-h-none lg:w-[var(--ag-sheet-responsive-width,480px)] lg:max-w-[90vw]",
                     "lg:inset-y-2 lg:right-2 lg:rounded-xl lg:border-0",
                     "lg:data-[state=open]:animate-sheet-in-right lg:data-[state=closed]:animate-sheet-out-right",
                 ],

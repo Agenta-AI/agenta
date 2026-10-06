@@ -4,6 +4,7 @@ export type SettingsTabKey =
     | "apiKeys"
     | "secrets"
     | "llms"
+    | "analytics"
     | "tools"
     | "channels"
     | "webhooks"
@@ -78,6 +79,11 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "project",
         description: "Connect the AI providers your agents, prompts, and evaluations run on.",
         docs: {label: "Provider setup", href: `${DOCS_BASE}/faq/integrations/llm-providers`},
+    },
+    {
+        key: "analytics",
+        scope: "project",
+        description: "See what your agents cost, how often they run, and how reliably they finish.",
     },
     {
         key: "tools",
@@ -188,6 +194,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     secrets: "Secrets",
     // The tab key stays `llms` so existing `?tab=llms` links keep working.
     llms: "AI providers",
+    analytics: "Analytics",
     tools: "Tools",
     channels: "Channels",
     webhooks: "Webhooks",

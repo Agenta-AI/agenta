@@ -20,3 +20,4 @@ export {
     VIEWPORT_HEIGHT_VAR,
     type VisualViewportSample,
 } from "./useVisualViewport"
+export {useScrollFadeEdges} from "./useScrollFadeEdges"

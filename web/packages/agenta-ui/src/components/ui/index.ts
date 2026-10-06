@@ -251,3 +251,12 @@ export {
     type DataTableColumn,
     type DataTableAction,
 } from "./data-table"
+export {
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+    ChartLegend,
+    ChartLegendContent,
+    ChartStyle,
+    type ChartConfig,
+} from "./chart"
