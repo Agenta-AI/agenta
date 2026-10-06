@@ -1012,6 +1012,9 @@ _SET_INSTRUCTIONS_EXAMPLE = (
     '"value": "..."}'
 )
 _BOUND_FIELDS = frozenset({"caller_agent_id", "caller_session_id"})
+_EDIT_AGENT_CONFIG_FIELDS = (
+    frozenset({"agent", "base_revision_id", "operations"}) | _BOUND_FIELDS
+)
 _CREATE_AGENT_FIELDS = frozenset({"name", "description", "operations"}) | _BOUND_FIELDS
 
 
@@ -1074,23 +1077,17 @@ async def _resolve_other_agent(
 
     Refused: an unknown name, a static platform workflow, the caller itself, an archived
     agent, and a workflow that is not an agent. The lookup is scoped to the caller's
-    project, so an agent from another project is simply unknown.
+    project, so an agent from another project is simply unknown. A static workflow is
+    served from code with `is_static` set; a reserved slug the catalog does not hold is
+    simply unknown.
     """
-    from oss.src.core.workflows.types import is_static_workflow_slug
-
     raw, reference = _agent_reference(arguments)
-    head = (
-        None
-        if is_static_workflow_slug(reference.slug)
-        else await workflows_service.fetch_workflow_revision(
-            project_id=project_id,
-            workflow_ref=reference,
-            include_archived=True,
-        )
+    head = await workflows_service.fetch_workflow_revision(
+        project_id=project_id,
+        workflow_ref=reference,
+        include_archived=True,
     )
-    if is_static_workflow_slug(reference.slug) or (
-        head is not None and head.flags is not None and head.flags.is_static
-    ):
+    if head is not None and head.flags is not None and head.flags.is_static:
         raise _agent_refusal(
             "agent_is_static",
             f"'{raw}' is a built-in Agenta workflow, not an agent you can read or change.",
@@ -1329,6 +1326,17 @@ async def handle_edit_agent_config(
     try:
         parsed = _parse_arguments(arguments)
         caller_id = _bound_caller(parsed)
+        if "operations" not in parsed and {"delta", "workflow_revision"} & set(parsed):
+            # The `commit_revision` shape, copied over. The change is there; only its
+            # place is wrong, and "not a whole configuration" would not say so.
+            raise _ArgumentsRefused(
+                "`operations` sits at the top level of this tool, not inside `delta` "
+                "or `workflow_revision`.",
+                next_step=(
+                    "Send `operations` at the top level, beside `agent` and "
+                    "`base_revision_id`."
+                ),
+            )
         if "operations" not in parsed and set(parsed) - _EDIT_AGENT_CONFIG_FIELDS:
             # A whole configuration, in whatever key the model chose. Refused, not filtered,
             # for the same reason `commit_revision` refuses one.
@@ -1404,11 +1412,6 @@ async def handle_edit_agent_config(
             "warnings": [w.model_dump(mode="json") for w in outcome.warnings],
         }
     )
-
-
-_EDIT_AGENT_CONFIG_FIELDS = (
-    frozenset({"agent", "base_revision_id", "operations"}) | _BOUND_FIELDS
-)
 
 
 def _create_refusal(error: AgentError) -> AgentError:

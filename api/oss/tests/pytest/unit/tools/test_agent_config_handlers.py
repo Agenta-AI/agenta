@@ -373,12 +373,20 @@ class TestTheTargetIsAnotherAgentInThisProject:
     @pytest.mark.parametrize(
         "head,agent,code",
         [
-            (_head(), "__ag__build_kit", "agent_is_static"),
+            (_head(is_static=True), "__ag__build_kit", "agent_is_static"),
             (_head(is_static=True), STATIC_ID, "agent_is_static"),
+            # A reserved slug the static catalog does not hold is simply unknown.
+            (None, "__ag__nothing", "agent_not_found"),
             (_head(archived=True), "invoice-helper-k3x9", "agent_archived"),
             (_head(is_agent=False), "invoice-helper-k3x9", "not_an_agent"),
         ],
-        ids=["static-slug", "static-id", "archived", "not-an-agent"],
+        ids=[
+            "static-slug",
+            "static-id",
+            "unknown-reserved",
+            "archived",
+            "not-an-agent",
+        ],
     )
     @pytest.mark.parametrize(
         "handler", [handle_read_agent_config, handle_edit_agent_config]
@@ -529,6 +537,26 @@ class TestEditAgentConfig:
 
         assert result.content.code == "invalid_arguments"
         assert "read_agent_config" in result.content.next_step
+
+    @pytest.mark.parametrize(
+        "wrapper",
+        [
+            lambda ops: {"delta": {"operations": ops}},
+            lambda ops: {"workflow_revision": {"delta": {"operations": ops}}},
+        ],
+        ids=["delta", "workflow_revision"],
+    )
+    async def test_the_commit_revision_shape_says_where_operations_go(
+        self, service, wrapper
+    ):
+        arguments = _edit_args()
+        arguments.update(wrapper(arguments.pop("operations")))
+
+        result = await _call(handle_edit_agent_config, service, **arguments)
+
+        assert result.content.code == "invalid_arguments"
+        assert "at the top level" in result.content.next_step
+        service.commit_workflow_revision.assert_not_awaited()
 
     async def test_a_whole_configuration_is_refused_like_self_edit(self, service):
         arguments = _edit_args(data={"parameters": {"agent": {}}})
