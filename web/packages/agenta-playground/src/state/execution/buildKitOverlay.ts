@@ -175,19 +175,28 @@ export const withBuildKitOverlay = (
             isRecord(tool) && tool.type === "platform" ? [tool.op] : [],
         ),
     )
-    // Removing an overlay entry must not reveal a same-op entry in the base config.
+    const switchedOff = (op: unknown) => kitOps.has(op) && disabledOps.includes(op as string)
+    // Removing an overlay entry must not reveal a same-op entry in the base config, nor the
+    // same tool in the saved `agenta_tools` map, which the resolver expands into a platform
+    // tool. Only this run copy changes; the saved entry is the agent's own choice.
     const filteredBase = Array.isArray(base.tools)
         ? {
               ...base,
-              tools: base.tools.filter(
-                  (tool) =>
-                      !(
-                          isRecord(tool) &&
-                          tool.type === "platform" &&
-                          kitOps.has(tool.op) &&
-                          disabledOps.includes(tool.op as string)
-                      ),
-              ),
+              tools: base.tools
+                  .filter(
+                      (tool) =>
+                          !(isRecord(tool) && tool.type === "platform" && switchedOff(tool.op)),
+                  )
+                  .map((tool) =>
+                      isRecord(tool) && tool.type === "agenta_tools" && isRecord(tool.tools)
+                          ? {
+                                ...tool,
+                                tools: Object.fromEntries(
+                                    Object.entries(tool.tools).filter(([op]) => !switchedOff(op)),
+                                ),
+                            }
+                          : tool,
+                  ),
           }
         : base
     const agent = applyBuildKitOverlay(filteredBase, effective)
