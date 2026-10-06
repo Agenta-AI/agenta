@@ -5,7 +5,7 @@ import {
   DEFAULT_DAYTONA_SNAPSHOT,
   type RunnerDaytonaConfig,
 } from "../../config/runner-config.ts";
-import { markSandboxCreated } from "./created-sandboxes.ts";
+import { markSandboxCreated, rawSandboxId } from "./created-sandboxes.ts";
 
 type DaytonaClient = Pick<Daytona, "get">;
 type DaytonaCreateObjectWithSnapshot = {
@@ -260,9 +260,7 @@ export function daytonaWithLifecycle(
       }
     },
     async refreshActivity(sandboxId: string): Promise<void> {
-      const id = sandboxId.startsWith("daytona/")
-        ? sandboxId.slice("daytona/".length)
-        : sandboxId;
+      const id = rawSandboxId(sandboxId);
       try {
         // Daytona counts API interactions as activity. This is believed to reset its idle-timer
         // clock; Slice 5 verifies that behavior against a live sandbox.
@@ -345,7 +343,6 @@ export async function readDaytonaSandboxResources(
   sandboxId: string,
   client: DaytonaClient = buildDaytonaClient(config),
 ): Promise<{ vcpu: number; memoryGib: number }> {
-  const id = sandboxId.startsWith("daytona/") ? sandboxId.slice("daytona/".length) : sandboxId;
-  const sandbox = await client.get(id);
+  const sandbox = await client.get(rawSandboxId(sandboxId));
   return { vcpu: Number(sandbox.cpu), memoryGib: Number(sandbox.memory) };
 }

@@ -10,6 +10,7 @@ import {
 import { DaytonaReconnectTerminalError } from "../../src/engines/sandbox_agent/daytona-provider.ts";
 import {
   markSandboxCreated,
+  markSandboxDeleted,
   resetCreatedSandboxIds,
 } from "../../src/engines/sandbox_agent/created-sandboxes.ts";
 import {
@@ -498,6 +499,15 @@ describe("process-local Daytona Secret provider", () => {
     markSandboxCreated("own-sandbox");
     await provider.destroy("own-sandbox");
     assert.deepEqual(events, ["sandbox:destroy:own-sandbox"]);
+
+    // A teardown marks the id deleted before it calls the delete; the delete still runs.
+    markSandboxCreated("own-deleting");
+    markSandboxDeleted("daytona/own-deleting");
+    await provider.destroy("own-deleting");
+    assert.deepEqual(events, [
+      "sandbox:destroy:own-sandbox",
+      "sandbox:destroy:own-deleting",
+    ]);
   });
 
   it("deletes the old sandbox and Secrets when the credential SLOT SET changes", async () => {

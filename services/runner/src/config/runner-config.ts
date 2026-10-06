@@ -98,8 +98,6 @@ export interface RunnerServerConfig {
   concurrencyLimit: number;
   logLevel: string;
   replicaId: string | undefined;
-  /** The URL that reaches this process directly; unset means "use the Service URL". */
-  replicaAddress: string | undefined;
   token: string | undefined;
   /** How long a shutdown lets admitted turns finish on their own before it cancels them. */
   shutdownWaitSeconds: number;
@@ -444,7 +442,6 @@ function parseServer(env: Env): RunnerServerConfig {
     ),
     logLevel: nonEmpty(env.AGENTA_RUNNER_LOG_LEVEL) ?? DEFAULT_LOG_LEVEL,
     replicaId: nonEmpty(env.AGENTA_RUNNER_REPLICA_ID),
-    replicaAddress: nonEmpty(env.AGENTA_RUNNER_REPLICA_ADDRESS),
     token: nonEmpty(env.AGENTA_RUNNER_TOKEN),
     shutdownWaitSeconds: parseNonNegativeInt(
       env.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS,

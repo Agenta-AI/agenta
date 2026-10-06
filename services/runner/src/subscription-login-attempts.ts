@@ -23,6 +23,7 @@
 import { randomUUID } from "node:crypto";
 
 import { apiBase } from "./apiBase.ts";
+import { withinBudget } from "./lifecycle/shutdown.ts";
 import { observeSubscription } from "./subscription-events.ts";
 import type { SubscriptionLogin } from "./protocol.ts";
 
@@ -109,13 +110,7 @@ export type DeviceCodeLogin = (options: {
 
 interface Attempt {
   id: string;
-  provider: string;
   owner: AttemptOwner;
-  createdAt: number;
-  userCode?: string;
-  verificationUri?: string;
-  intervalSeconds?: number;
-  expiresAt?: number;
   abort: AbortController;
 }
 
@@ -266,19 +261,13 @@ export class SubscriptionLoginAttempts {
   async start(provider: string, owner: AttemptOwner): Promise<AttemptView> {
     const id = randomUUID();
     const abort = new AbortController();
-    const attempt: Attempt = {
-      id,
-      provider,
-      owner,
-      createdAt: Date.now(),
-      abort,
-    };
+    const attempt: Attempt = { id, owner, abort };
     this.attempts.set(id, attempt);
 
     let codeIssued = false;
-    let announced: ((info: DeviceCodeInfo) => void) | undefined;
+    let announced: ((view: AttemptView) => void) | undefined;
     let announceFailed: ((err: unknown) => void) | undefined;
-    const deviceCode = new Promise<DeviceCodeInfo>((resolve, reject) => {
+    const deviceCode = new Promise<AttemptView>((resolve, reject) => {
       announced = resolve;
       announceFailed = reject;
     });
@@ -287,14 +276,7 @@ export class SubscriptionLoginAttempts {
       signal: abort.signal,
       onDeviceCode: (info) => {
         codeIssued = true;
-        attempt.userCode = info.userCode;
-        attempt.verificationUri = info.verificationUri;
-        attempt.intervalSeconds =
-          info.intervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS;
-        attempt.expiresAt = info.expiresInSeconds
-          ? Date.now() + info.expiresInSeconds * 1000
-          : undefined;
-        announced?.(info);
+        announced?.(startView(id, info));
       },
     });
 
@@ -325,8 +307,9 @@ export class SubscriptionLoginAttempts {
       },
     );
 
+    let view: AttemptView;
     try {
-      await deviceCode;
+      view = await deviceCode;
     } catch (err) {
       this.attempts.delete(id);
       throw new Error(
@@ -338,7 +321,7 @@ export class SubscriptionLoginAttempts {
       state: "pending",
       provider,
     });
-    return this.view(attempt);
+    return view;
   }
 
   /**
@@ -380,29 +363,23 @@ export class SubscriptionLoginAttempts {
         abandoned: true,
       });
     }
-    const reports = Promise.allSettled(
-      live.map((attempt) =>
-        this.report(
-          {
-            attemptId: attempt.id,
-            projectId: attempt.owner.projectId,
-            secretId: attempt.owner.secretId,
-            state: "failed",
-            error: ABANDONED_ATTEMPT_REASON,
-          },
-          { retry: false },
+    await withinBudget(
+      Promise.allSettled(
+        live.map((attempt) =>
+          this.report(
+            {
+              attemptId: attempt.id,
+              projectId: attempt.owner.projectId,
+              secretId: attempt.owner.secretId,
+              state: "failed",
+              error: ABANDONED_ATTEMPT_REASON,
+            },
+            { retry: false },
+          ),
         ),
       ),
+      budgetMs,
     );
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const expired = new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, budgetMs);
-    });
-    try {
-      await Promise.race([reports, expired]);
-    } finally {
-      clearTimeout(timer);
-    }
   }
 
   /** Test seam: how many attempts the map still holds. */
@@ -438,18 +415,22 @@ export class SubscriptionLoginAttempts {
       // The reporter does not throw. This guard keeps a broken one from crashing the process.
     }
   }
+}
 
-  private view(attempt: Attempt): AttemptView {
-    const view: AttemptView = {
-      attemptId: attempt.id,
-      state: "pending",
-    };
-    if (attempt.userCode) view.userCode = attempt.userCode;
-    if (attempt.verificationUri) view.verificationUri = attempt.verificationUri;
-    if (attempt.expiresAt) view.expiresAt = new Date(attempt.expiresAt).toISOString();
-    if (attempt.intervalSeconds) view.intervalSeconds = attempt.intervalSeconds;
-    return view;
+/**
+ * The start answer, built when the provider issues the code. The attempt keeps no copy of it:
+ * nothing after the start reads the user code.
+ */
+function startView(attemptId: string, info: DeviceCodeInfo): AttemptView {
+  const view: AttemptView = { attemptId, state: "pending" };
+  if (info.userCode) view.userCode = info.userCode;
+  if (info.verificationUri) view.verificationUri = info.verificationUri;
+  if (info.expiresInSeconds) {
+    view.expiresAt = new Date(Date.now() + info.expiresInSeconds * 1000).toISOString();
   }
+  const intervalSeconds = info.intervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS;
+  if (intervalSeconds) view.intervalSeconds = intervalSeconds;
+  return view;
 }
 
 let shared: SubscriptionLoginAttempts | undefined;

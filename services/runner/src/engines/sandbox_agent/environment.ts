@@ -159,10 +159,6 @@ import { sessionSandboxLabels } from "./sandbox-labels.ts";
 import { loadRunnerConfig, sandboxProviderTraits } from "../../config/runner-config.ts";
 import { readDaytonaSandboxResources } from "./daytona-provider.ts";
 import { sandboxUsageContext, startLeasedSandboxMeter } from "../../metering/sandbox-usage.ts";
-import {
-  markSandboxDestroyed,
-  readStoredSandboxPointer,
-} from "./sandbox-reconnect.ts";
 import type {
   AcquireEnvironmentResult,
   InRunnerRunFacts,

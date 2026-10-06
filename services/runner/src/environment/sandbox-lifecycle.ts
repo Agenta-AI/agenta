@@ -15,11 +15,11 @@
  */
 import { conciseError } from "../engines/sandbox_agent/errors.ts";
 import { DaytonaReconnectTerminalError } from "../engines/sandbox_agent/daytona-provider.ts";
-import { wasSandboxCreatedHere } from "../engines/sandbox_agent/created-sandboxes.ts";
 import {
-  markSandboxDestroyed,
-  readStoredSandboxPointer,
-} from "../engines/sandbox_agent/sandbox-reconnect.ts";
+  createdSandboxState,
+  markSandboxDeleted,
+} from "../engines/sandbox_agent/created-sandboxes.ts";
+import { readStoredSandboxPointer } from "../engines/sandbox_agent/sandbox-reconnect.ts";
 import {
   teardownDisposition,
   type TeardownDisposition,
@@ -55,8 +55,8 @@ export interface SandboxAcquireResult {
 }
 
 /**
- * Get a sandbox: reconnect a parked one when a pointer names a sandbox this process created,
- * otherwise create a fresh one.
+ * Get a sandbox: reconnect a parked one when a pointer names a sandbox this process created and
+ * has not deleted, otherwise create a fresh one.
  *
  * A reconnect failure is swallowed, and a confirmed terminal Daytona state gets an extra log line.
  */
@@ -80,14 +80,17 @@ export async function acquire(
 
   // An id this process did not create belongs to another pod, or to this pod before a restart.
   // It is not touched at all: no get, no start, no delete. The owner's pool timer stops it, or
-  // Daytona's autostop and autodelete remove it. See `created-sandboxes.ts`.
-  const ownSandboxPointer =
-    storedSandboxPointer && wasSandboxCreatedHere(storedSandboxPointer.sandboxId)
-      ? storedSandboxPointer
-      : undefined;
+  // Daytona's autostop and autodelete remove it. An id this process deleted would only fail to
+  // reconnect. See `created-sandboxes.ts`.
+  const storedState = storedSandboxPointer
+    ? createdSandboxState(storedSandboxPointer.sandboxId)
+    : undefined;
+  const ownSandboxPointer = storedState === "live" ? storedSandboxPointer : undefined;
   if (storedSandboxPointer && !ownSandboxPointer) {
     log(
-      `stored sandbox=${storedSandboxPointer.sandboxId} was not created by this runner, creating fresh`,
+      storedState === "deleted"
+        ? `stored sandbox=${storedSandboxPointer.sandboxId} was deleted by this runner, creating fresh`
+        : `stored sandbox=${storedSandboxPointer.sandboxId} was not created by this runner, creating fresh`,
     );
   }
 
@@ -191,8 +194,8 @@ export async function teardown(
   if (!parked) {
     // Record the id BEFORE the delete call, and record it even when the call throws. A delete
     // that failed may still have removed the sandbox, so reconnecting to it is a wasted round
-    // trip either way. See `markSandboxDestroyed`.
-    markSandboxDestroyed(sandbox?.sandboxId ?? input.plannedSandboxId ?? undefined);
+    // trip either way. See `markSandboxDeleted`.
+    markSandboxDeleted(sandbox?.sandboxId ?? input.plannedSandboxId ?? undefined);
     // SWALLOWED, BUT NEVER SILENT. Teardown must always complete, so the rejection cannot
     // propagate — but it is the only signal that a remote sandbox, and on Daytona the Secret
     // mounted into it, may still exist. It used to vanish here, so a stranded pair left no trace

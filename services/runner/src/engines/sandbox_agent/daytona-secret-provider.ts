@@ -4,7 +4,7 @@ import type {
   CredentialDeliveryCapabilities,
   CredentialDeliveryPort,
 } from "../../providers/credential-delivery-port.ts";
-import { wasSandboxCreatedHere } from "./created-sandboxes.ts";
+import { rawSandboxId, wasSandboxCreatedHere } from "./created-sandboxes.ts";
 import { DaytonaReconnectTerminalError } from "./daytona-provider.ts";
 import { planSlotKeys, type DaytonaSecretPlan } from "./daytona-secret-plan.ts";
 import {
@@ -47,7 +47,7 @@ export interface ProcessLocalDaytonaSecretProvider extends DaytonaProviderLike {
    * the key is consumed by that cleanup.
    *
    * Takes either id shape: the raw provider id, or the sandbox-agent handle's
-   * `"<provider>/<rawId>"`, which is the one the acquire path holds. See `namesSandbox`.
+   * `"<provider>/<rawId>"`, which is the one the acquire path holds. See `rawSandboxId`.
    */
   retainSecretsOnDestroy(sandboxId: string): void;
   /** The lease a retained destroy handed back. Returned once; undefined if nothing was kept. */
@@ -96,29 +96,17 @@ const processLocalRegistry = new Map<string, RegistryEntry>();
 const PROVIDER_NAME = "daytona";
 
 /**
- * Whether `requested` names the sandbox a cleanup is about.
- *
- * TWO ID SHAPES, ONE SANDBOX. This registry is keyed by the RAW id the provider returned from
- * create, but the sandbox-agent handle exposes `"<provider>/<rawId>"` and that prefixed form is
- * what the runner stores, reconnects with, and therefore has in hand. Accepting both is what lets
- * `retainSecretsOnDestroy` be called with the id the caller actually holds, instead of making it
- * reach into the vendored client for a private raw-id field.
- */
-function namesSandbox(requested: string, sandboxId: string): boolean {
-  return (
-    requested === sandboxId || requested === `${PROVIDER_NAME}/${sandboxId}`
-  );
-}
-
-/**
  * Whether this process holds a Secret allocation for the sandbox, in either id shape. Only the
  * process that created a sandbox through the wrapper has one.
+ *
+ * TWO ID SHAPES, ONE SANDBOX. The registry is keyed by the RAW id the provider returned from
+ * create, but the sandbox-agent handle exposes `"<provider>/<rawId>"` and that prefixed form is
+ * what the runner stores, reconnects with, and therefore has in hand. Reducing a caller's id with
+ * `rawSandboxId` is what lets this check and `retainSecretsOnDestroy` take the id the caller
+ * actually holds, instead of making it reach into the vendored client for a private raw-id field.
  */
 export function holdsProcessLocalSecretAllocation(sandboxId: string): boolean {
-  for (const key of processLocalRegistry.keys()) {
-    if (namesSandbox(sandboxId, key)) return true;
-  }
-  return false;
+  return processLocalRegistry.has(rawSandboxId(sandboxId));
 }
 
 function plansMatch(entry: RegistryEntry, createFingerprint: string): boolean {
@@ -332,7 +320,7 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
     entry.lease.detach();
     if (
       retainSecretsForSandbox !== undefined &&
-      namesSandbox(retainSecretsForSandbox, sandboxId)
+      rawSandboxId(retainSecretsForSandbox) === sandboxId
     ) {
       retainSecretsForSandbox = undefined;
       retainedLease = entry.lease;

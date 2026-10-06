@@ -68,7 +68,7 @@ function realSleep(ms: number): Promise<void> {
 }
 
 /** Resolve when `work` settles or `budgetMs` passes, whichever is first. True when it settled. */
-async function withinBudget(
+export async function withinBudget(
   work: Promise<unknown>,
   budgetMs: number,
 ): Promise<boolean> {

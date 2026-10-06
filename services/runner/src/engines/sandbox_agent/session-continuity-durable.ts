@@ -8,10 +8,7 @@
  * race. It replaces the old `syncHarnessSessionDurable`, which GET-then-PUT the whole
  * `session_states.data` blob.
  */
-import {
-  CONTROL_PLANE_BUDGET_MS,
-  fetchControlPlane,
-} from "../../sessions/control-plane-fetch.ts";
+import { fetchControlPlane } from "../../sessions/control-plane-fetch.ts";
 import { apiBase } from "../../apiBase.ts";
 import type { ReferenceKey } from "../../sessions/interactions.ts";
 import type { SessionContinuityStore } from "./session-continuity.ts";
@@ -232,9 +229,26 @@ export async function hydrateHarnessSessionFromDurable(
  * turn's cancel: an API that accepts the connection and then stalls must not hold the turn, and a
  * Stop must not wait on it. Not retried: a repeated turn-start would answer its own 409.
  */
-function ledgerWriteSignal(deps: DurableContinuityDeps): AbortSignal {
-  const bound = AbortSignal.timeout(CONTROL_PLANE_BUDGET_MS);
-  return deps.signal ? AbortSignal.any([deps.signal, bound]) : bound;
+function postLedgerWrite(
+  path: string,
+  body: Record<string, unknown>,
+  deps: DurableContinuityDeps,
+): Promise<Response> {
+  const doFetch = deps.fetchImpl ?? fetch;
+  const base = deps.apiBase ?? apiBase();
+  return fetchControlPlane(
+    (signal) =>
+      doFetch(`${base}${path}`, {
+        method: "POST",
+        signal,
+        headers: {
+          "content-type": "application/json",
+          authorization: deps.authorization,
+        },
+        body: JSON.stringify(body),
+      }),
+    { maxAttempts: 1, signal: deps.signal },
+  );
 }
 
 /** Complete a started row once; retries leave the first completion unchanged. */
@@ -245,25 +259,19 @@ export async function completeSessionTurn(
   deps: DurableContinuityDeps,
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
-  const doFetch = deps.fetchImpl ?? fetch;
-  const base = deps.apiBase ?? apiBase();
   try {
-    const res = await doFetch(`${base}/sessions/turns/complete`, {
-      method: "POST",
-      signal: ledgerWriteSignal(deps),
-      headers: {
-        "content-type": "application/json",
-        authorization: deps.authorization,
-      },
-      body: JSON.stringify({
+    const res = await postLedgerWrite(
+      "/sessions/turns/complete",
+      {
         session_id: sessionId,
         turn_index: turnIndex,
         ...(turn.agentSessionId
           ? { agent_session_id: turn.agentSessionId }
           : {}),
         end_time: turn.endTime,
-      }),
-    });
+      },
+      deps,
+    );
     log(
       `complete ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} turn=${turnIndex}`,
     );
@@ -287,18 +295,11 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
   deps,
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
-  const doFetch = deps.fetchImpl ?? fetch;
-  const base = deps.apiBase ?? apiBase();
   let res: Response;
   try {
-    res = await doFetch(`${base}/sessions/turns/`, {
-      method: "POST",
-      signal: ledgerWriteSignal(deps),
-      headers: {
-        "content-type": "application/json",
-        authorization: deps.authorization,
-      },
-      body: JSON.stringify({
+    res = await postLedgerWrite(
+      "/sessions/turns/",
+      {
         session_id: sessionId,
         stream_id: turn.streamId,
         ...(turn.turnId ? { turn_id: turn.turnId } : {}),
@@ -312,8 +313,9 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
         ...(turn.traceId ? { trace_id: turn.traceId } : {}),
         ...(turn.spanId ? { span_id: turn.spanId } : {}),
         ...(turn.startTime ? { start_time: turn.startTime } : {}),
-      }),
-    });
+      },
+      deps,
+    );
   } catch (err) {
     // A Stop aborts with a frozen marker object, and Node's fetch then rejects with its own failure
     // to attach a stack to it, which names nothing about the Stop.

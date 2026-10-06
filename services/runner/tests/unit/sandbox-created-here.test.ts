@@ -11,7 +11,9 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "vitest";
 
 import {
+  createdSandboxState,
   markSandboxCreated,
+  markSandboxDeleted,
   resetCreatedSandboxIds,
   wasSandboxCreatedHere,
 } from "../../src/engines/sandbox_agent/created-sandboxes.ts";
@@ -21,7 +23,6 @@ import {
   type DaytonaProviderLike,
 } from "../../src/engines/sandbox_agent/daytona-secret-provider.ts";
 import type { DaytonaSecretApi } from "../../src/engines/sandbox_agent/daytona-secrets.ts";
-import { resetDestroyedSandboxIds } from "../../src/engines/sandbox_agent/sandbox-reconnect.ts";
 import {
   acquire,
   teardown,
@@ -190,7 +191,6 @@ async function runTurn(
 
 beforeEach(() => {
   resetCreatedSandboxIds();
-  resetDestroyedSandboxIds();
 });
 
 describe("created sandbox ids", () => {
@@ -217,6 +217,69 @@ describe("created sandbox ids", () => {
     const provider = buildProvider(account, false, new Map());
     const id = await provider.create();
     assert.equal(wasSandboxCreatedHere(`daytona/${id}`), true);
+  });
+
+  it("marks a created id deleted in either form, and ignores an id it did not create", () => {
+    markSandboxCreated("sbx-1");
+    assert.equal(createdSandboxState("daytona/sbx-1"), "live");
+
+    markSandboxDeleted("daytona/sbx-1");
+    assert.equal(createdSandboxState("sbx-1"), "deleted");
+    assert.equal(wasSandboxCreatedHere("sbx-1"), true, "a deleted id is still one this process created");
+
+    markSandboxDeleted("sbx-foreign");
+    assert.equal(createdSandboxState("sbx-foreign"), undefined);
+    assert.equal(wasSandboxCreatedHere("sbx-foreign"), false, "marking never grants a delete");
+  });
+
+  it("never reconnects to an id it deleted, even when the delete threw", async () => {
+    markSandboxCreated("sbx-1");
+    const logs: string[] = [];
+    const log = (message: string) => logs.push(message);
+    await teardown({
+      sandbox: {
+        sandboxId: "daytona/sbx-1",
+        destroySandbox: async () => {
+          throw new Error("Daytona answered 500");
+        },
+      },
+      plannedSandboxId: undefined,
+      isDaytona: true,
+      harness: "claude",
+      reason: "failed-turn",
+      log,
+    });
+    assert.ok(logs.some((line) => line.startsWith("sandbox delete failed sandbox=daytona/sbx-1")));
+
+    const starts: Array<Record<string, unknown>> = [];
+    const acquired = await acquire(
+      {
+        startOptions: {},
+        isDaytona: true,
+        harness: "claude",
+        sessionForMount: "sess-1",
+        runCred: "ApiKey abc",
+        log,
+        timingLog: () => {},
+      },
+      {
+        startSandboxAgent: async (options) => {
+          starts.push(options);
+          return { sandboxId: "daytona/sbx-2" };
+        },
+        readStoredSandboxPointer: async () => ({ sandboxId: "daytona/sbx-1" }),
+      },
+    );
+
+    assert.equal(acquired.mode, "create");
+    assert.deepEqual(starts, [{}], "one start, with no sandbox id");
+    assert.ok(
+      logs.some((line) => line.includes("stored sandbox=daytona/sbx-1 was deleted by this runner")),
+    );
+    assert.equal(
+      logs.some((line) => line.includes("not created by this runner")),
+      false,
+    );
   });
 });
 

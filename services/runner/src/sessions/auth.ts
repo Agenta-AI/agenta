@@ -36,6 +36,15 @@ export async function refreshCredential(
   }
 }
 
+/**
+ * The shared runner token as a request header, or no header when the process has none. It rides
+ * beside the caller's credential on a platform call.
+ */
+export function runnerTokenHeader(): Record<string, string> {
+  const runnerToken = process.env.AGENTA_RUNNER_TOKEN?.trim();
+  return runnerToken ? { "x-agenta-runner-token": runnerToken } : {};
+}
+
 export const DEFAULT_PLATFORM_CREDENTIAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface PlatformCredentialLease {

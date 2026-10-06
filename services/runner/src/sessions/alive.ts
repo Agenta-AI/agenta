@@ -57,7 +57,7 @@ export const REPLICA_ID =
 export const REPLICA_ADDRESS =
   process.env.AGENTA_RUNNER_REPLICA_ADDRESS?.trim() ?? "";
 
-import { startPlatformCredentialLease } from "./auth.ts";
+import { runnerTokenHeader, startPlatformCredentialLease } from "./auth.ts";
 import type { TypedReference } from "./interactions.ts";
 
 /**
@@ -110,7 +110,7 @@ async function sendHeartbeat(
 }> {
   try {
     const url = `${apiBase()}/sessions/streams/heartbeat`;
-    const runnerToken = process.env.AGENTA_RUNNER_TOKEN?.trim();
+    const tokenHeader = runnerTokenHeader();
     const beat = (signal?: AbortSignal) =>
         fetch(url, {
           method: "POST",
@@ -118,7 +118,7 @@ async function sendHeartbeat(
           headers: {
             "content-type": "application/json",
             authorization,
-            ...(runnerToken ? { "x-agenta-runner-token": runnerToken } : {}),
+            ...tokenHeader,
           },
           body: JSON.stringify({
             session_id: sessionId,

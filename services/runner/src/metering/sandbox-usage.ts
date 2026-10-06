@@ -27,7 +27,11 @@ import type { RunErrorCode } from "../engines/sandbox_agent/errors.ts";
 import type { TurnLimit } from "../engines/sandbox_agent/run-limits.ts";
 import { platformCredentialForRequest } from "../engines/sandbox_agent/runtime-policy.ts";
 import type { AgentRunRequest } from "../protocol.ts";
-import { startPlatformCredentialLease, type PlatformCredentialLease } from "../sessions/auth.ts";
+import {
+  runnerTokenHeader,
+  startPlatformCredentialLease,
+  type PlatformCredentialLease,
+} from "../sessions/auth.ts";
 
 export const SANDBOX_USAGE_INTERVAL_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -108,8 +112,7 @@ export function sandboxUsageContext(
 }
 
 function platformHeaders(authorization: string): Record<string, string> {
-  const runnerToken = process.env.AGENTA_RUNNER_TOKEN?.trim();
-  return { authorization, ...(runnerToken ? { "x-agenta-runner-token": runnerToken } : {}) };
+  return { authorization, ...runnerTokenHeader() };
 }
 
 /** What the platform answered for a turn that may run a platform sandbox. */
