@@ -427,7 +427,12 @@ class BillingRouter:
             # A one-off invoice (a credit top-up's receipt) belongs to no subscription:
             # its payment neither resumes nor pauses one, and the top-up is credited by
             # `checkout.session.completed`. Acknowledged, so Stripe does not retry it.
-            if not subscription_details:
+            # Older API versions still send an empty `subscription_details` on it, so
+            # the subscription ID decides, not the block's presence.
+            if not (
+                _stripe_get(stripe_event.data.object, "subscription")
+                or _stripe_get(subscription_details, "subscription")
+            ):
                 log.info(
                     "Skipping stripe event: %s (not a subscription invoice)",
                     stripe_event.type,

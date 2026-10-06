@@ -17,10 +17,13 @@ export const CreditTopUps = ({
     projectId,
     onUpgrade,
     framed = false,
+    showLoadError = false,
 }: {
     projectId: string
     onUpgrade: () => void
     framed?: boolean
+    /** Only where the wallet is known to be enforced (the Credits tab). */
+    showLoadError?: boolean
 }) => {
     const router = useRouter()
     // Read once per URL: the section keeps what it needs after the URL is cleared.
@@ -47,6 +50,7 @@ export const CreditTopUps = ({
             onQueryHandled={clearQuery}
             onUpgrade={onUpgrade}
             framed={framed}
+            showLoadError={showLoadError}
         />
     )
 }

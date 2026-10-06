@@ -131,6 +131,8 @@ export const CreditsTab = ({projectId, billingURL}: {projectId: string; billingU
                 <CreditTopUps
                     projectId={projectId}
                     onUpgrade={() => void router.push(billingURL)}
+                    // The tab renders only where the wallet is enforced.
+                    showLoadError
                 />
             ) : null}
 

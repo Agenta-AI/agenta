@@ -54,6 +54,15 @@ describe("AgentRunFailure", () => {
         expect(html).toContain("Plans and billing")
     })
 
+    it("changes nothing where the wallet is off or in shadow (the API answers unavailable)", () => {
+        state.status = "unavailable"
+        for (const code of ["wallet_balance_exhausted", "concurrent_turns_limit"]) {
+            const html = render(code)
+            expect(html).not.toContain("Buy credits")
+            expect(html).not.toContain("Plans and billing")
+        }
+    })
+
     it("offers neither where billing is off", () => {
         state.billing = false
         const html = render("wallet_balance_exhausted")

@@ -1,6 +1,6 @@
 import {useEffect, useState, type ReactNode} from "react"
 
-import {Button, SkeletonBlock, cn} from "@agenta/ui/ui"
+import {Button, cn} from "@agenta/ui/ui"
 
 import {BuyCreditsDialog} from "./BuyCreditsDialog"
 import {TopUpReturnNotice} from "./TopUpReturnNotice"
@@ -19,6 +19,12 @@ export interface CreditTopUpsSectionProps {
     onQueryHandled?: () => void
     /** A card like the billing page's sections, or a plain block for a tab with its own. */
     framed?: boolean
+    /**
+     * Say so when the packs fail to load. Only for a host that already knows the wallet is
+     * enforced (the Credits tab exists only then); elsewhere a failed answer shows nothing,
+     * because it cannot tell an enforced organization from one that must see no change.
+     */
+    showLoadError?: boolean
 }
 
 /**
@@ -33,6 +39,7 @@ export const CreditTopUpsSection = ({
     openPicker = false,
     onQueryHandled,
     framed = false,
+    showLoadError = false,
 }: CreditTopUpsSectionProps) => {
     const offer = useTopUpOffer({projectId})
     const entry = topUpEntry(offer.data?.status)
@@ -61,18 +68,18 @@ export const CreditTopUpsSection = ({
         />
     ) : null
 
-    // A 403 (no billing access) or purchases off: nothing to offer, but a return still reports.
-    // Nothing while the answer is out either: most pages that mount this never show it, so a
-    // placeholder would only flash.
+    // Nothing unless the organization can buy a pack or is offered the upgrade, which the API
+    // answers only for an organization whose wallet is enforced. Organizations with the wallet
+    // off or in shadow see no change at all, not even a return notice from a crafted URL. A 403
+    // (no billing access) shows nothing either. Nothing while the answer is out: most pages that
+    // mount this never show it, so a placeholder would only flash.
     const forbidden =
         (offer.error as {response?: {status?: number}} | null)?.response?.status === 403
-    if (!notice && (forbidden || offer.isPending || (offer.isSuccess && entry === null)))
-        return null
+    const loadFailed = showLoadError && offer.isError && !forbidden
+    if (!loadFailed && (!offer.isSuccess || entry === null)) return null
 
     let body: ReactNode = null
-    if (offer.isPending) {
-        body = <SkeletonBlock className="h-8 w-full max-w-sm" />
-    } else if (offer.isError && !forbidden) {
+    if (loadFailed) {
         body = (
             <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs text-colorTextSecondary">

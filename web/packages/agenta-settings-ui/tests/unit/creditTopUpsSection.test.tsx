@@ -45,7 +45,12 @@ const flush = async () => {
 }
 
 const render = async (
-    props: {topUpReturn?: TopUpReturn; onUpgrade?: () => void; onQueryHandled?: () => void} = {},
+    props: {
+        topUpReturn?: TopUpReturn
+        onUpgrade?: () => void
+        onQueryHandled?: () => void
+        showLoadError?: boolean
+    } = {},
 ) => {
     const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     act(() => root.unmount())
@@ -58,6 +63,7 @@ const render = async (
                     topUpReturn={props.topUpReturn ?? null}
                     onUpgrade={props.onUpgrade}
                     onQueryHandled={props.onQueryHandled}
+                    showLoadError={props.showLoadError}
                 />
             </QueryClientProvider>,
         ),
@@ -92,6 +98,26 @@ describe("CreditTopUpsSection", () => {
 
         expect(await render()).toBe("")
     })
+
+    it("shows no return notice either where the wallet is not enforced", async () => {
+        api.fetchTopUpOffer.mockResolvedValue({status: "unavailable", packs: PACKS})
+
+        expect(await render({topUpReturn: {result: "cancelled"}})).toBe("")
+        expect(await render({topUpReturn: {result: "success", sessionId: "cs_test_x"}})).toBe("")
+        expect(api.fetchTopUpPurchase).not.toHaveBeenCalled()
+    })
+
+    it("says the packs failed to load only where the host knows the wallet is enforced", async () => {
+        api.fetchTopUpOffer.mockRejectedValue(new Error("network"))
+
+        expect(await render()).toBe("")
+        await render({showLoadError: true})
+        // The offer query retries twice before it gives up.
+        await vi.waitFor(
+            () => expect(container.textContent).toContain("Could not load credit packs."),
+            {timeout: 8000, interval: 200},
+        )
+    }, 15000)
 
     it("renders nothing for a member without billing access", async () => {
         api.fetchTopUpOffer.mockRejectedValue({response: {status: 403}})

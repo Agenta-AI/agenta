@@ -100,6 +100,7 @@ def _invoice(*, billing_reason, total=2900, lines=None, plan=PRO):
         "billing_reason": billing_reason,
         "total": total,
         "lines": {"data": lines if lines is not None else [_line(OCT_1, NOV_1)]},
+        "subscription": "sub_123",
         "subscription_details": {
             "metadata": {
                 "target": billing_router_module.env.stripe.webhook_target,
@@ -220,9 +221,13 @@ async def test_the_grant_reads_the_new_webhook_invoice_shape(monkeypatch):
             _new_shape_line(OCT_1 + 60, NOV_1, proration=True),
         ],
     )
+    # The new shape drops the top-level subscription for `parent.subscription_details`.
     invoice["parent"] = {
         "type": "subscription_details",
-        "subscription_details": invoice.pop("subscription_details"),
+        "subscription_details": {
+            **invoice.pop("subscription_details"),
+            "subscription": invoice.pop("subscription"),
+        },
     }
     _install_event(monkeypatch, "invoice.payment_succeeded", invoice)
 
@@ -812,8 +817,10 @@ async def test_a_top_up_reads_as_pending_until_its_payment_event_arrives():
 @pytest.mark.parametrize(
     "event_type", ["invoice.payment_succeeded", "invoice.payment_failed"]
 )
+# Older Stripe API versions send an empty `subscription_details` on a one-off invoice.
+@pytest.mark.parametrize("subscription_details", [None, {"metadata": {}}])
 async def test_a_top_up_invoice_is_acknowledged_without_touching_the_subscription(
-    monkeypatch, event_type
+    monkeypatch, event_type, subscription_details
 ):
     # The receipt invoice Checkout creates for a top-up belongs to no subscription.
     grant_period_credits = AsyncMock()
@@ -834,7 +841,8 @@ async def test_a_top_up_invoice_is_acknowledged_without_touching_the_subscriptio
             "pack": "credits_2500",
         },
         "parent": None,
-        "subscription_details": None,
+        "subscription": None,
+        "subscription_details": subscription_details,
     }
     _install_event(monkeypatch, event_type, invoice)
 

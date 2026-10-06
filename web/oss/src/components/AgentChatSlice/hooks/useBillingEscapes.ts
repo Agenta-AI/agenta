@@ -10,9 +10,13 @@ import useURL from "@/oss/hooks/useURL"
 /**
  * The run-failure callout's two billing escapes on this app: the plans (Settings -> Usage &
  * Billing) for any plan limit, and the pack picker on the same page for the out-of-credit class
- * where the organization can buy a pack. Each is undefined where it would open nothing: billing
- * off, no project route, or (for packs) a plan the checkout refuses. Asks the API about packs
- * only once a turn carries the out-of-credit class.
+ * where the organization can buy a pack.
+ *
+ * Both appear only for an organization whose wallet is enforced, read from the API's top-up
+ * answer (`paid_plan_required` or `available` are answered only then). Organizations with the
+ * wallet off or in shadow see this callout exactly as before. Each is also undefined where it
+ * would open nothing: billing off, or no project route. Asks the API only once a turn carries a
+ * plan-limit class.
  */
 export const useBillingEscapes = (
     code: string | null | undefined,
@@ -21,8 +25,10 @@ export const useBillingEscapes = (
     const {projectURL} = useURL()
     const projectId = typeof router.query.project_id === "string" ? router.query.project_id : null
     const available = isBillingEnabled() && Boolean(projectURL) && Boolean(projectId)
-    const wantsPacks = available && !!code && BUY_CREDITS_CODES.has(code)
-    const offer = useTopUpOffer({projectId, enabled: wantsPacks})
+    const planLimit = available && Boolean(planLimitTitle(code))
+    const offer = useTopUpOffer({projectId, enabled: planLimit})
+    const status = offer.data?.status
+    const enforced = status === "available" || status === "paid_plan_required"
 
     const openBilling = useCallback(() => {
         void router.push(`${projectURL}/settings?tab=billing`)
@@ -33,7 +39,10 @@ export const useBillingEscapes = (
     }, [router, projectURL])
 
     return {
-        onOpenBilling: available && planLimitTitle(code) ? openBilling : undefined,
-        onBuyCredits: wantsPacks && offer.data?.status === "available" ? openPacks : undefined,
+        onOpenBilling: planLimit && enforced ? openBilling : undefined,
+        onBuyCredits:
+            planLimit && status === "available" && !!code && BUY_CREDITS_CODES.has(code)
+                ? openPacks
+                : undefined,
     }
 }

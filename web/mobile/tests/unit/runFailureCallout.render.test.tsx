@@ -248,6 +248,14 @@ describe("mobile TurnRow: a run that failed", () => {
                 expect(shown).not.toContain("Buy credits")
             })
 
+            it("changes nothing where the wallet is off or in shadow", () => {
+                runtime.__env = {NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "true"}
+                topUpOffer.status = "unavailable"
+                const shown = renderTurn(failedTurn(sentence, "wallet_balance_exhausted"))
+
+                expect(shown).not.toContain("Buy credits")
+            })
+
             it("does not ask about packs for a limit credits do not clear", () => {
                 runtime.__env = {NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "true"}
                 topUpOffer.status = "available"
