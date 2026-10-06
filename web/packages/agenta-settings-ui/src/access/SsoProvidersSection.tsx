@@ -134,7 +134,14 @@ export const SsoProvidersSection = ({
                             )}
                             <span className="flex justify-end">
                                 {(!isEnabled(record) || !isValid(record)) && onEnable ? (
-                                    <Button disabled={enabling} onClick={() => onEnable(record)}>
+                                    <Button
+                                        disabled={enabling}
+                                        onClick={(event) => {
+                                            // The row opens the edit drawer on click.
+                                            event.stopPropagation()
+                                            onEnable(record)
+                                        }}
+                                    >
                                         Enable
                                     </Button>
                                 ) : null}

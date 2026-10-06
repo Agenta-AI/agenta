@@ -7,7 +7,14 @@ import {message} from "@agenta/ui/app-message"
 import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {ArrowsLeftRight, Copy, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {
+    ArrowsLeftRight,
+    CheckCircle,
+    Copy,
+    PencilSimpleLine,
+    Plus,
+    Trash,
+} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {SettingsPageActions} from "../SettingsPageShell"
@@ -119,6 +126,17 @@ export const ProjectsPage = ({
             patchProject(projectId, {name}),
         onSuccess: () => {
             void invalidateProjects()
+        },
+    })
+
+    const defaultMutation = useMutation({
+        mutationFn: (projectId: string) => patchProject(projectId, {make_default: true}),
+        onSuccess: () => {
+            message.success("Default project updated")
+            void invalidateProjects()
+        },
+        onError: (error) => {
+            message.error(errorDetail(error, "Unable to set default"))
         },
     })
 
@@ -260,6 +278,14 @@ export const ProjectsPage = ({
                                             "Project ID copied",
                                             "Couldn't copy the project ID",
                                         ),
+                                },
+                                {
+                                    key: "default",
+                                    label: "Set as default",
+                                    icon: <CheckCircle size={14} />,
+                                    hidden: Boolean(record.is_default_project),
+                                    disabled: defaultMutation.isPending,
+                                    onClick: () => defaultMutation.mutate(record.project_id),
                                 },
                                 {type: "divider"},
                                 {
