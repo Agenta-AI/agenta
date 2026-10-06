@@ -78,15 +78,19 @@ POST /secrets/{secret_id}/login-attempts/{attempt_id}/cancel
 
 - Start is idempotent while a pending, unexpired attempt exists: it returns that attempt.
 - The attempt is a record on the secret row (`login_attempt`: the device-code fields, `state`,
-  `error`, and `runner_address`, the pod that runs the provider poll). The runner pods behind one
-  Service URL are interchangeable, so no poll depends on reaching that pod again.
+  `error`, `runner_address`, the pod that runs the provider poll, and `runner_replica_id`, that
+  pod's replica id). The runner pods behind one Service URL are interchangeable, so no poll
+  depends on reaching that pod again.
 - The GET answers from the record alone and never calls the runner. `pending` answers the
   device code. A finished record (`succeeded`, `failed`, `expired`) answers its state and error
   once, then is cleared. A `pending` record 30 s past `expires_at` answers `expired` with
   `timed_out`: its pod stopped before it could report.
-- Cancel clears the record first, then sends the runner DELETE to `runner_address` (the Service
-  URL when it is empty). A DELETE that misses the pod leaves its poll to the provider's deadline,
-  and that pod's later report gets 404.
+- Cancel clears the record first, then sends the runner DELETE. The DELETE goes to
+  `runner_address` only when `GET /health` on that address answers with `runner_replica_id`.
+  Otherwise it goes to the Service URL. That covers an empty address, a missing id, another id,
+  and a failed health check. The check is there because Kubernetes can give a dead pod's IP to
+  another pod, and the DELETE carries the runner token. A DELETE that misses the pod leaves its
+  poll to the provider's deadline, and that pod's later report gets 404.
 - The API reaches the runner with `env.runner.internal_url` and `env.runner.token`, the same hop
   `api/oss/src/core/sessions/streams/runner_client.py` uses. No runner configured: 503 with a clear
   message.
@@ -121,7 +125,7 @@ POST /secrets/subscription-login/attempts/{attempt_id}/outcome
 ```
 POST   /subscription-login/attempts            body {"provider": "chatgpt", "projectId", "secretId"}
   -> 200 {"attemptId", "state": "pending", "userCode", "verificationUri", "expiresAt", "intervalSeconds",
-          "replicaAddress"}
+          "replicaAddress", "replicaId"}
   -> 400 without projectId or secretId
 DELETE /subscription-login/attempts/{id}       -> 204
 ```
@@ -129,7 +133,8 @@ DELETE /subscription-login/attempts/{id}       -> 204
 - Implementation: `loginOpenAICodexDeviceCode({onDeviceCode, signal})` from
   `@earendil-works/pi-ai/oauth`, one `AbortController` per attempt, attempts in a process map
   only while the provider poll runs.
-- `replicaAddress` is `AGENTA_RUNNER_REPLICA_ADDRESS`, empty on compose.
+- `replicaAddress` is `AGENTA_RUNNER_REPLICA_ADDRESS`, empty on compose. `replicaId` is the
+  pod's replica id, the same value its `GET /health` answers.
 - There is no read route. The login lives in the runner only from the provider's answer until
   the outcome report; the attempt leaves the map before the report, so no purge timer exists.
 - The runner never writes the login to disk during an attempt and never logs it.
