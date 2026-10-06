@@ -97,6 +97,29 @@ curl -X POST \
 
 When sending messages, use image or resource blocks with a URI and MIME type, or the equivalent Vercel `file` part. See [Chat message format](/reference/agents/chat-message-format#content-blocks).
 
+## Place a file in the working directory
+
+Referencing an attachment exposes it through the attachment API; it does not create a file on the sandbox filesystem, so the agent cannot `ls` or `unzip` it there. To hand the agent a file it can open with shell tools, upload it into a session mount:
+
+```
+POST {AGENTA_HOST}/api/sessions/mounts/{MOUNT_ID}/files/upload?project_id={PROJECT_ID}
+```
+
+The body is `multipart/form-data` with a single `file` field. The session's working-directory mount ID is the directory name the agent sees as its working directory.
+
+```bash
+curl -X POST \
+  "https://eu.cloud.agenta.ai/api/sessions/mounts/019d952f-0000-0000-0000-000000000020/files/upload?project_id=019d952f-0000-0000-0000-000000000000" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -F "file=@bundle.zip"
+```
+
+```json
+{ "path": "bundle.zip", "size": 78683 }
+```
+
+The file appears at that path in the agent's working directory on its next turn.
+
 ## Generated files
 
 An agent can create files in its sandbox. A streamed `file` event carries:
