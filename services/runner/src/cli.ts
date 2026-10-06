@@ -18,7 +18,6 @@ import type {
 } from "./protocol.ts";
 import { runSandboxAgent } from "./engines/sandbox_agent.ts";
 import { isEntrypoint } from "./entry.ts";
-import { applySandboxRouting } from "./engines/sandbox_agent/sandbox-routing.ts";
 
 /** Run one request through an engine. Tests inject a fake to avoid a live harness. */
 export type RunAgent = (
@@ -61,7 +60,6 @@ export async function runCli(
     write(stream ? JSON.stringify({ kind: "result", result: failure }) + "\n" : JSON.stringify(failure));
     return 1;
   }
-  applySandboxRouting(request, (message) => process.stderr.write(`${message}\n`));
 
   if (!stream) {
     try {

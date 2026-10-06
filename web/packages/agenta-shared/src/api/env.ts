@@ -114,7 +114,7 @@ export const getEnabledSandboxProviders = (): string[] => {
         .filter(Boolean)
     if (providers.length === 0) return ["local"]
     // `inprocess` is enabled wherever `daytona` is (the runner, the SDK, the API and
-    // entrypoint.sh apply the same rule); who is offered it is the per-user preference's call.
+    // entrypoint.sh apply the same rule). The picker shows it as Daytona: the runner routes by harness.
     if (providers.includes("daytona") && !providers.includes("inprocess")) {
         providers.push("inprocess")
     }

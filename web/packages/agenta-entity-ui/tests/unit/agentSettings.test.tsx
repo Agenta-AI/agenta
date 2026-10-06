@@ -374,6 +374,15 @@ describe("shared agent settings", () => {
             const selected = document.querySelector('[role="option"][aria-selected="true"]')
             expect(selected?.textContent).toBe("Daytona")
         })
+
+        it("keeps a saved Inprocess agent on a deployment without Daytona", async () => {
+            const withoutDaytona = ["local", "inprocess"]
+            fixture.environments = withoutDaytona
+            const value = {...saved(), sandbox: {...saved().sandbox, kind: "inprocess"}}
+            await mount(value, {environments: withoutDaytona})
+            expect(writes).not.toHaveBeenCalled()
+            expect((live.sandbox as {kind: string}).kind).toBe("inprocess")
+        })
     })
 
     it("keeps build-kit availability but hides its sandbox policy and hint", async () => {

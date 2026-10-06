@@ -132,17 +132,19 @@ export function useModelHarness({
     const runner = asObject("runner")
     const sandbox = asObject("sandbox")
     const savedSandboxKind = typeof sandbox.kind === "string" ? sandbox.kind : null
-    // `inprocess` is not a choice of its own. For either `daytona` or `inprocess` the runner runs
-    // Pi in-process and every other harness on Daytona (`routeSandboxForHarness`), so the picker
-    // offers Daytona alone and shows an agent saved with `inprocess` as Daytona, without
-    // rewriting it.
-    const shownSandboxKind = savedSandboxKind === "inprocess" ? "daytona" : savedSandboxKind
+    // Where Daytona is enabled, `inprocess` is not a choice of its own. For either value the runner
+    // runs Pi in-process and every other harness on Daytona (`routeSandboxForHarness`), so the
+    // picker offers Daytona alone and shows an agent saved with `inprocess` as Daytona, without
+    // rewriting it. A deployment without Daytona keeps `inprocess` as it is.
+    const daytonaEnabled = getEnabledSandboxProviders().includes("daytona")
+    const shownSandboxKind =
+        daytonaEnabled && savedSandboxKind === "inprocess" ? "daytona" : savedSandboxKind
     const sandboxOptions = useMemo(() => {
         const enabled = new Set(getEnabledSandboxProviders())
         return getEnumOptions(sandboxProps.kind).filter(
-            (o) => enabled.has(o.value) && o.value !== "inprocess",
+            (o) => enabled.has(o.value) && !(daytonaEnabled && o.value === "inprocess"),
         )
-    }, [sandboxProps.kind])
+    }, [sandboxProps.kind, daytonaEnabled])
 
     const secretBindings = Array.isArray(sandbox.credentials)
         ? sandbox.credentials.filter((value): value is AgentSecretBinding => {

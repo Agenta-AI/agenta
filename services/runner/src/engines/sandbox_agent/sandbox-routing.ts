@@ -10,8 +10,9 @@
  * The routing applies only where this runner has both providers and
  * `AGENTA_RUNNER_INPROCESS_FOR_PI` is on (the default). `local` and unknown ids are never routed.
  * The saved agent is not changed: the routed provider is written into the request once, at the
- * runner's ingress, so every reader after it (the run plan, the keep-alive pool, the session
- * record, sandbox metering and the run result) sees the provider that runs.
+ * HTTP ingress, so every reader after it (the run plan, the keep-alive pool, the session
+ * record, sandbox metering and the run result) sees the provider that runs. The stdin CLI does not
+ * route: it has no in-process runtime, so its runs use the provider they name.
  */
 
 import type { AgentRunRequest } from "../../protocol.ts";
