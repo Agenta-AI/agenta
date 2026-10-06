@@ -803,6 +803,8 @@ class TestCreateAgent:
         assert content["agent"]["slug"] == "invoice-helper-0a1b2c3d"
         assert content["base_revision_id"]
         assert result.wrote_revision is True
+        # Without operations the agent keeps placeholder instructions; the answer says so.
+        assert [w["code"] for w in content["warnings"]] == ["template_instructions"]
 
     async def test_operations_land_in_the_first_revision(self, service, create):
         operations = [
@@ -832,6 +834,7 @@ class TestCreateAgent:
             f'Created by agent "Support Triage" {CALLER}, session {SESSION}; '
             "set agents_md; added skill pdf-tools"
         )
+        assert result.content["warnings"] == []
 
     async def test_other_arguments_make_another_agent(self, service, create):
         await _call(handle_create_agent, service, **self._args())

@@ -1444,7 +1444,8 @@ def _apply_operation(
         if not isinstance(current, str):
             raise _Fail(
                 Reason.TARGET_TYPE_MISMATCH,
-                f"'edit_text' needs a string target; {name!r} is {_type_name(current)}",
+                f"'edit_text' needs a string target; {name!r} is {_type_name(current)}. "
+                "Use 'set' to replace a value, or 'merge' to change keys of an object.",
             )
         tolerance = "code" if mode == "exact" else content_class(name)
         new_text, normalized = apply_text_edits(current, edits, tolerance=tolerance)

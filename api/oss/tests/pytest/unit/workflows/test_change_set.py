@@ -585,6 +585,8 @@ class TestEditText:
             )
         )
         assert error.reason == Reason.TARGET_TYPE_MISMATCH
+        # The refusal names the operations that do change an object.
+        assert "'set'" in str(error) and "'merge'" in str(error)
 
     def test_the_reason_carries_the_match_count(self):
         error = failure(
