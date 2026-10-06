@@ -503,6 +503,15 @@ class LLMGatewayService:
             resolved_provider = "openai"
             deployment_kind = LLMDeploymentKind.CUSTOM
             model = model.removeprefix("gemini/")
+        elif (
+            deployment_kind == LLMDeploymentKind.VERTEX
+            and resolved_provider == "openai"
+        ):
+            # The same for a Vertex endpoint that speaks OpenAI's shape: the gateway relays it to
+            # Vertex's OpenAI-compatible endpoint and mints the Google token itself, so the
+            # harness sees a custom route and never a Vertex credential. An Anthropic-shaped
+            # Vertex endpoint keeps its deployment: Claude drives Vertex natively.
+            deployment_kind = LLMDeploymentKind.CUSTOM
         return LLMGatewayConnectionResolution(
             namespace=target.namespace,
             name=target.name,
