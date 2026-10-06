@@ -1,0 +1,80 @@
+---
+title: "Plans and credits"
+sidebar_label: "Plans and credits"
+description: "What each Agenta Cloud plan includes, how credits pay for built-in models and sandbox time, and what happens at a limit."
+---
+
+This page is for Agenta Cloud. Self-hosted deployments have no plans, credits, or usage limits.
+
+## Credits
+
+One credit is worth $0.01. Credits pay for two things:
+
+- **Built-in models**: the models Agenta provides, so you do not need a provider key.
+- **Sandbox time**: the time an agent runs in a sandbox that Agenta hosts.
+
+When an agent uses your own provider key, the model costs no credits. Its sandbox time still uses credits. To connect a key, see [Choose a harness and model](/guides/choose-a-harness-and-model#connect-a-provider).
+
+## What each plan includes
+
+| | Hobby | Pro | Business |
+|---|---|---|---|
+| Price | Free | $29 a month | $299 a month |
+| Credits | 500 at signup, plus 75 every day | 2,900 every month | 29,900 every month |
+| Buy more credits | No | Yes | Yes |
+| Agents running at once | 2 | 10 | 25 |
+| Longest request | 30 minutes | 4 hours | 11 hours |
+| Traces per month | 5,000 | 10,000, then $5 per 10,000 | 10,000, then $5 per 10,000 |
+| Evaluations per month | 20 | Unlimited | Unlimited |
+| Team members | 2 | Unlimited | Unlimited |
+| Trace data retention | 1 week | 1 month | 3 months |
+
+For Enterprise plans, [contact us](https://cal.com/mahmoud-mabrouk-ogzgey/demo).
+
+### When credits arrive and expire
+
+| Credits | Who gets them | When they arrive | When they expire |
+|---|---|---|---|
+| Signup credits: 500 ($5) | Every new organization, once | At signup | After 12 months |
+| Daily credits: 75 | Hobby | Every day | At midnight UTC. They do not roll over. |
+| Monthly credits: 2,900 or 29,900 | Pro and Business | At the start of each billing period | At the end of the billing period |
+| Purchased credits | Pro and Business | When you buy them | After 12 months |
+
+Daily credits are spent first, then monthly credits, then signup credits, then purchased credits.
+
+### Buy more credits
+
+Pro and Business can buy credits in three packs:
+
+| Price | Credits |
+|---|---|
+| $10 | 1,000 |
+| $25 | 2,500 |
+| $100 | 10,000 |
+
+Hobby cannot buy credits. To get more credits on Hobby, upgrade to Pro.
+
+## Rates
+
+| What | Rate |
+|---|---|
+| Built-in models | The provider's list price × 1.75 |
+| Sandbox time, Hobby and Pro | Daytona's list price × 3: $0.1512 per vCPU-hour and $0.0486 per GiB-hour of memory |
+| Sandbox time, Business | Daytona's list price × 2.5: $0.126 per vCPU-hour and $0.0405 per GiB-hour of memory |
+
+For example, an hour in a sandbox with 2 vCPUs and 4 GiB of memory costs about 50 credits on Hobby and Pro, and about 41 credits on Business. Disk is not charged.
+
+## What happens at a limit
+
+The limits on agents running at once and on request length apply to agents that run in sandboxes Agenta hosts.
+
+| Limit | What happens | What to do |
+|---|---|---|
+| Out of credits | New requests do not start, and you are not charged for them. Requests that are already running finish. | On Hobby, wait for your daily credits at midnight UTC, or upgrade. On Pro and Business, buy more credits or upgrade. |
+| Agents running at once | The new request does not start, and you are not charged for it. The agents that are running continue. | Send the request again when an agent finishes, or upgrade. |
+| Longest request | The request stops. Saved work is kept, and you pay only for the time used. | Send a message to continue, or upgrade. |
+| Traces per month | On Hobby, Agenta stops recording new traces until the next billing period. On Pro and Business, each additional 10,000 traces costs $5. | Upgrade to Pro to keep recording traces. |
+
+The chat shows each limit with an error code. See [Agent run errors](/misc/errors#agent-run-errors).
+
+To change your plan, open **Settings**, then **Usage & Billing**.

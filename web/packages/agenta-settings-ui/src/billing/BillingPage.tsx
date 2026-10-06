@@ -17,6 +17,13 @@ import UsageProgressBar from "./UsageProgressBar"
 /** Quotas with a section of their own; the Limits grid lists everything else. */
 const OWN_SECTION_METRICS = new Set(["users", "applications"])
 
+/**
+ * Quotas the Limits grid leaves out. `credits_consumed` is the retired meter for the
+ * provider keys set on the service itself: no current client counts it, and its name
+ * would be read as the organization's wallet credits.
+ */
+const HIDDEN_METRICS = new Set(["credits_consumed"])
+
 const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 
 const Section = ({children}: {children: ReactNode}) => (
@@ -113,7 +120,9 @@ export const BillingPage = ({
         )
     }
 
-    const limits = Object.entries(usage ?? {}).filter(([key]) => !OWN_SECTION_METRICS.has(key))
+    const limits = Object.entries(usage ?? {}).filter(
+        ([key]) => !OWN_SECTION_METRICS.has(key) && !HIDDEN_METRICS.has(key),
+    )
     const users = usage?.users
 
     const upgradeButton = onUpgrade ? <Button onClick={onUpgrade}>Upgrade plan</Button> : null

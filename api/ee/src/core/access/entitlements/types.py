@@ -188,6 +188,10 @@ ENDPOINTS = {
 }
 
 
+# The plan cards `/billing/plans` serves when `AGENTA_BILLING_CATALOG` is unset. The credit,
+# top-up and cap numbers in the features restate the wallet constants (`wallets.plans`,
+# `wallets.grants`, `wallets.purchases`, `AGENT_TURN_CAPS` below) and the quotas in
+# `DEFAULT_ENTITLEMENTS`; `test_billing_catalog.py` fails when they drift apart.
 DEFAULT_CATALOG = [
     {
         "title": "Hobby",
@@ -203,10 +207,15 @@ DEFAULT_CATALOG = [
             },
         },
         "features": [
+            "$5 of credits at signup (500 credits)",
+            "75 free credits every day, reset at midnight UTC, no rollover",
+            "1 credit = $0.01, spent on built-in models and sandbox time",
+            "2 agents at once, up to 30 minutes per request",
             "2 team members",
             "Unlimited projects",
             "Unlimited agents and workflows",
-            "5,000 agent runs / month",
+            "5,000 traces / month",
+            "20 evaluations / month",
             "1-week trace data retention",
             "Community support through GitHub Issues",
         ],
@@ -239,10 +248,14 @@ DEFAULT_CATALOG = [
             },
         },
         "features": [
+            "2,900 credits every month",
+            "1 credit = $0.01, spent on built-in models and sandbox time",
+            "Buy more credits: $10 for 1,000 credits",
+            "10 agents at once, up to 4 hours per request",
             "Unlimited team members",
             "Unlimited projects, agents, and workflows",
             "Unlimited schedules and event triggers",
-            "10,000 agent runs / month included, then $5 per additional 10,000",
+            "10,000 traces / month included, then $5 per additional 10,000",
             "Unlimited evaluations",
             "1-month trace data retention",
             "Community support through GitHub Issues",
@@ -277,7 +290,9 @@ DEFAULT_CATALOG = [
         },
         "features": [
             "Everything in Pro",
-            "10,000 agent runs / month included, then $5 per additional 10,000",
+            "29,900 credits every month",
+            "25 agents at once, up to 11 hours per request",
+            "10,000 traces / month included, then $5 per additional 10,000",
             "Team roles and role-based access control",
             "SSO",
             "SOC 2 Type II report",
