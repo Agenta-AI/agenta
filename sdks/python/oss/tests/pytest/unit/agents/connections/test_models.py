@@ -207,6 +207,35 @@ def test_local_use_credentials_do_not_require_an_http_endpoint():
     assert [credential.usage for credential in resolved.credentials] == ["local_use"]
 
 
+def test_direct_gemini_resolves_to_the_versioned_api_base():
+    # Pi and LiteLLM call `{baseUrl}/models/...` for Gemini and add no version themselves.
+    resolved = build_resolved_connection(
+        provider="gemini",
+        model="gemini-2.5-flash",
+        credential_mode="env",
+        values={"GEMINI_API_KEY": "not-a-real-gemini-key"},
+    )
+    assert resolved.to_wire()["endpoint"] == {
+        "baseUrl": "https://generativelanguage.googleapis.com/v1beta"
+    }
+
+
+def test_an_explicit_gemini_endpoint_is_sent_as_written():
+    for base_url in [
+        "https://proxy.example.test",
+        "https://proxy.example.test/gemini",
+        "https://proxy.example.test/gemini/v1beta",
+    ]:
+        resolved = build_resolved_connection(
+            provider="gemini",
+            model="gemini-2.5-flash",
+            credential_mode="env",
+            values={"GEMINI_API_KEY": "not-a-real-gemini-key"},
+            endpoint=Endpoint(base_url=base_url),
+        )
+        assert resolved.endpoint.base_url == base_url
+
+
 @pytest.mark.parametrize("values", [{"": "value"}, {"OPENAI_API_KEY": ""}])
 def test_build_resolved_connection_maps_malformed_bindings_to_configuration_error(
     values,

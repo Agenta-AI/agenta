@@ -493,7 +493,10 @@ export async function uploadPiToolSpecsToSandbox(
  * Agenta's provider keys that Pi names differently. The override must name Pi's own provider,
  * or it registers a provider Pi has no models for and nothing is selectable.
  */
-const PI_PROVIDER_IDS: Record<string, string> = { together_ai: "together" };
+const PI_PROVIDER_IDS: Record<string, string> = {
+  together_ai: "together",
+  gemini: "google",
+};
 
 export function piProviderId(provider: string | undefined): string | undefined {
   return provider ? (PI_PROVIDER_IDS[provider] ?? provider) : provider;
