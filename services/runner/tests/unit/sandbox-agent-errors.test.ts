@@ -10,7 +10,9 @@ import {
   abandonedTurnMessage,
   classifyRunError,
   conciseError,
+  formatRunLimit,
   REQUEST_TOO_LARGE_MESSAGE,
+  runLimitError,
   RUNNER_RESTARTING_MESSAGE,
   RUNNER_SHUTDOWN_REASON,
   SANDBOX_CAPACITY_MESSAGE,
@@ -978,5 +980,29 @@ describe("flag-safety round: shared error rules match only what they name", () =
     );
     expect(withKey.message).toContain("api_key=[secret]");
     expect(withKey.message).not.toContain("abc123def");
+  });
+});
+
+describe("a run limit that ended the turn (EU 2026-10-06, reference a50dcb81)", () => {
+  // The watchdog's log line reached the classifier as an unknown error, so the person read only
+  // "The agent run failed (reference ...)". Each limit now ends the turn with its own sentence.
+  it("names the limit in words a person reads", () => {
+    expect(formatRunLimit(20_000)).toBe("20 seconds");
+    expect(formatRunLimit(1_000)).toBe("1 second");
+    expect(formatRunLimit(300_000)).toBe("5 minutes");
+    expect(formatRunLimit(30 * 60_000)).toBe("30 minutes");
+    expect(formatRunLimit(11 * 60 * 60_000)).toBe("11 hours");
+  });
+
+  it.each([
+    ["tool-call", 300_000, "tool_call_time_limit", "A tool call ran longer than 5 minutes and did not stop, so the turn was ended. Ask for smaller steps, or send the message again."],
+    ["idle", 30 * 60_000, "run_idle_time_limit", "The agent made no progress for 30 minutes, so the turn was ended. Send the message again to retry."],
+    ["ttfb", 2 * 60_000, "run_first_response_time_limit", "The agent did not start responding within 2 minutes, so the turn was ended. Send the message again to retry."],
+    ["total", 11 * 60 * 60_000, "run_total_time_limit", "This turn ran longer than 11 hours, so it was ended."],
+  ] as const)("classifies a %s limit with its own class and sentence, on every provider", (kind, ms, code, message) => {
+    const err = runLimitError(kind, ms);
+    for (const options of [{}, { unknownText: "hidden" as const }]) {
+      expect(classifyRunError(err, "pi_core", undefined, options as never)).toEqual({ message, code });
+    }
   });
 });

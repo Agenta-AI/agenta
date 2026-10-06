@@ -45,6 +45,8 @@ export interface CommandRequest {
   command: string;
   cwd: string;
   timeoutSeconds?: number;
+  /** When the tool call started (epoch ms): the timeout counts from here, so time spent bringing the sandbox up counts too. */
+  startedAtMs?: number;
   /** Where the command's output is read back to. */
   output: OutputSink;
   /** The file in the sandbox that keeps the command's full output. */
@@ -320,6 +322,7 @@ export class ConversationWorkspace {
       driveRoots: this.drive.mountChecks,
       ...(request.signal ? { signal: request.signal } : {}),
       ...(request.timeoutSeconds ? { timeoutSeconds: request.timeoutSeconds } : {}),
+      ...(request.startedAtMs !== undefined ? { startedAtMs: request.startedAtMs } : {}),
       log: this.log,
     });
   }

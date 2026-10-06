@@ -90,3 +90,39 @@ describe("the output file in the sandbox", () => {
     expect(existsSync(ws.inSandbox("/tmp/agenta-output-call-long2.log"))).toBe(true);
   });
 });
+
+describe("a command that runs past the per-tool-call limit (EU 2026-10-06)", () => {
+  // A command with no timeout of its own ran until the run-wide watchdog ended the whole turn.
+  // It is now stopped at the limit, and the model reads why, as an ordinary tool error.
+  function capped(maxSeconds: number) {
+    const ws = createTestWorkspace();
+    const ours = createSandboxBashTool(ws.cwd, (request) => ws.workspace.runCommand({ ...request, requirements: OPEN_NETWORK, preparations: [] }), undefined, maxSeconds);
+    return { ws, ours };
+  }
+
+  it("stops a command with no timeout at the limit and tells the model so", async () => {
+    const { ws, ours } = capped(1);
+    await ws.bash("true");
+    const t0 = Date.now();
+    const r = await outcome(ours.execute("call-slow", { command: "echo started; sleep 30" }, undefined, undefined, { cwd: ws.cwd } as never));
+    expect(Date.now() - t0).toBeLessThan(10_000);
+    expect(r.failed).toBe(true);
+    expect(r.text).toContain("started");
+    expect(r.text).toContain("Command timed out after 1 seconds and was stopped. Commands can run for at most 1 seconds; split long work into smaller steps.");
+  }, 20_000);
+
+  it("lowers a longer timeout the model asked for to the limit", async () => {
+    const { ws, ours } = capped(1);
+    await ws.bash("true");
+    const r = await outcome(ours.execute("call-asked", { command: "sleep 30", timeout: 600 }, undefined, undefined, { cwd: ws.cwd } as never));
+    expect(r.text).toContain("Command timed out after 1 seconds and was stopped.");
+  }, 20_000);
+
+  it("keeps a shorter timeout the model asked for, without the limit's advice", async () => {
+    const { ws, ours } = capped(60);
+    await ws.bash("true");
+    const r = await outcome(ours.execute("call-short", { command: "sleep 30", timeout: 1 }, undefined, undefined, { cwd: ws.cwd } as never));
+    expect(r.text).toContain("Command timed out after 1 seconds and was stopped.");
+    expect(r.text).not.toContain("at most");
+  }, 20_000);
+});

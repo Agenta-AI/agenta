@@ -550,9 +550,9 @@ provider.
 | `AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` | Hard deadline for one run, measured from the first message | `2700000` (45 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` |
 | `AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` | Longest gap between two progress events before the run is abandoned | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` |
 | `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
-| `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
+| `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take. Also the longest a shell command may run | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
 
-Three rules govern how they interact:
+Four rules govern how they interact:
 
 - A run paused for a human approval is exempt from all four. The pause freezes every timer.
 - The idle timeout must stay below the total deadline, or it could never fire first. A value at or
@@ -560,6 +560,10 @@ Three rules govern how they interact:
   start.
 - The TTFB timer only covers the wait for the first response. The first progress event of any kind
   cancels it and arms the idle timer instead.
+- A shell command that runs longer than `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` is stopped, and the
+  agent receives a "command timed out" result and continues the turn. This applies to Pi on every
+  provider and to Claude Code. The run is aborted only when a tool call returns no result 60 seconds
+  after the limit, for example a Codex command or a tool that did not stop.
 
 `AGENTA_RUNNER_RUN_TTFB_RETRIES` sets how many times the runner runs a turn again when the model
 sends nothing before the TTFB timeout. The default is `1` and the range is `0` to `3`. Set it to `0`

@@ -122,6 +122,32 @@ describe("an approval pause", () => {
   }, 30_000);
 });
 
+describe("a command that runs past the per-tool-call limit", () => {
+  // Production EU, 2026-10-06: a slow `bash` call ran past AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS
+  // (300 s). The command had no timeout of its own, so the run-wide watchdog ended the whole turn
+  // and the person read only "The agent run failed". The command is now stopped at the limit and
+  // the model is told so, and the turn goes on.
+  it("is stopped at the limit, the model reads why, and the turn continues with the next model call", async () => {
+    vi.stubEnv("AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS", "2000");
+    try {
+      const fixture = createHostFixture(model.baseUrl);
+      model.script([{ tool: "bash", args: { command: "sleep 31; echo too-slow-scan" } }, { text: "the command was too slow, so I carried on" }]);
+      const { session, turn } = await openSession(fixture);
+      const t0 = Date.now();
+      expect(await session.prompt(prompt("scan everything"))).toEqual({ stopReason: "end_turn" });
+      expect(Date.now() - t0).toBeLessThan(15_000);
+      const toolResult = JSON.stringify(model.requests.at(-1)!.messages);
+      expect(toolResult).toContain("Command timed out after 2 seconds and was stopped.");
+      expect(toolResult).toContain("Commands can run for at most 2 seconds");
+      expect(turn.text()).toContain("I carried on");
+      await new Promise((r) => setTimeout(r, 300));
+      expect(execSync("pgrep -f 'sleep 3[1]; echo too-slow-scan' || true").toString().trim()).toBe("");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }, 30_000);
+});
+
 describe("Stop in the middle of a command", () => {
   it("ends the turn as cancelled within seconds and leaves nothing running", async () => {
     const fixture = createHostFixture(model.baseUrl);
