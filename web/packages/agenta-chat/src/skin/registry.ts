@@ -16,6 +16,8 @@ import {PATH_KEYS} from "@agenta/entities/session"
 import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 
+import {agentCallTarget, summarizeAgentCall} from "../model/approvalDescribers/describeAgentChanges"
+
 import type {
     ActivityIcon,
     ApprovalDescriber,
@@ -195,10 +197,13 @@ const PLATFORM_OPS = new Set([
     "search_channel_messages",
     "send_channel_message",
     "commit_revision",
+    "create_agent",
     "create_schedule",
     "create_subscription",
     "discover_tools",
     "discover_triggers",
+    "edit_agent_config",
+    "list_agents",
     "list_connections",
     "run_tool",
     "search_tools",
@@ -209,6 +214,7 @@ const PLATFORM_OPS = new Set([
     "pause_subscription",
     "query_spans",
     "query_workflows",
+    "read_agent_config",
     "read_config",
     "remove_schedule",
     "remove_subscription",
@@ -248,6 +254,26 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
                     : null
             return typeof commit?.message === "string" && commit.message ? commit.message : null
         },
+    },
+    // The agent tools act on ANOTHER agent, which the glossary's "the agent" would misname as
+    // this one. Each settled row names that agent.
+    read_agent_config: {
+        activity: {running: "Reading another agent's setup", done: "Read another agent's setup"},
+        verb: {running: "Reading", done: "Read"},
+        summary: (input, output) => agentCallTarget(input, output) ?? null,
+    },
+    create_agent: {
+        activity: {running: "Creating an agent", done: "Created an agent"},
+        verb: {running: "Creating", done: "Created"},
+        summary: summarizeAgentCall,
+    },
+    edit_agent_config: {
+        activity: {
+            running: "Saving changes to another agent",
+            done: "Saved changes to another agent",
+        },
+        verb: {running: "Saving", done: "Saved"},
+        summary: summarizeAgentCall,
     },
     // "Tested a run" misses the point — the run IS the agent under test.
     test_run: {
@@ -363,6 +389,10 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
 const PLATFORM_ICONS: Record<string, ActivityIcon> = {
     annotate_trace: "annotation",
     commit_revision: "commit",
+    create_agent: "agent",
+    edit_agent_config: "commit",
+    list_agents: "agent",
+    read_agent_config: "config",
     discover_tools: "tool-search",
     search_tools: "tool-search",
     discover_triggers: "trigger",
