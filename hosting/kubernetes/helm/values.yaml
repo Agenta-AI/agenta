@@ -17,6 +17,36 @@
 # ================================================================== #
 
 # ================================================================== #
+# heartbeat — liveness for cron and the two workers.
+#
+# Each of those three runs its process as PID 1, so the container lifecycle
+# already restarts a process that exits. What nothing caught was a process that
+# is alive and no longer making progress. The probes that used to be here ran
+# `pgrep` against that same PID 1, and `pgrep` is not in the image (agenta#7334).
+#
+# Now the application records the time on every turn, and the probe fails when
+# the file goes stale. One value sets the path the application writes and the
+# path the probe reads, so the two cannot disagree.
+#
+# What each workload proves is NOT the same, and it is worth knowing which:
+#   * workerStreams writes once per loop turn, so a wedged loop is caught.
+#   * workerQueues hands its loop to taskiq, so a sibling task writes on an
+#     interval. That catches a blocked event loop. It does not catch a receiver
+#     that polls and consumes nothing.
+#   * cron writes from a crontab entry, so it proves schedules still fire, which
+#     is the cron failure that matters.
+#
+# heartbeat:
+#   enabled: true          # false removes the variable and all three probes
+#   path: /tmp/agenta-heartbeat
+#   staleSeconds: 120      # also the probe's initial delay, so a slow start is
+#                          # not mistaken for a wedged loop
+#
+# Setting `<workload>.livenessProbe` still replaces the generated probe for that
+# workload.
+# ================================================================== #
+
+# ================================================================== #
 # Agenta — License (https://agenta.ai/pricing)
 # ================================================================== #
 agenta:
@@ -329,22 +359,15 @@ redisDurable:
 #     workers, 60 on api, services, web and webMobile.
 #   lifecycle: a preStop exec `sleep 10` on agentRunner, api, services, web and
 #     webMobile. Setting a key replaces its default.
-# Liveness probes: the chart sets none on cron, workerStreams or workerQueues. Each of
-# those runs its process as PID 1, so a process that exits takes the container with it and
-# the kubelet restarts it already. The probe that used to be here called `pgrep`, which is
-# not in the image, so it errored every period and never protected anything (agenta#7334).
-# Detecting a worker that is alive but no longer working needs a progress signal from the
-# application. There is a partial one, run_worker_heartbeat in the evaluations runtime, but
-# it runs on its own timer rather than with task progress, it only exists when that queue is
-# enabled, it covers neither the stream loops nor cron, and nothing consumes it. Until a
-# signal covers all three workloads, supply your own probe if you have one worth checking:
+# Liveness probes on cron, workerStreams and workerQueues come from the heartbeat file.
+# See the `heartbeat` section near the top of this file for what each one proves. Setting
+# `<workload>.livenessProbe` replaces the generated probe for that workload:
 #
 #   workerQueues:
 #     livenessProbe:
-#       exec:
-#         command: ["sh", "-c", "test -f /tmp/heartbeat && [ $(( $(date +%s) - $(stat -c %Y /tmp/heartbeat) )) -lt 120 ]"]
-#       periodSeconds: 30
-#       failureThreshold: 3
+#       httpGet:
+#         path: /healthz
+#         port: 8080
 #
 # The keys work on api, services, web, webMobile, cron, workerStreams,
 # workerQueues, agentRunner, supertokens, redisVolatile, redisDurable,
