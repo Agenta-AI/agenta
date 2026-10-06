@@ -22,6 +22,8 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {TurnRow} from "@/features/chat/TurnRow"
 
+import {WithQueryClient} from "../support/queryClient"
+
 vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
 
 // The project's MCP connections, which the card needs before it may offer Reconnect: the action
@@ -96,9 +98,11 @@ const renderTurn = (parts: unknown[]): string => {
     root = createRoot(host)
     act(() => {
         root!.render(
-            <Provider store={createStore()}>
-                <TurnRow turn={turn} sessionId="session-1" />
-            </Provider>,
+            <WithQueryClient>
+                <Provider store={createStore()}>
+                    <TurnRow turn={turn} sessionId="session-1" />
+                </Provider>
+            </WithQueryClient>,
         )
     })
     return host.innerHTML

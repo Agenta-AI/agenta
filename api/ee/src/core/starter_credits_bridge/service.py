@@ -31,6 +31,8 @@ from oss.src.core.secrets.managed import (
     SecretManager,
 )
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
+from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
 
@@ -314,6 +316,37 @@ def _may_repair(project_id: str) -> bool:
 def _hold_off(project_id: str) -> None:
     """Stop reads repairing this project again for a while."""
     _reconcile_cooldowns[project_id] = _monotonic() + _RECONCILE_RETRY_COOLDOWN_SECONDS
+
+
+async def repair_starter_credits_endpoint(*, project_id: UUID, slug: str) -> bool:
+    """Register the LLM gateway endpoint of a starter-credits row that has none.
+
+    The gateway calls this when a custom endpoint is missing. Rows seeded before the
+    bridge carried the registrar have no endpoint, and the gateway refused every run on
+    them with `endpoint_not_found`; this repairs such a row on its first gateway call,
+    with no backfill job. Only the bridge's own row in this project qualifies: any other
+    slug, or a user's row saved under this slug, is left alone. Returns whether it
+    registered, so the gateway reads the endpoint again.
+    """
+    if slug != STARTER_CREDITS_SLUG:
+        return False
+
+    row = await _vault_service().get_secret_by_slug(
+        STARTER_CREDITS_SLUG,
+        project_id=project_id,
+    )
+    if (
+        row is None
+        or row.kind != SecretKind.CUSTOM_PROVIDER
+        or _find_starter_credits_row([row]) is None
+    ):
+        return False
+
+    await LLMEndpointRegistrar(llm_endpoints_dao=_llm_endpoints_dao()).register(
+        project_id=project_id,
+        secret=row,
+    )
+    return True
 
 
 def _find_starter_credits_row(secrets: list) -> Optional[SecretResponseDTO]:
@@ -614,8 +647,20 @@ def _proxy_client(config: StarterCreditsBridgeConfig) -> StarterCreditsProxyClie
     )
 
 
+def _llm_endpoints_dao() -> LLMEndpointsDAO:
+    return LLMEndpointsDAO()
+
+
 def _vault_service() -> VaultService:
-    return VaultService(SecretsDAO())
+    # With the registrar, so the seeded row gets its LLM gateway endpoint (and loses it
+    # when the row is deleted). Without it, every gateway run on this connection fails
+    # with `endpoint_not_found`.
+    return VaultService(
+        SecretsDAO(),
+        llm_endpoint_registrar=LLMEndpointRegistrar(
+            llm_endpoints_dao=_llm_endpoints_dao(),
+        ),
+    )
 
 
 async def _team_ceiling_verified(

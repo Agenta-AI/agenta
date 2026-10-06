@@ -16,6 +16,7 @@ from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.subscriptions import service as subscriptions_service_module
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import Event
+from oss.src.core.rollout.switches import WalletMode
 
 PRO = DefaultPlan.CLOUD_V0_PRO.value
 BUSINESS = DefaultPlan.CLOUD_V0_BUSINESS.value
@@ -99,6 +100,7 @@ def _invoice(*, billing_reason, total=2900, lines=None, plan=PRO):
         "billing_reason": billing_reason,
         "total": total,
         "lines": {"data": lines if lines is not None else [_line(OCT_1, NOV_1)]},
+        "subscription": "sub_123",
         "subscription_details": {
             "metadata": {
                 "target": billing_router_module.env.stripe.webhook_target,
@@ -219,9 +221,13 @@ async def test_the_grant_reads_the_new_webhook_invoice_shape(monkeypatch):
             _new_shape_line(OCT_1 + 60, NOV_1, proration=True),
         ],
     )
+    # The new shape drops the top-level subscription for `parent.subscription_details`.
     invoice["parent"] = {
         "type": "subscription_details",
-        "subscription_details": invoice.pop("subscription_details"),
+        "subscription_details": {
+            **invoice.pop("subscription_details"),
+            "subscription": invoice.pop("subscription"),
+        },
     }
     _install_event(monkeypatch, "invoice.payment_succeeded", invoice)
 
@@ -540,6 +546,11 @@ def top_up_ready(monkeypatch):
     monkeypatch.setattr(billing_router_module.env.wallets, "enabled", True)
     monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", "whsec_x")
     monkeypatch.setattr(billing_router_module, "get_free_plan", lambda: HOBBY)
+    monkeypatch.setattr(
+        billing_router_module,
+        "wallet_mode_for",
+        AsyncMock(return_value=WalletMode.ENFORCE),
+    )
     stripe = _stripe_for_checkout()
     monkeypatch.setattr(billing_router_module, "_load_stripe", lambda: stripe)
     return stripe
@@ -570,6 +581,11 @@ async def test_top_up_checkout_is_a_one_time_payment_for_the_pack(top_up_ready):
         "target": billing_router_module.env.stripe.webhook_target,
         "purpose": TOP_UP_PURPOSE,
         "pack": "credits_10000",
+    }
+    # The purchase gets a paid invoice, tagged like the session.
+    assert kwargs["invoice_creation"] == {
+        "enabled": True,
+        "invoice_data": {"metadata": kwargs["metadata"]},
     }
 
 
@@ -650,3 +666,190 @@ async def test_top_up_checkout_is_absent_without_a_webhook_secret(
 
     assert error.value.status_code == 404
     top_up_ready.checkout.Session.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_top_up_checkout_returns_to_the_cancel_url(top_up_ready):
+    router = _router(
+        subscription_service=SimpleNamespace(
+            read=AsyncMock(return_value=_subscription(PRO))
+        )
+    )
+
+    await router.create_top_up_checkout(
+        organization_id=ORGANIZATION_ID,
+        pack="credits_1000",
+        success_url="https://app.example/credits?topup=success",
+        cancel_url="https://app.example/credits?topup=cancelled",
+    )
+
+    kwargs = top_up_ready.checkout.Session.create.call_args.kwargs
+    assert kwargs["success_url"] == "https://app.example/credits?topup=success"
+    assert kwargs["cancel_url"] == "https://app.example/credits?topup=cancelled"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", [WalletMode.OFF, WalletMode.SHADOW])
+async def test_top_up_checkout_is_absent_where_the_wallet_is_not_enforced(
+    top_up_ready, monkeypatch, mode
+):
+    monkeypatch.setattr(
+        billing_router_module, "wallet_mode_for", AsyncMock(return_value=mode)
+    )
+    router = _router(
+        subscription_service=SimpleNamespace(
+            read=AsyncMock(return_value=_subscription(PRO))
+        )
+    )
+
+    with pytest.raises(HTTPException) as error:
+        await router.create_top_up_checkout(
+            organization_id=ORGANIZATION_ID,
+            pack="credits_1000",
+            success_url="https://app.example/billing",
+        )
+
+    assert error.value.status_code == 404
+    top_up_ready.checkout.Session.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_top_up_packs_list_every_pack_with_its_price(top_up_ready):
+    router = _router(
+        subscription_service=SimpleNamespace(
+            read=AsyncMock(return_value=_subscription(PRO))
+        )
+    )
+
+    result = await router.fetch_top_up_packs(organization_id=ORGANIZATION_ID)
+
+    assert result.status == "available"
+    assert [
+        (pack.code, pack.credits, pack.price_cents, pack.currency)
+        for pack in result.packs
+    ] == [
+        ("credits_1000", 1_000, 1_000, "usd"),
+        ("credits_2500", 2_500, 2_500, "usd"),
+        ("credits_10000", 10_000, 10_000, "usd"),
+    ]
+    assert {pack.expires_after_days for pack in result.packs} == {365}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "subscription",
+    [
+        None,
+        _subscription(HOBBY),
+        _subscription(PRO, subscription_id=None),
+        _subscription(PRO, customer_id=None),
+    ],
+)
+async def test_top_up_packs_ask_for_a_paid_plan(top_up_ready, subscription):
+    router = _router(
+        subscription_service=SimpleNamespace(read=AsyncMock(return_value=subscription))
+    )
+
+    result = await router.fetch_top_up_packs(organization_id=ORGANIZATION_ID)
+
+    assert result.status == "paid_plan_required"
+    assert len(result.packs) == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "setting",
+    ["wallet_off", "no_webhook_secret", "no_stripe", "shadow", "off_for_organization"],
+)
+async def test_top_up_packs_are_unavailable_until_a_purchase_can_be_credited(
+    top_up_ready, monkeypatch, setting
+):
+    if setting == "wallet_off":
+        monkeypatch.setattr(billing_router_module.env.wallets, "enabled", False)
+    elif setting == "no_webhook_secret":
+        monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", None)
+    elif setting == "no_stripe":
+        monkeypatch.setattr(billing_router_module, "_load_stripe", lambda: None)
+    else:
+        mode = WalletMode.SHADOW if setting == "shadow" else WalletMode.OFF
+        monkeypatch.setattr(
+            billing_router_module, "wallet_mode_for", AsyncMock(return_value=mode)
+        )
+    read = AsyncMock(return_value=_subscription(PRO))
+    router = _router(subscription_service=SimpleNamespace(read=read))
+
+    result = await router.fetch_top_up_packs(organization_id=ORGANIZATION_ID)
+
+    assert result.status == "unavailable"
+    assert len(result.packs) == 3
+
+
+@pytest.mark.asyncio
+async def test_a_top_up_reads_as_credited_once_its_session_granted_a_pack():
+    read_purchase = AsyncMock(return_value=SimpleNamespace(amount_musd=2_500 * 10_000))
+    router = _router(wallets_service=SimpleNamespace(read_purchase=read_purchase))
+
+    result = await router.fetch_top_up_purchase(
+        organization_id=ORGANIZATION_ID, checkout_session_id="cs_test_1"
+    )
+
+    assert (result.credited, result.credits) == (True, 2_500)
+    assert read_purchase.call_args.kwargs == {
+        "organization_id": UUID(ORGANIZATION_ID),
+        "checkout_session_id": "cs_test_1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_top_up_reads_as_pending_until_its_payment_event_arrives():
+    router = _router(
+        wallets_service=SimpleNamespace(read_purchase=AsyncMock(return_value=None))
+    )
+
+    result = await router.fetch_top_up_purchase(
+        organization_id=ORGANIZATION_ID, checkout_session_id="cs_test_1"
+    )
+
+    assert (result.credited, result.credits) == (False, None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "event_type", ["invoice.payment_succeeded", "invoice.payment_failed"]
+)
+# Older Stripe API versions send an empty `subscription_details` on a one-off invoice.
+@pytest.mark.parametrize("subscription_details", [None, {"metadata": {}}])
+async def test_a_top_up_invoice_is_acknowledged_without_touching_the_subscription(
+    monkeypatch, event_type, subscription_details
+):
+    # The receipt invoice Checkout creates for a top-up belongs to no subscription.
+    grant_period_credits = AsyncMock()
+    router = _router(
+        subscription_service=SimpleNamespace(
+            process_event=AsyncMock(), grant_period_credits=grant_period_credits
+        ),
+        wallets_service=SimpleNamespace(grant_purchase=AsyncMock()),
+    )
+    invoice = {
+        "id": "in_topup",
+        "billing_reason": "manual",
+        "total": 2_500,
+        "metadata": {
+            "organization_id": ORGANIZATION_ID,
+            "target": billing_router_module.env.stripe.webhook_target,
+            "purpose": TOP_UP_PURPOSE,
+            "pack": "credits_2500",
+        },
+        "parent": None,
+        "subscription": None,
+        "subscription_details": subscription_details,
+    }
+    _install_event(monkeypatch, event_type, invoice)
+
+    response = await router.handle_events(DummyRequest())
+
+    assert response.status_code == 200
+    assert loads(response.body)["status"] == "skip"
+    router.subscription_service.process_event.assert_not_awaited()
+    grant_period_credits.assert_not_awaited()
+    router.wallets_service.grant_purchase.assert_not_awaited()

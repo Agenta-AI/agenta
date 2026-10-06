@@ -1,5 +1,6 @@
 import {
     ActivityNode,
+    BUY_CREDITS_CODES,
     NOT_SENT_CODES,
     OWN_KEY_CODES,
     planLimitTitle,
@@ -33,6 +34,7 @@ export const RunErrorCallout = ({
     onAddKey,
     onSignIn,
     onOpenBilling,
+    onBuyCredits,
     variant = "step",
 }: {
     text: string
@@ -45,8 +47,10 @@ export const RunErrorCallout = ({
     onAddKey?: () => void
     /** Where the reader signs in again; offered for the dead-subscription classes. */
     onSignIn?: () => void
-    /** Where the reader sees plans and buys credits; offered for the plan-limit classes. */
+    /** Where the reader sees the plans; offered for the plan-limit classes. */
     onOpenBilling?: () => void
+    /** Where the reader buys a credit pack; offered for the out-of-credit class. */
+    onBuyCredits?: () => void
     variant?: "step" | "card"
 }) => {
     const limitTitle = planLimitTitle(code)
@@ -61,6 +65,7 @@ export const RunErrorCallout = ({
             : describeRunError(reason)
     const offerOwnKey = !!onAddKey && !!code && OWN_KEY_CODES.has(code)
     const offerSignIn = !!onSignIn && !!code && SUBSCRIPTION_LOGIN_CODES.has(code)
+    const offerBuyCredits = !!onBuyCredits && !!code && BUY_CREDITS_CODES.has(code)
     // An admission refusal is not a run that failed: the message never left the composer, and
     // replaying it would be refused again.
     const notSent = !!code && NOT_SENT_CODES.has(code)
@@ -79,6 +84,11 @@ export const RunErrorCallout = ({
             {offerSignIn ? (
                 <Button size="sm" variant="outline" onClick={onSignIn}>
                     Sign in again
+                </Button>
+            ) : null}
+            {offerBuyCredits ? (
+                <Button size="sm" variant="outline" onClick={onBuyCredits}>
+                    Buy credits
                 </Button>
             ) : null}
             {limitTitle && onOpenBilling ? (
