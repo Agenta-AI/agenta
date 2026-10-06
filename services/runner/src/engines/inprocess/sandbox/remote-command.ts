@@ -119,8 +119,6 @@ export interface RemoteCommandOptions {
   discardOutputUpTo?: { bytes: number; lines: number };
   signal?: AbortSignal;
   timeoutSeconds?: number;
-  /** When the timeout started counting (epoch ms); now by default. */
-  startedAtMs?: number;
   /** How long a Stop waits for the kill to be confirmed before the outcome is unknown. */
   killDeadlineMs?: number;
   /** How long a launched supervisor may take to claim its attempt before the runner decides it. */
@@ -323,8 +321,7 @@ export async function runRemoteCommand(use: SandboxUse, command: string, cwd: st
     use.signal.removeEventListener("abort", onLost);
     use.retire(reason);
   };
-  const timeoutMs = options.timeoutSeconds && options.timeoutSeconds > 0 ? options.timeoutSeconds * 1000 - (Date.now() - (options.startedAtMs ?? Date.now())) : undefined;
-  const deadline = timeoutMs !== undefined ? setTimeout(() => stop("timeout"), Math.max(0, timeoutMs)) : undefined;
+  const deadline = options.timeoutSeconds && options.timeoutSeconds > 0 ? setTimeout(() => stop("timeout"), options.timeoutSeconds * 1000) : undefined;
 
   /** How a stopped attempt ended: confirmed within the deadline, or unknown (the sandbox is retired). */
   const stopped = async (): Promise<RemoteOutcome> => {

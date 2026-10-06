@@ -126,3 +126,19 @@ describe("a command that runs past the per-tool-call limit (EU 2026-10-06)", () 
     expect(r.text).not.toContain("at most");
   }, 20_000);
 });
+
+describe("a timeout the model asked for counts from the command's start (Codex review of #7381)", () => {
+  it("does not spend the timeout on preparing the sandbox", async () => {
+    const ws = createTestWorkspace();
+    let prepared = false;
+    const slowPrep = async () => {
+      if (!prepared) await new Promise((r) => setTimeout(r, 1500));
+      prepared = true;
+      return { status: "ok" } as never;
+    };
+    const ours = createSandboxBashTool(ws.cwd, (request) => ws.workspace.runCommand({ ...request, requirements: OPEN_NETWORK, preparations: [slowPrep] }), undefined, 60);
+    const r = await outcome(ours.execute("call-prep", { command: "echo did-run; sleep 0.2", timeout: 1 }, undefined, undefined, { cwd: ws.cwd } as never));
+    expect(r.failed).toBe(false);
+    expect(r.text).toContain("did-run");
+  }, 20_000);
+});

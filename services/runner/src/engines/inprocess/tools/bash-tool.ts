@@ -45,7 +45,6 @@ export function createSandboxBashTool(
   const tool: typeof definition = {
     ...definition,
     execute: async (toolCallId, params, signal, onUpdate, ctx) => {
-      const startedAtMs = Date.now();
       const seconds = commandTimeoutSeconds(timeoutSeconds(params.timeout), maxSeconds * 1000);
       const output = new CommandOutput();
       const untrack = track(output);
@@ -68,7 +67,6 @@ export function createSandboxBashTool(
           command: params.command,
           cwd: ctx?.cwd || cwd,
           timeoutSeconds: seconds,
-          startedAtMs,
           ...(signal ? { signal } : {}),
           outputPath,
           // Half of Pi's limits: the notices appended after the command can never push output

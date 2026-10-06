@@ -262,9 +262,10 @@ export function applyClaudeConnectionEnv(
   env.ENABLE_TOOL_SEARCH = "false";
 
   // Claude Code runs its own Bash tool, so the runner cannot stop a command; it can only bound the
-  // timeout Claude Code allows. A command stopped at that timeout returns to the model as a tool
-  // error and the turn continues; one allowed to run past the per-tool-call limit would trip the
-  // run-wide watchdog and end the turn. Claude Code's own defaults are 2 and 10 minutes.
+  // timeout Claude Code allows. At that timeout Claude Code stops the command or moves it to the
+  // background; either way the tool call returns and the turn continues. A timeout allowed past the
+  // per-tool-call limit would trip the run-wide watchdog and end the turn instead. Claude Code's own
+  // defaults are 2 and 10 minutes.
   const commandMs = commandTimeoutSeconds(undefined) * 1000;
   env.BASH_MAX_TIMEOUT_MS = String(commandMs);
   env.BASH_DEFAULT_TIMEOUT_MS = String(Math.min(120_000, commandMs));
