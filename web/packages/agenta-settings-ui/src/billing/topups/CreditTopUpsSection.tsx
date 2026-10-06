@@ -46,19 +46,27 @@ export const CreditTopUpsSection = ({
     const [shownReturn, setShownReturn] = useState<TopUpReturn>(null)
     const [pickerOpen, setPickerOpen] = useState(false)
 
+    // Only an organization whose wallet is enforced is offered anything; for any other, this
+    // section leaves the page alone entirely, its URL included.
+    const eligible = offer.isSuccess && entry !== null
+
     // Taken into state, so the notice stays once the host clears the URL.
     useEffect(() => {
-        if (!topUpReturn) return
+        if (!topUpReturn || !eligible) return
         setShownReturn(topUpReturn)
         onQueryHandled?.()
         // Only a new return counts; the callback's identity does not.
-    }, [topUpReturn?.result, topUpReturn?.result === "success" ? topUpReturn.sessionId : null])
+    }, [
+        eligible,
+        topUpReturn?.result,
+        topUpReturn?.result === "success" ? topUpReturn.sessionId : null,
+    ])
 
     useEffect(() => {
-        if (!openPicker || offer.isPending) return
+        if (!openPicker || !eligible) return
         if (entry === "buy") setPickerOpen(true)
         onQueryHandled?.()
-    }, [openPicker, offer.isPending, entry])
+    }, [openPicker, eligible, entry])
 
     const notice = shownReturn ? (
         <TopUpReturnNotice

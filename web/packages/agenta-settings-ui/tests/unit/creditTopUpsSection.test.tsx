@@ -50,6 +50,7 @@ const render = async (
         onUpgrade?: () => void
         onQueryHandled?: () => void
         showLoadError?: boolean
+        openPicker?: boolean
     } = {},
 ) => {
     const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
@@ -64,6 +65,7 @@ const render = async (
                     onUpgrade={props.onUpgrade}
                     onQueryHandled={props.onQueryHandled}
                     showLoadError={props.showLoadError}
+                    openPicker={props.openPicker}
                 />
             </QueryClientProvider>,
         ),
@@ -99,12 +101,20 @@ describe("CreditTopUpsSection", () => {
         expect(await render()).toBe("")
     })
 
-    it("shows no return notice either where the wallet is not enforced", async () => {
+    it("leaves the page and its URL alone where the wallet is not enforced", async () => {
         api.fetchTopUpOffer.mockResolvedValue({status: "unavailable", packs: PACKS})
+        const onQueryHandled = vi.fn()
 
-        expect(await render({topUpReturn: {result: "cancelled"}})).toBe("")
-        expect(await render({topUpReturn: {result: "success", sessionId: "cs_test_x"}})).toBe("")
+        expect(await render({topUpReturn: {result: "cancelled"}, onQueryHandled})).toBe("")
+        expect(
+            await render({
+                topUpReturn: {result: "success", sessionId: "cs_test_x"},
+                onQueryHandled,
+            }),
+        ).toBe("")
+        expect(await render({openPicker: true, onQueryHandled})).toBe("")
         expect(api.fetchTopUpPurchase).not.toHaveBeenCalled()
+        expect(onQueryHandled).not.toHaveBeenCalled()
     })
 
     it("says the packs failed to load only where the host knows the wallet is enforced", async () => {
