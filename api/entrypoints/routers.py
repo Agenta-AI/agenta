@@ -1370,10 +1370,19 @@ gateway_policy_service = GatewayPolicyService(
     usage_sink=gateway_usage_sink,
 )
 
+# EE: the starter-credits connection seeded before the bridge registered gateway
+# endpoints gets its endpoint on its first gateway call.
+llm_missing_endpoint_repair = None
+if ee and is_ee():
+    from ee.src.core.starter_credits_bridge.service import (
+        repair_starter_credits_endpoint as llm_missing_endpoint_repair,
+    )
+
 llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
     policy=gateway_policy_service,
     resolver=secrets_resolver,
+    missing_endpoint_repair=llm_missing_endpoint_repair,
     upstream_registry=LLMUpstreamRegistry(
         adapters={
             "relay": RelayLLMAdapter(),

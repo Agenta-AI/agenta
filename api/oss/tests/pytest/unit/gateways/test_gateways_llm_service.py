@@ -226,7 +226,7 @@ async def _one_chunk_body(data: bytes) -> AsyncIterator[bytes]:
 
 
 def _service(
-    *, dao=None, policy=None, resolver=None, registry=None
+    *, dao=None, policy=None, resolver=None, registry=None, repair=None
 ) -> LLMGatewayService:
     return LLMGatewayService(
         llm_endpoints_dao=dao if dao is not None else _MockLlmEndpointsDAO(),
@@ -235,6 +235,7 @@ def _service(
         upstream_registry=registry
         if registry is not None
         else LLMUpstreamRegistry(adapters={}),
+        missing_endpoint_repair=repair,
     )
 
 
@@ -1648,3 +1649,63 @@ async def test_an_endpoint_with_no_ceiling_relays_the_body_byte_for_byte():
     await _relay(service, body)
 
     assert adapter.calls[0]["body"] == json.dumps(body).encode()
+
+
+# --- a missing custom endpoint can be repaired once ------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_a_repaired_custom_endpoint_resolves_on_the_same_call():
+    """An existing starter-credits row seeded without an endpoint resolves on its first
+    gateway call, with no secrets read before it."""
+    dao = _MockLlmEndpointsDAO()
+    calls = []
+
+    async def repair(*, project_id, slug):
+        calls.append((project_id, slug))
+        dao.rows_by_slug[slug] = _custom_row(slug=slug)
+        return True
+
+    resolved = await _service(dao=dao, repair=repair).resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-4o",
+        provider_key=None,
+        connection_slug="starter-credits",
+        connection_namespace=GatewayEndpointNamespace.CUSTOM,
+    )
+
+    assert (resolved.namespace, resolved.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        "starter-credits",
+    )
+    assert [slug for _, slug in calls] == ["starter-credits"]
+
+
+@pytest.mark.asyncio
+async def test_a_repair_that_registers_nothing_keeps_the_not_found_error():
+    async def repair(*, project_id, slug):
+        return False
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service(repair=repair).resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-4o",
+            provider_key=None,
+            connection_slug="gone",
+            connection_namespace=GatewayEndpointNamespace.CUSTOM,
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_repair_that_raises_keeps_the_not_found_error():
+    async def repair(*, project_id, slug):
+        raise RuntimeError("vault down")
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service(repair=repair).resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-4o",
+            provider_key=None,
+            connection_slug="starter-credits",
+            connection_namespace=GatewayEndpointNamespace.CUSTOM,
+        )

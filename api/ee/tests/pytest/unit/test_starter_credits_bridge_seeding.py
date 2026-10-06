@@ -252,7 +252,6 @@ def seeding_env(monkeypatch):
     """Arm the config and stub every dependency; returns the mutable stubs."""
     service._reconciling_projects.clear()
     service._reconcile_cooldowns.clear()
-    service._projects_with_endpoint.clear()
     FakeProxyClient.records = {}
     FakeProxyClient.generate_failures = []
     FakeProxyClient.update_failures = []
@@ -1723,65 +1722,72 @@ def test_the_bridge_vault_service_registers_gateway_endpoints(monkeypatch):
 
 
 @pytest.mark.asyncio
-class TestGatewayEndpointSelfHeal:
-    """A row seeded without a gateway endpoint gets one on the next secrets read."""
+class TestRepairingTheGatewayEndpoint:
+    """The gateway asks the bridge to register a starter-credits endpoint it cannot find."""
 
-    async def test_a_read_registers_a_missing_endpoint(self, seeding_env):
+    async def test_the_bridge_row_gets_its_endpoint(self, seeding_env):
         endpoints = FakeEndpointsDAO(present=False)
         seeding_env.monkeypatch.setattr(
             service, "_llm_endpoints_dao", lambda: endpoints
         )
-        row = _seeded_row(seeding_env.config.model_id)
+        row = _seeded_row("vertex_ai/some-model")
+        seeding_env.vault.row = row
 
-        repaired = await service.reconcile_starter_credits_on_read(
-            project_id=seeding_env.project.id, secrets=[row]
+        repaired = await service.repair_starter_credits_endpoint(
+            project_id=seeding_env.project.id, slug=service.STARTER_CREDITS_SLUG
         )
 
-        assert repaired is None  # the row itself was current
+        assert repaired is True
         (created,) = endpoints.created
         assert created.slug == service.STARTER_CREDITS_SLUG
         assert created.secret_id == row.id
         assert created.data.route.base_url == "https://credits-proxy.example.test"
-        assert created.data.models.allowlist  # the funded model is allowed
+        assert created.data.models.allowlist == [
+            "Agenta/custom/vertex_ai/some-model",
+            "vertex_ai/some-model",
+        ]
 
-    async def test_a_registered_endpoint_costs_one_query_per_process(self, seeding_env):
-        row = _seeded_row(seeding_env.config.model_id)
-
-        for _ in range(3):
-            await service.reconcile_starter_credits_on_read(
-                project_id=seeding_env.project.id, secrets=[row]
-            )
-
-        assert seeding_env.endpoints.fetches == 1
-        assert seeding_env.endpoints.created == []
-
-    async def test_a_failed_registration_is_retried_by_the_next_read(self, seeding_env):
+    async def test_another_slug_is_not_looked_up(self, seeding_env):
         endpoints = FakeEndpointsDAO(present=False)
-        endpoints.create_error = RuntimeError("database down")
         seeding_env.monkeypatch.setattr(
             service, "_llm_endpoints_dao", lambda: endpoints
         )
-        row = _seeded_row(seeding_env.config.model_id)
 
-        # The read stands although the write failed.
         assert (
-            await service.reconcile_starter_credits_on_read(
-                project_id=seeding_env.project.id, secrets=[row]
+            await service.repair_starter_credits_endpoint(
+                project_id=seeding_env.project.id, slug="qa-custom"
             )
-            is None
+            is False
         )
         assert endpoints.created == []
 
-        endpoints.create_error = None
-        await service.reconcile_starter_credits_on_read(
-            project_id=seeding_env.project.id, secrets=[row]
+    async def test_a_user_row_under_the_slug_is_left_alone(self, seeding_env):
+        endpoints = FakeEndpointsDAO(present=False)
+        seeding_env.monkeypatch.setattr(
+            service, "_llm_endpoints_dao", lambda: endpoints
+        )
+        row = _seeded_row("vertex_ai/some-model")
+        row.management = None
+        seeding_env.vault.row = row
+
+        assert (
+            await service.repair_starter_credits_endpoint(
+                project_id=seeding_env.project.id, slug=service.STARTER_CREDITS_SLUG
+            )
+            is False
+        )
+        assert endpoints.created == []
+
+    async def test_no_row_registers_nothing(self, seeding_env):
+        endpoints = FakeEndpointsDAO(present=False)
+        seeding_env.monkeypatch.setattr(
+            service, "_llm_endpoints_dao", lambda: endpoints
         )
 
-        assert len(endpoints.created) == 1
-
-    async def test_a_project_without_the_row_queries_nothing(self, seeding_env):
-        await service.reconcile_starter_credits_on_read(
-            project_id=seeding_env.project.id, secrets=[]
+        assert (
+            await service.repair_starter_credits_endpoint(
+                project_id=seeding_env.project.id, slug=service.STARTER_CREDITS_SLUG
+            )
+            is False
         )
-
-        assert seeding_env.endpoints.fetches == 0
+        assert endpoints.created == []

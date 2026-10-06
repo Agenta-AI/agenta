@@ -215,10 +215,6 @@ _RECONCILE_RETRY_COOLDOWN_SECONDS = 300.0
 
 _reconcile_cooldowns: dict[str, float] = {}
 
-# Projects whose starter-credits gateway endpoint was read back as present, so a read
-# skips the check. Process-local; a restart costs one query per project again.
-_projects_with_endpoint: set[str] = set()
-
 
 async def reconcile_starter_credits_on_read(
     *,
@@ -243,16 +239,7 @@ async def reconcile_starter_credits_on_read(
         return None
 
     row = _find_starter_credits_row(secrets)
-    if row is None:
-        return None
-
-    # Rows seeded before the bridge registered gateway endpoints have none, and the
-    # gateway refuses them with `endpoint_not_found`. Registering here repairs them on
-    # the first read, with no backfill job. One query per project per process once the
-    # endpoint exists.
-    await _ensure_gateway_endpoint(project_id=project_id, row=row)
-
-    if _stored_model_slugs(row) == [config.model_id]:
+    if row is None or _stored_model_slugs(row) == [config.model_id]:
         # The whole cost of a healthy project: a scan of the list already in hand.
         return None
 
@@ -331,43 +318,35 @@ def _hold_off(project_id: str) -> None:
     _reconcile_cooldowns[project_id] = _monotonic() + _RECONCILE_RETRY_COOLDOWN_SECONDS
 
 
-async def _ensure_gateway_endpoint(*, project_id: UUID, row: SecretResponseDTO) -> None:
-    """Register the row's LLM gateway endpoint when it is missing. Never raises.
+async def repair_starter_credits_endpoint(*, project_id: UUID, slug: str) -> bool:
+    """Register the LLM gateway endpoint of a starter-credits row that has none.
 
-    A project is remembered only after its endpoint was READ back as present: the
-    registrar logs and swallows its own failures, so a write that did not land is retried
-    by the next read instead of being remembered as done.
+    The gateway calls this when a custom endpoint is missing. Rows seeded before the
+    bridge carried the registrar have no endpoint, and the gateway refused every run on
+    them with `endpoint_not_found`; this repairs such a row on its first gateway call,
+    with no backfill job. Only the bridge's own row in this project qualifies: any other
+    slug, or a user's row saved under this slug, is left alone. Returns whether it
+    registered, so the gateway reads the endpoint again.
     """
-    key = str(project_id)
-    if key in _projects_with_endpoint:
-        return
+    if slug != STARTER_CREDITS_SLUG:
+        return False
 
-    try:
-        dao = _llm_endpoints_dao()
-        stored = await dao.fetch_endpoint_by_slug(
-            project_id=project_id,
-            slug=STARTER_CREDITS_SLUG,
-        )
-        if stored is not None:
-            _projects_with_endpoint.add(key)
-            return
+    row = await _vault_service().get_secret_by_slug(
+        STARTER_CREDITS_SLUG,
+        project_id=project_id,
+    )
+    if (
+        row is None
+        or row.kind != SecretKind.CUSTOM_PROVIDER
+        or _find_starter_credits_row([row]) is None
+    ):
+        return False
 
-        await LLMEndpointRegistrar(llm_endpoints_dao=dao).register(
-            project_id=project_id,
-            secret=row,
-        )
-        log.info(
-            "[starter_credits_bridge] registered the missing gateway endpoint",
-            project_id=key,
-            secret_id=str(row.id),
-        )
-    except Exception:
-        log.warning(
-            "[starter_credits_bridge] could not register the gateway endpoint; "
-            "the read stands",
-            project_id=key,
-            exc_info=True,
-        )
+    await LLMEndpointRegistrar(llm_endpoints_dao=_llm_endpoints_dao()).register(
+        project_id=project_id,
+        secret=row,
+    )
+    return True
 
 
 def _find_starter_credits_row(secrets: list) -> Optional[SecretResponseDTO]:
