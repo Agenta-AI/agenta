@@ -1,5 +1,7 @@
 /** Agent HTML apps — tolerant `app.json` parser; `agenta_app`, `name`, flat `entry` are strict. */
 
+import type {GrantLevel} from "./protocol"
+
 export interface AppManifest {
     agenta_app: 1
     name: string
@@ -9,6 +11,8 @@ export interface AppManifest {
     entry: string
     /** Starter the app came from, e.g. `board@1` or `agent:retro-board@2`. Stamped by `create_app`. */
     template?: string | null
+    /** File access the app needs; absent means undeclared, and access is asked per call. */
+    access?: GrantLevel
     /** Data files (relative to the app dir) the app owns; `create_app --update` leaves them alone. */
     data?: string[]
     /** Config file (relative to the app dir) the app reads on boot. */
@@ -32,6 +36,7 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
     "icon",
     "entry",
     "template",
+    "access",
     "data",
     "config",
     "kit",
@@ -78,6 +83,7 @@ export function parseManifest(text: string): AppManifest | null {
 
     if (typeof raw.icon === "string") manifest.icon = raw.icon
     if (typeof raw.template === "string" || raw.template === null) manifest.template = raw.template
+    if (raw.access === "read" || raw.access === "read-write") manifest.access = raw.access
     if (isStringArray(raw.data)) manifest.data = raw.data
     if (typeof raw.config === "string") manifest.config = raw.config
     if (isStringArray(raw.tools)) manifest.tools = raw.tools

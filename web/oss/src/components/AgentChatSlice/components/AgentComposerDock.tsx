@@ -450,6 +450,7 @@ const AgentComposerDock = ({
                                 sectionTooltip={<HarnessTooltip />}
                                 options={slash.modelGroups}
                                 value={slash.currentModel}
+                                selectedKey={slash.currentModelKey}
                                 // The option carries a vault pick's connection slug + kind; `applyModel`
                                 // needs it to attach the right connection instead of guessing by model id.
                                 onChange={(next, option) => slash.applyModel(next, option)}

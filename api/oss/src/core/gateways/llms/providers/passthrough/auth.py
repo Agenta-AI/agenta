@@ -19,9 +19,19 @@ _DEFAULT_AUTH_HEADER: Tuple[str, str] = ("Authorization", "Bearer ")
 
 
 def _secret_key(secret: ResolvedSecret) -> Optional[str]:
+    """The record's API key.
+
+    A custom provider saved from the UI keeps its key in `extras["api_key"]`, not in
+    `provider.key` (`web/packages/agenta-entities/src/secret/core/transforms.ts`). The SDK's
+    direct path reads it there too (`platform/connections.py`), and `api_key` is classified
+    as credential material in the shared extras vocabulary. Reading only `provider.key` sent
+    such a connection's calls with no key, and the upstream answered 401.
+    """
     data = secret.secret.data
-    if secret.secret.kind in (SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER):
+    if secret.secret.kind == SecretKind.PROVIDER_KEY:
         return data.provider.key
+    if secret.secret.kind == SecretKind.CUSTOM_PROVIDER:
+        return data.provider.key or (data.provider.extras or {}).get("api_key")
     return None
 
 
@@ -203,12 +213,25 @@ async def _guarded_credential_document(
     return document
 
 
+# One token minter for the process. LiteLLM caches each minted token on the instance, keyed
+# by the credential document and project, so a fresh instance per call minted a new token on
+# every call: an extra OAuth round trip before each request.
+_vertex_minter: Any = None
+
+
+def _vertex_token_minter() -> Any:
+    global _vertex_minter
+    if _vertex_minter is None:
+        # LiteLLM mints the Vertex access token without transforming request or response bytes.
+        from litellm.llms.vertex_ai.vertex_llm_base import VertexBase
+
+        _vertex_minter = VertexBase()
+    return _vertex_minter
+
+
 async def _vertex_auth(
     route: LLMResolvedRoute, secret: Optional[ResolvedSecret]
 ) -> Dict[str, str]:
-    # LiteLLM mints the Vertex access token without transforming request or response bytes.
-    from litellm.llms.vertex_ai.vertex_llm_base import VertexBase
-
     extras = _secret_extras(secret) if secret else {}
     credentials = extras.get("vertex_ai_credentials")
     project = (route.extras or {}).get("vertex_project")
@@ -222,7 +245,7 @@ async def _vertex_auth(
     if env.mock_gateways.enabled and credentials == "agenta-gateway-mock":
         return {"Authorization": f"Bearer {env.mock_gateways.upstream_token}"}
     document = await _guarded_credential_document(route, credentials)
-    token, _project = await VertexBase().get_access_token_async(
+    token, _project = await _vertex_token_minter().get_access_token_async(
         credentials=document, project_id=project
     )
     return {"Authorization": f"Bearer {token}"}

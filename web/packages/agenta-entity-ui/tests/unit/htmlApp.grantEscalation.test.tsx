@@ -14,12 +14,12 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {type AssembleIo} from "../../src/drive/htmlApp/assemble"
+import {HtmlAppBody} from "../../src/drive/htmlApp/HtmlAppBody"
 import {
     createGrantStore,
-    HtmlAppBody,
     HtmlAppEnvContext,
     type GrantStore,
-} from "../../src/drive/htmlApp/HtmlAppBody"
+} from "../../src/drive/htmlApp/htmlAppEnv"
 
 const MOUNT = {id: "m1"} as never
 const DIR = "apps/board"

@@ -5,6 +5,8 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, status
 
+from oss.src.utils.logging import get_module_logger
+
 from oss.src.core.gateways.types import (
     GatewayEndpointInactiveError,
     GatewayPlaneDisabledError,
@@ -41,6 +43,9 @@ from oss.src.core.gateways.policy.types import (
     EntitlementDeniedError,
     PolicyDeniedError,
 )
+
+
+log = get_module_logger(__name__)
 
 
 def gateway_error_envelope(
@@ -82,12 +87,21 @@ def plane_disabled_envelope(exc: GatewayPlaneDisabledError) -> Dict[str, Any]:
     the assembly here is what stops the three surfaces from naming the same refusal three
     different ways, which is what a fallback in the SDK would then have to match three ways.
     """
+    log_plane_disabled(exc)
     return gateway_error_envelope(
         code=exc.code,
         message=exc.message,
         next_step=exc.next_step,
         details={"flag": exc.flag},
     )
+
+
+def log_plane_disabled(exc: GatewayPlaneDisabledError) -> None:
+    """The operator's side of a refusal the person reads in plain words."""
+    if exc.operator_hint:
+        log.info(
+            "[gateways] plane refused", code=exc.code, operator_hint=exc.operator_hint
+        )
 
 
 def plane_disabled_http_exception(exc: GatewayPlaneDisabledError) -> HTTPException:

@@ -10,7 +10,7 @@ export interface DriveNavKeyEvent {
     ctrlKey: boolean
     altKey: boolean
     shiftKey: boolean
-    /** The event's target is a text field or editor, where ⌫ / Esc belong to the typing. */
+    /** The event's target is a text field or editor, which owns its editing shortcuts. */
     editable: boolean
 }
 
@@ -22,7 +22,7 @@ export const isEditableTarget = (target: EventTarget | null): boolean => {
 
 export const driveNavAction = (e: DriveNavKeyEvent): DriveNavAction | null => {
     const mod = e.metaKey || e.ctrlKey
-    if (e.shiftKey) return null
+    if (e.editable || e.shiftKey) return null
     if (e.altKey && !mod) {
         if (e.key === "ArrowLeft") return "back"
         if (e.key === "ArrowRight") return "forward"
@@ -34,7 +34,7 @@ export const driveNavAction = (e: DriveNavKeyEvent): DriveNavAction | null => {
         if (e.key === "ArrowUp") return "up"
         return null
     }
-    if (mod || e.altKey || e.editable) return null
+    if (mod || e.altKey) return null
     if (e.key === "Backspace") return "up"
     if (e.key === "Escape") return "close"
     return null

@@ -14,7 +14,8 @@ import type {GrantLevel, HtmlAppHost} from "@agenta/entities/drive"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {createGrantStore, HtmlAppBody, HtmlAppEnvContext} from "../../src/drive/htmlApp/HtmlAppBody"
+import {HtmlAppBody} from "../../src/drive/htmlApp/HtmlAppBody"
+import {createGrantStore, HtmlAppEnvContext} from "../../src/drive/htmlApp/htmlAppEnv"
 
 const MOUNT = {id: "m1"} as never
 const DIR = "apps/board"

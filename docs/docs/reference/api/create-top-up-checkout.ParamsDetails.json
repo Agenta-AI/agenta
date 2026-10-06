@@ -1,0 +1,1 @@
+{"parameters":[{"name":"pack","in":"query","required":true,"schema":{"type":"string","title":"Pack"}},{"name":"success_url","in":"query","required":true,"schema":{"type":"string","title":"Success Url"}}]}

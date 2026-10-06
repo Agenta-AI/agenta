@@ -78,7 +78,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                 </div>
             </section>
             <section className="flex grow flex-col" aria-busy>
-                <AgentRegionHeaderBar title="Files" sticky={sticky}>
+                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
@@ -167,7 +167,7 @@ export function AgentOperationsSections({
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
             <section className="flex grow flex-col">
-                <AgentRegionHeaderBar title="Files" sticky={sticky}>
+                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     {storageHeader}
                 </AgentRegionHeaderBar>
                 {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
