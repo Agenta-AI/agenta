@@ -8,7 +8,7 @@ import {
     invalidateWorkflowsListCache,
     type AgentSetupSelection,
 } from "@agenta/entities/workflow"
-import {useCreateAgent} from "@agenta/home-ui"
+import {useCreateAgent, type CreatedAgent} from "@agenta/home-ui"
 import type {FileUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -66,6 +66,8 @@ export const useNewAgentAction = (base: string) => {
              * user has been editing is the one that must be committed.
              */
             entityId?: string
+            /** Fires once the agent is saved, before the hand-off navigation. */
+            onCreated?: (agent: CreatedAgent) => void
         }): Promise<boolean> => {
             if (creating) return false
             // Template loading starts the first run server-side. Collect choices on the existing
@@ -116,6 +118,7 @@ export const useNewAgentAction = (base: string) => {
                 setCreating(false)
                 return false
             }
+            params?.onCreated?.(created)
 
             const typed = params?.seedMessage?.trim() ?? ""
             const seed = params?.setup ? appendSetupPreamble(typed, params.setup) : typed
@@ -216,6 +219,7 @@ export const useNewAgentAction = (base: string) => {
             parts?: FileUIPart[]
             setup?: AgentSetupSelection
             entityId?: string
+            onCreated?: (agent: CreatedAgent) => void
         }) =>
             run({
                 name: input.name,
@@ -225,6 +229,7 @@ export const useNewAgentAction = (base: string) => {
                 seedParts: input.parts,
                 setup: input.setup,
                 entityId: input.entityId,
+                onCreated: input.onCreated,
             }),
         [run],
     )
