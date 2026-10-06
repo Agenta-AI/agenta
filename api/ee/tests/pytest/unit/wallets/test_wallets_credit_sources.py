@@ -353,6 +353,44 @@ async def test_purchase_grants_once_per_checkout_session_for_twelve_months():
 
 
 @pytest.mark.asyncio
+async def test_a_purchase_is_read_back_by_its_checkout_session_only():
+    dao = _dao()
+    organization_id = dao.general_balance.organization_id
+    service = WalletsService(wallets_dao=dao)
+
+    assert (
+        await service.read_purchase(
+            organization_id=organization_id, checkout_session_id="cs_test_1"
+        )
+        is None
+    )
+
+    granted = await service.grant_purchase(
+        organization_id=organization_id,
+        checkout_session_id="cs_test_1",
+        amount_musd=25_000_000,
+        now=NOW,
+    )
+
+    read = await service.read_purchase(
+        organization_id=organization_id, checkout_session_id="cs_test_1"
+    )
+    assert read is not None and read.id == granted.id
+    assert (
+        await service.read_purchase(
+            organization_id=organization_id, checkout_session_id="cs_test_2"
+        )
+        is None
+    )
+    assert (
+        await service.read_purchase(
+            organization_id=uuid4(), checkout_session_id="cs_test_1"
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
 async def test_starter_credits_transfer_once_per_organization():
     dao = _dao()
     organization_id = dao.general_balance.organization_id

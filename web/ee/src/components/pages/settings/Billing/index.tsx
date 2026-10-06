@@ -6,9 +6,15 @@
  * `?upgrade=true` deep link), the portal call, and the two dialogs.
  */
 
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {BillingPage} from "@agenta/settings-ui"
+import {
+    BillingPage,
+    CreditTopUpsSection,
+    readTopUpReturn,
+    TOP_UP_QUERY,
+    withoutTopUpQuery,
+} from "@agenta/settings-ui"
 import {isBillingEnabled} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
@@ -103,6 +109,22 @@ const Billing = () => {
         }
     }, [editSubscriptionInfo])
 
+    // Credit packs: Stripe returns here with the result, and "Buy credits" elsewhere links here with
+    // the picker open. The section keeps what it needs once the URL is cleared.
+    const projectId = typeof router.query.project_id === "string" ? router.query.project_id : ""
+    const topUpReturn = useMemo(
+        () => readTopUpReturn(router.query),
+
+        [router.query[TOP_UP_QUERY.result], router.query[TOP_UP_QUERY.session]],
+    )
+    const clearTopUpQuery = useCallback(() => {
+        router.replace(
+            {pathname: router.pathname, query: withoutTopUpQuery(router.query)},
+            undefined,
+            {shallow: true},
+        )
+    }, [router])
+
     const navigateToWorkspaceTab = useCallback(() => {
         router.push(`${projectURL}/settings`, {query: {tab: "workspace"}})
     }, [router, projectURL])
@@ -121,6 +143,16 @@ const Billing = () => {
             openingBillingPortal={isLoadingOpenBillingPortal}
             onViewMembers={navigateToWorkspaceTab}
         >
+            {billingEnabled && projectId ? (
+                <CreditTopUpsSection
+                    framed
+                    projectId={projectId}
+                    topUpReturn={topUpReturn}
+                    openPicker={router.query[TOP_UP_QUERY.open] === "1"}
+                    onQueryHandled={clearTopUpQuery}
+                    onUpgrade={() => setIsOpenPricingModal(true)}
+                />
+            ) : null}
             <AutoRenewalCancelModal
                 open={isOpenCancelModal}
                 onCancel={() => setIsOpenCancelModal(false)}

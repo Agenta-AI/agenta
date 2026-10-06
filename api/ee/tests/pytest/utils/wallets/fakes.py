@@ -219,6 +219,15 @@ class FakeWalletsDAO(WalletsDAOInterface):
 
         return self.general_balance
 
+    async def get_awarded_credit(
+        self,
+        *,
+        organization_id: UUID,
+        idempotency_key: str,
+    ) -> Optional[WalletCreditDTO]:
+        credit = self.awards.get(idempotency_key)
+        return credit if credit and credit.organization_id == organization_id else None
+
     async def award_credit(
         self,
         *,

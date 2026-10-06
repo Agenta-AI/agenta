@@ -233,4 +233,49 @@ describe("RunFailureCallout", () => {
         expect(rendered).not.toContain("The agent run failed")
         expect(rendered).not.toContain("turn_time_limit_reached")
     })
+
+    it("offers Buy credits beside the plans when out of credits and the host can sell a pack", () => {
+        const rendered = text(
+            <RunFailureCallout
+                text="You've used all your organization's credits."
+                stateKey="turn-credits"
+                code="wallet_balance_exhausted"
+                onOpenBilling={noop}
+                onBuyCredits={noop}
+            />,
+        )
+
+        expect(rendered).toContain("You're out of credits")
+        expect(rendered).toContain("Buy credits")
+        expect(rendered).toContain("Plans and billing")
+    })
+
+    it("keeps only the plans when the host cannot sell a pack (the free plan)", () => {
+        const rendered = text(
+            <RunFailureCallout
+                text="You've used all your organization's credits."
+                stateKey="turn-credits-free"
+                code="wallet_balance_exhausted"
+                onOpenBilling={noop}
+            />,
+        )
+
+        expect(rendered).toContain("Plans and billing")
+        expect(rendered).not.toContain("Buy credits")
+    })
+
+    it("does not offer Buy credits for a plan limit credits do not clear", () => {
+        const rendered = text(
+            <RunFailureCallout
+                text="Your Pro plan allows 5 agents at a time."
+                stateKey="turn-concurrent"
+                code="concurrent_turns_limit"
+                onOpenBilling={noop}
+                onBuyCredits={noop}
+            />,
+        )
+
+        expect(rendered).toContain("Plans and billing")
+        expect(rendered).not.toContain("Buy credits")
+    })
 })
