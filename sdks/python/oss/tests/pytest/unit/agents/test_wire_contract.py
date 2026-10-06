@@ -1421,6 +1421,8 @@ def test_result_from_wire_parses_ok(golden):
     assert result.session_id == "sess-42"
     assert result.model == "gpt-5.5"
     assert result.trace_id == "trace-abc"
+    # The provider that ran, after the runner's harness routing.
+    assert result.sandbox == "inprocess"
     # Capabilities come back camelCase and map onto snake_case flags.
     assert result.capabilities is not None
     assert result.capabilities.mcp_tools is True

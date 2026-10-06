@@ -787,7 +787,10 @@ export interface AgentRunRequest {
    * the ACP agent "claude". Selected by the request; there is no engine selector.
    */
   harness?: string;
-  /** Sandbox: "local" | "daytona". */
+  /**
+   * Sandbox: "local" | "daytona" | "inprocess". `daytona` and `inprocess` are one choice that the
+   * runner routes by harness at its ingress (`sandbox-routing.ts`).
+   */
   sandbox?: string;
   /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;
@@ -1005,6 +1008,11 @@ export interface AgentRunResult {
   model?: string;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
   traceId?: string;
+  /**
+   * The sandbox provider the run executed on, after harness routing (`sandbox-routing.ts`). It
+   * can differ from the requested `sandbox`: Pi chosen on `daytona` runs `inprocess`.
+   */
+  sandbox?: string;
   /** Human-facing summary; unchanged shape. Every failure keeps this even when `errorDetail` is
    * also present, so a caller reading only this field never regresses. */
   error?: string;

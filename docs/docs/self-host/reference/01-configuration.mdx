@@ -352,8 +352,8 @@ Rules:
 - `inprocess` is enabled wherever `daytona` is enabled. You do not add it to the list. The runner
   adds it after the listed providers, so `daytona` stays the default. A list without `daytona`
   (for example `local`) does not enable `inprocess`. You cannot turn `inprocess` off while `daytona`
-  is enabled. Each user chooses to see it in the web app (Settings, Preferences, "In-process agent
-  runtime"). This preference is off by default.
+  is enabled. The web app does not offer `inprocess` as a choice: an agent chooses `daytona`, and
+  the runner picks the provider by harness (see [In-process](#in-process)).
 - The default must be one of the enabled providers.
 - A run may select any enabled provider. A run that selects a known but disabled provider fails
   before any working directory, mount, secret, or sandbox is created. There is no fallback to
@@ -475,6 +475,15 @@ in-process session would use it. What the runner does at start:
 
 Set `AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS=true` only on a deployment that must keep such a key.
 
+`daytona` and `inprocess` are one choice, and the harness picks the provider. When both are enabled,
+a Pi (`pi_core`) run in a session runs `inprocess`, and a Claude Code or Codex run runs on `daytona`.
+This applies to an agent saved with either value; the saved agent does not change. A Pi run without
+a session runs on `daytona`, because `inprocess` keeps its files on the session's drive. The runner
+logs each routed run as `[sandbox-routing] harness=<harness> chosen=<saved> runs=<provider>`, and the
+trace's workflow span records the provider that ran as `ag.meta.agent.sandbox`. Set
+`AGENTA_RUNNER_INPROCESS_FOR_PI=false` to run each agent on the provider it names, for example on a
+deployment without the durable store.
+
 | Variable | Role | Default | Secret | Helm |
 |---|---|---|---|---|
 | `AGENTA_RUNNER_INPROCESS_SANDBOX_SNAPSHOT` | Snapshot for the command sandboxes | The `daytona` provider's snapshot or image | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_SANDBOX_SNAPSHOT` |
@@ -483,6 +492,7 @@ Set `AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS=true` only on a deployment that must
 | `AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES` | Command sandboxes this runner keeps running at once | `40` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES` |
 | `AGENTA_RUNNER_INPROCESS_MAX_SESSIONS` | In-process sessions this runner hosts at once | `200` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_MAX_SESSIONS` |
 | `AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS` | Start even when a model provider key is in the runner's environment | `false` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS` |
+| `AGENTA_RUNNER_INPROCESS_FOR_PI` | Run Pi `inprocess` and Claude Code and Codex on `daytona` for an agent that chose `daytona` or `inprocess`. `true` or `false` | `true` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_FOR_PI` |
 
 The command sandboxes take the `daytona` provider's `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` and
 `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`. A command sandbox holds nothing durable (the session and
@@ -633,6 +643,7 @@ The runner fails to start when configuration is invalid, before it listens. The 
 | `inprocess` enabled without a Daytona key | `AGENTA_RUNNER_DAYTONA_API_KEY is required when 'inprocess' is in AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: its tool calls run in a Daytona sandbox.` |
 | `inprocess` listed (or the default) together with `local`, and a model provider key in the runner environment | `The 'inprocess' provider is enabled but the runner environment holds credential variable(s) <names>; Pi would use them for every in-process session. Remove them, or set AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS=true.` |
 | A label entry without `=` | `AGENTA_RUNNER_INPROCESS_SANDBOX_LABELS entry '<entry>' is not in the form key=value.` |
+| `AGENTA_RUNNER_INPROCESS_FOR_PI` other than `true` or `false` | `AGENTA_RUNNER_INPROCESS_FOR_PI must be 'true' or 'false', got '<value>'.` |
 | Snapshot and image both set | `AGENTA_RUNNER_DAYTONA_SNAPSHOT and AGENTA_RUNNER_DAYTONA_IMAGE are mutually exclusive; set only one.` |
 | Non-integer positive value | `<variable> must be a positive integer, got '<value>'.` |
 

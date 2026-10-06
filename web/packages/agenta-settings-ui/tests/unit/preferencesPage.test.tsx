@@ -79,10 +79,7 @@ describe("PreferencesPage", () => {
     it("shows Feature Flags then Debugging, in the shared order", () => {
         renderBound()
         expect(structure()).toEqual([
-            {
-                title: "Feature Flags",
-                rows: ["Developer Mode", "In-process agent runtime"],
-            },
+            {title: "Feature Flags", rows: ["Developer Mode"]},
             {
                 title: "Debugging",
                 rows: ["Playground inspector", "Channel debug", "Agenta channel probe"],
@@ -108,7 +105,6 @@ describe("PreferencesPage", () => {
                 "agenta:onboarding:u1:nav-simplified-override",
                 "agenta:settings:u1:agenta-channel-surface",
                 "agenta:settings:u1:channel-debug",
-                "agenta:settings:u1:inprocess-sandbox",
                 "agenta:settings:u1:playground-inspector",
             ].sort(),
         )
@@ -116,10 +112,10 @@ describe("PreferencesPage", () => {
 
     it("drops unbound rows and sections left empty", () => {
         const bindings: PreferenceBindings = {
-            "inprocess-sandbox": {enabled: false, onChange: () => {}},
+            "playground-inspector": {enabled: false, onChange: () => {}},
         }
         act(() => root.render(<PreferencesPage theme={theme} bindings={bindings} />))
-        expect(structure()).toEqual([{title: "Feature Flags", rows: ["In-process agent runtime"]}])
+        expect(structure()).toEqual([{title: "Debugging", rows: ["Playground inspector"]}])
     })
 
     it("gives every row a one-line description", () => {

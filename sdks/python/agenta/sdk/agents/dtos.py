@@ -745,6 +745,8 @@ class AgentResult(BaseModel):
     session_id: Optional[str] = None
     model: Optional[str] = None
     trace_id: Optional[str] = None
+    # The sandbox provider the run executed on, after the runner's harness routing.
+    sandbox: Optional[str] = None
 
 
 class SandboxSecretReference(BaseModel):

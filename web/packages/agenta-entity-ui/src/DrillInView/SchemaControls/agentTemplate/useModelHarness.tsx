@@ -19,7 +19,6 @@ import {
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
-import {inprocessSandboxEnabledAtom} from "@agenta/shared/state"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -121,7 +120,6 @@ export function useModelHarness({
     const harnessProps = subProps("harness")
     const runnerProps = subProps("runner")
     const sandboxProps = subProps("sandbox")
-    const inprocessSandboxEnabled = useAtomValue(inprocessSandboxEnabledAtom)
 
     const asObject = useCallback(
         (key: string): Record<string, unknown> =>
@@ -134,19 +132,19 @@ export function useModelHarness({
     const runner = asObject("runner")
     const sandbox = asObject("sandbox")
     const savedSandboxKind = typeof sandbox.kind === "string" ? sandbox.kind : null
-    // The preference only hides `inprocess` from a new choice. An agent already saved with it keeps
-    // it listed, so the normalize effect below never rewrites it: the flag reads off on the first
-    // render (the user id settles a tick later) and while a user has it off.
+    // Where Daytona is enabled, `inprocess` is not a choice of its own. For either value the runner
+    // runs Pi in-process and every other harness on Daytona (`routeSandboxForHarness`), so the
+    // picker offers Daytona alone and shows an agent saved with `inprocess` as Daytona, without
+    // rewriting it. A deployment without Daytona keeps `inprocess` as it is.
+    const daytonaEnabled = getEnabledSandboxProviders().includes("daytona")
+    const shownSandboxKind =
+        daytonaEnabled && savedSandboxKind === "inprocess" ? "daytona" : savedSandboxKind
     const sandboxOptions = useMemo(() => {
         const enabled = new Set(getEnabledSandboxProviders())
         return getEnumOptions(sandboxProps.kind).filter(
-            (o) =>
-                enabled.has(o.value) &&
-                (o.value !== "inprocess" ||
-                    inprocessSandboxEnabled ||
-                    savedSandboxKind === "inprocess"),
+            (o) => enabled.has(o.value) && !(daytonaEnabled && o.value === "inprocess"),
         )
-    }, [sandboxProps.kind, inprocessSandboxEnabled, savedSandboxKind])
+    }, [sandboxProps.kind, daytonaEnabled])
 
     const secretBindings = Array.isArray(sandbox.credentials)
         ? sandbox.credentials.filter((value): value is AgentSecretBinding => {
@@ -183,13 +181,20 @@ export function useModelHarness({
     )
     useEffect(() => {
         if (disabled || !normalizeSandbox) return
-        const availableValue = sandboxOptions.some((option) => option.value === savedSandboxKind)
-            ? savedSandboxKind
-            : (sandboxOptions[0]?.value ?? null)
+        if (sandboxOptions.some((option) => option.value === shownSandboxKind)) return
+        const availableValue = sandboxOptions[0]?.value ?? null
         if (availableValue && availableValue !== savedSandboxKind) {
             setSection("sandbox", {...sandbox, kind: availableValue})
         }
-    }, [disabled, normalizeSandbox, sandbox, sandboxOptions, savedSandboxKind, setSection])
+    }, [
+        disabled,
+        normalizeSandbox,
+        sandbox,
+        sandboxOptions,
+        savedSandboxKind,
+        shownSandboxKind,
+        setSection,
+    ])
 
     // Model + credential connection (`llm`). It is ALWAYS a structured object (the harness-filtered
     // picker only ever produces one); a legacy bare string is read for display. composeModelValue
@@ -652,7 +657,7 @@ export function useModelHarness({
                     <EnumSelectControl
                         schema={sandboxProps.kind}
                         options={sandboxOptions}
-                        value={(sandbox.kind as string | null) ?? null}
+                        value={shownSandboxKind}
                         onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
                         withTooltip={withTooltip}
                         disabled={disabled}

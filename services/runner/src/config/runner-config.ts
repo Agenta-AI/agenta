@@ -134,6 +134,11 @@ export interface RunnerInProcessConfig {
   maxSessions: number;
   /** Accept provider keys in the runner environment (every in-process session would see them). */
   allowEnvironmentKeys: boolean;
+  /**
+   * Run Pi in-process for an agent that chose Daytona (`routeSandboxForHarness`). On by default;
+   * `AGENTA_RUNNER_INPROCESS_FOR_PI=false` makes each run use the provider it names again.
+   */
+  forPi: boolean;
 }
 
 export interface RunnerConfig {
@@ -368,6 +373,14 @@ export function parseLabels(raw: string | undefined, name: string): Record<strin
   return labels;
 }
 
+/** A switch that is on unless set to `false`; any other value than `true`/`false` is refused. */
+function parseOnByDefault(raw: string | undefined, name: string): boolean {
+  const value = nonEmpty(raw)?.toLowerCase();
+  if (value === undefined || value === "true") return true;
+  if (value === "false") return false;
+  throw new RunnerConfigError(`${name} must be 'true' or 'false', got '${raw?.trim()}'.`);
+}
+
 function parseInProcess(env: Env, enabled: readonly SandboxProviderId[], daytona: RunnerDaytonaConfig): RunnerInProcessConfig {
   // A runner without the provider neither reads nor validates its settings.
   if (!enabled.includes("inprocess")) env = {};
@@ -385,6 +398,7 @@ function parseInProcess(env: Env, enabled: readonly SandboxProviderId[], daytona
     maxRunningSandboxes: count("AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES", 40),
     maxSessions: count("AGENTA_RUNNER_INPROCESS_MAX_SESSIONS", 200),
     allowEnvironmentKeys: nonEmpty(env.AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS)?.toLowerCase() === "true",
+    forPi: parseOnByDefault(env.AGENTA_RUNNER_INPROCESS_FOR_PI, "AGENTA_RUNNER_INPROCESS_FOR_PI"),
   };
 }
 
