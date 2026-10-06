@@ -1862,7 +1862,8 @@ export async function tearDownHeldSandboxes(
   // ending, so no client waits on a turn this process will never finish; and a device login whose
   // provider poll this process holds is reported failed, so its user can start again at once.
   // Both run after the drain wait, so a turn or a sign-in that finished during it reported its
-  // own outcome. They run side by side, so the login report adds no time to the shutdown.
+  // own outcome; a sign-in report still on its way is waited for in the same bound. They run side
+  // by side, so the login report adds no time to the shutdown.
   await Promise.all([
     endActiveTurns(RUNNER_SHUTDOWN_REASON, SHUTDOWN_TURN_END_BUDGET_MS),
     abandonLogins().catch(() => {}),

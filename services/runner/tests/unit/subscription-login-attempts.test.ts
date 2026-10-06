@@ -275,6 +275,63 @@ describe("SubscriptionLoginAttempts", () => {
     assert.equal(attempts.size(), 0);
   });
 
+  it("waits at shutdown for a success report already on its way to the API", async () => {
+    const provider = controllableLogin();
+    const { outcomes, report } = recordingReport();
+    let deliver: () => void = () => {};
+    const attempts = new SubscriptionLoginAttempts(
+      provider.login,
+      async (outcome, options) => {
+        await new Promise<void>((resolve) => {
+          deliver = resolve;
+        });
+        await report(outcome, options);
+      },
+      () => {},
+    );
+    const { attemptId } = await attempts.start("chatgpt", OWNER);
+    provider.approve();
+    await settle();
+    // The attempt left the map when its flow ended; only its report is still running.
+    assert.equal(attempts.size(), 0);
+
+    let abandoned = false;
+    const shutdown = attempts.abandonAll(1_000).then(() => {
+      abandoned = true;
+    });
+    await settle();
+    assert.equal(abandoned, false, "shutdown must not end while the login is undelivered");
+
+    deliver();
+    await shutdown;
+
+    assert.deepEqual(outcomes, [
+      {
+        attemptId,
+        ...OWNER,
+        state: "succeeded",
+        login: { type: "oauth", ...LOGIN },
+      },
+    ]);
+  });
+
+  it("does not hold shutdown past its bound for a report the API never answers", async () => {
+    const provider = controllableLogin();
+    const attempts = new SubscriptionLoginAttempts(
+      provider.login,
+      () => new Promise<void>(() => {}),
+      () => {},
+    );
+    await attempts.start("chatgpt", OWNER);
+    provider.approve();
+    await settle();
+
+    const startedAt = Date.now();
+    await attempts.abandonAll(20);
+
+    assert.ok(Date.now() - startedAt < 1_000);
+  });
+
   it("abandons nothing when no attempt is live", async () => {
     const { outcomes, report } = recordingReport();
     const attempts = new SubscriptionLoginAttempts(

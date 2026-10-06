@@ -243,6 +243,11 @@ export async function reportAttemptOutcome(
  */
 export class SubscriptionLoginAttempts {
   private readonly attempts = new Map<string, Attempt>();
+  /**
+   * Outcome reports still on their way to the API. A finished attempt has already left the map,
+   * so this is the only way shutdown can find, and wait for, a login it is still delivering.
+   */
+  private readonly reporting = new Set<Promise<void>>();
 
   constructor(
     private readonly login: DeviceCodeLogin,
@@ -347,13 +352,16 @@ export class SubscriptionLoginAttempts {
    *
    * Without this the user's poll would answer pending until the provider's window closed, while
    * the provider itself may already say "signed in". Each attempt leaves the map and its flow is
-   * aborted first, so the flow reports nothing of its own; then each gets one report try, all of
-   * them bounded together by `budgetMs`. A report the API does not answer in time is lost, and the
-   * poll falls back to the deadline.
+   * aborted first, so the flow reports nothing of its own; then each gets one report try. The
+   * outcome reports of attempts that already finished are waited for too, so a login the user just
+   * approved still reaches the API. All of it is bounded together by `budgetMs`: past it the wait
+   * ends, the process exits, and a report the API has not answered is lost, so the poll falls back
+   * to the deadline.
    */
   async abandonAll(budgetMs: number = ABANDON_REPORT_BUDGET_MS): Promise<void> {
     const live = [...this.attempts.values()];
-    if (live.length === 0) return;
+    const inFlight = [...this.reporting];
+    if (live.length === 0 && inFlight.length === 0) return;
     this.attempts.clear();
     for (const attempt of live) {
       attempt.abort.abort();
@@ -364,8 +372,9 @@ export class SubscriptionLoginAttempts {
       });
     }
     await withinBudget(
-      Promise.allSettled(
-        live.map((attempt) =>
+      Promise.allSettled([
+        ...inFlight,
+        ...live.map((attempt) =>
           this.report(
             {
               attemptId: attempt.id,
@@ -377,7 +386,7 @@ export class SubscriptionLoginAttempts {
             { retry: false },
           ),
         ),
-      ),
+      ]),
       budgetMs,
     );
   }
@@ -404,16 +413,21 @@ export class SubscriptionLoginAttempts {
       attempt: attempt.id,
       state: result.state,
     });
-    try {
-      await this.report({
-        attemptId: attempt.id,
-        projectId: attempt.owner.projectId,
-        secretId: attempt.owner.secretId,
-        ...result,
-      });
-    } catch {
-      // The reporter does not throw. This guard keeps a broken one from crashing the process.
-    }
+    const delivery = (async () => {
+      try {
+        await this.report({
+          attemptId: attempt.id,
+          projectId: attempt.owner.projectId,
+          secretId: attempt.owner.secretId,
+          ...result,
+        });
+      } catch {
+        // The reporter does not throw. This guard keeps a broken one from crashing the process.
+      }
+    })();
+    this.reporting.add(delivery);
+    await delivery;
+    this.reporting.delete(delivery);
   }
 }
 
@@ -460,8 +474,9 @@ export function subscriptionLoginAttempts(): SubscriptionLoginAttempts {
 }
 
 /**
- * The shutdown step for device logins: abandon every live attempt of the process-wide store. A
- * process that never served a login has no store, and builds none here.
+ * The shutdown step for device logins: abandon every live attempt of the process-wide store, and
+ * wait (bounded) for the outcome reports still on their way. A process that never served a login
+ * has no store, and builds none here.
  */
 export async function abandonSubscriptionLogins(): Promise<void> {
   await shared?.abandonAll();
