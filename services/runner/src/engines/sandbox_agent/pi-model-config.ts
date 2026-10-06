@@ -17,7 +17,9 @@
  *    routing variant such as `deepseek/deepseek-v4-flash:nitro`, or a model newer than the pinned
  *    Pi) is not in it and the session refuses to select it. Pi's documented merge semantics for a
  *    built-in provider keep every built-in model and upsert the custom one, so this registers the
- *    requested model and nothing else.
+ *    requested model and nothing else. On a provider that reserves the requested output up front
+ *    (OpenRouter), it also caps that model's `maxTokens`, through `modelOverrides` when the model
+ *    is already built in.
  *
  * The input stays neutral in both cases — no Pi-specific wire field is introduced.
  */
@@ -28,6 +30,7 @@ import type {
   PiBuiltinRegistry,
 } from "./pi-builtin-registry.ts";
 import { GATEWAY_CREDENTIALS_VALUE_ENV } from "./run-plan.ts";
+import { envInt } from "../../env.ts";
 import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
 /** The API dialect this builder emits. The only value v1 supports (design Decision 1). */
@@ -87,8 +90,14 @@ export interface PiModelEntry {
   maxTokens?: number;
 }
 
+/** A change to a model Pi already has built in, in Pi's `modelOverrides` spelling. */
+export interface PiModelOverride {
+  maxTokens: number;
+}
+
 /**
- * A plan to merge one model into a provider Pi ALREADY HAS BUILT IN — the hand-entered-model case.
+ * A plan to merge into a provider Pi ALREADY HAS BUILT IN: either one hand-entered model it does
+ * not carry (`models`), or a lower output cap on a catalog model it does (`modelOverrides`).
  *
  * Deliberately carries no `baseUrl`, `api`, or `apiKey`: for a built-in provider Pi inherits all
  * three from its own definitions (endpoint and dialect from the provider's built-in models, the
@@ -100,8 +109,10 @@ export interface PiModelEntry {
 export interface PiModelRegistrationPlan {
   /** A Pi BUILT-IN provider id (e.g. `openrouter`), taken from the requested model's prefix. */
   builtinProvider: string;
-  /** The one model being registered. */
-  models: [PiModelEntry];
+  /** The one model being registered, or none when the requested model is already built in. */
+  models: [PiModelEntry] | [];
+  /** Changes to the requested built-in model, keyed by its id. Pi ignores an id it lacks. */
+  modelOverrides?: Record<string, PiModelOverride>;
 }
 
 /** The two shapes a run's `models.json` can take. A run produces at most one. */
@@ -124,9 +135,53 @@ export function piModelsJsonProviderId(plan: PiModelsJsonPlan): string {
 /** One-line description of a plan for run logs. Carries ids only, never a credential. */
 export function describePiModelsJsonPlan(plan: PiModelsJsonPlan): string {
   const models = plan.models.map((model) => model.id).join(",");
-  return isPiModelRegistrationPlan(plan)
+  if (!isPiModelRegistrationPlan(plan)) {
+    return `kind=custom-provider provider=${plan.providerId} api=${plan.api} model=${models}`;
+  }
+  const overrides = Object.entries(plan.modelOverrides ?? {})
+    .map(([id, override]) => `${id}:maxTokens=${override.maxTokens}`)
+    .join(",");
+  return models
     ? `kind=builtin-model-registration provider=${plan.builtinProvider} model=${models}`
-    : `kind=custom-provider provider=${plan.providerId} api=${plan.api} model=${models}`;
+    : `kind=builtin-model-override provider=${plan.builtinProvider} override=${overrides}`;
+}
+
+/**
+ * Pi's built-in providers that reserve the requested output up front. OpenRouter holds credit for
+ * the full `max_tokens` before it starts a call and answers 402 when the balance cannot cover it.
+ * Pi sends the catalog's `maxTokens`, which OpenRouter reports as the model's output limit and
+ * which can be 90% of the context window (943,718 for DeepSeek V4.1 Flash). So a balance that
+ * pays for any real turn still fails. Other providers bill what the turn uses, and keep Pi's value.
+ */
+const OUTPUT_RESERVING_PROVIDERS = new Set(["openrouter"]);
+
+/** Operator override for the output cap on the providers above. */
+export const PI_MAX_OUTPUT_TOKENS_ENV = "AGENTA_RUNNER_PI_MAX_OUTPUT_TOKENS";
+
+/**
+ * The default output cap on the providers above. It leaves room for Pi's largest thinking budget
+ * (16,384 at "high") plus an answer of the same size, and stays well above a normal agent turn.
+ */
+export const DEFAULT_PI_MAX_OUTPUT_TOKENS = 32_768;
+
+/**
+ * The `maxTokens` Pi gives a `models.json` model that names none (`modelFromJson` in Pi's
+ * `provider-composer.js`). A registered entry without its own value gets this, so the cap compares
+ * against it.
+ */
+const PI_REGISTERED_MODEL_DEFAULT_MAX_TOKENS = 16_384;
+
+/** The output cap for `provider`, or `undefined` when Pi's own value stands. */
+function outputTokenCap(provider: string): number | undefined {
+  if (!OUTPUT_RESERVING_PROVIDERS.has(provider)) return undefined;
+  return envInt(PI_MAX_OUTPUT_TOKENS_ENV, DEFAULT_PI_MAX_OUTPUT_TOKENS);
+}
+
+/** Lower a registered entry's `maxTokens` to the provider's cap. Never raises it. */
+function withOutputCap(provider: string, entry: PiModelEntry): PiModelEntry {
+  const cap = outputTokenCap(provider);
+  const current = entry.maxTokens ?? PI_REGISTERED_MODEL_DEFAULT_MAX_TOKENS;
+  return cap !== undefined && current > cap ? { ...entry, maxTokens: cap } : entry;
 }
 
 /**
@@ -220,12 +275,15 @@ function entryAheadOfCatalog(
  *     by `buildPiModelConfigPlan` instead, and an unknown prefix has no endpoint to reach);
  *   - a model the provider ALREADY has built in — the catalog case. Registering it would replace
  *     Pi's own definition (that is the documented merge rule) and downgrade its metadata, so a
- *     catalog model must produce no entry at all.
+ *     catalog model never gets a `models` entry. The one exception is the output cap on a
+ *     provider that reserves output up front (`OUTPUT_RESERVING_PROVIDERS`): when the catalog
+ *     value is above the cap, the plan carries a `modelOverrides` entry that lowers it.
  *
  * Metadata comes from Pi's own table wherever it can: the routing-variant base model when there is
  * one, then a model listed in `PI_MODELS_AHEAD_OF_CATALOG`, else the provider's request dialect
  * (`compat`) from any built-in sibling so the call is shaped the way that provider expects. What
- * cannot be derived is simply left out and Pi defaults it.
+ * cannot be derived is simply left out and Pi defaults it. A registered entry's `maxTokens` is
+ * capped the same way as a catalog model's.
  */
 export function buildPiModelRegistrationPlan(
   request: AgentRunRequest,
@@ -243,31 +301,42 @@ export function buildPiModelRegistrationPlan(
   if (!modelId || !registry.hasProvider(provider)) return undefined;
 
   const builtins = registry.models(provider);
-  if (builtins.some((builtin) => builtin.id === modelId)) return undefined;
-
-  const baseId = variantBaseId(modelId);
-  const base = baseId
-    ? builtins.find((builtin) => builtin.id === baseId)
-    : undefined;
-  if (base) {
+  const builtin = builtins.find((candidate) => candidate.id === modelId);
+  if (builtin) {
+    // A catalog model keeps Pi's own definition. Only its output cap may change, through
+    // `modelOverrides`, which edits one field and leaves the rest of the model as Pi ships it.
+    const cap = outputTokenCap(provider);
+    if (cap === undefined || builtin.maxTokens === undefined || builtin.maxTokens <= cap) {
+      return undefined;
+    }
     return {
       builtinProvider: provider,
-      models: [entryFromBuiltin(modelId, base)],
+      models: [],
+      modelOverrides: { [modelId]: { maxTokens: cap } },
     };
   }
 
+  const register = (entry: PiModelEntry): PiModelRegistrationPlan => ({
+    builtinProvider: provider,
+    models: [withOutputCap(provider, entry)],
+  });
+
+  const baseId = variantBaseId(modelId);
+  const base = baseId
+    ? builtins.find((candidate) => candidate.id === baseId)
+    : undefined;
+  if (base) return register(entryFromBuiltin(modelId, base));
+
   const ahead = entryAheadOfCatalog(provider, modelId, builtins);
-  if (ahead) return { builtinProvider: provider, models: [ahead] };
+  if (ahead) return register(ahead);
 
   // No base model to inherit from: carry only the provider's request dialect, which is a property
   // of the endpoint rather than of any one model, so the call is at least shaped correctly.
   const sibling = builtins[0];
-  return {
-    builtinProvider: provider,
-    models: [
-      { id: modelId, ...(sibling?.compat ? { compat: sibling.compat } : {}) },
-    ],
-  };
+  return register({
+    id: modelId,
+    ...(sibling?.compat ? { compat: sibling.compat } : {}),
+  });
 }
 
 /**
@@ -398,13 +467,16 @@ export function buildPiModelConfigPlan(
  * A direct custom-provider plan is keyed by connection slug and references its key as
  * `$OPENAI_API_KEY` (never the raw value). A gateway route uses a harmless selectable-model
  * placeholder; its actual authentication stays in the dedicated header. A registration plan is
- * keyed by the BUILT-IN provider id and carries only `models`, so Pi keeps that provider's
- * built-in endpoint, dialect, credential, and every model it already ships, and merely upserts
- * the one requested id.
+ * keyed by the BUILT-IN provider id and carries only `models` and `modelOverrides`, so Pi keeps
+ * that provider's built-in endpoint, dialect, credential, and every model it already ships, and
+ * merely upserts the one requested id or lowers its output cap.
  */
 export function serializePiModelsJson(plan: PiModelsJsonPlan): string {
   const block = isPiModelRegistrationPlan(plan)
-    ? { models: plan.models }
+    ? {
+        ...(plan.models.length > 0 ? { models: plan.models } : {}),
+        ...(plan.modelOverrides ? { modelOverrides: plan.modelOverrides } : {}),
+      }
     : {
         baseUrl: plan.baseUrl,
         api: plan.api,

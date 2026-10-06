@@ -1593,9 +1593,11 @@ async function acquireEnvironmentOnce(
     // DERIVED by splitting the wire model on its provider prefix, so re-joining reproduces
     // `request.model` exactly. Going through the plan either way keeps one rule — ask for the id
     // that was registered.
+    // An output-cap override registers no model, so the run asks for the wire id as it came in.
+    const registeredModel = piModelConfig?.models[0];
     const wantedModel =
-      piModelConfig && piModelConfig.models.length > 0
-        ? `${piModelsJsonProviderId(piModelConfig)}/${piModelConfig.models[0].id}`
+      piModelConfig && registeredModel
+        ? `${piModelsJsonProviderId(piModelConfig)}/${registeredModel.id}`
         : request.model;
     // A Codex run whose config DECLARES the model has already selected it: codex-acp took the
     // config's id as the thread's model and advertised it as the session's first option, so the

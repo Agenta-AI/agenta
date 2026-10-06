@@ -50,6 +50,17 @@ Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (`local` o
 `daytona`, where supported) are per-run config from the Python service, carried on the
 request's `harness` / `sandbox` fields.
 
+## Pi output cap on OpenRouter
+
+Pi sets a call's `max_tokens` from its catalog's output limit for the model. For some OpenRouter
+models that limit is close to the whole context window (943,718 tokens for DeepSeek V4.1 Flash).
+OpenRouter reserves credit for the full `max_tokens` before it starts a call, so a key with a
+normal balance gets `HTTP 402` on the first turn. The runner writes a Pi `modelOverrides` entry
+into the run's `models.json` that lowers the limit for the requested model. A hand-entered model
+that the runner registers gets the same cap. Other providers keep Pi's value.
+
+- `AGENTA_RUNNER_PI_MAX_OUTPUT_TOKENS`: default `32768`. A model whose own limit is lower keeps it.
+
 ## Output and ingest limits
 
 Each turn admits at most 16 MiB of serialized provider updates and 50,000 updates before
