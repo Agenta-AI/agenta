@@ -288,10 +288,7 @@ function ConnectedRow({
                 ) : null
             }
         >
-            <span
-                className="truncate text-xs text-[var(--ag-colorTextTertiary)]"
-                title={subtitle}
-            >
+            <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]" title={subtitle}>
                 {subtitle}
             </span>
         </CatalogListRow>
@@ -523,89 +520,90 @@ function IntegrationCatalogContent({
                     ref={listRef}
                     className="ag-scroll-fade flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4"
                 >
-
-                {connectedGroups.length > 0 ? (
-                    // No gap: the spacing rides inside the collapse, so a folded list leaves none.
-                    <div className="flex flex-col">
-                        <SubSectionHeader
-                            label="Connected"
-                            count={connectedGroups.length}
-                            collapsed={!searching && connectedCollapsed}
-                            onToggle={
-                                searching
-                                    ? undefined
-                                    : () => setConnectedCollapsed((value) => !value)
-                            }
-                        />
-                        {/* -mx/px: the rows' hover fill and focus ring bleed 8px past the
-                            column, and the collapse clips its overflow. */}
-                        <HeightCollapse
-                            open={searching || !connectedCollapsed}
-                            fade
-                            className="-mx-2"
-                            contentClassName="flex flex-col px-2 pt-2"
-                        >
-                            {connectedGroups.map((group) => (
-                                <ConnectedRow
-                                    key={groupKey(group.provider, group.integrationKey)}
-                                    group={group}
-                                    row={rowsByIntegration.get(
-                                        groupKey(group.provider, group.integrationKey),
-                                    )}
-                                    onAdd={(slug) => addIntegration(group, slug)}
-                                    handlers={rowHandlers}
-                                />
-                            ))}
-                        </HeightCollapse>
-                    </div>
-                ) : null}
-
-                {nothingFound ? (
-                    <Empty className="py-10">
-                        <EmptyHeader>
-                            <EmptyMedia variant="icon">
-                                <MagnifyingGlass />
-                            </EmptyMedia>
-                            <EmptyTitle>
-                                {query.trim() ? `No apps match “${query.trim()}”` : "No apps here"}
-                            </EmptyTitle>
-                            <EmptyDescription>
-                                {category
-                                    ? "Try another name, or look in all categories."
-                                    : "Try another name."}
-                            </EmptyDescription>
-                        </EmptyHeader>
-                    </Empty>
-                ) : null}
-
-                {/* Hidden when empty: the Connected matches, or the empty state, say it all. */}
-                {catalogLoading || catalogRows.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                    <SubSectionHeader
-                        label="All apps"
-                        count={catalogLoading ? undefined : (total ?? catalogRows.length)}
-                    />
-                    {catalogLoading ? (
-                        <CatalogRowSkeleton />
-                    ) : (
+                    {connectedGroups.length > 0 ? (
+                        // No gap: the spacing rides inside the collapse, so a folded list leaves none.
                         <div className="flex flex-col">
-                            {catalogRows.map((integration) => (
-                                <CatalogRow
-                                    key={integration.key}
-                                    integration={integration}
-                                    onConnect={() => setConnectTarget(integration)}
-                                />
-                            ))}
+                            <SubSectionHeader
+                                label="Connected"
+                                count={connectedGroups.length}
+                                collapsed={!searching && connectedCollapsed}
+                                onToggle={
+                                    searching
+                                        ? undefined
+                                        : () => setConnectedCollapsed((value) => !value)
+                                }
+                            />
+                            {/* -mx/px: the rows' hover fill and focus ring bleed 8px past the
+                            column, and the collapse clips its overflow. */}
+                            <HeightCollapse
+                                open={searching || !connectedCollapsed}
+                                fade
+                                className="-mx-2"
+                                contentClassName="flex flex-col px-2 pt-2"
+                            >
+                                {connectedGroups.map((group) => (
+                                    <ConnectedRow
+                                        key={groupKey(group.provider, group.integrationKey)}
+                                        group={group}
+                                        row={rowsByIntegration.get(
+                                            groupKey(group.provider, group.integrationKey),
+                                        )}
+                                        onAdd={(slug) => addIntegration(group, slug)}
+                                        handlers={rowHandlers}
+                                    />
+                                ))}
+                            </HeightCollapse>
                         </div>
-                    )}
-                    <ScrollSentinel
-                        onVisible={requestMore}
-                        hasMore={hasNextPage}
-                        isFetching={isFetchingNextPage}
-                    />
-                    {isFetchingNextPage ? <CatalogRowSkeleton count={2} /> : null}
-                </div>
-                ) : null}
+                    ) : null}
+
+                    {nothingFound ? (
+                        <Empty className="py-10">
+                            <EmptyHeader>
+                                <EmptyMedia variant="icon">
+                                    <MagnifyingGlass />
+                                </EmptyMedia>
+                                <EmptyTitle>
+                                    {query.trim()
+                                        ? `No apps match “${query.trim()}”`
+                                        : "No apps here"}
+                                </EmptyTitle>
+                                <EmptyDescription>
+                                    {category
+                                        ? "Try another name, or look in all categories."
+                                        : "Try another name."}
+                                </EmptyDescription>
+                            </EmptyHeader>
+                        </Empty>
+                    ) : null}
+
+                    {/* Hidden when empty: the Connected matches, or the empty state, say it all. */}
+                    {catalogLoading || catalogRows.length > 0 ? (
+                        <div className="flex flex-col gap-2">
+                            <SubSectionHeader
+                                label="All apps"
+                                count={catalogLoading ? undefined : (total ?? catalogRows.length)}
+                            />
+                            {catalogLoading ? (
+                                <CatalogRowSkeleton />
+                            ) : (
+                                <div className="flex flex-col">
+                                    {catalogRows.map((integration) => (
+                                        <CatalogRow
+                                            key={integration.key}
+                                            integration={integration}
+                                            onConnect={() => setConnectTarget(integration)}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                            <ScrollSentinel
+                                onVisible={requestMore}
+                                hasMore={hasNextPage}
+                                isFetching={isFetchingNextPage}
+                            />
+                            {isFetchingNextPage ? <CatalogRowSkeleton count={2} /> : null}
+                        </div>
+                    ) : null}
                 </div>
             </div>
 

@@ -928,7 +928,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                 ? "max-h-[320px] w-full"
                                                 : "absolute inset-y-0 right-0 border-0 border-l border-solid border-border",
                                         )}
-                                        style={singleColumn ? undefined : {width: modelListWidthCss}}
+                                        style={
+                                            singleColumn ? undefined : {width: modelListWidthCss}
+                                        }
                                         onWheel={handleWheelScroll}
                                     >
                                         {showModelsOnly ? (

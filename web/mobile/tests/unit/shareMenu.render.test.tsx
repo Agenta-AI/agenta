@@ -59,8 +59,7 @@ const mount = ({canRequestTemplate = true}: {canRequestTemplate?: boolean} = {})
     })
 }
 
-const trigger = () =>
-    document.querySelector<HTMLButtonElement>('[data-testid="share-menu-button"]')
+const trigger = () => document.querySelector<HTMLButtonElement>('[data-testid="share-menu-button"]')
 const menuItem = (key: "publish" | "save-zip" | "share-marketplace") =>
     document.querySelector<HTMLElement>(`[data-testid="share-menu-${key}"]`)
 

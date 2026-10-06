@@ -14,13 +14,7 @@
 import type {ReactNode} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
-import {
-    Button,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plugs, Plus} from "@phosphor-icons/react"
 import Image from "next/image"
 

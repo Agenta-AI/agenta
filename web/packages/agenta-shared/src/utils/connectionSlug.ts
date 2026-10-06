@@ -87,7 +87,6 @@ export function connectionDisplayName(
 
     const slugId = asIdentifier(slug)
     const keyId = asIdentifier(key)
-    const rest =
-        keyId && slugId.startsWith(`${keyId}-`) ? slugId.slice(keyId.length + 1) : ""
+    const rest = keyId && slugId.startsWith(`${keyId}-`) ? slugId.slice(keyId.length + 1) : ""
     return rest ? `${app} (${rest})` : app
 }
