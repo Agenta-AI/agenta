@@ -36,6 +36,7 @@ from oss.src.core.secrets.subscription_rules import (
     classify_push,
     failure_is_stale,
     login_is_usable,
+    parse_attempt_deadline,
     push_reason,
 )
 from oss.src.core.secrets.types import (
@@ -236,18 +237,10 @@ def _past_deadline(expires_at: Optional[str]) -> bool:
     Unlike `attempt_is_live`, a missing or unreadable deadline is NOT past: the poll then
     keeps answering pending, and the browser's own backstop ends the wait.
     """
-    if not expires_at:
-        return False
-
-    try:
-        deadline = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-
-    if deadline.tzinfo is None:
-        deadline = deadline.replace(tzinfo=timezone.utc)
-
-    return deadline + _DEADLINE_GRACE <= datetime.now(timezone.utc)
+    deadline = parse_attempt_deadline(expires_at)
+    return deadline is not None and deadline + _DEADLINE_GRACE <= datetime.now(
+        timezone.utc
+    )
 
 
 def _pending_view(stored: SubscriptionLoginAttemptDTO) -> SubscriptionLoginAttemptView:
@@ -425,7 +418,7 @@ class SubscriptionLoginService:
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
-                only_in_state=_PENDING,
+                only_if_pending=True,
             )
             if cleared is None:
                 # The record moved since it was read: a report landed, or the user
@@ -515,11 +508,11 @@ class SubscriptionLoginService:
         changes nothing. A repeated report for the same attempt changes nothing either.
         """
         if state == _SUCCEEDED and login is not None and login_is_usable(login):
-            bound = await self._store_new_login(
+            bound = await self._finish_attempt(
                 project_id=project_id,
                 secret_id=secret_id,
-                user_id=None,
                 attempt_id=attempt_id,
+                state=_SUCCEEDED,
                 login=login,
             )
             outcome, warn = "stored", False
@@ -662,23 +655,25 @@ class SubscriptionLoginService:
 
     # -- writes -----------------------------------------------------------------------
 
-    async def _store_new_login(
+    async def _finish_attempt(
         self,
         *,
         project_id: UUID,
         secret_id: UUID,
-        user_id: Optional[UUID],
         attempt_id: str,
-        login: Dict[str, Any],
+        state: str,
+        error: Optional[str] = None,
+        login: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """Store the login, mark the attempt succeeded, and answer whether the row still
-        belongs to this attempt.
+        """Mark a pending attempt finished with `state` and `error`, store `login` when the
+        attempt succeeded with one, and answer whether the row still belongs to this attempt.
 
         False means the binding moved, so nothing was written and the caller must not report
-        a sign-in. True covers the replayed report too: the row already holds this login,
-        which is the write having happened rather than a refusal.
+        the outcome. True covers the replayed report too: the row already holds it, which is
+        the write having happened rather than a refusal.
 
-        The attempt record stays, marked succeeded, until the browser's next poll reads it.
+        The attempt record stays, marked finished, until the browser's next poll reads it.
+        Its error never reaches `login_error`, for the reason `_clear_attempt` gives.
         """
         bound = True
 
@@ -695,71 +690,30 @@ class SubscriptionLoginService:
             if stored.login_attempt.state != _PENDING:
                 return None
 
-            finished = {
-                **stored.login_attempt.model_dump(mode="json"),
-                "state": _SUCCEEDED,
-                "error": None,
-            }
-
-            # The refresh token is the identity of a login: seeing the stored one again
-            # means the write already happened, and a second bump would push every warm
-            # session cold for nothing.
-            if stored.login is not None and stored.login.refresh == login.get(
-                "refresh"
-            ):
-                return {"login_attempt": finished}
-
-            return {
-                "login": login,
-                "login_version": stored.login_version + 1,
-                "login_generation": stored.login_generation + 1,
-                "login_state": SubscriptionLoginState.READY.value,
-                "login_error": None,
-                "login_attempt": finished,
-            }
-
-        await self._apply(
-            project_id=project_id,
-            secret_id=secret_id,
-            user_id=user_id,
-            build_changes=build_changes,
-        )
-
-        return bound
-
-    async def _finish_attempt(
-        self,
-        *,
-        project_id: UUID,
-        secret_id: UUID,
-        attempt_id: str,
-        state: str,
-        error: Optional[str],
-    ) -> bool:
-        """Mark a pending attempt failed or expired, and answer whether the row still
-        belongs to it.
-
-        The error stays on the attempt record. It never reaches `login_error`, for the
-        reason `_clear_attempt` gives.
-        """
-        bound = True
-
-        def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
-            nonlocal bound
-
-            if not _attempt_matches(stored, attempt_id):
-                bound = False
-                return None
-
-            if stored.login_attempt.state != _PENDING:
-                return None
-
-            return {
+            changes: Dict[str, Any] = {
                 "login_attempt": {
                     **stored.login_attempt.model_dump(mode="json"),
                     "state": state,
                     "error": error,
                 }
+            }
+
+            # The refresh token is the identity of a login: seeing the stored one again
+            # means the write already happened, and a second bump would push every warm
+            # session cold for nothing.
+            if login is None or (
+                stored.login is not None
+                and stored.login.refresh == login.get("refresh")
+            ):
+                return changes
+
+            return {
+                **changes,
+                "login": login,
+                "login_version": stored.login_version + 1,
+                "login_generation": stored.login_generation + 1,
+                "login_state": SubscriptionLoginState.READY.value,
+                "login_error": None,
             }
 
         await self._apply(
@@ -778,13 +732,13 @@ class SubscriptionLoginService:
         secret_id: UUID,
         user_id: Optional[UUID],
         attempt_id: str,
-        only_in_state: Optional[str] = None,
+        only_if_pending: bool = False,
     ) -> Optional[SubscriptionLoginAttemptDTO]:
         """Clear the attempt, but only while the row still waits on this one, and answer
         the record it cleared, or None when it cleared nothing.
 
         A late answer about an abandoned attempt must not clear the replacement the user
-        already started. `only_in_state` also leaves a record whose outcome moved under
+        already started. `only_if_pending` also leaves a record whose outcome moved under
         the lock: a poll that judged the attempt dead must not clear a success the runner
         reported since.
 
@@ -800,10 +754,7 @@ class SubscriptionLoginService:
             if not _attempt_matches(stored, attempt_id):
                 return None
 
-            if (
-                only_in_state is not None
-                and stored.login_attempt.state != only_in_state
-            ):
+            if only_if_pending and stored.login_attempt.state != _PENDING:
                 return None
 
             cleared["attempt"] = stored.login_attempt

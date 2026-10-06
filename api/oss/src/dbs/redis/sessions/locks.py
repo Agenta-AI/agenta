@@ -18,11 +18,13 @@ from oss.src.dbs.redis.sessions.contract import (
     ALIVE_TTL_SECONDS,
     ACQUIRE_ALIVE_WITH_START_LUA,
     ATTACHED_TTL_SECONDS,
+    BIND_TURN_LUA,
     DISPLACE_TURNS_LUA,
     RECONCILE_STOPPED_TURN_LUA,
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
     SUPERSEDED_TTL_SECONDS,
+    TURN_BINDING_SEPARATOR,
     TURN_BOUND_TTL_SECONDS,
     TURN_STARTED_TTL_SECONDS,
     WATCHDOG_RELEASE_TURN_LUA,
@@ -601,29 +603,18 @@ async def bind_turn(
 
     Returns the stored binding and whether this call wrote it. Only the bound replica's beat
     refreshes the TTL, so a refused replica cannot keep a binding alive that is not its own.
-
-    No script: SET NX is atomic across api processes, so exactly one caller writes the key and
-    every other caller reads back the winner. A key that expires between the failed NX and the
-    read-back gets one more NX attempt, so the turn is never left unbound.
     """
-    key = turn_bound_key(project_id, session_id, turn_id)
-    proposed = TurnBinding(replica_id=replica_id, replica_address=replica_address)
-    value = make_turn_binding_value(
-        replica_id=replica_id, replica_address=replica_address
-    ).encode()
-    current = None
-    for _ in range(2):
-        if await engine.set(key, value, nx=True, ex=TURN_BOUND_TTL_SECONDS) is not None:
-            return proposed, True
-        current = await engine.get(key)
-        if current is not None:
-            break
-    if current is None:
-        return proposed, False
-    binding = parse_turn_binding_value(current.decode())
-    if binding.replica_id == replica_id:
-        await engine.expire(key, TURN_BOUND_TTL_SECONDS)
-    return binding, False
+    written, stored = await engine.eval(
+        BIND_TURN_LUA,
+        1,
+        turn_bound_key(project_id, session_id, turn_id).encode(),
+        make_turn_binding_value(
+            replica_id=replica_id, replica_address=replica_address
+        ).encode(),
+        f"{replica_id}{TURN_BINDING_SEPARATOR}".encode(),
+        TURN_BOUND_TTL_SECONDS,
+    )
+    return parse_turn_binding_value(stored.decode()), int(written) == 1
 
 
 async def get_turn_binding(
@@ -636,6 +627,33 @@ async def get_turn_binding(
     """The runner pod that holds turn_id, or None when no pod has beaten it yet."""
     current = await engine.get(turn_bound_key(project_id, session_id, turn_id))
     return parse_turn_binding_value(current.decode()) if current else None
+
+
+async def get_routable_turn_binding(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> Optional[TurnBinding]:
+    """The binding of turn_id when it carries an address, else None (use the Service URL).
+
+    Never raises: the address is a routing hint, so a failed read costs a cold turn, never the
+    read or the delivery it rides on.
+    """
+    try:
+        binding = await get_turn_binding(
+            engine, project_id=project_id, session_id=session_id, turn_id=turn_id
+        )
+    except Exception as error:  # noqa: BLE001 - the address is optional
+        log.warning(
+            "could not read the turn binding for session=%s turn=%s: %s",
+            session_id,
+            turn_id,
+            error,
+        )
+        return None
+    return binding if binding and binding.replica_address else None
 
 
 # ---------------------------------------------------------------------------

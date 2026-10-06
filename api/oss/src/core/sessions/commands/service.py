@@ -83,6 +83,7 @@ from oss.src.dbs.redis.sessions.contract import (
 from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
     get_running_owner,
+    get_routable_turn_binding,
     get_turn_binding,
     reconcile_stopped_turn,
 )
@@ -1323,21 +1324,12 @@ class SessionCommandsService:
         """
         if command.kind != SessionCommandKind.cancel or not command.target_turn_id:
             return None
-        try:
-            binding = await get_turn_binding(
-                self._lock,
-                project_id=str(command.project_id),
-                session_id=command.session_id,
-                turn_id=command.target_turn_id,
-            )
-        except Exception as error:  # noqa: BLE001 - delivery is post-commit and best effort
-            log.warning(
-                "control delivery could not read the turn binding for command=%s: %s",
-                command.id,
-                error,
-            )
-            return None
-        return binding if binding and binding.replica_address else None
+        return await get_routable_turn_binding(
+            self._lock,
+            project_id=str(command.project_id),
+            session_id=command.session_id,
+            turn_id=command.target_turn_id,
+        )
 
     async def _interactions_for_command(
         self, command: SessionCommand

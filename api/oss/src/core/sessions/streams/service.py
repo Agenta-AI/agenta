@@ -38,7 +38,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
     get_running_owner,
     get_session_liveness,
-    get_turn_binding,
+    get_routable_turn_binding,
     is_turn_superseded,
     mark_turn_superseded,
     record_turn_start,
@@ -884,27 +884,16 @@ class SessionStreamsService:
     ) -> Optional[TurnBinding]:
         """The runner pod bound to turn_id, or None when its address is not known.
 
-        A routing hint: the caller falls back to the Service URL on a missing or dead address,
-        so a failed read costs a cold turn, never the read it rides on. The replica id lets the
-        caller check that the pod at the address is still that replica, since Kubernetes can
-        give a dead pod's IP to another pod.
+        The caller falls back to the Service URL on a missing or dead address. The replica id
+        lets the caller check that the pod at the address is still that replica, since
+        Kubernetes can give a dead pod's IP to another pod.
         """
-        try:
-            binding = await get_turn_binding(
-                self._lock,
-                project_id=str(project_id),
-                session_id=session_id,
-                turn_id=turn_id,
-            )
-        except Exception as error:  # noqa: BLE001 - the address is optional
-            log.warning(
-                "could not read the turn binding for session=%s turn=%s: %s",
-                session_id,
-                turn_id,
-                error,
-            )
-            return None
-        return binding if binding and binding.replica_address else None
+        return await get_routable_turn_binding(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
 
     async def fetch_header(
         self,

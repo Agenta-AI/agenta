@@ -466,11 +466,11 @@ class TestAttemptLifecycle:
             },
         )
 
-        bound = await service._store_new_login(
+        bound = await service._finish_attempt(
             project_id=PROJECT_ID,
             secret_id=secret.id,
-            user_id=None,
             attempt_id="att-1",
+            state="succeeded",
             login=LOGIN,
         )
 
@@ -1591,12 +1591,14 @@ class TestReportedFailure:
 
 class _FakeRunnerHttp:
     """Stands in for `httpx.AsyncClient` under the runner client: answers `/health` and the
-    DELETE, and records each client's timeout and each call."""
+    DELETE, and records each client's timeout, each call, and each call's own timeout."""
 
     def __init__(self, *, health_replica_id="pod-a", health_error=None):
         self.health_replica_id = health_replica_id
         self.health_error = health_error
         self.timeouts: list = []
+        self.get_timeouts: list = []
+        self.delete_timeouts: list = []
         self.gets: list = []
         self.deletes: list = []
 
@@ -1610,16 +1612,18 @@ class _FakeRunnerHttp:
     async def __aexit__(self, *exc):
         return False
 
-    async def get(self, url, headers=None):
+    async def get(self, url, headers=None, timeout=None):
         self.gets.append({"url": url, "headers": headers})
+        self.get_timeouts.append(timeout)
         if self.health_error is not None:
             raise self.health_error
         return httpx.Response(
             200, json={"status": "ok", "replicaId": self.health_replica_id}
         )
 
-    async def delete(self, url, headers=None):
+    async def delete(self, url, headers=None, timeout=None):
         self.deletes.append(url)
+        self.delete_timeouts.append(timeout)
         return httpx.Response(204)
 
 
@@ -1666,9 +1670,9 @@ class TestTheCancelChecksThePodBeforeItTrustsTheAddress:
             "the identity check carries no runner token"
         )
         assert http.deletes == [f"{_POD_ADDRESS}/subscription-login/attempts/att-1"]
-        health_timeout, delete_timeout = http.timeouts
-        assert health_timeout == 2.0
-        assert delete_timeout.connect == 2.0
+        assert len(http.timeouts) == 1, "the check and the DELETE share one client"
+        assert http.get_timeouts == [2.0]
+        assert http.delete_timeouts[0].connect == 2.0
 
     @pytest.mark.parametrize(
         "http,runner_replica_id",
@@ -1693,7 +1697,7 @@ class TestTheCancelChecksThePodBeforeItTrustsTheAddress:
         await self._delete(http, runner_replica_id=runner_replica_id)
 
         assert http.deletes == [f"{_SERVICE_URL}/subscription-login/attempts/att-1"]
-        assert http.timeouts[-1].connect == 5.0
+        assert http.delete_timeouts[-1].connect == 5.0
 
     async def test_no_recorded_address_uses_the_service_url_with_no_check(self):
         http = _FakeRunnerHttp()

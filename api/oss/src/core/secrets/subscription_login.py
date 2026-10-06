@@ -172,20 +172,25 @@ class SubscriptionLoginRunnerClient:
         if not self.configured:
             return False
 
-        target = self._base_url
         timeout = httpx.Timeout(_DELETE_TIMEOUT_SECONDS)
-        if base_url and await runner_address_is_replica(
-            address=base_url, replica_id=runner_replica_id
-        ):
-            target = base_url
-            timeout = httpx.Timeout(
-                _DELETE_TIMEOUT_SECONDS, connect=RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS
-            )
-
-        url = str(target).rstrip("/") + f"/subscription-login/attempts/{attempt_id}"
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.delete(url, headers=self._headers())
+                target = self._base_url
+                if base_url and await runner_address_is_replica(
+                    client, address=base_url, replica_id=runner_replica_id
+                ):
+                    target = base_url
+                    timeout = httpx.Timeout(
+                        _DELETE_TIMEOUT_SECONDS,
+                        connect=RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS,
+                    )
+                url = (
+                    str(target).rstrip("/")
+                    + f"/subscription-login/attempts/{attempt_id}"
+                )
+                response = await client.delete(
+                    url, headers=self._headers(), timeout=timeout
+                )
         except httpx.HTTPError as e:
             _log_hop("delete", "unreachable", attempt_id=attempt_id, error=str(e))
             return False

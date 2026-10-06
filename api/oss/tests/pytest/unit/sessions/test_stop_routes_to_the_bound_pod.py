@@ -237,7 +237,7 @@ class _FakeResponse:
 
 class _FakeRunnerHttp:
     """Stands in for `httpx.AsyncClient`: answers `/health` and `/cancel` and records each
-    client's timeout and each call."""
+    client's timeout, each call, and each health check's own timeout."""
 
     def __init__(
         self,
@@ -252,6 +252,7 @@ class _FakeRunnerHttp:
         self.health_error = health_error
         self.cancel_error = cancel_error
         self.timeouts: list = []
+        self.get_timeouts: list = []
         self.gets: list = []
         self.posts: list = []
 
@@ -265,8 +266,9 @@ class _FakeRunnerHttp:
     async def __aexit__(self, *exc):
         return False
 
-    async def get(self, url, headers=None):
+    async def get(self, url, headers=None, timeout=None):
         self.gets.append({"url": url, "headers": headers})
+        self.get_timeouts.append(timeout)
         if self.health_error is not None:
             raise self.health_error
         return _FakeResponse(200, {"status": "ok", "replicaId": self.health_replica_id})
@@ -365,10 +367,10 @@ async def test_the_bound_pod_gets_a_two_second_connect_bound():
 
     await _cancel(http, _ADDRESS_A)
 
-    health_timeout, cancel_timeout = http.timeouts
-    assert health_timeout == 2.0
-    assert cancel_timeout.connect == 2.0
-    assert cancel_timeout.read == 5.0, "the read keeps the caller's whole timeout"
+    (client_timeout,) = http.timeouts
+    assert http.get_timeouts == [2.0]
+    assert client_timeout.connect == 2.0
+    assert client_timeout.read == 5.0, "the read keeps the caller's whole timeout"
 
 
 @pytest.mark.asyncio
@@ -401,14 +403,9 @@ async def test_the_direct_adapter_passes_the_address_to_the_runner_call():
     assert cancel.await_args.kwargs["runner_replica_id"] == _POD_A
 
 
-def _health_answering(handler):
-    """`httpx.AsyncClient` with a mock transport, so URL parsing and `.json()` stay real."""
-    real_client = httpx.AsyncClient
-
-    def client(*args, **kwargs):
-        return real_client(*args, transport=httpx.MockTransport(handler), **kwargs)
-
-    return client
+def _health_answering(handler) -> httpx.AsyncClient:
+    """A real client with a mock transport, so URL parsing and `.json()` stay real."""
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
 
 def _raises(error):
@@ -439,12 +436,10 @@ def _raises(error):
     ],
 )
 async def test_every_health_check_failure_is_false_and_never_raises(address, handler):
-    with patch(
-        "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
-        new=_health_answering(handler),
-    ):
+    async with _health_answering(handler) as client:
         assert (
-            await runner_address_is_replica(address=address, replica_id=_POD_A) is False
+            await runner_address_is_replica(client, address=address, replica_id=_POD_A)
+            is False
         )
 
 
@@ -456,11 +451,10 @@ async def test_the_health_check_reads_the_replica_id_from_a_real_answer():
         requests.append(request)
         return httpx.Response(200, json={"status": "ok", "replicaId": _POD_A})
 
-    with patch(
-        "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
-        new=_health_answering(handler),
-    ):
-        assert await runner_address_is_replica(address=_ADDRESS_A, replica_id=_POD_A)
+    async with _health_answering(handler) as client:
+        assert await runner_address_is_replica(
+            client, address=_ADDRESS_A, replica_id=_POD_A
+        )
 
     assert [str(request.url) for request in requests] == [f"{_ADDRESS_A}/health"]
     assert "authorization" not in requests[0].headers

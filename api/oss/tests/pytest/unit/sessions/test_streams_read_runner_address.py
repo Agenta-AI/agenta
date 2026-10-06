@@ -181,10 +181,10 @@ async def test_a_stream_with_no_turn_reads_no_address(lock_engine, row):
 async def test_a_failed_binding_read_costs_the_address_not_the_read(
     lock_engine, monkeypatch
 ):
-    from oss.src.core.sessions.streams import service as streams_service_module
+    from oss.src.dbs.redis.sessions import locks as locks_module
 
     monkeypatch.setattr(
-        streams_service_module,
+        locks_module,
         "get_turn_binding",
         AsyncMock(side_effect=ConnectionError("redis down")),
     )

@@ -72,6 +72,7 @@ RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS = 2.0
 
 
 async def runner_address_is_replica(
+    client: httpx.AsyncClient,
     *,
     address: str,
     replica_id: Optional[str],
@@ -81,16 +82,16 @@ async def runner_address_is_replica(
     Kubernetes can give a dead runner pod's IP to another pod, so a stored pod address is
     checked before the runner token goes there. The check sends no token: `/health` is the
     runner's one unauthenticated route. Any failure, a missing id, or another id is False, and
-    the caller then does not use the address.
+    the caller then does not use the address. Never raises.
+
+    `client` is the caller's, so the call the caller then sends to the same pod reuses the
+    check's connection.
     """
     if not replica_id:
         return False
     url = address.rstrip("/") + "/health"
     try:
-        async with httpx.AsyncClient(
-            timeout=RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS
-        ) as client:
-            response = await client.get(url)
+        response = await client.get(url, timeout=RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS)
         payload = response.json() if response.status_code == 200 else None
     except (httpx.HTTPError, httpx.InvalidURL, ValueError) as e:
         log.warning("runner address %s did not answer its health check: %s", url, e)
@@ -169,10 +170,6 @@ async def cancel_runner_execution(
 
     timeout = httpx.Timeout(timeout_seconds)
     if base_url:
-        if not await runner_address_is_replica(
-            address=base_url, replica_id=runner_replica_id
-        ):
-            return RunnerCancelResponse(RunnerCancelResult.unreachable)
         timeout = httpx.Timeout(
             timeout_seconds, connect=RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS
         )
@@ -180,6 +177,10 @@ async def cancel_runner_execution(
     url = target.rstrip("/") + "/cancel"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
+            if base_url and not await runner_address_is_replica(
+                client, address=base_url, replica_id=runner_replica_id
+            ):
+                return RunnerCancelResponse(RunnerCancelResult.unreachable)
             response = await client.post(
                 url,
                 json={

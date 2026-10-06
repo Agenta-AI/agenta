@@ -346,6 +346,22 @@ end
 return 0
 """.strip()
 
+# Write-once turn binding. The first caller writes the key; every later caller reads the stored
+# value, and only the bound replica (ARGV[2] is its id plus the separator) refreshes the TTL.
+# Returns {1, value} when this call wrote it, {0, stored value} otherwise.
+BIND_TURN_LUA = """
+-- AGENTA_BIND_TURN
+local current = redis.call('GET', KEYS[1])
+if not current then
+    redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[3])
+    return {1, ARGV[1]}
+end
+if string.sub(current, 1, string.len(ARGV[2])) == ARGV[2] then
+    redis.call('EXPIRE', KEYS[1], ARGV[3])
+end
+return {0, current}
+""".strip()
+
 # ---------------------------------------------------------------------------
 # Concurrency cap
 # ---------------------------------------------------------------------------

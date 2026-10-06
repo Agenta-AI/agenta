@@ -144,6 +144,15 @@ class _FakeRedis:
             self._ttl.pop(keys[1], None)
             returned_alive = "" if running_only else alive
             return [1, returned_alive.encode(), running.encode(), expected.encode()]
+        if "AGENTA_BIND_TURN" in script:
+            current = self._values.get(keys[0])
+            if current is None:
+                self._values[keys[0]] = argv[0].encode()
+                self._ttl[keys[0]] = int(argv[2])
+                return [1, argv[0].encode()]
+            if current.decode().startswith(argv[1]):
+                self._ttl[keys[0]] = int(argv[2])
+            return [0, current]
         if "AGENTA_RECONCILE_STOPPED_TURN" in script:
             self._values[keys[1]] = b"1"
             self._ttl[keys[1]] = int(argv[1])

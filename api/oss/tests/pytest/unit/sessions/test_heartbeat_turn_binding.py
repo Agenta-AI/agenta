@@ -27,7 +27,6 @@ from oss.src.dbs.redis.sessions.contract import TURN_BOUND_TTL_SECONDS, turn_bou
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
-    bind_turn,
     force_cancel_alive,
     get_alive_owner,
     get_running_owner,
@@ -375,38 +374,3 @@ async def test_an_api_minted_turn_is_current_on_the_pod_that_first_beats_it(
     binding = await _binding(lock_engine, "turn-api")
     assert binding is not None
     assert binding.replica_id == _POD_B
-
-
-@pytest.mark.asyncio
-async def test_a_binding_that_expires_before_the_read_back_is_written_on_retry():
-    from oss.src.dbs.redis.shared.engine import LockEngine
-
-    class _ExpiresBeforeReadBack(_FakeRedis):
-        """The first NX finds another key, which expires before the GET reads it."""
-
-        def __init__(self):
-            super().__init__()
-            self.refused_once = False
-
-        async def set(self, key, value, nx=False, ex=None):
-            if nx and not self.refused_once:
-                self.refused_once = True
-                return None
-            return await super().set(key, value, nx=nx, ex=ex)
-
-    engine = LockEngine()
-    with patch.object(engine, "_client", return_value=_ExpiresBeforeReadBack()):
-        binding, bound_now = await bind_turn(
-            engine,
-            project_id=_PID,
-            session_id=_SESSION,
-            turn_id="turn-1",
-            replica_id=_POD_A,
-            replica_address=_ADDRESS_A,
-        )
-        stored = await _binding(engine, "turn-1")
-
-    assert bound_now is True
-    assert (binding.replica_id, binding.replica_address) == (_POD_A, _ADDRESS_A)
-    assert stored is not None
-    assert stored.replica_id == _POD_A
