@@ -19,7 +19,6 @@ import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
-import {onboardingCommittedAtom} from "@/oss/state/onboarding"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {getProjectValues, routeContextAtom, useProjectData} from "@/oss/state/project"
 import {
@@ -212,9 +211,6 @@ const AppWithVariants = memo(
     }) => {
         const baseAppURL = useAtomValue(baseAppURLAtom)
         const appState = useAtomValue(appRouteSliceAtom)
-        const onboardingCommitted = useAtomValue(onboardingCommittedAtom)
-        const onboardingHidesSidebar =
-            !onboardingCommitted && /\/p\/[^/]+\/playground\/?$/.test(appState.pathname)
         const isAnnotations = appState.pathname.includes("/annotations")
         const lastBasePathRef = useRef<string | null>(null)
         const lastNonSettingsPathRef = useRef<string | null>(null)
@@ -358,7 +354,7 @@ const AppWithVariants = memo(
                     </>
                 )}
                 <Layout hasSider className={classes.layout}>
-                    {!onboardingHidesSidebar && <SidebarIsland view={sidebarView} />}
+                    <SidebarIsland view={sidebarView} />
 
                     <Layout className={classes.layout}>
                         <div
