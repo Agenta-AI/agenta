@@ -126,24 +126,53 @@ def main() -> int:
     sample = next(c["livenessProbe"]["exec"]["command"]
                   for ref, c in workloads(parsed) if ref in WANT_PROBE)
     with tempfile.TemporaryDirectory() as directory:
-        probe_path = Path(directory) / "beat"
-        # Point the rendered command at a path this test controls, changing nothing else.
+        beats = Path(directory)
+        # Point the rendered command at a directory this test controls, changing
+        # nothing else about the command.
         rendered_path = env_of(next(c for ref, c in workloads(parsed) if ref in WANT_PROBE))[ENV_NAME]
-        command = [part.replace(rendered_path, str(probe_path)) for part in sample]
+        command = [part.replace(rendered_path, str(beats)) for part in sample]
 
-        check(run_probe(command) != 0, "a missing file fails the probe")
+        def fresh(name: str) -> None:
+            (beats / name).write_text(f"{int(time.time())}\n")
 
-        probe_path.write_text("")
-        check(run_probe(command) != 0, "an empty file fails the probe rather than reading as fresh")
+        def stale(name: str) -> None:
+            (beats / name).write_text(f"{int(time.time()) - 10_000}\n")
 
-        probe_path.write_text("not-a-number\n")
-        check(run_probe(command) != 0, "a file that is not a timestamp fails the probe")
+        def clear() -> None:
+            for f in beats.iterdir():
+                f.unlink()
 
-        probe_path.write_text(f"{int(time.time())}\n")
-        check(run_probe(command) == 0, "a fresh timestamp passes the probe")
+        check(run_probe(command) != 0, "an empty directory fails the probe")
 
-        probe_path.write_text(f"{int(time.time()) - 10_000}\n")
-        check(run_probe(command) != 0, "a stale timestamp fails the probe")
+        fresh("spans")
+        check(run_probe(command) == 0, "one fresh loop passes")
+
+        # THE CASE THE REVIEW FOUND. Several consumer loops share one process, so a
+        # healthy loop must not cover for a stalled one.
+        stale("records")
+        check(run_probe(command) != 0,
+              "one stalled loop fails the probe even while another is fresh")
+
+        clear(); fresh("spans"); fresh("records"); fresh("events")
+        check(run_probe(command) == 0, "three fresh loops pass")
+
+        (beats / "events").write_text("")
+        check(run_probe(command) != 0, "an empty file fails rather than reading as fresh")
+
+        (beats / "events").write_text("not-a-number\n")
+        check(run_probe(command) != 0, "a file that is not a timestamp fails")
+
+        # A path with a space: the application would write it, so the probe has to
+        # read it. Unquoted, `test` and `cat` would split the argument and restart a
+        # healthy pod.
+        clear()
+        spaced = Path(directory) / "beats with space"
+        spaced.mkdir()
+        spaced_command = [part.replace(rendered_path, str(spaced)) for part in sample]
+        (spaced / "spans").write_text(f"{int(time.time())}\n")
+        check(run_probe(spaced_command) == 0, "a directory whose name contains a space still passes")
+        (spaced / "records").write_text(f"{int(time.time()) - 10_000}\n")
+        check(run_probe(spaced_command) != 0, "and a stalled loop there still fails")
 
     # --- the switch and the settings -----------------------------------------
     parsed = render(["--set", "heartbeat.enabled=false"])

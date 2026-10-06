@@ -828,17 +828,37 @@ imagePullSecrets:
 {{- end }}
 {{- end }}
 
-{{- /* The probe. `-lt` on an integer difference, so a missing or empty file
-       fails rather than reading as fresh. */ -}}
+{{- /* The probe.
+
+       It reads EVERY file in the directory and fails on the oldest, because each
+       loop writes its own. worker-streams gathers several consumer loops in one
+       process, and a single shared file let a healthy loop keep the probe passing
+       while another was stalled.
+
+       An empty directory fails too. A workload that writes nothing has nothing to
+       prove, and treating "no files" as healthy would make the probe decorative.
+
+       `-s` rather than `-f`, so a zero-byte file fails instead of being read as a
+       nonsense age. The path is quoted throughout, because a configured path may
+       contain a space and `test` and `cat` would otherwise receive split
+       arguments and restart healthy pods. */ -}}
 {{- define "agenta.heartbeatProbe" -}}
 {{- if eq (include "agenta.heartbeat.enabled" .) "true" }}
 {{- $p := include "agenta.heartbeat.path" . -}}
-{{- $stale := include "agenta.heartbeat.staleSeconds" . -}}
+{{- $stale := include "agenta.heartbeat.staleSeconds" . | int -}}
 exec:
   command:
     - sh
     - -c
-    - test -s {{ $p }} && [ $(( $(date +%s) - $(cat {{ $p }}) )) -lt {{ $stale }} ]
+    - |
+      d={{ $p | quote }}; now=$(date +%s); n=0
+      for f in "$d"/*; do
+        [ -e "$f" ] || continue
+        [ -s "$f" ] || exit 1
+        [ $(( now - $(cat "$f") )) -lt {{ $stale }} ] || exit 1
+        n=$((n+1))
+      done
+      [ "$n" -gt 0 ]
 initialDelaySeconds: {{ $stale }}
 periodSeconds: 30
 timeoutSeconds: 5

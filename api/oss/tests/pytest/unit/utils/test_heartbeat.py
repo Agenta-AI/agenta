@@ -40,35 +40,64 @@ def _configure(monkeypatch, value):
 def test_does_nothing_when_unconfigured(monkeypatch, tmp_path):
     """The default is off, and off must mean no file and no error."""
     _configure(monkeypatch, "")
-    assert heartbeat.path() is None
-    assert heartbeat.touch() is False
-    assert heartbeat.age_seconds() is None
+    assert heartbeat.directory() is None
+    assert heartbeat.path("spans") is None
+    assert heartbeat.touch(name="spans") is False
+    assert heartbeat.age_seconds(name="spans") is None
     assert list(tmp_path.iterdir()) == []
 
 
 def test_blank_configuration_is_also_off(monkeypatch):
     """Whitespace is what a values file produces when someone clears the setting."""
     _configure(monkeypatch, "   ")
-    assert heartbeat.path() is None
-    assert heartbeat.touch() is False
+    assert heartbeat.directory() is None
+    assert heartbeat.touch(name="spans") is False
 
 
 def test_writes_a_readable_timestamp(monkeypatch, tmp_path):
-    target = tmp_path / "beat"
-    _configure(monkeypatch, str(target))
+    _configure(monkeypatch, str(tmp_path))
 
-    assert heartbeat.touch(now=1_000_000) is True
-    assert target.read_text().strip() == "1000000"
-    assert heartbeat.age_seconds(now=1_000_030) == pytest.approx(30)
+    assert heartbeat.touch(name="spans", now=1_000_000) is True
+    assert (tmp_path / "spans").read_text().strip() == "1000000"
+    assert heartbeat.age_seconds(name="spans", now=1_000_030) == pytest.approx(30)
+
+
+def test_each_loop_gets_its_own_file(monkeypatch, tmp_path):
+    """The reason this exists: several consumer loops share one process.
+
+    A shared file let a healthy loop keep the probe passing while another loop was
+    stalled, which is the failure the probe is for.
+    """
+    _configure(monkeypatch, str(tmp_path))
+
+    heartbeat.touch(name="spans", now=1_000_000)
+    heartbeat.touch(name="records", now=1_000_000)
+    heartbeat.touch(name="records", now=1_000_500)
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["records", "spans"]
+    assert heartbeat.age_seconds(name="spans", now=1_000_500) == pytest.approx(500)
+    assert heartbeat.age_seconds(name="records", now=1_000_500) == pytest.approx(0)
+
+
+def test_a_name_cannot_escape_the_directory(monkeypatch, tmp_path):
+    """Names come from stream names, so a separator must not write elsewhere."""
+    _configure(monkeypatch, str(tmp_path))
+
+    for hostile in ("../escape", "a/b", "with space", "", "///"):
+        assert heartbeat.touch(name=hostile, now=5) is True
+
+    for written in tmp_path.iterdir():
+        assert written.parent == tmp_path, f"{written} escaped the directory"
+        assert "/" not in written.name and " " not in written.name
 
 
 def test_creates_the_directory_it_needs(monkeypatch, tmp_path):
-    """A probe path under a directory the image does not ship must still work."""
-    target = tmp_path / "nested" / "deeper" / "beat"
+    """A configured directory the image does not ship must still work."""
+    target = tmp_path / "nested" / "deeper"
     _configure(monkeypatch, str(target))
 
-    assert heartbeat.touch(now=5) is True
-    assert target.read_text().strip() == "5"
+    assert heartbeat.touch(name="spans", now=5) is True
+    assert (target / "spans").read_text().strip() == "5"
 
 
 def test_a_reader_never_sees_a_half_written_file(monkeypatch, tmp_path):
@@ -77,12 +106,12 @@ def test_a_reader_never_sees_a_half_written_file(monkeypatch, tmp_path):
     A reader that caught an empty file would compute a nonsense age and restart a pod
     that was perfectly healthy.
     """
-    target = tmp_path / "beat"
-    _configure(monkeypatch, str(target))
+    _configure(monkeypatch, str(tmp_path))
+    target = tmp_path / "spans"
 
-    heartbeat.touch(now=100)
+    heartbeat.touch(name="spans", now=100)
     for _ in range(25):
-        heartbeat.touch(now=200)
+        heartbeat.touch(name="spans", now=200)
         assert target.read_text().strip() in {"100", "200"}
 
     # And nothing is left behind by the rename.
@@ -92,25 +121,23 @@ def test_a_reader_never_sees_a_half_written_file(monkeypatch, tmp_path):
 
 def test_a_failed_write_is_reported_not_raised(monkeypatch, tmp_path):
     """A worker loop must survive a filesystem that refuses the write."""
-    target = tmp_path / "beat"
-    _configure(monkeypatch, str(target))
+    _configure(monkeypatch, str(tmp_path))
 
     def refuse(*args, **kwargs):
         raise OSError(30, "Read-only file system")
 
     monkeypatch.setattr(heartbeat.tempfile, "mkstemp", refuse)
 
-    assert heartbeat.touch() is False  # reported, not raised
-    assert not target.exists()
+    assert heartbeat.touch(name="spans") is False  # reported, not raised
+    assert not (tmp_path / "spans").exists()
 
 
 def test_a_corrupt_file_reads_as_unknown_rather_than_fresh(monkeypatch, tmp_path):
     """If the file holds something that is not a timestamp, do not claim it is recent."""
-    target = tmp_path / "beat"
-    _configure(monkeypatch, str(target))
-    target.write_text("not-a-number\n")
+    _configure(monkeypatch, str(tmp_path))
+    (tmp_path / "spans").write_text("not-a-number\n")
 
-    assert heartbeat.age_seconds() is None
+    assert heartbeat.age_seconds(name="spans") is None
 
 
 @pytest.mark.asyncio
@@ -118,12 +145,15 @@ async def test_the_ticker_writes_and_stops_on_cancellation(monkeypatch, tmp_path
     """The queue worker cancels this task on shutdown; it must exit without raising."""
     import asyncio
 
-    target = tmp_path / "beat"
-    _configure(monkeypatch, str(target))
+    _configure(monkeypatch, str(tmp_path))
 
-    task = asyncio.create_task(heartbeat.ticker(interval_seconds=0.01))
+    task = asyncio.create_task(
+        heartbeat.ticker(name="worker-queues", interval_seconds=0.01)
+    )
     await asyncio.sleep(0.05)
-    assert target.exists(), "the ticker should have written at least once"
+    assert (tmp_path / "worker-queues").exists(), (
+        "the ticker should have written at least once"
+    )
 
     task.cancel()
     await task  # returns rather than raising CancelledError out of the task body
@@ -134,4 +164,6 @@ async def test_the_ticker_writes_and_stops_on_cancellation(monkeypatch, tmp_path
 async def test_the_ticker_returns_at_once_when_unconfigured(monkeypatch):
     """No file configured means no task spinning for the life of the process."""
     _configure(monkeypatch, "")
-    await heartbeat.ticker(interval_seconds=0.01)  # returns immediately
+    await heartbeat.ticker(
+        name="worker-queues", interval_seconds=0.01
+    )  # returns immediately

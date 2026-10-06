@@ -1341,14 +1341,12 @@
         },
         "path": {
           "type": "string",
-          "description": "Where the file lives inside each container. Default /tmp/agenta-heartbeat."
+          "description": "Directory each loop writes its own file into, inside every container that reports. Default /tmp/agenta-heartbeat. Avoid whitespace: it works, because the probe quotes it, but it makes every command harder to read."
         },
         "staleSeconds": {
-          "type": [
-            "integer",
-            "string"
-          ],
-          "description": "How old the file may be before the probe fails. Also the probe's initial delay. Default 120."
+          "type": "integer",
+          "minimum": 1,
+          "description": "How old a loop's file may be before the probe fails, in seconds. Also the probe's initial delay. Default 120. An integer, because the value goes into an integer shell comparison and into initialDelaySeconds: a string there renders a probe that can never pass."
         }
       }
     }

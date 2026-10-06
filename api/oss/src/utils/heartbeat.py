@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import tempfile
 import time
 from typing import Optional
@@ -48,14 +49,36 @@ log = get_module_logger(__name__)
 _WARNED = False
 
 
-def path() -> Optional[str]:
-    """The configured heartbeat file, or None when the feature is off."""
+_SAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def directory() -> Optional[str]:
+    """The configured heartbeat directory, or None when the feature is off."""
     configured = (env.agenta.workers.heartbeat_file or "").strip()
     return configured or None
 
 
-def touch(*, now: Optional[float] = None) -> bool:
-    """Record that the caller's loop just turned. Returns whether anything was written.
+def path(name: str) -> Optional[str]:
+    """The file one named loop writes, or None when the feature is off.
+
+    ONE FILE PER LOOP, not one per process. `worker-streams` gathers several
+    consumer loops in a single process, so a shared file let a healthy loop keep
+    the probe passing while another loop was stalled, which is the failure the
+    probe exists to catch. The probe reads every file in the directory and fails
+    on the oldest, so a single stalled loop is enough to restart the pod.
+
+    The name is sanitised because it comes from a stream name, and a path
+    separator or a space in it would write somewhere unintended.
+    """
+    base = directory()
+    if not base:
+        return None
+    safe = _SAFE.sub("-", name).strip("-") or "loop"
+    return os.path.join(base, safe)
+
+
+def touch(*, name: str, now: Optional[float] = None) -> bool:
+    """Record that the named loop just turned. Returns whether anything was written.
 
     The write goes to a temporary file in the same directory and is then renamed over
     the target, so a probe reading at the wrong moment sees either the old timestamp
@@ -64,7 +87,7 @@ def touch(*, now: Optional[float] = None) -> bool:
     """
     global _WARNED
 
-    target = path()
+    target = path(name)
     if not target:
         return False
 
@@ -98,13 +121,13 @@ def touch(*, now: Optional[float] = None) -> bool:
         return False
 
 
-def age_seconds(*, now: Optional[float] = None) -> Optional[float]:
+def age_seconds(*, name: str, now: Optional[float] = None) -> Optional[float]:
     """How old the recorded timestamp is, or None when there is nothing to read.
 
     Only used by tests and by anyone debugging a probe. The probe itself reads the
     file with a shell, so it needs nothing from this module.
     """
-    target = path()
+    target = path(name)
     if not target:
         return None
     try:
@@ -115,7 +138,7 @@ def age_seconds(*, now: Optional[float] = None) -> Optional[float]:
     return (now if now is not None else time.time()) - stamp
 
 
-async def ticker(*, interval_seconds: float = 15.0) -> None:
+async def ticker(*, name: str, interval_seconds: float = 15.0) -> None:
     """Write the heartbeat on an interval, for a loop we do not own.
 
     The queue worker hands its loop to taskiq's Receiver, so there is no per-turn
@@ -129,11 +152,11 @@ async def ticker(*, interval_seconds: float = 15.0) -> None:
     It is deliberately not conditional on work arriving. An idle queue is normal, and
     a probe that restarted an idle worker would be worse than no probe.
     """
-    if not path():
+    if not directory():
         return
 
     while True:
-        touch()
+        touch(name=name)
         try:
             await asyncio.sleep(interval_seconds)
         except asyncio.CancelledError:

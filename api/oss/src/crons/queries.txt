@@ -2,8 +2,11 @@
 # matters: the process stays up and the jobs stop. The liveness probe fails when
 # this file goes stale. Writes nothing unless AGENTA_HEARTBEAT_FILE is set, so a
 # deployment that does not probe for it is unchanged, and `|| exit 0` keeps it from
+# logging a failed job every minute there. `mkdir -p` first, because the variable
+# names a directory the image may not ship, and a failed redirection would leave
+# the file missing and restart a working container.
 # logging a failed job every minute there: measured, the `&&` form exits 1. This
 # line replaced an
 # `echo "cron test"` that only ever produced log noise.
-* * * * * root sh -c '[ -n "$AGENTA_HEARTBEAT_FILE" ] || exit 0; date +%s > "$AGENTA_HEARTBEAT_FILE"' >> /proc/1/fd/1 2>&1
+* * * * * root sh -c '[ -n "$AGENTA_HEARTBEAT_FILE" ] || exit 0; mkdir -p "$AGENTA_HEARTBEAT_FILE" && date +%s > "$AGENTA_HEARTBEAT_FILE/cron"' >> /proc/1/fd/1 2>&1
 * * * * * root sh /queries.sh >> /proc/1/fd/1 2>&1

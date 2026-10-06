@@ -627,7 +627,7 @@ async def main_async() -> int:
         # interval instead. It proves the event loop is still turning, which is what
         # catches a blocked loop; it does not prove tasks are being consumed. A no-op
         # unless AGENTA_HEARTBEAT_FILE is set.
-        liveness = asyncio.create_task(heartbeat.ticker())
+        liveness = asyncio.create_task(heartbeat.ticker(name="worker-queues"))
 
         log.info("[QUEUES] Starting worker-queues", selected=queues)
         try:
