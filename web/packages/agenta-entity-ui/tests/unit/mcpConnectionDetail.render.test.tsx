@@ -101,17 +101,14 @@ afterEach(async () => {
 })
 
 describe("McpConnectionDetail on a phone", () => {
-    it("is a bottom sheet below the breakpoint and a right-edge drawer above it", async () => {
-        // The same prop the add-server drawer and the permission drawer beside it pass. With the
-        // default `right` a 520px panel slid in from the edge of a phone. The geometry itself is
-        // measured in a browser; what this pins is that the drawer asks for the responsive side.
+    it("is a dialog that shrinks to the phone width and caps at 520px", async () => {
         listMcpTools.mockResolvedValue([{name: "search"}])
         await open(connected())
 
         const panel = document.querySelector('[role="dialog"]')
-        expect(panel, "no drawer panel").not.toBeNull()
-        expect(panel!.className).toContain("bottom-0")
-        expect(panel!.className).toContain("lg:right-2")
+        expect(panel, "no dialog panel").not.toBeNull()
+        expect(panel!.className).toContain("w-full")
+        expect(panel!.className).toContain("max-w-[520px]")
     })
 })
 
