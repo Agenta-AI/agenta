@@ -155,9 +155,126 @@ describe("deleteLabelledSandboxes", () => {
       "with-secrets:sbx-held",
     ]);
   });
+
+  it("a list that answers after the signal aborts starts no delete", async () => {
+    const { dependencies, events } = fakeDependencies([]);
+    const controller = new AbortController();
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    dependencies.list = async function* () {
+      await answered;
+      yield labelled("sbx-a");
+      yield labelled("sbx-b");
+    };
+
+    const sweep = deleteLabelledSandboxes(SCOPE, dependencies, controller.signal);
+    controller.abort();
+    answer();
+
+    await assert.rejects(sweep, { name: "AbortError" });
+    assert.deepEqual(events, []);
+  });
+
+  it("reads no further list page after the signal aborts", async () => {
+    const { dependencies, events } = fakeDependencies([]);
+    const controller = new AbortController();
+    let secondPageRead = false;
+    let iteratorClosed = false;
+    dependencies.list = async function* () {
+      try {
+        yield labelled("sbx-a");
+        controller.abort();
+        yield labelled("sbx-b");
+        secondPageRead = true;
+        yield labelled("sbx-c");
+      } finally {
+        iteratorClosed = true;
+      }
+    };
+
+    await assert.rejects(
+      deleteLabelledSandboxes(SCOPE, dependencies, controller.signal),
+      { name: "AbortError" },
+    );
+    assert.equal(secondPageRead, false);
+    assert.equal(iteratorClosed, true);
+    assert.deepEqual(events, []);
+  });
+
+  it("a list that ends after the signal aborts starts no delete", async () => {
+    const { dependencies, events } = fakeDependencies([]);
+    const controller = new AbortController();
+    let end!: () => void;
+    const ended = new Promise<void>((resolve) => (end = resolve));
+    dependencies.list = async function* () {
+      yield labelled("sbx-a");
+      await ended;
+    };
+
+    const sweep = deleteLabelledSandboxes(SCOPE, dependencies, controller.signal);
+    await new Promise((resolve) => setImmediate(resolve));
+    controller.abort();
+    end();
+
+    await assert.rejects(sweep, { name: "AbortError" });
+    assert.deepEqual(events, []);
+  });
+
+  it("a delete started before the signal aborts still completes", async () => {
+    const { dependencies, events } = fakeDependencies([labelled("sbx-a")]);
+    const controller = new AbortController();
+    let deleteStarted!: () => void;
+    const started = new Promise<void>((resolve) => (deleteStarted = resolve));
+    let finish!: () => void;
+    dependencies.deletePlain = async (id) => {
+      deleteStarted();
+      await new Promise<void>((resolve) => (finish = resolve));
+      events.push(`plain:${id}`);
+    };
+
+    const sweep = deleteLabelledSandboxes(SCOPE, dependencies, controller.signal);
+    await started;
+    controller.abort();
+    finish();
+
+    assert.deepEqual(await sweep, { listed: 1, deleted: 1, failed: 0 });
+    assert.deepEqual(events, ["plain:sbx-a"]);
+  });
 });
 
 describe("sweepSessionSandboxes", () => {
+  it("deletes every listed sandbox before the deadline and logs the counts", async () => {
+    const { dependencies, events, logs } = fakeDependencies([
+      labelled("sbx-a"),
+      labelled("sbx-b"),
+    ]);
+
+    await sweepSessionSandboxes(SCOPE, dependencies, 1_000);
+
+    assert.deepEqual([...events].sort(), ["plain:sbx-a", "plain:sbx-b"]);
+    assert.deepEqual(logs, [
+      "kill: session=session-1 listed=2 deleted=2 failed=0",
+    ]);
+  });
+
+  it("a list that answers after the deadline starts no delete", async () => {
+    const { dependencies, events, logs } = fakeDependencies([]);
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    dependencies.list = async function* () {
+      await answered;
+      yield labelled("sbx-late");
+    };
+
+    await sweepSessionSandboxes(SCOPE, dependencies, 30);
+    answer();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(events, []);
+    assert.equal(logs.length, 1);
+    assert.match(logs[0]!, /exceeded 30 ms.*starts no further delete/);
+  });
+
   it("returns at the deadline when the list does not answer, and logs it", async () => {
     const { dependencies, logs } = fakeDependencies([]);
     dependencies.list = () => ({
