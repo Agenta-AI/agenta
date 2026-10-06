@@ -182,7 +182,9 @@ read it when a revision carries one, never write a new one:
 - `agenta_tools` — which Agenta tools the agent gets in every run, not only here:
   `{ "type": "agenta_tools", "tools": { "get_current_session": "allow", "rename_session":
   "allow" } }`. Each value is `allow` or `ask`; a tool not listed is off. Keep this entry when
-  you edit `tools`; the author manages it in the Agenta tools section.
+  you edit `tools`; the author manages it in the Agenta tools section. Its selector key is
+  `agenta_tools`, so one tool is one `set` on
+  `[..., {"list":"tools","key":"agenta_tools"}, "tools", "<tool>"]`.
 
 ### mcps
 
