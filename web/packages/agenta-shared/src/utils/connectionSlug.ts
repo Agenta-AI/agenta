@@ -54,12 +54,40 @@ export function defaultConnectionName(integrationName: string, existingCount = 0
     return `${base} (${ordinal})`
 }
 
+/** Lowercase, with `_` and spaces read as `-`, so "google_maps" and "google-maps" compare equal. */
+const asIdentifier = (value: string): string =>
+    value
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_]+/g, "-")
+
 /**
- * What a connection is CALLED in the UI. A slug is an identifier, never a label — it only stands
- * in when a connection carries no name at all.
+ * What a connection is CALLED in the UI. A slug is an identifier, never a label.
+ *
+ * Connections made outside the connect form often store their slug or integration key as their
+ * name ("youtube-main", "google_maps"). With the app's name, such a connection reads as the app,
+ * plus what the slug adds after the integration key: "youtube-main" → "YouTube (main)".
+ * Without it, or with a real name, the name (else the slug) is shown as stored.
  */
 export function connectionDisplayName(
-    connection: {name?: string | null; slug?: string | null} | null | undefined,
+    connection:
+        | {name?: string | null; slug?: string | null; integration_key?: string | null}
+        | null
+        | undefined,
+    appName?: string | null,
 ): string {
-    return connection?.name?.trim() || connection?.slug?.trim() || ""
+    const name = connection?.name?.trim() ?? ""
+    const slug = connection?.slug?.trim() ?? ""
+    const key = connection?.integration_key?.trim() ?? ""
+    const app = appName?.trim() ?? ""
+
+    const identifiers = [slug, key].filter(Boolean).map(asIdentifier)
+    const nameIsIdentifier = !name || identifiers.includes(asIdentifier(name))
+    if (!nameIsIdentifier || !app) return name || slug
+
+    const slugId = asIdentifier(slug)
+    const keyId = asIdentifier(key)
+    const rest =
+        keyId && slugId.startsWith(`${keyId}-`) ? slugId.slice(keyId.length + 1) : ""
+    return rest ? `${app} (${rest})` : app
 }
