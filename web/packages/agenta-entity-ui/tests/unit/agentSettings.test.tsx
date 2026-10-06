@@ -2,12 +2,7 @@ import {act, useState, type ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
-import {
-    activeUserIdAtom,
-    inprocessSandboxEnabledAtom,
-    openAgentConfigSectionAtom,
-    projectIdAtom,
-} from "@agenta/shared/state"
+import {openAgentConfigSectionAtom, projectIdAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -348,7 +343,7 @@ describe("shared agent settings", () => {
         },
     )
 
-    describe("the In-process sandbox preference", () => {
+    describe("the in-process sandbox", () => {
         const withInprocess = ["local", "daytona", "inprocess"]
         async function sandboxChoices() {
             await click(button("Advanced"))
@@ -361,38 +356,23 @@ describe("shared agent settings", () => {
             )
             return [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent)
         }
-        const setPreference = (on: boolean) => {
-            store.set(activeUserIdAtom, "u1")
-            store.set(inprocessSandboxEnabledAtom, on)
-        }
 
-        it("hides Inprocess while the preference is off, even when the deployment enables it", async () => {
+        it("is never offered: the runner picks it for Pi under Daytona", async () => {
             fixture.environments = withInprocess
             await mount(saved(), {environments: withInprocess})
             expect(await sandboxChoices()).toEqual(["Local", "Daytona"])
-        })
-
-        it("offers Inprocess next to Daytona once the preference is on", async () => {
-            fixture.environments = withInprocess
-            setPreference(true)
-            await mount(saved(), {environments: withInprocess})
-            expect(await sandboxChoices()).toEqual(["Local", "Daytona", "Inprocess"])
             expect(writes).not.toHaveBeenCalled()
         })
 
-        it("still needs the deployment to enable it", async () => {
-            setPreference(true)
-            await mount(saved(), {environments: withInprocess})
-            expect(await sandboxChoices()).toEqual(["Local", "Daytona"])
-        })
-
-        it("keeps a saved Inprocess agent as it is while the preference is off", async () => {
+        it("shows a saved Inprocess agent as Daytona and leaves it as it is", async () => {
             fixture.environments = withInprocess
             const value = {...saved(), sandbox: {...saved().sandbox, kind: "inprocess"}}
             await mount(value, {environments: withInprocess})
             expect(writes).not.toHaveBeenCalled()
             expect((live.sandbox as {kind: string}).kind).toBe("inprocess")
-            expect(await sandboxChoices()).toEqual(["Local", "Daytona", "Inprocess"])
+            expect(await sandboxChoices()).toEqual(["Local", "Daytona"])
+            const selected = document.querySelector('[role="option"][aria-selected="true"]')
+            expect(selected?.textContent).toBe("Daytona")
         })
     })
 

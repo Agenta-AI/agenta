@@ -146,6 +146,7 @@ import { seedForRun } from "./redaction.ts";
 import type { InProcessProvider } from "./engines/inprocess/index.ts";
 import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
+import { applySandboxRouting } from "./engines/sandbox_agent/sandbox-routing.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
 import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/turn-admission.ts";
 
@@ -437,14 +438,23 @@ const keepaliveEngines: Record<KeepaliveProviderName, KeepaliveEngine> = {
 };
 
 const runAgent: RunAgent = async (request, emit, signal, options) => {
-  const traits = sandboxProviderTraits(resolveSandboxProviderId(request));
-  if (!traits.commandsInRemoteSandbox) return dispatchRun(request, emit, signal, options);
+  const sandbox = resolveSandboxProviderId(request);
+  const traits = sandboxProviderTraits(sandbox);
+  // The result names the provider that ran, so the caller's trace shows it.
+  if (!traits.commandsInRemoteSandbox) {
+    return { ...(await dispatchRun(request, emit, signal, options)), sandbox };
+  }
   // A turn that may run a sandbox on the platform's provider account starts only while the
   // caller's wallet can spend and its organization runs fewer turns than its plan allows.
-  return runAdmittedTurn(request, resolveTurnId(request), emit, () =>
+  const result = await runAdmittedTurn(request, resolveTurnId(request), emit, () =>
     dispatchRun(request, emit, signal, options),
   );
+  return { ...result, sandbox };
 };
+
+function logSandboxRouting(message: string): void {
+  process.stderr.write(`${message}\n`);
+}
 
 const dispatchRun: RunAgent = async (request, emit, signal, options) => {
   const attempt = async (
@@ -1630,6 +1640,10 @@ export function createRequestListener(
               error: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
             });
           }
+
+          // Before anything reads `request.sandbox`: the session record, the keep-alive pool and
+          // the run plan all see the provider that runs.
+          applySandboxRouting(request, logSandboxRouting);
 
           const wantsStream = (req.headers["accept"] ?? "").includes(
             "application/x-ndjson",

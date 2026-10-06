@@ -73,10 +73,3 @@ export const agentaChannelSurfaceEnabledAtom = userScopedFlagAtom("agenta-channe
 
 /** Debug switch for the log and diagnostic sections of the Channels settings tab. */
 export const channelDebugEnabledAtom = userScopedFlagAtom("channel-debug")
-
-/**
- * Beta switch that offers the `inprocess` sandbox in the agent's sandbox picker. It only gates
- * what the picker offers: the deployment's enabled-provider list stays the real gate, and the API
- * does not read this flag.
- */
-export const inprocessSandboxEnabledAtom = userScopedFlagAtom("inprocess-sandbox")

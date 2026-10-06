@@ -4,9 +4,12 @@ Two PostHog flags carry the rollout, and each environment switch stays the maste
 
 - `llm-gateway-rollout`: a JSON list of organization ids. With `AGENTA_LLM_GATEWAY_ENABLED`
   on, only these organizations are served by the LLM gateway; every other one is refused
-  with `llm_gateway_disabled`, which the agent SDK reads as "resolve from the vault".
+  with `llm_gateway_disabled`, which the agent SDK reads as "resolve from the vault". The
+  entry `"*"` serves every organization: `["*"]`.
 - `wallets-rollout`: a JSON object mapping organization id to `off`, `shadow` or `enforce`.
-  With `AGENTA_WALLETS_ENABLED` on, an organization absent from it is `off`.
+  With `AGENTA_WALLETS_ENABLED` on, an organization absent from it is `off`. The key `"*"`
+  gives every organization not listed its mode, and a listed organization keeps its own:
+  `{"*": "shadow", "<org id>": "enforce"}`.
 
 The flags are read only with `AGENTA_ROLLOUT_FLAGS_ENABLED` on. Off, the default and what a
 self-hosted deployment runs, the environment switches alone decide: the gateway serves every
@@ -52,6 +55,9 @@ ROLLOUT_FIRST_LOOKUP_TIMEOUT_SECONDS = 1.5
 # The flags are rolled out to everyone; the payload, not the targeting, carries the rollout.
 _DISTINCT_ID = "agenta-rollout"
 
+# The payload entry that stands for every organization.
+EVERY_ORGANIZATION = "*"
+
 
 class WalletMode(str, Enum):
     OFF = "off"
@@ -65,7 +71,8 @@ async def llm_gateway_enabled_for(organization_id: UUID) -> bool:
     if not env.rollout.enabled:
         return True
     payload = await _flag_payload(LLM_GATEWAY_ROLLOUT_FLAG)
-    return str(organization_id) in _parse_organization_ids(payload)
+    ids = _parse_organization_ids(payload)
+    return EVERY_ORGANIZATION in ids or str(organization_id) in ids
 
 
 async def wallet_mode_for(organization_id: UUID, *, wait: bool = True) -> WalletMode:
@@ -76,7 +83,10 @@ async def wallet_mode_for(organization_id: UUID, *, wait: bool = True) -> Wallet
     if not env.rollout.enabled:
         return WalletMode.ENFORCE
     payload = await _flag_payload(WALLETS_ROLLOUT_FLAG, wait=wait)
-    return _parse_wallet_modes(payload).get(str(organization_id), WalletMode.OFF)
+    modes = _parse_wallet_modes(payload)
+    return modes.get(
+        str(organization_id), modes.get(EVERY_ORGANIZATION, WalletMode.OFF)
+    )
 
 
 def prefetch_rollout_flags() -> None:
@@ -244,6 +254,9 @@ def _parse_wallet_modes(payload: Any) -> Dict[str, WalletMode]:
 
 
 def _normalize_id(value: Any) -> Optional[str]:
+    """An organization id in its canonical form, `"*"` kept as it is, or None."""
+    if str(value).strip() == EVERY_ORGANIZATION:
+        return EVERY_ORGANIZATION
     try:
         return str(UUID(str(value).strip()))
     except ValueError:
