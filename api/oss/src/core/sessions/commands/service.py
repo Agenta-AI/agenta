@@ -58,6 +58,7 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotFound,
 )
 from oss.src.core.sessions.executions.dtos import SessionExecutionState
+from oss.src.core.sessions.records.dtos import RunnerEnding
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
@@ -1625,12 +1626,13 @@ class SessionCommandsService:
             and winner.settled_by == "watchdog"
         )
 
-    async def settle_execution_completed(
+    async def settle_execution_ended(
         self,
         *,
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        terminal_outcome: RunnerEnding = "completed",
     ) -> bool:
         """Reconcile a persisted runner ending before stale ownership is collapsed."""
         if self._executions is None:
@@ -1641,9 +1643,11 @@ class SessionCommandsService:
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=execution_id,
-                terminal_outcome="completed",
+                terminal_outcome=terminal_outcome,
                 settled_by="runner",
                 transaction=transaction,
+                # A Stop can end its turn with an error; its command owns that ending.
+                defer_to_stop=terminal_outcome == "failed",
             )
             if result.won:
                 admission = await self._promote_next_input(
@@ -1655,7 +1659,7 @@ class SessionCommandsService:
 
         if admission is not None:
             # The terminal record can arrive before the runner's final `is_running=false` beat.
-            # Release and fence that completed generation first, or the promoted continuation's
+            # Release and fence that ended generation first, or the promoted continuation's
             # first heartbeat sees the old `running` owner and rejects immediate delivery.
             await self._reconcile_stopped_redis(
                 project_id=project_id,

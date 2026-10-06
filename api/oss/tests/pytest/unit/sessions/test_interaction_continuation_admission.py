@@ -197,7 +197,10 @@ class _Executions:
             if kwargs["execution_id"] == self.source.execution_id
             else self.continuation
         )
-        if current.terminal_outcome is not None:
+        if current.terminal_outcome is not None or (
+            kwargs.get("defer_to_stop")
+            and current.state == SessionExecutionState.stopping
+        ):
             return SessionExecutionSettlementResult(settlement=current, won=False)
         settled = current.model_copy(
             update={
@@ -987,7 +990,7 @@ async def test_persisted_completion_terminalizes_continuation_before_recovery():
         executions_dao=executions,
     )
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="continuation-1",
@@ -995,6 +998,65 @@ async def test_persisted_completion_terminalizes_continuation_before_recovery():
     assert executions.continuation.state == SessionExecutionState.terminal
     assert executions.continuation.terminal_outcome == "completed"
     assert executions.continuation.settled_by == "runner"
+
+
+@pytest.mark.asyncio
+async def test_persisted_error_ending_terminalizes_continuation_as_failed():
+    # Production EU, 2026-10-06: a continuation that ended with a provider error stayed
+    # `running`, and the next Send found the session busy with a turn that was over.
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.continuation = executions.continuation.model_copy(
+        update={"state": SessionExecutionState.running}
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    assert await service.settle_execution_ended(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        terminal_outcome="failed",
+    )
+    assert executions.continuation.state == SessionExecutionState.terminal
+    assert executions.continuation.terminal_outcome == "failed"
+    assert executions.continuation.settled_by == "runner"
+
+
+@pytest.mark.asyncio
+async def test_error_ending_leaves_a_stopping_continuation_to_its_stop():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.continuation = executions.continuation.model_copy(
+        update={"state": SessionExecutionState.stopping}
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    assert not await service.settle_execution_ended(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        terminal_outcome="failed",
+    )
+    assert executions.continuation.state == SessionExecutionState.stopping
+    assert executions.continuation.terminal_outcome is None
 
 
 @pytest.mark.asyncio
@@ -1045,7 +1107,7 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
     )
     service._reconcile_stopped_redis = AsyncMock()
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1058,7 +1120,7 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
     )
     assert len(delivery.delivered) == 1
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1107,7 +1169,7 @@ async def test_done_record_admits_promoted_input_within_one_second(monkeypatch):
     service._reconcile_stopped_redis = AsyncMock(side_effect=reconcile_source)
     done_record_at = monotonic()
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1143,7 +1205,7 @@ async def test_completion_handles_a_lost_input_delivery_reservation(monkeypatch)
     )
     service._reconcile_stopped_redis = AsyncMock()
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",

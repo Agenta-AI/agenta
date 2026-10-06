@@ -167,8 +167,16 @@ async def test_settled_by_narrows_the_answer_to_one_writer():
     ) == {(session_id, watchdog_turn)}
 
 
-@pytest.mark.parametrize("stop_reason", ["paused", "cancelled", "error"])
-async def test_runner_completion_excludes_non_success_terminal_reasons(stop_reason):
+@pytest.mark.parametrize(
+    "stop_reason,ending",
+    [
+        ("paused", None),
+        ("cancelled", None),
+        ("error", "failed"),
+        ("end_turn", "completed"),
+    ],
+)
+async def test_runner_ending_reads_the_terminal_stop_reason(stop_reason, ending):
     project_id, session_id = _ids()
     turn_id = f"turn-{uuid.uuid4().hex[:8]}"
     dao = RecordsDAO(engine=get_analytics_engine())
@@ -185,12 +193,9 @@ async def test_runner_completion_excludes_non_success_terminal_reasons(stop_reas
         ]
     )
 
-    assert (
-        await dao.runner_completed_turns(
-            project_id=project_id, keys=[(session_id, turn_id)]
-        )
-        == set()
-    )
+    assert await dao.runner_ended_turns(
+        project_id=project_id, keys=[(session_id, turn_id)]
+    ) == ({(session_id, turn_id): ending} if ending else {})
 
 
 async def test_a_redelivery_keeps_the_first_quarantine_instant():

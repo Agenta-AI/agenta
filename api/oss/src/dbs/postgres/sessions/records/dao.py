@@ -6,10 +6,13 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.sessions.records.dtos import (
+    NON_ENDING_STOP_REASONS,
     RECORD_SETTLED_BY_ATTRIBUTE,
+    RunnerEnding,
     SETTLED_BY_WATCHDOG,
     SESSION_MESSAGE_PREVIEW_TEXT_LIMIT,
     TERMINAL_RECORD_TYPE,
+    runner_ending,
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
@@ -523,17 +526,18 @@ class RecordsDAO(RecordsDAOInterface):
 
         return {(row.session_id, row.turn_id) for row in rows}
 
-    async def runner_completed_turns(
+    async def runner_ended_turns(
         self,
         *,
         project_id: UUID,
         keys: Sequence[Tuple[str, str]],
-    ) -> Set[Tuple[str, str]]:
+    ) -> Dict[Tuple[str, str], RunnerEnding]:
         if not keys:
-            return set()
+            return {}
+        stop_reason = func.coalesce(RecordDBE.attributes["stopReason"].astext, "")
         async with self.engine.session() as session:
             stmt = (
-                select(RecordDBE.session_id, RecordDBE.turn_id)
+                select(RecordDBE.session_id, RecordDBE.turn_id, stop_reason)
                 .where(
                     RecordDBE.project_id == project_id,
                     RecordDBE.record_type == TERMINAL_RECORD_TYPE,
@@ -544,15 +548,19 @@ class RecordsDAO(RecordsDAOInterface):
                         "",
                     )
                     != SETTLED_BY_WATCHDOG,
-                    func.coalesce(RecordDBE.attributes["stopReason"].astext, "").notin_(
-                        ("paused", "cancelled", "error")
-                    ),
+                    stop_reason.notin_(NON_ENDING_STOP_REASONS),
                     tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(keys),
                 )
                 .distinct()
             )
             rows = (await session.execute(stmt)).all()
-        return {(row.session_id, row.turn_id) for row in rows}
+        endings: Dict[Tuple[str, str], RunnerEnding] = {}
+        for session_id, turn_id, reason in rows:
+            ending = runner_ending(reason)
+            # Should a turn hold both endings, completed wins.
+            if ending and endings.get((session_id, turn_id)) != "completed":
+                endings[(session_id, turn_id)] = ending
+        return endings
 
     async def get_event(
         self,

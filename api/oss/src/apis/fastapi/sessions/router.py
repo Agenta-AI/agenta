@@ -94,6 +94,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionLiveFrame,
     SessionRecordEvent,
     TERMINAL_RECORD_TYPE,
+    runner_ending,
 )
 from oss.src.core.sessions.records.streaming import publish_live_frame, publish_record
 from oss.src.core.sessions.interactions.dtos import (
@@ -1149,17 +1150,18 @@ class RecordsRouter:
         # terminal record into the asynchronous tracing stream. This closes the cross-database
         # window where the watchdog could see no `done`, expose recovery, and replay work that
         # had already finished while the records worker was still settling core state.
+        ending = runner_ending((body.attributes or {}).get("stopReason"))
         if (
             self.commands_service is not None
             and body.record_type == TERMINAL_RECORD_TYPE
             and body.turn_id
-            and (body.attributes or {}).get("stopReason")
-            not in ("paused", "cancelled", "error")
+            and ending is not None
         ):
-            await self.commands_service.settle_execution_completed(
+            await self.commands_service.settle_execution_ended(
                 project_id=UUID(project_id),
                 session_id=body.session_id,
                 execution_id=body.turn_id,
+                terminal_outcome=ending,
             )
 
         published = await publish_record(

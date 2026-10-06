@@ -295,20 +295,20 @@ class _CompletedRecords:
     async def settled_turns(self, *, project_id, keys):
         return set(keys)
 
-    async def runner_completed_turns(self, *, project_id, keys):
-        return set(keys)
+    async def runner_ended_turns(self, *, project_id, keys):
+        return {key: "completed" for key in keys}
 
 
 class _NoCompletedRecords(_CompletedRecords):
     async def settled_turns(self, *, project_id, keys):
         return set()
 
-    async def runner_completed_turns(self, *, project_id, keys):
-        return set()
+    async def runner_ended_turns(self, *, project_id, keys):
+        return {}
 
 
 class _CompletionLookupFailure(_CompletedRecords):
-    async def runner_completed_turns(self, *, project_id, keys):
+    async def runner_ended_turns(self, *, project_id, keys):
         raise RuntimeError("records database unavailable")
 
 
@@ -317,8 +317,8 @@ class _CompletionCommands(_OrderedCommandsService):
         super().__init__()
         self.succeeds = succeeds
 
-    async def settle_execution_completed(self, **kwargs):
-        self.calls.append(("completed", kwargs["execution_id"]))
+    async def settle_execution_ended(self, **kwargs):
+        self.calls.append((kwargs["terminal_outcome"], kwargs["execution_id"]))
         return self.succeeds
 
 
@@ -447,6 +447,35 @@ async def test_persisted_done_is_terminalized_before_stale_ownership_is_cleared(
     )
 
     assert ("completed", "continuation-1") in commands.calls
+    assert _swept(row)
+
+
+class _ErroredRecords(_CompletedRecords):
+    async def runner_ended_turns(self, *, project_id, keys):
+        return {key: "failed" for key in keys}
+
+
+@pytest.mark.anyio
+async def test_persisted_error_ending_settles_the_continuation_as_failed(
+    anyio_backend,
+    monkeypatch,
+):
+    row = _FakeRow(
+        session_id="sess-errored-continuation",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="continuation-1",
+    )
+    commands = _CompletionCommands(succeeds=True)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_ErroredRecords(),
+        commands_service=commands,
+    )
+
+    assert ("failed", "continuation-1") in commands.calls
     assert _swept(row)
 
 
