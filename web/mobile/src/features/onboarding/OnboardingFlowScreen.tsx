@@ -33,6 +33,7 @@ export const OnboardingFlowScreen = ({
                     projectId={projectId}
                     entityId={entityId}
                     assignment={assignment}
+                    preview={previewVariant !== null}
                 />
             ) : (
                 <OnboardingFlowSkeleton />

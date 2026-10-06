@@ -21,10 +21,15 @@ const ROW = 6
 const copy = ONBOARDING_COPY.tools
 
 /** Connect the apps the first agent should work in; every connected app joins it. */
-export const OnboardingToolsStep = () => {
+export const OnboardingToolsStep = ({seed}: {seed: boolean}) => {
     const catalog = useToolCatalogIntegrations()
-    const {connections, isLoading: connectionsLoading} = useToolConnectionsQuery()
-    useSeedToolConnections(connections, connectionsLoading)
+    const connectionsQuery = useToolConnectionsQuery()
+    const {connections} = connectionsQuery
+    useSeedToolConnections({
+        enabled: seed,
+        connections,
+        loaded: !connectionsQuery.isLoading && !connectionsQuery.error,
+    })
     const {connect, connectingKey} = useDirectToolConnect()
     const [search, setSearch] = useState("")
     const {setSearch: searchCatalog, setCategory} = catalog

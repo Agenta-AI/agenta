@@ -45,12 +45,15 @@ export const OnboardingFlowHost = ({
     projectId,
     entityId,
     assignment,
+    preview,
 }: {
     base: string
     projectId: string
     /** The local draft agent the flow configures and Create commits. */
     entityId: string
     assignment: OnboardingAssignment
+    /** A `?onboarding-variant=` preview; it changes nothing in the project until Create. */
+    preview: boolean
 }) => {
     const {variant, enrolled} = assignment
     const templates = useAtomValue(agentTemplatesAtom)
@@ -114,7 +117,7 @@ export const OnboardingFlowHost = ({
             draftKey={draftKey}
             steps={steps}
             catalog={catalog}
-            tools={<OnboardingToolsStep />}
+            tools={<OnboardingToolsStep seed={!preview} />}
             model={<OnboardingModelStep model={model} />}
             modelReady={model.ready}
             modelNextLabel={model.nextLabel}
