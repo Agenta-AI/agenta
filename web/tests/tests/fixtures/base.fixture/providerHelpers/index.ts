@@ -15,10 +15,12 @@ import type {
     TestProviderProfileInfo,
 } from "./types"
 
-// Settings now presents one table of provider connections. Keep the page and action
-// copy here so future wording changes stay local to this fixture.
+// Settings presents providers as a catalog: a Connected group, then the providers to connect.
+// Keep the page and group copy here so future wording changes stay local to this fixture.
 const PROVIDERS_PAGE_HEADING = "AI providers"
-const PROVIDER_ADD_BUTTON_LABEL = "Add provider"
+const CONNECTED_GROUP_LABEL = "Connected"
+// Always rendered once the catalog loads, so it marks the page as ready.
+const CATALOG_READY_GROUP_LABEL = "Model providers"
 
 const MOCK_PROVIDER_NAME = "mock"
 const MOCK_PROVIDER_KIND = "custom"
@@ -137,7 +139,7 @@ function readTestProjectMetadata(): TestProjectMetadata | null {
 }
 
 async function waitForModelsPageReady(page: Page): Promise<void> {
-    const providersSection = getProvidersSection(page)
+    const catalogSection = getCatalogSection(page, CATALOG_READY_GROUP_LABEL)
 
     await expect
         .poll(
@@ -147,25 +149,10 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                 const headingVisible = await pollLocatorState(() =>
                     page.getByRole("heading", {name: PROVIDERS_PAGE_HEADING}).isVisible(),
                 )
-                const sectionVisible = await pollLocatorState(() => providersSection.isVisible())
-                const hasVisibleSpinner = await pollLocatorState(() =>
-                    providersSection.locator(".ant-spin-spinning").isVisible(),
-                )
-                // The empty state renders a second Add provider button.
-                const createButtonEnabled = await pollLocatorState(() =>
-                    providersSection
-                        .getByRole("button", {name: PROVIDER_ADD_BUTTON_LABEL})
-                        .first()
-                        .isEnabled(),
-                )
+                // The catalog draws skeleton groups instead of its sections while it loads.
+                const sectionVisible = await pollLocatorState(() => catalogSection.isVisible())
 
-                return (
-                    hasScopedSettingsPath &&
-                    headingVisible &&
-                    sectionVisible &&
-                    !hasVisibleSpinner &&
-                    createButtonEnabled
-                )
+                return hasScopedSettingsPath && headingVisible && sectionVisible
             },
             {
                 timeout: 15000,
@@ -193,26 +180,25 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
     await expect(page.getByRole("heading", {name: PROVIDERS_PAGE_HEADING})).toBeVisible({
         timeout: 15000,
     })
-    await expect(getProvidersSection(page)).toBeVisible({timeout: 15000})
+    await expect(getCatalogSection(page, CATALOG_READY_GROUP_LABEL)).toBeVisible({
+        timeout: 15000,
+    })
     await waitForModelsPageReady(page)
 }
 
-function getProvidersSection(page: Page): Locator {
-    // The unified connections table has no section heading of its own. Its primary
-    // action is the stable accessible anchor, including while the table is empty.
+function getCatalogSection(page: Page, groupLabel: string): Locator {
+    // Each catalog group is a <section> headed by its label.
     return page
-        .getByRole("button", {name: PROVIDER_ADD_BUTTON_LABEL})
+        .getByRole("heading", {name: groupLabel, exact: true, level: 2})
         .first()
         .locator("xpath=ancestor::section[1]")
-        .first()
 }
 
 async function getCustomProviderRow(page: Page, providerName: string): Promise<Locator | null> {
-    // Start from the exact Name cell; its table row is the clickable control.
-    const section = getProvidersSection(page)
-    const row = section
-        .getByRole("cell", {name: providerName, exact: true})
-        .locator("xpath=ancestor::tr[1]")
+    // A connected row is a role="button" tile; match it on its exact name.
+    const row = getCatalogSection(page, CONNECTED_GROUP_LABEL)
+        .getByRole("button")
+        .filter({has: page.getByText(providerName, {exact: true})})
         .first()
 
     return (await row.count()) > 0 ? row : null
