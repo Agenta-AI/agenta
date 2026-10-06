@@ -503,8 +503,9 @@ def test_assert_command_settled_passes_immediately_when_already_settled():
 
 def test_assert_command_settled_judges_only_the_stopped_execution():
     """The v0.122.3 stale-stop false fail: turn 1 COMPLETED (the runner writes a row for it too),
-    then turn 2 was stopped. The session holds two rows, but the stopped execution holds exactly
-    one with a terminal outcome. Must settle."""
+    then turn 2 was stopped. The session holds two rows; turn 1 is named as an earlier completed
+    execution and the stopped execution holds exactly one row with a terminal outcome. Must
+    settle."""
     hooks = _StubSettlementHooks(
         command_sequence=[
             [
@@ -523,7 +524,9 @@ def test_assert_command_settled_judges_only_the_stopped_execution():
             ]
         ],
     )
-    result = sc.assert_command_settled(hooks, "session-1", "turn-2", timeout=0)
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
     assert result["settled"] is True, result["why"]
     assert result["target_execution_id"] == "turn-2"
     assert len(result["execution_rows"]) == 2
@@ -550,7 +553,9 @@ def test_assert_command_settled_uses_the_command_target_when_turn_id_is_unknown(
             ]
         ],
     )
-    result = sc.assert_command_settled(hooks, "session-1", None, timeout=0)
+    result = sc.assert_command_settled(
+        hooks, "session-1", None, earlier_execution_ids=("turn-1",), timeout=0
+    )
     assert result["settled"] is True, result["why"]
     assert result["target_execution_id"] == "turn-2"
 
@@ -573,7 +578,9 @@ def test_assert_command_settled_fails_on_zero_rows_for_the_stopped_execution():
             [{"execution_id": "turn-1", "terminal_outcome": "completed"}]
         ],
     )
-    result = sc.assert_command_settled(hooks, "session-1", "turn-2", timeout=0)
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
     assert result["settled"] is False
     assert "exactly one session_executions row" in result["why"]
     assert "turn-2" in result["why"]
@@ -610,23 +617,107 @@ def test_assert_command_settled_fails_when_no_command_row_exists():
     assert "no session_commands row" in result["why"]
 
 
-def test_assert_command_settled_fails_on_more_than_one_execution_row():
-    """Two rows for the STOPPED execution itself is a double settlement. Must FAIL."""
+def _stop_command(target="turn-1", state="applied", outcome="stopped"):
+    command = {"id": "cmd-1", "state": state, "outcome": outcome}
+    if target is not None:
+        command["target_turn_id"] = target
+    return command
+
+
+def test_assert_command_settled_fails_on_a_second_execution_in_a_single_turn_cell():
+    """session_executions has PRIMARY KEY (project_id, session_id, execution_id), so one execution
+    never holds two rows. The whole-session guard is about a SECOND execution: a single-turn cell
+    passes no earlier ids, so any extra row, even a completed one, must FAIL."""
     hooks = _StubSettlementHooks(
-        command_sequence=[
-            [{"id": "cmd-1", "target_turn_id": "turn-1", "state": "applied"}]
-        ],
+        command_sequence=[[_stop_command("turn-1")]],
         execution_sequence=[
             [
                 {"execution_id": "turn-1", "terminal_outcome": "stopped"},
-                {"execution_id": "turn-1", "terminal_outcome": "stopped"},
+                {"execution_id": "turn-x", "terminal_outcome": "completed"},
             ]
         ],
     )
     result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
     assert result["settled"] is False
-    assert "exactly one session_executions row" in result["why"]
-    assert "saw 2" in result["why"]
+    assert "unexpected session_executions row" in result["why"]
+    assert "turn-x=completed" in result["why"]
+
+
+def test_assert_command_settled_fails_when_the_earlier_turn_was_also_stopped():
+    """stale-stop shape, but turn 1 reads `stopped` instead of `completed`: the stale Stop (or the
+    bare one) ended a settled turn. The allowance covers only completed earlier turns. FAIL."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command("turn-2")]],
+        execution_sequence=[
+            [
+                {"execution_id": "turn-1", "terminal_outcome": "stopped"},
+                {"execution_id": "turn-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
+    assert result["settled"] is False
+    assert "turn-1=stopped" in result["why"]
+
+
+def test_assert_command_settled_fails_when_the_target_row_has_no_terminal_outcome():
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command("turn-1")]],
+        execution_sequence=[[{"execution_id": "turn-1", "terminal_outcome": None}]],
+    )
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
+    assert result["settled"] is False
+    assert "no terminal outcome" in result["why"]
+
+
+def test_assert_command_settled_fails_on_a_claimed_command_even_with_a_stopped_row():
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command("turn-1", state="claimed", outcome=None)]],
+        execution_sequence=[
+            [{"execution_id": "turn-1", "terminal_outcome": "stopped"}]
+        ],
+    )
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
+    assert result["settled"] is False
+    assert "claimed" in result["why"]
+
+
+def test_assert_command_settled_uses_turn_id_when_the_command_has_no_target():
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command(None)]],
+        execution_sequence=[
+            [
+                {"execution_id": "turn-1", "terminal_outcome": "completed"},
+                {"execution_id": "turn-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
+    assert result["settled"] is True, result["why"]
+    assert result["target_execution_id"] == "turn-2"
+
+
+def test_assert_command_settled_fails_when_the_command_targets_another_execution():
+    """`_match_stop_command` falls back to the last command when none targets the turn. A command
+    that targets turn 1 is not the Stop for turn 2, even when turn 1's row looks settled. FAIL."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command("turn-1")]],
+        execution_sequence=[
+            [
+                {"execution_id": "turn-1", "terminal_outcome": "completed"},
+                {"execution_id": "turn-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
+    assert result["settled"] is False
+    assert "targeted turn-1, not the stopped execution turn-2" in result["why"]
 
 
 def test_assert_command_settled_keeps_the_whole_session_rule_without_a_target():
