@@ -42,6 +42,40 @@ You can create an agent in two ways:
 
 Both paths create the same configuration. You can also move between them: ask the agent to make a change, then inspect or edit the result.
 
+## Agents that create and change other agents
+
+An agent can also build and maintain the other agents in its project. For example, you can ask an agent to "create an agent called Invoice helper that answers invoice questions", or to "add the new pricing page to the support agent's instructions".
+
+Two capabilities control this:
+
+| Capability | Tools | What the agent can do |
+|---|---|---|
+| **List agents** | `list_agents` | See the agents in the project. |
+| **Agent config** | `read_agent_config`, `create_agent`, `edit_agent_config` | Read the configuration of any other agent in the project, create an agent, and change another agent's configuration. |
+
+Both capabilities are on by default, and every tool is set to **Allow**. To change this, open **Advanced** in the agent's playground. Each capability has one toggle in two sections:
+
+- **Agenta tools** applies wherever the agent runs and is saved with the agent. New agents get both capabilities. An agent saved before these capabilities existed keeps its Agenta tools until you turn them on.
+- **Playground build kit** applies only while you build in the playground and is saved in your browser.
+
+Under each toggle, every tool keeps its own **Allow**, **Ask**, or **Deactivate** choice. To let an agent find other agents but not change them, keep **List agents** on and turn **Agent config** off.
+
+### What a change does
+
+A change to another agent is saved as that agent's latest version. It is not deployed. The version message says which agent made the change and in which session:
+
+```
+edited agents_md (1 edit) (by agent "Support Triage" 019f2c1e-..., session 01a1b2c3-...)
+```
+
+The first version of an agent that another agent created starts with `Created by agent "Support Triage" ...`.
+
+An agent can change the same parts of another agent that it can change in itself: instructions, skills, tools, integrations, and model. It cannot change the harness kind, the sandbox kind, the sandbox credentials, or the harness, runner, and sandbox permissions. An agent cannot use these tools on itself; it changes its own configuration with its own tools.
+
+### Risks of the default
+
+With the defaults, an agent can change every agent in the project without asking you, including their tools and integrations. An agent that reads content other people control, such as email, web pages, or chat messages, can be instructed by that content to make such a change. For that agent, set `create_agent` and `edit_agent_config` to **Ask**, or turn **Agent config** off. Each change appears in the edited agent's version history with the name of the agent that made it, so you can find it and restore an earlier version.
+
 
 ## How agents improve over time
 
