@@ -31,6 +31,12 @@ export const fetchProfile = async (): Promise<User | null> => {
     return safeParseWithLogging(userSchema, data, "[fetchProfile]") ?? null
 }
 
+/** Rename the signed-in user; resolves to the updated profile. */
+export const updateUsername = async (username: string): Promise<User | null> => {
+    const data = await getUsersClient().updateUserUsername({username})
+    return safeParseWithLogging(userSchema, data, "[updateUsername]") ?? null
+}
+
 /**
  * Permanently delete the signed-in account (an EE capability). Removes the user and the
  * organizations they own — with every workspace, project and application inside them — from

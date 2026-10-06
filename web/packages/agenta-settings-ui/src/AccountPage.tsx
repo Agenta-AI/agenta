@@ -3,6 +3,8 @@ import {useState} from "react"
 import {Button, Input} from "@agenta/ui/ui"
 import {Trash} from "@phosphor-icons/react"
 
+import {SettingsRow, SettingsSection} from "./shared/SettingsSection"
+
 export interface AccountPageProps {
     username?: string | null
     email?: string | null
@@ -37,11 +39,18 @@ const Field = ({
     hint: string
     mono?: boolean
 }) => (
-    <div className="flex flex-col gap-1.5">
-        <span className="font-medium text-colorText">{label}</span>
-        <Input value={value} disabled className={mono ? "font-mono" : undefined} />
-        <span className="text-xs text-colorTextSecondary">{hint}</span>
-    </div>
+    <SettingsRow
+        title={label}
+        description={hint}
+        control={
+            <Input
+                value={value}
+                disabled
+                aria-label={label}
+                className={mono ? "w-[280px] max-w-full font-mono" : "w-[280px] max-w-full"}
+            />
+        }
+    />
 )
 
 const DangerCallout = ({children}: {children: React.ReactNode}) => (
@@ -80,8 +89,8 @@ export const AccountPage = ({
     }
 
     return (
-        <section className="flex flex-col gap-10">
-            <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-8">
+            <SettingsSection title="Profile">
                 <Field
                     label="Username"
                     value={username ?? ""}
@@ -93,37 +102,25 @@ export const AccountPage = ({
                     value={address}
                     hint="Used for sign-in and for organization invitations."
                 />
-            </div>
+            </SettingsSection>
 
             {deletion ? (
-                <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-1">
-                        <h2 className="m-0 text-base font-semibold text-colorText">
-                            Delete account
-                        </h2>
-                        <span className="text-colorTextSecondary">
-                            Permanently delete your account and the organizations you own.
-                        </span>
-                    </div>
-
-                    <DangerCallout>
-                        Deletes your account, every organization you own, and all of their
-                        workspaces, projects, applications, and data. You will be signed out
-                        immediately.
-                    </DangerCallout>
-
-                    <div>
-                        <Button
-                            variant="destructive"
-                            disabled={!address}
-                            onClick={() => setOpen(true)}
-                            className="w-fit"
-                        >
-                            <Trash size={14} />
-                            Delete account
-                        </Button>
-                    </div>
-                </div>
+                <SettingsSection title="Danger zone" danger>
+                    <SettingsRow
+                        title="Delete account"
+                        description="Deletes your account, every organization you own, and all of their workspaces, projects, applications, and data. You will be signed out immediately."
+                        control={
+                            <Button
+                                variant="destructive"
+                                disabled={!address}
+                                onClick={() => setOpen(true)}
+                            >
+                                <Trash size={14} />
+                                Delete account
+                            </Button>
+                        }
+                    />
+                </SettingsSection>
             ) : null}
 
             {deletion
@@ -159,6 +156,6 @@ export const AccountPage = ({
                       ),
                   })
                 : null}
-        </section>
+        </div>
     )
 }

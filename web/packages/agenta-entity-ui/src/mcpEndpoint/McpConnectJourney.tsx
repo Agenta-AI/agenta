@@ -661,7 +661,6 @@ export function McpConnectSheet({
                     {screen === "url" || screen === "url_failed" ? (
                         <HintedField
                             label="Server URL"
-                            required
                             // Dropped once the check has failed: the box below says what is
                             // wrong with this address, and the line explaining what the
                             // field is for is no longer the thing to read.
@@ -724,7 +723,6 @@ export function McpConnectSheet({
                     {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
                         <HintedField
                             label="Name"
-                            required
                             tooltip={screen === "oauth" ? NAME_HELP : undefined}
                             error={nameError ?? undefined}
                             hint={
@@ -759,7 +757,7 @@ export function McpConnectSheet({
 
                     {screen === "api_key" ? (
                         <>
-                            <div className="grid grid-cols-[1fr_1.4fr] gap-3">
+                            <div className="flex flex-col gap-3">
                                 <HintedField
                                     label="Header"
                                     // Dropped once the server has refused a key: the glyph
@@ -791,7 +789,6 @@ export function McpConnectSheet({
                                 </HintedField>
                                 <Field
                                     label="Project secret"
-                                    required
                                     invalid={state.status === "verify_failed"}
                                 >
                                     <SecretSelect
@@ -978,7 +975,6 @@ const HintedField = ({
     ...field
 }: {
     label: string
-    required?: boolean
     tooltip?: string
     error?: string
     invalid?: boolean

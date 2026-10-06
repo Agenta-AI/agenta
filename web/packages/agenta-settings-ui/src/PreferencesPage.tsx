@@ -8,6 +8,7 @@ import {
 import {Switch} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
 
+import {SettingsRow, SettingsSection} from "./shared/SettingsSection"
 import {ThemePicker, type ThemePickerProps} from "./ThemePicker"
 
 /** One switch on the Preferences page. The key names the row, not its storage. */
@@ -110,34 +111,6 @@ export interface PreferencesPageProps {
     bindings?: PreferenceBindings
 }
 
-const PreferenceRow = ({item, binding}: {item: PreferenceItem; binding: PreferenceBinding}) => (
-    <div
-        data-preference={item.key}
-        className="flex items-start gap-3 border-0 border-b border-solid border-colorSplit py-4 first:pt-0 last:border-b-0 last:pb-0"
-    >
-        <div className="min-w-0 flex-1">
-            <span className="font-medium text-colorText">{item.title}</span>
-            <p className="m-0 mt-0.5 text-colorTextSecondary">{item.description}</p>
-        </div>
-        <Switch
-            checked={binding.enabled}
-            onCheckedChange={binding.onChange}
-            aria-label={item.title}
-            className="mt-0.5 shrink-0"
-        />
-    </div>
-)
-
-const SectionHeader = ({title, description}: {title: string; description?: string}) => (
-    <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-0.5">
-            <h2 className="m-0 text-base font-semibold text-colorText">{title}</h2>
-            {description ? <p className="m-0 text-colorTextSecondary">{description}</p> : null}
-        </div>
-        <div className="h-px w-full bg-colorSplit" />
-    </div>
-)
-
 /**
  * The Preferences tab: Appearance, then the shared {@link PREFERENCE_SECTIONS}.
  *
@@ -145,14 +118,10 @@ const SectionHeader = ({title, description}: {title: string; description?: strin
  * apps, so a choice made in `/m` holds on the desktop and the other way round.
  */
 export const PreferencesPage = ({theme, bindings = {}}: PreferencesPageProps) => (
-    <section className="flex flex-col gap-8">
-        <div className="flex flex-col gap-4">
-            <SectionHeader title="Appearance" />
-            <div className="flex flex-col gap-2">
-                <span className="font-medium text-colorText">Theme</span>
-                <ThemePicker {...theme} />
-            </div>
-        </div>
+    <div className="flex flex-col gap-8">
+        <SettingsSection title="Appearance" framed={false}>
+            <ThemePicker {...theme} />
+        </SettingsSection>
 
         {PREFERENCE_SECTIONS.map((section) => {
             const rows = section.items.flatMap((item) => {
@@ -161,15 +130,29 @@ export const PreferencesPage = ({theme, bindings = {}}: PreferencesPageProps) =>
             })
             if (rows.length === 0) return null
             return (
-                <div key={section.key} data-section={section.key} className="flex flex-col gap-4">
-                    <SectionHeader title={section.title} description={section.description} />
-                    <div className="flex flex-col">
-                        {rows.map(({item, binding}) => (
-                            <PreferenceRow key={item.key} item={item} binding={binding} />
-                        ))}
-                    </div>
-                </div>
+                <SettingsSection
+                    key={section.key}
+                    data-section={section.key}
+                    title={section.title}
+                    description={section.description}
+                >
+                    {rows.map(({item, binding}) => (
+                        <SettingsRow
+                            key={item.key}
+                            data-preference={item.key}
+                            title={item.title}
+                            description={item.description}
+                            control={
+                                <Switch
+                                    checked={binding.enabled}
+                                    onCheckedChange={binding.onChange}
+                                    aria-label={item.title}
+                                />
+                            }
+                        />
+                    ))}
+                </SettingsSection>
             )
         })}
-    </section>
+    </div>
 )

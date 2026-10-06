@@ -50,7 +50,17 @@ import {
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
-import {InputAffix, LoadingButton, PasswordInput, Segmented, Textarea} from "@agenta/ui/ui"
+import {
+    InputAffix,
+    LoadingButton,
+    PasswordInput,
+    Segmented,
+    Textarea,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -179,6 +189,8 @@ const ProviderConnectionCard = ({
     // A saved write-only record returns no values, so its secret fields arrive empty every time.
     // They still count as filled — otherwise editing only the model list would demand the key again.
     const storedFields = useMemo(() => storedCredentialFields(connection), [connection])
+    // A saved key's status replaces the Test explainer under the fields.
+    const keyStored = storedFields.includes("apiKey")
     // Typed OR already in the vault. Test used to demand typed material, because an empty form had
     // no credential to spend; the probe now takes a `secret_id` and resolves the stored one itself,
     // so a write-only connection is testable without retyping a key it can never read back.
@@ -409,22 +421,33 @@ const ProviderConnectionCard = ({
           )
         : null
 
+    // The span carries the tooltip, since a disabled button takes no pointer events.
     const testButton = (
-        <LoadingButton
-            variant="outline"
-            className="shrink-0"
-            loading={probeMutation.isPending}
-            disabled={!credentialFilled || !projectId}
-            onClick={() => void runProbe()}
-        >
-            {credentialFailed ? "Retry" : "Test"}
-        </LoadingButton>
+        <TooltipProvider delayDuration={300}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="inline-flex shrink-0">
+                        <LoadingButton
+                            variant="outline"
+                            loading={probeMutation.isPending}
+                            disabled={!credentialFilled || !projectId}
+                            onClick={() => void runProbe()}
+                        >
+                            {credentialFailed ? "Retry" : "Test"}
+                        </LoadingButton>
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-64">
+                    {secretNoteForKind(kind, title)}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 
     return (
         <div className="flex min-h-full flex-1 flex-col gap-4 text-xs">
             <section className="flex shrink-0 flex-col gap-3">
-                {fields.map((field) => {
+                {fields.map((field, index) => {
                     const value = credential[field.key] ?? ""
                     const block =
                         field.attributes?.kind === "json" || field.attributes?.kind === "textarea"
@@ -440,22 +463,26 @@ const ProviderConnectionCard = ({
 
                     return (
                         <div key={field.key} className="flex flex-col gap-1">
-                            <span className="font-medium text-colorText">
-                                {/* TODO(copy: owner) */}
-                                {replaceOnly
-                                    ? field.key === "apiKey"
-                                        ? "Replace key"
-                                        : `Replace ${field.label}`
-                                    : field.label}
-                            </span>
-                            {replaceOnly ? (
+                            <div className="flex items-baseline justify-between gap-3">
+                                <span className="font-medium text-colorText">
+                                    {/* TODO(copy: owner) */}
+                                    {replaceOnly
+                                        ? field.key === "apiKey"
+                                            ? "Replace key"
+                                            : `Replace ${field.label}`
+                                        : field.label}
+                                </span>
+                                {/* The card's one encryption disclaimer, on the first credential. */}
+                                {index === 0 ? (
+                                    <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                                        Encrypted at rest
+                                    </span>
+                                ) : null}
+                            </div>
+                            {replaceOnly && field.key !== "apiKey" ? (
                                 <span className="text-[11px] text-colorTextTertiary">
                                     {/* TODO(copy: owner) */}
-                                    {field.key === "apiKey"
-                                        ? connection?.keyPreview
-                                            ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
-                                            : "Key configured. Leave blank to keep it."
-                                        : "Saved value. Leave blank to keep it."}
+                                    Saved value. Leave blank to keep it.
                                 </span>
                             ) : null}
                             <div className="flex items-start gap-2">
@@ -475,6 +502,7 @@ const ProviderConnectionCard = ({
                                         />
                                     ) : secret ? (
                                         <PasswordInput
+                                            autoFocus={!connection && index === 0}
                                             placeholder={field.placeholder}
                                             className={FIELD_TYPE_SCALE}
                                             autoComplete="new-password"
@@ -484,6 +512,7 @@ const ProviderConnectionCard = ({
                                         />
                                     ) : (
                                         <InputAffix
+                                            autoFocus={!connection && index === 0}
                                             placeholder={field.placeholder}
                                             className={FIELD_TYPE_SCALE}
                                             autoComplete="off"
@@ -520,37 +549,33 @@ const ProviderConnectionCard = ({
 
                 {testedField === null ? <div>{testButton}</div> : null}
 
-                {/* The credential's verdict left, the one encryption disclaimer right. */}
-                <div className="flex items-start justify-between gap-3">
-                    {statusLine ? (
-                        <span
-                            className={
-                                credentialFailed
-                                    ? "flex min-w-0 items-start gap-1 text-colorError"
-                                    : "flex min-w-0 items-start gap-1.5 text-colorSuccess"
-                            }
-                        >
-                            {credentialFailed ? (
-                                <WarningCircle size={14} className="mt-0.5 shrink-0" />
-                            ) : (
-                                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
-                            )}
-                            <span>
-                                {statusLine}
-                                {credentialFailed ? " Nothing has been saved." : null}
-                            </span>
+                {statusLine ? (
+                    <span
+                        className={
+                            credentialFailed
+                                ? "flex min-w-0 items-start gap-1 text-colorError"
+                                : "flex min-w-0 items-start gap-1.5 text-colorSuccess"
+                        }
+                    >
+                        {credentialFailed ? (
+                            <WarningCircle size={14} className="mt-0.5 shrink-0" />
+                        ) : (
+                            <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
+                        )}
+                        <span>
+                            {statusLine}
+                            {credentialFailed ? " Nothing has been saved." : null}
                         </span>
-                    ) : (
-                        <span />
-                    )}
-                    <span className="shrink-0 text-[11px] text-colorTextTertiary">
-                        Encrypted at rest
                     </span>
-                </div>
+                ) : null}
 
-                <span className="text-[11px] text-colorTextTertiary">
-                    {secretNoteForKind(kind, title)}
-                </span>
+                {keyStored ? (
+                    <span className="text-[11px] text-colorTextTertiary">
+                        {connection?.keyPreview
+                            ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
+                            : "Key configured. Leave blank to keep it."}
+                    </span>
+                ) : null}
 
                 {/* Why the footer's Done is disabled (or what saving now would mean), stated where
                     the credential that decides it is. */}
@@ -590,9 +615,16 @@ const ProviderConnectionCard = ({
                     onRefetch={() => void runProbe()}
                     refetching={probeMutation.isPending}
                 />
-            ) : null}
-
-            <div className="shrink-0 border-0 border-t border-solid border-colorSplit" />
+            ) : (
+                // Says where the model list comes from instead of leaving the card blank.
+                <section className="flex shrink-0 flex-col gap-2">
+                    <span className="font-medium text-colorText">Active models</span>
+                    <p className="m-0 rounded-md border border-dashed border-colorBorderSecondary px-3 py-4 text-center text-colorTextTertiary">
+                        Enter the credential above to choose which {title} models this connection
+                        offers.
+                    </p>
+                </section>
+            )}
 
             <HarnessesSection
                 choices={harnessChoices}

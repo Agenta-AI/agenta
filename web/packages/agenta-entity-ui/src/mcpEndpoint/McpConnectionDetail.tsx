@@ -22,11 +22,14 @@ import {
     type McpToolSummary,
 } from "@agenta/entities/mcpEndpoint"
 import {projectIdAtom} from "@agenta/shared/state"
+import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {Tag} from "@agenta/ui/components/presentational"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Button, Field, Input} from "@agenta/ui/ui"
+import {ArrowClockwise, WarningCircle, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+
+import {ToolsEmpty} from "../shared/ToolsEmpty"
 
 import {ToolFilterInput} from "./ToolFilterInput"
 
@@ -131,89 +134,102 @@ export default function McpConnectionDetail({
         }
     }, [endpoint, name, nameProblem, onChanged, projectId])
 
+    const unchanged = !endpoint || name.trim() === (endpoint.name ?? "")
+
+    const footer = endpoint ? (
+        <div className="flex w-full flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => onReconnect(endpoint)}>
+                {isReady ? "Reconnect" : "Connect"}
+            </Button>
+            {/* Only an OAuth connection holds a grant to revoke; the route refuses anything else. */}
+            {isReady && endpoint.auth_mode === "oauth" ? (
+                <Button
+                    variant="ghost"
+                    className="text-colorError"
+                    onClick={() => onDisconnect(endpoint)}
+                >
+                    Disconnect
+                </Button>
+            ) : null}
+            <div className="ml-auto flex items-center gap-2">
+                <Button variant="outline" onClick={onClose}>
+                    Close
+                </Button>
+                <Button onClick={rename} disabled={saving || !!nameProblem || unchanged}>
+                    Save
+                </Button>
+            </div>
+        </div>
+    ) : null
+
     return (
-        <EnhancedDrawer
+        <EnhancedModal
             open={!!endpoint}
-            onClose={onClose}
+            onCancel={onClose}
             title={endpoint?.name || endpoint?.slug || "Connection"}
-            // A bottom sheet below `lg` and the right-edge drawer above it, the way every
-            // sibling MCP panel arrives. The default `right` slid a 520px panel in from the
-            // edge of a phone. The width still applies from `lg` up.
-            placement="responsive"
+            footer={footer}
             width={520}
             destroyOnClose
         >
-            {endpoint ? (
-                <div className="flex flex-col gap-5" data-testid="mcp-connection-detail">
-                    <div className="flex items-center gap-2">
-                        <Tag tone={isReady ? "green" : "gold"} className="m-0 text-xs">
-                            {getMcpConnectionStateLabel(connectionState ?? "needs_auth")}
-                        </Tag>
-                        <span
-                            className="truncate text-xs text-colorTextDescription"
-                            title={endpoint.data.route.base_url ?? undefined}
+            <ModalContent>
+                {endpoint ? (
+                    <div className="flex flex-col gap-5" data-testid="mcp-connection-detail">
+                        <div className="flex min-w-0 items-center gap-2">
+                            <StatusIndicator
+                                tone={isReady ? "success" : "warning"}
+                                label={getMcpConnectionStateLabel(connectionState ?? "needs_auth")}
+                                className="shrink-0 text-[13px]"
+                            />
+                            <span aria-hidden className="text-colorTextDescription">
+                                ·
+                            </span>
+                            <span
+                                className="truncate font-mono text-xs text-colorTextDescription"
+                                title={endpoint.data.route.base_url ?? undefined}
+                            >
+                                {endpoint.data.route.base_url}
+                            </span>
+                        </div>
+
+                        <Field
+                            label="Name"
+                            error={nameProblem ?? undefined}
+                            // Said out loud: renaming something an agent uses invites the opposite assumption.
+                            description="Agents keep using this connection under its existing reference, so renaming it does not change any agent."
                         >
-                            {endpoint.data.route.base_url}
-                        </span>
-                    </div>
+                            <Input
+                                value={name}
+                                aria-label="Connection name"
+                                onChange={(event) => setName(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" && !unchanged) void rename()
+                                }}
+                            />
+                        </Field>
 
-                    <Field label="Name" error={nameProblem ?? undefined}>
-                        <Input
-                            value={name}
-                            aria-label="Connection name"
-                            onChange={(event) => setName(event.target.value)}
-                        />
-                    </Field>
-                    {/* Said out loud, because renaming something an agent uses invites the
-                        opposite assumption. */}
-                    <p className="-mt-3 text-xs text-colorTextDescription">
-                        Agents keep using this connection under its existing reference, so renaming
-                        it here does not change any agent.
-                    </p>
-                    <div>
-                        <Button
-                            onClick={rename}
-                            disabled={
-                                saving || !!nameProblem || name.trim() === (endpoint.name ?? "")
-                            }
-                        >
-                            Save name
-                        </Button>
+                        <section className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-0.5">
+                                <h4 className="m-0 text-sm font-medium text-colorText">Tools</h4>
+                                <p className="m-0 text-xs text-colorTextDescription">
+                                    Choose what this server may do in an agent&apos;s configuration.
+                                </p>
+                            </div>
+                            <ToolFilterInput
+                                total={tools.status === "ready" ? tools.tools.length : 0}
+                                value={filter}
+                                onChange={setFilter}
+                            />
+                            <ToolList
+                                state={tools}
+                                isReady={isReady}
+                                onRetry={loadTools}
+                                filter={filter}
+                            />
+                        </section>
                     </div>
-
-                    <section className="flex flex-col gap-2">
-                        <h4 className="m-0 text-sm font-medium text-colorText">Tools</h4>
-                        <ToolFilterInput
-                            total={tools.status === "ready" ? tools.tools.length : 0}
-                            value={filter}
-                            onChange={setFilter}
-                        />
-                        <ToolList
-                            state={tools}
-                            isReady={isReady}
-                            onRetry={loadTools}
-                            filter={filter}
-                        />
-                        <p className="m-0 text-xs text-colorTextDescription">
-                            Choose what this server may do in an agent&apos;s configuration.
-                        </p>
-                    </section>
-
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" onClick={() => onReconnect(endpoint)}>
-                            {isReady ? "Reconnect" : "Connect"}
-                        </Button>
-                        {/* Only an OAuth connection holds a grant to revoke; the route
-                            refuses anything else. */}
-                        {isReady && endpoint.auth_mode === "oauth" ? (
-                            <Button variant="ghost" onClick={() => onDisconnect(endpoint)}>
-                                Disconnect
-                            </Button>
-                        ) : null}
-                    </div>
-                </div>
-            ) : null}
-        </EnhancedDrawer>
+                ) : null}
+            </ModalContent>
+        </EnhancedModal>
     )
 }
 
@@ -245,20 +261,27 @@ const ToolList = ({
     if (state.status === "failed") {
         // Connected, with a tool problem. Nothing here suggests reauthorizing.
         return (
-            <div className="flex flex-col items-start gap-2">
-                <p className="m-0 text-sm text-colorErrorText">{state.error}</p>
-                <Button variant="ghost" onClick={onRetry}>
-                    Retry tools
-                </Button>
-            </div>
+            <ToolsEmpty
+                icon={<WarningCircle size={18} />}
+                title="Couldn't read this server's tools"
+                description={state.error}
+                action={
+                    <Button variant="outline" onClick={onRetry}>
+                        <ArrowClockwise size={14} />
+                        Retry tools
+                    </Button>
+                }
+            />
         )
     }
     if (state.status === "ready" && state.tools.length === 0) {
         // An empty list, not a transport failure.
         return (
-            <p className="m-0 text-sm text-colorTextDescription">
-                This server exposes no tools yet.
-            </p>
+            <ToolsEmpty
+                icon={<Wrench size={18} />}
+                title="No tools yet"
+                description="This server exposes no tools yet."
+            />
         )
     }
     if (state.status !== "ready") return null

@@ -1,27 +1,44 @@
-import type {ReactNode} from "react"
-import {useMemo} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import type {Org} from "@agenta/entities/organization"
-import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {ArrowsLeftRight, PencilSimpleLine, Plus, SignOut, Trash} from "@phosphor-icons/react"
+import {getSettingsSidebarIcon} from "@agenta/settings"
+import {message} from "@agenta/ui/app-message"
+import {StatusIndicator} from "@agenta/ui/components/presentational"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
+import {ArrowsLeftRight, Copy, PencilSimpleLine, Plus, SignOut, Trash} from "@phosphor-icons/react"
+
+import {SettingsPageActions} from "../SettingsPageShell"
+import {hoverableRow} from "../shared/hoverableRow"
+import {InlineName} from "../shared/InlineName"
+import {NameAvatar} from "../shared/NameAvatar"
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 interface OrgRow extends Org {
     key: string
 }
 
+const COLUMNS: ListTableColumn[] = [
+    {key: "name", label: "Organization", width: "minmax(0,2fr)"},
+    {key: "status", label: "Status", width: "minmax(0,1fr)"},
+    {key: "owner_id", label: "Your role", width: "minmax(0,1fr)"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+]
+const PHONE_KEYS = ["name", "status", "actions"]
+
 export interface OrganizationsPageProps {
-    /** Every organization you belong to; this page owns the search filter. */
+    /** Every organization you belong to. */
     organizations: Org[]
     loading?: boolean
-    searchTerm: string
-    onSearchChange: (value: string) => void
     /** Marks the "Current" row and scopes the ownership transfer. */
     selectedOrgId?: string | null
     currentUserId?: string | null
     onSwitch?: (org: Org) => void
     onCreate?: () => void
-    onRename?: (org: Org) => void
+    /** Saves a new name typed in place on the row. */
+    onRename?: (org: Org, name: string) => Promise<unknown>
     onTransferOwnership?: (org: Org) => void
     onLeave?: (org: Org) => void
     onDelete?: (org: Org) => void
@@ -38,8 +55,6 @@ export interface OrganizationsPageProps {
 export const OrganizationsPage = ({
     organizations,
     loading = false,
-    searchTerm,
-    onSearchChange,
     selectedOrgId,
     currentUserId,
     onSwitch,
@@ -50,50 +65,14 @@ export const OrganizationsPage = ({
     onDelete,
     children,
 }: OrganizationsPageProps) => {
-    const rows = useMemo<OrgRow[]>(() => {
-        const term = searchTerm.trim().toLowerCase()
-        const matching = term
-            ? organizations.filter((org) =>
-                  [org.name, org.id].some((value) => value?.toLowerCase().includes(term)),
-              )
-            : organizations
-        return matching.map((org) => ({...org, key: org.id}))
-    }, [organizations, searchTerm])
-
-    const isOwner = (org: Org) => Boolean(currentUserId) && org.owner_id === currentUserId
-
-    const columns = useMemo<DataTableColumn<OrgRow>[]>(
-        () => [
-            {
-                key: "name",
-                title: "Organization",
-                width: 280,
-                render: (record) => {
-                    const name = record.name ?? record.slug ?? record.id
-                    return (
-                        <div className="flex min-w-0 items-center gap-2">
-                            {/* The identity column carries an avatar on every other settings
-                                table; the extraction dropped it here and on Projects. */}
-                            <InitialsAvatar size="small" name={name} />
-                            <span className="truncate font-medium" title={name}>
-                                {name}
-                            </span>
-                            {record.id === selectedOrgId ? <Tag>Current</Tag> : null}
-                        </div>
-                    )
-                },
-            },
-            // Its own copyable column, not a tag beside the page title.
-            {key: "id", title: "Organization ID", width: 330, mono: true, render: (r) => r.id},
-            {
-                key: "owner_id",
-                title: "Your role",
-                width: 140,
-                render: (record) => (isOwner(record) ? "Owner" : "Member"),
-            },
-        ],
-        [selectedOrgId, currentUserId],
+    const rows = useMemo<OrgRow[]>(
+        () => organizations.map((org) => ({...org, key: org.id})),
+        [organizations],
     )
+
+    const [renamingId, setRenamingId] = useState<string | null>(null)
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const isOwner = (org: Org) => Boolean(currentUserId) && org.owner_id === currentUserId
 
     const createButton = (variant?: "outline") =>
         onCreate ? (
@@ -104,86 +83,122 @@ export const OrganizationsPage = ({
         ) : null
 
     return (
-        <div className="flex flex-col gap-2">
-            <DataTable<OrgRow>
+        <div className="flex flex-col">
+            <SettingsPageActions>{createButton()}</SettingsPageActions>
+            <ListTable<OrgRow>
                 columns={columns}
-                rows={rows}
+                groups={[{key: "all", label: null, rows}]}
+                wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
-                loading={loading}
-                actions={(record) => [
-                    {
-                        key: "switch",
-                        label: "Switch to this organization",
-                        icon: <ArrowsLeftRight size={16} />,
-                        hidden: record.id === selectedOrgId || !onSwitch,
-                        onClick: () => onSwitch?.(record),
-                    },
-                    {
-                        key: "rename",
-                        label: "Rename",
-                        icon: <PencilSimpleLine size={16} />,
-                        hidden: !isOwner(record) || !onRename,
-                        onClick: () => onRename?.(record),
-                    },
-                    {
-                        key: "transfer",
-                        label: "Transfer ownership",
-                        icon: <ArrowsLeftRight size={16} />,
-                        // The member list is scoped to the current organization.
-                        hidden:
-                            !isOwner(record) || record.id !== selectedOrgId || !onTransferOwnership,
-                        onClick: () => onTransferOwnership?.(record),
-                    },
-                    {type: "divider"},
-                    {
-                        key: "leave",
-                        label: "Leave organization",
-                        icon: <SignOut size={16} />,
-                        danger: true,
-                        hidden: isOwner(record) || !onLeave,
-                        onClick: () => onLeave?.(record),
-                    },
-                    {
-                        key: "delete",
-                        label: "Delete organization",
-                        icon: <Trash size={16} />,
-                        danger: true,
-                        hidden: !isOwner(record) || !onDelete,
-                        onClick: () => onDelete?.(record),
-                    },
-                ]}
-                search={{
-                    placeholder: "Search organizations",
-                    value: searchTerm,
-                    onChange: onSearchChange,
-                    disabled: loading,
-                }}
-                primaryActions={createButton()}
-                empty={
-                    searchTerm.trim() ? (
-                        <EmptyState
-                            image="simple"
-                            description={`No organizations match “${searchTerm.trim()}”`}
-                        />
-                    ) : (
-                        <EmptyState
-                            image="simple"
-                            description={
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-xs font-medium text-colorText">
-                                        No organizations yet
-                                    </span>
-                                    <span>
-                                        An organization groups your workspaces, projects and the
-                                        people who work in them.
-                                    </span>
-                                </div>
-                            }
-                        >
-                            {createButton("outline")}
-                        </EmptyState>
-                    )
+                minWidth={0}
+                onOpenRow={
+                    onSwitch
+                        ? (record) => {
+                              if (record.id !== selectedOrgId) onSwitch(record)
+                          }
+                        : undefined
                 }
+                loading={loading && rows.length === 0}
+                hideHeader={!loading && rows.length === 0}
+                empty={
+                    <SettingsEmpty
+                        icon={getSettingsSidebarIcon("organizationGeneral")}
+                        title="No organizations yet"
+                        description="An organization groups your workspaces, projects and the people who work in them."
+                        action={createButton("outline")}
+                    />
+                }
+                renderRow={(record) => {
+                    const name = record.name ?? record.slug ?? record.id
+                    return (
+                        <>
+                            <div className="flex min-w-0 items-center gap-2.5">
+                                <NameAvatar name={name} />
+                                <InlineName
+                                    value={name}
+                                    editing={renamingId === record.id}
+                                    ariaLabel="Organization name"
+                                    onDone={() => setRenamingId(null)}
+                                    onSave={(next) => onRename?.(record, next) ?? Promise.resolve()}
+                                />
+                            </div>
+                            <span className="flex min-w-0 items-center">
+                                {record.id === selectedOrgId ? (
+                                    <StatusIndicator
+                                        tone="success"
+                                        label="Current"
+                                        className="text-[13px]"
+                                    />
+                                ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                )}
+                            </span>
+                            {shows("owner_id") ? (
+                                <span className="truncate">
+                                    {isOwner(record) ? "Owner" : "Member"}
+                                </span>
+                            ) : null}
+                            <SettingsRowMenu
+                                label="Organization actions"
+                                items={[
+                                    {
+                                        key: "switch",
+                                        label: "Switch to this organization",
+                                        icon: <ArrowsLeftRight size={14} />,
+                                        hidden: record.id === selectedOrgId || !onSwitch,
+                                        onClick: () => onSwitch?.(record),
+                                    },
+                                    {
+                                        key: "rename",
+                                        label: "Rename",
+                                        icon: <PencilSimpleLine size={14} />,
+                                        hidden: !isOwner(record) || !onRename,
+                                        deferred: true,
+                                        onClick: () => setRenamingId(record.id),
+                                    },
+                                    {
+                                        key: "transfer",
+                                        label: "Transfer ownership",
+                                        icon: <ArrowsLeftRight size={14} />,
+                                        // The member list is scoped to the current organization.
+                                        hidden:
+                                            !isOwner(record) ||
+                                            record.id !== selectedOrgId ||
+                                            !onTransferOwnership,
+                                        onClick: () => onTransferOwnership?.(record),
+                                    },
+                                    {
+                                        key: "copy-id",
+                                        label: "Copy organization ID",
+                                        icon: <Copy size={14} />,
+                                        onClick: () =>
+                                            void navigator.clipboard?.writeText(record.id).then(
+                                                () => message.success("Organization ID copied"),
+                                                () => message.error("Couldn't copy the ID"),
+                                            ),
+                                    },
+                                    {type: "divider"},
+                                    {
+                                        key: "leave",
+                                        label: "Leave organization",
+                                        icon: <SignOut size={14} />,
+                                        danger: true,
+                                        hidden: isOwner(record) || !onLeave,
+                                        onClick: () => onLeave?.(record),
+                                    },
+                                    {
+                                        key: "delete",
+                                        label: "Delete organization",
+                                        icon: <Trash size={14} />,
+                                        danger: true,
+                                        hidden: !isOwner(record) || !onDelete,
+                                        onClick: () => onDelete?.(record),
+                                    },
+                                ]}
+                            />
+                        </>
+                    )
+                }}
             />
 
             {children}

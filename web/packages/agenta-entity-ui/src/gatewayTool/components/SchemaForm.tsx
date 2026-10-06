@@ -84,8 +84,6 @@ export interface StepInfo {
 
 export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>
-    /** Current values, raw and unvalidated (e.g. for copy-to-clipboard). */
-    getRawValues: () => Record<string, unknown>
     /** Stepper mode: jump to the step holding this field (e.g. after a validation failure). */
     goToField?: (name: string | (string | number)[]) => void
     /** Stepper mode: advance one step (into review at the end); no-op otherwise. */
@@ -235,7 +233,6 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         return cleanFormValues(values)
                     }
                 },
-                getRawValues: () => form.getFieldsValue(true) as Record<string, unknown>,
                 goToField: (name) => {
                     const flatName = Array.isArray(name) ? name.join(".") : name
                     const i = fields.findIndex((f) => f.name === flatName)
