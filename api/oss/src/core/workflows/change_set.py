@@ -2103,7 +2103,7 @@ def _finish(
         if issues:
             raise ChangeSetError(
                 Reason.FINAL_VALIDATION_FAILED,
-                "The finished configuration is not valid.",
+                f"The finished configuration is not valid: {'; '.join(issues)}.",
                 issues=list(issues),
             )
 

@@ -88,7 +88,7 @@ def _head(*, is_agent=True, is_static=False, workflow_id=TARGET, archived=False)
                     "tools": [
                         {"type": "agenta_tools", "tools": {"rename_session": "allow"}}
                     ],
-                    "sandbox": {"kind": "local", "credentials": {"x": "y"}},
+                    "sandbox": {"kind": "local", "credentials": []},
                 }
             },
         ),
@@ -612,6 +612,37 @@ class TestEditAgentConfig:
         assert result.ok, result.content
         tools = _committed(service).data.parameters["agent"]["tools"]
         assert tools[-1]["type"] == "gateway_connection"
+
+    @pytest.mark.parametrize("tool", ["edit_agent_config", "commit_revision"])
+    async def test_a_skill_the_runtime_cannot_parse_is_refused_before_it_is_saved(
+        self, service, tool
+    ):
+        # Bench S6: saved with only a warning, then every run of the agent failed with a
+        # 500. The result now goes through the runtime's own parse before the commit.
+        operation = {
+            "operation": "set",
+            "target": ["parameters", "agent", "skills"],
+            "value": [{"name": "invoice-lookup", "description": "Find invoices."}],
+        }
+        if tool == "edit_agent_config":
+            result = await _call(
+                handle_edit_agent_config, service, **_edit_args(operations=[operation])
+            )
+        else:
+            result = await _call(
+                handle_commit_revision,
+                service,
+                workflow_revision={
+                    "workflow_variant_id": str(TARGET_VARIANT),
+                    "base_revision_id": str(HEAD),
+                    "delta": {"operations": [operation]},
+                },
+            )
+
+        assert result.content.code == "final_validation_failed"
+        assert "skills[0].body is required" in result.content.message
+        assert result.content.details["issues"] == ["skills[0].body is required"]
+        service.commit_workflow_revision.assert_not_awaited()
 
     async def test_the_build_kit_cannot_be_committed_into_another_agent(self, service):
         operation = {

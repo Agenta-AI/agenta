@@ -39,11 +39,16 @@ from agenta.sdk.engines.running.utils import (
 )
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.agents import (
+    AgentTemplate,
     HarnessKind,
     InvalidHarnessKindError,
     InvalidAgentInstructionsError as AgentInstructionsShapeError,
+    MCPConfigurationError,
+    SkillValidationError,
+    ToolConfigurationError,
     validate_agent_instructions,
 )
+from pydantic import ValidationError as PydanticValidationError
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -307,6 +312,89 @@ def _validate_persisted_shape(data: dict) -> None:
     error rather than a 422 naming the field (contract commit-transaction.md 3, step 5).
     """
     WorkflowRevisionData(**data)
+
+
+# The lists whose entries the runtime parses one by one, and the error that names an entry.
+_AGENT_TEMPLATE_LISTS = (
+    ("skills", SkillValidationError),
+    ("mcps", MCPConfigurationError),
+    ("tools", ToolConfigurationError),
+)
+
+
+def _holds_embed(entry: Any) -> bool:
+    wrapped = {"entry": entry}
+    return bool(
+        find_object_embeds(wrapped)
+        or find_string_embeds(wrapped)
+        or find_snippet_embeds(wrapped)
+    )
+
+
+def _agent_template_issues(data: dict) -> List[str]:
+    """What the runtime would refuse in this agent configuration, by field path.
+
+    Before every run the runtime parses `parameters` with `AgentTemplate.from_params`, and a
+    refusal there fails every run of the agent. This runs the same parse on the result of
+    an agent's commit, so a slip such as a skill without `body` is refused while the agent
+    that made it can still fix it, not later in a run of an agent nobody is watching.
+
+    An entry that holds an embed is left out: embeds resolve server-side before a run, so
+    its content is only known then.
+    """
+    parameters = data.get("parameters")
+    if not isinstance(parameters, dict) or not isinstance(
+        parameters.get("agent"), dict
+    ):
+        return []
+    agent = dict(parameters["agent"])
+    positions: Dict[str, List[int]] = {}
+    for name, _ in _AGENT_TEMPLATE_LISTS:
+        entries = agent.get(name)
+        if isinstance(entries, list):
+            positions[name] = [
+                index for index, entry in enumerate(entries) if not _holds_embed(entry)
+            ]
+            agent[name] = [entries[index] for index in positions[name]]
+    try:
+        AgentTemplate.from_params({**parameters, "agent": agent})
+    except Exception as error:  # noqa: BLE001 - every refusal is reported the same way
+        for name, error_type in _AGENT_TEMPLATE_LISTS:
+            index = getattr(error, "index", None)
+            if isinstance(error, error_type) and index is not None:
+                return _entry_issues(f"{name}[{positions[name][index]}]", error)
+        return [str(error)]
+    return []
+
+
+def _entry_issues(field: str, error: Exception) -> List[str]:
+    """One issue per pydantic error under a list entry, e.g. `skills[0].body is required`."""
+    cause = error.__cause__
+    while cause is not None and not isinstance(cause, PydanticValidationError):
+        cause = cause.__cause__
+    if cause is None:
+        return [f"{field}: {error}"]
+    entry = getattr(error, "value", None)
+    kind = entry.get("type") if isinstance(entry, dict) else None
+    issues = []
+    for issue in cause.errors(include_url=False):
+        # A tool's errors sit under its union tag, which is the entry's own `type`.
+        loc = list(issue["loc"])
+        if loc and loc[0] == kind:
+            loc = loc[1:]
+        path = "".join(f".{part}" for part in loc)
+        issues.append(
+            f"{field}{path} is required"
+            if issue["type"] == "missing"
+            else f"{field}{path} is invalid: {issue['msg']}"
+        )
+    return issues
+
+
+def _validate_agent_config(data: dict) -> List[str]:
+    """The final gate on an agent's commit: storable, and runnable."""
+    _validate_persisted_shape(data)
+    return _agent_template_issues(data)
 
 
 class WorkflowsService:
@@ -2946,12 +3034,15 @@ class WorkflowsService:
             delta = {**delta, "operations": operations}
 
         # The scope is the caller's: only the agent's builder tool is confined to
-        # `parameters.agent` (read-config.md 11.2), so it passes AGENT_COMMIT_SCOPE.
+        # `parameters.agent` (read-config.md 11.2), so it passes AGENT_COMMIT_SCOPE. An
+        # agent's result must also parse the way the runtime parses it before every run.
         result = apply_change_set(
             base,
             delta,
             scope_policy,
-            validate=_validate_persisted_shape,
+            validate=(
+                _validate_agent_config if agent_context else _validate_persisted_shape
+            ),
         )
         warnings = warnings + list(result.warnings)
 
