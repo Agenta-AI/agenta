@@ -149,6 +149,28 @@ def build_agent_template_overlay() -> dict[str, Any]:
     }
 
 
+def _without_disabled_agenta_tools(entry: Any, disabled_ops: list[str]) -> Any:
+    """The saved `agenta_tools` entry minus the kit tools switched off in this browser.
+
+    The resolver turns every tool the entry lists into a platform tool, so a kit tool switched
+    off would come back from the saved entry. Only the run copy changes; the saved entry is
+    the agent's own choice and is never rewritten.
+    """
+    if not (isinstance(entry, dict) and entry.get("type") == "agenta_tools"):
+        return entry
+    tools = entry.get("tools")
+    if not isinstance(tools, dict):
+        return entry
+    return {
+        **entry,
+        "tools": {
+            op: permission
+            for op, permission in tools.items()
+            if not (op in disabled_ops and op in DEFAULT_BUILD_KIT_OPS)
+        },
+    }
+
+
 def apply_ui_build_kit(
     parameters: dict[str, Any],
     disabled_ops: list[str],
@@ -196,7 +218,9 @@ def apply_ui_build_kit(
     for section, additions in overlay.items():
         if section in ("tools", "skills", "mcps"):
             items = [
-                item
+                _without_disabled_agenta_tools(item, disabled_ops)
+                if section == "tools"
+                else item
                 for item in agent.get(section) or []
                 if not (
                     section == "tools"
