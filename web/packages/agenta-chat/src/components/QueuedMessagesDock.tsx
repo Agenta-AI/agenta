@@ -189,6 +189,7 @@ const Row = ({
                         size="icon-sm"
                         variant="ghost"
                         aria-label="Remove queued message"
+                        disabled={!!message.saving}
                         className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
                         onClick={() => onRemove(message.id)}
                     >

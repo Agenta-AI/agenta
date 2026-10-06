@@ -20,12 +20,21 @@ export const withStagedQuotes =
             return false
         }
         // A send that did not go out gets the chips and the typed text back, not the markdown.
-        return Promise.resolve(result).then((sent) => {
-            if (sent !== false) return
+        const restore = () => {
             // Over a newer draft the host kept the message elsewhere; leave that draft alone.
             const held = getEditor()?.getMarkdown() ?? ""
             if (held !== "" && held !== sentMarkdown) return
             restoreQuotes(sessionId, staged)
             void getEditor()?.setMarkdown(text)
-        })
+        }
+        return Promise.resolve(result).then(
+            (sent) => {
+                if (sent === false) restore()
+                return sent
+            },
+            (error: unknown) => {
+                restore()
+                throw error
+            },
+        )
     }

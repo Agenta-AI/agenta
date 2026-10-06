@@ -566,6 +566,9 @@ export const useAgentChatQueue = ({
     const removeQueued = useCallback(
         (id: string) => {
             if (server.queued.some((message) => message.id === id)) {
+                // A saving edit owns the row; removing now would lose its recovery text.
+                const op = opsRef.current[id]
+                if (op?.kind === "edit" && op.settledSeq === null) return
                 startRemove(id)
                 return
             }

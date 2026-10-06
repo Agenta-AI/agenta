@@ -54,6 +54,21 @@ describe("withStagedQuotes", () => {
         expect(input.setMarkdown).not.toHaveBeenCalled()
     })
 
+    it("restores the chips when the send rejects, and still rejects", async () => {
+        restoreQuotes(SESSION, [quote])
+        const input = editor("")
+        const sent = withStagedQuotes(
+            SESSION,
+            async () => {
+                throw new Error("boom")
+            },
+            () => input,
+        )("typed")
+        await expect(sent).rejects.toThrow("boom")
+        expect(getQuotes(SESSION)).toEqual([quote])
+        expect(input.setMarkdown).toHaveBeenCalledWith("typed")
+    })
+
     it("consumes the chips when the send goes out", async () => {
         restoreQuotes(SESSION, [quote])
         const send = vi.fn(async () => true)

@@ -905,14 +905,14 @@ describe("durable queued edits", () => {
         ])
     })
 
-    it("does not let an earlier edit's failure undo a later remove of the same row", async () => {
+    it("ignores Remove while the row's edit saves, so a failed edit keeps its text", async () => {
         let finish!: (result: ServerQueueWriteResult) => void
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [{id: "selected", text: "old", source: "server"}],
             viewSeq: 1,
             submit: vi.fn(),
-            remove: vi.fn(() => new Promise<ServerQueueWriteResult>(() => undefined)),
+            remove: vi.fn(),
             edit: vi.fn(() => new Promise<ServerQueueWriteResult>((resolve) => (finish = resolve))),
         }
         const {result} = setup({...settledEmpty, server})
@@ -921,10 +921,13 @@ describe("durable queued edits", () => {
             await result.current.commitEdit({text: "new"})
         })
         act(() => result.current.removeQueued("selected"))
-        expect(result.current.queued).toEqual([])
+        expect(server.remove).not.toHaveBeenCalled()
 
         await act(async () => finish({outcome: "failed", settledSeq: 1}))
-        expect(result.current.queued).toEqual([])
+        expect(result.current.queued[0]).toMatchObject({
+            text: "old",
+            unsavedEdit: {text: "new"},
+        })
     })
 
     it("keeps the edit as a flagged row when the queued row left before it saved", async () => {
