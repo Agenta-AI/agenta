@@ -539,15 +539,72 @@ export function publicApiBaseConfigured(): boolean {
 }
 
 /**
- * Buffer a trace's spans and export them in ONE OTLP batch. Agenta computes
- * cumulative (rolled-up) token/cost metrics per ingest batch, so a trace split
- * across batches loses the root aggregation. Two completion signals:
+ * Size budget of one OTLP request body. Agenta's ingest rejects a body above 10 MB with a 413 and
+ * drops every span in it, so a trace is split into requests within this budget, with a margin
+ * under the server limit. One span larger than the budget still goes out, alone (see
+ * `chunkTraceBatch`).
+ */
+export const OTLP_MAX_REQUEST_BYTES = 5 * 1024 * 1024;
+
+/** Protobuf size of one span sent alone. Summed per request, this overcounts the resource and
+ * scope envelope that each extra span shares, so a request packed by it stays under its budget. */
+function spanRequestBytes(span: ReadableSpan): number {
+  try {
+    return ProtobufTraceSerializer.serializeRequest([span])?.byteLength ?? 0;
+  } catch {
+    // Sizing is an estimate: a span the serializer rejects fails again, and is logged, at export.
+    return 0;
+  }
+}
+
+/**
+ * Split spans into parent-first requests of at most `maxBytes` each. The one exception is a span
+ * larger than `maxBytes`: it goes alone in its own request, so if the ingest rejects it, it does
+ * not take its siblings down with it.
+ */
+export function chunkTraceBatch(
+  spans: ReadableSpan[],
+  maxBytes: number = OTLP_MAX_REQUEST_BYTES,
+  sizeOf: (span: ReadableSpan) => number = spanRequestBytes,
+): ReadableSpan[][] {
+  const chunks: ReadableSpan[][] = [];
+  let current: ReadableSpan[] = [];
+  let currentBytes = 0;
+  for (const span of orderParentFirst(spans)) {
+    const bytes = sizeOf(span);
+    if (current.length > 0 && currentBytes + bytes > maxBytes) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(span);
+    currentBytes += bytes;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * Buffer a trace's spans and export them when the trace completes. Two completion signals:
  *   - the root span ends (standalone run: invoke_agent IS the root), or
  *   - the run flushes explicitly by trace id (cross-boundary run: invoke_agent
  *     has a remote parent that never ends in this process, so root-end never fires).
+ * A trace whose buffered spans reach `OTLP_MAX_REQUEST_BYTES` is also flushed early, and every
+ * flush is split into requests within that size (one oversized span aside), so a long run no
+ * longer sends one request the ingest rejects as too large. Agenta (v0.121.4 and later) recomputes a trace's cumulative
+ * token/cost metrics from all its stored spans, so a trace sent in several requests keeps its
+ * root aggregation.
  */
 class TraceBatchProcessor implements SpanProcessor {
   private readonly buffers = new Map<string, ReadableSpan[]>();
+  /** traceId -> estimated protobuf bytes of the buffered spans (see `spanRequestBytes`). */
+  private readonly bufferedBytes = new Map<string, number>();
+  /** traceId -> the trace's last queued export. A trace's exports run one after another, so a
+   * long run's early flushes never stack up concurrent requests, and its final flush resolves
+   * only after every earlier one. */
+  private readonly exportTails = new Map<string, Promise<void>>();
+
+  constructor(private readonly maxRequestBytes: number) {}
 
   // Tag every span with the run id ambient in its start context (see `withRunId`), so a later
   // flush can tell which run produced it — concurrent runs sharing a trace id may have DIFFERENT
@@ -560,24 +617,56 @@ class TraceBatchProcessor implements SpanProcessor {
 
   onEnd(span: ReadableSpan): void {
     const traceId = span.spanContext().traceId;
+    const spanBytes = spanRequestBytes(span);
+    // A trace that already fills a request is sent before this span would overflow it, so a
+    // long run does not hold its whole trace until the end.
+    if (
+      (this.bufferedBytes.get(traceId) ?? 0) + spanBytes >
+      this.maxRequestBytes
+    ) {
+      void this.flush(traceId);
+    }
     const spans = this.buffers.get(traceId) ?? [];
     spans.push(span);
     this.buffers.set(traceId, spans);
+    this.bufferedBytes.set(
+      traceId,
+      (this.bufferedBytes.get(traceId) ?? 0) + spanBytes,
+    );
     // No parent in this process => this is the local root and the trace is done.
     if (!span.parentSpanContext?.spanId) {
-      this.flush(traceId);
+      void this.flush(traceId);
     }
   }
 
   /** Export and drop one trace's buffered spans, split into one sub-batch PER RUN and shipped to
-   * that run's own target (two runs sharing a trace id may have different endpoint/auth). Resolves
-   * once every sub-batch's export returns. Does NOT clear the trace's registered redactors or
-   * per-run targets for runs other than the ones this batch just exported — those live until each
-   * registered run releases (see `releaseRunRedactor`/`releaseRunTarget`), since a later batch on
-   * the same trace id can still be emitted by another still-running run sharing the trace. */
+   * that run's own target (two runs sharing a trace id may have different endpoint/auth). Each
+   * sub-batch is sent as parent-first requests of at most `maxRequestBytes`, one after another,
+   * after every earlier export of this trace. Resolves once all of them return.
+   * Does NOT clear the trace's registered redactors or per-run targets for runs other than the
+   * ones this batch just exported — those live until each registered run releases (see
+   * `releaseRunRedactor`/`releaseRunTarget`), since a later batch on the same trace id can still
+   * be emitted by another still-running run sharing the trace. */
   flush(traceId: string): Promise<void> {
+    const send = this.takeBuffered(traceId);
+    const previous = this.exportTails.get(traceId);
+    if (!send) return previous ?? Promise.resolve();
+    // With nothing queued, start now: the export reads its credential at flush time.
+    const tail = (previous ? previous.then(send) : send()).catch(() => {});
+    this.exportTails.set(traceId, tail);
+    void tail.then(() => {
+      if (this.exportTails.get(traceId) === tail)
+        this.exportTails.delete(traceId);
+    });
+    return tail;
+  }
+
+  /** Take one trace's buffered spans now, so spans that end later go to the next flush, and
+   * return the function that sends them. Redaction and run grouping happen here, at take time. */
+  private takeBuffered(traceId: string): (() => Promise<void>) | undefined {
     const spans = this.buffers.get(traceId);
-    if (!spans || spans.length === 0) return Promise.resolve();
+    this.bufferedBytes.delete(traceId);
+    if (!spans || spans.length === 0) return undefined;
     this.buffers.delete(traceId);
 
     // Redact at the sink: the last point before the spans leave the process. Apply every
@@ -597,117 +686,126 @@ class TraceBatchProcessor implements SpanProcessor {
       groups.set(runId, group);
     }
 
-    return Promise.all(
-      [...groups.entries()].map(([runId, group]) => {
-        // Fall back to the env default only for a span whose OWN run's target is unknown
-        // (untagged span, or the run already released) — never to another run's target, or a
-        // batch could still land on an unintended endpoint/auth.
-        const target =
-          (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
-        if (target.kind === "serialized") {
-          try {
-            const body = serializeTraceBatch(group);
-            if (!body)
-              throw new Error("OTLP trace serialization returned no body");
-            return Promise.resolve(
-              target.transport.export({
-                body,
-                traceId,
-                spanCount: group.length,
-              }),
-            ).catch((error) => {
-              logSerializedTransportProblem(
-                traceId,
-                group.length,
-                error,
-                redactors,
-              );
-            });
-          } catch (error) {
-            logSerializedTransportProblem(
-              traceId,
-              group.length,
-              error,
-              redactors,
-            );
-            return Promise.resolve();
-          }
-        }
-        const ordered = orderParentFirst(group);
-        let resolvedTarget: ResolvedExportTarget;
-        try {
-          resolvedTarget = {
-            endpoint: target.endpoint,
-            authorization: target.authorization(),
-          };
-        } catch (error) {
-          logExportProblem({
+    const sends = [...groups.entries()].map(([runId, group]) => {
+      // Fall back to the env default only for a span whose OWN run's target is unknown
+      // (untagged span, or the run already released) — never to another run's target, or a
+      // batch could still land on an unintended endpoint/auth.
+      const target = (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+      return async () => {
+        for (const chunk of chunkTraceBatch(group, this.maxRequestBytes))
+          await this.exportChunk(traceId, target, chunk, redactors);
+      };
+    });
+    return () => Promise.all(sends.map((send) => send())).then(() => undefined);
+  }
+
+  /** Send one request of a trace to its run's target. Best effort: it never rejects. */
+  private exportChunk(
+    traceId: string,
+    target: ExportTarget,
+    spans: ReadableSpan[],
+    redactors: Set<Redactor> | undefined,
+  ): Promise<void> {
+    if (target.kind === "serialized") {
+      try {
+        const body = serializeTraceBatch(spans);
+        if (!body) throw new Error("OTLP trace serialization returned no body");
+        return Promise.resolve(
+          target.transport.export({
+            body,
             traceId,
-            endpoint: target.endpoint,
-            authorization: undefined,
-            spans: group.length,
-            redactors,
-            outcome: "threw",
+            spanCount: spans.length,
+          }),
+        ).catch((error) => {
+          logSerializedTransportProblem(
+            traceId,
+            spans.length,
             error,
-          });
-          return Promise.resolve();
+            redactors,
+          );
+        });
+      } catch (error) {
+        logSerializedTransportProblem(traceId, spans.length, error, redactors);
+        return Promise.resolve();
+      }
+    }
+    const ordered = orderParentFirst(spans);
+    let resolvedTarget: ResolvedExportTarget;
+    try {
+      resolvedTarget = {
+        endpoint: target.endpoint,
+        authorization: target.authorization(),
+      };
+    } catch (error) {
+      logExportProblem({
+        traceId,
+        endpoint: target.endpoint,
+        authorization: undefined,
+        spans: spans.length,
+        redactors,
+        outcome: "threw",
+        error,
+      });
+      return Promise.resolve();
+    }
+    const problem = {
+      traceId,
+      endpoint: resolvedTarget.endpoint,
+      authorization: resolvedTarget.authorization,
+      spans: spans.length,
+      redactors,
+    };
+    if (
+      !resolvedTarget.authorization?.trim() &&
+      isAgentaIngest(resolvedTarget.endpoint)
+    ) {
+      // Agenta's ingest rejects an unauthenticated export, so sending one buys nothing and
+      // reports as a 401 that reads like a BAD credential. Say the credential is missing
+      // instead, and drop the batch here.
+      logExportProblem({ ...problem, outcome: "skipped" });
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      let entry: ExporterCacheEntry | undefined;
+      let exportSettled = false;
+      const settleExport = (): void => {
+        if (!exportSettled && entry) {
+          exportSettled = true;
+          completeExport(entry);
         }
-        const problem = {
-          traceId,
-          endpoint: resolvedTarget.endpoint,
-          authorization: resolvedTarget.authorization,
-          spans: group.length,
-          redactors,
-        };
-        if (
-          !resolvedTarget.authorization?.trim() &&
-          isAgentaIngest(resolvedTarget.endpoint)
-        ) {
-          // Agenta's ingest rejects an unauthenticated export, so sending one buys nothing and
-          // reports as a 401 that reads like a BAD credential. Say the credential is missing
-          // instead, and drop the batch here.
-          logExportProblem({ ...problem, outcome: "skipped" });
-          return Promise.resolve();
-        }
-        return new Promise<void>((resolve) => {
-          let entry: ExporterCacheEntry | undefined;
-          let exportSettled = false;
-          const settleExport = (): void => {
-            if (!exportSettled && entry) {
-              exportSettled = true;
-              completeExport(entry);
-            }
-            resolve();
-          };
+        resolve();
+      };
+      try {
+        entry = getExporter(resolvedTarget);
+        entry.activeExports += 1;
+        entry.exporter.export(ordered, (result) => {
           try {
-            entry = getExporter(resolvedTarget);
-            entry.activeExports += 1;
-            entry.exporter.export(ordered, (result) => {
-              try {
-                if (result.code === ExportResultCode.FAILED)
-                  logExportProblem({
-                    ...problem,
-                    outcome: "failed",
-                    error: result.error,
-                  });
-              } finally {
-                settleExport();
-              }
-            });
-          } catch (err) {
-            // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
-            // flush() is awaited without a catch, so a reject here would break the run.
+            if (result.code === ExportResultCode.FAILED)
+              logExportProblem({
+                ...problem,
+                outcome: "failed",
+                error: result.error,
+              });
+          } finally {
             settleExport();
-            logExportProblem({ ...problem, outcome: "threw", error: err });
           }
         });
-      }),
-    ).then(() => undefined);
+      } catch (err) {
+        // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
+        // flush() is awaited without a catch, so a reject here would break the run.
+        settleExport();
+        logExportProblem({ ...problem, outcome: "threw", error: err });
+      }
+    });
   }
 
   forceFlush(): Promise<void> {
+    const traceIds = new Set([
+      ...this.buffers.keys(),
+      ...this.exportTails.keys(),
+    ]);
     return Promise.all(
-      [...this.buffers.keys()].map((traceId) => this.flush(traceId)),
+      [...traceIds].map((traceId) => this.flush(traceId)),
     ).then(() => undefined);
   }
 
@@ -727,7 +825,7 @@ let processor: TraceBatchProcessor | undefined;
 
 function ensureProvider(): void {
   if (provider) return;
-  processor = new TraceBatchProcessor();
+  processor = new TraceBatchProcessor(OTLP_MAX_REQUEST_BYTES);
   provider = new NodeTracerProvider({
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || "pi-agent",
@@ -758,10 +856,10 @@ export async function flushTrace(
 }
 
 /**
- * Order spans parent-before-child (preorder DFS). Agenta stores timestamps at
- * millisecond resolution and builds its roll-up tree by sorting on start_time,
- * attaching a span only if its parent is already seen. A parent-first request
- * order keeps parents ahead of children on same-millisecond ties.
+ * Order spans parent-before-child (preorder DFS) within one batch. Across a trace's batches a
+ * child can leave before its parent, which is still running. Agenta's ingest does not need this
+ * order: it builds each request's tree by parent id and recomputes a trace's totals from all its
+ * stored spans.
  */
 function orderParentFirst(spans: ReadableSpan[]): ReadableSpan[] {
   const byId = new Map(spans.map((s) => [s.spanContext().spanId, s]));
@@ -1152,8 +1250,8 @@ export function createAgentaOtel(
   const toolSpans = new Map<string, Span>();
   // Run totals, summed across every assistant turn. Stamped on the agent span and
   // returned so the caller can roll them up onto the workflow span in its own process
-  // (the agent and workflow spans are exported in separate OTLP batches, so Agenta's
-  // per-batch cumulative roll-up cannot bridge them on its own).
+  // (the agent and workflow spans are exported in separate OTLP batches, and an Agenta
+  // API before v0.121.4 rolls up each batch on its own, so it cannot bridge them).
   const runUsage = { input: 0, output: 0, total: 0, cost: 0 };
   // Whether ANY turn reported a cost. Without it a run the harness never priced is
   // indistinguishable from one it priced at zero, and the sum below would report the second.
@@ -1803,7 +1901,8 @@ export function createSandboxAgentOtel(
   const events: AgentEvent[] = [];
   const outputBudget = createOutputBudget(init.onOutputLimit);
   let finished = false;
-  const admitUpdate = (update: any): boolean => !finished && outputBudget.accept(update);
+  const admitUpdate = (update: any): boolean =>
+    !finished && outputBudget.accept(update);
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
   const toolSpans = new Map<
@@ -2437,7 +2536,11 @@ export function createSandboxAgentOtel(
       if (finished) return;
       // Error/done are engine-authored terminal records, not model output. Preserve them
       // after a breach so the turn has one visible, durable ending.
-      if (event.type === "error" || event.type === "done" || outputBudget.accept(event)) {
+      if (
+        event.type === "error" ||
+        event.type === "done" ||
+        outputBudget.accept(event)
+      ) {
         record(event);
       }
     },
