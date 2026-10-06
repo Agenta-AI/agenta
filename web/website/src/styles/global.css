@@ -819,6 +819,43 @@ html,
 .ag-prose a:hover {
   text-decoration-color: var(--th-link);
 }
+/* In-article CTA must beat .ag-prose a/h2/p, which otherwise underline the
+   button, inflate its spacing, and split the secondary link from its sentence. */
+.ag-prose .post-cta {
+  background: var(--th-bg-2);
+  border: 1px solid var(--th-border);
+  border-radius: 16px;
+  padding: 28px;
+  margin: 2.4em 0 0;
+}
+.ag-prose .post-cta h2 {
+  margin: 0 0 12px;
+  font: 400 28px/1.2 var(--font-display);
+}
+.ag-prose .post-cta p {
+  margin: 0 0 18px;
+}
+.ag-prose .post-cta .ag-btn {
+  display: inline-flex;
+  width: auto;
+  margin: 0 0 14px;
+  color: var(--ink-900);
+  font-weight: 500;
+  text-decoration: none;
+  overflow-wrap: normal;
+}
+.ag-prose .post-cta .ag-btn:hover {
+  text-decoration: none;
+}
+.ag-prose .post-cta .post-cta-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ag-prose .post-cta .post-cta-note a {
+  display: inline;
+  font-weight: 500;
+}
 .ag-prose strong {
   color: var(--th-text-hi);
   font-weight: 600;
