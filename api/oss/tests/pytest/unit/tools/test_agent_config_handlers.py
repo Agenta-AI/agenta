@@ -480,9 +480,7 @@ class TestEditAgentConfig:
 
         assert service.environments_service.mock_calls == []
 
-    async def test_a_moved_head_is_a_conflict_that_says_read_the_agent_again(
-        self, service
-    ):
+    async def test_a_moved_head_is_a_conflict_that_says_read_again(self, service):
         result = await _call(
             handle_edit_agent_config,
             service,
@@ -490,7 +488,9 @@ class TestEditAgentConfig:
         )
 
         assert result.content.code == "revision_conflict"
-        assert "read_agent_config" in result.content.next_step
+        # The shared text names no tool, so it never sends the model to read itself.
+        assert "Read the configuration again" in result.content.next_step
+        assert "read_config" not in result.content.next_step
         service.commit_workflow_revision.assert_not_awaited()
 
     async def test_a_missing_base_revision_says_to_read_first(self, service):

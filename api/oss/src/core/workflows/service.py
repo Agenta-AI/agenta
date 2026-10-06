@@ -238,8 +238,8 @@ class RevisionConflictError(Exception):
             "message": "The workflow head changed. No revision was committed.",
             "retryable": False,
             "next_step": (
-                "Call read_config for the new revision, re-anchor your edits to it, and "
-                "send the commit again with the new base_revision_id."
+                "Read the configuration again for the new revision, re-anchor your edits "
+                "to it, and send the commit again with the new base_revision_id."
             ),
             "details": details,
         }

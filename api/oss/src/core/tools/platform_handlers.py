@@ -1135,22 +1135,6 @@ async def _resolve_other_agent(
     return workflow, head
 
 
-_SELF_TOOL_NAMES = re.compile(r"\bread_config\b")
-
-
-def _about_other_agent(error: AgentError) -> AgentError:
-    """A refusal the shared read or commit path raised, pointed at this agent's tools.
-
-    Those refusals name `read_config` in their next step, which reads the CALLER. Here the
-    model has to read the other agent again, so the step names `read_agent_config`.
-    """
-    if not error.next_step:
-        return error
-    return error.model_copy(
-        update={"next_step": _SELF_TOOL_NAMES.sub("read_agent_config", error.next_step)}
-    )
-
-
 def _agent_summary(workflow: Any) -> Dict[str, Any]:
     return {"id": str(workflow.id), "slug": workflow.slug, "name": workflow.name}
 
@@ -1329,7 +1313,7 @@ async def handle_read_agent_config(
                 max_bytes=parsed.get("max_bytes"),
             )
         except ReadConfigError as e:
-            raise _Refusal(_about_other_agent(AgentError(**e.to_detail()))) from e
+            raise _Refusal(AgentError(**e.to_detail())) from e
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
@@ -1403,16 +1387,13 @@ async def handle_edit_agent_config(
             arguments=parsed,
             caller_id=caller_id,
         )
-        try:
-            outcome = await _commit_as_agent(
-                workflows_service=workflows_service,
-                project_id=project_id,
-                user_id=user_id,
-                commit=commit,
-                attribution=attribution,
-            )
-        except _Refusal as e:
-            raise _Refusal(_about_other_agent(e.error)) from e
+        outcome = await _commit_as_agent(
+            workflows_service=workflows_service,
+            project_id=project_id,
+            user_id=user_id,
+            commit=commit,
+            attribution=attribution,
+        )
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 

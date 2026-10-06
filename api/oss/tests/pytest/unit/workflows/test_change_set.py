@@ -3602,3 +3602,10 @@ class TestNextStepsNameAnActionTheModelCanTake:
 
         assert "nearest_lines" in guidance
         assert "character for character" not in guidance
+
+
+class TestSharedNextStepsNameNoTool:
+    def test_no_next_step_sends_the_model_to_read_config(self):
+        # They are shared by `commit_revision`, `edit_agent_config` and `create_agent`, so a
+        # tool name here would send two of them to the wrong agent.
+        assert not [step for step in NEXT_STEPS.values() if "read_config" in step]
