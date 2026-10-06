@@ -26,6 +26,7 @@ import {
 interface FakePostHog {
     getFeatureFlag: ReturnType<typeof vi.fn>
     onFeatureFlags: ReturnType<typeof vi.fn>
+    unsubscribe: ReturnType<typeof vi.fn>
     notify: () => void
 }
 
@@ -34,8 +35,9 @@ const fakePostHog = (flag?: string): FakePostHog => {
         getFeatureFlag: vi.fn(() => flag),
         onFeatureFlags: vi.fn((callback: () => void) => {
             client.notify = callback
-            return () => undefined
+            return client.unsubscribe
         }),
+        unsubscribe: vi.fn(),
         notify: () => undefined,
     }
     return client
@@ -112,15 +114,39 @@ describe("onboarding experiment", () => {
         expect(analytics.capture).toHaveBeenCalledOnce()
     })
 
-    it("does not switch or enroll a fallback visitor after a late flag response", () => {
-        vi.useFakeTimers()
+    it("falls back at once when flags load without a variant for this visitor", () => {
         const client = fakePostHog()
         mount()
-        act(() => vi.advanceTimersByTime(ONBOARDING_FLAG_TIMEOUT_MS))
-        client.getFeatureFlag.mockReturnValue("task-first")
         setClient(client)
         act(() => client.notify())
         expect(latest).toEqual({variant: "control", enrolled: false})
         expect(analytics.capture).not.toHaveBeenCalled()
+        expect(client.unsubscribe).toHaveBeenCalled()
+    })
+
+    it("stops reading the flag once the timeout has decided, and never enrolls late", () => {
+        vi.useFakeTimers()
+        const client = fakePostHog()
+        mount()
+        setClient(client)
+        act(() => vi.advanceTimersByTime(ONBOARDING_FLAG_TIMEOUT_MS))
+        expect(latest).toEqual({variant: "control", enrolled: false})
+        expect(client.unsubscribe).toHaveBeenCalled()
+        const reads = client.getFeatureFlag.mock.calls.length
+        client.getFeatureFlag.mockReturnValue("task-first")
+        act(() => client.notify())
+        expect(client.getFeatureFlag).toHaveBeenCalledTimes(reads)
+        expect(latest).toEqual({variant: "control", enrolled: false})
+        expect(analytics.capture).not.toHaveBeenCalled()
+    })
+
+    it("does not read the flag at all when a client arrives after the timeout", () => {
+        vi.useFakeTimers()
+        const client = fakePostHog("task-first")
+        mount()
+        act(() => vi.advanceTimersByTime(ONBOARDING_FLAG_TIMEOUT_MS))
+        setClient(client)
+        expect(client.getFeatureFlag).not.toHaveBeenCalled()
+        expect(latest).toEqual({variant: "control", enrolled: false})
     })
 })
