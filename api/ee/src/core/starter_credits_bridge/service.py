@@ -31,6 +31,8 @@ from oss.src.core.secrets.managed import (
     SecretManager,
 )
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
+from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
 
@@ -213,6 +215,10 @@ _RECONCILE_RETRY_COOLDOWN_SECONDS = 300.0
 
 _reconcile_cooldowns: dict[str, float] = {}
 
+# Projects whose starter-credits gateway endpoint was read back as present, so a read
+# skips the check. Process-local; a restart costs one query per project again.
+_projects_with_endpoint: set[str] = set()
+
 
 async def reconcile_starter_credits_on_read(
     *,
@@ -237,7 +243,16 @@ async def reconcile_starter_credits_on_read(
         return None
 
     row = _find_starter_credits_row(secrets)
-    if row is None or _stored_model_slugs(row) == [config.model_id]:
+    if row is None:
+        return None
+
+    # Rows seeded before the bridge registered gateway endpoints have none, and the
+    # gateway refuses them with `endpoint_not_found`. Registering here repairs them on
+    # the first read, with no backfill job. One query per project per process once the
+    # endpoint exists.
+    await _ensure_gateway_endpoint(project_id=project_id, row=row)
+
+    if _stored_model_slugs(row) == [config.model_id]:
         # The whole cost of a healthy project: a scan of the list already in hand.
         return None
 
@@ -314,6 +329,45 @@ def _may_repair(project_id: str) -> bool:
 def _hold_off(project_id: str) -> None:
     """Stop reads repairing this project again for a while."""
     _reconcile_cooldowns[project_id] = _monotonic() + _RECONCILE_RETRY_COOLDOWN_SECONDS
+
+
+async def _ensure_gateway_endpoint(*, project_id: UUID, row: SecretResponseDTO) -> None:
+    """Register the row's LLM gateway endpoint when it is missing. Never raises.
+
+    A project is remembered only after its endpoint was READ back as present: the
+    registrar logs and swallows its own failures, so a write that did not land is retried
+    by the next read instead of being remembered as done.
+    """
+    key = str(project_id)
+    if key in _projects_with_endpoint:
+        return
+
+    try:
+        dao = _llm_endpoints_dao()
+        stored = await dao.fetch_endpoint_by_slug(
+            project_id=project_id,
+            slug=STARTER_CREDITS_SLUG,
+        )
+        if stored is not None:
+            _projects_with_endpoint.add(key)
+            return
+
+        await LLMEndpointRegistrar(llm_endpoints_dao=dao).register(
+            project_id=project_id,
+            secret=row,
+        )
+        log.info(
+            "[starter_credits_bridge] registered the missing gateway endpoint",
+            project_id=key,
+            secret_id=str(row.id),
+        )
+    except Exception:
+        log.warning(
+            "[starter_credits_bridge] could not register the gateway endpoint; "
+            "the read stands",
+            project_id=key,
+            exc_info=True,
+        )
 
 
 def _find_starter_credits_row(secrets: list) -> Optional[SecretResponseDTO]:
@@ -614,8 +668,20 @@ def _proxy_client(config: StarterCreditsBridgeConfig) -> StarterCreditsProxyClie
     )
 
 
+def _llm_endpoints_dao() -> LLMEndpointsDAO:
+    return LLMEndpointsDAO()
+
+
 def _vault_service() -> VaultService:
-    return VaultService(SecretsDAO())
+    # With the registrar, so the seeded row gets its LLM gateway endpoint (and loses it
+    # when the row is deleted). Without it, every gateway run on this connection fails
+    # with `endpoint_not_found`.
+    return VaultService(
+        SecretsDAO(),
+        llm_endpoint_registrar=LLMEndpointRegistrar(
+            llm_endpoints_dao=_llm_endpoints_dao(),
+        ),
+    )
 
 
 async def _team_ceiling_verified(
