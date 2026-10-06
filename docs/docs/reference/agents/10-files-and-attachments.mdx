@@ -11,7 +11,7 @@ Files enter an agent through session attachments and leave through file events o
 
 Getting a file in front of an agent takes three calls: upload the bytes, reference the returned attachment ID from the session, then invoke the agent in that session.
 
-Both attachment endpoints need a session ID up front. Use your own value matching the session ID contract in [Invoke an agent](/reference/agents/invoke-an-agent#request-body), or run a first invoke without a `session_id` and read the minted one from the `x-ag-session-id` response header.
+Both attachment endpoints need a session ID up front. Use your own value, or run a first invoke without a `session_id` and read the minted one from the `x-ag-session-id` response header. The attachment routes accept a narrower session ID than [Invoke an agent](/reference/agents/invoke-an-agent#request-body): 1 to 128 letters, numbers, underscores, or hyphens. A session ID containing `.` or `:` can invoke but cannot upload or reference attachments.
 
 ### 1. Upload
 
@@ -72,7 +72,7 @@ The response echoes the referenced attachments. The request accepts at most 100 
 
 ### 3. Invoke
 
-Send the next turn in the same session. The full request contract is in [Invoke an agent](/reference/agents/invoke-an-agent).
+Send the next turn in the same session. The message must carry an `attachment` content block with the attachment ID: referencing alone records the attachment for the session, and the runner fetches it only when the current user message includes its block. The full request contract is in [Invoke an agent](/reference/agents/invoke-an-agent).
 
 ```bash
 curl -X POST \
@@ -88,7 +88,18 @@ curl -X POST \
     "data": {
       "inputs": {
         "messages": [
-          { "role": "user", "content": "Summarize the attached report." }
+          {
+            "role": "user",
+            "content": [
+              { "type": "text", "text": "Summarize the attached report." },
+              {
+                "type": "attachment",
+                "attachmentId": "019d952f-0000-0000-0000-000000000010",
+                "mimeType": "application/pdf",
+                "filename": "report.pdf"
+              }
+            ]
+          }
         ]
       }
     }
@@ -105,7 +116,23 @@ Referencing an attachment exposes it through the attachment API; it does not cre
 POST {AGENTA_HOST}/api/sessions/mounts/{MOUNT_ID}/files/upload?project_id={PROJECT_ID}
 ```
 
-The body is `multipart/form-data` with a single `file` field. The session's working-directory mount ID is the directory name the agent sees as its working directory.
+The body is `multipart/form-data` with a single `file` field. The `MOUNT_ID` is the UUID of the session's working-directory mount, not a path. List the session's mounts and select the one named `cwd`:
+
+```bash
+curl -sS "https://eu.cloud.agenta.ai/api/sessions/mounts/?project_id=019d952f-0000-0000-0000-000000000000&session_id=customer-case-4821" \\
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+```
+
+```json
+{
+  "count": 1,
+  "mounts": [
+    { "name": "cwd", "id": "019d952f-0000-0000-0000-000000000020", "session_id": "customer-case-4821" }
+  ]
+}
+```
+
+Use the `cwd` mount's `id` in the upload path. Uploading to a different mount's UUID places the file outside the working directory.
 
 ```bash
 curl -X POST \
