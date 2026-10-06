@@ -49,7 +49,9 @@ from ee.src.core.starter_credits_bridge.service import (
 from ee.src.core.wallets.service import WalletsService
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
 from oss.src.core.secrets.managed import SecretManager
+from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
 from oss.src.core.secrets.services import VaultService
+from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.utils.env import env
@@ -218,7 +220,14 @@ async def migrate_starter_credits(
 ) -> MigrationCounts:
     engine = get_transactions_engine()
     service = WalletsService(wallets_dao=WalletsDAO(engine=engine))
-    vault = VaultService(SecretsDAO())
+    # With the gateway registrar, so a deleted row also loses its LLM endpoint instead
+    # of leaving it behind.
+    vault = VaultService(
+        SecretsDAO(),
+        llm_endpoint_registrar=LLMEndpointRegistrar(
+            llm_endpoints_dao=LLMEndpointsDAO(engine=engine),
+        ),
+    )
     counts = MigrationCounts()
     page = 1
 
