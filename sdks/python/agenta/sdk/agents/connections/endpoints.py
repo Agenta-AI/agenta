@@ -19,10 +19,12 @@ from .models import (
     is_effective_https_endpoint,
 )
 
+# Each value is the provider's API base: the prefix a client puts before an operation path. For
+# Gemini that prefix carries the API version (`{base}/models/...`), the way Pi and LiteLLM read it.
 _DIRECT_ENDPOINTS: Dict[str, str] = {
     "openai": "https://api.openai.com/v1",
     "anthropic": "https://api.anthropic.com",
-    "gemini": "https://generativelanguage.googleapis.com",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta",
     "mistral": "https://api.mistral.ai/v1",
     "mistralai": "https://api.mistral.ai/v1",
     "minimax": "https://api.minimax.io/v1",
