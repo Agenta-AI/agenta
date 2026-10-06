@@ -10,7 +10,7 @@
  * dialog mounted in a row reopened that row's drawer on every click inside it, including the
  * click that opened the consent popup, which then surfaced behind it.
  */
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     findCustomMcpEndpoint,

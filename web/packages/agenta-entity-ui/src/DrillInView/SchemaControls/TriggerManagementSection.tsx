@@ -81,8 +81,7 @@ export function TriggerManagementSection({
     onOpenRunHistory,
     automationDrawer,
 }: TriggerManagementSectionProps) {
-    const {scopedSubscriptions, scopedSchedules, defaultReferences, defaultBoundLabel} =
-        useAgentTriggers(entityId)
+    const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
 
     const {
         remove: removeSubscription,
@@ -318,15 +317,6 @@ export function TriggerManagementSection({
             disabled,
         ],
     )
-
-    // The empty state's link — the region header owns the "+". Both default-bind to this agent.
-    const openScheduleCreate = useCallback(() => {
-        openScheduleDrawer({
-            defaultReferences,
-            defaultBoundLabel,
-            playgroundEntityId: entityId ?? undefined,
-        })
-    }, [openScheduleDrawer, defaultReferences, defaultBoundLabel, entityId])
 
     return (
         <div className="flex flex-col gap-2 py-3">
