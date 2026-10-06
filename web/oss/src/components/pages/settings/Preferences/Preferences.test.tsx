@@ -39,7 +39,7 @@ vi.mock("@agenta/ui/ui", async (importOriginal) => ({
 const EXPECTED_STRUCTURE = [
     {
         title: "Feature Flags",
-        rows: ["Developer Mode", "In-process agent runtime"],
+        rows: ["Developer Mode"],
     },
     {title: "Debugging", rows: ["Playground inspector", "Channel debug", "Agenta channel probe"]},
 ]
