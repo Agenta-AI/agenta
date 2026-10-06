@@ -722,6 +722,15 @@ class TraceBatchProcessor implements SpanProcessor {
   }
 }
 
+/**
+ * The most attributes one span keeps. The SDK default is 128, and the SDK drops every attribute
+ * set past the limit without a word. A chat span gets its input messages at request time and its
+ * output, usage, finish reason, and cost at the end, so a long context used to push out exactly
+ * the figures that matter. The input messages have their own, smaller budget
+ * (`INPUT_MESSAGES_MAX_ATTRIBUTES`), which keeps this limit out of reach.
+ */
+const SPAN_ATTRIBUTE_COUNT_LIMIT = 1024;
+
 let provider: NodeTracerProvider | undefined;
 let processor: TraceBatchProcessor | undefined;
 
@@ -732,6 +741,7 @@ function ensureProvider(): void {
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || "pi-agent",
     }),
+    spanLimits: { attributeCountLimit: SPAN_ATTRIBUTE_COUNT_LIMIT },
     spanProcessors: [processor],
   });
   provider.register();
@@ -924,29 +934,111 @@ function emitMessages(
   prefix: string,
   messages: any[],
   capture: boolean,
+  budget?: AttributeBudget,
 ): void {
   if (!capture || !Array.isArray(messages)) return;
   messages.forEach((m, i) => {
-    const base = `${prefix}.${i}.message`;
-    span.setAttribute(`${base}.role`, oiRole(m.role));
-    const text = messageText(m);
-    if (text) span.setAttribute(`${base}.content`, text);
-    if (m.role === "toolResult" && m.toolCallId)
-      span.setAttribute(`${base}.tool_call_id`, m.toolCallId);
-    if (Array.isArray(m.content)) {
-      m.content
-        .filter((b: any) => b?.type === "toolCall")
-        .forEach((call: any, j: number) => {
-          const tc = `${base}.tool_calls.${j}.tool_call`;
-          if (call.id) span.setAttribute(`${tc}.id`, call.id);
-          span.setAttribute(`${tc}.function.name`, call.name);
-          span.setAttribute(
-            `${tc}.function.arguments`,
-            JSON.stringify(call.arguments ?? {}),
-          );
-        });
+    for (const [key, value] of messageAttributes(m, `${prefix}.${i}.message`)) {
+      if (!budget) {
+        span.setAttribute(key, value);
+        continue;
+      }
+      // With a budget, every attribute spends from it and a value is clipped to what is left,
+      // so no message, however large, can take the span past the budget.
+      if (budget.attributes <= 0) return;
+      const clipped = clipToBytes(value, budget.bytes);
+      budget.attributes -= 1;
+      budget.bytes -= Buffer.byteLength(clipped);
+      span.setAttribute(key, clipped);
     }
   });
+}
+
+/** The OpenInference attributes of one message, in emission order. */
+function* messageAttributes(m: any, base: string): Generator<[string, string]> {
+  if (typeof m?.role === "string") yield [`${base}.role`, oiRole(m.role)];
+  const text = messageText(m);
+  if (text) yield [`${base}.content`, text];
+  if (m?.role === "toolResult" && m.toolCallId)
+    yield [`${base}.tool_call_id`, String(m.toolCallId)];
+  if (!Array.isArray(m?.content)) return;
+  const calls = m.content.filter((b: any) => b?.type === "toolCall");
+  for (const [j, call] of calls.entries()) {
+    const tc = `${base}.tool_calls.${j}.tool_call`;
+    if (call.id) yield [`${tc}.id`, String(call.id)];
+    if (typeof call.name === "string") yield [`${tc}.function.name`, call.name];
+    yield [`${tc}.function.arguments`, JSON.stringify(call.arguments ?? {})];
+  }
+}
+
+/**
+ * Budget for the context copied onto a chat span as `llm.input_messages.*`. Every model call
+ * carries the whole conversation so far, and a run's trace goes to Agenta in one OTLP request
+ * with a size cap, so an unbounded copy grows with the square of the run length. The span keeps
+ * the latest messages that fit the budget, oldest first. The newest message is always kept, cut
+ * to the budget when it alone is larger.
+ */
+const INPUT_MESSAGES_MAX_ATTRIBUTES = 256;
+const INPUT_MESSAGES_MAX_BYTES = 32_000;
+
+interface AttributeBudget {
+  attributes: number;
+  bytes: number;
+}
+
+/** Cut `text` to at most `maxBytes` UTF-8 bytes, never inside a character. */
+function clipToBytes(text: string, maxBytes: number): string {
+  if (Buffer.byteLength(text) <= maxBytes) return text;
+  if (maxBytes <= 0) return "";
+  const cut = Buffer.from(text).subarray(0, maxBytes).toString("utf8");
+  return cut.endsWith("\uFFFD") ? cut.slice(0, -1) : cut;
+}
+
+/** The attributes and UTF-8 bytes `emitMessages` writes for one message. */
+function messageFootprint(m: any): AttributeBudget {
+  const footprint = { attributes: 0, bytes: 0 };
+  for (const [, value] of messageAttributes(m, "")) {
+    footprint.attributes += 1;
+    footprint.bytes += Buffer.byteLength(value);
+  }
+  return footprint;
+}
+
+/** The latest messages that fit the input budget, in their original order (at least one). */
+function latestMessagesWithinBudget(messages: any[]): any[] {
+  let attributes = 0;
+  let bytes = 0;
+  let start = messages.length;
+  while (start > 0) {
+    const footprint = messageFootprint(messages[start - 1]);
+    const fits =
+      attributes + footprint.attributes <= INPUT_MESSAGES_MAX_ATTRIBUTES &&
+      bytes + footprint.bytes <= INPUT_MESSAGES_MAX_BYTES;
+    if (!fits && start < messages.length) break;
+    attributes += footprint.attributes;
+    bytes += footprint.bytes;
+    start -= 1;
+  }
+  return messages.slice(start);
+}
+
+/** Emit a model call's input context within the input budget (see above). */
+function emitInputMessages(
+  span: Span,
+  messages: any[],
+  capture: boolean,
+): void {
+  if (!capture || !Array.isArray(messages)) return;
+  emitMessages(
+    span,
+    "llm.input_messages",
+    latestMessagesWithinBudget(messages),
+    capture,
+    {
+      attributes: INPUT_MESSAGES_MAX_ATTRIBUTES,
+      bytes: INPUT_MESSAGES_MAX_BYTES,
+    },
+  );
 }
 
 function toolResultText(result: any): string {
@@ -1159,14 +1251,25 @@ export function createAgentaOtel(
   // indistinguishable from one it priced at zero, and the sum below would report the second.
   let costReported = false;
 
+  // Whether Pi has no price for the model of the current call: a models.json model registered
+  // without a cost table, which Pi fills with zeros (the built-in gateway model is one). Its
+  // zero cost is not a measured price.
+  let modelUnpriced = false;
+
   /**
    * On a custom connection Pi's cost is its public price-table estimate, not what the user's
-   * endpoint charges, so it leaves the span and the run usage. A provider-billed charge (the pi-ai
-   * cost patch marks it `source: "provider"`) stays.
+   * endpoint charges, and for a model Pi has no price for it is a zero that measures nothing. In
+   * both cases it leaves the span and the run usage, so the platform prices the tokens (or leaves
+   * a custom connection unpriced). A provider-billed charge (the pi-ai cost patch marks it
+   * `source: "provider"`) stays.
    */
-  function withoutEstimateOnCustomConnection(msg: any): any {
+  function withoutUnmeasuredCost(msg: any): any {
     const cost = msg?.usage?.cost;
-    if (!config.customConnection || !cost || cost.source === "provider") {
+    if (
+      !(config.customConnection || modelUnpriced) ||
+      !cost ||
+      cost.source === "provider"
+    ) {
       return msg;
     }
     const { cost: _estimate, ...usage } = msg.usage;
@@ -1303,6 +1406,7 @@ export function createAgentaOtel(
       const parent = currentTurn?.ctx ?? agentCtx ?? context.active();
       const modelId = config.requestModel ?? ctx?.model?.id;
       const providerName = config.provider ?? ctx?.model?.provider;
+      modelUnpriced = hasZeroPriceTable(ctx?.model);
       llmSpan = tracer.startSpan(
         modelId ? `chat ${modelId}` : "chat",
         undefined,
@@ -1315,16 +1419,11 @@ export function createAgentaOtel(
       if (config.customConnection)
         llmSpan.setAttribute(CUSTOM_CONNECTION, true);
       if (lastContextMessages)
-        emitMessages(
-          llmSpan,
-          "llm.input_messages",
-          lastContextMessages,
-          config.captureContent,
-        );
+        emitInputMessages(llmSpan, lastContextMessages, config.captureContent);
     });
 
     pi.on("message_end", async (event: any) => {
-      const msg = withoutEstimateOnCustomConnection(event?.message);
+      const msg = withoutUnmeasuredCost(event?.message);
       if (!msg || msg.role !== "assistant") return;
       accumulateUsage(msg);
       if (!llmSpan) return;
@@ -1369,7 +1468,7 @@ export function createAgentaOtel(
       // Safety net: if the LLM span is still open (no assistant message_end seen),
       // close it from the turn's assistant message.
       if (llmSpan && event?.message) {
-        const msg = withoutEstimateOnCustomConnection(event.message);
+        const msg = withoutUnmeasuredCost(event.message);
         applyAssistant(llmSpan, msg, config.captureContent);
         accumulateUsage(msg);
         llmSpan.end();
@@ -1432,6 +1531,16 @@ export function createAgentaOtel(
     // an unreported cost has to leave the key off rather than ship the running sum's 0.
     usage: () => (costReported ? { ...runUsage } : stripCost(runUsage)),
   };
+}
+
+/** Whether a Pi model carries a cost table whose every rate is zero (Pi's default for a model
+ * registered without one). A model with no table at all is not judged. */
+function hasZeroPriceTable(model: any): boolean {
+  const cost = model?.cost;
+  if (!cost || typeof cost !== "object") return false;
+  return ["input", "output", "cacheRead", "cacheWrite"].every(
+    (rate) => cost[rate] == null || cost[rate] === 0,
+  );
 }
 
 /** Drop the cost key, so an unpriced run reads as unknown rather than measured-free. */
@@ -2097,7 +2206,7 @@ export function createSandboxAgentOtel(
       input.messages && input.messages.length
         ? input.messages
         : [{ role: "user", content: input.prompt ?? "" }];
-    emitMessages(llmSpan, "llm.input_messages", inputMessages, capture);
+    emitInputMessages(llmSpan, inputMessages, capture);
   }
 
   function handleUpdate(update: any, admitted = false): void {
