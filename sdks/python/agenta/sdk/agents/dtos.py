@@ -864,6 +864,7 @@ class AgentTemplate(BaseModel):
                     diagnostic.message,
                     index=diagnostic.index,
                     value=entry,
+                    issues=diagnostic.issues,
                 )
             log.warning(
                 "agent: dropped an unrepairable legacy gateway tool entry: %s",

@@ -213,5 +213,7 @@ class TestAnAgentCreatesListsReadsAndEditsAnother:
         )
 
         assert not ok
-        assert refusal["code"] == "final_validation_failed"
-        assert "skills[0].body is required" in refusal["message"]
+        assert refusal["code"] == "invalid_agent_configuration"
+        assert refusal["details"]["issues"] == [
+            "parameters.agent.skills[0].body is required"
+        ]

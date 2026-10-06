@@ -841,6 +841,7 @@ async def _commit_as_agent(
     from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
     from oss.src.core.workflows.service import RevisionConflictError
     from oss.src.core.workflows.types import (
+        InvalidAgentConfigurationError,
         InvalidAgentHarnessError,
         InvalidAgentInstructionsError,
         StaticWorkflowSlug,
@@ -859,6 +860,7 @@ async def _commit_as_agent(
         )
     except (
         ChangeSetError,
+        InvalidAgentConfigurationError,
         InvalidAgentHarnessError,
         InvalidAgentInstructionsError,
         RevisionConflictError,
@@ -1600,7 +1602,11 @@ async def handle_create_agent(
     from oss.src.core.shared.exceptions import EntityCreationConflict
     from oss.src.core.workflows.change_set import ChangeSetError
     from oss.src.core.workflows.service import SimpleWorkflowsService
-    from oss.src.core.workflows.types import InvalidAgentInstructionsError
+    from oss.src.core.workflows.types import (
+        InvalidAgentConfigurationError,
+        InvalidAgentHarnessError,
+        InvalidAgentInstructionsError,
+    )
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("create_agent is unavailable.")
@@ -1645,7 +1651,12 @@ async def handle_create_agent(
             )
         except ValidationError as e:
             raise _Refusal(_create_refusal(_commit_payload_refusal(e))) from e
-        except (ChangeSetError, InvalidAgentInstructionsError) as e:
+        except (
+            ChangeSetError,
+            InvalidAgentConfigurationError,
+            InvalidAgentHarnessError,
+            InvalidAgentInstructionsError,
+        ) as e:
             raise _Refusal(_create_refusal(AgentError(**e.to_detail()))) from e
         except NonEmbeddableWorkflowReferenceError as e:
             raise _agent_refusal(

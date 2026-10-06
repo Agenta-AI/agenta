@@ -6,6 +6,7 @@ from typing import Any, Literal, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..config_errors import ConfigIssue
 from .errors import ToolConfigurationError
 from .models import (
     AgentaToolsConfig,
@@ -26,6 +27,8 @@ class ToolConfigDiagnostic(BaseModel):
 
     index: int
     message: str
+    # Where inside the entry, when the parser located the problem.
+    issues: tuple[ConfigIssue, ...] = ()
 
 
 class ToolConfigParseResult(BaseModel):
@@ -219,11 +222,14 @@ def coerce_tool_configs(
                     str(exc),
                     index=index,
                     value=value,
+                    issues=exc.issues,
                 )
 
         if on_error == "raise":
             raise error
-        diagnostics.append(ToolConfigDiagnostic(index=index, message=str(error)))
+        diagnostics.append(
+            ToolConfigDiagnostic(index=index, message=str(error), issues=error.issues)
+        )
 
     return ToolConfigParseResult(
         tool_configs=tool_configs,
