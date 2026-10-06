@@ -1183,16 +1183,15 @@ async def handle_list_agents(
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
 ) -> PlatformHandlerResult:
-    """The agents in the caller's project, newest change first, one page at a time.
+    """The agents in the caller's project, newest first, one page at a time.
 
-    Agents are the workflows whose latest revision is flagged `is_agent`; the head query
-    filters on that flag in SQL, before pagination, so a page is never short. Static
-    platform workflows are served from code and never stored, so they never appear.
+    One row per agent, from the head `read_agent_config` and `edit_agent_config` act on: the
+    default variant's latest revision. Pages run over the project's applications and keep
+    the ones whose head is flagged `is_agent` today, so a page may hold fewer than `limit`
+    agents; `next_cursor` is what says another page exists. Static platform workflows are
+    served from code and never stored, so they never appear.
     """
-    from oss.src.core.workflows.dtos import (
-        WorkflowRevisionQuery,
-        WorkflowRevisionQueryFlags,
-    )
+    from oss.src.core.workflows.dtos import WorkflowArtifactQueryFlags, WorkflowQuery
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("list_agents is unavailable.")
@@ -1221,38 +1220,24 @@ async def handle_list_agents(
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
-    heads = await workflows_service.query_workflow_head_revisions(
+    workflows = await workflows_service.query_workflows(
         project_id=project_id,
-        workflow_revision_query=WorkflowRevisionQuery(
-            flags=WorkflowRevisionQueryFlags(is_agent=True),
+        workflow_query=WorkflowQuery(
+            flags=WorkflowArtifactQueryFlags(is_application=True)
         ),
         include_archived=include_archived,
         windowing=Windowing(limit=limit, next=cursor),
     )
 
-    artifact_ids = list(
-        dict.fromkeys(head.workflow_id for head in heads if head.workflow_id)
-    )
-    workflows = (
-        await workflows_service.query_workflows(
+    agents: List[Dict[str, Any]] = []
+    for workflow in workflows:
+        head = await workflows_service.fetch_workflow_revision(
             project_id=project_id,
-            workflow_refs=[Reference(id=artifact_id) for artifact_id in artifact_ids],
+            workflow_ref=Reference(id=workflow.id),
             include_archived=include_archived,
         )
-        if artifact_ids
-        else []
-    )
-    by_id = {workflow.id: workflow for workflow in workflows}
-
-    agents: List[Dict[str, Any]] = []
-    seen: set = set()
-    for head in heads:
-        workflow = by_id.get(head.workflow_id)
-        # One row per agent: an agent with a second variant has a second head, and the
-        # first one is the most recent change.
-        if workflow is None or workflow.id in seen:
+        if head is None or head.flags is None or not head.flags.is_agent:
             continue
-        seen.add(workflow.id)
         agent = {
             **_agent_summary(workflow),
             "description": workflow.description,
@@ -1263,11 +1248,11 @@ async def handle_list_agents(
             agent["archived"] = True
         agents.append(agent)
 
-    full_page = len(heads) == limit and heads[-1].id is not None
+    full_page = len(workflows) == limit
     return PlatformHandlerResult(
         content={
             "agents": agents,
-            "next_cursor": str(heads[-1].id) if full_page else None,
+            "next_cursor": str(workflows[-1].id) if full_page else None,
         }
     )
 
