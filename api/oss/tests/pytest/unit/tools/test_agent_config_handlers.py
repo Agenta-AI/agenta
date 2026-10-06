@@ -17,7 +17,7 @@ message come from the production code path rather than from a stub.
 
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 import pytest
 
@@ -38,12 +38,15 @@ from oss.src.core.tools.platform_handlers import (
     handle_read_agent_config,
     required_elevated_permission,
 )
+from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.workflows.dtos import (
     SimpleWorkflow,
+    SimpleWorkflowCreateResult,
     Workflow,
     WorkflowRevision,
     WorkflowRevisionData,
     WorkflowRevisionFlags,
+    WorkflowVariant,
 )
 from oss.src.core.workflows.new_agent import new_agent_revision_data
 from oss.src.core.workflows.service import SimpleWorkflowsService, WorkflowsService
@@ -94,11 +97,6 @@ def _head(*, is_agent=True, is_static=False, workflow_id=TARGET, archived=False)
             },
         ),
     )
-
-
-@pytest.fixture(autouse=True)
-def _no_cache(monkeypatch):
-    monkeypatch.setattr(platform_handlers, "invalidate_cache", AsyncMock())
 
 
 @pytest.fixture
@@ -222,14 +220,40 @@ class TestListAgents:
             OTHER: _head(workflow_id=OTHER, is_agent=False),
         }
 
-        async def fetch_head(*, project_id, workflow_ref, include_archived=True):
+        def variants(workflow_id):
+            # Two variants: the older one is the default the read and edit tools use.
+            return [
+                WorkflowVariant(
+                    id=uuid5(workflow_id, "newer"),
+                    workflow_id=workflow_id,
+                    created_at=datetime(2026, 10, 2, tzinfo=timezone.utc),
+                ),
+                WorkflowVariant(
+                    id=uuid5(workflow_id, "default"),
+                    workflow_id=workflow_id,
+                    created_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+                ),
+            ]
+
+        async def query_variants(*, project_id, workflow_refs, include_archived):
             assert project_id == PROJECT
-            return heads[workflow_ref.id]
+            return [v for ref in workflow_refs for v in variants(ref.id)]
+
+        async def query_heads(
+            *, project_id, workflow_variant_refs, include_archived, grouping
+        ):
+            assert grouping.by == "variant" and grouping.get == "latest"
+            by_variant = {
+                uuid5(workflow_id, "default"): head
+                for workflow_id, head in heads.items()
+            }
+            return [by_variant[ref.id] for ref in workflow_variant_refs]
 
         service.query_workflows = AsyncMock(
             return_value=[workflows[TARGET], workflows[OTHER], workflows[CALLER]]
         )
-        service.fetch_workflow_revision = AsyncMock(side_effect=fetch_head)
+        service.query_workflow_variants = AsyncMock(side_effect=query_variants)
+        service.query_workflow_revisions = AsyncMock(side_effect=query_heads)
         return service
 
     async def test_lists_agents_including_the_caller_one_row_each(self, listing):
@@ -252,20 +276,18 @@ class TestListAgents:
         assert agents[0]["version"] == "3"
         assert result.content["next_cursor"] is None
 
-    async def test_each_row_is_the_default_variant_head_that_read_and_edit_use(
-        self, listing
-    ):
+    async def test_heads_are_read_in_one_batch_from_the_default_variants(self, listing):
         await _call(handle_list_agents, listing)
 
-        # No variant: the service resolves the artifact to its default variant, exactly
-        # as it does for `read_agent_config` and `edit_agent_config`.
-        for call in listing.fetch_workflow_revision.await_args_list:
-            assert set(call.kwargs) == {
-                "project_id",
-                "workflow_ref",
-                "include_archived",
-            }
-            assert call.kwargs["workflow_ref"].id is not None
+        # The oldest variant is the default, as for `read_agent_config`.
+        refs = listing.query_workflow_revisions.await_args.kwargs[
+            "workflow_variant_refs"
+        ]
+        assert {ref.id for ref in refs} == {
+            uuid5(workflow_id, "default") for workflow_id in (TARGET, OTHER, CALLER)
+        }
+        listing.query_workflow_variants.assert_awaited_once()
+        listing.query_workflow_revisions.assert_awaited_once()
 
     async def test_pages_run_over_applications_in_the_credential_project(self, listing):
         # A project in the arguments is not a parameter; the credential decides.
@@ -276,17 +298,36 @@ class TestListAgents:
         assert kwargs["workflow_query"].flags.is_application is True
         assert kwargs["include_archived"] is False
 
-    async def test_a_full_page_hands_back_a_cursor_that_fetches_the_next(self, listing):
-        # Three applications on the page, two of them agents: the page is full because
-        # the cursor counts what was scanned, so no agent is skipped or listed twice.
-        first = await _call(handle_list_agents, listing, limit=3)
-        cursor = first.content["next_cursor"]
-        assert len(first.content["agents"]) == 2
-        assert cursor == str(CALLER)
+    async def test_a_page_is_filled_with_agents_and_its_cursor_is_the_last_one(
+        self, listing
+    ):
+        first = await _call(handle_list_agents, listing, limit=1)
+        assert [agent["name"] for agent in first.content["agents"]] == [
+            "Invoice helper"
+        ]
+        assert first.content["next_cursor"] == str(TARGET)
 
-        await _call(handle_list_agents, listing, limit=3, cursor=cursor)
+        # Skipping the application that is not an agent, the page still holds `limit`.
+        second = await _call(handle_list_agents, listing, limit=2)
+        assert len(second.content["agents"]) == 2
+        assert second.content["next_cursor"] is None
+
+    async def test_the_scan_continues_from_the_cursor(self, listing, workflows):
+        batches = [
+            [workflows[OTHER]] * platform_handlers.LIST_AGENTS_MAX_LIMIT,
+            [workflows[TARGET]],
+        ]
+        listing.query_workflows = AsyncMock(side_effect=batches)
+
+        result = await _call(handle_list_agents, listing, limit=1)
+
+        # The first batch held no agent, so the scan read the next one from its last row.
+        assert [agent["name"] for agent in result.content["agents"]] == [
+            "Invoice helper"
+        ]
         windowing = listing.query_workflows.await_args.kwargs["windowing"]
-        assert str(windowing.next) == cursor and windowing.limit == 3
+        assert windowing.next == OTHER
+        assert result.content["next_cursor"] is None
 
     async def test_archived_agents_only_on_request_and_marked(self, listing, workflows):
         archived = _workflow(TARGET, "Old", "old", archived=True)
@@ -318,8 +359,6 @@ class TestListAgents:
 class TestTheTargetIsAnotherAgentInThisProject:
     @pytest.mark.parametrize("agent", ["invoice-helper-k3x9", str(TARGET)])
     async def test_by_slug_or_id(self, service, agent):
-        service.read_workflow_revision_config = AsyncMock(return_value=_read_outcome())
-
         result = await _call(
             handle_read_agent_config,
             service,
@@ -395,14 +434,12 @@ class TestTheTargetIsAnotherAgentInThisProject:
         self, service, handler, head, agent, code
     ):
         service.fetch_workflow_revision.return_value = head
-        service.read_workflow_revision_config = AsyncMock()
 
         result = await _call(handler, service, **_edit_args(agent=agent))
 
         assert not result.ok
         assert result.content.code == code
         assert result.content.next_step
-        service.read_workflow_revision_config.assert_not_awaited()
         service.commit_workflow_revision.assert_not_awaited()
 
     async def test_an_archived_artifact_is_refused_even_with_a_live_head(
@@ -420,65 +457,39 @@ class TestTheTargetIsAnotherAgentInThisProject:
 # --------------------------------------------------------------------------------------
 
 
-def _read_outcome():
-    from oss.src.core.workflows.service import ConfigReadOutcome
-
-    return ConfigReadOutcome(
-        revision=_head(),
-        path=["parameters", "agent", "llm"],
-        value={"model": "gpt"},
-        bytes=16,
-        is_draft=False,
-        warnings=[],
-    )
-
-
 class TestReadAgentConfig:
-    async def test_answers_like_read_config_from_the_target_head(self, service):
-        service.read_workflow_revision_config = AsyncMock(return_value=_read_outcome())
-
+    async def test_answers_like_read_config_from_the_head_it_resolved(self, service):
         result = await _call(
             handle_read_agent_config,
             service,
             agent="invoice-helper-k3x9",
-            path=["parameters", "agent", "llm"],
-            max_bytes=2048,
+            path=INSTRUCTIONS,
             caller_agent_id=str(CALLER),
         )
 
-        kwargs = service.read_workflow_revision_config.await_args.kwargs
-        assert kwargs == {
-            "project_id": PROJECT,
-            "workflow_variant_id": TARGET_VARIANT,
-            "path": ["parameters", "agent", "llm"],
-            "max_bytes": 2048,
-        }
         content = result.content
         assert content.base_revision_id == str(HEAD)
-        assert content.value == {"model": "gpt"}
+        assert content.value == "Answer invoice questions."
         # The draft warning is about the caller's run, not about this agent.
         assert content.is_draft is False and not content.warnings
+        # The head the target resolution loaded is the one projected: no second read.
+        service.fetch_workflow_revision.assert_awaited_once()
 
     async def test_a_value_over_the_limit_lists_children(self, service):
-        from oss.src.core.workflows.read_config import ReadConfigError
-
-        service.read_workflow_revision_config = AsyncMock(
-            side_effect=ReadConfigError(
-                "output_too_large",
-                "Too large.",
-                children=["instructions", "tools"],
-            )
-        )
+        head = _head()
+        head.data.parameters["agent"]["instructions"]["agents_md"] = "x" * 4096
+        service.fetch_workflow_revision.return_value = head
 
         result = await _call(
             handle_read_agent_config,
             service,
             agent="invoice-helper-k3x9",
+            max_bytes=1024,
             caller_agent_id=str(CALLER),
         )
 
         assert result.content.code == "output_too_large"
-        assert result.content.details["children"] == ["instructions", "tools"]
+        assert "parameters" in result.content.details["children"]
 
 
 # --------------------------------------------------------------------------------------
@@ -505,9 +516,10 @@ class TestEditAgentConfig:
         assert result.content["agent"]["name"] == "Invoice helper"
         assert result.content["version"] == "4"
         assert result.content["message"] == commit.message
-        # Another agent's write: no self-commit signal for the caller's playground.
+        # Another agent's write: the caches are cleared, and no self-commit signal goes
+        # to the caller's playground.
+        assert result.wrote_revision is True
         assert result.committed_revision is None
-        platform_handlers.invalidate_cache.assert_awaited_once()
 
     async def test_never_deploys(self, service):
         service.environments_service = AsyncMock()
@@ -555,6 +567,7 @@ class TestEditAgentConfig:
         result = await _call(handle_edit_agent_config, service, **arguments)
 
         assert result.content.code == "invalid_arguments"
+        assert "is not a field of edit_agent_config" in result.content.message
         assert "at the top level" in result.content.next_step
         service.commit_workflow_revision.assert_not_awaited()
 
@@ -603,6 +616,8 @@ class TestEditAgentConfig:
     async def test_tools_integrations_and_agent_config_itself_are_editable(
         self, service
     ):
+        # Spec: adding an integration or turning on Agent config for the target commits.
+        # How the `agenta_tools` key reaches the map is the engine's (test_change_set.py).
         operations = [
             {
                 "operation": "add_item",
@@ -616,18 +631,6 @@ class TestEditAgentConfig:
                     },
                     "policy": {"permissions": {"default": "allow", "tools": {}}},
                 },
-            },
-            # The `agenta_tools` entry is keyed by its type, so turning Agent config on
-            # changes its map and leaves the rest of the list alone.
-            {
-                "operation": "merge",
-                "target": [
-                    "parameters",
-                    "agent",
-                    {"list": "tools", "key": "agenta_tools"},
-                    "tools",
-                ],
-                "value": {"read_agent_config": "allow", "create_agent": "allow"},
             },
             {
                 "operation": "set",
@@ -647,40 +650,35 @@ class TestEditAgentConfig:
         )
 
         assert result.ok, result.content
-        tools = _committed(service).data.parameters["agent"]["tools"]
-        assert [tool["type"] for tool in tools] == [
-            "agenta_tools",
-            "gateway_connection",
-        ]
-        assert tools[0]["tools"] == {
-            "rename_session": "allow",
-            "read_agent_config": "allow",
-            "create_agent": "allow",
-            "edit_agent_config": "ask",
-        }
         assert not result.content["warnings"]
 
-        result = await _call(
-            handle_edit_agent_config, service, **_edit_args(operations=operations[:1])
-        )
-        assert result.ok, result.content
-        tools = _committed(service).data.parameters["agent"]["tools"]
-        assert tools[-1]["type"] == "gateway_connection"
-
-    @pytest.mark.parametrize("tool", ["edit_agent_config", "commit_revision"])
+    @pytest.mark.parametrize(
+        "tool", ["edit_agent_config", "commit_revision", "create_agent"]
+    )
     async def test_a_skill_the_runtime_cannot_parse_is_refused_before_it_is_saved(
         self, service, tool
     ):
         # Bench S6: saved with only a warning, then every run of the agent failed with a
-        # 500. The result now goes through the runtime's own parse before the commit.
+        # 500. Each write tool routes the result through the runtime's parse; the parse
+        # itself is tested in test_new_agent_template.py.
         operation = {
             "operation": "set",
             "target": ["parameters", "agent", "skills"],
             "value": [{"name": "invoice-lookup", "description": "Find invoices."}],
         }
+        service.commit_workflow_revision.reset_mock()
         if tool == "edit_agent_config":
             result = await _call(
                 handle_edit_agent_config, service, **_edit_args(operations=[operation])
+            )
+        elif tool == "create_agent":
+            result = await _call(
+                handle_create_agent,
+                service,
+                name="Invoice helper",
+                operations=[operation],
+                caller_agent_id=str(CALLER),
+                caller_session_id=SESSION,
             )
         else:
             result = await _call(
@@ -694,7 +692,6 @@ class TestEditAgentConfig:
             )
 
         assert result.content.code == "final_validation_failed"
-        assert "skills[0].body is required" in result.content.message
         assert result.content.details["issues"] == ["skills[0].body is required"]
         service.commit_workflow_revision.assert_not_awaited()
 
@@ -722,26 +719,31 @@ class TestEditAgentConfig:
             ),
         )
 
-        assert result.ok
-        message = _committed(service).message
-        assert "CEO" not in message and "Admin" not in message
-        assert "forged" not in message
-        assert message.endswith(
-            f'(by agent "Support Triage" {CALLER}, session {SESSION})'
+        assert result.content.code == "invalid_arguments"
+        assert result.content.message.startswith(
+            "`agent_name`, `message`, `session_id` are not fields of edit_agent_config."
         )
+        service.commit_workflow_revision.assert_not_awaited()
 
-    async def test_a_run_without_a_session_or_a_named_caller_says_so(
-        self, service, workflows
-    ):
+    async def test_an_unnamed_caller_is_named_by_its_id(self, service, workflows):
         workflows[CALLER] = _workflow(CALLER, None, "support-triage")
-        arguments = _edit_args()
-        del arguments["caller_session_id"]
 
-        await _call(handle_edit_agent_config, service, **arguments)
+        await _call(handle_edit_agent_config, service, **_edit_args())
 
         assert _committed(service).message.endswith(
-            f"(by agent {CALLER}, session none)"
+            f"(by agent {CALLER}, session {SESSION})"
         )
+
+    @pytest.mark.parametrize("handler", [handle_edit_agent_config, handle_create_agent])
+    async def test_a_missing_session_is_refused_not_written_as_unknown(
+        self, service, handler
+    ):
+        arguments = _edit_args(name="Invoice helper")
+        del arguments["caller_session_id"]
+
+        with pytest.raises(PlatformToolHandlerRefused):
+            await _call(handler, service, **arguments)
+        service.commit_workflow_revision.assert_not_awaited()
 
 
 # --------------------------------------------------------------------------------------
@@ -754,14 +756,17 @@ class TestCreateAgent:
     def create(self, monkeypatch):
         created_id = uuid4()
         create = AsyncMock(
-            side_effect=lambda **kwargs: SimpleWorkflow(
-                id=kwargs["workflow_id"],
-                slug=kwargs["simple_workflow_create"].slug,
-                name=kwargs["simple_workflow_create"].name,
-                revision_id=created_id,
+            side_effect=lambda **kwargs: SimpleWorkflowCreateResult(
+                workflow=SimpleWorkflow(
+                    id=uuid4(),
+                    slug=kwargs["simple_workflow_create"].slug + "-0a1b2c3d",
+                    name=kwargs["simple_workflow_create"].name,
+                    revision_id=created_id,
+                ),
+                replayed=False,
             )
         )
-        monkeypatch.setattr(SimpleWorkflowsService, "create", create)
+        monkeypatch.setattr(SimpleWorkflowsService, "create_idempotent", create)
         return create
 
     def _args(self, **over):
@@ -784,16 +789,20 @@ class TestCreateAgent:
             new_agent_revision_data()
         )
         assert request.name == "Invoice helper"
-        assert request.slug.startswith("invoice-helper-")
+        # The create adds the id suffix to the name's slug.
+        assert request.slug == "invoice-helper"
         assert request.flags.is_application and request.flags.is_agent
         assert kwargs["message"] == (
             f'Created by agent "Support Triage" {CALLER}, session {SESSION}'
         )
         assert kwargs["project_id"] == PROJECT
+        # Keyed by the session and the arguments, so a retry finishes the same agent.
+        assert kwargs["request_key"].startswith(f"{SESSION}:sha256:")
         content = result.content
         assert content["agent"]["name"] == "Invoice helper"
+        assert content["agent"]["slug"] == "invoice-helper-0a1b2c3d"
         assert content["base_revision_id"]
-        platform_handlers.invalidate_cache.assert_awaited_once()
+        assert result.wrote_revision is True
 
     async def test_operations_land_in_the_first_revision(self, service, create):
         operations = [
@@ -824,12 +833,19 @@ class TestCreateAgent:
             "set agents_md; added skill pdf-tools"
         )
 
+    async def test_other_arguments_make_another_agent(self, service, create):
+        await _call(handle_create_agent, service, **self._args())
+        first = create.await_args.kwargs["request_key"]
+        await _call(handle_create_agent, service, **self._args(name="Billing helper"))
+
+        assert create.await_args.kwargs["request_key"] != first
+
     @pytest.mark.parametrize(
-        "operation,code",
+        "operation,step",
         [
             (
                 {"operation": "set", "target": ["parameters", "agent", "nope", "x"]},
-                "missing_operation_value",
+                "Add a `value` to the operation and send it again.",
             ),
             (
                 {
@@ -837,13 +853,23 @@ class TestCreateAgent:
                     "target": ["parameters", "agent", "sandbox", "credentials"],
                     "value": {"token": "x"},
                 },
-                None,
+                "Write only under `parameters.agent`. Remove the operation on the path "
+                "this refusal names, then send the call again.",
+            ),
+            (
+                {
+                    "operation": "edit_text",
+                    "target": INSTRUCTIONS,
+                    "edits": [{"old_text": "not there", "new_text": "x"}],
+                },
+                # The engine says "read it again"; a create has nothing stored to read.
+                "Fix operation 1 as the message says, then call create_agent again.",
             ),
         ],
-        ids=["invalid", "out-of-scope"],
+        ids=["invalid", "out-of-scope", "read-again"],
     )
-    async def test_a_failing_operation_creates_nothing_and_names_it(
-        self, service, create, operation, code
+    async def test_a_failing_operation_creates_nothing_and_says_what_to_do(
+        self, service, create, operation, step
     ):
         good = {"operation": "set", "target": INSTRUCTIONS, "value": "ok"}
 
@@ -852,50 +878,23 @@ class TestCreateAgent:
         )
 
         assert not result.ok
-        if code:
-            assert result.content.code == code
         assert result.content.details["operation_index"] == 1
-        # Nothing exists to read yet: the step is about this call, never the caller.
-        assert result.content.next_step == (
-            "No agent was created. Fix operation 1 as the message says, then call "
-            "create_agent again."
-        )
+        assert result.content.next_step == f"No agent was created. {step}"
         create.assert_not_awaited()
         service.workflows_dao.create_artifact.assert_not_awaited()
 
-    @pytest.mark.parametrize(
-        "archived,says",
-        [(True, "is now archived"), (False, "could not be archived")],
-    )
-    async def test_a_create_that_fails_half_way_says_what_was_saved(
-        self, service, create, archived, says
+    async def test_a_create_that_stops_half_way_says_the_same_call_finishes_it(
+        self, service, create
     ):
-        create.side_effect = None
-        create.return_value = None
-        service.archive_workflow = AsyncMock(
-            return_value=_workflow(TARGET, "x", "x") if archived else None
-        )
+        create.side_effect = EntityCreationConflict("Workflow content revision")
 
         result = await _call(handle_create_agent, service, **self._args())
 
         assert result.content.code == "create_failed"
-        assert says in result.content.message
-        assert "Nothing was saved" not in result.content.message
-        # Part of the agent may exist, so the same call is not safe to send again.
-        assert result.content.retryable is False
-        assert "list_agents" in result.content.next_step
-        created_id = create.await_args.kwargs["workflow_id"]
-        assert service.archive_workflow.await_args.kwargs["workflow_id"] == created_id
-
-    async def test_a_create_that_raises_half_way_is_archived(self, service, create):
-        create.side_effect = RuntimeError("database went away")
-        service.archive_workflow = AsyncMock()
-
-        with pytest.raises(RuntimeError):
-            await _call(handle_create_agent, service, **self._args())
-
-        created_id = create.await_args.kwargs["workflow_id"]
-        assert service.archive_workflow.await_args.kwargs["workflow_id"] == created_id
+        assert result.content.retryable is True
+        assert result.content.next_step == (
+            "Call create_agent again with the same arguments; it finishes the same agent."
+        )
 
     @pytest.mark.parametrize("key", ["instructions", "model"])
     async def test_an_unknown_top_level_field_is_refused_not_dropped(
@@ -909,24 +908,6 @@ class TestCreateAgent:
         assert result.content.code == "invalid_arguments"
         assert f"`{key}` is not a field of create_agent" in result.content.message
         assert '"operations": [{"operation": "set"' in result.content.next_step
-        create.assert_not_awaited()
-
-    async def test_a_skill_the_runtime_cannot_parse_creates_nothing(
-        self, service, create
-    ):
-        operation = {
-            "operation": "add_item",
-            "target": ["parameters", "agent", "skills"],
-            "value": {"name": "pdf-tools", "description": "Make PDFs."},
-        }
-
-        result = await _call(
-            handle_create_agent, service, **self._args(operations=[operation])
-        )
-
-        assert result.content.code == "final_validation_failed"
-        assert result.content.details["issues"] == ["skills[0].body is required"]
-        assert "create_agent again" in result.content.next_step
         create.assert_not_awaited()
 
     async def test_a_long_name_and_description_are_not_cut(self, service, create):
@@ -948,3 +929,110 @@ class TestCreateAgent:
 
         assert result.content.code == "invalid_arguments"
         create.assert_not_awaited()
+
+
+class TestCreateAgentRetry:
+    """The idempotent create over an in-memory store: a retry after a write that failed part
+    of the way finishes the same agent instead of leaving it behind beside a second one."""
+
+    @pytest.fixture
+    def store(self, service, workflows):
+        variants: dict = {}
+        revisions: dict = {}
+        failures = {"content": 1}
+
+        async def fetch_workflow(*, project_id, workflow_ref, include_archived=True):
+            return workflows.get(workflow_ref.id)
+
+        async def create_workflow(
+            *, project_id, user_id, workflow_create, workflow_id, platform_meta
+        ):
+            workflows[workflow_id] = Workflow(
+                id=workflow_id,
+                **workflow_create.model_dump(exclude={"flags"}),
+            )
+            return workflows[workflow_id]
+
+        async def fetch_workflow_variant(
+            *, project_id, workflow_ref, workflow_variant_ref
+        ):
+            return variants.get((workflow_ref.id, workflow_variant_ref.slug))
+
+        async def create_workflow_variant(
+            *, project_id, user_id, workflow_variant_create
+        ):
+            variant = WorkflowVariant(
+                id=uuid4(),
+                slug=workflow_variant_create.slug,
+                workflow_id=workflow_variant_create.workflow_id,
+            )
+            variants[(variant.workflow_id, variant.slug)] = variant
+            return variant
+
+        async def fetch_workflow_revision(
+            *, project_id, workflow_variant_ref, workflow_revision_ref
+        ):
+            return revisions.get((workflow_variant_ref.id, workflow_revision_ref.slug))
+
+        async def commit_workflow_revision(
+            *, project_id, user_id, workflow_revision_commit, platform_meta
+        ):
+            commit = workflow_revision_commit
+            if commit.data is not None and failures["content"]:
+                failures["content"] -= 1
+                raise RuntimeError("database went away")
+            revision = WorkflowRevision(
+                id=uuid4(),
+                slug=commit.slug,
+                workflow_id=commit.workflow_id,
+                workflow_variant_id=commit.workflow_variant_id,
+                data=commit.data,
+                message=commit.message,
+            )
+            revisions[(commit.workflow_variant_id, commit.slug)] = revision
+            return revision
+
+        service.fetch_workflow = AsyncMock(side_effect=fetch_workflow)
+        service.create_workflow = AsyncMock(side_effect=create_workflow)
+        service.fetch_workflow_variant = AsyncMock(side_effect=fetch_workflow_variant)
+        service.create_workflow_variant = AsyncMock(side_effect=create_workflow_variant)
+        service.fetch_workflow_revision = AsyncMock(side_effect=fetch_workflow_revision)
+        service.commit_workflow_revision = AsyncMock(
+            side_effect=commit_workflow_revision
+        )
+        return revisions
+
+    async def test_the_same_call_after_a_partial_failure_finishes_the_same_agent(
+        self, service, store
+    ):
+        arguments = {
+            "name": "Invoice helper",
+            "caller_agent_id": str(CALLER),
+            "caller_session_id": SESSION,
+        }
+
+        # The write of the first configured revision fails: the artifact, the variant and
+        # the blank revision are already stored.
+        with pytest.raises(RuntimeError):
+            await _call(handle_create_agent, service, **arguments)
+        service.create_workflow.assert_awaited_once()
+
+        result = await _call(handle_create_agent, service, **arguments)
+
+        assert result.ok, result.content
+        service.create_workflow.assert_awaited_once()
+        service.create_workflow_variant.assert_awaited_once()
+        created_id = service.create_workflow.await_args.kwargs["workflow_id"]
+        content = result.content
+        assert content["agent"]["id"] == str(created_id)
+        assert content["agent"]["slug"] == f"invoice-helper-{created_id.hex[:8]}"
+        assert content["base_revision_id"]
+        first = next(r for r in store.values() if r.data is not None)
+        assert str(first.id) == content["base_revision_id"]
+        assert first.message.startswith(f'Created by agent "Support Triage" {CALLER}')
+
+        # A third call with the same arguments returns the same agent, in the same shape.
+        again = await _call(handle_create_agent, service, **arguments)
+        assert again.content["agent"] == content["agent"]
+        assert again.content["base_revision_id"] == content["base_revision_id"]
+        service.create_workflow.assert_awaited_once()

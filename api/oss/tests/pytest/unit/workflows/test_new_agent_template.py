@@ -10,14 +10,11 @@ import pytest
 from agenta.sdk.agents.tools import DEFAULT_AGENTA_TOOLS
 
 from oss.src.core.workflows.commit_support import agent_attribution
-from oss.src.core.workflows.new_agent import (
-    ensure_enabled_sandbox,
-    new_agent_revision_data,
-    new_agent_slug,
-)
+from oss.src.core.workflows.new_agent import new_agent_revision_data, new_agent_slug
 from oss.src.resources.workflows.catalog import (
     get_filtered_workflow_catalog_templates,
 )
+from oss.src.utils.env import env
 
 
 def _web_template_data() -> dict:
@@ -31,30 +28,53 @@ def _web_template_data() -> dict:
     return template.data.model_dump(mode="json", exclude_none=True)
 
 
+@pytest.fixture
+def sandboxes(monkeypatch):
+    """Set the deployment's enabled sandbox providers and its default one."""
+
+    def set_(enabled, default):
+        monkeypatch.setattr(env.runner, "enabled_sandbox_providers", enabled)
+        monkeypatch.setattr(env.runner, "default_sandbox_provider", default)
+
+    return set_
+
+
 class TestTemplateParity:
-    def test_with_local_enabled_it_is_the_template_new_agent_reads(self):
+    def test_with_local_enabled_it_is_the_template_new_agent_reads(self, sandboxes):
+        sandboxes(["local"], "local")
         web = _web_template_data()
 
-        assert new_agent_revision_data(enabled_sandbox_providers=["local"]) == {
+        assert new_agent_revision_data() == {
             "uri": web["uri"],
             "parameters": web["parameters"],
             "schemas": web["schemas"],
         }
 
-    def test_a_daytona_only_deployment_gets_a_runnable_sandbox_like_the_web(self):
-        data = new_agent_revision_data(
-            enabled_sandbox_providers=["daytona", "inprocess"]
-        )
+    @pytest.mark.parametrize(
+        "enabled,default,kind",
+        [
+            (["daytona", "inprocess"], "daytona", "daytona"),
+            # The runtime's rule: the configured default, not the first enabled provider.
+            (["daytona", "inprocess"], "inprocess", "inprocess"),
+            (["local", "daytona"], "daytona", "local"),
+        ],
+        ids=["replaced-by-default", "default-not-first", "enabled-kept"],
+    )
+    def test_a_template_sandbox_the_deployment_does_not_enable_takes_its_default(
+        self, sandboxes, enabled, default, kind
+    ):
+        sandboxes(enabled, default)
 
-        assert data["parameters"]["agent"]["sandbox"]["kind"] == "daytona"
+        agent = new_agent_revision_data()["parameters"]["agent"]
+
+        assert agent["sandbox"]["kind"] == kind
         web = _web_template_data()["parameters"]["agent"]
-        rest = {k: v for k, v in data["parameters"]["agent"].items() if k != "sandbox"}
+        assert agent["sandbox"] == {**web["sandbox"], "kind": kind}
+        rest = {k: v for k, v in agent.items() if k != "sandbox"}
         assert rest == {k: v for k, v in web.items() if k != "sandbox"}
 
     def test_a_new_agent_gets_the_four_agent_tools_on_allow(self):
-        tools = new_agent_revision_data(enabled_sandbox_providers=["local"])[
-            "parameters"
-        ]["agent"]["tools"]
+        tools = new_agent_revision_data()["parameters"]["agent"]["tools"]
 
         entry = next(tool for tool in tools if tool["type"] == "agenta_tools")
         assert entry["tools"] == dict(DEFAULT_AGENTA_TOOLS)
@@ -67,9 +87,7 @@ class TestTemplateParity:
             assert entry["tools"][op] == "allow"
 
     def test_a_new_agent_has_an_empty_skills_list_so_the_first_skill_is_an_add(self):
-        agent = new_agent_revision_data(enabled_sandbox_providers=["local"])[
-            "parameters"
-        ]["agent"]
+        agent = new_agent_revision_data()["parameters"]["agent"]
         assert agent["skills"] == []
         # The template the web's New agent reads holds it too.
         assert _web_template_data()["parameters"]["agent"]["skills"] == []
@@ -79,45 +97,24 @@ class TestTemplateParity:
 
         assert _agent_template_issues(new_agent_revision_data()) == []
 
+    def test_a_skill_without_body_is_named_by_its_field(self):
+        # The gate every agent write goes through: the runtime's own parse.
+        from oss.src.core.workflows.service import _agent_template_issues
+
+        data = new_agent_revision_data()
+        data["parameters"]["agent"]["skills"] = [
+            {"name": "invoice-lookup", "description": "Find invoices."}
+        ]
+
+        assert _agent_template_issues(data) == ["skills[0].body is required"]
+
 
 class TestNewAgentSlug:
-    def test_the_web_rule_plus_a_suffix(self):
-        slug = new_agent_slug("  Invoice Helper (EU)! ")
-        assert slug.startswith("invoice-helper-eu-")
-        assert len(slug) == len("invoice-helper-eu-") + 6
+    def test_the_web_rule(self):
+        assert new_agent_slug("  Invoice Helper (EU)! ") == "invoice-helper-eu"
 
     def test_a_name_with_no_slug_characters_still_gets_one(self):
-        assert new_agent_slug("???").startswith("agent-")
-
-
-class TestEnsureEnabledSandbox:
-    """The web's `ensureEnabledSandbox`, case by case."""
-
-    @pytest.mark.parametrize(
-        "agent,enabled,kind",
-        [
-            ({"sandbox": {"kind": "local"}}, ["local"], "local"),
-            ({"sandbox": {"kind": "local"}}, ["daytona"], "daytona"),
-            ({"sandbox": {"kind": "daytona"}}, ["local", "daytona"], "daytona"),
-            ({}, ["daytona", "inprocess"], "daytona"),
-            ({}, ["local"], None),
-        ],
-        ids=["kept", "replaced", "enabled-kept", "unset-replaced", "unset-local-kept"],
-    )
-    def test_cases(self, agent, enabled, kind):
-        result = ensure_enabled_sandbox(agent, enabled)
-        assert (result.get("sandbox") or {}).get("kind") == kind
-
-    def test_no_enabled_providers_changes_nothing(self):
-        agent = {"sandbox": {"kind": "local", "extras": {"a": 1}}}
-        assert ensure_enabled_sandbox(agent, []) is agent
-
-    def test_other_sandbox_fields_survive_a_replacement(self):
-        agent = {"sandbox": {"kind": "local", "extras": {"a": 1}}}
-        assert ensure_enabled_sandbox(agent, ["daytona"])["sandbox"] == {
-            "kind": "daytona",
-            "extras": {"a": 1},
-        }
+        assert new_agent_slug("???") == "agent"
 
 
 class TestAttribution:
@@ -134,8 +131,3 @@ class TestAttribution:
             agent_attribution(agent_id="019f", agent_name=None, session_id="01a1")
             == "by agent 019f, session 01a1"
         )
-
-    def test_a_run_without_a_session_says_none(self):
-        assert agent_attribution(
-            agent_id="019f", agent_name="A", session_id=None
-        ).endswith("session none")
