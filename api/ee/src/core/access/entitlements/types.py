@@ -212,7 +212,7 @@ DEFAULT_CATALOG = [
         ],
     },
     {
-        "title": "Pro",
+        "title": "Starter",
         "description": "For teams running agents in production.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_PRO.value,
@@ -221,7 +221,7 @@ DEFAULT_CATALOG = [
             "base": {
                 "type": "flat",
                 "currency": "USD",
-                "amount": 29.00,
+                "amount": 20.00,
             },
             "traces": {
                 "type": "tiered",
@@ -689,9 +689,9 @@ class AgentTurnCaps(BaseModel):
 # A plan not listed here (internal, self-hosted, custom) has no caps: the runner keeps its own
 # deadline. The Business turn equals the runner's default deadline.
 HOBBY_AGENT_TURN_CAPS = AgentTurnCaps(concurrent_turns=2, max_turn_seconds=30 * 60)
-PRO_AGENT_TURN_CAPS = AgentTurnCaps(concurrent_turns=10, max_turn_seconds=4 * 60 * 60)
+PRO_AGENT_TURN_CAPS = AgentTurnCaps(concurrent_turns=20, max_turn_seconds=4 * 60 * 60)
 BUSINESS_AGENT_TURN_CAPS = AgentTurnCaps(
-    concurrent_turns=25, max_turn_seconds=11 * 60 * 60
+    concurrent_turns=50, max_turn_seconds=11 * 60 * 60
 )
 
 AGENT_TURN_CAPS: dict[str, AgentTurnCaps] = {
@@ -708,7 +708,7 @@ PROJECT_LIMITS: dict[str, int] = {
     DefaultPlan.CLOUD_V0_HOBBY.value: 1,
 }
 PROJECT_LIMIT_MESSAGE = (
-    "The Hobby plan includes 1 project. Upgrade to Pro for unlimited projects."
+    "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects."
 )
 
 

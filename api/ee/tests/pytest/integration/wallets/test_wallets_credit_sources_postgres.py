@@ -153,12 +153,12 @@ async def test_a_redelivered_renewal_grants_the_period_once(wallet_schema):
         )
 
         [credit] = await _credits(organization_id, "plan_allowance")
-        assert credit.amount_musd == 29_000_000
+        assert credit.amount_musd == 20_000_000
         assert (credit.start_time, credit.end_time) == (
             period["period_start"],
             period["period_end"],
         )
-        assert await _general_balance(organization_id) == 29_000_000
+        assert await _general_balance(organization_id) == 20_000_000
     finally:
         await _cleanup(organization_id)
 

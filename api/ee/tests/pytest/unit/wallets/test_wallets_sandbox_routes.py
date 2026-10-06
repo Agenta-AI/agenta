@@ -140,7 +140,7 @@ async def test_each_plan_runs_its_number_of_turns_at_once_and_refuses_the_next(
 
     assert refused.allowed is False
     assert refused.code == "concurrent_turns_limit"
-    assert f"allows {caps.concurrent_turns} agents at a time" in refused.message
+    assert f"allows {caps.concurrent_turns} concurrent tasks" in refused.message
     assert refused.turn_limit is None and refused.slot_held is False
 
 
@@ -152,11 +152,11 @@ def test_the_decided_caps():
     assert (
         PRO_AGENT_TURN_CAPS.concurrent_turns,
         PRO_AGENT_TURN_CAPS.max_turn_seconds,
-    ) == (10, 14400)
+    ) == (20, 14400)
     assert (
         BUSINESS_AGENT_TURN_CAPS.concurrent_turns,
         BUSINESS_AGENT_TURN_CAPS.max_turn_seconds,
-    ) == (25, 39600)
+    ) == (50, 39600)
 
 
 async def test_a_released_turn_frees_its_slot_and_a_retried_turn_keeps_its_own():

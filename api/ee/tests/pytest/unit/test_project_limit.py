@@ -96,7 +96,7 @@ async def test_create_project_is_refused_at_the_limit(monkeypatch):
 
     assert refused.value.status_code == 403
     assert refused.value.detail == (
-        "The Hobby plan includes 1 project. Upgrade to Pro for unlimited projects."
+        "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects."
     )
     create.assert_not_awaited()
 
