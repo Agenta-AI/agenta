@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["PyYAML>=6"]
+# ///
 """Rendered-chart regression coverage: the web workloads carry the sandbox provider registry.
 
 The web image's entrypoint turns AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS into the browser's
