@@ -693,6 +693,24 @@ environment is destroyed with the approval still pending — "gate pending → e
 without any intervening user turn and without touching the message history. Answering afterwards
 lands on a pool miss and takes the cold decision-map path, which is exactly the state
 `shouldRegateStaleApproval` guards. Worth a spike before concluding this needs a runner-side hook.
+- `resources/matrix_r1_two_replicas.py` — **[coached] runner replicas.** Needs a stack with TWO
+  runner containers and `--project <compose project>` plus `--stack-env <env file>` (runner token,
+  Daytona key). It decides which container served each turn from the containers' own logs
+  (`heartbeat OK session=<s> turn=<t>`, `hit-continue`), the turn ledger, the runner-token
+  streams read (`runner_replica_id`) and `session_commands.claimed_by`, never from the stream.
+  Phase 1 cells (`--cells phase1`): `warm-holder`, `approval-warm` (answered through the respond
+  route like `web/mobile`), `queued-input`, `stop-on-b`, `kill-from-non-holder`,
+  `duplicate-turn-id` (direct `/run` on both container addresses, mock harness) and
+  `inprocess-warm`. Phase 2 cells kill, stop or recreate a runner and SKIP without
+  `--allow-destructive`; `identity-mismatch` also needs `--worktree`, `--recreate-license`,
+  `--recreate-stage` and `--recreate-env-file` (no stack-specific defaults). **A release record
+  needs BOTH phases: `--cells all --allow-destructive`.** A phase-1-only run is partial
+  coverage, and a run where every selected cell SKIPs exits 2, never 0. Two traps it encodes:
+  Claude Code refuses a standalone `sleep N`, so its
+  long turns run `timeout N tail -f /dev/null`; and a queued input must carry only the trailing
+  user message, as the browser sends it, or the runner sees a history mismatch and goes cold.
+  Mandatory (via `path_triggers.py`) when the turn binding, Stop routing, follow-up routing, Kill
+  by label, or the drain changes.
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.

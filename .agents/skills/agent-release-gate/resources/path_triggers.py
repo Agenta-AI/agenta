@@ -69,6 +69,13 @@ DAYTONA_CELLS = ("C2", "C4", "X2")
 # directly, where the prelude never runs.
 SESSION_CONTEXT = ("matrix_n1_session_context.py",)
 
+# Runner replicas: the turn binding (which pod a turn runs on), Stop and follow-ups routed to the
+# bound pod, the duplicate-turn refusal, Kill by label from any pod, and the drain. Every other
+# cell runs against one runner, where "the turn reached the pod that holds the session" is true
+# by construction, so only a two-container cell can see this code break. Needs a stack with two
+# runner containers (see the cell's docstring).
+RUNNER_REPLICAS = ("matrix_r1_two_replicas.py",)
+
 # The journeys a rule can demand alongside its cells. A cell without its journey proves nothing:
 # `--release-base ... --only chat` would run `chat` on the mandatory Daytona cells and report a
 # green release while the coverage the rule exists for never ran. Journeys named here are FORCED
@@ -168,7 +175,9 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     # Session control: Stop, durable commands, park/resume, and the watchdog sweep. A change
     # here can silently break a warm resume or leave a command stuck, and nothing in the fixed
     # matrix drives Stop at all. See qa-audit-2026-09-03.md section 4.
-    "services/runner/src/sessions/**": SESSION_CONTROL,
+    # The runner's heartbeat (`sessions/alive.ts`) also carries the replica id and address the
+    # turn binds to, so the same glob makes the two-replica cell mandatory.
+    "services/runner/src/sessions/**": SESSION_CONTROL + RUNNER_REPLICAS,
     "api/oss/src/core/sessions/**": SESSION_CONTROL,
     "api/oss/src/tasks/asyncio/sessions/**": SESSION_CONTROL,
     "api/oss/src/apis/fastapi/sessions/**": SESSION_CONTROL,
@@ -178,9 +187,32 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     # transcript with no fact to read, which is invisible to every frame-level cell.
     # `api/oss/src/core/sessions/**` already names SESSION_CONTROL above; naming the resolver
     # file exactly is a separate key, and matches are unioned, so both rules fire on it.
-    "sdks/python/agenta/sdk/agents/platform/session_context.py": SESSION_CONTEXT,
+    # The session context also carries `runner_address`, the holder pod a follow-up goes to.
+    "sdks/python/agenta/sdk/agents/platform/session_context.py": SESSION_CONTEXT
+    + RUNNER_REPLICAS,
     "sdks/python/agenta/sdk/agents/platform_instructions.py": SESSION_CONTEXT,
     "api/oss/src/core/sessions/context.py": SESSION_CONTEXT,
+    # Runner replicas, end to end: the api binds a turn to its pod (`bind_turn` in the Redis
+    # locks), refuses a beat from any other pod, and delivers Stop and continuations to the bound
+    # address after an identity check; the SDK posts follow-ups to that address with a Service
+    # URL fallback; the runner reports its replica id and address, refuses a duplicate turn,
+    # kills by label, and drains on SIGTERM. Distinct keys from the broader session-control and
+    # Daytona globs above, so all matching rules fire.
+    "api/oss/src/core/sessions/streams/**": RUNNER_REPLICAS,
+    "api/oss/src/core/sessions/commands/**": RUNNER_REPLICAS,
+    "api/oss/src/apis/fastapi/sessions/router.py": RUNNER_REPLICAS,
+    "api/oss/src/apis/fastapi/shared/runner_auth.py": RUNNER_REPLICAS,
+    "api/oss/src/dbs/redis/sessions/**": RUNNER_REPLICAS,
+    "api/oss/src/dbs/http/sessions/**": RUNNER_REPLICAS,
+    "sdks/python/agenta/sdk/agents/utils/ts_runner.py": RUNNER_REPLICAS,
+    "sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py": RUNNER_REPLICAS,
+    "services/runner/src/server.ts": RUNNER_REPLICAS,
+    "services/runner/src/lifecycle/**": RUNNER_REPLICAS,
+    "services/runner/src/engines/sandbox_agent/kill-by-label.ts": RUNNER_REPLICAS,
+    "services/runner/src/engines/sandbox_agent/sandbox-labels.ts": RUNNER_REPLICAS,
+    "services/runner/src/engines/sandbox_agent/created-sandboxes.ts": RUNNER_REPLICAS,
+    "services/runner/src/engines/inprocess/**": RUNNER_REPLICAS,
+    "hosting/kubernetes/helm/templates/runner-deployment.yaml": RUNNER_REPLICAS,
 }
 
 # Glob -> journeys that MUST run when the rule fires. Same matching as PATH_TRIGGERS, kept as a
