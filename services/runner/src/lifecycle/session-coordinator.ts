@@ -35,6 +35,7 @@ import type {
 import {
   isTurnIndexTaken,
   shouldPark,
+  turnTeardownReason,
   type ParkedApproval,
   type ResumeApprovalInput,
   type RunTurnOptions,
@@ -605,13 +606,7 @@ export async function runWithKeepalive(
     stopped ? (config.stoppedTtlMs ?? config.ttlMs) : config.ttlMs;
 
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
-    shouldPark(result, signal, clientGone)
-      ? "clean-resumable"
-      : signal?.aborted || clientGone?.()
-        ? "aborted"
-        : isTurnIndexTaken(result)
-          ? "continuity-invalid"
-          : "failed-turn";
+    turnTeardownReason(result, true, signal, clientGone);
 
   /**
    * Does the durable turn log still end at the turn this warm entry last ran? A runner that

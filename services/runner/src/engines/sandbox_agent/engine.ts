@@ -15,6 +15,7 @@ import {
   type RunTurnOptions,
   type SandboxAgentDeps,
 } from "./runtime-contracts.ts";
+import type { TeardownReason } from "./teardown.ts";
 
 /** Every `AgentRunResult` this engine returns passes through here: the one choke point where a
  * gateway refusal recoverable from the harness's error text (`gateway-error.ts`) gets attached,
@@ -88,6 +89,25 @@ export function shouldPark(
 }
 
 /**
+ * Why an environment is torn down once its turn ends: the one-turn paths always tear down, the
+ * warm path only when the turn does not park. `result` is undefined when `runTurn` threw, which
+ * is a failed turn: destroy. A resumable sandbox parks on the `shouldPark` policy.
+ */
+export function turnTeardownReason(
+  result: AgentRunResult | undefined,
+  resumable: boolean,
+  signal: AbortSignal | undefined,
+  clientGone: (() => boolean) | undefined,
+): TeardownReason {
+  if (resumable && result !== undefined && shouldPark(result, signal, clientGone)) {
+    return "clean-resumable";
+  }
+  if (signal?.aborted || clientGone?.()) return "aborted";
+  if (result && isTurnIndexTaken(result)) return "continuity-invalid";
+  return "failed-turn";
+}
+
+/**
  * The cold, one-turn-per-environment entry (also the flag-off path). Acquire an environment, run
  * one turn, then tear the environment down — exactly as the single `try/finally` did before the
  * split, so behavior here is byte-identical to pre-keep-alive.
@@ -130,22 +150,13 @@ export async function runSandboxAgent(
     result = withGatewayErrorDetail(result);
     return result;
   } finally {
-    // `result` is undefined when runTurn threw: a failed turn, so destroy.
-    const cleanResumable =
-      env.resumable &&
-      result !== undefined &&
-      shouldPark(result, signal, undefined);
+    const reason = turnTeardownReason(result, env.resumable, signal, undefined);
     await env.destroy({
-      reason: cleanResumable
-        ? // A settled Stop parks under its own reason, so the log says WHY the sandbox survived.
-          result?.stopReason === "cancelled"
+      // A settled Stop parks under its own reason, so the log says WHY the sandbox survived.
+      reason:
+        reason === "clean-resumable" && result?.stopReason === "cancelled"
           ? "cancelled"
-          : "clean-resumable"
-        : signal?.aborted
-          ? "aborted"
-          : result && isTurnIndexTaken(result)
-            ? "continuity-invalid"
-            : "failed-turn",
+          : reason,
     });
   }
 }

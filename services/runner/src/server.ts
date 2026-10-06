@@ -49,11 +49,10 @@ import {
   acquireEnvironment,
   destroyInFlightSandboxes,
   destroyInFlightSandboxesForSession,
-  isTurnIndexTaken,
   resolveKeepaliveMount,
   runSandboxAgent,
   runTurn,
-  shouldPark,
+  turnTeardownReason,
   type ParkedApproval,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
@@ -325,7 +324,7 @@ export {
   type KeepaliveEngine,
 } from "./lifecycle/session-coordinator.ts";
 
-const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<SandboxAgentDeps>): KeepaliveEngine => ({
+export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<SandboxAgentDeps>): KeepaliveEngine => ({
   resolveKeepaliveMount: (request) => resolveKeepaliveMount(request),
   acquireEnvironment: async (request, signal, presignedMount, emit) =>
     acquireEnvironment(request, await engineDeps(), signal, presignedMount, emit),
@@ -402,20 +401,13 @@ const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<Sandbo
       });
       return result;
     } finally {
-      // A remote sandbox parks to warm on the same policy the warm path uses. `result` is
-      // undefined when runTurn threw, which is a failed turn: destroy.
-      const cleanResumable =
-        acquired.env.resumable &&
-        result !== undefined &&
-        shouldPark(result, signal, clientGone);
       await acquired.env.destroy({
-        reason: cleanResumable
-          ? "clean-resumable"
-          : signal?.aborted || clientGone?.()
-            ? "aborted"
-            : result && isTurnIndexTaken(result)
-              ? "continuity-invalid"
-              : "failed-turn",
+        reason: turnTeardownReason(
+          result,
+          acquired.env.resumable,
+          signal,
+          clientGone,
+        ),
       });
     }
   },
