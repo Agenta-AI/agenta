@@ -37,6 +37,7 @@ DIRECT_BASE_URLS: Dict[str, str] = {
     "cohere": "https://api.cohere.ai/compatibility/v1",
     "anthropic": "https://api.anthropic.com/v1",
     "xai": "https://api.x.ai/v1",
+    "llmapi": "https://api.llmapi.ai/v1",
 }
 
 

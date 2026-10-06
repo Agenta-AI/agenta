@@ -180,6 +180,31 @@ def _anthropic_names(payload: Any) -> Dict[str, str]:
     return _names(payload["data"], name_key="display_name")
 
 
+def _llmapi_chat_models(payload: Any) -> List[Dict[str, Any]]:
+    if not isinstance(payload["data"], list):
+        raise ValueError("Expected a model list")
+    models = []
+    for model in payload["data"]:
+        if not isinstance(model, dict) or not model.get("id"):
+            continue
+        architecture = model.get("architecture") or {}
+        if not isinstance(architecture, dict) or not all(
+            isinstance(architecture.get(field), list) and "text" in architecture[field]
+            for field in ("input_modalities", "output_modalities")
+        ):
+            continue
+        providers = model.get("providers")
+        if isinstance(providers, list) and any(
+            isinstance(provider, dict)
+            and provider.get("streaming") is True
+            and provider.get("tools") is True
+            and provider.get("responsesOnly") is not True
+            for provider in providers
+        ):
+            models.append(model)
+    return models
+
+
 def _bare_list(payload: Any) -> List[str]:
     return _ids(payload)
 
@@ -332,6 +357,50 @@ class OpenRouterAdapter:
 
 
 @dataclass(frozen=True)
+class LLMAPIAdapter:
+    label: str = "LLM API"
+
+    async def probe(self, *, client, credentials) -> ProbeOutcome:
+        key = _api_key(credentials)
+        if not key:
+            return _missing_key(self.label)
+
+        # The model catalog is public; only the account endpoint proves the key.
+        credential = CredentialResult(
+            status=CredentialStatus.UNKNOWN,
+            message=f"Could not reach {self.label} to test this key.",
+        )
+        try:
+            response = await client.get(
+                "https://api.llmapi.ai/v1/me", headers=_bearer(key)
+            )
+            if response.status_code == 401:
+                credential = CredentialResult(
+                    status=CredentialStatus.INVALID,
+                    message=f"{self.label} rejected this key (401).",
+                )
+            elif response.is_success:
+                credential = CredentialResult(
+                    status=CredentialStatus.VALID,
+                    message=f"{self.label} accepted this key.",
+                )
+            else:
+                credential.message = f"{self.label} did not answer the credential check ({response.status_code})."
+        except httpx.HTTPError:
+            pass
+
+        catalog = await _probe_catalog(
+            client=client,
+            label=self.label,
+            url="https://api.llmapi.ai/v1/models",
+            extract=lambda payload: _ids(_llmapi_chat_models(payload)),
+            extract_names=lambda payload: _names(_llmapi_chat_models(payload)),
+            proves_credential=False,
+        )
+        return ProbeOutcome(credential=credential, discovery=catalog.discovery)
+
+
+@dataclass(frozen=True)
 class AzureAdapter:
     """Lists the models enabled on the user's own resource, not a public catalog."""
 
@@ -460,6 +529,7 @@ class VertexAdapter:
 
 
 _ADAPTERS: Dict[str, ProviderAdapter] = {
+    "llmapi": LLMAPIAdapter(),
     "openai": ApiKeyCatalogAdapter(
         label="OpenAI",
         url="https://api.openai.com/v1/models",

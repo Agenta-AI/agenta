@@ -1,11 +1,14 @@
 """
-Tests that all models in `supported_llm_models` are recognised by litellm.
+Tests native registry entries and compatible routes for `supported_llm_models`.
 
 litellm.model_cost is the authoritative model registry (mirrors models.litellm.ai).
-Each model must appear there either:
+Each native provider's model must appear there either:
   - directly (e.g. "gpt-4o", "gemini/gemini-2.5-pro"), or
   - after stripping the provider prefix (e.g. "anthropic/claude-3-5-sonnet-20241022"
     lives in litellm as "claude-3-5-sonnet-20241022").
+
+LLMapi has no native registry entries. Its models must resolve through SecretsManager to
+LiteLLM's OpenAI-compatible transport with the LLMapi endpoint and credential.
 
 Run:
     pytest sdk/oss/tests/pytest/unit/test_supported_llm_models.py -v
@@ -23,6 +26,7 @@ except ImportError:
     LITELLM_MODEL_COST = set()
 
 from agenta.sdk.assets import supported_llm_models
+from agenta.sdk.managers.secrets import SecretsManager
 
 
 def _model_exists_in_litellm(model: str) -> bool:
@@ -55,7 +59,7 @@ def _all_models():
 # tracks OpenRouter's current top-used models, which routinely include ids the pinned
 # litellm build hasn't indexed yet. For that provider a miss is an expected lag, not a bug,
 # so it is reported as xfail (still runs, still flags a typo'd id via the structural check
-# below) instead of failing CI. Every other provider must resolve in litellm exactly.
+# below) instead of failing CI. Every other native provider must resolve in litellm exactly.
 _LITELLM_LAGGING_PROVIDERS = {"openrouter"}
 
 
@@ -89,8 +93,39 @@ _KNOWN_LIVE_MAP_ONLY = {
 
 @pytest.mark.skipif(not LITELLM_AVAILABLE, reason="litellm not installed")
 @pytest.mark.parametrize("model,provider", list(_all_models()))
-def test_model_exists_in_litellm(model: str, provider: str) -> None:
-    """Every model in supported_llm_models must exist in litellm's model registry."""
+def test_model_has_native_registry_entry_or_compatible_route(
+    model: str, provider: str
+) -> None:
+    """Each model must have a native registry entry or a verified compatible route."""
+    if provider == "llmapi":
+        assert model.startswith("llmapi/") and all(model.split("/"))
+        assert not any(char.isspace() for char in model)
+        model_id = model.removeprefix("llmapi/")
+        secrets = [
+            {
+                "kind": "provider_key",
+                "slug": f"{family}-connection",
+                "data": {"kind": family, "provider": {"key": f"test-{family}-key"}},
+            }
+            for family in ("openai", "llmapi")
+        ]
+        for connection in (None, "llmapi-connection"):
+            settings = SecretsManager._resolve_provider_settings(
+                secrets=secrets, model=model, connection=connection
+            )
+            assert settings == {
+                "model": f"openai/{model_id}",
+                "api_base": "https://api.llmapi.ai/v1",
+                "api_key": "test-llmapi-key",
+            }
+            assert litellm.get_llm_provider(**settings) == (
+                model_id,
+                "openai",
+                "test-llmapi-key",
+                "https://api.llmapi.ai/v1",
+            )
+        return
+
     found = _model_exists_in_litellm(model)
     if not found and provider in _LITELLM_LAGGING_PROVIDERS:
         # Structural guard even when we can't cost-check: the id must still be
