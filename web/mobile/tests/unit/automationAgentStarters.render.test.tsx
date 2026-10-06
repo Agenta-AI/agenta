@@ -6,6 +6,7 @@
 import {act} from "react"
 
 import type {Workflow} from "@agenta/entities/workflow"
+import {QueryClient} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
@@ -49,6 +50,7 @@ afterEach(() => {
     root = undefined
     host?.remove()
     host = undefined
+    vi.restoreAllMocks()
 })
 
 const renderWith = (state: Partial<RosterState>) => {
@@ -78,5 +80,23 @@ describe("AutomationAgentStarters", () => {
         const node = renderWith({isError: true, error: new Error("boom")})
         expect(node.textContent).toContain("Could not load agents")
         expect(node.querySelector('[data-testid="template-starters"]')).toBeNull()
+    })
+
+    it("retries by refetching the agent roster", () => {
+        // The roster atom has no refetch handle; retry invalidates the key it is cached under.
+        const invalidate = vi
+            .spyOn(QueryClient.prototype, "invalidateQueries")
+            .mockResolvedValue(undefined)
+        const node = renderWith({isError: true, error: new Error("boom")})
+        const retry = [...node.querySelectorAll("button")].find(
+            (button) => button.textContent === "Try again",
+        )
+        expect(retry, "no retry button").toBeTruthy()
+
+        act(() => {
+            retry!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+
+        expect(invalidate).toHaveBeenCalledWith({queryKey: ["workflows"]})
     })
 })
