@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
     agentTemplatesAtom,
@@ -68,13 +68,17 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     }, [agentsSettled, hasAgents, openWhatsNew])
     const router = useRouter()
     const previewVariant = parseOnboardingVariant(router.query[ONBOARDING_PREVIEW_PARAM])
+    // The project the flow has been shown for; it stays up until this route is left.
+    const [onboardingProject, setOnboardingProject] = useState<string | null>(null)
     const surface = resolveHomeSurface({
         agentCount: agents.length,
         isPending: agentsQuery.isPending,
         isError: agentsQuery.isError,
         onboardingFlow: isOnboardingFlowEnabled(),
         onboardingPreview: previewVariant !== null,
+        onboardingShown: onboardingProject === projectId,
     })
+    if (surface === "onboarding" && onboardingProject !== projectId) setOnboardingProject(projectId)
 
     // Newest first. The list arrives in whatever order the query returns, which put agents made
     // months ago above one created a minute earlier — and the head of this list is also what the

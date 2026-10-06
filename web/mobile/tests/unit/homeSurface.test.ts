@@ -8,6 +8,7 @@ const input = (overrides: Partial<HomeSurfaceInput> = {}): HomeSurfaceInput => (
     isError: false,
     onboardingFlow: false,
     onboardingPreview: false,
+    onboardingShown: false,
     ...overrides,
 })
 
@@ -51,5 +52,12 @@ describe("resolveHomeSurface", () => {
         const preview = {onboardingPreview: true, agentCount: 4}
         expect(resolveHomeSurface(input({...preview, onboardingFlow: true}))).toBe("onboarding")
         expect(resolveHomeSurface(input(preview))).toBe("home")
+    })
+
+    it("keeps the flow up once shown, even after the create fills the agent list", () => {
+        const shown = {onboardingFlow: true, onboardingShown: true, agentCount: 1}
+        expect(resolveHomeSurface(input(shown))).toBe("onboarding")
+        expect(resolveHomeSurface(input({...shown, isPending: true}))).toBe("onboarding")
+        expect(resolveHomeSurface(input({...shown, onboardingFlow: false}))).toBe("home")
     })
 })

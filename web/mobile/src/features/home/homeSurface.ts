@@ -26,6 +26,8 @@ export interface HomeSurfaceInput {
     onboardingFlow: boolean
     /** A `?onboarding-variant=` preview opens the flow on any project. */
     onboardingPreview: boolean
+    /** The flow is already on screen; a list refetch (the create itself) must not swap it out. */
+    onboardingShown: boolean
 }
 
 export const resolveHomeSurface = ({
@@ -34,8 +36,9 @@ export const resolveHomeSurface = ({
     isError,
     onboardingFlow,
     onboardingPreview,
+    onboardingShown,
 }: HomeSurfaceInput): HomeSurface => {
-    if (onboardingFlow && onboardingPreview) return "onboarding"
+    if (onboardingFlow && (onboardingPreview || onboardingShown)) return "onboarding"
     if (isError) return "home"
     if (agentCount > 0) return "home"
     if (isPending) return "loading"
