@@ -17,7 +17,7 @@ const TAB_DESCRIPTIONS: Partial<Record<SettingsTabKey, string>> = {
 }
 
 const TAB_DOCS_LABELS: Partial<Record<SettingsTabKey, string>> = {
-    tools: "About integrations",
+    tools: "Learn more about integrations",
 }
 
 export const getMobileSettingsTabLabel = (key: SettingsTabKey, access: SettingsAccess) =>

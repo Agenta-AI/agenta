@@ -3,17 +3,15 @@ import {ArrowSquareOut} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
 import {openFeatureGuideAtom} from "./featureGuideAtom"
-import {FEATURE_GUIDES} from "./featureGuides"
-import {streamPlayerUrl} from "./streamMedia"
+import {guidePlayerUrl} from "./streamMedia"
 
 /** The walkthrough lightbox; `GlobalDrawers` mounts it and `openFeatureGuideAtom` opens it. */
 export const FeatureGuideDialog = () => {
-    const [guideKey, setGuideKey] = useAtom(openFeatureGuideAtom)
-    const guide = guideKey ? FEATURE_GUIDES[guideKey] : null
+    const [guide, setGuide] = useAtom(openFeatureGuideAtom)
     const video = guide?.video
 
     return (
-        <Dialog open={Boolean(video)} onOpenChange={(open) => !open && setGuideKey(null)}>
+        <Dialog open={Boolean(video)} onOpenChange={(open) => !open && setGuide(null)}>
             {guide && video ? (
                 <DialogContent
                     showCloseButton={false}
@@ -28,10 +26,12 @@ export const FeatureGuideDialog = () => {
                 >
                     <div className="aspect-video w-full overflow-hidden rounded-[14px] bg-black">
                         <iframe
-                            src={streamPlayerUrl(video.id)}
+                            src={guidePlayerUrl(video)}
                             title={video.title}
                             className="block size-full border-0"
                             allow="autoplay; fullscreen; picture-in-picture"
+                            // YouTube refuses to play an embed that sends no referrer.
+                            referrerPolicy="strict-origin-when-cross-origin"
                         />
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-3 px-2 pb-1 pt-3 sm:px-3">
@@ -50,7 +50,7 @@ export const FeatureGuideDialog = () => {
                                     <ArrowSquareOut aria-hidden />
                                 </a>
                             </Button>
-                            <Button size="sm" onClick={() => setGuideKey(null)}>
+                            <Button size="sm" onClick={() => setGuide(null)}>
                                 Close
                                 <Kbd tone="inverse">Esc</Kbd>
                             </Button>

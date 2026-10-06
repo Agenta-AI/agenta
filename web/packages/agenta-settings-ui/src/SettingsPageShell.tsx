@@ -1,6 +1,7 @@
 import {createContext, useContext, useState, type ReactNode, type Ref} from "react"
 
-import {ArrowSquareOut} from "@phosphor-icons/react"
+import {Button} from "@agenta/ui/ui"
+import {ArrowSquareOut, PlayCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {createPortal} from "react-dom"
 
@@ -9,8 +10,10 @@ export interface SettingsPageShellProps {
     title: ReactNode
     /** One sentence saying what the page is for. */
     description: ReactNode
-    /** Optional tertiary docs link, rendered at the far right of the header. */
+    /** The tab's docs, linked at the end of the description. */
     docs?: {label: string; href: string}
+    /** A walkthrough video beside the primary action; absent until the tab has one. */
+    video?: {label: string; onOpen: () => void}
     /** `table` is the centered 1040px column; `full` drops the cap (Audit Log). */
     variant?: "full" | "table"
     /** The body's scroll box, for a host that watches its scroll position. */
@@ -38,25 +41,19 @@ const columnClassName = (variant: SettingsPageShellProps["variant"]) =>
         variant !== "full" && "mx-auto max-w-[1040px]",
     )
 
-/** On a phone the label folds to its icon, so the title keeps its room. */
-const DocsLink = ({docs}: {docs: {label: string; href: string}}) => (
-    <a
-        className="flex shrink-0 items-center gap-1.5 text-[13px] text-colorTextSecondary no-underline hover:text-colorText"
-        href={docs.href}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={docs.label}
-        title={docs.label}
-    >
-        <span className="hidden sm:inline">{docs.label}</span>
-        <ArrowSquareOut size={13} />
-    </a>
+/** The walkthrough beside the primary action; on a phone it folds to its icon. */
+const VideoButton = ({video}: {video: {label: string; onOpen: () => void}}) => (
+    <Button variant="ghost" onClick={video.onOpen} aria-label={video.label} title={video.label}>
+        <PlayCircle aria-hidden />
+        <span className="hidden sm:inline">{video.label}</span>
+    </Button>
 )
 
 const SettingsPageShell = ({
     title,
     description,
     docs,
+    video,
     variant = "full",
     scrollRef,
     scrollClassName,
@@ -84,15 +81,31 @@ const SettingsPageShell = ({
                         {title}
                     </h1>
 
-                    <div className="flex shrink-0 items-center gap-4">
-                        {docs ? <DocsLink docs={docs} /> : null}
+                    <div className="flex shrink-0 items-center gap-2">
+                        {video ? <VideoButton video={video} /> : null}
                         <div
                             ref={setActionsSlot}
                             className="flex items-center gap-2 empty:hidden"
                         />
                     </div>
                 </div>
-                <p className="m-0 text-[14px] leading-5 text-colorTextSecondary">{description}</p>
+                <p className="m-0 text-[14px] leading-5 text-colorTextSecondary">
+                    {description}
+                    {docs ? (
+                        <>
+                            {" "}
+                            <a
+                                href={docs.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-colorText hover:underline"
+                            >
+                                {docs.label}
+                                <ArrowSquareOut size={12} />
+                            </a>
+                        </>
+                    ) : null}
+                </p>
             </header>
 
             <div

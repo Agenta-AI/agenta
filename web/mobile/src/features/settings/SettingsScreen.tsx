@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef} from "react"
 import {getSettingsTabVariant, type SettingsTabKey} from "@agenta/settings"
 import {SettingsPageShell} from "@agenta/settings-ui"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -15,6 +16,7 @@ import {
 } from "@/lib/integrationsCopy"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {openFeatureGuideAtom} from "../education/featureGuideAtom"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -24,6 +26,7 @@ import {SettingsTabContent} from "./SettingsTabContent"
 import {SettingsTabRail} from "./SettingsTabRail"
 import {preloadAllSettingsTabs, preloadSettingsTab} from "./settingsTabRegistry"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
+import {SETTINGS_WALKTHROUGHS} from "./settingsWalkthroughs"
 
 /** Warms a tab's code when the pointer reaches its nav link, and every tab once the page is idle. */
 const usePreloadSettingsTabs = () => {
@@ -82,6 +85,9 @@ export const SettingsScreen = ({
     // A pinned catalog search keeps its colour; the top fade starts below it.
     useScrollFadeEdges(scrollRef, {insetSelector: "[data-sticky-search]"})
 
+    const openWalkthrough = useSetAtom(openFeatureGuideAtom)
+    const walkthrough = SETTINGS_WALKTHROUGHS[active]
+
     const content = (
         // Does not scroll: the shell keeps the title still and scrolls only its body.
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -92,6 +98,11 @@ export const SettingsScreen = ({
                 title={getMobileSettingsTabLabel(active, access)}
                 description={getMobileSettingsTabDescription(active, access)}
                 docs={getMobileSettingsTabDocs(active)}
+                video={
+                    walkthrough
+                        ? {label: "Watch walkthrough", onOpen: () => openWalkthrough(walkthrough)}
+                        : undefined
+                }
             >
                 <SettingsTabContent tab={active} workspaceId={workspaceId} projectId={projectId} />
             </SettingsPageShell>

@@ -68,13 +68,19 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         key: "llms",
         scope: "project",
         description: "Connect the AI providers your agents, prompts, and evaluations run on.",
-        docs: {label: "Provider setup", href: `${DOCS_BASE}/faq/integrations/llm-providers`},
+        docs: {
+            label: "Learn more about AI providers",
+            href: `${DOCS_BASE}/faq/integrations/llm-providers`,
+        },
     },
     {
         key: "tools",
         scope: "project",
         description: "Configure integrations your agents can use.",
-        docs: {label: "About tools", href: `${DOCS_BASE}/concepts/tools-and-integrations`},
+        docs: {
+            label: "Learn more about tools",
+            href: `${DOCS_BASE}/concepts/tools-and-integrations`,
+        },
     },
     {
         key: "secrets",
@@ -97,7 +103,10 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         key: "apiKeys",
         scope: "project",
         description: "Manage API keys used to authenticate requests.",
-        docs: {label: "Using the API", href: `${DOCS_BASE}/reference/api-guide/overview`},
+        docs: {
+            label: "Learn more about the API",
+            href: `${DOCS_BASE}/reference/api-guide/overview`,
+        },
     },
     {
         key: "webhooks",
@@ -125,7 +134,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "organization",
         description: "Manage members, invitations, and access.",
         docs: {
-            label: "Roles and permissions",
+            label: "Learn more about roles",
             href: `${DOCS_BASE}/administration/access-control/rbac`,
         },
     },
@@ -134,7 +143,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "organization",
         description: "Every organization you belong to.",
         docs: {
-            label: "About organizations",
+            label: "Learn more about organizations",
             href: `${DOCS_BASE}/administration/access-control/organizations`,
         },
     },
@@ -143,7 +152,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "organization",
         description: "Organize agents, datasets, and deployments.",
         docs: {
-            label: "About projects",
+            label: "Learn more about projects",
             href: `${DOCS_BASE}/administration/access-control/organizations`,
         },
     },
@@ -152,7 +161,10 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "organization",
         description:
             "Control how members sign in and which email domains are allowed to join this organization.",
-        docs: {label: "SSO setup", href: `${DOCS_BASE}/administration/access-control/sso`},
+        docs: {
+            label: "Learn more about SSO",
+            href: `${DOCS_BASE}/administration/access-control/sso`,
+        },
     },
     {
         key: "auditLog",
