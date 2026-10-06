@@ -1,6 +1,6 @@
-"""The default plan cards state the credit pricing model. Every credit, cap, top-up and
-quota number a card shows must equal the constant that enforces it, so a pricing change
-in the wallet or the entitlements fails here until the card says the same thing."""
+"""The default plan cards state the credit pricing model. Every credit, top-up, concurrency,
+project and seat number a card shows must equal the constant that enforces it, so a pricing
+change in the wallet or the entitlements fails here until the card says the same thing."""
 
 import pytest
 
@@ -8,8 +8,7 @@ from ee.src.core.access.entitlements.types import (
     AGENT_TURN_CAPS,
     DEFAULT_CATALOG,
     DEFAULT_ENTITLEMENTS,
-    REPORTS,
-    Counter,
+    PROJECT_LIMITS,
     DefaultPlan,
     Gauge,
     Tracker,
@@ -25,7 +24,7 @@ from ee.src.core.wallets.plans import (
 from ee.src.core.wallets.purchases import MUSD_PER_CREDIT, TOP_UP_PACKS
 
 HOBBY = DefaultPlan.CLOUD_V0_HOBBY
-PRO = DefaultPlan.CLOUD_V0_PRO
+STARTER = DefaultPlan.CLOUD_V0_PRO
 BUSINESS = DefaultPlan.CLOUD_V0_BUSINESS
 
 
@@ -41,90 +40,61 @@ def _credits(musd: int) -> str:
     return f"{musd // MUSD_PER_CREDIT:,}"
 
 
-def _duration(seconds: int) -> str:
-    hours, rest = divmod(seconds, 3600)
-    if hours and not rest:
-        return f"{hours} hour" if hours == 1 else f"{hours} hours"
-    return f"{seconds // 60} minutes"
-
-
-def test_no_card_sells_agent_runs():
+def test_no_card_names_internal_units_or_old_quotas():
+    banned = ("agent run", "trace", "evaluation", "sandbox", "workflow")
     for entry in DEFAULT_CATALOG:
         for feature in entry["features"]:
-            assert "agent run" not in feature.lower(), feature
+            assert not any(word in feature.lower() for word in banned), feature
 
 
-def test_one_credit_is_one_cent():
-    assert MUSD_PER_CREDIT == 10_000
-    for plan in (HOBBY, PRO):
-        assert "1 credit = $0.01, spent on built-in models and sandbox time" in (
-            _features(plan)
-        )
+def test_the_pro_plan_is_sold_as_starter():
+    assert _card(STARTER)["title"] == "Starter"
+    assert _card(STARTER)["price"]["base"]["amount"] == 20.00
+    assert "Everything in Hobby" in _features(STARTER)
+    assert "Everything in Starter" in _features(BUSINESS)
 
 
-def test_hobby_card_states_signup_and_daily_credits():
-    signup_dollars = SIGNUP_GRANT_AMOUNT_MUSD // 1_000_000
+def test_hobby_card_states_the_signup_bonus_projects_and_seats():
     assert (
-        f"${signup_dollars} of credits at signup "
-        f"({_credits(SIGNUP_GRANT_AMOUNT_MUSD)} credits)"
+        f"Limited time: {_credits(SIGNUP_GRANT_AMOUNT_MUSD)} bonus credits "
+        "when you sign up"
     ) in _features(HOBBY)
+    seats = DEFAULT_ENTITLEMENTS[HOBBY][Tracker.GAUGES][Gauge.USERS].limit
+    assert f"{PROJECT_LIMITS[HOBBY.value]} project and {seats} team members" in (
+        _features(HOBBY)
+    )
+    assert STARTER.value not in PROJECT_LIMITS
+    assert BUSINESS.value not in PROJECT_LIMITS
+
+
+def test_every_paid_plan_inherits_the_daily_credits_from_hobby():
     assert (
-        f"{_credits(DAILY_FREE_CREDITS_MUSD)} free credits every day, "
-        "reset at midnight UTC, no rollover"
+        f"{_credits(DAILY_FREE_CREDITS_MUSD)} free credits every day, to use that day"
     ) in _features(HOBBY)
-    assert DAILY_FREE_CREDIT_PLANS == frozenset({HOBBY.value})
+    assert {HOBBY.value, STARTER.value, BUSINESS.value} <= DAILY_FREE_CREDIT_PLANS
     assert allowance_musd_for_plan(plan=HOBBY.value) == 0
 
 
-@pytest.mark.parametrize("plan", [PRO, BUSINESS])
-def test_paid_cards_state_monthly_credits_equal_to_the_price(plan):
+@pytest.mark.parametrize(
+    "plan,credits",
+    [(STARTER, "2,000"), (BUSINESS, "32,000")],
+)
+def test_paid_cards_state_their_monthly_credits(plan, credits):
     allowance = allowance_musd_for_plan(plan=plan.value)
-    assert f"{_credits(allowance)} credits every month" in _features(plan)
-    # Option E: a paid plan's monthly credits equal its price.
-    price = _card(plan)["price"]["base"]["amount"]
-    assert allowance == round(price * 1_000_000)
+    assert _credits(allowance) == credits
+    assert f"{credits} credits a month" in _features(plan)
 
 
-def test_pro_card_states_the_smallest_top_up_pack():
+def test_starter_card_states_the_smallest_top_up_pack():
     smallest = min(TOP_UP_PACKS.values(), key=lambda pack: pack.price_cents)
     assert (
-        f"Buy more credits: ${smallest.price_cents // 100} for "
-        f"{smallest.credits:,} credits"
-    ) in _features(PRO)
-    # Business inherits it through "Everything in Pro"; Hobby cannot buy top-ups.
-    assert "Everything in Pro" in _features(BUSINESS)
+        f"Buy more credits any time: {smallest.credits:,} for "
+        f"${smallest.price_cents // 100}"
+    ) in _features(STARTER)
     assert not any("Buy more credits" in f for f in _features(HOBBY))
 
 
-@pytest.mark.parametrize("plan", [HOBBY, PRO, BUSINESS])
-def test_cards_state_the_agent_turn_caps(plan):
+@pytest.mark.parametrize("plan", [HOBBY, STARTER, BUSINESS])
+def test_cards_state_the_concurrent_tasks(plan):
     caps = AGENT_TURN_CAPS[plan.value]
-    assert (
-        f"{caps.concurrent_turns} agents at once, up to "
-        f"{_duration(caps.max_turn_seconds)} per request"
-    ) in _features(plan)
-
-
-def test_cards_state_the_platform_quotas_they_keep():
-    hobby = DEFAULT_ENTITLEMENTS[HOBBY][Tracker.COUNTERS]
-    assert f"{hobby[Counter.TRACES_INGESTED].limit:,} traces / month" in (
-        _features(HOBBY)
-    )
-    assert f"{hobby[Counter.EVALUATIONS_RUN].limit} evaluations / month" in (
-        _features(HOBBY)
-    )
-    seats = DEFAULT_ENTITLEMENTS[HOBBY][Tracker.GAUGES][Gauge.USERS].limit
-    assert f"{seats} team members" in _features(HOBBY)
-
-    # Paid plans: traces are metered to Stripe past the free tier, at the tiered price
-    # the card states.
-    assert REPORTS[Counter.TRACES_INGESTED.value] == "traces"
-    for plan in (PRO, BUSINESS):
-        traces = DEFAULT_ENTITLEMENTS[plan][Tracker.COUNTERS][Counter.TRACES_INGESTED]
-        assert traces.limit is None
-        tiers = _card(plan)["price"]["traces"]["tiers"]
-        assert tiers[0]["limit"] == traces.free
-        assert (
-            f"{traces.free:,} traces / month included, then "
-            f"${tiers[1]['amount']:.0f} per additional {tiers[1]['rate']:,}"
-        ) in _features(plan)
+    assert f"{caps.concurrent_turns} concurrent tasks" in _features(plan)
