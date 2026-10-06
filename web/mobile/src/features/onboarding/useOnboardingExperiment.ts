@@ -32,10 +32,13 @@ export const useOnboardingExperiment = (
         return getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") ? null : FALLBACK
     })
     const settledRef = useRef(assignment !== null)
+    const unsubscribeRef = useRef<(() => void) | null>(null)
 
     const settle = useCallback((next: OnboardingAssignment) => {
         if (settledRef.current) return
         settledRef.current = true
+        unsubscribeRef.current?.()
+        unsubscribeRef.current = null
         setAssignment(next)
         if (next.enrolled) capture("onboarding_started", {variant: next.variant})
     }, [])
@@ -48,15 +51,27 @@ export const useOnboardingExperiment = (
 
     useEffect(() => {
         if (!client || settledRef.current) return
-        const read = () => {
-            const variant = parseOnboardingVariant(
-                client.getFeatureFlag(ONBOARDING_EXPERIMENT_FLAG),
-            )
-            if (variant) settle({variant, enrolled: true})
+        const read = () => parseOnboardingVariant(client.getFeatureFlag(ONBOARDING_EXPERIMENT_FLAG))
+        const cached = read()
+        if (cached) {
+            settle({variant: cached, enrolled: true})
+            return
         }
-        read()
-        if (settledRef.current) return
-        return client.onFeatureFlags(read)
+        // Flags have loaded when this fires: no variant means not in the experiment.
+        const unsubscribe = client.onFeatureFlags(() => {
+            if (settledRef.current) return
+            const variant = read()
+            settle(variant ? {variant, enrolled: true} : FALLBACK)
+        })
+        if (settledRef.current) {
+            unsubscribe()
+            return
+        }
+        unsubscribeRef.current = unsubscribe
+        return () => {
+            unsubscribe()
+            unsubscribeRef.current = null
+        }
     }, [client, settle])
 
     return assignment
