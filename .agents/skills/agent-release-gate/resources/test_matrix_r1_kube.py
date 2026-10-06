@@ -405,19 +405,26 @@ class TestModes:
 
 
 class TestNodeAndDrainSafety:
-    def test_uncordon_retries_until_it_succeeds(self, m, monkeypatch):
+    def test_uncordon_retries_until_the_node_is_schedulable(self, m, monkeypatch):
         monkeypatch.setattr(m.time, "sleep", lambda s: None)
         stack = m.KubeStack.__new__(m.KubeStack)
-        stack.kubectl = FakeKube([(1, ""), (0, "node/n1 uncordoned")])
+        stack.kubectl = FakeNodeKube(
+            [(1, "", ""), (0, "node/n1 uncordoned", "")], [True, False]
+        )
         out = m._uncordon(stack, "n1")
         assert out["rc"] == 0
         assert out["attempts"] == 2
-        assert stack.kubectl.calls == [("uncordon", "n1"), ("uncordon", "n1")]
+        assert [c[0] for c in stack.kubectl.calls] == [
+            "uncordon",
+            "get",
+            "uncordon",
+            "get",
+        ]
 
     def test_a_last_uncordon_failure_is_printed_loudly(self, m, monkeypatch, capsys):
         monkeypatch.setattr(m.time, "sleep", lambda s: None)
         stack = m.KubeStack.__new__(m.KubeStack)
-        stack.kubectl = FakeKube([(1, "")] * 5)
+        stack.kubectl = FakeNodeKube([(1, "", "")] * 5, [True] * 5)
         out = m._uncordon(stack, "n1")
         assert (out["rc"], out["attempts"]) == (1, 5)
         assert "NODE n1 MAY STILL BE CORDONED" in capsys.readouterr().err
@@ -634,3 +641,85 @@ def _never_gone(probe, replica_id, **kwargs):
         "kill_gone_after_s": None,
         "probes": 60,
     }
+
+
+AUTOPILOT_DENIAL = (
+    'error: unable to uncordon node "n1": admission webhook "warden-validating.example" '
+    "denied the request: GKE Warden rejected the request because it violates one or more "
+    'constraints.\nViolations details: {"[denied by autogke-no-node-updates]":["Uncordon '
+    'on Autopilot nodes is not allowed."]}\n'
+)
+
+
+class FakeNodeKube:
+    """`kubectl uncordon` answers from `results` (rc, stdout, stderr); `get node` reads back
+    the node's `spec.unschedulable` from `cordoned`, one value per read."""
+
+    def __init__(self, results, cordoned):
+        self.results = list(results)
+        self.cordoned = list(cordoned)
+        self.calls = []
+
+    def run(self, *args, timeout=60.0):
+        self.calls.append(args)
+        rc, out, err = self.results.pop(0)
+        return subprocess.CompletedProcess(args, rc, out, err)
+
+    def json(self, *args, timeout=60.0):
+        self.calls.append(args)
+        return {"spec": {"unschedulable": self.cordoned.pop(0)}}
+
+
+def _node_stack(m, kube):
+    stack = m.KubeStack.__new__(m.KubeStack)
+    stack.kubectl = kube
+    return stack
+
+
+class TestUncordon:
+    def test_an_admission_denial_with_exit_0_is_not_retried_and_is_reported(
+        self, m, capsys
+    ):
+        kube = FakeNodeKube([(0, "", AUTOPILOT_DENIAL)], [True])
+        out = m._uncordon(_node_stack(m, kube), "n1", pause_s=0)
+        assert out["rc"] == 0
+        assert out["attempts"] == 1
+        assert out["denied_by_admission"] is True
+        assert out["node_left_cordoned"] is True
+        assert [c[0] for c in kube.calls] == ["uncordon", "get"]
+        assert m.UNCORDON_REFUSED_NOTE in capsys.readouterr().err
+
+    def test_success_is_read_off_the_node(self, m, capsys):
+        kube = FakeNodeKube([(0, "node/n1 uncordoned\n", "")], [False])
+        out = m._uncordon(_node_stack(m, kube), "n1", pause_s=0)
+        assert out["node_left_cordoned"] is False
+        assert out["denied_by_admission"] is False
+        assert capsys.readouterr().err == ""
+
+    def test_a_nonzero_exit_on_a_schedulable_node_is_fine(self, m):
+        kube = FakeNodeKube([(1, "", "error: transient")], [False])
+        out = m._uncordon(_node_stack(m, kube), "n1", pause_s=0)
+        assert (out["rc"], out["node_left_cordoned"]) == (1, False)
+
+    def test_another_failure_is_retried_then_warned(self, m, capsys):
+        kube = FakeNodeKube(
+            [(1, "", "error: connection refused")] * 3, [True, True, True]
+        )
+        out = m._uncordon(_node_stack(m, kube), "n1", tries=3, pause_s=0)
+        assert out["attempts"] == 3
+        assert out["rc"] == 1
+        assert out["node_left_cordoned"] is True
+        assert out["denied_by_admission"] is False
+        assert "MAY STILL BE CORDONED" in capsys.readouterr().err
+
+    def test_a_retry_that_works(self, m):
+        kube = FakeNodeKube(
+            [(1, "", "error: timeout"), (0, "node/n1 uncordoned\n", "")], [True, False]
+        )
+        out = m._uncordon(_node_stack(m, kube), "n1", pause_s=0)
+        assert (out["attempts"], out["node_left_cordoned"]) == (2, False)
+
+    def test_the_denial_detector(self, m):
+        assert m._uncordon_denied(AUTOPILOT_DENIAL)
+        assert not m._uncordon_denied("error: the server was unable to respond")
+        assert not m._uncordon_denied("node/n1 uncordoned")

@@ -3538,25 +3538,57 @@ def cell_rollout_during_turn(ctx: Ctx) -> tuple[dict, dict]:
     )
 
 
-def _uncordon(stack: Stack, node: str, tries: int = 5) -> dict:
+UNCORDON_REFUSED_NOTE = (
+    "node left cordoned: the cluster refuses uncordon; the autoscaler removes it"
+)
+
+
+def _uncordon_denied(output: str) -> bool:
+    """An admission webhook refused the uncordon: cluster policy (GKE Autopilot refuses node
+    updates), so a retry can never succeed."""
+    return "admission webhook" in output and "denied the request" in output
+
+
+def _node_cordoned(stack: Stack, node: str) -> bool | None:
+    """The node's `spec.unschedulable`, or None when the node cannot be read."""
+    try:
+        spec = stack.kubectl.json("get", "node", node).get("spec") or {}
+    except (RuntimeError, ValueError):
+        return None
+    return bool(spec.get("unschedulable"))
+
+
+def _uncordon(stack: Stack, node: str, tries: int = 5, pause_s: float = 3.0) -> dict:
     """`kubectl uncordon`, retried: a node left cordoned takes capacity from every workload on
-    the cluster. A last failure is printed loudly so the operator runs it by hand."""
+    the cluster. Success is read off the node itself, not kubectl's exit code: kubectl prints
+    an admission denial and still exits 0. A denial is not retried. A node left cordoned is
+    printed loudly."""
     res = None
-    attempt = 0
-    for attempt in range(1, tries + 1):
+    attempts = 0
+    denied = False
+    cordoned: bool | None = None
+    while attempts < tries:
         res = stack.kubectl.run("uncordon", node)
-        if res.returncode == 0:
+        attempts += 1
+        denied = _uncordon_denied(res.stdout + res.stderr)
+        cordoned = _node_cordoned(stack, node)
+        if cordoned is False or denied:
             break
-        time.sleep(3)
-    if res.returncode != 0:
-        print(
-            f"[r1] NODE {node} MAY STILL BE CORDONED: `kubectl uncordon {node}` failed "
-            f"{attempt} times (exit {res.returncode}); run it by hand",
-            file=sys.stderr,
-        )
+        time.sleep(pause_s)
+    if cordoned is not False:
+        if denied:
+            print(f"[r1] NODE {node}: {UNCORDON_REFUSED_NOTE}", file=sys.stderr)
+        else:
+            print(
+                f"[r1] NODE {node} MAY STILL BE CORDONED: `kubectl uncordon {node}` "
+                f"failed {attempts} times (exit {res.returncode}); run it by hand",
+                file=sys.stderr,
+            )
     return {
         "rc": res.returncode,
-        "attempts": attempt,
+        "attempts": attempts,
+        "denied_by_admission": denied,
+        "node_left_cordoned": cordoned is not False,
         "out": (res.stdout + res.stderr).strip()[:300],
     }
 
@@ -3683,10 +3715,15 @@ def cell_drain_node_parked_approval(ctx: Ctx) -> tuple[dict, dict]:
         ]
     finally:
         ev["uncordon"] = (
-            {"rc": 0, "out": "not needed: the cordon was refused"}
+            {
+                "rc": 0,
+                "node_left_cordoned": False,
+                "out": "not needed: the cordon was refused",
+            }
             if cordon_refused
             else _uncordon(stack, node)
         )
+        ev["node_left_cordoned"] = ev["uncordon"]["node_left_cordoned"]
         ev["restore"] = _restore(stack, holder)
     approvals = [r for r in ev["interactions_after"] if "approval" in str(r["kind"])]
     status = next(
@@ -3705,14 +3742,24 @@ def cell_drain_node_parked_approval(ctx: Ctx) -> tuple[dict, dict]:
         problems.append(f"a second approval card: {approvals}")
     if status not in ("resolved", "responded"):
         problems.append(f"the interaction row is {status!r}")
-    if ev["uncordon"]["rc"] != 0:
-        problems.append(f"`kubectl uncordon {node}` exited {ev['uncordon']['rc']}")
+    # A cluster that refuses uncordon by policy is no product failure, but the reason says so.
+    refused_note = (
+        f"; {UNCORDON_REFUSED_NOTE}"
+        if ev["node_left_cordoned"] and ev["uncordon"].get("denied_by_admission")
+        else ""
+    )
+    if ev["node_left_cordoned"] and not refused_note:
+        problems.append(
+            f"node {node} may still be cordoned after `kubectl uncordon` "
+            f"(exit {ev['uncordon']['rc']}, {ev['uncordon']['attempts']} attempts)"
+        )
     if problems:
-        return ev, _fail("; ".join(problems))
+        return ev, _fail("; ".join(problems) + refused_note)
     return ev, _pass(
         f"node of A ({holder.name}) drained through the budget (refused first: "
         f"{ev['eviction_refused_by_budget_first']}); the answer ran cold on "
         f"{ev['survivor']} through the stored decision, no second card, row {status}"
+        f"{refused_note}"
     )
 
 
