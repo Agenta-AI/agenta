@@ -10,9 +10,9 @@
     pod stops before the new one starts (`Recreate`). More than one runner pod, and an explicit
     rolling update, are refused at render time.
   * `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS` defaults to the grace period minus 100 seconds,
-    never below 0. An operator value replaces it, and a value past that limit, or one that is
-    not plain digits, is refused, whether it comes from `agentRunner.shutdownWaitSeconds`,
-    `agentRunner.env` or `agentRunner.extraEnv`.
+    never below 0. `agentRunner.shutdownWaitSeconds` replaces it, and a value past that limit
+    is refused. The chart owns the variable: `agentRunner.env` or `agentRunner.extraEnv`
+    setting it fails the render.
   * The runner keeps its PodDisruptionBudget at two pods.
 
 Run: uv run hosting/kubernetes/helm/tests/test_runner_rollout.py
@@ -194,31 +194,6 @@ def shutdown_wait_failures() -> list[str]:
             "230",
         ),
         ("explicit zero wait", ["--set", "agentRunner.shutdownWaitSeconds=0"], "0"),
-        (
-            "agentRunner.env replaces the chart entry",
-            ["--set", "agentRunner.env.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS=45"],
-            "45",
-        ),
-        (
-            "agentRunner.env string at the limit",
-            ["--set-string", "agentRunner.env.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS=200"],
-            "200",
-        ),
-        (
-            "agentRunner.env is the wait the runner reads",
-            [
-                "--set",
-                "agentRunner.shutdownWaitSeconds=230",
-                "--set",
-                "agentRunner.env.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS=45",
-            ],
-            "45",
-        ),
-        (
-            "an empty agentRunner.env value is unset, the runner's 0",
-            ["--set-string", "agentRunner.env.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS="],
-            "",
-        ),
     ]
     for label, args, expected in cases:
         values = shutdown_wait(render(args))
@@ -226,53 +201,21 @@ def shutdown_wait_failures() -> list[str]:
             failures.append(f"{label}: AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS {values!r}")
 
     # A wait past grace - 100 leaves no time to cancel and delete before the KILL signal.
-    result = helm_template(["--set", "agentRunner.shutdownWaitSeconds=230"])
-    if result.returncode == 0:
-        failures.append("a wait of 230 with grace 300 rendered instead of failing")
-    elif "agentRunner.shutdownWaitSeconds=230" not in result.stderr:
-        failures.append(f"the wait failure does not name the key:\n{result.stderr}")
-
-    # A value in agentRunner.env replaces the chart's entry, and an agentRunner.extraEnv entry
-    # comes last and wins in the kubelet, so the same limit applies to both. The runner accepts
-    # forms such as "1e3" that Sprig reads as 0, so anything but plain digits is refused.
-    env_key = "agentRunner.env.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS"
-    extra_env_250 = [
-        "--set",
-        "agentRunner.extraEnv[0].name=AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS",
-        "--set-string",
-        "agentRunner.extraEnv[0].value=250",
-    ]
     for label, args, expected in (
         (
-            "env string 300, grace 300",
-            ["--set-string", f"{env_key}=300"],
-            f"{env_key}=300",
+            "a wait of 230 with grace 300",
+            ["--set", "agentRunner.shutdownWaitSeconds=230"],
+            "agentRunner.shutdownWaitSeconds=230",
         ),
-        ("env number 201, grace 300", ["--set", f"{env_key}=201"], f"{env_key}=201"),
         (
-            "env 250 beside a valid shutdownWaitSeconds",
+            "a wait of 51 with grace 150",
             [
                 "--set",
-                "agentRunner.shutdownWaitSeconds=100",
-                "--set-string",
-                f"{env_key}=250",
+                "agentRunner.shutdownWaitSeconds=51",
+                "--set",
+                "agentRunner.terminationGracePeriodSeconds=150",
             ],
-            f"{env_key}=250",
-        ),
-        (
-            "extraEnv 250 after a valid env value",
-            ["--set", f"{env_key}=50", *extra_env_250],
-            "agentRunner.extraEnv.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS=250",
-        ),
-        (
-            "env 1e3, which the runner reads as 1000",
-            ["--set-string", f"{env_key}=1e3"],
-            f'{env_key} is "1e3"',
-        ),
-        (
-            "env 300s, which the runner refuses",
-            ["--set-string", f"{env_key}=300s"],
-            f'{env_key} is "300s"',
+            "agentRunner.shutdownWaitSeconds=51",
         ),
     ):
         result = helm_template(args)
@@ -282,7 +225,37 @@ def shutdown_wait_failures() -> list[str]:
             "CONFIGURATION ERROR" not in result.stderr or expected not in result.stderr
         ):
             failures.append(
-                f"{label}: the wait failure does not name the key:\n{result.stderr}"
+                f"{label}: the failure does not name the key:\n{result.stderr}"
+            )
+
+    # The chart owns the variable, so a value in agentRunner.env or agentRunner.extraEnv, which
+    # would replace the checked one, fails the render and points at shutdownWaitSeconds.
+    for label, args, source in (
+        (
+            "agentRunner.env",
+            ["--set", "agentRunner.env.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS=45"],
+            "agentRunner.env",
+        ),
+        (
+            "agentRunner.extraEnv",
+            [
+                "--set",
+                "agentRunner.extraEnv[0].name=AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS",
+                "--set-string",
+                "agentRunner.extraEnv[0].value=45",
+            ],
+            "agentRunner.extraEnv",
+        ),
+    ):
+        result = helm_template(args)
+        if result.returncode == 0:
+            failures.append(f"{label}: a wait override rendered instead of failing")
+        elif (
+            f"{source} sets AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS" not in result.stderr
+            or "agentRunner.shutdownWaitSeconds" not in result.stderr
+        ):
+            failures.append(
+                f"{label}: the failure does not name the key and the fix:\n{result.stderr}"
             )
     return failures
 

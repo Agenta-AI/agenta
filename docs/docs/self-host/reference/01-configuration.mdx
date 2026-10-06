@@ -303,7 +303,9 @@ address only when the runner presents its runner token.
 When a runner gets SIGTERM, it refuses new turns with a 503 and keeps Stop and Kill open. It lets
 its running turns finish for `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS`, cancels the turns that still
 run, and deletes its sandboxes. The default `0` cancels at once, because Docker Compose stops a
-container 10 seconds after SIGTERM. The Helm chart sets the wait from the pod's grace period.
+container 10 seconds after SIGTERM. The Helm chart sets the wait from the pod's grace period, or
+from `agentRunner.shutdownWaitSeconds`, and the render fails when `agentRunner.env` or
+`agentRunner.extraEnv` sets this variable.
 
 The local sandbox is single-runner only: its sessions live on one runner's disk. To run multiple
 runners, use the Daytona provider.

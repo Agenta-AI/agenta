@@ -211,7 +211,8 @@ def replica_id_override_failures() -> list[str]:
             )
         elif (
             "CONFIGURATION ERROR" not in result.stderr
-            or "AGENTA_RUNNER_REPLICA_ID" not in result.stderr
+            or "sets AGENTA_RUNNER_REPLICA_ID" not in result.stderr
+            or "pod name" not in result.stderr
         ):
             failures.append(
                 f"{label}: the failure does not name the key:\n{result.stderr}"
