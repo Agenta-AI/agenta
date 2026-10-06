@@ -1850,8 +1850,10 @@ CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
 # the model's. Self-edits keep their own tools (`read_config`, `commit_revision`).
 _LIST_AGENTS_DESCRIPTION = """List the agents in this project, newest first.
 
-Each agent has `id`, `slug`, `name`, `description`, `version` and `updated_at`. The list
-includes you. Pass an agent's `slug` or `id` to `read_agent_config` or `edit_agent_config`.
+Each agent has `name`, `id`, `slug`, `url`, `description`, `version` and `updated_at`. The
+list includes you. Pass an agent's `slug` or `id` to `read_agent_config` or
+`edit_agent_config`. To the person, name an agent by its `name`, never its slug or id, and
+give its `url` to open it.
 
 When the answer has a `next_cursor`, call again with `cursor` set to it for the next page."""
 
@@ -1999,6 +2001,10 @@ _EDIT_AGENT_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 _CREATE_AGENT_DESCRIPTION = """Create a new agent in this project.
+
+While your instructions are the hello-world placeholder, "an agent that ..." means you: set
+yourself up with `commit_revision`. Once you have a job, first ask whether to change yourself
+or create a new agent, unless the person asked for a separate one.
 
 The new agent starts from the "New agent" template: its default tools and model, and
 placeholder instructions. Send `name`, an optional `description`, and `operations` to change

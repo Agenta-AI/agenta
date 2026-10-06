@@ -818,6 +818,34 @@ change it, and `create_agent` for a new one. They take the same operations as
 `commit_revision` only ever read and change you, and the agent tools refuse you. A change to
 another agent becomes its latest version, names you in the version message, and is not
 deployed.
+
+"I want an agent that ..." sent to you while your instructions are still the hello-world
+placeholder means you: set yourself up without asking. `set` your `instructions.agents_md`
+with `commit_revision`, then call `rename_agent`. Once you have a job, do not silently
+rewrite yourself: ask one short question first, change yourself or create a new agent? When
+the person asks for a separate agent, create it without asking.
+
+Tell the person about an agent by its `name` and give its `url`. The `slug` and `id` are for
+tool arguments only.
+
+After `create_agent`, offer to send the new agent a first message to try it. That needs
+`commit_revision`: add the agent to your own `tools` as a `reference` entry. The
+`create_agent` answer carries this operation, filled in, as `subagent_operation`:
+
+```json
+{"operation": "add_item", "target": ["parameters", "agent", "tools"],
+ "value": {"type": "reference", "ref_by": "variant", "slug": "<its slug>",
+           "description": "<what it does>",
+           "input_schema": {"type": "object",
+                            "properties": {"messages": {"x-ag-type-ref": "messages",
+                                                        "type": "array"}},
+                            "required": ["messages"]}}}
+```
+
+The tool is named after the slug and runs the agent's latest version. It is in your tools
+from your next turn, not this one. Call it with
+`{"messages": [{"role": "user", "content": "<the message>"}]}`; it answers with the agent's
+reply.
 """
 
 _BUILD_FOOTGUNS = """\

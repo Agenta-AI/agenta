@@ -19,6 +19,7 @@ from agenta.sdk.agents.platform.op_catalog import (
     get_platform_op,
 )
 from agenta.sdk.agents.tools import AGENTA_TOOLS, PlatformToolConfig
+from agenta.sdk.utils.types import build_agent_v0_default
 
 AGENT_OPS = ("list_agents", "read_agent_config", "create_agent", "edit_agent_config")
 OPERATION_ITEMS = _COMMIT_REVISION_INPUT_SCHEMA["properties"]["workflow_revision"][
@@ -146,7 +147,41 @@ def test_the_shapes_the_models_went_hunting_for_are_in_the_edit_description():
     assert '{"list":"tools","key":"agenta_tools"}' in description
 
 
-@pytest.mark.parametrize("op", ["commit_revision", "create_agent", "edit_agent_config"])
+def test_answers_name_an_agent_by_its_name_and_give_its_link():
+    description = " ".join(get_platform_op("list_agents").description.split())
+    assert "Each agent has `name`, `id`, `slug`, `url`," in description
+    assert "name an agent by its `name`, never its slug or id" in description
+    assert "give its `url`" in description
+
+
+def test_a_request_for_an_agent_means_a_fresh_agent_and_asks_a_configured_one():
+    # A fresh agent sets itself up; one that already has a job asks first; an explicit
+    # request for a separate agent never asks.
+    create = " ".join(get_platform_op("create_agent").description.split())
+    assert (
+        'While your instructions are the hello-world placeholder, "an agent that ..." '
+        "means you: set yourself up with `commit_revision`. Once you have a job, first "
+        "ask whether to change yourself or create a new agent, unless the person asked "
+        "for a separate one." in create
+    )
+    # A fresh default agent reads it in its own instructions, and does not ask.
+    persona = " ".join(build_agent_v0_default()["instructions"]["agents_md"].split())
+    assert (
+        "If the user asks for an agent that does something and you can change your own "
+        "configuration, they mean you: set yourself up for that job. Create a separate "
+        "agent only when they ask for a separate one." in persona
+    )
+
+
+def test_the_descriptions_stay_small():
+    # Sent on every turn of every agent that has them.
+    assert len(get_platform_op("list_agents").description) < 450
+    assert len(get_platform_op("create_agent").description) < 1550
+
+
+@pytest.mark.parametrize(
+    "op", ["commit_revision", "list_agents", "create_agent", "edit_agent_config"]
+)
 def test_no_em_dash_reaches_the_model(op):
     assert "\u2014" not in get_platform_op(op).description
 
