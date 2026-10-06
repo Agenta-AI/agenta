@@ -230,22 +230,23 @@ export async function hydrateHarnessSessionFromDurable(
  * Stop must not wait on it. Not retried: a repeated turn-start would answer its own 409.
  */
 function postLedgerWrite(
-  path: string,
-  body: Record<string, unknown>,
   deps: DurableContinuityDeps,
+  send: (
+    doFetch: typeof fetch,
+    base: string,
+    init: { signal: AbortSignal; headers: Record<string, string> },
+  ) => Promise<Response>,
 ): Promise<Response> {
   const doFetch = deps.fetchImpl ?? fetch;
   const base = deps.apiBase ?? apiBase();
   return fetchControlPlane(
     (signal) =>
-      doFetch(`${base}${path}`, {
-        method: "POST",
+      send(doFetch, base, {
         signal,
         headers: {
           "content-type": "application/json",
           authorization: deps.authorization,
         },
-        body: JSON.stringify(body),
       }),
     { maxAttempts: 1, signal: deps.signal },
   );
@@ -260,17 +261,19 @@ export async function completeSessionTurn(
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
   try {
-    const res = await postLedgerWrite(
-      "/sessions/turns/complete",
-      {
-        session_id: sessionId,
-        turn_index: turnIndex,
-        ...(turn.agentSessionId
-          ? { agent_session_id: turn.agentSessionId }
-          : {}),
-        end_time: turn.endTime,
-      },
-      deps,
+    const res = await postLedgerWrite(deps, (doFetch, base, init) =>
+      doFetch(`${base}/sessions/turns/complete`, {
+        method: "POST",
+        ...init,
+        body: JSON.stringify({
+          session_id: sessionId,
+          turn_index: turnIndex,
+          ...(turn.agentSessionId
+            ? { agent_session_id: turn.agentSessionId }
+            : {}),
+          end_time: turn.endTime,
+        }),
+      }),
     );
     log(
       `complete ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} turn=${turnIndex}`,
@@ -297,24 +300,26 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
   const log = deps.log ?? defaultLog;
   let res: Response;
   try {
-    res = await postLedgerWrite(
-      "/sessions/turns/",
-      {
-        session_id: sessionId,
-        stream_id: turn.streamId,
-        ...(turn.turnId ? { turn_id: turn.turnId } : {}),
-        turn_index: turnIndex,
-        harness_kind: harness,
-        ...(turn.agentSessionId
-          ? { agent_session_id: turn.agentSessionId }
-          : {}),
-        ...(turn.sandboxId ? { sandbox_id: turn.sandboxId } : {}),
-        ...(turn.references?.length ? { references: turn.references } : {}),
-        ...(turn.traceId ? { trace_id: turn.traceId } : {}),
-        ...(turn.spanId ? { span_id: turn.spanId } : {}),
-        ...(turn.startTime ? { start_time: turn.startTime } : {}),
-      },
-      deps,
+    res = await postLedgerWrite(deps, (doFetch, base, init) =>
+      doFetch(`${base}/sessions/turns/`, {
+        method: "POST",
+        ...init,
+        body: JSON.stringify({
+          session_id: sessionId,
+          stream_id: turn.streamId,
+          ...(turn.turnId ? { turn_id: turn.turnId } : {}),
+          turn_index: turnIndex,
+          harness_kind: harness,
+          ...(turn.agentSessionId
+            ? { agent_session_id: turn.agentSessionId }
+            : {}),
+          ...(turn.sandboxId ? { sandbox_id: turn.sandboxId } : {}),
+          ...(turn.references?.length ? { references: turn.references } : {}),
+          ...(turn.traceId ? { trace_id: turn.traceId } : {}),
+          ...(turn.spanId ? { span_id: turn.spanId } : {}),
+          ...(turn.startTime ? { start_time: turn.startTime } : {}),
+        }),
+      }),
     );
   } catch (err) {
     // A Stop aborts with a frozen marker object, and Node's fetch then rejects with its own failure
