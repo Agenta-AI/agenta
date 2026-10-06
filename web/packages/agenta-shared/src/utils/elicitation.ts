@@ -96,33 +96,23 @@ export interface ElicitationRequestPayload {
         type: "object"
         properties: Record<string, ElicitationFieldSchema>
         required?: string[]
-        /** Question order. Parse always sets it; see `elicitationPropertyOrder`. */
+        /** Question order; parse always sets it. */
         "x-ag-order"?: string[]
         /** Presentation hints, e.g. "x-ag-stepper": true → one question at a time + review. */
         [key: `x-ag-${string}`]: unknown
     }
 }
 
-/** Schema key carrying the authored question order: JSONB storage re-sorts object keys. */
-export const ELICITATION_ORDER_KEY = "x-ag-order"
+// JSONB storage re-sorts object keys, so the authored question order travels as an array.
+const ELICITATION_ORDER_KEY = "x-ag-order"
 
-/**
- * The property names in question order: a declared `x-ag-order` first (unknown names dropped,
- * repeats collapsed), then any property it left out, in key order.
- */
-export function elicitationPropertyOrder(requestedSchema: {
-    properties: Record<string, unknown>
-    [key: string]: unknown
-}): string[] {
-    const names = Object.keys(requestedSchema.properties)
-    const declared = requestedSchema[ELICITATION_ORDER_KEY]
-    if (!Array.isArray(declared)) return names
+const propertyOrder = (properties: Record<string, unknown>, declared: unknown): string[] => {
+    const names = Object.keys(properties)
     const known = new Set(names)
-    const ordered = [
-        ...new Set(declared.filter((name): name is string => known.has(name as string))),
-    ]
-    const placed = new Set(ordered)
-    return [...ordered, ...names.filter((name) => !placed.has(name))]
+    const declaredKnown = Array.isArray(declared)
+        ? declared.filter((name): name is string => known.has(name as string))
+        : []
+    return [...new Set([...declaredKnown, ...names])]
 }
 
 export type ElicitationAction = "accept" | "decline" | "cancel"
@@ -253,11 +243,11 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
     // enum (downstream consumers key on enum; oneOf stays for the option titles/descriptions);
     // and misplaced top-level enum/oneOf on an array fold into items (declared items win) —
     // left at the top level they would mis-promote the field to a single-select downstream.
-    // Properties are rebuilt in question order, which is also written back as `x-ag-order`.
-    const order = elicitationPropertyOrder(
-        requestedSchema as {properties: Record<string, unknown>; [key: string]: unknown},
-    )
     const sourceProperties = requestedSchema.properties as Record<string, unknown>
+    const order = propertyOrder(
+        sourceProperties,
+        (requestedSchema as Record<string, unknown>)[ELICITATION_ORDER_KEY],
+    )
     const properties = Object.fromEntries(
         order.map((name) => {
             const field = {...(sourceProperties[name] as ElicitationFieldSchema)}

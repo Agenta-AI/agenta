@@ -14,7 +14,6 @@
  */
 import dayjs from "./dayjs"
 import {
-    elicitationPropertyOrder,
     normalizeStringFormat,
     type ElicitationFieldSchema,
     type ElicitationRequestPayload,
@@ -248,17 +247,13 @@ const buildStep = (
     return withHint({...base, required: false}, "unsupported")
 }
 
-/**
- * The payload's questions, in the order the agent wrote them (`x-ag-order`, which survives the
- * JSONB transcript that re-sorts keys). Deliberately NOT reordered further (required first, say):
- * the agent authored these as a narrative.
- */
+/** The payload's questions, in the order the agent wrote them; never reordered (required first, say). */
 export function buildElicitationSteps(payload: ElicitationRequestPayload): ElicitationForm {
     const {properties} = payload.requestedSchema
     const required = new Set(payload.requestedSchema.required ?? [])
     return {
         message: payload.message,
-        steps: elicitationPropertyOrder(payload.requestedSchema).map((name) =>
+        steps: (payload.requestedSchema["x-ag-order"] ?? Object.keys(properties)).map((name) =>
             buildStep(name, properties[name], required.has(name)),
         ),
         groupHint: payload.requestedSchema["x-ag-stepper"] === true,

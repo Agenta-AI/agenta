@@ -17,7 +17,6 @@ import type {
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import {projectIdAtom} from "@agenta/shared/state"
-import {ELICITATION_ORDER_KEY} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
@@ -300,36 +299,6 @@ function settleApprovalPart(part: Part, row: SessionInteractionRowState): boolea
     return false
 }
 
-const requestedSchemaOf = (input: unknown): Record<string, unknown> | undefined => {
-    if (!input || typeof input !== "object" || Array.isArray(input)) return undefined
-    const schema = (input as {requestedSchema?: unknown}).requestedSchema
-    if (!schema || typeof schema !== "object" || Array.isArray(schema)) return undefined
-    const properties = (schema as {properties?: unknown}).properties
-    return properties && typeof properties === "object" && !Array.isArray(properties)
-        ? (schema as Record<string, unknown>)
-        : undefined
-}
-
-/**
- * Records ingested before the API stamped `x-ag-order` hold a form's properties JSONB-sorted. The
- * interaction row keeps the request in JSON, so its key order is the one the agent wrote, but only
- * until it is answered: the answer is written through JSONB and re-sorts the row too.
- */
-function adoptAuthoredOrder(part: Part, row: SessionInteractionRowState): boolean {
-    if (row.resolution) return false
-    const schema = requestedSchemaOf(part.input)
-    const authored = requestedSchemaOf(row.requestInput)
-    if (!schema || !authored || ELICITATION_ORDER_KEY in schema) return false
-    part.input = {
-        ...(part.input as Record<string, unknown>),
-        requestedSchema: {
-            ...schema,
-            [ELICITATION_ORDER_KEY]: Object.keys(authored.properties as Record<string, unknown>),
-        },
-    }
-    return true
-}
-
 function applyInteractionRowStates(
     index: TranscriptIndex,
     interactionRowStates: SessionInteractionRowStates | undefined,
@@ -344,10 +313,8 @@ function applyInteractionRowStates(
         if (!part) continue
 
         if (row.kind === "user_approval") changed = settleApprovalPart(part, row) || changed
-        else if (row.kind === "client_tool" || row.kind === "user_input") {
-            changed = adoptAuthoredOrder(part, row) || changed
+        else if (row.kind === "client_tool" || row.kind === "user_input")
             changed = settleClientToolPart(part, row) || changed
-        }
     }
     return changed
 }

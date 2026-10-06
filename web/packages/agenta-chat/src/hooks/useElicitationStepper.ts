@@ -29,12 +29,7 @@ export const AUTO_ADVANCE_MS = 900
 const DRAFT_PREFIX = "agenta:elicitation-draft:"
 const DRAFT_DEBOUNCE_MS = 400
 
-/**
- * Where the card is: a question by property name, the review screen (`null`), or `undefined`
- * before the user has moved, which is whichever question comes first. Names, not indices: the
- * same call can arrive in another key order (a cached transcript, then the server's), and the
- * card must stay on the question the user is answering.
- */
+/** A question's name, the review screen (`null`), or the first question (`undefined`). */
 type Place = string | null | undefined
 
 interface Draft {
@@ -62,8 +57,7 @@ const readDraft = (toolCallId: string, steps: ElicitationStep[]): Draft | null =
         // Skips count as content: a draft whose only news is "the user declined these" still has
         // something to restore, and dropping it resurrects the defaults they declined.
         if (Object.keys(kept).length === 0 && !skipped.length) return null
-        // A question the form no longer asks, a review a one-question form does not have, or a
-        // pre-name draft (it saved an index) all restart at question one with the answers kept.
+        // An unknown place (including an old index-based draft) restarts at question one.
         const at =
             typeof parsed.at === "string" && names.has(parsed.at)
                 ? parsed.at
@@ -110,9 +104,6 @@ interface State {
     hold: {label: string; seq: number} | null
     /** Highlighted row on an enum/boolean step, for ↑ ↓ ↵. */
     cursor: number
-    /** The answers left for the agent. The draft goes with them; an edit after a failed send
-     * clears this and the draft comes back. */
-    sent: boolean
 }
 
 type Action =
@@ -134,18 +125,8 @@ type Action =
     | {type: "toggle"; name: string; option: string}
     | {type: "skip"; name: string}
     | {type: "restore"; values: Record<string, unknown>; skipped: string[]; at: Place}
-    | {type: "sent"}
-
-/** Actions that change what would be sent, or where the user is. */
-const EDITS = new Set<Action["type"]>(["goTo", "setValue", "pick", "toggle", "skip", "restore"])
 
 const reducer = (state: State, action: Action): State => {
-    if (action.type === "sent") return {...state, sent: true}
-    const next = applyAction(state, action)
-    return EDITS.has(action.type) && next.sent ? {...next, sent: false} : next
-}
-
-const applyAction = (state: State, action: Action): State => {
     switch (action.type) {
         case "goTo":
             return {...state, at: action.at, error: null, hold: null, cursor: 0}
@@ -276,8 +257,7 @@ export interface ElicitationStepperState {
     /** Validate and advance, or complete on the last screen. */
     primary: () => void
     skip: () => void
-    /** Drop the saved draft. Sending the form drops it here; the dock calls it on every other
-     * settle path. */
+    /** Drop the saved draft. `send` drops it itself; the dock calls this on every other settle. */
     discardDraft: () => void
 }
 
@@ -322,8 +302,7 @@ export const useElicitationStepper = ({
     const submitsOnPick =
         !isMultiStep && (steps[0]?.kind === "enum" || steps[0]?.kind === "boolean")
 
-    // Every form opens on its first question. Defaults only prefill: a form that opened on its
-    // review screen read "N/N, N answered" for questions the user never saw.
+    // Defaults prefill; they never skip the user past a question.
     const [state, dispatch] = useReducer(reducer, steps, (initial) => ({
         at: undefined,
         values: initialStepValues(initial),
@@ -331,10 +310,8 @@ export const useElicitationStepper = ({
         error: null,
         hold: null,
         cursor: 0,
-        sent: false,
     }))
 
-    // The place is a name; everything the card draws counts in indices.
     const index =
         state.at === undefined
             ? 0
@@ -391,17 +368,20 @@ export const useElicitationStepper = ({
         clearDraft(toolCallId)
     }, [toolCallId])
 
+    // A one-question pick changes state in the handler that sends it; that render must not re-save.
+    const skipNextSaveRef = useRef(false)
     useEffect(() => {
-        // A one-question pick changes state in the same handler that sends it; without this the
-        // pick would be saved again right after the send discarded the draft.
-        if (state.sent) return undefined
+        if (skipNextSaveRef.current) {
+            skipNextSaveRef.current = false
+            return undefined
+        }
         pendingRef.current = {values: state.values, skipped: state.skipped, at: state.at}
         if (timerRef.current) clearTimeout(timerRef.current)
         timerRef.current = setTimeout(flushDraft, DRAFT_DEBOUNCE_MS)
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current)
         }
-    }, [state.values, state.skipped, state.at, state.sent, flushDraft, discardDraft])
+    }, [state.values, state.skipped, state.at, flushDraft])
 
     useEffect(() => flushDraft, [flushDraft])
 
@@ -440,12 +420,10 @@ export const useElicitationStepper = ({
         [placeAt],
     )
 
-    // The draft goes now, not in an effect: the host closes the dock as the answer leaves, and the
-    // card can unmount before any effect of this render runs.
+    // Not in an effect: the host can unmount the card before this render's effects run.
     const send = useCallback(
         (answers: Record<string, unknown>) => {
             discardDraft()
-            dispatch({type: "sent"})
             onComplete(answers)
         },
         [discardDraft, onComplete],
@@ -522,7 +500,10 @@ export const useElicitationStepper = ({
                 })
                 // Built from the pick itself, not from `content`: that memo still holds the value
                 // from before this dispatch. A one-step form has no other answers to carry.
-                if (submitsOnPick) send(collectStepContent(steps, {[name]: value}))
+                if (submitsOnPick) {
+                    skipNextSaveRef.current = true
+                    send(collectStepContent(steps, {[name]: value}))
+                }
             },
             [submitsOnPick, steps, send],
         ),

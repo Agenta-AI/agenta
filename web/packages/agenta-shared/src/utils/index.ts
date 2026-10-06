@@ -243,7 +243,6 @@ export {
 
 // Elicitation contract (chat interaction kinds, M1)
 export {
-    ELICITATION_ORDER_KEY,
     ELICITATION_RENDER_KIND,
     KNOWN_STRING_FORMATS,
     SECRET_FIELD_PATTERN,
@@ -252,7 +251,6 @@ export {
     buildDeclineResult,
     buildDegradationErrorText,
     deriveElicitationPartState,
-    elicitationPropertyOrder,
     hasPriorElicitationDegradation,
     parseElicitationPayload,
     serializeElicitationContent,
