@@ -15,6 +15,11 @@ vi.mock("@agenta/ui/ui", () => {
                 {children}
             </button>
         ),
+        DropdownMenu: Wrap,
+        DropdownMenuContent: () => null,
+        DropdownMenuItem: Wrap,
+        DropdownMenuSeparator: () => null,
+        DropdownMenuTrigger: Wrap,
         Empty: Wrap,
         EmptyContent: Wrap,
         EmptyDescription: Wrap,

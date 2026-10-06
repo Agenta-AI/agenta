@@ -118,6 +118,7 @@ export const MembersPage = ({
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 minWidth={0}
+                density="compact"
                 loading={loading && rows.length === 0}
                 hideHeader={!loading && rows.length === 0}
                 empty={

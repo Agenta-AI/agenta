@@ -380,13 +380,14 @@ describe("viewing a connection's tools", () => {
         expect(screen.queryByTestId("mcp-connection-detail")).toBeNull()
     })
 
-    it("renames in place for Rename, opening no panel", () => {
+    it("renames in place for Rename, opening no panel", async () => {
         show([LINEAR])
         openRowMenu("Linear")
         act(() => {
             fireEvent.click(screen.getByRole("menuitem", {name: "Rename"}))
         })
-        expect(screen.getByRole("textbox", {name: "Connection name"})).toBeTruthy()
+        // Rename runs once the menu has closed and handed focus back.
+        expect(await screen.findByRole("textbox", {name: "Connection name"})).toBeTruthy()
         expect(screen.queryByTestId("mcp-connection-detail")).toBeNull()
         expect(screen.queryByTestId("mcp-permission-drawer")).toBeNull()
     })

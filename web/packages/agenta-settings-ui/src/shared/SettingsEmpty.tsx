@@ -15,7 +15,10 @@ const GhostRows = ({icon}: {icon: ReactNode}) => (
         <div className="absolute inset-x-[14%] top-0 h-14 rounded-xl border border-solid border-border bg-[color-mix(in_srgb,var(--ag-colorBgElevated)_45%,var(--ag-colorBgContainer))]" />
         <div className="absolute inset-x-[7%] top-2.5 h-14 rounded-xl border border-solid border-border bg-[color-mix(in_srgb,var(--ag-colorBgElevated)_75%,var(--ag-colorBgContainer))]" />
         <div className="absolute inset-x-0 top-6 flex h-[72px] items-center gap-3 rounded-xl border border-solid border-border bg-colorBgElevated px-3.5 shadow-[0_12px_32px_-14px_rgba(0,0,0,0.45)]">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground text-background [&_svg]:size-[18px]">
+            <span
+                data-slot="empty-icon"
+                className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground text-background [&_svg]:size-[18px]"
+            >
                 {icon}
             </span>
             <span className="flex flex-1 flex-col gap-2">

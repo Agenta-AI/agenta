@@ -167,6 +167,7 @@ export const ProjectsPage = ({
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 minWidth={0}
+                density="compact"
                 onOpenRow={
                     onSwitch
                         ? (record) => {
