@@ -11,6 +11,7 @@ import {ArrowsLeftRight, Copy, PencilSimpleLine, Plus, Trash} from "@phosphor-ic
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {SettingsPageActions} from "../SettingsPageShell"
+import {copyWithMessage} from "../shared/copyWithMessage"
 import {hoverableRow} from "../shared/hoverableRow"
 import {InlineName} from "../shared/InlineName"
 import {NameAvatar} from "../shared/NameAvatar"
@@ -253,9 +254,10 @@ export const ProjectsPage = ({
                                     label: "Copy project ID",
                                     icon: <Copy size={14} />,
                                     onClick: () =>
-                                        void navigator.clipboard?.writeText(record.project_id).then(
-                                            () => message.success("Project ID copied"),
-                                            () => message.error("Couldn't copy the project ID"),
+                                        void copyWithMessage(
+                                            record.project_id,
+                                            "Project ID copied",
+                                            "Couldn't copy the project ID",
                                         ),
                                 },
                                 {type: "divider"},
@@ -264,6 +266,7 @@ export const ProjectsPage = ({
                                     label: "Delete project",
                                     icon: <Trash size={14} />,
                                     danger: true,
+                                    hidden: !renderDeleteDialog,
                                     // The last project and the default project cannot be deleted.
                                     disabled:
                                         !canDeleteProjects || Boolean(record.is_default_project),

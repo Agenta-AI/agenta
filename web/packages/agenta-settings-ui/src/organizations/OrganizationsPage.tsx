@@ -2,13 +2,13 @@ import {useMemo, useState, type ReactNode} from "react"
 
 import type {Org} from "@agenta/entities/organization"
 import {getSettingsSidebarIcon} from "@agenta/settings"
-import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {ArrowsLeftRight, Copy, PencilSimpleLine, Plus, SignOut, Trash} from "@phosphor-icons/react"
 
 import {SettingsPageActions} from "../SettingsPageShell"
+import {copyWithMessage} from "../shared/copyWithMessage"
 import {hoverableRow} from "../shared/hoverableRow"
 import {InlineName} from "../shared/InlineName"
 import {NameAvatar} from "../shared/NameAvatar"
@@ -172,9 +172,10 @@ export const OrganizationsPage = ({
                                         label: "Copy organization ID",
                                         icon: <Copy size={14} />,
                                         onClick: () =>
-                                            void navigator.clipboard?.writeText(record.id).then(
-                                                () => message.success("Organization ID copied"),
-                                                () => message.error("Couldn't copy the ID"),
+                                            void copyWithMessage(
+                                                record.id,
+                                                "Organization ID copied",
+                                                "Couldn't copy the ID",
                                             ),
                                     },
                                     {type: "divider"},

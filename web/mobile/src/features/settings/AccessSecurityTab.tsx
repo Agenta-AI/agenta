@@ -27,7 +27,7 @@ import {useSettingsOrg} from "./useSettingsOrg"
 /** Settings > Access & Security: sign-in policy, verified domains and SSO, each gated by plan. */
 export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const access = useMobileSettingsAccess()
-    const {organizationId, org} = useSettingsOrg(workspaceId)
+    const {organizationId, org, loading, failed, retry} = useSettingsOrg(workspaceId)
     const domains = useQuery({
         queryKey: ["organization-domains", organizationId],
         queryFn: () => fetchOrganizationDomains(),
@@ -69,14 +69,9 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
     }
 
     // Entitlements gate every section; rendering before they land flashes the locked state.
-    if (org.isPending || entitlements.isLoading) return <OrganizationLoading />
-    if (org.isError)
-        return (
-            <LoadError
-                title="Could not load this organization's settings"
-                onRetry={() => void org.refetch()}
-            />
-        )
+    if (loading || entitlements.isLoading) return <OrganizationLoading />
+    if (failed)
+        return <LoadError title="Could not load this organization's settings" onRetry={retry} />
     const flags = org.data?.flags as OrganizationFlags | undefined
     if (!flags) return <OrganizationNoFlags />
 

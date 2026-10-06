@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     cancelSubscriptionLoginAtom,
@@ -58,6 +58,8 @@ export const useSubscriptionSignIn = ({
     const [error, setError] = useState<string | null>(null)
     const [lostPoll, setLostPoll] = useState(false)
     const [now, setNow] = useState(() => Date.now())
+    // Bumped by each start and by `cancel`; a start that resolves under a newer value was abandoned.
+    const startRef = useRef(0)
 
     const name = connection?.name || subscriptionProviderName(provider)
     const loginState = connection?.subscription?.loginState
@@ -135,12 +137,18 @@ export const useSubscriptionSignIn = ({
     }, [isReady, lostPoll])
 
     const connect = useCallback(async () => {
+        const start = ++startRef.current
         setStarting(true)
         setError(null)
         setLostPoll(false)
         try {
             const secretId = connection?.id ?? (await createConnection({provider, name}))
             const attempt = await startLogin({secretId})
+            if (start !== startRef.current) {
+                void cancelLogin({secretId, attemptId: attempt.attempt_id})
+                if (!connection) void refreshVault()
+                return
+            }
             if (!attempt.user_code || !attempt.verification_uri) {
                 throw new Error("The sign-in started without a code. Try again.")
             }
@@ -162,13 +170,16 @@ export const useSubscriptionSignIn = ({
             // A connection created a moment ago is not in the vault cache yet.
             if (!connection) void refreshVault()
         } catch (caught) {
+            if (start !== startRef.current) return
             setError(extractApiErrorMessage(caught) || "Agenta could not start the sign-in.")
         } finally {
-            setStarting(false)
+            if (start === startRef.current) setStarting(false)
         }
-    }, [connection, createConnection, name, provider, refreshVault, startLogin])
+    }, [cancelLogin, connection, createConnection, name, provider, refreshVault, startLogin])
 
     const cancel = useCallback(() => {
+        startRef.current += 1
+        setStarting(false)
         if (!pending) return
         void cancelLogin({secretId: pending.secretId, attemptId: pending.attemptId})
         closeAttempt(pending)

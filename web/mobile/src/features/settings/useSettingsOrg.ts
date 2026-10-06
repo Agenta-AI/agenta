@@ -17,5 +17,13 @@ export const useSettingsOrg = (workspaceId: string) => {
         queryFn: () => fetchSingleOrg({organizationId: organizationId!}),
         enabled: Boolean(organizationId),
     })
-    return {projects, organizationId, org}
+    // A disabled query stays pending, so `org` only counts as loading once an id resolves.
+    const loading = projects.isPending || (Boolean(organizationId) && org.isPending)
+    // Failed only with nothing to show: a background refetch error keeps the loaded data.
+    const failed =
+        (projects.isError && !projects.data) ||
+        (Boolean(projects.data) && !organizationId) ||
+        (org.isError && !org.data)
+    const retry = () => void (organizationId ? org.refetch() : projects.refetch())
+    return {projects, organizationId, org, loading, failed, retry}
 }
