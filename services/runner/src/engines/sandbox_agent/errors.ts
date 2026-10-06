@@ -147,6 +147,9 @@ export type RunErrorCode =
   // carries the provider's own sentence, redacted. Not retryable as is: the same request is
   // refused the same way. The failed turn leaves the conversation, so the next message is not.
   | "provider_error"
+  // The model wrote a tool call it could not encode (Gemini's `malformed_function_call` finish
+  // reason). Sending the same message again may work.
+  | "malformed_tool_call"
   // A failure no rule recognized, whose text the runner withholds (it may hold paths, ids or
   // credentials): the message is one sentence with a reference to the runner's log. A client must
   // not show any other text for it in its place (a trace's error text included). Only runs whose
@@ -592,6 +595,9 @@ export function classifyRunError(
       code: "runner_error",
     };
   }
+  if (MALFORMED_TOOL_CALL.test(raw)) {
+    return { message: MALFORMED_TOOL_CALL_MESSAGE, code: "malformed_tool_call" };
+  }
   if (SANDBOX_PROVIDER_CAPACITY.test(raw)) {
     return { message: SANDBOX_CAPACITY_MESSAGE, code: "sandbox_capacity" };
   }
@@ -708,6 +714,10 @@ function describeProviderError(raw: string): string | undefined {
   }
   return undefined;
 }
+
+/** Gemini's finish reason for a tool call it could not encode, as Pi reports it. */
+export const MALFORMED_TOOL_CALL = /finish_reason: malformed_function_call/i;
+export const MALFORMED_TOOL_CALL_MESSAGE = "The model returned a broken tool call. Send the message again.";
 
 /** The one sentence for an error no rule recognizes. */
 export function unclassifiedRunErrorMessage(reference: string): string {

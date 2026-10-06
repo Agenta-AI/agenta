@@ -57,6 +57,9 @@ export const RETRYABLE_CODES = new Set([
     // Another session refreshed the subscription sign-in while this turn was using the old one.
     // The newer sign-in is already stored, so the next attempt uses it.
     "subscription_login_refreshed",
+    // The model wrote a tool call it could not encode, and its retry did too. The request is
+    // fine; the model usually gets it right when the message is sent again.
+    "malformed_tool_call",
 ])
 
 /**

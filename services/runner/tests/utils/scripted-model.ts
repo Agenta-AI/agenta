@@ -12,6 +12,8 @@ export type ScriptStep =
   | { tool: string; args: Record<string, unknown> }
   /** Answer with an HTTP error, as a router does for an upstream provider's refusal. */
   | { error: { status: number; message: string } }
+  /** End the answer with this finish reason and no content (Gemini's `malformed_function_call`). */
+  | { finishReason: string }
   /** Accept the request and never answer. */
   | { silence: true }
   /** Stream thinking deltas every `everyMs` for `forMs`, then the text: a slow reasoning model. */
@@ -69,7 +71,9 @@ export async function startScriptedModel(initial: ScriptStep[] = [{ text: "ok" }
           await new Promise((r) => setTimeout(r, step.think.everyMs));
         }
       }
-      if ("tool" in step) {
+      if ("finishReason" in step) {
+        send({ ...base, choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: step.finishReason }] });
+      } else if ("tool" in step) {
         send({
           ...base,
           choices: [
