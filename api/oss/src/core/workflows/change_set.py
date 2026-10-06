@@ -110,11 +110,11 @@ _RETRYABLE = frozenset(
 # An agent that reads only this line must still know what to do.
 NEXT_STEPS: Dict[str, str] = {
     Reason.TARGET_NOT_FOUND: (
-        "Call read_config for that part of the configuration and correct the target."
+        "Read that part of the configuration again and correct the target."
     ),
     Reason.TARGET_TYPE_MISMATCH: (
-        "Call read_config for that path to see what type it holds, then use the matching "
-        "operation."
+        "Read that part of the configuration again to see what type it holds, then use "
+        "the matching operation."
     ),
     Reason.INVALID_TARGET_SHAPE: (
         "The message names the segment at fault. A segment is a field name, or "
@@ -127,8 +127,8 @@ NEXT_STEPS: Dict[str, str] = {
         "different entry — one integration takes one gateway_connection entry."
     ),
     Reason.ITEM_NOT_FOUND: (
-        "Call read_config with a {list, key} selector for that list: its refusal lists "
-        "every key the list actually holds. A gateway_connection entry's key is "
+        "Read that list again with a {list, key} selector: its refusal lists every key "
+        "the list actually holds. A gateway_connection entry's key is "
         "gateway_connection:<connection.provider>:<connection.integration>."
     ),
     Reason.ITEM_RENAME_NOT_ALLOWED: (
@@ -154,7 +154,7 @@ NEXT_STEPS: Dict[str, str] = {
     ),
     Reason.TEXT_NOT_FOUND: (
         "Re-anchor on one of details.nearest_lines, which holds the closest lines actually "
-        "stored, or call read_config for that field and copy old_text out of its value."
+        "stored, or read that field again and copy old_text out of its value."
     ),
     Reason.TEXT_NOT_UNIQUE: (
         "Add more surrounding lines to old_text until it appears once, then send the "
