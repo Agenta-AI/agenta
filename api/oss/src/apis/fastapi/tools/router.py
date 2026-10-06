@@ -1416,8 +1416,9 @@ class ToolsRouter:
         # session holding a stale configuration and the playground showing an old revision
         # until something else invalidated it. The handler says whether it wrote; this
         # reuses the emitter already here rather than growing a second one.
-        if response.committed_revision:
+        if response.committed_revision or response.wrote_revision:
             await invalidate_cache(project_id=request.state.project_id)
+        if response.committed_revision:
             await _emit_committed_revision_data_event_from_outputs(
                 request=request,
                 outputs=response.committed_revision,

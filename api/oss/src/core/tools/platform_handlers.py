@@ -22,12 +22,16 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
 from uuid import UUID
 
 import httpx
 from pydantic import ValidationError
 
+from agenta.sdk.agents.platform.op_catalog import (
+    LIST_AGENTS_DEFAULT_LIMIT,
+    LIST_AGENTS_MAX_LIMIT,
+)
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
@@ -75,7 +79,6 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequestData,
 )
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.utils.caching import invalidate_cache
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
 TEST_RUN_CALL_REF = "tools.agenta.test_run"
@@ -692,17 +695,23 @@ def _bound_variant_id(arguments: Dict[str, Any], *, key: str) -> UUID:
     handler that edits whatever it happens to find.
     """
     target = arguments.get(key)
-    raw = target.get("workflow_variant_id") if isinstance(target, dict) else None
+    return _bound_uuid(
+        target.get("workflow_variant_id") if isinstance(target, dict) else None,
+        field=f"{key}.workflow_variant_id",
+    )
+
+
+def _bound_uuid(raw: Any, *, field: str) -> UUID:
+    """An id the runner binds from run context. Missing or malformed is refused, never
+    guessed: a handler acts only on what the run is bound to."""
     if not raw:
         raise PlatformToolHandlerRefused(
-            f"{key}.workflow_variant_id is bound from the run and was missing."
+            f"{field} is bound from the run and was missing."
         )
     try:
         return UUID(str(raw))
     except ValueError as e:
-        raise PlatformToolHandlerRefused(
-            f"{key}.workflow_variant_id is not a valid id."
-        ) from e
+        raise PlatformToolHandlerRefused(f"{field} is not a valid id.") from e
 
 
 async def handle_read_config(
@@ -715,7 +724,7 @@ async def handle_read_config(
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
 ) -> PlatformHandlerResult:
-    from oss.src.core.workflows.read_config import ReadConfigError, draft_warning
+    from oss.src.core.workflows.read_config import ReadConfigError
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("read_config is unavailable.")
@@ -742,28 +751,25 @@ async def handle_read_config(
     # assert it about itself. The read always answers from the stored head; on a draft run
     # that is not what is executing, and the warning says so, which is what keeps the read
     # and the commit agreeing (the commit applies to the head too).
-    run_is_draft = bool(target.get("run_is_draft"))
-    extra_warnings = (
-        [draft_warning(getattr(outcome.revision, "version", None))]
-        if run_is_draft
-        else []
-    )
     return PlatformHandlerResult(
         content=_read_config_response(
-            outcome, is_draft=run_is_draft, extra_warnings=extra_warnings
+            outcome, is_draft=bool(target.get("run_is_draft"))
         )
     )
 
 
-def _read_config_response(outcome: Any, *, is_draft: bool, extra_warnings: list):
+def _read_config_response(outcome: Any, *, is_draft: bool):
     """The read answer, shared by `read_config` and `read_agent_config`."""
     from oss.src.apis.fastapi.workflows.models import (
         ReadConfigResponse,
         ReadConfigRevision,
     )
+    from oss.src.core.workflows.read_config import draft_warning
 
     revision = outcome.revision
-    warnings = list(outcome.warnings) + extra_warnings
+    warnings = list(outcome.warnings)
+    if is_draft:
+        warnings.append(draft_warning(getattr(revision, "version", None)))
     return ReadConfigResponse(
         revision=ReadConfigRevision(
             id=str(revision.id),
@@ -777,17 +783,6 @@ def _read_config_response(outcome: Any, *, is_draft: bool, extra_warnings: list)
         value=outcome.value,
         bytes=outcome.bytes,
         warnings=warnings or None,
-    )
-
-
-def _full_data_refusal(message: str, *, change_field: str) -> AgentError:
-    return AgentError(
-        code="full_data_not_committable",
-        message=message,
-        retryable=False,
-        next_step=(
-            f"Send the change as `{change_field}`, targeting the fields you want to alter."
-        ),
     )
 
 
@@ -812,7 +807,8 @@ async def _commit_as_agent(
 
     The one commit path for an agent, its own configuration or another agent's: the scope,
     the selector normalization, the build-kit rejection, the stale-base check and the derived
-    message all apply. Every expected refusal is raised as the canonical envelope.
+    message all apply. Every expected refusal is raised as the canonical envelope, a commit
+    that reports success without a revision included.
 
     Enforcement happens inside the engine, through `scope_policy`, because the engine sees
     the RESULT of an operation. A check here would see only what the agent named, and an
@@ -829,7 +825,7 @@ async def _commit_as_agent(
     )
 
     try:
-        return await workflows_service.commit_workflow_revision_checked(
+        outcome = await workflows_service.commit_workflow_revision_checked(
             project_id=project_id,
             user_id=user_id,
             workflow_revision_commit=commit,
@@ -887,6 +883,17 @@ async def _commit_as_agent(
                 retryable=False,
             )
         ) from e
+    if outcome.status == "committed" and not outcome.revision:
+        # The write layer reported success and produced nothing. Not retryable and no next
+        # step: retrying a write whose state is unknown invites a duplicate commit.
+        raise _Refusal(
+            AgentError(
+                code="commit_failed",
+                message="The commit did not produce a revision.",
+                retryable=False,
+            )
+        )
+    return outcome
 
 
 async def handle_commit_revision(
@@ -927,10 +934,16 @@ async def handle_commit_revision(
     # is refused rather than filtered. The agent's tool only ever sends a delta.
     if payload.get("delta") is None:
         return PlatformHandlerResult.failure(
-            _full_data_refusal(
-                "This tool commits a change to your configuration, not a whole "
-                "configuration.",
-                change_field="delta",
+            AgentError(
+                code="full_data_not_committable",
+                message=(
+                    "This tool commits a change to your configuration, not a whole "
+                    "configuration."
+                ),
+                retryable=False,
+                next_step=(
+                    "Send the change as `delta`, targeting the fields you want to alter."
+                ),
             )
         )
 
@@ -956,17 +969,6 @@ async def handle_commit_revision(
         return PlatformHandlerResult.failure(e.error)
 
     revision = outcome.revision
-    if outcome.status == "committed" and not revision:
-        # The write layer reported success and produced nothing. Not retryable and no next
-        # step: retrying a write whose state is unknown invites a duplicate commit.
-        return PlatformHandlerResult.failure(
-            AgentError(
-                code="commit_failed",
-                message="The commit did not produce a revision.",
-                retryable=False,
-            )
-        )
-
     return PlatformHandlerResult(
         content={
             "status": outcome.status,
@@ -989,7 +991,7 @@ async def handle_commit_revision(
 
 
 # ---------------------------------------------------------------------------
-# list_agents / read_agent_config / create_agent / edit_agent_config — the
+# list_agents / read_agent_config / create_agent / edit_agent_config: the
 # OTHER agents in the caller's project
 # ---------------------------------------------------------------------------
 #
@@ -1003,43 +1005,79 @@ LIST_AGENTS_CALL_REF = "tools.agenta.list_agents"
 READ_AGENT_CONFIG_CALL_REF = "tools.agenta.read_agent_config"
 CREATE_AGENT_CALL_REF = "tools.agenta.create_agent"
 EDIT_AGENT_CONFIG_CALL_REF = "tools.agenta.edit_agent_config"
-LIST_AGENTS_DEFAULT_LIMIT = 50
-LIST_AGENTS_MAX_LIMIT = 100
 
-_FIND_AGENT_STEP = "Call list_agents and pass one agent's `slug` or `id` as `agent`."
+_FIND_AGENT_STEP = (
+    "Call list_agents and pass the agent's `slug` or `id` as `agent`, not its name."
+)
 _SET_INSTRUCTIONS_EXAMPLE = (
     '{"operation": "set", "target": ["parameters","agent","instructions","agents_md"], '
     '"value": "..."}'
 )
 _BOUND_FIELDS = frozenset({"caller_agent_id", "caller_session_id"})
-_EDIT_AGENT_CONFIG_FIELDS = (
-    frozenset({"agent", "base_revision_id", "operations"}) | _BOUND_FIELDS
-)
-_CREATE_AGENT_FIELDS = frozenset({"name", "description", "operations"}) | _BOUND_FIELDS
+# The keys a whole configuration arrives in. Sent instead of operations, they are refused
+# with the same code as self-edit's whole-configuration refusal.
+_CONFIGURATION_KEYS = frozenset({"data", "parameters"})
 
 
 def _bound_caller(arguments: Dict[str, Any]) -> UUID:
-    """The calling agent's artifact id, bound from the run. Fails closed like the variant."""
-    raw = arguments.get("caller_agent_id")
-    if not raw:
+    """The calling agent's artifact id, bound from the run."""
+    return _bound_uuid(arguments.get("caller_agent_id"), field="caller_agent_id")
+
+
+def _bound_session(arguments: Dict[str, Any]) -> str:
+    """The run's session, bound from the run. The write tools are offered only to a run with a
+    session, so a missing one is refused like a missing caller, not written as unknown."""
+    session_id = arguments.get("caller_session_id")
+    if not isinstance(session_id, str) or not session_id.strip():
         raise PlatformToolHandlerRefused(
-            "caller_agent_id is bound from the run and was missing."
+            "caller_session_id is bound from the run and was missing."
         )
-    try:
-        return UUID(str(raw))
-    except ValueError as e:
-        raise PlatformToolHandlerRefused("caller_agent_id is not a valid id.") from e
-
-
-def _bound_session(arguments: Dict[str, Any]) -> Optional[str]:
-    raw = arguments.get("caller_session_id")
-    return str(raw) if raw else None
+    return session_id.strip()
 
 
 def _agent_refusal(code: str, message: str, next_step: str) -> _Refusal:
     return _Refusal(
         AgentError(code=code, message=message, retryable=False, next_step=next_step)
     )
+
+
+def _not_found(raw: str) -> _Refusal:
+    return _agent_refusal(
+        "agent_not_found",
+        f"No agent in this project has the slug or id '{raw}'.",
+        _FIND_AGENT_STEP,
+    )
+
+
+def _reject_unknown_fields(
+    arguments: Dict[str, Any], fields: Sequence[str], *, tool: str
+) -> None:
+    """One rule for every key the tool does not take, a forged `message` included.
+
+    A key outside the schema would otherwise be dropped in silence and the call answered as a
+    success: a top-level `instructions` would create the bare template, a `delta` copied from
+    `commit_revision` would save nothing. A whole configuration keeps the code self-edit
+    gives it.
+    """
+    unknown = sorted(set(arguments) - set(fields) - _BOUND_FIELDS)
+    if not unknown:
+        return
+    names = ", ".join(f"`{key}`" for key in unknown)
+    verb = "is not a field" if len(unknown) == 1 else "are not fields"
+    listed = ", ".join(f"`{field}`" for field in fields[:-1]) + f" and `{fields[-1]}`"
+    message = f"{names} {verb} of {tool}. Its fields are {listed}."
+    next_step = (
+        "Put every change in `operations`, at the top level, for example "
+        f'"operations": [{_SET_INSTRUCTIONS_EXAMPLE}].'
+    )
+    if _CONFIGURATION_KEYS & set(unknown):
+        raise _agent_refusal(
+            "full_data_not_committable",
+            f"{tool} saves a change to an agent's configuration, not a whole "
+            f"configuration. {message}",
+            next_step,
+        )
+    raise _ArgumentsRefused(message, next_step=next_step)
 
 
 def _agent_reference(arguments: Dict[str, Any]) -> tuple[str, Reference]:
@@ -1058,11 +1096,7 @@ def _agent_reference(arguments: Dict[str, Any]) -> tuple[str, Reference]:
         return raw, Reference(slug=raw)
     except ValidationError as e:
         # Most often the agent's NAME, which is not a slug.
-        raise _agent_refusal(
-            "agent_not_found",
-            f"No agent in this project has the slug or id '{raw}'.",
-            "Call list_agents and pass the agent's `slug` or `id`, not its name.",
-        ) from e
+        raise _not_found(raw) from e
 
 
 async def _resolve_other_agent(
@@ -1094,11 +1128,7 @@ async def _resolve_other_agent(
             _FIND_AGENT_STEP,
         )
     if head is None or head.workflow_id is None:
-        raise _agent_refusal(
-            "agent_not_found",
-            f"No agent in this project has the slug or id '{raw}'.",
-            _FIND_AGENT_STEP,
-        )
+        raise _not_found(raw)
     if head.workflow_id == caller_id:
         raise _agent_refusal(
             "agent_is_self",
@@ -1111,11 +1141,7 @@ async def _resolve_other_agent(
         include_archived=True,
     )
     if workflow is None:
-        raise _agent_refusal(
-            "agent_not_found",
-            f"No agent in this project has the slug or id '{raw}'.",
-            _FIND_AGENT_STEP,
-        )
+        raise _not_found(raw)
     if workflow.deleted_at is not None or head.deleted_at is not None:
         raise _agent_refusal(
             "agent_archived",
@@ -1140,8 +1166,8 @@ async def _attribution(
     *,
     workflows_service: WorkflowsService,
     project_id: UUID,
-    arguments: Dict[str, Any],
     caller_id: UUID,
+    session_id: str,
 ) -> str:
     from oss.src.core.workflows.commit_support import agent_attribution
 
@@ -1152,7 +1178,7 @@ async def _attribution(
     return agent_attribution(
         agent_id=str(caller_id),
         agent_name=caller.name if caller else None,
-        session_id=_bound_session(arguments),
+        session_id=session_id,
     )
 
 
@@ -1170,6 +1196,41 @@ def _operations(arguments: Dict[str, Any], *, required: bool) -> Optional[list]:
     return operations
 
 
+async def _default_heads(
+    *,
+    workflows_service: WorkflowsService,
+    project_id: UUID,
+    workflows: Sequence[Any],
+    include_archived: bool,
+) -> Dict[UUID, Any]:
+    """Each workflow's default-variant head, the revision read and edit act on, in two queries.
+
+    The default variant is the oldest one, the rule `fetch_workflow_revision` applies when it
+    is given only the workflow.
+    """
+    from oss.src.core.git.dtos import RevisionGrouping
+
+    variants = await workflows_service.query_workflow_variants(
+        project_id=project_id,
+        workflow_refs=[Reference(id=workflow.id) for workflow in workflows],
+        include_archived=include_archived,
+    )
+    default_variants: Dict[UUID, Any] = {}
+    for variant in sorted(variants, key=lambda v: (v.created_at, v.id)):
+        default_variants.setdefault(variant.workflow_id, variant)
+    if not default_variants:
+        return {}
+    heads = await workflows_service.query_workflow_revisions(
+        project_id=project_id,
+        workflow_variant_refs=[
+            Reference(id=variant.id) for variant in default_variants.values()
+        ],
+        include_archived=include_archived,
+        grouping=RevisionGrouping(by="variant", get="latest"),
+    )
+    return {head.workflow_id: head for head in heads}
+
+
 async def handle_list_agents(
     *,
     arguments: Any,
@@ -1183,10 +1244,11 @@ async def handle_list_agents(
     """The agents in the caller's project, newest first, one page at a time.
 
     One row per agent, from the head `read_agent_config` and `edit_agent_config` act on: the
-    default variant's latest revision. Pages run over the project's applications and keep
-    the ones whose head is flagged `is_agent` today, so a page may hold fewer than `limit`
-    agents; `next_cursor` is what says another page exists. Static platform workflows are
-    served from code and never stored, so they never appear.
+    default variant's latest revision. The scan runs over the project's applications, in
+    batches, and keeps the ones whose head is flagged `is_agent` today, until the page holds
+    `limit` agents or the applications run out. `next_cursor` is the last application
+    scanned. Static platform workflows are served from code and never stored, so they never
+    appear.
     """
     from oss.src.core.workflows.dtos import WorkflowArtifactQueryFlags, WorkflowQuery
 
@@ -1203,7 +1265,9 @@ async def handle_list_agents(
         ):
             raise _ArgumentsRefused(
                 f"`limit` must be a whole number from 1 to {LIST_AGENTS_MAX_LIMIT}.",
-                next_step="Omit `limit` to get 50 agents per page.",
+                next_step=(
+                    f"Omit `limit` to get {LIST_AGENTS_DEFAULT_LIMIT} agents per page."
+                ),
             )
         cursor = parsed.get("cursor")
         try:
@@ -1217,40 +1281,49 @@ async def handle_list_agents(
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
-    workflows = await workflows_service.query_workflows(
-        project_id=project_id,
-        workflow_query=WorkflowQuery(
-            flags=WorkflowArtifactQueryFlags(is_application=True)
-        ),
-        include_archived=include_archived,
-        windowing=Windowing(limit=limit, next=cursor),
-    )
-
     agents: List[Dict[str, Any]] = []
-    for workflow in workflows:
-        head = await workflows_service.fetch_workflow_revision(
+    more = True
+    while more and len(agents) < limit:
+        batch = await workflows_service.query_workflows(
             project_id=project_id,
-            workflow_ref=Reference(id=workflow.id),
+            workflow_query=WorkflowQuery(
+                flags=WorkflowArtifactQueryFlags(is_application=True)
+            ),
             include_archived=include_archived,
+            windowing=Windowing(limit=LIST_AGENTS_MAX_LIMIT, next=cursor),
         )
-        if head is None or head.flags is None or not head.flags.is_agent:
-            continue
-        agent = {
-            **_agent_summary(workflow),
-            "description": workflow.description,
-            "version": head.version,
-            "updated_at": head.created_at.isoformat() if head.created_at else None,
-        }
-        if workflow.deleted_at is not None:
-            agent["archived"] = True
-        agents.append(agent)
+        more = len(batch) == LIST_AGENTS_MAX_LIMIT
+        heads = (
+            await _default_heads(
+                workflows_service=workflows_service,
+                project_id=project_id,
+                workflows=batch,
+                include_archived=include_archived,
+            )
+            if batch
+            else {}
+        )
+        for index, workflow in enumerate(batch):
+            cursor = workflow.id
+            head = heads.get(workflow.id)
+            if head is None or head.flags is None or not head.flags.is_agent:
+                continue
+            agent = {
+                **_agent_summary(workflow),
+                "description": workflow.description,
+                "version": head.version,
+                "updated_at": head.created_at.isoformat() if head.created_at else None,
+            }
+            if workflow.deleted_at is not None:
+                agent["archived"] = True
+            agents.append(agent)
+            if len(agents) == limit:
+                # Stopped inside the batch: what is left of it is the next page.
+                more = more or index < len(batch) - 1
+                break
 
-    full_page = len(workflows) == limit
     return PlatformHandlerResult(
-        content={
-            "agents": agents,
-            "next_cursor": str(workflows[-1].id) if full_page else None,
-        }
+        content={"agents": agents, "next_cursor": str(cursor) if more else None}
     )
 
 
@@ -1267,10 +1340,11 @@ async def handle_read_agent_config(
     """Another agent's latest saved configuration, with the same answer `read_config` gives.
 
     There is no draft warning: that warning is about the CALLER's run, and this reads an
-    agent that is not running here. It always answers from the stored head, which is what
-    `edit_agent_config` edits.
+    agent that is not running here. It answers from the head the target resolution already
+    loaded, which is what `edit_agent_config` edits.
     """
     from oss.src.core.workflows.read_config import ReadConfigError
+    from oss.src.core.workflows.service import read_revision_config
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("read_agent_config is unavailable.")
@@ -1286,20 +1360,15 @@ async def handle_read_agent_config(
             self_step="To read your own configuration, use read_config.",
         )
         try:
-            outcome = await workflows_service.read_workflow_revision_config(
-                project_id=project_id,
-                workflow_variant_id=head.workflow_variant_id,
-                path=parsed.get("path"),
-                max_bytes=parsed.get("max_bytes"),
+            outcome = read_revision_config(
+                head, path=parsed.get("path"), max_bytes=parsed.get("max_bytes")
             )
         except ReadConfigError as e:
             raise _Refusal(AgentError(**e.to_detail())) from e
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
-    return PlatformHandlerResult(
-        content=_read_config_response(outcome, is_draft=False, extra_warnings=[])
-    )
+    return PlatformHandlerResult(content=_read_config_response(outcome, is_draft=False))
 
 
 async def handle_edit_agent_config(
@@ -1326,27 +1395,12 @@ async def handle_edit_agent_config(
     try:
         parsed = _parse_arguments(arguments)
         caller_id = _bound_caller(parsed)
-        if "operations" not in parsed and {"delta", "workflow_revision"} & set(parsed):
-            # The `commit_revision` shape, copied over. The change is there; only its
-            # place is wrong, and "not a whole configuration" would not say so.
-            raise _ArgumentsRefused(
-                "`operations` sits at the top level of this tool, not inside `delta` "
-                "or `workflow_revision`.",
-                next_step=(
-                    "Send `operations` at the top level, beside `agent` and "
-                    "`base_revision_id`."
-                ),
-            )
-        if "operations" not in parsed and set(parsed) - _EDIT_AGENT_CONFIG_FIELDS:
-            # A whole configuration, in whatever key the model chose. Refused, not filtered,
-            # for the same reason `commit_revision` refuses one.
-            raise _Refusal(
-                _full_data_refusal(
-                    "This tool saves a change to an agent's configuration, not a whole "
-                    "configuration.",
-                    change_field="operations",
-                )
-            )
+        session_id = _bound_session(parsed)
+        _reject_unknown_fields(
+            parsed,
+            ("agent", "base_revision_id", "operations"),
+            tool="edit_agent_config",
+        )
         operations = _operations(parsed, required=True)
         base_revision_id = parsed.get("base_revision_id")
         if not base_revision_id:
@@ -1372,36 +1426,22 @@ async def handle_edit_agent_config(
             )
         except Exception as e:
             raise _Refusal(_commit_payload_refusal(e)) from e
-        attribution = await _attribution(
-            workflows_service=workflows_service,
-            project_id=project_id,
-            arguments=parsed,
-            caller_id=caller_id,
-        )
         outcome = await _commit_as_agent(
             workflows_service=workflows_service,
             project_id=project_id,
             user_id=user_id,
             commit=commit,
-            attribution=attribution,
+            attribution=await _attribution(
+                workflows_service=workflows_service,
+                project_id=project_id,
+                caller_id=caller_id,
+                session_id=session_id,
+            ),
         )
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
     revision = outcome.revision
-    if outcome.status == "committed" and not revision:
-        return PlatformHandlerResult.failure(
-            AgentError(
-                code="commit_failed",
-                message="The commit did not produce a revision.",
-                retryable=False,
-            )
-        )
-    if outcome.status == "committed":
-        # The legacy caches the commit routes clear. No `committed_revision`: that signal
-        # tells the CALLER's playground it committed itself, and this is another agent.
-        await invalidate_cache(project_id=str(project_id))
-
     return PlatformHandlerResult(
         content={
             "status": outcome.status,
@@ -1410,26 +1450,29 @@ async def handle_edit_agent_config(
             "base_revision_id": str(revision.id) if revision else None,
             "message": revision.message if revision else None,
             "warnings": [w.model_dump(mode="json") for w in outcome.warnings],
-        }
+        },
+        # Not `committed_revision`: that signal tells the CALLER's playground it committed
+        # itself, and this is another agent.
+        wrote_revision=outcome.status == "committed",
     )
+
+
+# The engine's next steps for these reasons send the model to read the stored configuration
+# again. A create has nothing stored to read, so it is told to fix the operation instead.
+_READ_AGAIN_REASONS = frozenset(
+    {"target_not_found", "target_type_mismatch", "item_not_found", "text_not_found"}
+)
 
 
 def _create_refusal(error: AgentError) -> AgentError:
-    """A refusal from the operations of a create, pointed at the create.
-
-    The shared next step speaks of a configuration to read again. Here nothing exists yet,
-    so the way forward is to fix the operation and send the create again.
-    """
+    """A refusal from the operations of a create: the engine's next step, said of a create."""
     index = (error.details or {}).get("operation_index")
-    fix = "the operations" if index is None else f"operation {index}"
-    return error.model_copy(
-        update={
-            "next_step": (
-                f"No agent was created. Fix {fix} as the message says, then call "
-                "create_agent again."
-            )
-        }
-    )
+    if error.code in _READ_AGAIN_REASONS or not error.next_step:
+        fix = "the operations" if index is None else f"operation {index}"
+        step = f"Fix {fix} as the message says, then call create_agent again."
+    else:
+        step = error.next_step
+    return error.model_copy(update={"next_step": f"No agent was created. {step}"})
 
 
 async def handle_create_agent(
@@ -1445,16 +1488,15 @@ async def handle_create_agent(
     """A new agent from the "New agent" template, with the caller's operations applied.
 
     The service owns the composition (template, operations, slug, flags, first message) and
-    the cleanup of a create that stops part of the way. This handler reads the arguments,
+    the idempotent writes, keyed by the session and the arguments, so a retry of a create
+    that stopped part of the way finishes the same agent. This handler reads the arguments,
     names the creator, and turns each failure into a refusal the model can act on.
     """
     from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+    from oss.src.core.shared.exceptions import EntityCreationConflict
     from oss.src.core.workflows.change_set import ChangeSetError
     from oss.src.core.workflows.service import SimpleWorkflowsService
-    from oss.src.core.workflows.types import (
-        AgentCreationFailed,
-        InvalidAgentInstructionsError,
-    )
+    from oss.src.core.workflows.types import InvalidAgentInstructionsError
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("create_agent is unavailable.")
@@ -1462,19 +1504,10 @@ async def handle_create_agent(
     try:
         parsed = _parse_arguments(arguments)
         caller_id = _bound_caller(parsed)
-        unknown = sorted(set(parsed) - _CREATE_AGENT_FIELDS)
-        if unknown:
-            # A top-level `instructions` or `model` would otherwise be dropped in silence and
-            # the agent created from the bare template, with a success answer.
-            raise _ArgumentsRefused(
-                f"{', '.join(f'`{key}`' for key in unknown)} "
-                f"{'is not a field' if len(unknown) == 1 else 'are not fields'} of "
-                "create_agent. Its fields are `name`, `description` and `operations`.",
-                next_step=(
-                    "Put every change to the new agent in `operations`, for example "
-                    f'"operations": [{_SET_INSTRUCTIONS_EXAMPLE}].'
-                ),
-            )
+        session_id = _bound_session(parsed)
+        _reject_unknown_fields(
+            parsed, ("name", "description", "operations"), tool="create_agent"
+        )
         name = parsed.get("name")
         if not isinstance(name, str) or not name.strip():
             raise _ArgumentsRefused(
@@ -1491,8 +1524,8 @@ async def handle_create_agent(
         attribution = await _attribution(
             workflows_service=workflows_service,
             project_id=project_id,
-            arguments=parsed,
             caller_id=caller_id,
+            session_id=session_id,
         )
         try:
             created, message, warnings = await SimpleWorkflowsService(
@@ -1504,41 +1537,36 @@ async def handle_create_agent(
                 description=description,
                 operations=operations,
                 message=f"Created {attribution}",
+                idempotency_scope=session_id,
             )
         except ValidationError as e:
             raise _Refusal(_create_refusal(_commit_payload_refusal(e))) from e
         except (ChangeSetError, InvalidAgentInstructionsError) as e:
             raise _Refusal(_create_refusal(AgentError(**e.to_detail()))) from e
         except NonEmbeddableWorkflowReferenceError as e:
-            raise _Refusal(
-                AgentError(
-                    code="non_embeddable_reference",
-                    message=str(e),
-                    retryable=False,
-                    next_step=(
-                        "Remove the embedded reference to that workflow, then call "
-                        "create_agent again."
-                    ),
-                )
+            raise _agent_refusal(
+                "non_embeddable_reference",
+                str(e),
+                "Remove the embedded reference to that workflow, then call create_agent "
+                "again.",
             ) from e
-        except AgentCreationFailed as e:
-            # Not retryable: part of the agent may exist, and the same call would make a
-            # second one.
+        except EntityCreationConflict as e:
+            # A write stopped part of the way. Every write is keyed by the session and the
+            # arguments, so the same call finishes this agent rather than making another.
             raise _Refusal(
                 AgentError(
                     code="create_failed",
-                    message=e.message,
-                    retryable=False,
+                    message="The agent could not be created: a write stopped part of the way.",
+                    retryable=True,
                     next_step=(
-                        "Call list_agents to see whether the agent exists before you "
-                        "create it again."
+                        "Call create_agent again with the same arguments; it finishes the "
+                        "same agent."
                     ),
                 )
             ) from e
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
-    await invalidate_cache(project_id=str(project_id))
     return PlatformHandlerResult(
         content={
             "status": "created",
@@ -1546,7 +1574,8 @@ async def handle_create_agent(
             "base_revision_id": str(created.revision_id),
             "message": message,
             "warnings": [w.model_dump(mode="json") for w in warnings],
-        }
+        },
+        wrote_revision=True,
     )
 
 

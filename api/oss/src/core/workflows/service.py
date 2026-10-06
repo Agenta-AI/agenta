@@ -60,6 +60,7 @@ from oss.src.core.shared.exceptions import (
 from oss.src.core.shared.idempotency import (
     idempotent_workflow_slug,
     resource_identity,
+    request_fingerprint as fingerprint_of,
     request_key_hash,
 )
 from oss.src.core.git.dtos import (
@@ -161,7 +162,6 @@ from oss.src.core.workflows.interfaces import StaticWorkflowProvider
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
-    AgentCreationFailed,
     InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
     StaticWorkflowSlug,
@@ -394,10 +394,27 @@ def _entry_issues(field: str, error: Exception) -> List[str]:
     return issues
 
 
-def _validate_agent_config(data: dict) -> List[str]:
-    """The final gate on an agent's commit: storable, and runnable."""
-    _validate_persisted_shape(data)
-    return _agent_template_issues(data)
+def read_revision_config(
+    revision: WorkflowRevision,
+    *,
+    path: Optional[list] = None,
+    max_bytes: Optional[int] = None,
+) -> ConfigReadOutcome:
+    """One part of a revision the caller already holds, as the config read answers it."""
+    data = (
+        revision.data.model_dump(mode="json", exclude_none=True)
+        if revision.data
+        else None
+    )
+    result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
+    return ConfigReadOutcome(
+        revision=revision,
+        path=result.path,
+        value=result.value,
+        bytes=result.bytes,
+        is_draft=False,
+        warnings=list(result.warnings),
+    )
 
 
 class WorkflowsService:
@@ -2480,20 +2497,7 @@ class WorkflowsService:
                 "That variant has no revision to read.",
                 status_code=404,
             )
-
-        data = (
-            head.data.model_dump(mode="json", exclude_none=True) if head.data else None
-        )
-        result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
-
-        return ConfigReadOutcome(
-            revision=head,
-            path=result.path,
-            value=result.value,
-            bytes=result.bytes,
-            is_draft=False,
-            warnings=list(result.warnings),
-        )
+        return read_revision_config(head, path=path, max_bytes=max_bytes)
 
     async def commit_workflow_revision_checked(
         self,
@@ -3043,8 +3047,14 @@ class WorkflowsService:
             base,
             delta,
             scope_policy,
+            # An agent's result must be storable AND runnable.
             validate=(
-                _validate_agent_config if agent_context else _validate_persisted_shape
+                (
+                    lambda data: _validate_persisted_shape(data)
+                    or _agent_template_issues(data)
+                )
+                if agent_context
+                else _validate_persisted_shape
             ),
         )
         warnings = warnings + list(result.warnings)
@@ -3642,6 +3652,10 @@ return 0
 """
 
 
+# The idempotency namespace of `create_agent`, the agent tool that creates another agent.
+_CREATE_AGENT_NAMESPACE = "agent_tools.create_agent"
+
+
 class SimpleWorkflowsService:
     def __init__(
         self,
@@ -3840,7 +3854,14 @@ class SimpleWorkflowsService:
         component: str,
         simple_workflow_create: SimpleWorkflowCreate,
         trusted_meta: Optional[dict] = None,
+        message: Optional[str] = None,
     ) -> SimpleWorkflowCreateResult:
+        """Create a workflow whose every write is keyed by ``request_key``, so a retry of a
+        create that stopped part of the way finishes it instead of starting another one.
+
+        ``message`` is the commit message of the revision that holds ``data``: the first
+        revision a person sees in history.
+        """
         if not namespace.strip() or not request_key.strip() or not component.strip():
             raise ValueError("namespace, request_key, and component must not be empty")
         if not request_fingerprint.strip():
@@ -4009,6 +4030,7 @@ class SimpleWorkflowsService:
                             tags=request.tags,
                             meta=request.meta,
                             data=request.data,
+                            message=message,
                             workflow_id=workflow_id,
                             workflow_variant_id=variant.id,
                         ),
@@ -4071,13 +4093,7 @@ class SimpleWorkflowsService:
         platform_meta: bool = False,
         #
         workflow_id: Optional[UUID] = None,
-        #
-        message: Optional[str] = None,
     ) -> Optional[SimpleWorkflow]:
-        """Create the artifact, its variant, the blank v0 and the v1 that holds ``data``.
-
-        ``message`` is v1's commit message: the first revision a person sees in history.
-        """
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
@@ -4187,8 +4203,6 @@ class SimpleWorkflowsService:
             #
             data=simple_workflow_create.data,
             #
-            message=message,
-            #
             workflow_id=workflow.id,
             workflow_variant_id=workflow_variant.id,
         )
@@ -4242,6 +4256,7 @@ class SimpleWorkflowsService:
         operations: Optional[list] = None,
         #
         message: str,
+        idempotency_scope: str,
     ) -> tuple[SimpleWorkflow, str, List[CommitWarning]]:
         """A new agent from the "New agent" template, with an agent's operations applied.
 
@@ -4250,8 +4265,10 @@ class SimpleWorkflowsService:
         template and the operations together, and ``message`` (plus the derived clauses) is
         its commit message. Returns the agent, that message and the engine's warnings.
 
-        The writes after that are not one transaction, the same as every other create. If
-        one stops part of the way, the partial agent is archived and the failure says so.
+        The writes are the idempotent create, keyed by ``idempotency_scope`` and the
+        arguments: the same arguments in the same scope make one agent. A create that stops
+        part of the way is finished by the next call with the same arguments, not left
+        behind beside a second agent.
         """
         data = new_agent_revision_data()
         warnings: List[CommitWarning] = []
@@ -4266,51 +4283,26 @@ class SimpleWorkflowsService:
             )
             message = f"{message}; {derived}"
 
-        workflow_id = uuid4()
-        slug = new_agent_slug(name)
-        try:
-            created = await self.create(
-                project_id=project_id,
-                user_id=user_id,
-                simple_workflow_create=SimpleWorkflowCreate(
-                    slug=slug,
-                    name=name,
-                    description=description,
-                    flags=SimpleWorkflowFlags(is_application=True, is_agent=True),
-                    data=SimpleWorkflowData(**data),
-                ),
-                workflow_id=workflow_id,
-                message=message,
-            )
-        except Exception:
-            await self._archive_partial_agent(project_id, user_id, workflow_id)
-            raise
-        if created is None or created.revision_id is None:
-            raise AgentCreationFailed(
-                slug=slug,
-                archived=await self._archive_partial_agent(
-                    project_id, user_id, workflow_id
-                ),
-            )
-        return created, message, warnings
-
-    async def _archive_partial_agent(
-        self, project_id: UUID, user_id: UUID, workflow_id: UUID
-    ) -> bool:
-        try:
-            archived = await self.workflows_service.archive_workflow(
-                project_id=project_id,
-                user_id=user_id,
-                workflow_id=workflow_id,
-            )
-        except Exception:  # noqa: BLE001 - the create's own failure is the one to report
-            archived = None
-        if archived is None:
-            log.warning(
-                "[WORKFLOWS] could not archive a half-created agent",
-                workflow_id=str(workflow_id),
-            )
-        return archived is not None
+        fingerprint = fingerprint_of(
+            {"name": name, "description": description, "operations": operations or []}
+        )
+        outcome = await self.create_idempotent(
+            project_id=project_id,
+            user_id=user_id,
+            namespace=_CREATE_AGENT_NAMESPACE,
+            request_key=f"{idempotency_scope}:{fingerprint}",
+            request_fingerprint=fingerprint,
+            component="agent",
+            simple_workflow_create=SimpleWorkflowCreate(
+                slug=new_agent_slug(name),
+                name=name,
+                description=description,
+                flags=SimpleWorkflowFlags(is_application=True, is_agent=True),
+                data=SimpleWorkflowData(**data),
+            ),
+            message=message,
+        )
+        return outcome.workflow, message, warnings
 
     async def fetch(
         self,
