@@ -720,7 +720,7 @@ async def test_the_usage_view_reads_a_labelled_charge_back_by_session(
     )
     [day] = usage.days
     assert (day.category, day.amount_musd, day.charge_count) == (
-        "Model calls",
+        "AI models",
         spent,
         2,
     )

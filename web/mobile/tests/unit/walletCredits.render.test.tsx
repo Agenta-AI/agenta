@@ -53,8 +53,8 @@ const usage: WalletUsage = {
     end: "2026-10-02T00:00:00Z",
     truncated: false,
     days: [
-        {day: "2026-10-01", category: "Model calls", amount_musd: 1_000_000, charge_count: 3},
-        {day: "2026-10-01", category: "Sandbox", amount_musd: 250_000, charge_count: 2},
+        {day: "2026-10-01", category: "AI models", amount_musd: 1_000_000, charge_count: 3},
+        {day: "2026-10-01", category: "Runtime", amount_musd: 250_000, charge_count: 2},
     ],
     sessions: [],
 }
@@ -128,10 +128,10 @@ describe("the Credits tab", () => {
         const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
 
         expect(shown).toContain("1,234.5 credits")
-        expect(shown).toContain("Welcome credits")
+        expect(shown).toContain("Signup bonus")
         expect(shown).toContain("expires Oct 2, 2027")
         expect(shown).toContain("Oct 1, 2026")
-        expect(shown).toContain("Model calls")
+        expect(shown).toContain("AI models")
         expect(shown).toContain("125")
     })
 
@@ -147,7 +147,7 @@ describe("the Credits tab", () => {
         api.usage.mockResolvedValue(usage)
         const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
 
-        expect(shown).toContain("Welcome credits")
+        expect(shown).toContain("Signup bonus")
         expect(shown).not.toContain("Expired grant")
     })
 

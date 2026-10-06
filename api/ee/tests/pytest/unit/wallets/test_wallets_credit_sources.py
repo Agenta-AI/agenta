@@ -333,7 +333,7 @@ PERIOD_END = datetime(2026, 11, 1, tzinfo=timezone.utc)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("plan,amount", [(PRO, 29_000_000), (BUSINESS, 299_000_000)])
+@pytest.mark.parametrize("plan,amount", [(PRO, 20_000_000), (BUSINESS, 320_000_000)])
 async def test_period_allowance_is_the_plan_price_for_the_period(plan, amount):
     dao = _dao()
     service = WalletsService(wallets_dao=dao)
@@ -372,7 +372,7 @@ async def test_period_allowance_grants_once_per_period():
 
     assert replay.id == first.id
     assert len(dao._credits) == 2
-    assert dao.general_balance.balance_musd == 2 * 29_000_000
+    assert dao.general_balance.balance_musd == 2 * 20_000_000
 
 
 @pytest.mark.asyncio

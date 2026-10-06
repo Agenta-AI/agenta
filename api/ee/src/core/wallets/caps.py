@@ -6,7 +6,7 @@ with the plan entitlements (`AGENT_TURN_CAPS`). The runner shows each line as it
 a stable code the chat maps to its own title and button, so every line is one line of plain
 text written for the person in the chat.
 
-The words are plain on purpose: "request" for what the person asked the agent to do, and
+The words are plain on purpose: "task" for what the person asked the agent to do, and
 "agent" for the agent, with no internal terms. The numbers in them come from the caps and
 the plan catalog.
 """
@@ -22,6 +22,7 @@ from ee.src.core.access.entitlements.types import (
     DefaultPlan,
 )
 from ee.src.core.wallets.grants import DAILY_FREE_GRANTS_PER_MONTH
+from ee.src.core.wallets.plans import allowance_musd_for_plan
 
 WALLET_BALANCE_EXHAUSTED_CODE = "wallet_balance_exhausted"
 CONCURRENT_TURNS_LIMIT_CODE = "concurrent_turns_limit"
@@ -40,8 +41,14 @@ _BUSINESS = DefaultPlan.CLOUD_V0_BUSINESS.value
 # The plan to suggest next, by plan. Business has none: the person contacts us.
 _UPGRADE = {_HOBBY: _PRO, _PRO: _BUSINESS}
 
-# Decided numbers the out-of-credit line names (release plan, 2026-10-02).
-_MONTHLY_CREDITS = {_PRO: "2,900", _BUSINESS: "29,900"}
+# 1 credit = 1 cent = 10_000 musd.
+_MUSD_PER_CREDIT = 10_000
+
+
+def _monthly_credits(plan: str) -> str:
+    return f"{allowance_musd_for_plan(plan=plan) // _MUSD_PER_CREDIT:,}"
+
+
 _BUY_MORE = "Buy more credits to keep going"
 
 
@@ -129,8 +136,8 @@ def concurrent_turns_message(plan: str, caps: AgentTurnCaps) -> str:
         else "contact us to raise the limit."
     )
     return (
-        f"Your {_plan_title(plan)} plan allows {caps.concurrent_turns} agents at a time, "
-        f"and {caps.concurrent_turns} are running. We didn't start this request or "
+        f"Your {_plan_title(plan)} plan allows {caps.concurrent_turns} concurrent tasks, "
+        f"and {caps.concurrent_turns} are running. We didn't start this task or "
         f"charge you. Resend when one finishes, or {next_step}"
     )
 
@@ -142,10 +149,10 @@ def turn_length_message(plan: str, caps: AgentTurnCaps) -> str:
         f"upgrade to {_plan_title(upgrade)} for up to "
         f"{_duration(upgrade_caps.max_turn_seconds)}."
         if upgrade and upgrade_caps
-        else "split the work into smaller requests."
+        else "split the work into smaller tasks."
     )
     return (
-        f"The {_plan_title(plan)} plan limits a request to "
+        f"The {_plan_title(plan)} plan limits a task to "
         f"{_duration(caps.max_turn_seconds)}. This one reached it, so we stopped it. "
         "Saved work is kept, and you paid only for the time used. Send a message to "
         f"continue, or {next_step}"
@@ -156,13 +163,13 @@ def _credit_next_step(plan: Optional[str]) -> str:
     if plan == _HOBBY:
         next_step = (
             "Free daily credits come back at midnight UTC, up to "
-            f"{DAILY_FREE_GRANTS_PER_MONTH} days a month, or upgrade to Pro for "
-            f"{_MONTHLY_CREDITS[_PRO]} credits a month."
+            f"{DAILY_FREE_GRANTS_PER_MONTH} days a month, or upgrade to "
+            f"{_plan_title(_PRO)} for {_monthly_credits(_PRO)} credits a month."
         )
     elif plan == _PRO:
         next_step = (
-            f"{_BUY_MORE}, or upgrade to Business for "
-            f"{_MONTHLY_CREDITS[_BUSINESS]} credits a month."
+            f"{_BUY_MORE}, or upgrade to {_plan_title(_BUSINESS)} for "
+            f"{_monthly_credits(_BUSINESS)} credits a month."
         )
     elif plan == _BUSINESS:
         next_step = f"{_BUY_MORE}, or contact us."
@@ -173,8 +180,8 @@ def _credit_next_step(plan: Optional[str]) -> str:
 
 def credit_exhausted_message(plan: Optional[str]) -> str:
     return (
-        "You've used all your organization's credits, so we didn't start this request "
-        "and didn't charge you. Requests already running will finish. "
+        "You've used all your organization's credits, so we didn't start this task "
+        "and didn't charge you. Tasks already running will finish. "
         f"{_credit_next_step(plan)}"
     )
 
@@ -183,6 +190,6 @@ def model_call_refused_message(plan: Optional[str]) -> str:
     """For a model call refused at the gateway, outside a turn the runner admitted. It
     makes no claim about the work or charges before the call."""
     return (
-        "You've used all your organization's credits, so this request couldn't use an "
+        "You've used all your organization's credits, so this task couldn't use an "
         f"included AI model. {_credit_next_step(plan)}"
     )
