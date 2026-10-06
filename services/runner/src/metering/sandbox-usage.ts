@@ -111,8 +111,9 @@ export function sandboxUsageContext(
   };
 }
 
-function platformHeaders(authorization: string): Record<string, string> {
-  return { authorization, ...runnerTokenHeader() };
+/** `baseUrl` is the base the call posts to, so the runner token goes only to a trusted base. */
+function platformHeaders(authorization: string, baseUrl: string): Record<string, string> {
+  return { authorization, ...runnerTokenHeader(baseUrl) };
 }
 
 /** What the platform answered for a turn that may run a platform sandbox. */
@@ -177,12 +178,13 @@ export async function admitSandboxTurn(
 ): Promise<SandboxTurnAdmission> {
   const log = deps.log ?? defaultLog;
   if (!authorization) return ADMITTED;
+  const baseUrl = deps.baseUrl ?? apiBase();
   try {
     const res = await (deps.fetch ?? fetch)(
-      `${deps.baseUrl ?? apiBase()}/wallets/sandboxes/admit`,
+      `${baseUrl}/wallets/sandboxes/admit`,
       {
         method: "POST",
-        headers: { "content-type": "application/json", ...platformHeaders(authorization) },
+        headers: { "content-type": "application/json", ...platformHeaders(authorization, baseUrl) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         body: JSON.stringify({ turn_id: turnId, ...(sessionId ? { session_id: sessionId } : {}) }),
       },
@@ -235,7 +237,7 @@ export function holdTurnSlot(
     try {
       const res = await doFetch(`${baseUrl}/wallets/sandboxes/turns/${action}`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...platformHeaders(lease.credential()) },
+        headers: { "content-type": "application/json", ...platformHeaders(lease.credential(), baseUrl) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         body: JSON.stringify({ turn_id: turnId, ...(sessionId ? { session_id: sessionId } : {}) }),
       });
@@ -417,7 +419,7 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
     try {
       res = await doFetch(`${baseUrl}/wallets/sandboxes/usage`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...platformHeaders(options.credential()) },
+        headers: { "content-type": "application/json", ...platformHeaders(options.credential(), baseUrl) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         body: JSON.stringify({
           provider: options.provider,

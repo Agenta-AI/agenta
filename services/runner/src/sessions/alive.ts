@@ -109,8 +109,9 @@ async function sendHeartbeat(
   owned: boolean;
 }> {
   try {
-    const url = `${apiBase()}/sessions/streams/heartbeat`;
-    const tokenHeader = runnerTokenHeader();
+    const base = apiBase();
+    const url = `${base}/sessions/streams/heartbeat`;
+    const tokenHeader = runnerTokenHeader(base);
     const beat = (signal?: AbortSignal) =>
         fetch(url, {
           method: "POST",

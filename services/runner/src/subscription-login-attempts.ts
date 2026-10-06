@@ -23,6 +23,7 @@
 import { randomUUID } from "node:crypto";
 
 import { apiBase } from "./apiBase.ts";
+import { runnerToken } from "./sessions/auth.ts";
 import { withinBudget } from "./lifecycle/shutdown.ts";
 import { observeSubscription } from "./subscription-events.ts";
 import type { SubscriptionLogin } from "./protocol.ts";
@@ -174,7 +175,8 @@ export async function reportAttemptOutcome(
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
   const event = { attempt: outcome.attemptId, state: outcome.state };
-  const token = deps.token ?? process.env.AGENTA_RUNNER_TOKEN;
+  const base = deps.apiBase ?? apiBase();
+  const token = deps.token ?? runnerToken(base);
   if (!token) {
     observeSubscription(log, "subscription.attempt", {
       ...event,
@@ -184,7 +186,7 @@ export async function reportAttemptOutcome(
   }
   const doFetch = deps.fetchImpl ?? fetch;
   const delays = deps.retryDelaysMs ?? OUTCOME_REPORT_RETRY_DELAYS_MS;
-  const url = `${deps.apiBase ?? apiBase()}/secrets/subscription-login/attempts/${encodeURIComponent(outcome.attemptId)}/outcome`;
+  const url = `${base}/secrets/subscription-login/attempts/${encodeURIComponent(outcome.attemptId)}/outcome`;
   const body = JSON.stringify({
     project_id: outcome.projectId,
     secret_id: outcome.secretId,

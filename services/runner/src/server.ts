@@ -1980,7 +1980,12 @@ if (isEntrypoint(import.meta.url)) {
             "cannot tell its own api from a third-party collector and cannot attribute the run " +
             "credential. Set AGENTA_API_URL to the public api base (e.g. https://<host>/api); " +
             `AGENTA_API_INTERNAL_URL host (${internalApiHost}) is the ` +
-            "in-network hop and does not substitute for it.\n",
+            "in-network hop and does not substitute for it." +
+            (process.env.AGENTA_API_INTERNAL_URL
+              ? ""
+              : " With neither set, the runner sends its runner token only to the default " +
+                "http://api:8000, never to an api base it infers from a run's trace endpoint.") +
+            "\n",
         );
       }
       if (insecureEgressAllowed()) {

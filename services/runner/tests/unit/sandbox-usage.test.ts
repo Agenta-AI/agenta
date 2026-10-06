@@ -13,6 +13,7 @@ import {
   type SandboxMeterOptions,
 } from "../../src/metering/sandbox-usage.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
+import { runWithRequestApiBase } from "../../src/apiBase.ts";
 
 vi.unmock("../../src/metering/sandbox-usage.ts");
 
@@ -567,8 +568,9 @@ describe("the runner proves it is the runner", () => {
     vi.unstubAllEnvs();
   });
 
-  it("sends the runner token beside the run's credential on both calls", async () => {
+  it("sends the runner token beside the run's credential on both calls to the env base", async () => {
     vi.stubEnv("AGENTA_RUNNER_TOKEN", "runner-secret");
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", BASE);
     const seen: Array<Record<string, string>> = [];
     const fetch = (async (_url: string, init?: RequestInit) => {
       seen.push(init?.headers as Record<string, string>);
@@ -594,6 +596,48 @@ describe("the runner proves it is the runner", () => {
     for (const headers of seen) {
       expect(headers.authorization).toBe("Access run-token");
       expect(headers["x-agenta-runner-token"]).toBe("runner-secret");
+    }
+  });
+
+  it("sends no runner token to a base inferred from the request, even when the meter stops outside the request", async () => {
+    vi.stubEnv("AGENTA_RUNNER_TOKEN", "runner-secret");
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", undefined);
+    vi.stubEnv("AGENTA_API_URL", undefined);
+    const seen: Array<{ url: string; headers: Record<string, string> }> = [];
+    const fetch = (async (url: string, init?: RequestInit) => {
+      seen.push({ url, headers: init?.headers as Record<string, string> });
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof globalThis.fetch;
+    let t = START_MS;
+
+    // Started inside the request scope, so both capture the inferred base. A `/kill` later stops
+    // them outside that scope.
+    const { meter, slot } = runWithRequestApiBase("https://collector.example.com", () => ({
+      meter: startSandboxMeter({
+        provider: "daytona",
+        sandboxId: "sb-1",
+        resources: () => DEFAULT_SANDBOX_RESOURCES,
+        credential: () => "Access run-token",
+        now: () => t,
+        fetch,
+        log: () => {},
+      }),
+      slot: holdTurnSlot("Access run-token", "t-1", undefined, {
+        fetch,
+        log: () => {},
+        heartbeat: false,
+        startLease: (credential) => ({ credential: () => credential, release: () => {} }),
+      }),
+    }));
+    t += 5_000;
+    await meter.stop();
+    slot.release();
+    await vi.waitFor(() => expect(seen).toHaveLength(2));
+
+    for (const call of seen) {
+      expect(call.url.startsWith("https://collector.example.com/wallets/")).toBe(true);
+      expect(call.headers.authorization).toBe("Access run-token");
+      expect(call.headers["x-agenta-runner-token"]).toBeUndefined();
     }
   });
 });

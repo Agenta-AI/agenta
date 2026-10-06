@@ -11,13 +11,20 @@
 import { describe, it, beforeEach, afterEach, vi } from "vitest";
 import assert from "node:assert/strict";
 
+import { runWithRequestApiBase } from "../../src/apiBase.ts";
+
 const ADDRESS = "http://10.8.2.17:8765";
 
-const beats: Array<{ body: Record<string, unknown>; headers: Record<string, string> }> = [];
+const beats: Array<{
+  url: string;
+  body: Record<string, unknown>;
+  headers: Record<string, string>;
+}> = [];
 
 vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
   if (String(url).includes("/sessions/streams/heartbeat")) {
     beats.push({
+      url: String(url),
       body: init?.body ? JSON.parse(init.body as string) : {},
       headers: (init?.headers ?? {}) as Record<string, string>,
     });
@@ -72,6 +79,51 @@ describe("the heartbeat identifies the pod", () => {
         false,
         "a beat carries no release_owner",
       );
+    }
+  });
+
+  it("sends no runner token when the api base is inferred from the request", async () => {
+    const saved = {
+      internal: process.env.AGENTA_API_INTERNAL_URL,
+      public: process.env.AGENTA_API_URL,
+    };
+    delete process.env.AGENTA_API_INTERNAL_URL;
+    delete process.env.AGENTA_API_URL;
+    vi.useFakeTimers();
+    try {
+      await runWithRequestApiBase("https://collector.example.com", async () => {
+        const watchdog = await startAliveWatchdog(
+          "sess-1",
+          "turn-1",
+          "Bearer tok",
+        );
+        await vi.advanceTimersByTimeAsync(30_000);
+        await watchdog.release();
+      });
+    } finally {
+      if (saved.internal !== undefined)
+        process.env.AGENTA_API_INTERNAL_URL = saved.internal;
+      if (saved.public !== undefined) process.env.AGENTA_API_URL = saved.public;
+    }
+
+    assert.equal(beats.length, 3, "first beat, one periodic beat, final beat");
+    assert.deepEqual(
+      beats.map((beat) => beat.body["is_running"]),
+      [true, true, false],
+    );
+    for (const beat of beats) {
+      assert.equal(
+        beat.url,
+        "https://collector.example.com/sessions/streams/heartbeat",
+      );
+      assert.equal("x-agenta-runner-token" in beat.headers, false);
+      assert.equal(
+        JSON.stringify(beat).includes("runner-secret"),
+        false,
+        "the token appears nowhere in the beat",
+      );
+      assert.equal(beat.headers["authorization"], "Bearer tok");
+      assert.equal(beat.body["replica_address"], ADDRESS);
     }
   });
 
