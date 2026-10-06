@@ -25,7 +25,10 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
 )
-from oss.src.core.gateways.types import GatewayEndpointInactiveError
+from oss.src.core.gateways.types import (
+    GatewayEndpointInactiveError,
+    LLMGatewayConnectionNotServedError,
+)
 from oss.src.utils.context import AuthScope
 
 
@@ -524,3 +527,19 @@ def test_edit_endpoint_omitting_provider_key_says_nothing_about_it(
 
     assert response.status_code == 200
     assert captured["endpoint"].provider_key is None
+
+
+def test_resolve_of_a_bedrock_connection_answers_the_vault_fallback_code(
+    client, service, allow
+):
+    """The envelope the agent SDK reads as "resolve from the vault": the same 403 and code
+    as an organization outside the rollout, so a Bedrock run takes the direct path."""
+    service.resolve_raises = LLMGatewayConnectionNotServedError()
+
+    response = client.post(
+        "/resolve",
+        json={"model": "anthropic.claude-haiku-4-5", "connection_slug": "my-bedrock"},
+    )
+
+    assert response.status_code == 403
+    assert _envelope_of(response)["code"] == "llm_gateway_disabled"

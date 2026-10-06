@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import re
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -65,7 +64,10 @@ from oss.src.core.gateways.policy.types import (
     PolicyDeniedError,
     SpendRefusedError,
 )
-from oss.src.core.gateways.types import GatewayEndpointInactiveError
+from oss.src.core.gateways.types import (
+    GatewayEndpointInactiveError,
+    LLMGatewayConnectionNotServedError,
+)
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
 
@@ -127,17 +129,6 @@ class _ResolvedLlmTarget:
 # How long the gateway keeps reading a platform-funded stream after its caller disconnected,
 # to reach the usage on its last frame.
 STREAM_DRAIN_AFTER_DISCONNECT_SECONDS = 120.0
-
-
-def _is_claude_model(model: str) -> bool:
-    """Whether a Bedrock model id names an Anthropic model, in any of Bedrock's spellings.
-
-    Bedrock prefixes the vendor (`anthropic.claude-haiku-4-5`) and, for an inference profile,
-    a geography (`us.anthropic.claude-...-v1:0`); a model may also arrive bare
-    (`claude-haiku-4-5`).
-    """
-    tokens = re.split(r"[./:]", model.lower())
-    return "anthropic" in tokens or any(token.startswith("claude") for token in tokens)
 
 
 _END = object()
@@ -414,6 +405,8 @@ class LLMGatewayService:
             raise LLMConnectionProviderRequiredError()
 
         target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
+        if target.deployment_kind == LLMDeploymentKind.BEDROCK:
+            raise LLMGatewayConnectionNotServedError()
         self._check_active(target=target)
         resolved_provider = target.provider_key or provider_key
         if not resolved_provider:
@@ -437,18 +430,6 @@ class LLMGatewayService:
             resolved_provider = "openai"
             deployment_kind = LLMDeploymentKind.CUSTOM
             model = model.removeprefix("gemini/")
-        elif deployment_kind == LLMDeploymentKind.BEDROCK:
-            # The endpoint row's `provider_key` is the OpenAI default the registrar gives a
-            # connection that states no protocol, which Claude Code refuses. The relay reaches
-            # Claude on Bedrock's Anthropic Messages path, so a Claude model is `anthropic`
-            # and stays `bedrock`, which tells the runner the upstream is Bedrock's. Any other
-            # model is an OpenAI-compatible route, the one Pi and Codex drive.
-            if _is_claude_model(target.upstream_model(model)):
-                resolved_provider = "anthropic"
-            else:
-                resolved_provider = "openai"
-                deployment_kind = LLMDeploymentKind.CUSTOM
-
         return LLMGatewayConnectionResolution(
             namespace=target.namespace,
             name=target.name,

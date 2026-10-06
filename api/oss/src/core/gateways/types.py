@@ -68,6 +68,24 @@ class LLMGatewayDisabledError(GatewayPlaneDisabledError):
         super().__init__(BUILTIN_MODELS_NOT_ENABLED_MESSAGE)
 
 
+class LLMGatewayConnectionNotServedError(LLMGatewayDisabledError):
+    """The gateway serves this organization, but not agents on this connection.
+
+    A Bedrock connection: the gateway relays Bedrock to `bedrock-mantle`, whose model ids
+    differ from the Bedrock runtime ids people save (and which the connection test lists),
+    and which has no Claude model in some regions. The run takes the vault path, as before
+    the gateway. Same code as a plane that is off, because that is the one the agent SDK
+    reads as "resolve from the vault".
+    """
+
+    operator_hint = "Agents on a Bedrock connection resolve from the vault, not through the LLM gateway."
+
+    def __init__(self) -> None:
+        GatewayPlaneDisabledError.__init__(
+            self, "This connection is not served through the LLM gateway."
+        )
+
+
 class MCPGatewayDisabledError(GatewayPlaneDisabledError):
     code = "mcp_gateway_disabled"
     flag = "AGENTA_MCP_GATEWAY_ENABLED"

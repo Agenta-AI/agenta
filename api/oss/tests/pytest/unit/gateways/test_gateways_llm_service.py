@@ -31,6 +31,7 @@ from oss.src.core.gateways.llms.catalog import standard_llm_endpoint
 from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.types import LLMGatewayConnectionNotServedError
 from oss.src.core.gateways.llms.types import (
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
@@ -460,28 +461,17 @@ def _bedrock_row(models: List[str]) -> LLMEndpoint:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "model, provider, deployment",
+    "model",
     [
-        ("anthropic.claude-haiku-4-5", "anthropic", LLMDeploymentKind.BEDROCK),
-        (
-            "my-bedrock/bedrock/anthropic.claude-haiku-4-5",
-            "anthropic",
-            LLMDeploymentKind.BEDROCK,
-        ),
-        (
-            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-            "anthropic",
-            LLMDeploymentKind.BEDROCK,
-        ),
-        ("openai.gpt-oss-20b", "openai", LLMDeploymentKind.CUSTOM),
+        "anthropic.claude-haiku-4-5",
+        "my-bedrock/bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "openai.gpt-oss-20b",
     ],
 )
-async def test_a_bedrock_connection_resolves_to_the_route_the_gateway_serves(
-    model, provider, deployment
-):
-    """The row's OpenAI default made Claude Code refuse every Bedrock run ("provider 'openai'
-    is not supported by harness 'claude'"). A Claude model is Anthropic on Bedrock; any other
-    model is an OpenAI-compatible route, the pair Pi drives."""
+async def test_an_agent_on_a_bedrock_connection_is_sent_to_the_vault_path(model):
+    """The gateway relays Bedrock to `bedrock-mantle`, whose model ids are not the runtime ids
+    people save, and which has no Claude in some regions. Resolve answers with the code the
+    agent SDK reads as "resolve from the vault", for an organization the gateway serves."""
     dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["my-bedrock"] = _bedrock_row(
         [
@@ -490,15 +480,15 @@ async def test_a_bedrock_connection_resolves_to_the_route_the_gateway_serves(
             "openai.gpt-oss-20b",
         ]
     )
+    resolver = _MockResolver()
 
-    resolved = await _service(dao=dao).resolve_agent_connection(
-        scope=_scope(), model=model, provider_key=None, connection_slug="my-bedrock"
-    )
+    with pytest.raises(LLMGatewayConnectionNotServedError) as refused:
+        await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+            scope=_scope(), model=model, provider_key=None, connection_slug="my-bedrock"
+        )
 
-    assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
-    assert resolved.provider_key == provider
-    assert resolved.deployment_kind == deployment
-    assert resolved.model == model.removeprefix("my-bedrock/bedrock/")
+    assert refused.value.code == "llm_gateway_disabled"
+    assert resolver.resolve_calls == []
 
 
 @pytest.mark.asyncio
