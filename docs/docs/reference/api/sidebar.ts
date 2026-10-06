@@ -3036,13 +3036,13 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method put",
+          className: "api-method post",
         },
         {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method post",
+          className: "api-method put",
         },
         {
           type: "doc",
@@ -3583,6 +3583,18 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/create-top-up-checkout",
           label: "Create Top Up Checkout User Route",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-top-up-packs",
+          label: "Fetch Top Up Packs User Route",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-top-up-purchase",
+          label: "Fetch Top Up Purchase User Route",
+          className: "api-method get",
         },
         {
           type: "doc",
