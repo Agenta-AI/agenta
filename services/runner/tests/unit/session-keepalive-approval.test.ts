@@ -4928,44 +4928,56 @@ describe("runTurn: a Claude cost reading that lands after the turn's usage", () 
   );
 });
 
+/**
+ * A pausable harness whose turn log behaves like the api's: a start write on an index the log
+ * already holds answers 409.
+ */
+function pausableHarnessWithTurnLog() {
+  const harness = pausableHarness();
+  harness.deps.sessionContinuityStore = new SessionContinuityStore();
+  harness.deps.hydrateHarnessSessionFromDurable = async () => {};
+  const ledger = new Map<number, { endTime?: string }>();
+  const startedTurnIndexes: number[] = [];
+  const appendSessionTurn: NonNullable<
+    SandboxAgentDeps["appendSessionTurn"]
+  > = async (sessionId, _harness, turnIndex) => {
+    startedTurnIndexes.push(turnIndex);
+    if (ledger.has(turnIndex))
+      throw new SessionTurnIndexTaken(sessionId, turnIndex);
+    ledger.set(turnIndex, {});
+  };
+  appendSessionTurn.complete = async (_sessionId, turnIndex, turn) => {
+    const row = ledger.get(turnIndex);
+    if (row) row.endTime = turn.endTime;
+  };
+  harness.deps.appendSessionTurn = appendSessionTurn;
+  return { ...harness, ledger, startedTurnIndexes };
+}
+
+const turnLogRequest: AgentRunRequest = {
+  ...engineReq,
+  ...auth,
+  sessionId: "sess-stop",
+  streamId: "stream-1",
+  turnId: "turn-1",
+};
+
 describe("runTurn: a Stop on a parked approval spends the paused turn's index", () => {
   it("the next fresh prompt on the same warm environment takes the next index", async () => {
     resetAppliedCommandsForTest();
-    const { calls, deps, captured } = pausableHarness();
-    const continuityStore = new SessionContinuityStore();
-    deps.sessionContinuityStore = continuityStore;
-    deps.hydrateHarnessSessionFromDurable = async () => {};
-    // The api's turn log: a start write on an index it already holds answers 409.
-    const ledger = new Map<number, { endTime?: string }>();
-    const startedTurnIndexes: number[] = [];
-    const appendSessionTurn: NonNullable<SandboxAgentDeps["appendSessionTurn"]> =
-      async (sessionId, _harness, turnIndex) => {
-        startedTurnIndexes.push(turnIndex);
-        if (ledger.has(turnIndex))
-          throw new SessionTurnIndexTaken(sessionId, turnIndex);
-        ledger.set(turnIndex, {});
-      };
-    appendSessionTurn.complete = async (_sessionId, turnIndex, turn) => {
-      const row = ledger.get(turnIndex);
-      if (row) row.endTime = turn.endTime;
-    };
-    deps.appendSessionTurn = appendSessionTurn;
-    const request: AgentRunRequest = {
-      ...engineReq,
-      ...auth,
-      sessionId: "sess-stop",
-      streamId: "stream-1",
-      turnId: "turn-1",
-    };
+    const { calls, deps, captured, ledger, startedTurnIndexes } =
+      pausableHarnessWithTurnLog();
+    const request = turnLogRequest;
     const acquired = await acquireEnvironment(request, deps);
     assert.equal(acquired.ok, true);
     if (!acquired.ok) return;
     const env = acquired.env;
     // The harness answers the cancel by settling the held prompt, as Claude does.
-    (env.sandbox as { cancelSession?: (id: string) => Promise<void> }).cancelSession =
-      async () => {
-        calls.resolvePrompt?.({ stopReason: "cancelled" });
-      };
+    (
+      env.sandbox as { cancelSession?: (id: string) => Promise<void> }
+    ).cancelSession = async () => {
+      calls.resolvePrompt?.({ stopReason: "cancelled" });
+    };
 
     const paused = runTurn(env, request, undefined, undefined, {
       approvalParkMode: true,
@@ -4982,7 +4994,11 @@ describe("runTurn: a Stop on a parked approval spends the paused turn's index", 
     captured.onPermissionRequest!({
       id: "perm-1",
       availableReplies: ["once", "reject"],
-      toolCall: { toolCallId: "tc-gate", name: "Bash", rawInput: { command: "ls" } },
+      toolCall: {
+        toolCallId: "tc-gate",
+        name: "Bash",
+        rawInput: { command: "ls" },
+      },
     });
     await flush();
     assert.equal((await paused).stopReason, "paused");
@@ -5016,14 +5032,20 @@ describe("runTurn: a Stop on a parked approval spends the paused turn's index", 
       },
     );
     assert.equal(outcome.execution.state, "stopped");
-    assert.deepEqual(calls.permissionReplies, [{ id: "perm-1", reply: "reject" }]);
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "reject" },
+    ]);
     // The warm-cache check compares this against the turn log's latest index, which is still 0.
     assert.equal(env.continuityTurnIndex, 0);
 
     env.clearTurn();
     const fresh = runTurn(
       env,
-      { ...request, turnId: "turn-2", messages: [{ role: "user", content: "next" }] },
+      {
+        ...request,
+        turnId: "turn-2",
+        messages: [{ role: "user", content: "next" }],
+      },
       undefined,
       undefined,
       { approvalParkMode: true, continuation: true },
@@ -5039,8 +5061,118 @@ describe("runTurn: a Stop on a parked approval spends the paused turn's index", 
     assert.deepEqual(startedTurnIndexes, [0, 1]);
     assert.equal(calls.promptCount, 2);
     assert.ok(
-      !calls.logs.some((line) => line.includes("already written by another runner")),
+      !calls.logs.some((line) =>
+        line.includes("already written by another runner"),
+      ),
     );
     await env.destroy();
   });
+});
+
+describe("runTurn: an answered parked approval spends its turn's index once", () => {
+  it.each([
+    ["approved", "once"],
+    ["denied", "reject"],
+  ] as const)(
+    "a fresh prompt after the %s resume takes the next index",
+    async (_label, reply) => {
+      const { calls, deps, captured, ledger, startedTurnIndexes } =
+        pausableHarnessWithTurnLog();
+      const acquired = await acquireEnvironment(turnLogRequest, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      const paused = runTurn(env, turnLogRequest, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      captured.onEvent!(
+        updateEvent({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-gate",
+          title: "commit",
+          rawInput: { message: "hi" },
+        }),
+      );
+      captured.onPermissionRequest!({
+        id: "perm-1",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          toolCallId: "tc-gate",
+          name: "commit",
+          rawInput: { message: "hi" },
+        },
+      });
+      await flush();
+      assert.equal((await paused).stopReason, "paused");
+
+      env.clearTurn();
+      const held = env.parkedApproval!.promptPromise!;
+      const resumed = runTurn(
+        env,
+        approveResume(reply === "once", {
+          sessionId: "sess-stop",
+          streamId: "stream-1",
+          turnId: "turn-1",
+        }),
+        undefined,
+        undefined,
+        {
+          approvalParkMode: true,
+          resume: {
+            decisions: [
+              {
+                permissionId: "perm-1",
+                reply,
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                args: { message: "hi" },
+                interactionToken: "tc-gate",
+                promptPromise: held,
+              },
+            ],
+            carriedForward: [],
+          },
+        },
+      );
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const resumedResult = await resumed;
+      assert.equal(resumedResult.ok, true, resumedResult.error);
+      assert.deepEqual(calls.permissionReplies, [{ id: "perm-1", reply }]);
+      assert.equal(typeof ledger.get(0)?.endTime, "string");
+
+      env.clearTurn();
+      const fresh = runTurn(
+        env,
+        {
+          ...turnLogRequest,
+          turnId: "turn-2",
+          messages: [{ role: "user", content: "next" }],
+        },
+        undefined,
+        undefined,
+        { approvalParkMode: true, continuation: true },
+      );
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "end_turn",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await fresh;
+
+      assert.equal(result.ok, true, result.error);
+      assert.deepEqual(startedTurnIndexes, [0, 0, 1]);
+      assert.ok(
+        !calls.logs.some((line) =>
+          line.includes("already written by another runner"),
+        ),
+      );
+      await env.destroy();
+    },
+  );
 });
