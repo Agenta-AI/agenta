@@ -134,19 +134,22 @@ export function useModelHarness({
     const runner = asObject("runner")
     const sandbox = asObject("sandbox")
     const savedSandboxKind = typeof sandbox.kind === "string" ? sandbox.kind : null
+    // Declared early: the sandbox options below are harness-aware.
+    const harnessValue = effectiveHarnessValue(harness)
     // The preference only hides `inprocess` from a new choice. An agent already saved with it keeps
     // it listed, so the normalize effect below never rewrites it: the flag reads off on the first
-    // render (the user id settles a tick later) and while a user has it off.
+    // render (the user id settles a tick later) and while a user has it off. The inprocess sandbox
+    // runs only pi_core, so it is never a new choice for other harnesses.
     const sandboxOptions = useMemo(() => {
         const enabled = new Set(getEnabledSandboxProviders())
         return getEnumOptions(sandboxProps.kind).filter(
             (o) =>
                 enabled.has(o.value) &&
                 (o.value !== "inprocess" ||
-                    inprocessSandboxEnabled ||
-                    savedSandboxKind === "inprocess"),
+                    savedSandboxKind === "inprocess" ||
+                    (harnessValue === "pi_core" && inprocessSandboxEnabled)),
         )
-    }, [sandboxProps.kind, inprocessSandboxEnabled, savedSandboxKind])
+    }, [sandboxProps.kind, harnessValue, inprocessSandboxEnabled, savedSandboxKind])
 
     const secretBindings = Array.isArray(sandbox.credentials)
         ? sandbox.credentials.filter((value): value is AgentSecretBinding => {
@@ -196,7 +199,6 @@ export function useModelHarness({
     // carries through extra keys (e.g. `extras`) so a form edit never silently drops them. The picker
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
-    const harnessValue = effectiveHarnessValue(harness)
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
     const connection = useMemo(() => connectionFromConfig(llm), [llm])
@@ -372,15 +374,33 @@ export function useModelHarness({
                 namespace: selection.namespace,
                 existing: llm,
             })
+            // The inprocess sandbox runs pi_core only: a non-pi_core pick moves to the first other
+            // enabled option in the same change, so the click never saves an unrunnable config.
+            // With no compatible option the saved value stays untouched.
+            const nextSandboxKind =
+                nextHarness !== "pi_core" && sandbox.kind === "inprocess"
+                    ? (sandboxOptions.find((option) => option.value !== "inprocess")?.value ?? null)
+                    : null
             onChange({
                 ...config,
                 llm: nextLlm,
                 ...(nextHarness && nextHarness !== harnessValue
                     ? {harness: {...harness, kind: nextHarness}}
                     : {}),
+                ...(nextSandboxKind ? {sandbox: {...sandbox, kind: nextSandboxKind}} : {}),
             })
         },
-        [capabilities, config, connection.provider, harness, harnessValue, llm, onChange],
+        [
+            capabilities,
+            config,
+            connection.provider,
+            harness,
+            harnessValue,
+            llm,
+            onChange,
+            sandbox,
+            sandboxOptions,
+        ],
     )
 
     // Model is deliberately NOT cleared on a harness switch that can't reach it: the compatibility
