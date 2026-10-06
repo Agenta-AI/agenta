@@ -10,12 +10,6 @@ import {
 } from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
-import {
-    AgentCapabilityToggles,
-    agentaToolsCapabilityOn,
-    availableCapabilities,
-    setAgentaToolsCapability,
-} from "./agentCapabilities"
 import {describeBuildKitPlatformTool} from "./buildKitDescriptors"
 import {buildKitToolOptions} from "./BuildKitSection"
 import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
@@ -142,16 +136,6 @@ export function AgentaToolsSection({
                 toolOptions={buildKitToolOptions}
                 writeLabel="Write"
                 readOnlyLabel="Read-only"
-                banner={
-                    <AgentCapabilityToggles
-                        capabilities={availableCapabilities(Object.keys(access))}
-                        isOn={(capability) => agentaToolsCapabilityOn(tools, capability)}
-                        onChange={(capability, on) =>
-                            onChange(setAgentaToolsCapability(tools, capability, on))
-                        }
-                        disabled={disabled}
-                    />
-                }
             />
         </div>
     )

@@ -1,18 +1,18 @@
 ## ADDED Requirements
 
-### Requirement: Agent config capability groups three tools
+### Requirement: The config tools are ordinary tool rows
 
-The platform SHALL expose Agent config as one capability that provides `read_agent_config`, `create_agent` and `edit_agent_config`. It SHALL show one capability toggle in the build kit and in the Agenta tools section, and each of the three tools SHALL keep its own permission control.
+The platform SHALL show `read_agent_config` in the Read-only list, and `create_agent` and `edit_agent_config` in the Write list, of the build kit and of the Agenta tools section. Each row SHALL have the same Allow, Ask and Deactivate choice as every other tool in those lists. There is no separate capability toggle.
 
-#### Scenario: Toggle turns on all three tools
+#### Scenario: The rows sit with the other tools
 
-- **WHEN** a person turns Agent config on
-- **THEN** the agent is offered `read_agent_config`, `create_agent` and `edit_agent_config`
+- **WHEN** a person opens the build kit or the Agenta tools section
+- **THEN** the three tools appear inside the Read-only and Write lists, not in a separate panel
 
-#### Scenario: Toggle off removes all three tools
+#### Scenario: Deactivate removes the tool
 
-- **WHEN** a person turns Agent config off
-- **THEN** the model is offered none of the three tools, and `read_config` and `commit_revision` are unaffected
+- **WHEN** a person deactivates the three config tools
+- **THEN** the model is offered none of them, and `read_config` and `commit_revision` are unaffected
 
 #### Scenario: Per-tool permission
 

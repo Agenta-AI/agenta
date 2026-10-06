@@ -2,12 +2,6 @@ import {buildKitDefaultPermission, type BuildKitUiState} from "@agenta/entities/
 
 import type {GatewayConnectionPermissions} from "../toolUtils"
 
-import {
-    AgentCapabilityToggles,
-    availableCapabilities,
-    buildKitCapabilityOn,
-    setBuildKitCapability,
-} from "./agentCapabilities"
 import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
 import type {ItemDescriptor} from "./itemDescriptors"
 import {ItemRow} from "./ItemRow"
@@ -59,7 +53,6 @@ export const buildKitToolOptions: PermissionPolicyOption[] = [
 
 export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSectionProps) {
     const platform = tools.filter((tool) => tool.op)
-    const capabilities = availableCapabilities(platform.map((tool) => tool.key))
     const permissions: GatewayConnectionPermissions = {
         default: "allow",
         tools: Object.fromEntries(
@@ -155,23 +148,12 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                 writeLabel="Write"
                 readOnlyLabel="Read-only"
                 banner={
-                    <>
-                        {!state.enabled ? (
-                            <span className="text-xs text-colorTextDescription">
-                                The build kit is off. Its tools, skills and sandbox permissions will
-                                not be added to the next run. The agent's own tools remain
-                                available.
-                            </span>
-                        ) : null}
-                        <AgentCapabilityToggles
-                            capabilities={capabilities}
-                            isOn={(capability) => buildKitCapabilityOn(state, capability)}
-                            onChange={(capability, on) =>
-                                onChange(setBuildKitCapability(state, capability, on))
-                            }
-                            disabled={disabled || !state.enabled}
-                        />
-                    </>
+                    !state.enabled ? (
+                        <span className="text-xs text-colorTextDescription">
+                            The build kit is off. Its tools, skills and sandbox permissions will not
+                            be added to the next run. The agent's own tools remain available.
+                        </span>
+                    ) : null
                 }
                 footNote={
                     <div className="flex flex-col gap-2">

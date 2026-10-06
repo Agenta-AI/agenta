@@ -275,7 +275,7 @@ AGENTA_TOOLS: tuple = (
     "read_config",
     "check_skill_updates",
     "apply_skill_update",
-    # Other agents in the project: "List agents" and "Agent config".
+    # Other agents in the project.
     "list_agents",
     "read_agent_config",
     "create_agent",

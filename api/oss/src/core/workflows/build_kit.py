@@ -59,7 +59,7 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "create_app",
     # Checks the zip the create-template skill builds; read-only, it creates nothing.
     "validate_template",
-    # Other agents in the project: "List agents" and "Agent config".
+    # Other agents in the project.
     "list_agents",
     "read_agent_config",
     "create_agent",

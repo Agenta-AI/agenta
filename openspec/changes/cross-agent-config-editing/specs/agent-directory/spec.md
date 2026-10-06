@@ -19,16 +19,16 @@ The `list_agents` tool SHALL return the agents in the caller's project, with eac
 - **WHEN** an agent calls `list_agents`
 - **THEN** no agent from another project appears, because the project comes from the run's credential and not from any argument
 
-### Requirement: List agents is a separate capability
+### Requirement: List agents is its own tool row
 
-The platform SHALL expose List agents as its own capability, with one toggle in the build kit and in the Agenta tools section, independent of Agent config.
+The platform SHALL show `list_agents` as one row in the Read-only list of the build kit and of the Agenta tools section, with the same Allow, Ask and Deactivate choice as every other tool there, independent of the config tools.
 
 #### Scenario: Listing without write power
 
-- **WHEN** List agents is on and Agent config is off
+- **WHEN** `list_agents` is on and the three config tools are deactivated
 - **THEN** the agent has `list_agents` and has none of `read_agent_config`, `create_agent` or `edit_agent_config`
 
-#### Scenario: Capability off removes the tool
+#### Scenario: Deactivate removes the tool
 
-- **WHEN** List agents is turned off
+- **WHEN** `list_agents` is deactivated
 - **THEN** the model is not offered `list_agents`

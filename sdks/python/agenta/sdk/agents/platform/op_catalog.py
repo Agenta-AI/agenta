@@ -1844,8 +1844,7 @@ _CHANNEL_TOOL_OPS: tuple = (
 CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
 
 
-# Other agents in the project: list, read, create and edit them. Two capabilities in the UI:
-# "List agents" (`list_agents`) and "Agent config" (the other three). The project comes from the
+# Other agents in the project: list, read, create and edit them. The project comes from the
 # run's credential, never from an argument. The caller and its session are bound from run
 # context, so the attribution the server writes into every commit message is the run's, never
 # the model's. Self-edits keep their own tools (`read_config`, `commit_revision`).

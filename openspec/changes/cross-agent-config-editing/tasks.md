@@ -26,7 +26,7 @@
 ## 4. Build kit and Agenta tools
 
 - [x] 4.1 Add the four ops to `DEFAULT_BUILD_KIT_OPS` (the overlay already sets `allow`; `build_kit_op_access` marks reads from `read_only`)
-- [x] 4.2 Add a capability grouping in the web descriptors: "List agents" (one op) and "Agent config" (three ops), one toggle each, per-op permission controls inside
+- [x] 4.2 Show the four ops as ordinary rows in the existing Read-only and Write lists, with the same Allow/Ask/Deactivate choice (no separate capability toggle; owner decision after review)
 - [x] 4.3 Add copy for the four ops in `BUILD_KIT_TOOL_COPY`, following the platform glossary
 - [x] 4.4 Add the four ops to `AGENTA_TOOLS` and `DEFAULT_AGENTA_TOOLS` (`allow`) in `tools/models.py`, and mirror the default in `web/packages/agenta-entities/src/workflow/agentaTools.ts`
 - [x] 4.5 Add the same capability grouping to `AgentaToolsSection.tsx`, inside its existing Write and Read-only layout and presets
@@ -44,7 +44,7 @@
 - [x] 6.3 Scope parity: a refused self-edit path is refused for `edit_agent_config` too
 - [x] 6.4 Template parity: `create_agent` with no operations equals a "New agent" configuration
 - [x] 6.5 Attribution: suffix present, model values refused
-- [x] 6.6 Web: capability toggle adds and removes all grouped ops; per-op permission persists
+- [x] 6.6 Web: the four ops render as rows with their copy; a deactivated op leaves the run (build kit overlay test)
 - [ ] 6.7 Live QA on a test stack: one agent creates a helper, edits its instructions, and the helper's history shows the attributed message
 - [x] 6.8 Review fixes: the `agenta_tools` entry is keyed by its type in the operations engine; an agent's commit runs the runtime's parse on its result; the build kit's off switch also drops the tools from the saved `agenta_tools` map of the run copy; the template seeds `skills: []`
 
