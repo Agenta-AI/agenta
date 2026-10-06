@@ -1009,7 +1009,8 @@ def _llm_gateway_is_unavailable(
     Two shapes mean it, and they are the same situation seen from two API versions.
 
     ``llm_gateway_disabled`` is the current one: the route is there and the operator has the
-    plane switched off. An unrouted 404 is the older one: an SDK newer than its backend is an
+    plane switched off, or the gateway does not serve agents on this connection (a Bedrock
+    connection, `LLMGatewayConnectionNotServedError` in the API). An unrouted 404 is the older one: an SDK newer than its backend is an
     ordinary state during a rolling upgrade, and that backend has no gateway at all.
 
     Nothing else qualifies. A 403 from the permission check, a 409 for a missing secret, a 422

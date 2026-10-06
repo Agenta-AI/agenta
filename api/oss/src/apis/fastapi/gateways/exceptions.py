@@ -92,7 +92,7 @@ def plane_disabled_envelope(exc: GatewayPlaneDisabledError) -> Dict[str, Any]:
         code=exc.code,
         message=exc.message,
         next_step=exc.next_step,
-        details={"flag": exc.flag},
+        details={"flag": exc.flag} if exc.flag else None,
     )
 
 

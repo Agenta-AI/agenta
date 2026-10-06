@@ -294,7 +294,15 @@ export function applyClaudeConnectionEnv(
     );
   }
 
-  if (deployment === "bedrock") {
+  if (deployment === "bedrock" && headerLines) {
+    // Bedrock through the gateway: Claude Code speaks Anthropic Messages to the gateway base
+    // URL, and the gateway relays to Bedrock's Messages endpoint. CLAUDE_CODE_USE_BEDROCK
+    // would make it ignore that URL and call Bedrock itself. Bedrock refuses the newest
+    // `anthropic-beta` values Claude Code sends, so its own switch drops them. "0", not
+    // absent: a local run inherits the runner's own environment, which may set it.
+    env.CLAUDE_CODE_USE_BEDROCK = "0";
+    env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = "1";
+  } else if (deployment === "bedrock") {
     env.CLAUDE_CODE_USE_BEDROCK = "1";
     const region = request.modelConnection?.endpoint?.region;
     if (region) {

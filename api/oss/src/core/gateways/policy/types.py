@@ -59,7 +59,9 @@ class SecretInvalidError(GatewaysError):
     def __init__(self, *, target: str, detail: Optional[str] = None):
         self.target = target
         self.detail = detail
-        super().__init__(f"Secret for {target} is invalid")
+        super().__init__(
+            f"Secret for {target} is invalid" + (f": {detail}." if detail else "")
+        )
 
 
 class CeilingExceededError(GatewaysError):

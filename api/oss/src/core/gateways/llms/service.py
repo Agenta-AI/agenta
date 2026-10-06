@@ -64,7 +64,10 @@ from oss.src.core.gateways.policy.types import (
     PolicyDeniedError,
     SpendRefusedError,
 )
-from oss.src.core.gateways.types import GatewayEndpointInactiveError
+from oss.src.core.gateways.types import (
+    GatewayEndpointInactiveError,
+    LLMGatewayConnectionNotServedError,
+)
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
 
@@ -468,6 +471,8 @@ class LLMGatewayService:
             raise LLMConnectionProviderRequiredError()
 
         target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
+        if target.deployment_kind == LLMDeploymentKind.BEDROCK:
+            raise LLMGatewayConnectionNotServedError()
         self._check_active(target=target)
         resolved_provider = target.provider_key or provider_key
         if not resolved_provider:
@@ -491,7 +496,6 @@ class LLMGatewayService:
             resolved_provider = "openai"
             deployment_kind = LLMDeploymentKind.CUSTOM
             model = model.removeprefix("gemini/")
-
         return LLMGatewayConnectionResolution(
             namespace=target.namespace,
             name=target.name,
