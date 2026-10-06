@@ -5,6 +5,7 @@ import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import Link from "next/link"
 
+import {CreditTopUps} from "./CreditTopUps"
 import {WalletUsageEmpty} from "./states/WalletUsageEmpty"
 import {WalletUsageError} from "./states/WalletUsageError"
 import {WalletUsageSkeleton} from "./states/WalletUsageSkeleton"
@@ -123,6 +124,10 @@ export const CreditsTab = ({projectId, billingURL}: {projectId: string; billingU
                     </ul>
                 ) : null}
             </Section>
+
+            {isBillingEnabled() ? (
+                <CreditTopUps projectId={projectId} billingURL={billingURL} />
+            ) : null}
 
             <Section title={`Credits used, last ${USAGE_DAYS} days`}>
                 {ownerOnly ? (

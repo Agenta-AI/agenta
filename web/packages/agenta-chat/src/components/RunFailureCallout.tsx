@@ -66,6 +66,12 @@ export const PLAN_LIMIT_TITLES: Record<string, string> = {
     turn_time_limit_reached: "This request took too long",
 }
 
+/**
+ * Plan limits a paid plan clears by buying a credit pack. The host offers "Buy credits" for these
+ * only where the organization can buy one; the free plan keeps the way to the plans.
+ */
+export const BUY_CREDITS_CODES = new Set(["wallet_balance_exhausted"])
+
 export const planLimitTitle = (code?: string | null): string | null =>
     (code && PLAN_LIMIT_TITLES[code]) || null
 
@@ -101,8 +107,10 @@ export interface RunFailureCalloutProps {
     onAddKey?: () => void
     /** Where the reader signs in again; offered for the dead-subscription classes. */
     onSignIn?: () => void
-    /** Where the reader sees plans and buys credits; offered for the plan-limit classes. */
+    /** Where the reader sees the plans; offered for the plan-limit classes. */
     onOpenBilling?: () => void
+    /** Where the reader buys a credit pack; offered for BUY_CREDITS_CODES. */
+    onBuyCredits?: () => void
 }
 
 export const RunFailureCallout = ({
@@ -114,6 +122,7 @@ export const RunFailureCallout = ({
     onAddKey,
     onSignIn,
     onOpenBilling,
+    onBuyCredits,
 }: RunFailureCalloutProps) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
@@ -124,6 +133,7 @@ export const RunFailureCallout = ({
     const notSent = !!code && NOT_SENT_CODES.has(code)
     const limitTitle = planLimitTitle(code)
     const title = refusalTitle(code)
+    const offerBuyCredits = !!onBuyCredits && !!code && BUY_CREDITS_CODES.has(code)
     const offerRetry =
         !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
@@ -167,6 +177,11 @@ export const RunFailureCallout = ({
                 {offerSignIn && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onSignIn}>
                         Sign in again
+                    </Button>
+                )}
+                {offerBuyCredits && (
+                    <Button size="sm" variant="outline" className="mt-1" onClick={onBuyCredits}>
+                        Buy credits
                     </Button>
                 )}
                 {limitTitle && onOpenBilling && (

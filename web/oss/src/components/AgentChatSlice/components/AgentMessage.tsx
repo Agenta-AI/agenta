@@ -26,7 +26,6 @@ import {
     AttachmentCardGrid,
     CollapsibleMessageBody,
     McpServerNoticeCard,
-    RunFailureCallout,
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
@@ -67,6 +66,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 
+import AgentRunFailure from "./AgentRunFailure"
 import {viewingMessageAttachmentAtom} from "./MessageAttachmentViewer"
 import StreamingMarkdown from "./StreamingMarkdown"
 import ToolActivity from "./ToolActivity"
@@ -464,7 +464,7 @@ const AgentMessage = ({
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
     // The callout shows an everyday reason in full; only a big one collapses behind "Show more".
     const errorBody = (
-        <RunFailureCallout
+        <AgentRunFailure
             text={errorText || "The agent run failed."}
             stateKey={errorKey(message.id)}
             code={runErrorCode}

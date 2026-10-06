@@ -37,9 +37,19 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 import {TurnRow} from "@/features/chat/TurnRow"
 
 import {routerPush, routerQuery} from "../support/nextRouter"
+import {WithQueryClient} from "../support/queryClient"
 
 // The route a chat is read on, which is where the workspace and project of the page come from.
 vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
+
+// Whether the organization can buy a credit pack, which the API answers.
+const topUpOffer = vi.hoisted(() => ({status: "unavailable" as string, calls: [] as unknown[]}))
+vi.mock("@agenta/settings-ui", () => ({
+    useTopUpOffer: (params: {enabled?: boolean}) => {
+        topUpOffer.calls.push(params)
+        return {data: params.enabled ? {status: topUpOffer.status, packs: []} : undefined}
+    },
+}))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -80,9 +90,11 @@ const renderTurn = (message: UIMessage): string => {
     root = createRoot(host)
     act(() => {
         root!.render(
-            <Provider store={createStore()}>
-                <TurnRow turn={turn} sessionId="session-1" onRewind={() => undefined} />
-            </Provider>,
+            <WithQueryClient>
+                <Provider store={createStore()}>
+                    <TurnRow turn={turn} sessionId="session-1" onRewind={() => undefined} />
+                </Provider>
+            </WithQueryClient>,
         )
     })
     return (host.textContent ?? "").replace(/\s+/g, " ").trim()
@@ -206,6 +218,46 @@ describe("mobile TurnRow: a run that failed", () => {
             expect(renderTurn(failedTurn(sentence, "turn_time_limit_reached"))).not.toContain(
                 "Plans and billing",
             )
+        })
+
+        describe("out of credits", () => {
+            afterEach(() => {
+                topUpOffer.status = "unavailable"
+                topUpOffer.calls = []
+            })
+
+            it("offers Buy credits where the organization can buy a pack, and opens the picker", () => {
+                runtime.__env = {NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "true"}
+                topUpOffer.status = "available"
+                const shown = renderTurn(failedTurn(sentence, "wallet_balance_exhausted"))
+
+                expect(shown).toContain("Buy credits")
+                expect(shown).toContain("Plans and billing")
+                press("Buy credits")
+                expect(routerPush).toHaveBeenCalledWith(
+                    "/w/ws-1/p/proj-1/settings?tab=credits&buy_credits=1",
+                )
+            })
+
+            it("keeps only the plans on the free plan, which cannot buy a pack", () => {
+                runtime.__env = {NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "true"}
+                topUpOffer.status = "paid_plan_required"
+                const shown = renderTurn(failedTurn(sentence, "wallet_balance_exhausted"))
+
+                expect(shown).toContain("Plans and billing")
+                expect(shown).not.toContain("Buy credits")
+            })
+
+            it("does not ask about packs for a limit credits do not clear", () => {
+                runtime.__env = {NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "true"}
+                topUpOffer.status = "available"
+                const shown = renderTurn(failedTurn(sentence, "concurrent_turns_limit"))
+
+                expect(shown).not.toContain("Buy credits")
+                expect(
+                    topUpOffer.calls.every((call) => !(call as {enabled: boolean}).enabled),
+                ).toBe(true)
+            })
         })
     })
 

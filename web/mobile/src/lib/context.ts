@@ -88,6 +88,10 @@ export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =
 export const billingUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=billing`
 
+/** Settings -> Credits with the pack picker open: where "Buy credits" goes from anywhere. */
+export const buyCreditsUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=credits&buy_credits=1`
+
 export function writeLastContext(context: LastContext): void {
     try {
         localStorage.setItem(LAST_CONTEXT_KEY, JSON.stringify(context))

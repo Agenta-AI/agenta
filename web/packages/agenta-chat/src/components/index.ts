@@ -8,6 +8,7 @@ export {
     type RunFailureCalloutProps,
     // The failure classes the callout recognises, so a host can enumerate what it must offer an
     // escape for rather than keeping a second list that drifts.
+    BUY_CREDITS_CODES,
     NOT_SENT_CODES,
     OWN_KEY_CODES,
     PLAN_LIMIT_TITLES,
