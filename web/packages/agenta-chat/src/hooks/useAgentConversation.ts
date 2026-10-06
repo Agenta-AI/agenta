@@ -399,8 +399,10 @@ export const useAgentConversation = ({
         },
         [sessionId],
     )
-    // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
+    // Tracks `busy` for callbacks that outlive a render.
     const busyRef = useRef(false)
+    // Only an open stream outlives the mount; an accepted run whose stream closed has nothing live.
+    const streamOpenRef = useRef(false)
     // Only a stream THIS client renders. A shared-delivered turn renders from the live frames,
     // so the durable snapshot behind them stays adoptable — see the adoption guard below.
     const localRenderBusyRef = useRef(false)
@@ -517,7 +519,7 @@ export const useAgentConversation = ({
         sessionId,
         initialMessages,
         hooks,
-        shouldPreserve: () => busyRef.current,
+        shouldPreserve: () => streamOpenRef.current,
     })
 
     const {messages, status, stop, regenerate, setMessages, error, clearError} = useChat({
@@ -802,6 +804,7 @@ export const useAgentConversation = ({
     // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
     // the window between the message leaving and the turn being accepted.
     busyRef.current = busy || acceptedRunPending || sendInFlight
+    streamOpenRef.current = busy || sendInFlight
 
     // The server owns continuation after its 202.
     const handleApprovalResponse = useCallback(

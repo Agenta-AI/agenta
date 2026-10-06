@@ -5,7 +5,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {act, cleanup, fireEvent, render, renderHook, screen, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
-import {createStore, Provider} from "jotai"
+import {createStore, getDefaultStore, Provider} from "jotai"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {DEFAULT_ATTACHMENT_LIMITS} from "../../../src/assets/attachmentRules"
@@ -16,6 +16,7 @@ import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
 import {useServerSessionInputs} from "../../../src/hooks/useServerSessionInputs"
 import {describeRefusedSend} from "../../../src/model/error"
+import {sessionStatusAtomFamily, setSessionStatusAtom} from "../../../src/state/sessionMessages"
 
 const {buildAgentRequest, fetchSnapshot, removeInput, sendInputNow, updateInput} = vi.hoisted(
     () => ({
@@ -669,7 +670,7 @@ describe("useServerSessionInputs", () => {
         })
         const run = acceptedRun()
         const watcher = {onAccepted: vi.fn(), onSettled: vi.fn(), onFailed: vi.fn()}
-        const {result} = renderHook(() =>
+        const {result, unmount} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
                 sessionId: "session-1",
@@ -683,8 +684,36 @@ describe("useServerSessionInputs", () => {
             await result.current.submit({id: "input-1", text: "start"}, "queue", watcher)
         })
         await waitFor(() => expect(watcher.onAccepted).toHaveBeenCalledWith("turn-9"))
-        return {run, watcher}
+        return {run, watcher, unmount}
     }
+
+    const tabStatus = () => getDefaultStore().get(sessionStatusAtomFamily("session-1"))
+
+    it("reports the session running while its run stream is open, past the unmount", async () => {
+        const {run, unmount} = await submitAccepted(() => Promise.resolve(true))
+        expect(tabStatus()).toBe("running")
+        unmount()
+        expect(tabStatus()).toBe("running")
+        run.end("close")
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
+
+    it("retires the run when its stream drops", async () => {
+        const {run} = await submitAccepted(() => Promise.resolve(true))
+        expect(tabStatus()).toBe("running")
+        run.end("drop")
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
+
+    it("lets the mounted conversation's status win over its open run stream", async () => {
+        const {run} = await submitAccepted(() => Promise.resolve(true))
+        getDefaultStore().set(setSessionStatusAtom, {id: "session-1", status: "awaiting"})
+        expect(tabStatus()).toBe("awaiting")
+        getDefaultStore().set(setSessionStatusAtom, {id: "session-1", status: "idle"})
+        expect(tabStatus()).toBe("running")
+        run.end("close")
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
 
     it("settles only after the records re-read it started has landed", async () => {
         // The saved row that retires the echo arrives in that read. Reporting settlement

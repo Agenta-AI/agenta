@@ -18,6 +18,7 @@ import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
 import {startupPhaseFromDataPart, type StartupPhase, type TurnStage} from "../assets/startupPhases"
 import {readSendRefusal} from "../model/error"
+import {trackOwnedRunAtom} from "../state/sessionMessages"
 
 import type {QueuedMessage, ServerQueueWriteResult} from "./useAgentChatQueue"
 import {useMountGeneration} from "./useMountGeneration"
@@ -264,6 +265,7 @@ export const useServerSessionInputs = ({
     const removeInput = useSetAtom(removePendingSessionInputAtom)
     const sendInputNow = useSetAtom(sendPendingSessionInputNowAtom)
     const updateInput = useSetAtom(updatePendingSessionInputAtom)
+    const trackOwnedRun = useSetAtom(trackOwnedRunAtom)
     const [viewState, setViewState] = useState<{
         scope: string
         view: SessionPendingInputView
@@ -451,6 +453,7 @@ export const useServerSessionInputs = ({
             // run in the background so the composer can admit Queue/Steer while that run streams.
             // A 200 only proves the request was taken: the turn is accepted when the stream's
             // first frame names it, and a stream that ends without one never started a turn.
+            trackOwnedRun({id: sessionId, open: true})
             void readRunAdmission(response, {
                 ...watcher,
                 onFailed: () => {
@@ -462,6 +465,7 @@ export const useServerSessionInputs = ({
                     if (mount.isCurrent(generation)) onTurnStageRef.current?.(stage)
                 },
             })
+                .finally(() => trackOwnedRun({id: sessionId, open: false}))
                 .then(async ({accepted, ended}) => {
                     watcher?.onTurnNamed?.()
                     if (!mount.isCurrent(generation)) return
@@ -486,7 +490,7 @@ export const useServerSessionInputs = ({
                 .catch(() => watcher?.onTurnNamed?.())
             return "running"
         },
-        [mount, refresh, scope, sessionId],
+        [mount, refresh, scope, sessionId, trackOwnedRun],
     )
 
     // Every write re-reads past itself. `settledSeq` lets an optimistic overlay wait for that read.

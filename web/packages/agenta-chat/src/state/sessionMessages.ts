@@ -186,16 +186,29 @@ export const persistSessionMessagesAtom = atom(
  */
 const sessionStatusByIdAtom = atom<Record<string, SessionRunStatus>>({})
 
+/** Open run streams this tab started, per session; they outlive the mount that started them. */
+const ownedRunCountByIdAtom = atom<Record<string, number>>({})
+
 /** A single session's run state. Defaults to "idle" for sessions with no mounted conversation.
  * Backs a session list's status dot; reads repaint only when this session's status changes. */
 export const sessionStatusAtomFamily = atomFamily((id: string) =>
-    atom((get) => get(sessionStatusByIdAtom)[id] ?? "idle"),
+    atom(
+        (get) =>
+            get(sessionStatusByIdAtom)[id] ?? (get(ownedRunCountByIdAtom)[id] ? "running" : "idle"),
+    ),
 )
 
 /** Is THIS browser currently streaming the given session? Derived from the run state. */
 export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
     atom((get) => get(sessionStatusByIdAtom)[id] === "running"),
 )
+
+/** Every session's non-idle run state in this browser tab, read-only; idle is absence. */
+export const sessionStatusesAtom = atom((get) => {
+    const statuses = {...get(sessionStatusByIdAtom)}
+    for (const id of Object.keys(get(ownedRunCountByIdAtom))) statuses[id] ??= "running"
+    return statuses
+})
 
 /** Set a session's run state. "idle" is the default, so it's stored as ABSENCE: passing "idle"
  * deletes the entry (clear-on-unmount) instead of accumulating idle keys for every closed session. */
@@ -242,3 +255,13 @@ export const setSessionStatusAtom = atom(
         set(sessionStatusByIdAtom, {...cur, [id]: status})
     },
 )
+
+/** Count a run stream this tab opened for a session, or retire it once that stream ends. */
+export const trackOwnedRunAtom = atom(null, (get, set, {id, open}: {id: string; open: boolean}) => {
+    const cur = get(ownedRunCountByIdAtom)
+    const count = (cur[id] ?? 0) + (open ? 1 : -1)
+    const next = {...cur}
+    if (count > 0) next[id] = count
+    else delete next[id]
+    set(ownedRunCountByIdAtom, next)
+})
