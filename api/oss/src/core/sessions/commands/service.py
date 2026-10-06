@@ -77,6 +77,7 @@ from oss.src.core.sessions.streams.types import SessionIdInvalid
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     HEARTBEAT_INTERVAL_SECONDS,
+    TurnBinding,
     validate_session_id,
 )
 from oss.src.dbs.redis.sessions.locks import (
@@ -1257,10 +1258,12 @@ class SessionCommandsService:
             )
             return DeliveryReceipt(status="unreachable", detail=str(error))
 
-        runner_address = await self._runner_address_for(command)
+        binding = await self._runner_binding_for(command)
         try:
             receipt = await self._delivery.deliver(
-                command=command, runner_address=runner_address
+                command=command,
+                runner_address=binding.replica_address if binding else None,
+                runner_replica_id=binding.replica_id if binding else None,
             )
         except Exception as e:  # noqa: BLE001 — transport failure is never a request failure
             log.warning(
@@ -1306,8 +1309,13 @@ class SessionCommandsService:
         )
         return receipt
 
-    async def _runner_address_for(self, command: SessionCommand) -> Optional[str]:
-        """The address of the pod bound to a Stop's target turn, or None for the Service URL.
+    async def _runner_binding_for(
+        self, command: SessionCommand
+    ) -> Optional[TurnBinding]:
+        """The pod bound to a Stop's target turn, or None for the Service URL.
+
+        The binding's replica id lets the transport check that the pod at the address is still
+        that replica before it sends the token there.
 
         Read on every attempt, first delivery and sweep redelivery alike, so a redelivery cannot
         drift back to a random pod. A failed read falls back to the Service URL: on one pod that
@@ -1329,7 +1337,7 @@ class SessionCommandsService:
                 error,
             )
             return None
-        return (binding.replica_address or None) if binding else None
+        return binding if binding and binding.replica_address else None
 
     async def _interactions_for_command(
         self, command: SessionCommand

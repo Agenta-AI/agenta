@@ -4,7 +4,8 @@ The services layer reads this route before every turn and posts `/run` to the po
 follow-up reaches the pod that holds the warm session. The value is the address in the binding of
 the stream row's `turn_id`. Browsers read the same route, and a pod address is internal to the
 cluster, so the address is filled only for a caller with a valid runner token; every other
-caller, and every case with no binding or no address, reads `""`.
+caller, and every case with no binding or no address, reads `""`. The binding's replica id
+travels with the address under the same gate, so the caller can check the pod's identity first.
 """
 
 from types import SimpleNamespace
@@ -29,6 +30,7 @@ _USER = UUID("00000000-0000-0000-0000-0000000000bb")
 _SESSION = "session_runner_address"
 _TOKEN = "runner-secret"
 _ADDRESS = "http://10.8.2.17:8765"
+_REPLICA = "agenta-runner-6f9c7d5b8-aaaaa"
 
 
 class _FakeDAO:
@@ -75,7 +77,7 @@ async def _bind(engine, turn_id, address=_ADDRESS):
         project_id=str(_PROJECT),
         session_id=_SESSION,
         turn_id=turn_id,
-        replica_id="agenta-runner-6f9c7d5b8-aaaaa",
+        replica_id=_REPLICA,
         replica_address=address,
     )
 
@@ -95,6 +97,7 @@ async def test_the_runner_token_reads_the_address_of_the_last_turns_pod(lock_eng
     )
 
     assert response.runner_address == _ADDRESS
+    assert response.runner_replica_id == _REPLICA
     assert response.stream.turn_id == "turn-2"
     assert "runner_address" not in response.stream.model_dump()
 
@@ -109,6 +112,7 @@ async def test_the_address_follows_the_rows_turn_not_an_older_one(lock_engine):
     )
 
     assert response.runner_address == _ADDRESS
+    assert response.runner_replica_id == _REPLICA
 
 
 @pytest.mark.asyncio
@@ -125,6 +129,7 @@ async def test_a_caller_without_a_valid_runner_token_reads_no_address(
     response = await _read(lock_engine, _row("turn-2"), headers)
 
     assert response.runner_address == ""
+    assert response.runner_replica_id == ""
     assert response.stream.turn_id == "turn-2"
 
 
@@ -138,6 +143,7 @@ async def test_a_deployment_with_no_runner_token_gives_no_address(
     response = await _read(lock_engine, _row("turn-2"), {"X-Agenta-Runner-Token": ""})
 
     assert response.runner_address == ""
+    assert response.runner_replica_id == ""
 
 
 @pytest.mark.asyncio
@@ -147,6 +153,7 @@ async def test_a_turn_with_no_binding_reads_no_address(lock_engine):
     )
 
     assert response.runner_address == ""
+    assert response.runner_replica_id == ""
 
 
 @pytest.mark.asyncio
@@ -158,6 +165,7 @@ async def test_a_binding_with_no_address_reads_no_address(lock_engine):
     )
 
     assert response.runner_address == ""
+    assert response.runner_replica_id == ""
 
 
 @pytest.mark.asyncio
@@ -166,6 +174,7 @@ async def test_a_stream_with_no_turn_reads_no_address(lock_engine, row):
     response = await _read(lock_engine, row, {"X-Agenta-Runner-Token": _TOKEN})
 
     assert response.runner_address == ""
+    assert response.runner_replica_id == ""
 
 
 @pytest.mark.asyncio
@@ -185,4 +194,5 @@ async def test_a_failed_binding_read_costs_the_address_not_the_read(
     )
 
     assert response.runner_address == ""
+    assert response.runner_replica_id == ""
     assert response.stream.turn_id == "turn-2"

@@ -106,6 +106,7 @@ class FakeBackend(Backend):
         self.created_detached: list = []
         # The runner pod each turn prefers, as it reaches the backend.
         self.created_runner_addresses: list = []
+        self.created_runner_replica_ids: list = []
 
     async def setup(self) -> None:
         self.setup_calls += 1
@@ -136,8 +137,10 @@ class FakeBackend(Backend):
         effective_parameters=None,
         gateway_policy=None,
         runner_address=None,
+        runner_replica_id=None,
     ) -> _FakeSession:
         self.created_runner_addresses.append(runner_address)
+        self.created_runner_replica_ids.append(runner_replica_id)
         self.created_configs.append(config)
         self.created_session_ids.append(session_id)
         self.created_secrets.append(secrets)

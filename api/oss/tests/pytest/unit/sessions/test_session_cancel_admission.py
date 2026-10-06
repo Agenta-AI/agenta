@@ -342,12 +342,18 @@ class _RecordingDelivery:
         self.status = status
         self.delivered: List[SessionCommand] = []
         self.addresses: List[Optional[str]] = []
+        self.replica_ids: List[Optional[str]] = []
 
     async def deliver(
-        self, *, command: SessionCommand, runner_address: Optional[str] = None
+        self,
+        *,
+        command: SessionCommand,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> DeliveryReceipt:
         self.delivered.append(command)
         self.addresses.append(runner_address)
+        self.replica_ids.append(runner_replica_id)
         return DeliveryReceipt(status=self.status, replica_id="runner-1")
 
     async def acknowledge(self, *, command_id, replica_id) -> None:
@@ -1166,7 +1172,9 @@ async def test_an_outcome_that_beats_the_claim_still_settles(lock_engine):
             self.delivered: List[SessionCommand] = []
             self.state_at_report: Optional[SessionCommandState] = None
 
-        async def deliver(self, *, command, runner_address=None):
+        async def deliver(
+            self, *, command, runner_address=None, runner_replica_id=None
+        ):
             self.delivered.append(command)
             # The window. Nothing has written `claimed` yet, and the runner is already done.
             self.state_at_report = dao.rows[0].state

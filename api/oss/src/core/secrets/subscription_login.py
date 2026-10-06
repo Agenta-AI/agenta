@@ -19,6 +19,10 @@ from oss.src.core.secrets.types import (
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
 )
+from oss.src.core.sessions.streams.runner_client import (
+    RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS,
+    runner_address_is_replica,
+)
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -60,6 +64,12 @@ class RunnerLoginAttempt(BaseModel):
     poll_after_ms: int = _MIN_POLL_AFTER_MS
     # The pod that runs the provider poll. None when the runner has no address of its own.
     runner_address: Optional[str] = None
+    # That pod's replica id, checked against its `/health` before a cancel goes to the address.
+    runner_replica_id: Optional[str] = None
+
+
+def _nonblank(value: Any) -> Optional[str]:
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 def _parse_attempt(payload: Any, *, fallback_attempt_id: str) -> RunnerLoginAttempt:
@@ -73,8 +83,6 @@ def _parse_attempt(payload: Any, *, fallback_attempt_id: str) -> RunnerLoginAtte
     if isinstance(interval_seconds, (int, float)) and interval_seconds > 0:
         poll_after_ms = max(_MIN_POLL_AFTER_MS, int(interval_seconds * 1000))
 
-    runner_address = payload.get("replicaAddress")
-
     return RunnerLoginAttempt(
         attempt_id=str(payload.get("attemptId") or fallback_attempt_id),
         state=str(payload.get("state") or "pending"),
@@ -82,11 +90,8 @@ def _parse_attempt(payload: Any, *, fallback_attempt_id: str) -> RunnerLoginAtte
         verification_uri=payload.get("verificationUri"),
         expires_at=payload.get("expiresAt"),
         poll_after_ms=poll_after_ms,
-        runner_address=(
-            runner_address.strip()
-            if isinstance(runner_address, str) and runner_address.strip()
-            else None
-        ),
+        runner_address=_nonblank(payload.get("replicaAddress")),
+        runner_replica_id=_nonblank(payload.get("replicaId")),
     )
 
 
@@ -154,22 +159,32 @@ class SubscriptionLoginRunnerClient:
         *,
         attempt_id: str,
         base_url: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> bool:
         """Stop an attempt on the runner. Never raises: the row is the source of truth.
 
-        `base_url` is the address of the pod that runs the attempt's provider poll. Without
-        one the call goes to the Service URL, which picks any pod. A DELETE that reaches a
-        pod without the attempt is a no-op there.
+        `base_url` is the address of the pod that runs the attempt's provider poll, and
+        `runner_replica_id` is that pod's replica id. The call goes to the address only when
+        the pod there answers as that replica; otherwise, and without an address, it goes to
+        the Service URL, which picks any pod. A DELETE that reaches a pod without the attempt
+        is a no-op there.
         """
         if not self.configured:
             return False
 
-        url = (
-            str(base_url or self._base_url).rstrip("/")
-            + f"/subscription-login/attempts/{attempt_id}"
-        )
+        target = self._base_url
+        timeout = httpx.Timeout(_DELETE_TIMEOUT_SECONDS)
+        if base_url and await runner_address_is_replica(
+            address=base_url, replica_id=runner_replica_id
+        ):
+            target = base_url
+            timeout = httpx.Timeout(
+                _DELETE_TIMEOUT_SECONDS, connect=RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS
+            )
+
+        url = str(target).rstrip("/") + f"/subscription-login/attempts/{attempt_id}"
         try:
-            async with httpx.AsyncClient(timeout=_DELETE_TIMEOUT_SECONDS) as client:
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.delete(url, headers=self._headers())
         except httpx.HTTPError as e:
             _log_hop("delete", "unreachable", attempt_id=attempt_id, error=str(e))

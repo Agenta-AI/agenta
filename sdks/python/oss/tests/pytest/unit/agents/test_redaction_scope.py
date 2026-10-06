@@ -106,6 +106,7 @@ class _CapturingBackend(Backend):
         effective_parameters=None,
         gateway_policy=None,
         runner_address=None,
+        runner_replica_id=None,
     ) -> _FakeSession:
         self.captured_redactors.append(get_active_redactor())
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))

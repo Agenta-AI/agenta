@@ -198,6 +198,15 @@ class SessionStreamResponse(BaseModel):
             "hint, not proof that the pod is alive."
         ),
     )
+    runner_replica_id: str = Field(
+        default="",
+        description=(
+            "The replica id of the runner pod at runner_address. The caller checks it against "
+            "the pod's health answer before it uses the address, because a dead pod's IP can "
+            "pass to another pod. Filled under the same condition as runner_address; empty "
+            "when unknown."
+        ),
+    )
 
 
 class SessionStreamsResponse(BaseModel):

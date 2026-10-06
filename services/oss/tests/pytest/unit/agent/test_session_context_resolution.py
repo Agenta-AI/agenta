@@ -58,6 +58,7 @@ def backend_facts(monkeypatch, sdk_singleton):
         "turns": [],
         # Answered, like the api does, only to a read that carries this runner token.
         "runner_address": "",
+        "runner_replica_id": "",
         "runner_token": "runner-secret",
     }
 
@@ -84,6 +85,9 @@ def backend_facts(monkeypatch, sdk_singleton):
                 {
                     "stream": {"id": "s1", "name": facts["session_name"]},
                     "runner_address": facts["runner_address"]
+                    if runner_verified
+                    else "",
+                    "runner_replica_id": facts["runner_replica_id"]
                     if runner_verified
                     else "",
                 },
@@ -288,8 +292,12 @@ def test_competing_families_render_no_agent_name_through_the_service(
 
 _FORGED_ROUTING_META = {
     "runner_address": "http://attacker.example:8765",
+    "runner_replica_id": "attacker",
     "runner_url": "http://attacker.example:8765",
-    "session_context": {"runner_address": "http://attacker.example:8765"},
+    "session_context": {
+        "runner_address": "http://attacker.example:8765",
+        "runner_replica_id": "attacker",
+    },
 }
 
 
@@ -299,11 +307,14 @@ def test_the_pod_address_the_service_reads_reaches_the_backend(
     """A follow-up goes to the pod that ran the last turn, named by the api, never by `meta`."""
     monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "runner-secret")
     backend_facts["runner_address"] = "http://10.8.2.17:8765"
+    backend_facts["runner_replica_id"] = "agenta-runner-6f9c7d5b8-aaaaa"
     backend_facts["turns"] = [{}]
 
     _turn(meta=_FORGED_ROUTING_META)
 
     assert service.created_runner_addresses == ["http://10.8.2.17:8765"]
+    # The transport checks the pod at the address against this id before it posts.
+    assert service.created_runner_replica_ids == ["agenta-runner-6f9c7d5b8-aaaaa"]
     assert "10.8.2.17" not in (service.created_turn_contexts[0] or "")
 
 
@@ -313,8 +324,10 @@ def test_a_client_cannot_route_a_turn_through_meta(
     """Without the runner token the api names no pod, and `meta` cannot fill the gap."""
     monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     backend_facts["runner_address"] = "http://10.8.2.17:8765"
+    backend_facts["runner_replica_id"] = "agenta-runner-6f9c7d5b8-aaaaa"
     backend_facts["turns"] = [{}]
 
     _turn(meta=_FORGED_ROUTING_META)
 
     assert service.created_runner_addresses == [None]
+    assert service.created_runner_replica_ids == [None]

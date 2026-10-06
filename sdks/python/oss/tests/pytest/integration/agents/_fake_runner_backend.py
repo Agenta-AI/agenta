@@ -181,6 +181,7 @@ class FakeRunnerBackend(Backend):
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
         runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> FakeRunnerSession:
         return FakeRunnerSession(
             self,

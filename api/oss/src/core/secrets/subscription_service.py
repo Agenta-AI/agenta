@@ -217,6 +217,7 @@ def _stored_attempt(attempt: RunnerLoginAttempt) -> Dict[str, Any]:
         "state": _PENDING,
         "error": None,
         "runner_address": attempt.runner_address,
+        "runner_replica_id": attempt.runner_replica_id,
     }
 
 
@@ -376,6 +377,7 @@ class SubscriptionLoginService:
             await self.runner_client.delete_attempt(
                 attempt_id=attempt.attempt_id,
                 base_url=attempt.runner_address,
+                runner_replica_id=attempt.runner_replica_id,
             )
             _log_attempt(secret_id, winner.id, "pending", "reused")
             _log_attempt(secret_id, attempt.attempt_id, "cancelled", "superseded")
@@ -488,6 +490,7 @@ class SubscriptionLoginService:
         await self.runner_client.delete_attempt(
             attempt_id=attempt_id,
             base_url=data.login_attempt.runner_address,
+            runner_replica_id=data.login_attempt.runner_replica_id,
         )
 
         _log_attempt(secret_id, attempt_id, "cancelled", "ended")

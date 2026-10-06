@@ -4,7 +4,8 @@
  * Same contract as the CLI, exposed over HTTP so the wrapper can run as its own
  * container (a sidecar) that the Python service calls in-network:
  *
- *   GET  /health              -> runner identity ({ status, runner, protocol, engines, harnesses })
+ *   GET  /health              -> runner identity ({ status, runner, protocol, engines, harnesses,
+ *                             replicaId })
  *   GET  /subscription-status -> one login state per harness (no paths, no credentials)
  *   POST/DELETE /subscription-login/attempts[/{id}] -> device-code login for a hosted
  *                             subscription connection (the login goes to the API, never to a user)
@@ -1365,8 +1366,13 @@ async function handleSubscriptionLoginRoute(
     try {
       const view = await attempts.start(provider, { projectId, secretId });
       // The API keeps this pod's own address on the attempt, so a cancel reaches the pod that
-      // runs the provider poll rather than whichever pod the Service URL picks.
-      return send(res, 200, { ...view, replicaAddress: REPLICA_ADDRESS });
+      // runs the provider poll rather than whichever pod the Service URL picks. The id lets the
+      // API check, before the cancel, that the address still belongs to this pod.
+      return send(res, 200, {
+        ...view,
+        replicaAddress: REPLICA_ADDRESS,
+        replicaId: REPLICA_ID,
+      });
     } catch (err) {
       // `start` already reduced the provider's message to a short reason word.
       return send(res, 502, {
@@ -1544,7 +1550,9 @@ export function createRequestListener(
   return async (req, res) => {
     try {
       if (req.method === "GET" && req.url === "/health") {
-        return send(res, 200, runnerInfo());
+        // A caller that holds a pod address checks this id against the turn's binding before
+        // it sends a token there: Kubernetes can give a dead pod's IP to another pod.
+        return send(res, 200, { ...runnerInfo(), replicaId: REPLICA_ID });
       }
 
       // Deployment state, not project data — but it is still operator state, so it sits behind the

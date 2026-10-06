@@ -626,9 +626,9 @@ class SessionStreamsRouter:
         )
         # Browsers read this route too; a pod address is cluster-internal, so only the
         # services layer, which proves itself with the runner token, gets it.
-        runner_address = ""
+        binding = None
         if stream is not None and stream.turn_id and has_valid_runner_token(request):
-            runner_address = await self._service.runner_address(
+            binding = await self._service.runner_binding(
                 project_id=UUID(str(project_id)),
                 session_id=session_id,
                 turn_id=stream.turn_id,
@@ -636,7 +636,8 @@ class SessionStreamsRouter:
         return SessionStreamResponse(
             stream=sanitize_session_stream(stream),
             capabilities=_session_capabilities(),
-            runner_address=runner_address,
+            runner_address=binding.replica_address if binding else "",
+            runner_replica_id=binding.replica_id if binding else "",
         )
 
     @intercept_exceptions()

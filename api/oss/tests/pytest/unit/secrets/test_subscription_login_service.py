@@ -10,14 +10,20 @@ from base64 import urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
 from json import dumps as json_dumps, loads as json_loads
 from typing import Optional
+from unittest.mock import patch
 from uuid import uuid4
 
+import httpx
 import pytest
 
 from oss.src.core.secrets.dtos import CreateSecretDTO
 from oss.src.core.secrets.enums import SubscriptionLoginState
 from oss.src.core.secrets.services import VaultService
-from oss.src.core.secrets.subscription_login import RunnerLoginAttempt
+from oss.src.core.secrets.subscription_login import (
+    RunnerLoginAttempt,
+    SubscriptionLoginRunnerClient,
+    _parse_attempt,
+)
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.secrets.types import (
     SubscriptionLoginAttemptNotFound,
@@ -158,6 +164,8 @@ class _FakeRunner:
         self.deleted: list = []
         # The address each DELETE went to, in the order of `deleted`. None is the Service URL.
         self.deleted_at: list = []
+        # The replica id each DELETE was told to expect at that address.
+        self.deleted_replica_ids: list = []
         self.started_with: list = []
         self.started = 0
         # Set it to hold both starts inside the runner call, so two tabs reach the row
@@ -180,9 +188,12 @@ class _FakeRunner:
             await self.start_gate.wait()
         return answer or self.next_attempt
 
-    async def delete_attempt(self, *, attempt_id, base_url=None):
+    async def delete_attempt(
+        self, *, attempt_id, base_url=None, runner_replica_id=None
+    ):
         self.deleted.append(attempt_id)
         self.deleted_at.append(base_url)
+        self.deleted_replica_ids.append(runner_replica_id)
         return True
 
 
@@ -318,6 +329,7 @@ class TestAttemptLifecycle:
             state="pending",
             expires_at=_later(),
             runner_address="http://10.8.2.17:8765",
+            runner_replica_id="agenta-runner-6f9c7d5b8-aaaaa",
         )
 
         await service.start_attempt(project_id=PROJECT_ID, secret_id=secret.id)
@@ -331,6 +343,7 @@ class TestAttemptLifecycle:
         ]
         stored = (await _read(vault, secret.id)).data.login_attempt
         assert stored.runner_address == "http://10.8.2.17:8765"
+        assert stored.runner_replica_id == "agenta-runner-6f9c7d5b8-aaaaa"
 
     async def test_start_is_idempotent_while_an_attempt_is_live(
         self, vault, runner, service
@@ -603,6 +616,7 @@ class TestAttemptLifecycle:
                     "id": "att-1",
                     "expires_at": _later(),
                     "runner_address": "http://10.8.2.17:8765",
+                    "runner_replica_id": "agenta-runner-6f9c7d5b8-aaaaa",
                 }
             },
         )
@@ -614,6 +628,7 @@ class TestAttemptLifecycle:
         assert view.state == "cancelled"
         assert runner.deleted == ["att-1"]
         assert runner.deleted_at == ["http://10.8.2.17:8765"]
+        assert runner.deleted_replica_ids == ["agenta-runner-6f9c7d5b8-aaaaa"]
         assert (await _read(vault, secret.id)).data.login_attempt is None
 
     async def test_cancel_without_a_recorded_address_uses_the_service_url(
@@ -808,6 +823,7 @@ class TestTwoTabsStartAtOnce:
                 user_code="FIRST-CODE",
                 expires_at=_later(),
                 runner_address="http://pod-first:8765",
+                runner_replica_id="pod-first",
             ),
             RunnerLoginAttempt(
                 attempt_id="att-second",
@@ -815,6 +831,7 @@ class TestTwoTabsStartAtOnce:
                 user_code="SECOND-CODE",
                 expires_at=_later(),
                 runner_address="http://pod-second:8765",
+                runner_replica_id="pod-second",
             ),
         ]
 
@@ -847,6 +864,9 @@ class TestTwoTabsStartAtOnce:
             "http://pod-second:8765"
             if loser == "att-second"
             else "http://pod-first:8765"
+        ]
+        assert runner.deleted_replica_ids == [
+            "pod-second" if loser == "att-second" else "pod-first"
         ]
 
 
@@ -1567,3 +1587,118 @@ class TestReportedFailure:
         )
 
         assert len((await _read(vault, secret.id)).data.login_error) == 200
+
+
+class _FakeRunnerHttp:
+    """Stands in for `httpx.AsyncClient` under the runner client: answers `/health` and the
+    DELETE, and records each client's timeout and each call."""
+
+    def __init__(self, *, health_replica_id="pod-a", health_error=None):
+        self.health_replica_id = health_replica_id
+        self.health_error = health_error
+        self.timeouts: list = []
+        self.gets: list = []
+        self.deletes: list = []
+
+    def client(self, *args, timeout=None, **kwargs):
+        self.timeouts.append(timeout)
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get(self, url, headers=None):
+        self.gets.append({"url": url, "headers": headers})
+        if self.health_error is not None:
+            raise self.health_error
+        return httpx.Response(
+            200, json={"status": "ok", "replicaId": self.health_replica_id}
+        )
+
+    async def delete(self, url, headers=None):
+        self.deletes.append(url)
+        return httpx.Response(204)
+
+
+_POD_ADDRESS = "http://10.8.2.17:8765"
+_SERVICE_URL = "http://agenta-runner:8765"
+
+
+class TestTheCancelChecksThePodBeforeItTrustsTheAddress:
+    """Kubernetes can give a dead runner pod's IP to another pod. The DELETE carries the
+    runner token, so it goes to the recorded address only when the pod there answers
+    `/health` with the replica id the start answer named. Otherwise the Service URL."""
+
+    async def _delete(self, http, runner_replica_id="pod-a", base_url=_POD_ADDRESS):
+        client = SubscriptionLoginRunnerClient(base_url=_SERVICE_URL, token="secret")
+        with patch(
+            "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
+            new=http.client,
+        ):
+            return await client.delete_attempt(
+                attempt_id="att-1",
+                base_url=base_url,
+                runner_replica_id=runner_replica_id,
+            )
+
+    def test_the_start_answer_names_the_pods_replica_id(self):
+        attempt = _parse_attempt(
+            {
+                "attemptId": "att-1",
+                "replicaAddress": _POD_ADDRESS,
+                "replicaId": "pod-a",
+            },
+            fallback_attempt_id="",
+        )
+
+        assert attempt.runner_address == _POD_ADDRESS
+        assert attempt.runner_replica_id == "pod-a"
+
+    async def test_the_same_replica_gets_the_delete_with_a_two_second_connect(self):
+        http = _FakeRunnerHttp()
+
+        assert await self._delete(http) is True
+
+        assert http.gets == [{"url": f"{_POD_ADDRESS}/health", "headers": None}], (
+            "the identity check carries no runner token"
+        )
+        assert http.deletes == [f"{_POD_ADDRESS}/subscription-login/attempts/att-1"]
+        health_timeout, delete_timeout = http.timeouts
+        assert health_timeout == 2.0
+        assert delete_timeout.connect == 2.0
+
+    @pytest.mark.parametrize(
+        "http,runner_replica_id",
+        [
+            (_FakeRunnerHttp(health_replica_id="some-other-pod"), "pod-a"),
+            (_FakeRunnerHttp(health_replica_id=None), "pod-a"),
+            (_FakeRunnerHttp(health_error=httpx.ConnectError("refused")), "pod-a"),
+            (_FakeRunnerHttp(health_error=httpx.ConnectTimeout("timed out")), "pod-a"),
+            (_FakeRunnerHttp(), None),
+        ],
+        ids=[
+            "another-replica",
+            "not-a-runner",
+            "health-error",
+            "health-timeout",
+            "no-replica-id",
+        ],
+    )
+    async def test_any_other_answer_sends_the_delete_to_the_service_url(
+        self, http, runner_replica_id
+    ):
+        await self._delete(http, runner_replica_id=runner_replica_id)
+
+        assert http.deletes == [f"{_SERVICE_URL}/subscription-login/attempts/att-1"]
+        assert http.timeouts[-1].connect == 5.0
+
+    async def test_no_recorded_address_uses_the_service_url_with_no_check(self):
+        http = _FakeRunnerHttp()
+
+        await self._delete(http, runner_replica_id=None, base_url=None)
+
+        assert http.gets == []
+        assert http.deletes == [f"{_SERVICE_URL}/subscription-login/attempts/att-1"]

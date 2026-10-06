@@ -5,6 +5,10 @@ redelivery alike, and hands its address to the transport. The direct transport p
 there. With no address (compose, Railway, or a turn no pod has beaten yet) it posts to the
 Service URL, as it did before bindings existed.
 
+Before the post, the transport asks the pod at the address for its replica id on `/health`.
+Kubernetes can give a dead pod's IP to another pod, so the token goes there only when the id
+equals the binding's. Any other answer is `unreachable`, with nothing posted.
+
 The receipts stay distinct: a 404 from the pod is `not_held` and settles at once, while a
 transport failure is `unreachable` and leaves the command to the abandoned-command sweep.
 """
@@ -21,6 +25,7 @@ from oss.src.core.sessions.streams.runner_client import (
     RunnerCancelResponse,
     RunnerCancelResult,
     cancel_runner_execution,
+    runner_address_is_replica,
 )
 from oss.src.dbs.http.sessions import control_delivery_direct
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
@@ -89,6 +94,8 @@ async def test_the_first_delivery_goes_to_the_pod_bound_to_the_target_turn(
     await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
 
     assert delivery.addresses == [_ADDRESS_A]
+    # The transport checks the pod at the address against this id before it posts.
+    assert delivery.replica_ids == [_POD_A]
 
 
 @pytest.mark.asyncio
@@ -124,6 +131,7 @@ async def test_an_empty_bound_address_uses_the_service_url(lock_engine):
     await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
 
     assert delivery.addresses == [None]
+    assert delivery.replica_ids == [None]
 
 
 @pytest.mark.asyncio
@@ -135,6 +143,7 @@ async def test_a_turn_with_no_binding_uses_the_service_url(lock_engine):
     await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
 
     assert delivery.addresses == [None]
+    assert delivery.replica_ids == [None]
 
 
 @pytest.mark.asyncio
@@ -215,107 +224,160 @@ class _FakeRunnerEnv:
     token = "shared-secret"
 
 
-def _client_answering(status_code: int, captured: dict):
-    class _FakeResponse:
-        def __init__(self) -> None:
-            self.status_code = status_code
+class _FakeResponse:
+    def __init__(self, status_code: int, payload) -> None:
+        self.status_code = status_code
+        self._payload = payload
 
-        def json(self):
-            return {"ok": True, "replicaId": _POD_A}
-
-    class _FakeClient:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *exc):
-            return False
-
-        async def post(self, url, json=None, headers=None):
-            captured["url"] = url
-            captured["headers"] = headers
-            return _FakeResponse()
-
-    return _FakeClient()
+    def json(self):
+        if self._payload is None:
+            raise ValueError("no JSON body")
+        return self._payload
 
 
-def _client_failing():
-    class _FakeClient:
-        async def __aenter__(self):
-            return self
+class _FakeRunnerHttp:
+    """Stands in for `httpx.AsyncClient`: answers `/health` and `/cancel` and records each
+    client's timeout and each call."""
 
-        async def __aexit__(self, *exc):
-            return False
+    def __init__(
+        self,
+        *,
+        cancel_status: int = 202,
+        health_replica_id=_POD_A,
+        health_error: Exception | None = None,
+        cancel_error: Exception | None = None,
+    ) -> None:
+        self.cancel_status = cancel_status
+        self.health_replica_id = health_replica_id
+        self.health_error = health_error
+        self.cancel_error = cancel_error
+        self.timeouts: list = []
+        self.gets: list = []
+        self.posts: list = []
 
-        async def post(self, url, json=None, headers=None):
-            raise httpx.ConnectError("connection refused")
+    def client(self, *args, timeout=None, **kwargs):
+        self.timeouts.append(timeout)
+        return self
 
-    return _FakeClient()
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get(self, url, headers=None):
+        self.gets.append({"url": url, "headers": headers})
+        if self.health_error is not None:
+            raise self.health_error
+        return _FakeResponse(200, {"status": "ok", "replicaId": self.health_replica_id})
+
+    async def post(self, url, json=None, headers=None):
+        self.posts.append({"url": url, "headers": headers})
+        if self.cancel_error is not None:
+            raise self.cancel_error
+        return _FakeResponse(self.cancel_status, {"ok": True, "replicaId": _POD_A})
 
 
-async def _cancel(base_url=None):
-    return await cancel_runner_execution(
-        command_id="cmd-1",
-        project_id="proj-1",
-        session_id="sess-1",
-        target_turn_id="turn-A",
-        created_at="",
-        base_url=base_url,
+async def _cancel(http: _FakeRunnerHttp, base_url=None, runner_replica_id=_POD_A):
+    with (
+        patch(
+            "oss.src.core.sessions.streams.runner_client.env",
+            runner=_FakeRunnerEnv(),
+        ),
+        patch(
+            "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
+            new=http.client,
+        ),
+    ):
+        return await cancel_runner_execution(
+            command_id="cmd-1",
+            project_id="proj-1",
+            session_id="sess-1",
+            target_turn_id="turn-A",
+            created_at="",
+            base_url=base_url,
+            runner_replica_id=runner_replica_id,
+        )
+
+
+@pytest.mark.asyncio
+async def test_cancel_checks_the_pod_identity_then_posts_to_the_bound_pod():
+    http = _FakeRunnerHttp()
+
+    answer = await _cancel(http, _ADDRESS_A)
+
+    assert answer == RunnerCancelResponse(RunnerCancelResult.accepted, _POD_A)
+    assert http.gets == [{"url": f"{_ADDRESS_A}/health", "headers": None}], (
+        "the identity check carries no runner token"
+    )
+    assert [post["url"] for post in http.posts] == [f"{_ADDRESS_A}/cancel"]
+    assert http.posts[0]["headers"]["Authorization"] == "Bearer shared-secret"
+
+
+@pytest.mark.asyncio
+async def test_cancel_without_an_address_posts_to_the_service_url_with_no_check():
+    http = _FakeRunnerHttp()
+
+    answer = await _cancel(http, None, runner_replica_id=None)
+
+    assert answer.status == RunnerCancelResult.accepted
+    assert http.gets == []
+    assert [post["url"] for post in http.posts] == [f"{_SERVICE_URL}/cancel"]
+    assert http.timeouts[0].connect == 5.0, (
+        "the Service URL keeps the caller's whole timeout for the connect"
     )
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "base_url,expected_url",
+    "http,runner_replica_id",
     [
-        (_ADDRESS_A, f"{_ADDRESS_A}/cancel"),
-        (None, f"{_SERVICE_URL}/cancel"),
+        (_FakeRunnerHttp(health_replica_id="some-other-pod"), _POD_A),
+        (_FakeRunnerHttp(health_replica_id=None), _POD_A),
+        (_FakeRunnerHttp(health_error=httpx.ConnectError("refused")), _POD_A),
+        (_FakeRunnerHttp(health_error=httpx.ConnectTimeout("timed out")), _POD_A),
+        (_FakeRunnerHttp(), None),
+        (_FakeRunnerHttp(), ""),
     ],
-    ids=["bound-pod", "service-url"],
+    ids=[
+        "another-replica",
+        "not-a-runner",
+        "health-error",
+        "health-timeout",
+        "no-replica-id",
+        "empty-replica-id",
+    ],
 )
-async def test_cancel_posts_to_the_bound_pod_or_the_service_url(base_url, expected_url):
-    captured: dict = {}
-    with (
-        patch(
-            "oss.src.core.sessions.streams.runner_client.env",
-            runner=_FakeRunnerEnv(),
-        ),
-        patch(
-            "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
-            return_value=_client_answering(202, captured),
-        ),
-    ):
-        answer = await _cancel(base_url)
+async def test_cancel_sends_nothing_to_an_address_that_is_not_the_bound_replica(
+    http, runner_replica_id
+):
+    """A reused pod IP must not receive the runner token. The outcome is the same as a
+    transport failure, so the command waits for the sweep, which reads the binding again."""
+    answer = await _cancel(http, _ADDRESS_A, runner_replica_id=runner_replica_id)
 
-    assert answer == RunnerCancelResponse(RunnerCancelResult.accepted, _POD_A)
-    assert captured["url"] == expected_url
-    assert captured["headers"]["Authorization"] == "Bearer shared-secret"
+    assert answer == RunnerCancelResponse(RunnerCancelResult.unreachable)
+    assert http.posts == []
+
+
+@pytest.mark.asyncio
+async def test_the_bound_pod_gets_a_two_second_connect_bound():
+    http = _FakeRunnerHttp()
+
+    await _cancel(http, _ADDRESS_A)
+
+    health_timeout, cancel_timeout = http.timeouts
+    assert health_timeout == 2.0
+    assert cancel_timeout.connect == 2.0
+    assert cancel_timeout.read == 5.0, "the read keeps the caller's whole timeout"
 
 
 @pytest.mark.asyncio
 async def test_a_404_from_the_bound_pod_is_not_held_and_a_transport_failure_is_not():
-    with (
-        patch(
-            "oss.src.core.sessions.streams.runner_client.env",
-            runner=_FakeRunnerEnv(),
-        ),
-        patch(
-            "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
-            return_value=_client_answering(404, {}),
-        ),
-    ):
-        not_held = await _cancel(_ADDRESS_A)
-
-    with (
-        patch(
-            "oss.src.core.sessions.streams.runner_client.env",
-            runner=_FakeRunnerEnv(),
-        ),
-        patch(
-            "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
-            return_value=_client_failing(),
-        ),
-    ):
-        unreachable = await _cancel(_ADDRESS_A)
+    not_held = await _cancel(_FakeRunnerHttp(cancel_status=404), _ADDRESS_A)
+    unreachable = await _cancel(
+        _FakeRunnerHttp(cancel_error=httpx.ConnectError("connection refused")),
+        _ADDRESS_A,
+    )
 
     assert not_held.status == RunnerCancelResult.not_held
     assert unreachable.status == RunnerCancelResult.unreachable
@@ -330,9 +392,75 @@ async def test_the_direct_adapter_passes_the_address_to_the_runner_call():
 
     with patch.object(control_delivery_direct, "cancel_runner_execution", cancel):
         receipt = await DirectControlDelivery(timeout_seconds=1.0).deliver(
-            command=command, runner_address=_ADDRESS_A
+            command=command, runner_address=_ADDRESS_A, runner_replica_id=_POD_A
         )
 
     assert receipt.status == "accepted"
     assert receipt.replica_id == _POD_A
     assert cancel.await_args.kwargs["base_url"] == _ADDRESS_A
+    assert cancel.await_args.kwargs["runner_replica_id"] == _POD_A
+
+
+def _health_answering(handler):
+    """`httpx.AsyncClient` with a mock transport, so URL parsing and `.json()` stay real."""
+    real_client = httpx.AsyncClient
+
+    def client(*args, **kwargs):
+        return real_client(*args, transport=httpx.MockTransport(handler), **kwargs)
+
+    return client
+
+
+def _raises(error):
+    def handler(request):
+        raise error
+
+    return handler
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "address,handler",
+    [
+        (_ADDRESS_A, lambda request: httpx.Response(200, text="<html>ok</html>")),
+        (_ADDRESS_A, lambda request: httpx.Response(500, json={"replicaId": _POD_A})),
+        (_ADDRESS_A, lambda request: httpx.Response(200, json=[_POD_A])),
+        (_ADDRESS_A, _raises(httpx.ReadTimeout("no answer"))),
+        (_ADDRESS_A, _raises(httpx.RemoteProtocolError("garbage"))),
+        ("http://[not-an-address", lambda request: httpx.Response(200)),
+    ],
+    ids=[
+        "not-json",
+        "not-200",
+        "not-an-object",
+        "read-timeout",
+        "protocol-error",
+        "invalid-url",
+    ],
+)
+async def test_every_health_check_failure_is_false_and_never_raises(address, handler):
+    with patch(
+        "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
+        new=_health_answering(handler),
+    ):
+        assert (
+            await runner_address_is_replica(address=address, replica_id=_POD_A) is False
+        )
+
+
+@pytest.mark.asyncio
+async def test_the_health_check_reads_the_replica_id_from_a_real_answer():
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(200, json={"status": "ok", "replicaId": _POD_A})
+
+    with patch(
+        "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
+        new=_health_answering(handler),
+    ):
+        assert await runner_address_is_replica(address=_ADDRESS_A, replica_id=_POD_A)
+
+    assert [str(request.url) for request in requests] == [f"{_ADDRESS_A}/health"]
+    assert "authorization" not in requests[0].headers

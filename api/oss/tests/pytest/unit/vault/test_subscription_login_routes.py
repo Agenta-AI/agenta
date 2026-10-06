@@ -146,7 +146,9 @@ class _FakeRunner:
             raise self.raises
         return self.next_attempt
 
-    async def delete_attempt(self, *, attempt_id, base_url=None):
+    async def delete_attempt(
+        self, *, attempt_id, base_url=None, runner_replica_id=None
+    ):
         self.deleted.append(attempt_id)
         self.deleted_at.append(base_url)
         return True

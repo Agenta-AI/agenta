@@ -1225,7 +1225,9 @@ async def test_send_now_parked_input_continuation_advances_when_runner_not_held(
     service._interactions.cancel_session_pending.return_value = 1
 
     class ParkedDelivery(_UnreachableDelivery):
-        async def deliver(self, *, command, runner_address=None):
+        async def deliver(
+            self, *, command, runner_address=None, runner_replica_id=None
+        ):
             return DeliveryReceipt(
                 status="not_held"
                 if command.kind == SessionCommandKind.cancel

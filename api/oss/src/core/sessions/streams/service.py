@@ -23,6 +23,7 @@ from oss.src.dbs.redis.sessions.contract import (
     CONCURRENCY_LIMIT,
     WATCH_LIFECYCLE_ENDED,
     WATCH_LIFECYCLE_RUNNING,
+    TurnBinding,
     validate_session_id as _validate_session_id_fn,
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -874,17 +875,19 @@ class SessionStreamsService:
         stream.flags = flags
         return stream
 
-    async def runner_address(
+    async def runner_binding(
         self,
         *,
         project_id: UUID,
         session_id: str,
         turn_id: str,
-    ) -> str:
-        """The address of the runner pod bound to turn_id, or "" when it is not known.
+    ) -> Optional[TurnBinding]:
+        """The runner pod bound to turn_id, or None when its address is not known.
 
-        A routing hint: the caller falls back to the Service URL on an empty or dead address,
-        so a failed read costs a cold turn, never the read it rides on.
+        A routing hint: the caller falls back to the Service URL on a missing or dead address,
+        so a failed read costs a cold turn, never the read it rides on. The replica id lets the
+        caller check that the pod at the address is still that replica, since Kubernetes can
+        give a dead pod's IP to another pod.
         """
         try:
             binding = await get_turn_binding(
@@ -900,8 +903,8 @@ class SessionStreamsService:
                 turn_id,
                 error,
             )
-            return ""
-        return binding.replica_address if binding else ""
+            return None
+        return binding if binding and binding.replica_address else None
 
     async def fetch_header(
         self,

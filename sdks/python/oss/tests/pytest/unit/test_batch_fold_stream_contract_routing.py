@@ -148,6 +148,7 @@ class _FakeBackend(Backend):
         effective_parameters=None,
         gateway_policy=None,
         runner_address=None,
+        runner_replica_id=None,
     ) -> _FakeSession:
         # Fresh session per call: stream and batch requests each get their own iterator.
         return _FakeSession(AgentResult(output="here you go", events=self._events))

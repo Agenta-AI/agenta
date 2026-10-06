@@ -872,11 +872,19 @@ async def test_the_clients_close_is_entered_on_the_abandonment_path(
 # The runner pod address: read with the runner token, used only for routing
 # --------------------------------------------------------------------------- #
 POD_ADDRESS = "http://10.8.2.17:8765"
+POD_REPLICA_ID = "agenta-runner-6f9c7d5b8-aaaaa"
 
 
-def _stream_with_address(name: Optional[str], address: Any) -> _FakeResponse:
+def _stream_with_address(
+    name: Optional[str], address: Any, replica_id: Any = POD_REPLICA_ID
+) -> _FakeResponse:
     return _FakeResponse(
-        200, {"stream": {"id": "s1", "name": name}, "runner_address": address}
+        200,
+        {
+            "stream": {"id": "s1", "name": name},
+            "runner_address": address,
+            "runner_replica_id": replica_id,
+        },
     )
 
 
@@ -897,6 +905,7 @@ async def test_the_stream_read_sends_the_runner_token_and_returns_the_address(
     )
 
     assert context.runner_address == POD_ADDRESS
+    assert context.runner_replica_id == POD_REPLICA_ID
     assert context.session_name == "Sapphire Ledger"
     by_url = {call["url"]: call for call in calls}
     stream_headers = by_url["https://api.x/api/sessions/streams/"]["headers"]
@@ -957,6 +966,32 @@ async def test_an_empty_or_malformed_address_means_the_service_url(
 
 
 @pytest.mark.parametrize(
+    "replica_id",
+    ["", "   ", None, 42],
+    ids=["empty", "blank", "null", "number"],
+)
+async def test_an_empty_or_malformed_replica_id_reads_as_none(
+    connection, routed, replica_id
+):
+    """An address with no replica id cannot be checked, so the transport will not use it."""
+    routed(
+        {
+            "/sessions/streams/": _stream_with_address(
+                "Sapphire Ledger", POD_ADDRESS, replica_id
+            ),
+            "/sessions/turns/query": _turns(1),
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", connection=connection
+    )
+
+    assert context.runner_address == POD_ADDRESS
+    assert context.runner_replica_id is None
+
+
+@pytest.mark.parametrize(
     "turns",
     [_FakeResponse(500, {}), RuntimeError("backend down"), _FakeResponse(200, {})],
     ids=["turns-500", "turns-raises", "turns-malformed"],
@@ -984,4 +1019,5 @@ async def test_a_run_with_no_session_reads_no_address(connection, routed):
 
     assert calls == []
     assert context.runner_address is None
+    assert context.runner_replica_id is None
     assert context.first_turn is True

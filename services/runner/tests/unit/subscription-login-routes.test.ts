@@ -29,14 +29,17 @@ import type {
 } from "../../src/subscription-login-attempts.ts";
 import { makeLogin } from "../utils/subscription-login.ts";
 
-// The pod address is read once per process, like the replica id, so it is set before the import.
+// The pod address and the replica id are read once per process, so they are set before the import.
 const REPLICA_ADDRESS = "http://10.8.2.17:8765";
+const REPLICA_ID = "agenta-runner-6f9c7d5b8-aaaaa";
 process.env.AGENTA_RUNNER_REPLICA_ADDRESS = REPLICA_ADDRESS;
+process.env.AGENTA_RUNNER_REPLICA_ID = REPLICA_ID;
 const { createAgentServer } = await import("../../src/server.ts");
 const { SubscriptionLoginAttempts, setSubscriptionLoginAttempts } = await import(
   "../../src/subscription-login-attempts.ts"
 );
 delete process.env.AGENTA_RUNNER_REPLICA_ADDRESS;
+delete process.env.AGENTA_RUNNER_REPLICA_ID;
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -186,14 +189,32 @@ describe("POST /subscription-login/attempts", () => {
       assert.equal(body.intervalSeconds, 7);
       assert.equal(typeof body.expiresAt, "string");
       assert.ok(!Number.isNaN(Date.parse(body.expiresAt as string)));
-      // What the API needs to send a cancel to this pod rather than to the Service URL.
+      // What the API needs to send a cancel to this pod rather than to the Service URL, and to
+      // check first that the address still belongs to this pod.
       assert.equal(body.replicaAddress, REPLICA_ADDRESS);
+      assert.equal(body.replicaId, REPLICA_ID);
 
       // What must never ride the start response: the login blob, or anything token-shaped.
       assert.equal(body.login, undefined);
       assert.equal(body.access, undefined);
       assert.equal(body.refresh, undefined);
       assert.equal(body.error, undefined);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("names the same replica id that GET /health answers, so the API can check the address", async () => {
+    const s = await listen(store(mockProvider()).attempts);
+    try {
+      const body = await startAttempt(s.url);
+      const health = (await (await fetch(`${s.url}/health`)).json()) as Record<
+        string,
+        unknown
+      >;
+
+      assert.equal(health.replicaId, REPLICA_ID);
+      assert.equal(health.replicaId, body.replicaId);
     } finally {
       await s.close();
     }

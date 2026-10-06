@@ -721,14 +721,16 @@ class SessionContext(BaseModel):
     The runner receives only the rendered text as ``turnContext``.
 
     ``runner_address`` is not a prompt input. It is the runner pod that ran the session's last
-    turn, a routing hint the transport prefers over the Service URL. It is never rendered and
-    never rides the ``/run`` body.
+    turn, a routing hint the transport prefers over the Service URL. ``runner_replica_id`` is
+    that pod's replica id: the transport uses the address only when the pod there answers with
+    it. Neither is rendered and neither rides the ``/run`` body.
     """
 
     agent_name: Optional[str] = None
     session_name: Optional[str] = None
     first_turn: Optional[bool] = None
     runner_address: Optional[str] = None
+    runner_replica_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

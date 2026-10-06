@@ -172,6 +172,9 @@ class SubscriptionLoginAttemptDTO(BaseModel):
     # The URL of the runner pod that runs the provider poll, so a cancel reaches it. None
     # when the runner reports no address of its own, and the cancel uses the Service URL.
     runner_address: Optional[str] = None
+    # That pod's replica id. The cancel goes to `runner_address` only when the pod there
+    # answers with this id, since a dead pod's IP can pass to another pod.
+    runner_replica_id: Optional[str] = None
 
 
 class SubscriptionProviderDTO(BaseModel):

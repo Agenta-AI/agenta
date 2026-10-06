@@ -28,6 +28,7 @@ import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import type { KillSessionSandboxes } from "../../src/engines/sandbox_agent/kill-by-label.ts";
 import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
+import { REPLICA_ID } from "../../src/sessions/alive.ts";
 import {
   liveExecutions,
   resetExecutionsForTest,
@@ -123,6 +124,8 @@ describe("createAgentServer", () => {
           (body.engines as unknown[]).includes("sandbox-agent"),
       );
       assert.ok(Array.isArray(body.harnesses));
+      // A caller compares this with a turn binding's replica id before it trusts a pod address.
+      assert.equal(body.replicaId, REPLICA_ID);
     } finally {
       await s.close();
     }

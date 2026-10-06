@@ -27,7 +27,7 @@ TABLES = [
 
 
 class Delivery:
-    async def deliver(self, *, command, runner_address=None):
+    async def deliver(self, *, command, runner_address=None, runner_replica_id=None):
         return DeliveryReceipt(status="accepted", replica_id="test-runner")
 
 

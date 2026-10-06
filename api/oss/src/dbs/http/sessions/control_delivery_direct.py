@@ -14,8 +14,10 @@ between the call and the insert leaves an aborted execution with no terminal out
 anywhere.
 
 WHERE IT GOES. The service passes the address of the pod bound to the target turn, and the call
-goes there. Without one (compose and Railway report none, and a turn no pod has beaten yet has no
-binding) it goes to `env.runner.internal_url`, one service address. Behind a load balancer with
+goes there once the pod at that address answers as the bound replica. A pod that does not is
+`unreachable`: its IP may now belong to another pod. Without an address (compose and Railway
+report none, and a turn no pod has beaten yet has no binding) it goes to
+`env.runner.internal_url`, one service address. Behind a load balancer with
 two runner replicas that call reaches the right process only by luck. That failure is quiet at
 the transport level, because the wrong process honestly answers "I do not hold that session" —
 the same answer a session that really ended gives.
@@ -75,6 +77,7 @@ class DirectControlDelivery(ControlDeliveryPort):
         *,
         command: SessionCommand,
         runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> DeliveryReceipt:
         if command.kind == SessionCommandKind.continue_interaction:
             if self._continue_interaction is None:
@@ -108,6 +111,7 @@ class DirectControlDelivery(ControlDeliveryPort):
             created_at=command.created_at.isoformat() if command.created_at else "",
             timeout_seconds=self._timeout,
             base_url=runner_address,
+            runner_replica_id=runner_replica_id,
         )
         if answer.status == RunnerCancelResult.accepted:
             # The answering replica's own id, so the claim the service writes matches the id

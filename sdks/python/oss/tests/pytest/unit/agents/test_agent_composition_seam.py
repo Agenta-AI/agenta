@@ -113,6 +113,7 @@ class _FakeBackend(Backend):
         # The service-supplied naming facts, as they reach the backend.
         self.created_turn_contexts: List[Any] = []
         self.created_runner_addresses: List[Any] = []
+        self.created_runner_replica_ids: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -135,8 +136,10 @@ class _FakeBackend(Backend):
         effective_parameters=None,
         gateway_policy=None,
         runner_address=None,
+        runner_replica_id=None,
     ) -> _FakeSession:
         self.created_runner_addresses.append(runner_address)
+        self.created_runner_replica_ids.append(runner_replica_id)
         self.created_run_contexts.append(run_context)
         self.created_effective_parameters.append(effective_parameters)
         self.created_gateway_policies.append(gateway_policy)
@@ -1059,8 +1062,12 @@ async def test_a_client_supplied_session_context_cannot_survive_a_failed_resolve
 
 _FORGED_ROUTING_META = {
     "runner_address": "http://attacker.example:8765",
+    "runner_replica_id": "attacker",
     "runner_url": "http://attacker.example:8765",
-    "session_context": {"runner_address": "http://attacker.example:8765"},
+    "session_context": {
+        "runner_address": "http://attacker.example:8765",
+        "runner_replica_id": "attacker",
+    },
 }
 
 
@@ -1075,6 +1082,7 @@ async def test_the_resolved_runner_address_reaches_the_backend_and_never_the_pro
                 session_name="Sapphire Ledger",
                 first_turn=False,
                 runner_address="http://10.8.2.17:8765",
+                runner_replica_id="agenta-runner-6f9c7d5b8-aaaaa",
             ),
         )
     )
@@ -1088,7 +1096,9 @@ async def test_the_resolved_runner_address_reaches_the_backend_and_never_the_pro
     )
 
     assert backend.created_runner_addresses == ["http://10.8.2.17:8765"]
+    assert backend.created_runner_replica_ids == ["agenta-runner-6f9c7d5b8-aaaaa"]
     assert "10.8.2.17" not in backend.created_turn_contexts[0]
+    assert "agenta-runner-6f9c7d5b8-aaaaa" not in backend.created_turn_contexts[0]
 
 
 async def test_a_client_cannot_route_a_turn_when_the_read_names_no_pod():
@@ -1114,6 +1124,7 @@ async def test_a_client_cannot_route_a_turn_when_the_read_names_no_pod():
     )
 
     assert backend.created_runner_addresses == [None]
+    assert backend.created_runner_replica_ids == [None]
 
 
 async def test_competing_artifact_families_report_no_agent_name():
