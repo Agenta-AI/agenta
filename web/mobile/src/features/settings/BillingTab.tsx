@@ -11,6 +11,8 @@ import {isBillingEnabled} from "@agenta/shared/api"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {CreditTopUps} from "../wallet/CreditTopUps"
+
 import {CancelSubscriptionSheet} from "./CancelSubscriptionSheet"
 import {PlanChooserSheet} from "./PlanChooserSheet"
 
@@ -79,6 +81,13 @@ export const BillingTab = ({projectId}: Props) => {
                 })
             }
         >
+            {billingEnabled ? (
+                <CreditTopUps
+                    projectId={projectId}
+                    onUpgrade={() => setPlanChooserOpen(true)}
+                    framed
+                />
+            ) : null}
             <PlanChooserSheet
                 open={planChooserOpen}
                 onOpenChange={setPlanChooserOpen}

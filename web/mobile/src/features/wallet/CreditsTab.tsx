@@ -4,6 +4,7 @@ import {isBillingEnabled} from "@agenta/shared/api"
 import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import Link from "next/link"
+import {useRouter} from "next/router"
 
 import {CreditTopUps} from "./CreditTopUps"
 import {WalletUsageEmpty} from "./states/WalletUsageEmpty"
@@ -48,6 +49,7 @@ const usageRows = (days: WalletUsageDay[]) => {
  * Usage (debug) tab.
  */
 export const CreditsTab = ({projectId, billingURL}: {projectId: string; billingURL: string}) => {
+    const router = useRouter()
     const summary = useWalletSummary(projectId)
     const usage = useQuery({
         queryKey: ["wallet", "credits-usage", projectId],
@@ -126,7 +128,10 @@ export const CreditsTab = ({projectId, billingURL}: {projectId: string; billingU
             </Section>
 
             {isBillingEnabled() ? (
-                <CreditTopUps projectId={projectId} billingURL={billingURL} />
+                <CreditTopUps
+                    projectId={projectId}
+                    onUpgrade={() => void router.push(billingURL)}
+                />
             ) : null}
 
             <Section title={`Credits used, last ${USAGE_DAYS} days`}>

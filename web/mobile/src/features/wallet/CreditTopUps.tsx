@@ -9,10 +9,19 @@ import {
 import {useRouter} from "next/router"
 
 /**
- * The Credits tab's binding of the shared top-up section: the Stripe return and the "open the
- * picker" request come from this page's URL, and the free plan's upgrade goes to Usage & Billing.
+ * This app's binding of the shared top-up section, on the Credits tab and on Usage & Billing: the
+ * Stripe return and the "open the picker" request come from this page's URL; the host says where
+ * the free plan's upgrade goes and whether the section is a card.
  */
-export const CreditTopUps = ({projectId, billingURL}: {projectId: string; billingURL: string}) => {
+export const CreditTopUps = ({
+    projectId,
+    onUpgrade,
+    framed = false,
+}: {
+    projectId: string
+    onUpgrade: () => void
+    framed?: boolean
+}) => {
     const router = useRouter()
     // Read once per URL: the section keeps what it needs after the URL is cleared.
     const topUpReturn = useMemo(
@@ -36,7 +45,8 @@ export const CreditTopUps = ({projectId, billingURL}: {projectId: string; billin
             topUpReturn={topUpReturn}
             openPicker={router.query[TOP_UP_QUERY.open] === "1"}
             onQueryHandled={clearQuery}
-            onUpgrade={() => void router.push(billingURL)}
+            onUpgrade={onUpgrade}
+            framed={framed}
         />
     )
 }

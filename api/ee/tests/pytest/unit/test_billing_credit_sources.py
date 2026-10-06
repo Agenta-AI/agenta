@@ -577,6 +577,11 @@ async def test_top_up_checkout_is_a_one_time_payment_for_the_pack(top_up_ready):
         "purpose": TOP_UP_PURPOSE,
         "pack": "credits_10000",
     }
+    # The purchase gets a paid invoice, tagged like the session.
+    assert kwargs["invoice_creation"] == {
+        "enabled": True,
+        "invoice_data": {"metadata": kwargs["metadata"]},
+    }
 
 
 @pytest.mark.asyncio
@@ -801,3 +806,42 @@ async def test_a_top_up_reads_as_pending_until_its_payment_event_arrives():
     )
 
     assert (result.credited, result.credits) == (False, None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "event_type", ["invoice.payment_succeeded", "invoice.payment_failed"]
+)
+async def test_a_top_up_invoice_is_acknowledged_without_touching_the_subscription(
+    monkeypatch, event_type
+):
+    # The receipt invoice Checkout creates for a top-up belongs to no subscription.
+    grant_period_credits = AsyncMock()
+    router = _router(
+        subscription_service=SimpleNamespace(
+            process_event=AsyncMock(), grant_period_credits=grant_period_credits
+        ),
+        wallets_service=SimpleNamespace(grant_purchase=AsyncMock()),
+    )
+    invoice = {
+        "id": "in_topup",
+        "billing_reason": "manual",
+        "total": 2_500,
+        "metadata": {
+            "organization_id": ORGANIZATION_ID,
+            "target": billing_router_module.env.stripe.webhook_target,
+            "purpose": TOP_UP_PURPOSE,
+            "pack": "credits_2500",
+        },
+        "parent": None,
+        "subscription_details": None,
+    }
+    _install_event(monkeypatch, event_type, invoice)
+
+    response = await router.handle_events(DummyRequest())
+
+    assert response.status_code == 200
+    assert loads(response.body)["status"] == "skip"
+    router.subscription_service.process_event.assert_not_awaited()
+    grant_period_credits.assert_not_awaited()
+    router.wallets_service.grant_purchase.assert_not_awaited()

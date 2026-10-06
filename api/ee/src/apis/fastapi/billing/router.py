@@ -424,6 +424,19 @@ class BillingRouter:
                 "subscription_details",
             )
 
+            # A one-off invoice (a credit top-up's receipt) belongs to no subscription:
+            # its payment neither resumes nor pauses one, and the top-up is credited by
+            # `checkout.session.completed`. Acknowledged, so Stripe does not retry it.
+            if not subscription_details:
+                log.info(
+                    "Skipping stripe event: %s (not a subscription invoice)",
+                    stripe_event.type,
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "skip", "message": "Not a subscription invoice"},
+                )
+
             if not _stripe_has(subscription_details, "metadata"):
                 log.warn("Skipping stripe event: %s (no metadata)", stripe_event.type)
 
@@ -960,6 +973,12 @@ class BillingRouter:
             )
 
         stripe = _load_stripe()
+        top_up_metadata = {
+            "organization_id": organization_id,
+            "target": env.stripe.webhook_target,
+            "purpose": TOP_UP_PURPOSE,
+            "pack": top_up_pack.code,
+        }
 
         checkout = stripe.checkout.Session.create(
             mode="payment",
@@ -983,11 +1002,13 @@ class BillingRouter:
                 }
             ],
             #
-            metadata={
-                "organization_id": organization_id,
-                "target": env.stripe.webhook_target,
-                "purpose": TOP_UP_PURPOSE,
-                "pack": top_up_pack.code,
+            metadata=top_up_metadata,
+            # A paid invoice for the purchase, emailed by Stripe and listed in the
+            # billing portal. It belongs to no subscription, so its own events are
+            # acknowledged and skipped; the credit comes from the session's event.
+            invoice_creation={
+                "enabled": True,
+                "invoice_data": {"metadata": top_up_metadata},
             },
             #
             ui_mode="hosted_page",
