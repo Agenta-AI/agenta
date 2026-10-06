@@ -45,7 +45,10 @@ export function agentaToolsCapabilityOn(tools: AgentaToolsMap, capability: Agent
     return capability.ops.some((op) => op in tools)
 }
 
-/** On adds each missing tool with Allow, keeping a tool already set to Ask; off removes all. */
+/**
+ * On adds each missing tool with Allow, keeping a tool already set to Ask; off removes all. A
+ * tool absent from the saved map is off, so off has to delete it, and its Ask goes with it.
+ */
 export function setAgentaToolsCapability(
     tools: AgentaToolsMap,
     capability: AgentCapability,
@@ -66,7 +69,9 @@ export function buildKitCapabilityOn(state: BuildKitUiState, capability: AgentCa
 
 /**
  * Off deactivates every tool of the capability; on reactivates them. Per-tool overrides are left
- * alone, so a tool set to Ask is Ask again when the capability comes back on.
+ * alone, so a tool set to Ask is Ask again when the capability comes back on. The kit can keep
+ * them because off is its own list (`disabledOps`), apart from the overrides, unlike the Agenta
+ * tools map, where absence is what off means.
  */
 export function setBuildKitCapability(
     state: BuildKitUiState,

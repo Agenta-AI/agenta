@@ -3,7 +3,8 @@
  *
  * The toggle adds or removes every tool of its capability, in the Agenta tools section (saved
  * with the agent) and in the Build kit (saved in this browser). A per-tool choice made below it
- * survives the other capability's toggle and, in the Build kit, the capability's own off and on.
+ * survives the other capability's toggle. In the Build kit it also survives the capability's own
+ * off and on; in the Agenta tools section off deletes the tools, so they come back as Allow.
  */
 import {act, useState} from "react"
 
@@ -87,6 +88,16 @@ describe("the Agenta tools helpers", () => {
         expect(agentaToolsCapabilityOn(off, CONFIG)).toBe(false)
         expect(agentaToolsCapabilityOn(off, LIST)).toBe(true)
         expect(setAgentaToolsCapability(off, CONFIG, true)).toEqual(ALL_ON)
+    })
+
+    it("lose a per-tool Ask when the capability goes off and on, because off deletes", () => {
+        const asked: AgentaToolsMap = {...ALL_ON, edit_agent_config: "ask"}
+        const back = setAgentaToolsCapability(
+            setAgentaToolsCapability(asked, CONFIG, false),
+            CONFIG,
+            true,
+        )
+        expect(back.edit_agent_config).toBe("allow")
     })
 
     it("keep a tool already on Ask when the capability is turned on", () => {
