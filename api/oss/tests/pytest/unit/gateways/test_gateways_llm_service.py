@@ -429,6 +429,78 @@ async def test_a_gemini_provider_key_resolves_to_an_openai_compatible_route(mode
     assert resolved.model == "gemini-3.7-flash"
 
 
+def _bedrock_row(models: List[str]) -> LLMEndpoint:
+    """The endpoint row the vault registrar writes for a Bedrock card saved from the UI."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug="my-bedrock",
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                "kind": "bedrock",
+                "provider": {
+                    "extras": {
+                        "aws_region_name": "us-east-1",
+                        "aws_bearer_token_bedrock": "bedrock-api-key-test",
+                    }
+                },
+                "models": [{"slug": slug} for slug in models],
+                "provider_slug": "my-bedrock",
+            },
+            header={"name": "my-bedrock"},
+        )
+    )
+    return _custom_row(
+        slug="my-bedrock",
+        provider_key=endpoint.provider_key,
+        deployment_kind=endpoint.deployment_kind,
+        models=endpoint.data.models,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model, provider, deployment",
+    [
+        ("anthropic.claude-haiku-4-5", "anthropic", LLMDeploymentKind.BEDROCK),
+        (
+            "my-bedrock/bedrock/anthropic.claude-haiku-4-5",
+            "anthropic",
+            LLMDeploymentKind.BEDROCK,
+        ),
+        (
+            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "anthropic",
+            LLMDeploymentKind.BEDROCK,
+        ),
+        ("openai.gpt-oss-20b", "openai", LLMDeploymentKind.CUSTOM),
+    ],
+)
+async def test_a_bedrock_connection_resolves_to_the_route_the_gateway_serves(
+    model, provider, deployment
+):
+    """The row's OpenAI default made Claude Code refuse every Bedrock run ("provider 'openai'
+    is not supported by harness 'claude'"). A Claude model is Anthropic on Bedrock; any other
+    model is an OpenAI-compatible route, the pair Pi drives."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["my-bedrock"] = _bedrock_row(
+        [
+            "anthropic.claude-haiku-4-5",
+            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "openai.gpt-oss-20b",
+        ]
+    )
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(), model=model, provider_key=None, connection_slug="my-bedrock"
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
+    assert resolved.provider_key == provider
+    assert resolved.deployment_kind == deployment
+    assert resolved.model == model.removeprefix("my-bedrock/bedrock/")
+
+
 @pytest.mark.asyncio
 async def test_resolve_agent_connection_without_a_provider_or_a_slug_is_typed():
     """A bare `ValueError` here reached the caller as a generic 500 with nothing to act on.
