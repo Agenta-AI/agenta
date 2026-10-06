@@ -1,50 +1,85 @@
 ---
 title: "Plans and credits"
 sidebar_label: "Plans and credits"
-description: "What each Agenta Cloud plan includes, how credits pay for built-in models and sandbox time, and what happens at a limit."
+description: "What each Agenta Cloud plan includes, what credits pay for, and what each thing costs in credits."
 ---
 
 This page is for Agenta Cloud. Self-hosted deployments have no plans, credits, or usage limits.
 
 ## Credits
 
-One credit is worth $0.01. Credits pay for two things:
+Credits pay for two things:
 
-- **Built-in models**: the models Agenta provides, so you do not need a provider key.
-- **Sandbox time**: the time an agent runs in a sandbox that Agenta hosts.
+- **Agenta's included models.** You can use them without an API key.
+- **Runtime.** The time your agents run.
 
-When an agent uses your own provider key, the model costs no credits. Its sandbox time still uses credits. To connect a key, see [Choose a harness and model](/guides/choose-a-harness-and-model#connect-a-provider).
+When an agent uses your own API key or your ChatGPT subscription, the model costs no credits. Its runtime still uses credits. To connect a key or a subscription, see [Connect a provider](/guides/choose-a-harness-and-model#connect-a-provider).
 
 ## What each plan includes
 
-| | Hobby | Pro | Business |
+| | Hobby | Starter | Business |
 |---|---|---|---|
-| Price | Free | $29 a month | $299 a month |
-| Credits | 500 at signup, plus 75 every day | 2,900 every month | 29,900 every month |
+| Price | Free | $20 a month | $299 a month |
+| Monthly credits | None | 2,000 | 32,000 |
+| Daily free credits | 75 a day, on up to 10 days a month | 75 a day, on up to 10 days a month | 75 a day, on up to 10 days a month |
 | Buy more credits | No | Yes | Yes |
-| Agents running at once | 2 | 10 | 25 |
-| Longest request | 30 minutes | 4 hours | 11 hours |
-| Traces per month | 5,000 | 10,000, then $5 per 10,000 | 10,000, then $5 per 10,000 |
-| Evaluations per month | 20 | Unlimited | Unlimited |
+| Concurrent tasks | 2 | 20 | 50 |
+| Longest task | 30 minutes | 4 hours | 11 hours |
+| Projects | 1 | Unlimited | Unlimited |
 | Team members | 2 | Unlimited | Unlimited |
-| Trace data retention | 1 week | 1 month | 3 months |
+| Your own API key or ChatGPT subscription | Yes | Yes | Yes |
 
-For Enterprise plans, [contact us](https://cal.com/mahmoud-mabrouk-ogzgey/demo).
+New organizations also get 500 bonus credits when they sign up. For Enterprise plans, [contact sales](https://cal.com/mahmoud-mabrouk-ogzgey/demo).
 
-### When credits arrive and expire
+## Tasks
+
+A task is one agent turn: it starts when you send a message and ends when the agent finishes answering. A chat holds many tasks, one for each message you send.
+
+The concurrent tasks limit is the number of tasks your organization can run at the same time. The longest task limit is the longest a single task can run: 30 minutes on Hobby, 4 hours on Starter, and 11 hours on Business. The limit applies to each task, not to the whole chat.
+
+## What a task costs
+
+A typical task uses about 26 credits. The cost depends on the model, how much text the agent reads and writes, and how long it runs. These examples use Gemini 3.7 Flash.
+
+| Task | Credits |
+|---|---|
+| A short summary of a page or an email thread | About 3 |
+| A research report (the agent reads about 35,000 tokens, writes about 28,500, and runs about 3 minutes) | About 26 |
+| The same research report with your own API key or ChatGPT subscription | About 3 |
+| A scheduled daily summary, every day for a month | About 90 |
+| One hour of runtime, before model costs | About 50 |
+
+On Starter, 2,000 monthly credits cover about 75 research reports. The 75 daily credits cover about 3 a day.
+
+## Prices in credits
+
+### Agenta's included models
+
+| Model | Per million input tokens | Per million cached input tokens | Per million output tokens |
+|---|---|---|---|
+| Gemini 3.7 Flash | About 130 | About 13 | About 660 |
+| Gemini 3.8 Flash | About 130 | About 13 | About 660 |
+
+Output includes the model's reasoning tokens.
+
+### Runtime
+
+About 50 credits an hour, on every plan. This price is for the standard agent size, 2 vCPUs and 4 GiB of memory. Runtime is counted by the second.
+
+## When credits arrive and expire
 
 | Credits | Who gets them | When they arrive | When they expire |
 |---|---|---|---|
-| Signup credits: 500 ($5) | The organization created when you sign up | At signup | After 12 months |
-| Daily credits: 75 | Hobby | Every day | At midnight UTC. They do not roll over. |
-| Monthly credits: 2,900 or 29,900 | Pro and Business | At the start of each billing period | At the end of the billing period |
-| Purchased credits | Pro and Business | When you buy them | After 12 months |
+| Signup bonus: 500 | The organization created when you sign up | At signup | After 12 months |
+| Daily credits: 75 | Every plan | On each day you use Agenta, on up to 10 days a month | At midnight UTC. They do not roll over. |
+| Monthly credits: 2,000 or 32,000 | Starter and Business | At the start of each billing period | At the end of the billing period |
+| Purchased credits | Starter and Business | When you buy them | After 12 months |
 
 Daily credits are spent first, then monthly credits, then signup credits, then purchased credits.
 
-### Buy more credits
+## Buy more credits
 
-Pro and Business can buy credits in three packs:
+Starter and Business can buy credits in three packs:
 
 | Price | Credits |
 |---|---|
@@ -52,29 +87,19 @@ Pro and Business can buy credits in three packs:
 | $25 | 2,500 |
 | $100 | 10,000 |
 
-Hobby cannot buy credits. To get more credits on Hobby, upgrade to Pro.
-
-## Rates
-
-| What | Rate |
-|---|---|
-| Built-in models | The provider's list price × 1.75 |
-| Sandbox time, Hobby and Pro | Daytona's list price × 3: $0.1512 per vCPU-hour and $0.0486 per GiB-hour of memory |
-| Sandbox time, Business | Daytona's list price × 2.5: $0.126 per vCPU-hour and $0.0405 per GiB-hour of memory |
-
-For example, an hour in a sandbox with 2 vCPUs and 4 GiB of memory costs about 50 credits on Hobby and Pro, and about 41 credits on Business. Disk is not charged.
+Hobby cannot buy credits. To get more credits on Hobby, upgrade to Starter.
 
 ## What happens at a limit
 
-The limits on agents running at once and on request length apply to agents that run in sandboxes Agenta hosts.
+The limits on concurrent tasks and task length apply to agents that run on Agenta.
 
 | Limit | What happens | What to do |
 |---|---|---|
-| Out of credits | New requests do not start, and you are not charged for them. Requests that are already running finish. | On Hobby, wait for your daily credits at midnight UTC, or upgrade. On Pro and Business, buy more credits or upgrade. |
-| Agents running at once | The new request does not start, and you are not charged for it. The agents that are running continue. | Send the request again when an agent finishes, or upgrade. |
-| Longest request | The request stops. Saved work is kept, and you pay only for the time used. | Send a message to continue, or upgrade. |
-| Traces per month | On Hobby, Agenta stops recording new traces until the next billing period. On Pro and Business, each additional 10,000 traces costs $5. | Upgrade to Pro to keep recording traces. |
+| Out of credits | New tasks do not start, and you are not charged for them. Tasks that are already running finish. This includes agents that use your own API key, because runtime uses credits. | Wait for the next day's daily credits (on up to 10 days a month), buy more credits on Starter and Business, or upgrade. |
+| Concurrent tasks | The new task does not start, and you are not charged for it. The tasks that are running continue. | Send the task again when one finishes, or upgrade. |
+| Longest task | The task stops. Saved work is kept, and you pay only for the time used. | Send a message to continue, or upgrade. |
+| Projects on Hobby | You cannot create another project. Projects you already have keep working. | Upgrade to Starter for unlimited projects. |
 
-When a request meets the credit limit or a limit on agents, the chat shows an error code. See [Agent run errors](/misc/errors#agent-run-errors). The trace limit shows no message in the chat.
+When a task meets the credit limit or a task limit, the chat shows an error code. See [Agent run errors](/misc/errors#agent-run-errors).
 
 To change your plan, open **Settings**, then **Usage & Billing**.
