@@ -236,7 +236,10 @@ const liveStep = (step: ActivityStep): LiveLine => {
             : {text: "Thinking", format: "thinking"}
     }
     // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
-    const display = resolveToolDisplay(partToolName(step.part), (step.part as {input?: unknown}).input)
+    const display = resolveToolDisplay(
+        partToolName(step.part),
+        (step.part as {input?: unknown}).input,
+    )
     return {text: display.activity.running, format: ICON_FORMAT[display.icon] ?? "tool"}
 }
 

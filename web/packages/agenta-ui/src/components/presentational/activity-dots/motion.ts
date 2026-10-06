@@ -97,7 +97,12 @@ const FORMATS: Record<AgentActivityFormat, (t: number) => Point[]> = {
             const psi = k % 2 ? Math.PI * (1 - e) : Math.PI * e
             const c = Math.cos(psi)
             const z = -Math.sin(psi)
-            return {x: c * Math.cos(ax), y: c * Math.sin(ax), z, s: 1.15 * (0.06 + 0.94 * smooth(z + 1))}
+            return {
+                x: c * Math.cos(ax),
+                y: c * Math.sin(ax),
+                z,
+                s: 1.15 * (0.06 + 0.94 * smooth(z + 1)),
+            }
         }),
     // Dots chase each other along a 3D figure eight.
     searching: (t) => {
@@ -129,7 +134,12 @@ const FORMATS: Record<AgentActivityFormat, (t: number) => Point[]> = {
             const [px, py] = TRIANGLE[v]
             const along = ax * px + ay * py
             const z = (ax * py - ay * px) * sn
-            return {x: px * c + ax * along * (1 - c), y: py * c + ay * along * (1 - c), z, s: depth(z, 0.55)}
+            return {
+                x: px * c + ax * along * (1 - c),
+                y: py * c + ay * along * (1 - c),
+                z,
+                s: depth(z, 0.55),
+            }
         })
     },
     // Three tilted orbits at different speeds, like an atom.
@@ -147,7 +157,10 @@ const FORMATS: Record<AgentActivityFormat, (t: number) => Point[]> = {
         const th = stepped(t, 1, 0.45) * Math.PI
         const pair = [0, 1].map((j) => {
             const a = th + j * Math.PI
-            const q = rotZ({x: 0.95 * Math.cos(a), y: 0.28 * Math.sin(a), z: Math.sin(a), s: 0}, -0.35)
+            const q = rotZ(
+                {x: 0.95 * Math.cos(a), y: 0.28 * Math.sin(a), z: Math.sin(a), s: 0},
+                -0.35,
+            )
             return {...q, s: depth(q.z, 0.5)}
         })
         return [{x: 0, y: 0, z: 0, s: 0.95}, ...pair]
@@ -155,7 +168,7 @@ const FORMATS: Record<AgentActivityFormat, (t: number) => Point[]> = {
     // Typing dots in 3D: each lifts and comes forward in turn.
     writing: (t) =>
         THREE.map((i) => {
-            const f = (((t - i * 0.16) / 1.25) % 1 + 1) % 1
+            const f = ((((t - i * 0.16) / 1.25) % 1) + 1) % 1
             const bump = f < 0.42 ? Math.sin((f / 0.42) * Math.PI) : 0
             const z = 0.8 * bump - 0.2
             return {x: (i - 1) * 0.9, y: -0.42 * bump, z, s: depth(z, 0.6)}
@@ -165,12 +178,24 @@ const FORMATS: Record<AgentActivityFormat, (t: number) => Point[]> = {
 const STILL_ROW: Point[] = [-0.9, 0, 0.9].map((x) => ({x, y: 0, z: 0, s: 0.85}))
 
 /** One format's frame; `g` pulls it into the centre (1 = fully merged). */
-function compose(format: AgentActivityFormat, t: number, g: number, merged: number, reduced: boolean) {
+function compose(
+    format: AgentActivityFormat,
+    t: number,
+    g: number,
+    merged: number,
+    reduced: boolean,
+) {
     const points = reduced ? STILL_ROW : FORMATS[format](t)
     const dots = points
         .map((p) => {
             const P = (FOCAL / (FOCAL - p.z)) * (1 - g)
-            return {x: p.x * P, y: p.y * P, z: p.z, r: Math.max(0, DOT * lerp(p.s, merged, g)), alpha: 1}
+            return {
+                x: p.x * P,
+                y: p.y * P,
+                z: p.z,
+                r: Math.max(0, DOT * lerp(p.s, merged, g)),
+                alpha: 1,
+            }
         })
         .sort((a, b) => a.z - b.z)
     return dots
