@@ -1271,7 +1271,42 @@
       "$ref": "#/$defs/bundledRedis"
     },
     "api": {
-      "$ref": "#/$defs/component"
+      "allOf": [
+        {
+          "$ref": "#/$defs/component"
+        },
+        {
+          "properties": {
+            "gunicorn": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Gunicorn worker lifecycle for the api. A recycled (max-requests) or stopped worker finishes the requests it has open for gracefulTimeout seconds, so gracefulTimeout must cover the longest LLM gateway stream. Unset, terminationGracePeriodSeconds defaults to gracefulTimeout plus 30.",
+              "properties": {
+                "maxRequests": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Requests a worker serves before gunicorn replaces it, a guard against slow memory leaks. 0 turns recycling off. Default 100000."
+                },
+                "maxRequestsJitter": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Random extra requests added to maxRequests per worker, so the workers do not recycle together. Default 10000."
+                },
+                "timeout": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Seconds without a heartbeat before gunicorn kills a hung worker. Not a request limit. Default 60."
+                },
+                "gracefulTimeout": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Seconds a recycled or stopped worker gets to finish its open requests before it is killed. Default 900 (15 minutes)."
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "web": {
       "$ref": "#/$defs/component"
@@ -1329,6 +1364,26 @@
     },
     "fullnameOverride": {
       "type": "string"
+    },
+    "heartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Liveness for cron and the two workers, from a file the application keeps fresh. One value sets the path the application writes and the path the probe reads.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "false removes the variable and the probes together."
+        },
+        "path": {
+          "type": "string",
+          "description": "Directory each loop writes its own file into, inside every container that reports. Default /tmp/agenta-heartbeat. Avoid whitespace: it works, because the probe quotes it, but it makes every command harder to read."
+        },
+        "staleSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How old a loop's file may be before the probe fails, in seconds. Also the probe's initial delay. Default 120. An integer, because the value goes into an integer shell comparison and into initialDelaySeconds: a string there renders a probe that can never pass."
+        }
+      }
     },
     "podDisruptionBudgets": {
       "type": "object",

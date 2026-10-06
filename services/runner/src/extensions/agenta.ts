@@ -52,6 +52,7 @@ import {
   specInputSchema,
 } from "../tools/spec-schema.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../tools/tool-mcp-env.ts";
+import { PI_COMMAND_TIMEOUT_ENV } from "../engines/sandbox_agent/run-limits.ts";
 import {
   buildPiGateEnvelope,
   PI_GATE_DIALOG_TITLE,
@@ -247,6 +248,23 @@ function registerBuiltinActivation(pi: ExtensionAPI): void {
     pi.setActiveTools(
       replaceActiveBuiltinTools(pi.getActiveTools(), pi.getAllTools()),
     );
+  });
+}
+
+/**
+ * Give every shell command a timeout of at most `maxSeconds`. Pi then stops a command that runs
+ * too long and returns "Command timed out" to the model, which carries on. Without it a command
+ * with no timeout ran until the runner's per-tool-call watchdog ended the whole turn.
+ */
+function registerCommandTimeout(pi: ExtensionAPI, maxSeconds: number): void {
+  pi.on("tool_call", async (event) => {
+    if (!isToolCallEventType("bash", event)) return undefined;
+    const requested = event.input.timeout;
+    // Mutating the input is Pi's way to change a call's arguments (see `ToolCallEventResult`).
+    if (!(typeof requested === "number" && requested > 0 && requested <= maxSeconds)) {
+      event.input.timeout = maxSeconds;
+    }
+    return undefined;
   });
 }
 
@@ -464,8 +482,11 @@ function registerAgentaExtension(
   const hasBuiltinGating = isTruthyFlag(env.AGENTA_AGENT_BUILTIN_GATING);
   const gatewayMcpServers = env[PI_GATEWAY_MCP_SERVERS_ENV];
   const usageOut = env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
+  const commandTimeout = Number(env[PI_COMMAND_TIMEOUT_ENV]);
+  const hasCommandTimeout = Number.isFinite(commandTimeout) && commandTimeout > 0;
   if (
     !modelProviderOverride &&
+    !hasCommandTimeout &&
     !hasTracing &&
     !hasTools &&
     !hasBuiltinActivation &&
@@ -523,6 +544,8 @@ function registerAgentaExtension(
       }
     });
   }
+  // Before the gate, so an approval prompt shows the timeout the command will actually run with.
+  if (hasCommandTimeout) registerCommandTimeout(pi, commandTimeout);
   if (hasBuiltinActivation) registerBuiltinActivation(pi);
   if (hasBuiltinGating) registerBuiltinGating(pi);
   // Pi records the native span tree and publishes raw OTLP bytes into its telemetry spool.

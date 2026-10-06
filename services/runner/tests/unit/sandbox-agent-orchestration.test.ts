@@ -63,6 +63,7 @@ import {
   resetExecutionsForTest,
 } from "../../src/sessions/execution-registry.ts";
 import { applyCommand } from "../../src/sessions/control-channel.ts";
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from "../../src/engines/sandbox_agent/run-limits.ts";
 
 // Orchestration cases include Daytona runs: enable it (with a provisioning credential) on top of
 // the hermetic scrub, then drop the memoized config so the run plan reads the enabled set.
@@ -2536,6 +2537,10 @@ describe("runSandboxAgent orchestration", () => {
     // string "false"/"0"/"no"/"off" as off, so it must be the string "false".
     assert.equal(env.ENABLE_TOOL_SEARCH, "false");
     assert.equal(env.MCP_PROTOCOL_NEGOTIATION, "auto");
+    // Claude Code runs its own Bash tool: its timeout is bounded by the per-tool-call limit, so a
+    // slow command is stopped and reported to the model instead of the watchdog ending the turn.
+    assert.equal(env.BASH_MAX_TIMEOUT_MS, String(DEFAULT_TOOL_CALL_TIMEOUT_MS));
+    assert.equal(env.BASH_DEFAULT_TIMEOUT_MS, "120000");
   });
 
   it("does not set ENABLE_TOOL_SEARCH for a non-claude (pi) run", async () => {
@@ -2556,6 +2561,9 @@ describe("runSandboxAgent orchestration", () => {
     // The Tool-Search toggle is Claude-specific: a Pi run must not carry it.
     assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
     assert.equal(env.MCP_PROTOCOL_NEGOTIATION, undefined);
+    assert.equal(env.BASH_MAX_TIMEOUT_MS, undefined);
+    // Pi's own shell tool is capped by the Agenta extension instead.
+    assert.equal(env.AGENTA_AGENT_COMMAND_TIMEOUT_SECONDS, String(DEFAULT_TOOL_CALL_TIMEOUT_MS / 1000));
   });
 
   it("never puts the OTLP bearer in the local Pi daemon's env", async () => {
@@ -3740,7 +3748,7 @@ describe("runTurn run-limits deadline (split path)", () => {
     // The run RETURNED (did not hang) as a failure, and the teardown finally reclaimed the sandbox.
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error ?? "", /first response|deadline|idle|run limit/i);
+    assert.match(result.error ?? "", /did not start responding|made no progress|ran longer than/);
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
   });
@@ -3771,6 +3779,41 @@ describe("runTurn run-limits deadline (split path)", () => {
     assert.equal(result.error, message);
     const error = events.find((event) => event.type === "error") as any;
     assert.equal(error?.code, "turn_time_limit_reached");
+    assert.equal(error?.message, message);
+    assert.equal(calls.sandboxDestroyed, 1);
+  });
+
+  it("ends a turn whose tool call never returns a result, saying a tool call ran too long (EU 2026-10-06)", async () => {
+    // The last-resort guard: the command was told to stop at the limit, yet no result came even
+    // after the grace. The person reads which limit ended the turn, not "The agent run failed".
+    const { calls, deps, events } = fakeHarness({
+      hangPrompt: true,
+      promptEvents: [
+        {
+          payload: {
+            update: { sessionUpdate: "tool_call", toolCallId: "call-hung", title: "bash", rawInput: { command: "find /" } },
+          },
+        },
+      ],
+    });
+
+    const result = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "scan the disk" }] },
+      undefined,
+      undefined,
+      {
+        ...deps,
+        resolveRunLimits: () => ({ totalMs: 60_000, idleMs: 60_000, ttfbMs: 60_000, toolCallMs: 20, toolCallGraceMs: 10 }),
+      },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    const message =
+      "A tool call ran longer than 1 second and did not stop, so the turn was ended. Ask for smaller steps, or send the message again.";
+    assert.equal(result.error, message);
+    const error = events.find((event) => event.type === "error") as any;
+    assert.equal(error?.code, "tool_call_time_limit");
     assert.equal(error?.message, message);
     assert.equal(calls.sandboxDestroyed, 1);
   });

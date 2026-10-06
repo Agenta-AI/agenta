@@ -45,6 +45,7 @@ import {
   type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
 import { materializeGatewayHeaders } from "./run-plan.ts";
+import { commandTimeoutSeconds, PI_COMMAND_TIMEOUT_ENV } from "./run-limits.ts";
 import type {
   RunPlan,
   RunPlanCredentials,
@@ -493,7 +494,10 @@ export async function uploadPiToolSpecsToSandbox(
  * Agenta's provider keys that Pi names differently. The override must name Pi's own provider,
  * or it registers a provider Pi has no models for and nothing is selectable.
  */
-const PI_PROVIDER_IDS: Record<string, string> = { together_ai: "together" };
+const PI_PROVIDER_IDS: Record<string, string> = {
+  together_ai: "together",
+  gemini: "google",
+};
 
 export function piProviderId(provider: string | undefined): string | undefined {
   return provider ? (PI_PROVIDER_IDS[provider] ?? provider) : provider;
@@ -558,6 +562,10 @@ export function buildPiExtensionEnv(
   if (mcpServers.length > 0) {
     env[PI_GATEWAY_MCP_SERVERS_ENV] = serializePiGatewayMcpConfig(mcpServers);
   }
+  // Pi's own shell tool runs in the sandbox, where the runner cannot stop it; the extension gives
+  // every call this timeout instead, so a command that runs too long is stopped by Pi and the
+  // model is told so, rather than the per-tool-call watchdog ending the whole turn.
+  env[PI_COMMAND_TIMEOUT_ENV] = String(commandTimeoutSeconds(undefined));
   // Only reached for a Pi run (environment-setup gates on `plan.isPi`), and every Pi run
   // activates all seven builtins.
   env.AGENTA_AGENT_BUILTIN_ACTIVATION = "1";

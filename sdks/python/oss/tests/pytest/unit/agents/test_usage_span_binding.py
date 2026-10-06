@@ -130,3 +130,56 @@ async def test_injected_recorder_sees_the_workflow_span_as_current(make_backend)
     usage, observed_span = seen[0]
     assert usage == _USAGE
     assert observed_span is span
+
+
+async def test_streaming_sandbox_that_ran_lands_on_the_workflow_span(make_backend):
+    """The runner routes by harness, so the span names the provider that ran, not the saved one."""
+    backend = make_backend(result=AgentResult(output="ok", sandbox="inprocess"))
+    handler = make_agent_handler(
+        AgentComposition(select_backend=lambda template: backend)
+    )
+    span = _workflow_span()
+
+    with otel_trace.use_span(span, end_on_exit=False):
+        stream = await handler(
+            request=WorkflowServiceRequest(flags={"stream": True}),
+            messages=_messages(),
+            parameters=_params(),
+        )
+    await _drain_one_task_per_pull(stream)
+
+    assert span.attributes["ag.meta.agent.sandbox"] == "inprocess"
+
+
+async def test_batch_sandbox_that_ran_lands_on_the_workflow_span(make_backend):
+    backend = make_backend(result=AgentResult(output="ok", sandbox="daytona"))
+    handler = make_agent_handler(
+        AgentComposition(select_backend=lambda template: backend)
+    )
+    span = _workflow_span()
+
+    with otel_trace.use_span(span, end_on_exit=False):
+        await handler(
+            request=WorkflowServiceRequest(),
+            messages=_messages(),
+            parameters=_params(),
+        )
+
+    assert span.attributes["ag.meta.agent.sandbox"] == "daytona"
+
+
+async def test_no_sandbox_in_the_result_stamps_nothing(make_backend):
+    backend = make_backend(result=AgentResult(output="ok"))
+    handler = make_agent_handler(
+        AgentComposition(select_backend=lambda template: backend)
+    )
+    span = _workflow_span()
+
+    with otel_trace.use_span(span, end_on_exit=False):
+        await handler(
+            request=WorkflowServiceRequest(),
+            messages=_messages(),
+            parameters=_params(),
+        )
+
+    assert "ag.meta.agent.sandbox" not in dict(span.attributes or {})

@@ -145,6 +145,42 @@ async def test_each_organization_gets_its_own_wallet_mode_and_the_rest_are_off(p
     assert await wallet_mode_for(uuid4()) is WalletMode.OFF
 
 
+@pytest.mark.parametrize("payload", [["*"], [" * ", str(ORG)], json.dumps(["*"])])
+async def test_a_star_entry_gives_every_organization_the_gateway(posthog, payload):
+    posthog(_PostHog({LLM_GATEWAY_ROLLOUT_FLAG: payload}))
+
+    assert await llm_gateway_enabled_for(ORG) is True
+    assert await llm_gateway_enabled_for(uuid4()) is True
+
+
+async def test_a_star_key_gives_every_unlisted_organization_its_wallet_mode(posthog):
+    posthog(
+        _PostHog(
+            {
+                WALLETS_ROLLOUT_FLAG: {
+                    "*": "shadow",
+                    str(ORG): "enforce",
+                    str(OTHER): "off",
+                }
+            }
+        )
+    )
+
+    assert await wallet_mode_for(uuid4()) is WalletMode.SHADOW
+    # A listed organization keeps its own mode, `off` included.
+    assert await wallet_mode_for(ORG) is WalletMode.ENFORCE
+    assert await wallet_mode_for(OTHER) is WalletMode.OFF
+
+
+async def test_a_malformed_star_mode_is_dropped_and_unlisted_organizations_are_off(
+    posthog,
+):
+    posthog(_PostHog({WALLETS_ROLLOUT_FLAG: {"*": "on", str(ORG): "shadow"}}))
+
+    assert await wallet_mode_for(uuid4()) is WalletMode.OFF
+    assert await wallet_mode_for(ORG) is WalletMode.SHADOW
+
+
 async def test_a_payload_delivered_as_json_text_is_decoded(posthog):
     posthog(
         _PostHog(

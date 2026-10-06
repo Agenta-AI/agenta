@@ -662,8 +662,11 @@ export interface GatewayCredentials {
  * - `deployment` is HOW that provider is reached: `direct` (the provider's own API), `custom`
  *   (an OpenAI-compatible third party such as OpenRouter or a self-hosted gateway), or `bedrock`
  *   / `vertex` (a cloud reseller with its own auth scheme).
- * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is what an
- *   OpenAI-compatible deployment needs; `apiVersion` is what Azure needs; `region` is what AWS
+ * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is the
+ *   provider's API base, the prefix a client puts before an operation path, so its shape is the
+ *   provider's own (`https://api.openai.com/v1`, `https://api.anthropic.com`,
+ *   `https://generativelanguage.googleapis.com/v1beta`); the runner hands it to the harness as
+ *   written. `apiVersion` is what Azure needs; `region` is what AWS
  *   and Vertex need; `headers` carries non-secret routing headers some gateways require. A
  *   given deployment fills in the subset that applies to it and leaves the rest unset. AWS and
  *   the other cloud resellers are covered by exactly this: `deployment: "bedrock"` plus
@@ -784,7 +787,10 @@ export interface AgentRunRequest {
    * the ACP agent "claude". Selected by the request; there is no engine selector.
    */
   harness?: string;
-  /** Sandbox: "local" | "daytona". */
+  /**
+   * Sandbox: "local" | "daytona" | "inprocess". `daytona` and `inprocess` are one choice that the
+   * runner routes by harness at its ingress (`sandbox-routing.ts`).
+   */
   sandbox?: string;
   /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;
@@ -1002,6 +1008,11 @@ export interface AgentRunResult {
   model?: string;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
   traceId?: string;
+  /**
+   * The sandbox provider the run executed on, after harness routing (`sandbox-routing.ts`). It
+   * can differ from the requested `sandbox`: Pi chosen on `daytona` runs `inprocess`.
+   */
+  sandbox?: string;
   /** Human-facing summary; unchanged shape. Every failure keeps this even when `errorDetail` is
    * also present, so a caller reading only this field never regresses. */
   error?: string;

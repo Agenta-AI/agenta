@@ -64,7 +64,9 @@ describe("runAdmittedTurn", () => {
     );
 
     expect(result).toMatchObject({ ok: true });
-    expect(totalMs).toBe(1_800_000);
+    // The limit runs from admission, so a millisecond or two may already have passed.
+    expect(totalMs).toBeLessThanOrEqual(1_800_000);
+    expect(totalMs).toBeGreaterThan(1_790_000);
     expect(admit).toHaveBeenCalledWith("Access run-token", "t-1", "conv-1");
     expect(holdSlot).toHaveBeenCalledWith("Access run-token", "t-1", "conv-1", { heartbeat: true });
     expect(release).toHaveBeenCalledTimes(1);

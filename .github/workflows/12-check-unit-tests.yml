@@ -866,27 +866,49 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
         run: helm lint hosting/kubernetes/helm
 
-      - name: Assert the runner Deployment renders a narrow environment
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
-        run: uv run hosting/kubernetes/helm/tests/test_runner_secret_absence.py
-
-      # The gateway settings are documented with a values.yaml path per variable, and the
-      # schema's root is additionalProperties:true, so a key the chart does not model is
-      # accepted and ignored. This asserts each one reaches the containers that read it and
-      # stays off the ones that do not.
-      - name: Assert the gateway values reach their readers
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
-        run: uv run hosting/kubernetes/helm/tests/test_gateway_values.py
-
-      - name: Assert the rollout, shutdown and disruption defaults
+      # Every test in the directory runs, found by the glob rather than listed here.
+      # The previous version named each file, so a test nobody remembered to add to the
+      # list was run by nothing at all. Seven of sixteen were in that state, and two of
+      # them had stopped working months earlier without anyone noticing.
+      #
+      # The whole suite takes about 100 seconds and needs no cluster, so there is no
+      # reason to select a subset. Each test says in its own docstring what it guards.
+      - name: Run every rendered-chart test
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
         run: |
-          uv run hosting/kubernetes/helm/tests/test_lifecycle_rollout.py
-          uv run hosting/kubernetes/helm/tests/test_availability.py
-          uv run hosting/kubernetes/helm/tests/test_web_crisp.py
-          uv run hosting/kubernetes/helm/tests/test_probe_commands.py
-          uv run hosting/kubernetes/helm/tests/test_notes_default_secrets.py
-          uv run hosting/kubernetes/helm/tests/test_redis_durable_ca.py
+          set -uo pipefail
+          shopt -s nullglob
+          tests=(hosting/kubernetes/helm/tests/test_*.py)
+          if [ "${#tests[@]}" -eq 0 ]; then
+            echo "::error::found no chart tests; the directory or the test_*.py naming changed"
+            exit 1
+          fi
+
+          failed=()
+          for t in "${tests[@]}"; do
+            # A test without the inline script header runs with no dependencies installed,
+            # which is how the two broken ones failed: `import yaml` raised before the
+            # first assertion. Say so plainly instead of reporting a traceback.
+            if ! head -5 "$t" | grep -q '^# /// script'; then
+              echo "::error file=$t::missing the '# /// script' header, so uv installs none of its dependencies"
+              failed+=("$t (no inline script header)")
+              continue
+            fi
+            echo "::group::$t"
+            if uv run "$t"; then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error file=$t::this chart test failed"
+              failed+=("$t")
+            fi
+          done
+
+          echo "ran ${#tests[@]} rendered-chart tests"
+          if [ "${#failed[@]}" -gt 0 ]; then
+            printf '::error::failed: %s\n' "${failed[@]}"
+            exit 1
+          fi
 
   run-runner-integration-tests:
     if: |

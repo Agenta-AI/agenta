@@ -50,6 +50,10 @@ export const RETRYABLE_CODES = new Set([
     // a turn would not unwind, or by the platform's execution watchdog when the runner itself
     // was gone. Nothing is wrong with the request, so sending it again is the whole fix.
     "execution_lost",
+    // The runner ended a turn that made no progress for its idle limit, or never started
+    // responding; its sentence asks the reader to send the message again.
+    "run_idle_time_limit",
+    "run_first_response_time_limit",
     // Another session refreshed the subscription sign-in while this turn was using the old one.
     // The newer sign-in is already stored, so the next attempt uses it.
     "subscription_login_refreshed",

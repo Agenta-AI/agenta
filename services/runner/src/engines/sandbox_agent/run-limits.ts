@@ -30,6 +30,8 @@ export const TOTAL_DEADLINE_ENV = "AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS";
 export const IDLE_TIMEOUT_ENV = "AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS";
 export const TTFB_TIMEOUT_ENV = "AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS";
 export const TOOL_CALL_TIMEOUT_ENV = "AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS";
+/** The `commandTimeoutSeconds` limit, handed to the Agenta Pi extension, which caps Pi's own shell tool with it. */
+export const PI_COMMAND_TIMEOUT_ENV = "AGENTA_AGENT_COMMAND_TIMEOUT_SECONDS";
 
 // 11 hours. This default must stay BELOW the mount-lease TTL (43200s, see
 // AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS in the API's env.py) minus the 60s
@@ -44,6 +46,30 @@ export const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60_000;
 export const DEFAULT_TTFB_TIMEOUT_MS = 2 * 60_000; // 2 min
 // 30 minutes; override with AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS.
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000;
+/**
+ * How long past the tool-call limit the run-wide watchdog waits for the tool's result. The limit
+ * itself is enforced on the command: every shell tool the runner can configure is told to stop
+ * its command at `toolCallMs` (`commandTimeoutSeconds`), and the stopped command comes back to the
+ * model as an ordinary tool error, so the turn continues. Only a tool call whose result has not
+ * arrived even this long after the limit ends the turn: its kill did not work, or the tool is one
+ * the runner cannot configure.
+ */
+// Covers the kill's confirmation (5 s) and the drive flush after a stopped in-process command (up
+// to 65 s with its control allowance), with room to spare.
+export const TOOL_CALL_GRACE_MS = 120_000;
+
+/**
+ * The timeout, in seconds, a shell command gets: what the model asked for, never more than the
+ * per-tool-call limit. A command stopped at this timeout returns a tool error to the model, which
+ * keeps the turn going; one that ran past it would trip the run-wide watchdog instead.
+ */
+export function commandTimeoutSeconds(
+  requestedSeconds: number | undefined,
+  toolCallMs: number = resolveRunLimits().toolCallMs,
+): number {
+  const limit = Math.max(1, Math.floor(toolCallMs / 1000));
+  return requestedSeconds !== undefined && requestedSeconds > 0 ? Math.min(requestedSeconds, limit) : limit;
+}
 
 /**
  * The longest turn the caller's plan allows, as the platform's turn admission states it, with the
@@ -88,6 +114,8 @@ export interface ResolvedRunLimits {
   idleMs: number;
   ttfbMs: number;
   toolCallMs: number;
+  /** Added to `toolCallMs` before the watchdog ends the turn over one tool call (`TOOL_CALL_GRACE_MS`); 0 when absent. */
+  toolCallGraceMs?: number;
   /** Set when the plan's turn limit, not the env deadline, is what `totalMs` enforces. */
   turnLimitMessage?: string;
 }
@@ -127,6 +155,7 @@ export function resolveRunLimits(
     idleMs: clampTimerMs(idleMs),
     ttfbMs: clampTimerMs(ttfbMs),
     toolCallMs: clampTimerMs(toolCallMs),
+    toolCallGraceMs: TOOL_CALL_GRACE_MS,
     ...(planBinds ? { turnLimitMessage: turnLimit.message } : {}),
   };
 }
@@ -179,6 +208,7 @@ export function createRunLimits(
   let idleTimer: NodeJS.Timeout | undefined;
   let ttfbTimer: NodeJS.Timeout | undefined;
   const toolCallTimers = new Map<string, NodeJS.Timeout>();
+  const grace = limits.toolCallGraceMs ?? 0;
 
   const clearAll = (): void => {
     if (totalTimer) clock.clearTimeout(totalTimer);
@@ -202,11 +232,12 @@ export function createRunLimits(
   const armIdle = (): void => {
     if (tripped || paused) return;
     if (idleTimer) clock.clearTimeout(idleTimer);
-    idleTimer = clock.setTimeout(
-      () =>
-        trip(`idle timeout after ${limits.idleMs}ms with no progress`, "idle"),
-      limits.idleMs,
-    );
+    idleTimer = clock.setTimeout(() => {
+      // A tool call in flight is bounded by its own timer, which waits for the stopped command's
+      // result; a silent command must not be cut by the idle limit first (both default to 30 min).
+      if (toolCallTimers.size > 0) return armIdle();
+      trip(`idle timeout after ${limits.idleMs}ms with no progress`, "idle");
+    }, limits.idleMs);
   };
 
   totalTimer = clock.setTimeout(
@@ -242,8 +273,11 @@ export function createRunLimits(
         id,
         clock.setTimeout(() => {
           toolCallTimers.delete(id);
-          trip(`tool call ${id} exceeded ${limits.toolCallMs}ms`, "tool-call");
-        }, limits.toolCallMs),
+          trip(
+            `tool call ${id} exceeded ${limits.toolCallMs}ms and returned no result within ${grace}ms more`,
+            "tool-call",
+          );
+        }, clampTimerMs(limits.toolCallMs + grace)),
       );
     },
     noteToolCallEnd(id) {
