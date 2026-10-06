@@ -744,17 +744,15 @@ class TestCreateAgent:
     async def test_operations_land_in_the_first_revision(self, service, create):
         operations = [
             {"operation": "set", "target": INSTRUCTIONS, "value": "You do invoices."},
-            # The template has no `skills` list yet, so the first skill sets the list.
+            # The template seeds an empty `skills` list, so the first skill is an add.
             {
-                "operation": "set",
+                "operation": "add_item",
                 "target": ["parameters", "agent", "skills"],
-                "value": [
-                    {
-                        "name": "pdf-tools",
-                        "description": "Make PDFs.",
-                        "body": "Use the PDF library.",
-                    }
-                ],
+                "value": {
+                    "name": "pdf-tools",
+                    "description": "Make PDFs.",
+                    "body": "Use the PDF library.",
+                },
             },
         ]
 
@@ -769,7 +767,7 @@ class TestCreateAgent:
         assert agent["skills"][0]["name"] == "pdf-tools"
         assert kwargs["message"] == (
             f'Created by agent "Support Triage" {CALLER}, session {SESSION}; '
-            "set agents_md; set skills"
+            "set agents_md; added skill pdf-tools"
         )
 
     @pytest.mark.parametrize(
@@ -803,19 +801,93 @@ class TestCreateAgent:
         if code:
             assert result.content.code == code
         assert result.content.details["operation_index"] == 1
+        # Nothing exists to read yet: the step is about this call, never the caller.
+        assert result.content.next_step == (
+            "No agent was created. Fix operation 1 as the message says, then call "
+            "create_agent again."
+        )
         create.assert_not_awaited()
         service.workflows_dao.create_artifact.assert_not_awaited()
 
-    async def test_a_create_that_fails_half_way_is_archived(self, service, create):
+    @pytest.mark.parametrize(
+        "archived,says",
+        [(True, "is now archived"), (False, "could not be archived")],
+    )
+    async def test_a_create_that_fails_half_way_says_what_was_saved(
+        self, service, create, archived, says
+    ):
         create.side_effect = None
         create.return_value = None
-        service.archive_workflow = AsyncMock()
+        service.archive_workflow = AsyncMock(
+            return_value=_workflow(TARGET, "x", "x") if archived else None
+        )
 
         result = await _call(handle_create_agent, service, **self._args())
 
         assert result.content.code == "create_failed"
+        assert says in result.content.message
+        assert "Nothing was saved" not in result.content.message
+        # Part of the agent may exist, so the same call is not safe to send again.
+        assert result.content.retryable is False
+        assert "list_agents" in result.content.next_step
         created_id = create.await_args.kwargs["workflow_id"]
         assert service.archive_workflow.await_args.kwargs["workflow_id"] == created_id
+
+    async def test_a_create_that_raises_half_way_is_archived(self, service, create):
+        create.side_effect = RuntimeError("database went away")
+        service.archive_workflow = AsyncMock()
+
+        with pytest.raises(RuntimeError):
+            await _call(handle_create_agent, service, **self._args())
+
+        created_id = create.await_args.kwargs["workflow_id"]
+        assert service.archive_workflow.await_args.kwargs["workflow_id"] == created_id
+
+    @pytest.mark.parametrize("key", ["instructions", "model"])
+    async def test_an_unknown_top_level_field_is_refused_not_dropped(
+        self, service, create, key
+    ):
+        # Bench F1: `instructions` beside `name` created the bare template and said so.
+        result = await _call(
+            handle_create_agent, service, **self._args(**{key: "You do invoices."})
+        )
+
+        assert result.content.code == "invalid_arguments"
+        assert f"`{key}` is not a field of create_agent" in result.content.message
+        assert '"operations": [{"operation": "set"' in result.content.next_step
+        create.assert_not_awaited()
+
+    async def test_a_skill_the_runtime_cannot_parse_creates_nothing(
+        self, service, create
+    ):
+        operation = {
+            "operation": "add_item",
+            "target": ["parameters", "agent", "skills"],
+            "value": {"name": "pdf-tools", "description": "Make PDFs."},
+        }
+
+        result = await _call(
+            handle_create_agent, service, **self._args(operations=[operation])
+        )
+
+        assert result.content.code == "final_validation_failed"
+        assert result.content.details["issues"] == ["skills[0].body is required"]
+        assert "create_agent again" in result.content.next_step
+        create.assert_not_awaited()
+
+    async def test_a_long_name_and_description_are_not_cut(self, service, create):
+        name, description = "Invoice helper " * 20, "It helps. " * 60
+
+        result = await _call(
+            handle_create_agent,
+            service,
+            **self._args(name=name, description=description),
+        )
+
+        assert result.ok, result.content
+        request = create.await_args.kwargs["simple_workflow_create"]
+        assert request.name == name.strip()
+        assert request.description == description
 
     async def test_a_name_is_required(self, service, create):
         result = await _call(handle_create_agent, service, **self._args(name="  "))

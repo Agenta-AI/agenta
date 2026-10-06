@@ -21,10 +21,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List, Optional
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import httpx
 from pydantic import ValidationError
@@ -77,9 +76,6 @@ from oss.src.core.workflows.dtos import (
 )
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.caching import invalidate_cache
-from oss.src.utils.logging import get_module_logger
-
-log = get_module_logger(__name__)
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
 TEST_RUN_CALL_REF = "tools.agenta.test_run"
@@ -1009,10 +1005,14 @@ CREATE_AGENT_CALL_REF = "tools.agenta.create_agent"
 EDIT_AGENT_CONFIG_CALL_REF = "tools.agenta.edit_agent_config"
 LIST_AGENTS_DEFAULT_LIMIT = 50
 LIST_AGENTS_MAX_LIMIT = 100
-_AGENT_NAME_MAX_LENGTH = 120
-_AGENT_DESCRIPTION_MAX_LENGTH = 300
 
 _FIND_AGENT_STEP = "Call list_agents and pass one agent's `slug` or `id` as `agent`."
+_SET_INSTRUCTIONS_EXAMPLE = (
+    '{"operation": "set", "target": ["parameters","agent","instructions","agents_md"], '
+    '"value": "..."}'
+)
+_BOUND_FIELDS = frozenset({"caller_agent_id", "caller_session_id"})
+_CREATE_AGENT_FIELDS = frozenset({"name", "description", "operations"}) | _BOUND_FIELDS
 
 
 def _bound_caller(arguments: Dict[str, Any]) -> UUID:
@@ -1167,9 +1167,7 @@ def _operations(arguments: Dict[str, Any], *, required: bool) -> Optional[list]:
         raise _ArgumentsRefused(
             "`operations` must be a non-empty list of operations.",
             next_step=(
-                "Send the change as `operations`, for example "
-                '[{"operation": "set", "target": ["parameters","agent","instructions",'
-                '"agents_md"], "value": "..."}].'
+                f"Send the change as `operations`, for example [{_SET_INSTRUCTIONS_EXAMPLE}]."
             ),
         )
     return operations
@@ -1423,16 +1421,27 @@ async def handle_edit_agent_config(
     )
 
 
-_EDIT_AGENT_CONFIG_FIELDS = frozenset(
-    {"agent", "base_revision_id", "operations", "caller_agent_id", "caller_session_id"}
+_EDIT_AGENT_CONFIG_FIELDS = (
+    frozenset({"agent", "base_revision_id", "operations"}) | _BOUND_FIELDS
 )
 
 
-def _new_agent_slug(name: str) -> str:
-    """The web's slug rule (`generateSlug`) plus a suffix, so two agents may share a name."""
-    slug = re.sub(r"[^a-z0-9_.\-\s]", "", name.lower().strip())
-    slug = re.sub(r"-+", "-", re.sub(r"\s+", "-", slug)).strip("-.")
-    return f"{slug or 'agent'}-{uuid4().hex[:6]}"
+def _create_refusal(error: AgentError) -> AgentError:
+    """A refusal from the operations of a create, pointed at the create.
+
+    The shared next step speaks of a configuration to read again. Here nothing exists yet,
+    so the way forward is to fix the operation and send the create again.
+    """
+    index = (error.details or {}).get("operation_index")
+    fix = "the operations" if index is None else f"operation {index}"
+    return error.model_copy(
+        update={
+            "next_step": (
+                f"No agent was created. Fix {fix} as the message says, then call "
+                "create_agent again."
+            )
+        }
+    )
 
 
 async def handle_create_agent(
@@ -1447,21 +1456,17 @@ async def handle_create_agent(
 ) -> PlatformHandlerResult:
     """A new agent from the "New agent" template, with the caller's operations applied.
 
-    The operations are applied in memory, under the agent scope, BEFORE anything is
-    written, so an operation that fails creates nothing. The first saved revision then holds
-    the template and the operations together, and its message names the creator.
+    The service owns the composition (template, operations, slug, flags, first message) and
+    the cleanup of a create that stops part of the way. This handler reads the arguments,
+    names the creator, and turns each failure into a refusal the model can act on.
     """
     from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
-    from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
-    from oss.src.core.workflows.dtos import (
-        SimpleWorkflowCreate,
-        SimpleWorkflowData,
-        SimpleWorkflowFlags,
-        WorkflowRevisionCommit,
-    )
-    from oss.src.core.workflows.new_agent import new_agent_revision_data
+    from oss.src.core.workflows.change_set import ChangeSetError
     from oss.src.core.workflows.service import SimpleWorkflowsService
-    from oss.src.core.workflows.types import InvalidAgentInstructionsError
+    from oss.src.core.workflows.types import (
+        AgentCreationFailed,
+        InvalidAgentInstructionsError,
+    )
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("create_agent is unavailable.")
@@ -1469,107 +1474,81 @@ async def handle_create_agent(
     try:
         parsed = _parse_arguments(arguments)
         caller_id = _bound_caller(parsed)
+        unknown = sorted(set(parsed) - _CREATE_AGENT_FIELDS)
+        if unknown:
+            # A top-level `instructions` or `model` would otherwise be dropped in silence and
+            # the agent created from the bare template, with a success answer.
+            raise _ArgumentsRefused(
+                f"{', '.join(f'`{key}`' for key in unknown)} "
+                f"{'is not a field' if len(unknown) == 1 else 'are not fields'} of "
+                "create_agent. Its fields are `name`, `description` and `operations`.",
+                next_step=(
+                    "Put every change to the new agent in `operations`, for example "
+                    f'"operations": [{_SET_INSTRUCTIONS_EXAMPLE}].'
+                ),
+            )
         name = parsed.get("name")
         if not isinstance(name, str) or not name.strip():
             raise _ArgumentsRefused(
                 "`name` is required.",
                 next_step='Send the new agent\'s name as `name`, e.g. "Invoice helper".',
             )
-        name = name.strip()
-        if len(name) > _AGENT_NAME_MAX_LENGTH:
-            raise _ArgumentsRefused(
-                f"`name` is longer than {_AGENT_NAME_MAX_LENGTH} characters.",
-                next_step="Send a shorter name, a few words.",
-            )
         description = parsed.get("description")
-        if description is not None and (
-            not isinstance(description, str)
-            or len(description) > _AGENT_DESCRIPTION_MAX_LENGTH
-        ):
+        if description is not None and not isinstance(description, str):
             raise _ArgumentsRefused(
-                f"`description` must be text of at most {_AGENT_DESCRIPTION_MAX_LENGTH} "
-                "characters.",
+                "`description` must be text.",
                 next_step="Send one short sentence, or omit `description`.",
             )
         operations = _operations(parsed, required=False)
-
         attribution = await _attribution(
             workflows_service=workflows_service,
             project_id=project_id,
             arguments=parsed,
             caller_id=caller_id,
         )
-        data = new_agent_revision_data()
-        message = f"Created {attribution}"
-        warnings: list = []
-        if operations:
-            try:
-                commit = WorkflowRevisionCommit(delta={"operations": operations})
-            except Exception as e:
-                raise _Refusal(_commit_payload_refusal(e)) from e
-            try:
-                data, derived, warnings = workflows_service._apply_delta(
-                    base=data,
-                    workflow_revision_commit=commit,
-                    scope_policy=AGENT_COMMIT_SCOPE,
-                    agent_context=True,
-                )
-            except ChangeSetError as e:
-                raise _Refusal(AgentError(**e.to_detail())) from e
-            message = f"{message}; {derived}"
-
-        workflow_id = uuid4()
         try:
-            created = await SimpleWorkflowsService(
+            created, message, warnings = await SimpleWorkflowsService(
                 workflows_service=workflows_service
-            ).create(
+            ).create_agent(
                 project_id=project_id,
                 user_id=user_id,
-                simple_workflow_create=SimpleWorkflowCreate(
-                    slug=_new_agent_slug(name),
-                    name=name,
-                    description=description,
-                    flags=SimpleWorkflowFlags(is_application=True, is_agent=True),
-                    data=SimpleWorkflowData(**data),
-                ),
-                workflow_id=workflow_id,
-                message=message,
+                name=name.strip(),
+                description=description,
+                operations=operations,
+                message=f"Created {attribution}",
             )
-        except InvalidAgentInstructionsError as e:
-            await _discard_new_agent(
-                workflows_service, project_id, user_id, workflow_id
-            )
-            raise _Refusal(AgentError(**e.to_detail())) from e
+        except ValidationError as e:
+            raise _Refusal(_create_refusal(_commit_payload_refusal(e))) from e
+        except (ChangeSetError, InvalidAgentInstructionsError) as e:
+            raise _Refusal(_create_refusal(AgentError(**e.to_detail()))) from e
         except NonEmbeddableWorkflowReferenceError as e:
-            await _discard_new_agent(
-                workflows_service, project_id, user_id, workflow_id
-            )
             raise _Refusal(
                 AgentError(
                     code="non_embeddable_reference",
                     message=str(e),
                     retryable=False,
-                    next_step="Remove the embedded reference to that workflow.",
+                    next_step=(
+                        "Remove the embedded reference to that workflow, then call "
+                        "create_agent again."
+                    ),
                 )
             ) from e
-        except Exception:
-            await _discard_new_agent(
-                workflows_service, project_id, user_id, workflow_id
-            )
-            raise
+        except AgentCreationFailed as e:
+            # Not retryable: part of the agent may exist, and the same call would make a
+            # second one.
+            raise _Refusal(
+                AgentError(
+                    code="create_failed",
+                    message=e.message,
+                    retryable=False,
+                    next_step=(
+                        "Call list_agents to see whether the agent exists before you "
+                        "create it again."
+                    ),
+                )
+            ) from e
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
-
-    if created is None or created.revision_id is None:
-        await _discard_new_agent(workflows_service, project_id, user_id, workflow_id)
-        return PlatformHandlerResult.failure(
-            AgentError(
-                code="create_failed",
-                message="The agent could not be created. Nothing was saved.",
-                retryable=True,
-                next_step="Send the same call again.",
-            )
-        )
 
     await invalidate_cache(project_id=str(project_id))
     return PlatformHandlerResult(
@@ -1581,26 +1560,6 @@ async def handle_create_agent(
             "warnings": [w.model_dump(mode="json") for w in warnings],
         }
     )
-
-
-async def _discard_new_agent(
-    workflows_service: WorkflowsService,
-    project_id: UUID,
-    user_id: UUID,
-    workflow_id: UUID,
-) -> None:
-    """Archive a half-created agent, so a failed create leaves nothing in the list."""
-    try:
-        await workflows_service.archive_workflow(
-            project_id=project_id,
-            user_id=user_id,
-            workflow_id=workflow_id,
-        )
-    except Exception:  # noqa: BLE001
-        log.warning(
-            "[TOOLS] could not archive a half-created agent",
-            workflow_id=str(workflow_id),
-        )
 
 
 # ---------------------------------------------------------------------------

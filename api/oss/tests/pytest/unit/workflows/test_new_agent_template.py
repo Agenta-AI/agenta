@@ -13,6 +13,7 @@ from oss.src.core.workflows.commit_support import agent_attribution
 from oss.src.core.workflows.new_agent import (
     ensure_enabled_sandbox,
     new_agent_revision_data,
+    new_agent_slug,
 )
 from oss.src.resources.workflows.catalog import (
     get_filtered_workflow_catalog_templates,
@@ -64,6 +65,29 @@ class TestTemplateParity:
             "edit_agent_config",
         ):
             assert entry["tools"][op] == "allow"
+
+    def test_a_new_agent_has_an_empty_skills_list_so_the_first_skill_is_an_add(self):
+        agent = new_agent_revision_data(enabled_sandbox_providers=["local"])[
+            "parameters"
+        ]["agent"]
+        assert agent["skills"] == []
+        # The template the web's New agent reads holds it too.
+        assert _web_template_data()["parameters"]["agent"]["skills"] == []
+
+    def test_the_template_is_what_the_runtime_accepts(self):
+        from oss.src.core.workflows.service import _agent_template_issues
+
+        assert _agent_template_issues(new_agent_revision_data()) == []
+
+
+class TestNewAgentSlug:
+    def test_the_web_rule_plus_a_suffix(self):
+        slug = new_agent_slug("  Invoice Helper (EU)! ")
+        assert slug.startswith("invoice-helper-eu-")
+        assert len(slug) == len("invoice-helper-eu-") + 6
+
+    def test_a_name_with_no_slug_characters_still_gets_one(self):
+        assert new_agent_slug("???").startswith("agent-")
 
 
 class TestEnsureEnabledSandbox:

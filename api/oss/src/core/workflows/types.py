@@ -145,6 +145,27 @@ class InvalidAgentInstructionsError(Exception):
         }
 
 
+class AgentCreationFailed(WorkflowError):
+    """A new agent's writes stopped part of the way; what they saved is archived if it could be.
+
+    Creating an agent is several writes, and none of them is undone. ``archived`` says whether
+    the archive of the partial agent succeeded, so the caller can say what happened instead of
+    claiming that nothing was saved.
+    """
+
+    def __init__(self, *, slug: str, archived: bool):
+        self.slug = slug
+        self.archived = archived
+        super().__init__(
+            f"The agent could not be created. Part of it, slug '{slug}', "
+            + (
+                "was saved and is now archived."
+                if archived
+                else "may have been saved and could not be archived."
+            )
+        )
+
+
 class WorkflowServiceUrlMissing(WorkflowError):
     """Raised when a revision has no runnable service URL to invoke (batch or detached)."""
 

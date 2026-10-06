@@ -139,10 +139,12 @@ from oss.src.core.git.types import (
     validate_retrieve_refs_consistent,
 )
 from oss.src.core.workflows.change_set import (
+    AGENT_COMMIT_SCOPE,
     ChangeSetError,
     Reason,
     apply_change_set,
 )
+from oss.src.core.workflows.new_agent import new_agent_revision_data, new_agent_slug
 from oss.src.core.workflows.read_config import (
     ReadConfigError,
     clamp_max_bytes,
@@ -159,6 +161,7 @@ from oss.src.core.workflows.interfaces import StaticWorkflowProvider
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
+    AgentCreationFailed,
     InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
     StaticWorkflowSlug,
@@ -4227,6 +4230,87 @@ class SimpleWorkflowsService:
         )
 
         return simple_workflow
+
+    async def create_agent(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        name: str,
+        description: Optional[str] = None,
+        operations: Optional[list] = None,
+        #
+        message: str,
+    ) -> tuple[SimpleWorkflow, str, List[CommitWarning]]:
+        """A new agent from the "New agent" template, with an agent's operations applied.
+
+        The operations run in memory, under the agent's commit scope, BEFORE anything is
+        written, so one that fails creates nothing. The first saved revision then holds the
+        template and the operations together, and ``message`` (plus the derived clauses) is
+        its commit message. Returns the agent, that message and the engine's warnings.
+
+        The writes after that are not one transaction, the same as every other create. If
+        one stops part of the way, the partial agent is archived and the failure says so.
+        """
+        data = new_agent_revision_data()
+        warnings: List[CommitWarning] = []
+        if operations:
+            data, derived, warnings = self.workflows_service._apply_delta(
+                base=data,
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    delta={"operations": operations}
+                ),
+                scope_policy=AGENT_COMMIT_SCOPE,
+                agent_context=True,
+            )
+            message = f"{message}; {derived}"
+
+        workflow_id = uuid4()
+        slug = new_agent_slug(name)
+        try:
+            created = await self.create(
+                project_id=project_id,
+                user_id=user_id,
+                simple_workflow_create=SimpleWorkflowCreate(
+                    slug=slug,
+                    name=name,
+                    description=description,
+                    flags=SimpleWorkflowFlags(is_application=True, is_agent=True),
+                    data=SimpleWorkflowData(**data),
+                ),
+                workflow_id=workflow_id,
+                message=message,
+            )
+        except Exception:
+            await self._archive_partial_agent(project_id, user_id, workflow_id)
+            raise
+        if created is None or created.revision_id is None:
+            raise AgentCreationFailed(
+                slug=slug,
+                archived=await self._archive_partial_agent(
+                    project_id, user_id, workflow_id
+                ),
+            )
+        return created, message, warnings
+
+    async def _archive_partial_agent(
+        self, project_id: UUID, user_id: UUID, workflow_id: UUID
+    ) -> bool:
+        try:
+            archived = await self.workflows_service.archive_workflow(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_id=workflow_id,
+            )
+        except Exception:  # noqa: BLE001 - the create's own failure is the one to report
+            archived = None
+        if archived is None:
+            log.warning(
+                "[WORKFLOWS] could not archive a half-created agent",
+                workflow_id=str(workflow_id),
+            )
+        return archived is not None
 
     async def fetch(
         self,
