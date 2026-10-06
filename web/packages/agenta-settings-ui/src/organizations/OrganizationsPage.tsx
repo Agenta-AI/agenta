@@ -91,6 +91,7 @@ export const OrganizationsPage = ({
                 wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
                 minWidth={0}
+                density="compact"
                 onOpenRow={
                     onSwitch
                         ? (record) => {
