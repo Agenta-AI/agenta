@@ -1,6 +1,6 @@
-"""The default plan cards state the credit pricing model. Every number a card shows must
-equal the constant that enforces it, so a pricing change in the wallet or the
-entitlements fails here until the card says the same thing."""
+"""The default plan cards state the credit pricing model. Every credit, cap, top-up and
+quota number a card shows must equal the constant that enforces it, so a pricing change
+in the wallet or the entitlements fails here until the card says the same thing."""
 
 import pytest
 
