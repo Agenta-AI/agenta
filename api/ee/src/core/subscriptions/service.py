@@ -242,7 +242,8 @@ class SubscriptionsService:
     ) -> Optional[SubscriptionDTO]:
         """Provision the initial subscription for a newly signed-up organization.
 
-        - Stripe enabled                     → reverse-trial flow on trial plan.
+        - Stripe enabled, a pricing entry carries `"trial": N` → reverse trial.
+        - Stripe enabled, no trial entry     → onboard on the free plan.
         - Stripe disabled                    → onboard on `get_default_plan()`.
         """
         if env.stripe.enabled:

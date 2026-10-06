@@ -13,6 +13,7 @@ from uuid import UUID
 import uuid_utils.compat as uuid_utils
 
 from ee.src.core.wallets.contracts import DebitCommandV1
+from ee.src.core.wallets.grants import GrantCapReachedError
 from ee.src.core.wallets.interfaces import WalletSettlementPort
 from ee.src.core.wallets.types import (
     CreditCandidateDTO,
@@ -229,12 +230,26 @@ class FakeWalletsDAO(WalletsDAOInterface):
         priority: int,
         end_time,
         now: Optional[datetime] = None,
+        cap_count: Optional[int] = None,
+        cap_since: Optional[datetime] = None,
     ) -> WalletCreditDTO:
         self.award_calls += 1
 
         existing = self.awards.get(idempotency_key)
         if existing is not None:
             return existing
+
+        if cap_count is not None and cap_since is not None:
+            awarded = sum(
+                1
+                for award in self.awards.values()
+                if award.organization_id == organization_id
+                and award.credit_kind == credit_kind
+                and award.start_time is not None
+                and award.start_time >= cap_since
+            )
+            if awarded >= cap_count:
+                raise GrantCapReachedError(credit_kind, cap_count)
 
         await self._lock_general_balance(organization_id=organization_id)
 

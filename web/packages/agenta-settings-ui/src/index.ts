@@ -47,6 +47,7 @@ export {
     checkoutBillingSubscription,
     openBillingPortal,
 } from "./billing/api"
+export {liveChatAllowed, type LiveChatPlan} from "./billing/liveChatAllowed"
 export {
     useBillingCatalog,
     type BillingCatalog,

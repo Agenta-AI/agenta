@@ -14,6 +14,7 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.wallets.contracts import DebitCommandV1
+from ee.src.core.wallets.grants import GrantCapReachedError
 from ee.src.core.wallets.plans import LAZY_PROVISION_FLOOR_MUSD
 from ee.src.core.wallets.types import (
     WalletBalanceDTO,
@@ -356,6 +357,8 @@ class WalletsDAO(WalletsDAOInterface):
         priority: int,
         end_time: Optional[datetime],
         now: Optional[datetime] = None,
+        cap_count: Optional[int] = None,
+        cap_since: Optional[datetime] = None,
     ) -> WalletCreditDTO:
         async with self.engine.session() as session:
             # 1. Lock the general balance first, provisioning it when missing: every
@@ -376,6 +379,20 @@ class WalletsDAO(WalletsDAOInterface):
             existing = (await session.execute(existing_stmt)).scalar_one_or_none()
             if existing is not None:
                 return credit_dbe_to_dto(existing)
+
+            # Counted under the lock, so racing awards cannot pass the cap together.
+            if cap_count is not None and cap_since is not None:
+                awarded = (
+                    await session.execute(
+                        select(func.count(WalletCreditDBE.id)).where(
+                            WalletCreditDBE.organization_id == organization_id,
+                            WalletCreditDBE.credit_kind == credit_kind,
+                            WalletCreditDBE.start_time >= cap_since,
+                        )
+                    )
+                ).scalar_one()
+                if awarded >= cap_count:
+                    raise GrantCapReachedError(credit_kind, cap_count)
 
             # 3. First delivery: mint the credit and its balance row, and fund the
             #    general balance projection by the full amount. The part that repays

@@ -12,8 +12,11 @@ import ee.src.core.wallets.service as service_module
 from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.wallets.grants import (
     DAILY_FREE_CREDITS_MUSD,
+    DAILY_FREE_GRANTS_PER_MONTH,
+    GrantCapReachedError,
     compose_award_idempotency_key,
     next_utc_midnight,
+    utc_month_start,
 )
 from ee.src.core.wallets.purchases import TOP_UP_PACKS
 from ee.src.core.wallets.service import WalletsService
@@ -23,6 +26,8 @@ from ee.tests.pytest.utils.wallets.fakes import FakeWalletsDAO
 HOBBY = DefaultPlan.CLOUD_V0_HOBBY.value
 PRO = DefaultPlan.CLOUD_V0_PRO.value
 BUSINESS = DefaultPlan.CLOUD_V0_BUSINESS.value
+AGENTA_AI = DefaultPlan.CLOUD_V0_AGENTA_AI.value
+SELF_HOSTED = DefaultPlan.SELF_HOSTED_ENTERPRISE.value
 
 # In the future, so the fake's real-clock expiry filter keeps the credits spendable.
 NOW = datetime(2036, 10, 2, 23, 30, tzinfo=timezone.utc)
@@ -132,9 +137,90 @@ async def test_daily_free_credits_granted_again_the_next_day(monkeypatch):
     ]
 
 
+def test_utc_month_start_is_the_first_utc_midnight_of_the_month():
+    assert utc_month_start(NOW) == datetime(2036, 10, 1, tzinfo=timezone.utc)
+    new_year_in_new_york = datetime(
+        2036, 12, 31, 20, 0, tzinfo=timezone(timedelta(hours=-5))
+    )
+    assert utc_month_start(new_year_in_new_york) == datetime(
+        2037, 1, 1, tzinfo=timezone.utc
+    )
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("plan", [PRO, BUSINESS, None])
-async def test_no_daily_free_credits_off_the_free_plan(plan):
+async def test_daily_free_credits_stop_after_the_monthly_cap(monkeypatch):
+    assert DAILY_FREE_GRANTS_PER_MONTH == 10
+    dao = _dao()
+    organization_id = dao.general_balance.organization_id
+    service = WalletsService(wallets_dao=dao, plan_reader=_plan_reader(HOBBY))
+    november = datetime(2036, 11, 1, 9, 0, tzinfo=timezone.utc)
+
+    for day in range(12):
+        _freeze(monkeypatch, november + timedelta(days=day))
+        await service.check(organization_id=organization_id)
+
+    granted_days = sorted(credit.start_time.day for credit in dao.awards.values())
+    assert granted_days == list(range(1, 11))
+    # The capped day is settled: the next admission neither reads nor awards again.
+    calls = dao.award_calls
+    await service.check(organization_id=organization_id)
+    assert dao.award_calls == calls
+
+    _freeze(monkeypatch, datetime(2036, 12, 1, 9, 0, tzinfo=timezone.utc))
+    await service.check(organization_id=organization_id)
+    assert len(dao.awards) == DAILY_FREE_GRANTS_PER_MONTH + 1
+
+
+@pytest.mark.asyncio
+async def test_monthly_cap_does_not_touch_the_signup_grant_or_a_replayed_day():
+    dao = _dao()
+    organization_id = dao.general_balance.organization_id
+    service = WalletsService(wallets_dao=dao)
+    start = datetime(2036, 11, 1, 9, 0, tzinfo=timezone.utc)
+
+    for day in range(DAILY_FREE_GRANTS_PER_MONTH):
+        await service.award(
+            organization_id=organization_id,
+            activity_code="daily_free",
+            reference=f"day-{day}",
+            now=start + timedelta(days=day),
+        )
+
+    with pytest.raises(GrantCapReachedError):
+        await service.award(
+            organization_id=organization_id,
+            activity_code="daily_free",
+            reference="day-10",
+            now=start + timedelta(days=10),
+        )
+    replayed = await service.award(
+        organization_id=organization_id,
+        activity_code="daily_free",
+        reference="day-9",
+        now=start + timedelta(days=10),
+    )
+    assert replayed.start_time == start + timedelta(days=9)
+    signup = await service.award(
+        organization_id=organization_id, activity_code="signup", now=start
+    )
+    assert signup.credit_kind == "signup_grant"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("plan", [PRO, BUSINESS])
+async def test_paid_plans_get_daily_free_credits_too(monkeypatch, plan):
+    _freeze(monkeypatch, NOW)
+    dao = _dao()
+    service = WalletsService(wallets_dao=dao, plan_reader=_plan_reader(plan))
+
+    await service.check(organization_id=dao.general_balance.organization_id)
+
+    assert [credit.credit_kind for credit in dao.awards.values()] == ["daily_free"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("plan", [AGENTA_AI, SELF_HOSTED, None])
+async def test_no_daily_free_credits_on_internal_or_self_hosted_plans(plan):
     dao = _dao()
     service = WalletsService(wallets_dao=dao, plan_reader=_plan_reader(plan))
 

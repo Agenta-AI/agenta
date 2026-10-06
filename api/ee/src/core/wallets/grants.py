@@ -25,13 +25,17 @@ SIGNUP_GRANT_AMOUNT_MUSD = 5_000_000  # $5 = 500 credits
 # funded-plan allowance is drawn down first; the one-time signup bonus lasts longer.
 SIGNUP_GRANT_PRIORITY = 20
 
-# PRODUCT DECISION (2026-10-02): 75 credits a day on the free plan.
+# PRODUCT DECISION (2026-10-02, widened 2026-10-06): 75 credits a day on every public
+# cloud plan (`plans.DAILY_FREE_CREDIT_PLANS`).
 # 1 credit = 1 cent = 10_000 musd. Granted on the organization's first wallet admission of
 # the UTC day, expiring at the next UTC midnight, so it never rolls over.
 DAILY_FREE_CREDITS_MUSD = 750_000  # 75 credits = $0.75
 # Spent first: it is the credit that expires soonest.
 DAILY_FREE_CREDITS_PRIORITY = 5
 DAILY_FREE_ACTIVITY = "daily_free"
+# PRODUCT DECISION (2026-10-06): at most 10 daily grants per UTC calendar month per
+# organization. Days after the tenth grant get none until the next month.
+DAILY_FREE_GRANTS_PER_MONTH = 10
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,8 @@ class GrantRule:
     # `True`: the credit expires at the next UTC midnight after `now`, and
     # `lifetime_days` is ignored.
     ends_at_utc_midnight: bool = False
+    # At most this many awards of the rule per UTC calendar month; `None` = no cap.
+    max_awards_per_month: Optional[int] = None
 
 
 GRANT_CATALOG: Dict[str, GrantRule] = {
@@ -70,6 +76,7 @@ GRANT_CATALOG: Dict[str, GrantRule] = {
         lifetime_days=None,
         repeatable=True,
         ends_at_utc_midnight=True,
+        max_awards_per_month=DAILY_FREE_GRANTS_PER_MONTH,
     ),
 }
 
@@ -80,6 +87,11 @@ def daily_free_reference(*, day: date) -> str:
 
 def next_utc_midnight(now: datetime) -> datetime:
     day = now.astimezone(timezone.utc).date() + timedelta(days=1)
+    return datetime.combine(day, time.min, tzinfo=timezone.utc)
+
+
+def utc_month_start(now: datetime) -> datetime:
+    day = now.astimezone(timezone.utc).date().replace(day=1)
     return datetime.combine(day, time.min, tzinfo=timezone.utc)
 
 
@@ -101,6 +113,16 @@ class GrantReferenceRequiredError(Exception):
         super().__init__(
             f"Grant activity '{activity_code}' is repeatable and requires a reference"
         )
+
+
+class GrantCapReachedError(Exception):
+    """Raised by `WalletsDAOInterface.award_credit` when the organization already holds
+    `cap_count` credits of the kind minted since `cap_since`; nothing is written."""
+
+    def __init__(self, credit_kind: str, cap_count: int):
+        self.credit_kind = credit_kind
+        self.cap_count = cap_count
+        super().__init__(f"Grant cap reached: {cap_count} '{credit_kind}' grants")
 
 
 def get_grant_rule(*, activity_code: str) -> Optional[GrantRule]:

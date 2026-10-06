@@ -69,7 +69,8 @@ def test_the_turn_length_message(plan, expected):
     [
         (
             HOBBY,
-            "come back at midnight UTC, or upgrade to Pro for 2,900 credits a month.",
+            "Free daily credits come back at midnight UTC, up to 10 days a month, "
+            "or upgrade to Pro for 2,900 credits a month.",
         ),
         (
             PRO,
