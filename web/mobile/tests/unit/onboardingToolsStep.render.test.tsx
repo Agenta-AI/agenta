@@ -6,6 +6,7 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 const state = vi.hoisted(() => ({
     connections: [] as Record<string, unknown>[],
+    connectionsError: null as Error | null,
     count: 10,
     hasNextPage: true,
     isFetchingNextPage: false,
@@ -19,7 +20,11 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
     isConnectionValid: () => true,
     createToolConnection: state.createToolConnection,
     invalidateToolConnections: vi.fn(),
-    useToolConnectionsQuery: () => ({connections: state.connections, isLoading: false}),
+    useToolConnectionsQuery: () => ({
+        connections: state.connections,
+        isLoading: false,
+        error: state.connectionsError,
+    }),
     useToolCatalogIntegrations: () => ({
         integrations: Array.from({length: state.count}, (_, i) => ({
             key: `app-${i}`,
@@ -47,6 +52,10 @@ vi.mock("@agenta/ui", () => ({
     },
 }))
 vi.mock("@agenta/ui/components/presentational", () => ({LoadError: () => null}))
+vi.mock("@agenta/shared/state", async () => {
+    const {atom} = await import("jotai")
+    return {projectIdAtom: atom("proj-1")}
+})
 
 import {OnboardingToolsStep} from "@/features/onboarding/OnboardingToolsStep"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
@@ -55,13 +64,19 @@ import {OnboardingToolsStep} from "@/features/onboarding/OnboardingToolsStep"
 let root: Root | undefined
 let host: HTMLDivElement | undefined
 
-const render = () => {
+const render = (seed = true) => {
     if (!root) {
         host = document.createElement("div")
         document.body.appendChild(host)
         root = createRoot(host)
     }
-    act(() => root!.render(<OnboardingToolsStep />))
+    act(() => root!.render(<OnboardingToolsStep seed={seed} />))
+}
+const remount = (seed = true) => {
+    if (root) act(() => root!.unmount())
+    root = undefined
+    host?.remove()
+    render(seed)
 }
 const cards = () =>
     Array.from(host!.querySelectorAll("button")).map((item) => item.textContent ?? "")
@@ -73,7 +88,14 @@ afterEach(() => {
     host?.remove()
     root = undefined
     host = undefined
-    Object.assign(state, {connections: [], count: 10, hasNextPage: true, isFetchingNextPage: false})
+    Object.assign(state, {
+        connections: [],
+        connectionsError: null,
+        count: 10,
+        hasNextPage: true,
+        isFetchingNextPage: false,
+    })
+    window.sessionStorage.clear()
     vi.clearAllMocks()
 })
 
@@ -123,10 +145,10 @@ describe("onboarding tools step", () => {
         expect(host!.querySelector('[role="status"]')?.textContent).toContain("Loading more apps")
     })
 
-    it("connects the zero-auth tools once, skipping one already connected", () => {
+    it("connects the zero-auth tools once per project, skipping one already connected", () => {
         state.connections = [saved("browser_tool")]
         render()
-        render()
+        remount()
         expect(state.createToolConnection).toHaveBeenCalledOnce()
         expect(state.createToolConnection).toHaveBeenCalledWith({
             connection: expect.objectContaining({
@@ -135,5 +157,14 @@ describe("onboarding tools step", () => {
                 integration_key: "composio_search",
             }),
         })
+    })
+
+    it("seeds nothing when the connections read failed or in a preview", () => {
+        state.connectionsError = new Error("offline")
+        render()
+        expect(state.createToolConnection).not.toHaveBeenCalled()
+        state.connectionsError = null
+        remount(false)
+        expect(state.createToolConnection).not.toHaveBeenCalled()
     })
 })
