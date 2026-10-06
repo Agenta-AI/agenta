@@ -144,12 +144,13 @@ async def test_handle_events_reads_invoice_metadata_from_stripe_objects(monkeypa
                     type="invoice.payment_succeeded",
                     data=SimpleNamespace(
                         object=SimpleNamespace(
+                            subscription="sub_123",
                             subscription_details=SimpleNamespace(
                                 metadata=SimpleNamespace(
                                     target=billing_router_module.env.stripe.webhook_target,
                                     organization_id="org_456",
                                 )
-                            )
+                            ),
                         )
                     ),
                 ),
