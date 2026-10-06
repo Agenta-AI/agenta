@@ -3,10 +3,10 @@ import {useEffect} from "react"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {COMMAND_PRIORITY_HIGH, INSERT_PARAGRAPH_COMMAND, KEY_ENTER_COMMAND} from "lexical"
 
-import {submitEditorAsMarkdown} from "../assets/submit"
+import {submitEditorAsMarkdown, type SubmitHandler} from "../assets/submit"
 
 interface SubmitPluginProps {
-    onSubmit: (markdown: string) => void
+    onSubmit: SubmitHandler
     disabled?: boolean
     /** Something besides the text is sendable (attachments, quotes): a blank Enter still sends. */
     forceEnabled?: boolean

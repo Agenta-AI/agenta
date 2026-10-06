@@ -8,7 +8,7 @@ import {act} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"
 
-import {createGrantStore, type GrantStore} from "../../src/drive/htmlApp/HtmlAppBody"
+import {createGrantStore, type GrantStore} from "../../src/drive/htmlApp/htmlAppEnv"
 import {useAppAccessMenu, type AppAccessMenu} from "../../src/drive/htmlApp/useAppAccessMenu"
 
 let container: HTMLDivElement

@@ -1,5 +1,6 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $redisDurable := default dict $values.redisDurable -}}
+{{- $startupProbe := default dict $redisDurable.startupProbe -}}
 {{- $persistence := default dict $redisDurable.persistence -}}
 {{- $persistenceEnabled := true -}}
 {{- if hasKey $persistence "enabled" -}}
@@ -93,26 +94,41 @@ spec:
                   name: {{ include "agenta.secretName" . }}
                   key: REDIS_DURABLE_PASSWORD
           {{- end }}
-          {{- /* A startup probe, so a restart that has to replay the
-                 append-only file is not killed by liveness while it works.
-                 Liveness and readiness only begin once this passes. */}}
+          {{- /* Liveness and readiness wait for startup to pass. A startup failure
+                 still restarts Redis after 60 attempts, about five minutes by default.
+                 Set redisDurable.startupProbe.failureThreshold higher when replaying the
+                 append-only file can take longer; otherwise restarts repeat the replay. */}}
+          {{- /* The probe passes only when the reply is exactly PONG. redis-cli exits 0
+                 on an error REPLY and fails only on a connection failure, so a bare `ping`
+                 passed while the server answered LOADING during an AOF replay. redis-cli
+                 -e would fix that, but Redis 6.0 and older reject -e, and a pinned old
+                 image then fails every probe. Comparing the reply works on every version. */}}
           startupProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
+              command:
+                - sh
+                - -c
+                - '[ "$(redis-cli -p {{ include "agenta.redisDurable.port" . }} ping)" = "PONG" ]'
             initialDelaySeconds: 2
             periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 60
+            failureThreshold: {{ default 60 $startupProbe.failureThreshold }}
           livenessProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
+              command:
+                - sh
+                - -c
+                - '[ "$(redis-cli -p {{ include "agenta.redisDurable.port" . }} ping)" = "PONG" ]'
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 5
           readinessProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
+              command:
+                - sh
+                - -c
+                - '[ "$(redis-cli -p {{ include "agenta.redisDurable.port" . }} ping)" = "PONG" ]'
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5

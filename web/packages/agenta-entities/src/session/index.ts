@@ -26,6 +26,8 @@ export {
     removePendingSessionInput,
     sendPendingSessionInputNow,
     updatePendingSessionInput,
+    type PendingInputAdmission,
+    type PendingInputWriteOutcome,
     commandSessionStream,
     cancelSessionExecution,
     cancelSessionStream,

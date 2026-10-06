@@ -313,7 +313,7 @@ export async function runTurn(
   // Set once this turn's ledger row is written: a failed turn the harness rolled back completes
   // its row like any other resume point.
   let turnLedgerForFailure:
-    | { sessionId: string; turnIndex: number; authorization: string }
+    | { sessionId: string; turnIndex: number }
     | undefined;
   /**
    * After a failed turn: keep the harness's native session when it can take the failed turn back
@@ -360,7 +360,7 @@ export async function runTurn(
         turnLedgerForFailure.sessionId,
         turnLedgerForFailure.turnIndex,
         { agentSessionId, endTime: new Date().toISOString() },
-        { authorization: turnLedgerForFailure.authorization, log: logger },
+        { authorization: credential(), log: logger },
       ).catch(() => {});
     }
   };
@@ -722,16 +722,16 @@ export async function runTurn(
     }
 
     const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;
-    const syncCred = runCredential(request);
+    // Keep only the ledger identity. Long turns rotate the platform credential, so every
+    // append/completion must resolve the live lease instead of saving a start-of-turn token.
     const turnLedgerContext =
       sessionId &&
       env.continuityTurnIndex !== undefined &&
-      syncCred &&
+      credential() &&
       request.streamId
         ? {
             sessionId,
             turnIndex: env.continuityTurnIndex,
-            authorization: syncCred,
             streamId: request.streamId,
           }
         : undefined;
@@ -756,7 +756,7 @@ export async function runTurn(
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,
         },
-        { authorization: turnLedgerContext.authorization, log: logger },
+        { authorization: credential(), log: logger },
       ).catch(() => {});
     }
 
@@ -1030,8 +1030,10 @@ export async function runTurn(
       kind: "user_approval" | "client_tool" = "user_approval",
       toolCallId?: string,
     ): void => {
-      const cred = runCredential(request);
-      if (!cred) return;
+      // A gate can open long after the turn started. Resolve the live lease on every attempt:
+      // the start-of-turn token expires after about 15 minutes, and a rejected ingest drops the
+      // row, which leaves the card waiting in the UI forever.
+      if (!credential()) return;
       // Every gate leaves a durable inbox/audit row; workflow references are attribution, not a
       // precondition. The row also carries the turn's effective config when the SDK stamped one,
       // so an out-of-band answer replays THIS turn, not the referenced variant's HEAD.
@@ -1041,7 +1043,7 @@ export async function runTurn(
         token,
         kind,
         buildInteractionData(request, toolName ?? token, toolArgs, toolCallId),
-        () => cred,
+        credential,
       );
     };
     // Transition the durable interaction row to resolved once its gate is answered. Used both by
@@ -1080,12 +1082,11 @@ export async function runTurn(
       // a client can see it twice for the same id; same id and same payload, so it must be
       // treated as idempotent rather than as two answers.
       if (alreadyResolved) return;
-      const cred = runCredential(request);
-      if (!cred) return;
+      if (!credential()) return;
       void resolveInteraction(
         sessionId,
         token,
-        () => cred,
+        credential,
         verdict
           ? {
               verdict: verdict.approved ? "approved" : "denied",
@@ -1112,8 +1113,7 @@ export async function runTurn(
     // consume it and cancel this still-pending row — after which the transition below finds a
     // terminal row and 404s, filing a decision the human actually made as an abandonment.
     settleInBandInteractions = async (): Promise<void> => {
-      const cred = runCredential(request);
-      if (!cred) return;
+      if (!credential()) return;
       const settling: Promise<unknown>[] = [];
       for (const answer of extractInBandApprovalAnswers(request)) {
         if (resolvedInteractionTokens.has(answer.token)) continue;
@@ -1123,7 +1123,7 @@ export async function runTurn(
             `approved=${answer.approved}`,
         );
         settling.push(
-          resolveInteraction(sessionId, answer.token, () => cred, {
+          resolveInteraction(sessionId, answer.token, credential, {
             verdict: answer.approved ? "approved" : "denied",
             tool_call_id: answer.toolCallId,
           }),
@@ -1977,7 +1977,7 @@ export async function runTurn(
             agentSessionId,
             endTime: turnEndedAt,
           },
-          { authorization: turnLedgerContext.authorization, log: logger },
+          { authorization: credential(), log: logger },
         ).catch(() => {});
       }
     } else if (stopReason === "paused" || stopReason === "cancelled") {

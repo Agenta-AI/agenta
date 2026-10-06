@@ -23,6 +23,7 @@ import {
 import { InMemoryModelsStore, type CredentialStore } from "pi-coding-agent-pi-ai";
 import { createAgentaExtension } from "../../../extensions/agenta.ts";
 import { apiKeysFromModelEnvironment } from "./credentials.ts";
+import { GATEWAY_PLACEHOLDER_API_KEY } from "../../../extensions/model-provider-override.ts";
 import { transcriptFileForSession } from "../../sandbox_agent/pi-error.ts";
 
 /** Pi built-ins that must never be active in the runner process (they would run on the host). */
@@ -36,8 +37,11 @@ export interface PiSessionSpec {
   skillDir: string | undefined;
   /** The models.json the runner wrote for this run, if any. Never a file-tool root. */
   modelsPath: string | undefined;
-  /** A custom provider from that models.json and the key the run resolved for it. */
-  customProvider?: { providerId: string; key: string };
+  /**
+   * A custom provider from that models.json and its credential: the key the run resolved for it,
+   * and the values its `$VAR` header references expand to (the gateway credential).
+   */
+  customProvider?: { providerId: string; key?: string; env?: Record<string, string> };
   /** Model credentials by env var name, for this session only. */
   modelEnv: Record<string, string>;
   credentials: CredentialStore;
@@ -74,21 +78,46 @@ async function findSessionFile(sessionDir: string | undefined, agentSessionId: s
   return undefined;
 }
 
+/**
+ * The session's model runtime. Every credential is this session's own: a `$VAR` that the runner
+ * wrote into models.json (the gateway credential header, `pi-model-config.ts`) is expanded from
+ * the custom provider's credential `env`, never from `process.env`, which every in-process
+ * session of every organization shares. A subprocess or Daytona harness gets the same value
+ * from its own process environment (`runtime-lifecycle.ts`).
+ */
+export async function createSessionModelRuntime(
+  spec: Pick<PiSessionSpec, "credentials" | "modelsPath" | "customProvider" | "modelEnv">,
+): Promise<ModelRuntime> {
+  const custom = spec.customProvider;
+  const headerEnv = custom?.env && Object.keys(custom.env).length > 0 ? custom.env : undefined;
+  if (custom && headerEnv) {
+    // A runtime API key carries no env, so the header values ride a stored credential instead.
+    // Pi expands the provider's header references from `credential.env` first.
+    const credential = { type: "api_key" as const, key: custom.key ?? GATEWAY_PLACEHOLDER_API_KEY, env: { ...headerEnv } };
+    await spec.credentials.modify(custom.providerId, async () => credential);
+  }
+  const runtime = await ModelRuntime.create({
+    credentials: spec.credentials,
+    modelsPath: spec.modelsPath ?? null,
+    modelsStore: new InMemoryModelsStore(),
+    allowModelNetwork: false,
+  });
+  const providerIds = runtime.getProviders().map((p) => p.id);
+  for (const [providerId, key] of apiKeysFromModelEnvironment(spec.modelEnv, providerIds)) {
+    if (headerEnv && providerId === custom?.providerId) continue;
+    await runtime.setRuntimeApiKey(providerId, key);
+  }
+  // A runtime key would hide the stored credential and its env, so only a provider without
+  // header references takes its key this way.
+  if (custom?.key && !headerEnv) await runtime.setRuntimeApiKey(custom.providerId, custom.key);
+  return runtime;
+}
+
 export async function openPiSession(spec: PiSessionSpec): Promise<OpenedPiSession> {
   const agentDir = await mkdtemp(join(tmpdir(), "agenta-pi-session-"));
   const cleanup = () => rm(agentDir, { recursive: true, force: true });
   try {
-    const runtime = await ModelRuntime.create({
-      credentials: spec.credentials,
-      modelsPath: spec.modelsPath ?? null,
-      modelsStore: new InMemoryModelsStore(),
-      allowModelNetwork: false,
-    });
-    const providerIds = runtime.getProviders().map((p) => p.id);
-    for (const [providerId, key] of apiKeysFromModelEnvironment(spec.modelEnv, providerIds)) {
-      await runtime.setRuntimeApiKey(providerId, key);
-    }
-    if (spec.customProvider) await runtime.setRuntimeApiKey(spec.customProvider.providerId, spec.customProvider.key);
+    const runtime = await createSessionModelRuntime(spec);
 
     const settingsManager = SettingsManager.inMemory({});
     const loader = new DefaultResourceLoader({

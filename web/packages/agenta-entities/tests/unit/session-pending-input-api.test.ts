@@ -78,10 +78,27 @@ describe("session pending-input API", () => {
                 sessionId: "session/1",
                 inputId: "input-1",
             }),
-        ).resolves.toBe(true)
+        ).resolves.toBe("applied")
         expect(removeInput).toHaveBeenCalledWith(
             {session_id: "session/1", input_id: "input-1"},
             expect.objectContaining({queryParams: {project_id: "project-1"}}),
         )
+    })
+
+    it("names the server's refusals apart from a failure", async () => {
+        const params = {projectId: "project-1", sessionId: "session/1", inputId: "input-1"}
+        removeInput.mockRejectedValueOnce(Object.assign(new Error("gone"), {statusCode: 404}))
+        await expect(removePendingSessionInput(params)).resolves.toBe("not_found")
+        removeInput.mockRejectedValueOnce(Object.assign(new Error("promoted"), {statusCode: 409}))
+        await expect(removePendingSessionInput(params)).resolves.toBe("conflict")
+        removeInput.mockRejectedValueOnce(
+            Object.assign(new Error("busy"), {
+                statusCode: 409,
+                body: {detail: {code: "session_busy"}},
+            }),
+        )
+        await expect(removePendingSessionInput(params)).resolves.toBe("busy")
+        removeInput.mockRejectedValueOnce(Object.assign(new Error("boom"), {statusCode: 500}))
+        await expect(removePendingSessionInput(params)).resolves.toBe("failed")
     })
 })

@@ -262,6 +262,14 @@ const setupRunningElsewhereAdmission = async ({
         if (requestCount === 1) {
             const body = new ReadableStream({
                 start(controller) {
+                    // Name the turn as the runner does; the next send waits for it.
+                    const named = {
+                        type: "message-metadata",
+                        messageMetadata: {turnId: "turn-fresh"},
+                    }
+                    controller.enqueue(
+                        new TextEncoder().encode(`data: ${JSON.stringify(named)}\n\n`),
+                    )
                     let closed = false
                     closeFreshResponse = () => {
                         if (closed) return
@@ -847,7 +855,10 @@ describe("useServerSessionInputs", () => {
 describe("selected queued input Send Now", () => {
     it("uses the selected row identity without invoking or removing its content", async () => {
         fetchSnapshot.mockResolvedValue(runningSnapshot())
-        sendInputNow.mockResolvedValue(true)
+        sendInputNow.mockResolvedValue({
+            outcome: "applied",
+            admission: {action: "pending", input: null, execution_id: "turn-1"},
+        })
         const {result} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
@@ -857,16 +868,46 @@ describe("selected queued input Send Now", () => {
             }),
         )
         await waitFor(() => expect(result.current.executionState).toBe("running"))
-        await act(() => result.current.sendNow("selected-row"))
+        let sent!: Awaited<ReturnType<typeof result.current.sendNow>>
+        await act(async () => {
+            sent = await result.current.sendNow("selected-row")
+        })
         expect(sendInputNow).toHaveBeenCalledWith({sessionId: "session-1", inputId: "selected-row"})
+        // Over a running turn the id is the turn being stopped, never the one this row starts.
+        expect(sent).toMatchObject({outcome: "applied", executionId: null})
         expect(removeInput).not.toHaveBeenCalled()
         expect(fetchMock).not.toHaveBeenCalled()
-        expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1)
+        await waitFor(() => expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1))
     })
 
-    it("surfaces an admission failure without removing the pending input", async () => {
+    it("names the new turn when the server promotes the row on the spot", async () => {
         fetchSnapshot.mockResolvedValue(runningSnapshot())
-        sendInputNow.mockResolvedValue(false)
+        sendInputNow.mockResolvedValue({
+            outcome: "applied",
+            admission: {
+                action: "pending",
+                input: {state: "promoted", promoted_execution_id: "turn-2"},
+                execution_id: "turn-2",
+            },
+        })
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: false,
+            }),
+        )
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        await expect(result.current.sendNow("selected-row")).resolves.toMatchObject({
+            outcome: "applied",
+            executionId: "turn-2",
+        })
+    })
+
+    it("reports a refused send without removing the pending input", async () => {
+        fetchSnapshot.mockResolvedValue(runningSnapshot())
+        sendInputNow.mockResolvedValue({outcome: "failed", admission: null})
         const {result} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
@@ -876,15 +917,65 @@ describe("selected queued input Send Now", () => {
             }),
         )
         await waitFor(() => expect(result.current.executionState).toBe("running"))
-        await expect(result.current.sendNow("selected-row")).rejects.toThrow("could not be sent")
+        await expect(result.current.sendNow("selected-row")).resolves.toMatchObject({
+            outcome: "failed",
+        })
         expect(removeInput).not.toHaveBeenCalled()
+    })
+})
+
+describe("queue writes read past themselves", () => {
+    it("re-reads after a write instead of reusing a read that began before it", async () => {
+        const row = (id: string): PendingInput => ({
+            id,
+            session_id: "session-1",
+            content: {data: {inputs: {messages: [{role: "user", content: id}]}}},
+            position: 1,
+            state: "pending",
+            policy: "queue",
+            created_at: null,
+            promoted_execution_id: null,
+        })
+        fetchSnapshot.mockResolvedValueOnce(runningSnapshot([row("row-1")]))
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: true,
+            }),
+        )
+        await waitFor(() => expect(result.current.queued.map((item) => item.id)).toEqual(["row-1"]))
+
+        // A poll is in flight, and it began before the removal: it still lists the row.
+        let resolveStale!: (snapshot: ReturnType<typeof runningSnapshot>) => void
+        fetchSnapshot.mockImplementationOnce(
+            () => new Promise((resolve) => (resolveStale = resolve)),
+        )
+        const stale = result.current.refresh()
+        removeInput.mockResolvedValue("applied")
+        fetchSnapshot.mockResolvedValueOnce(runningSnapshot([]))
+        let removed!: Awaited<ReturnType<typeof result.current.remove>>
+        await act(async () => {
+            removed = await result.current.remove("row-1")
+        })
+        expect(removed.outcome).toBe("applied")
+        await waitFor(() => expect(result.current.queued).toEqual([]))
+        expect(result.current.viewSeq).toBeGreaterThan(removed.settledSeq)
+
+        // The older read lands last and must not bring the row back.
+        await act(async () => {
+            resolveStale(runningSnapshot([row("row-1")]))
+            await stale
+        })
+        expect(result.current.queued).toEqual([])
     })
 })
 
 describe("durable queued input editing", () => {
     it("patches only the chosen row text and new attachments, then reloads the shared snapshot", async () => {
         fetchSnapshot.mockResolvedValue(runningSnapshot())
-        updateInput.mockResolvedValue(true)
+        updateInput.mockResolvedValue("applied")
         const {result} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
@@ -921,7 +1012,7 @@ describe("durable queued input editing", () => {
                 },
             ],
         })
-        expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1)
+        await waitFor(() => expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1))
         expect(removeInput).not.toHaveBeenCalled()
         expect(buildAgentRequest).not.toHaveBeenCalled()
         expect(fetchMock).not.toHaveBeenCalled()
