@@ -24,7 +24,7 @@ import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cube, Key, Toolbox, Wrench} from "@phosphor-icons/react"
+import {Cube, Hammer, Toolbox, Vault} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
@@ -732,7 +732,7 @@ export function useModelHarness({
                 <ConfigAccordionSection
                     size="compact"
                     defaultOpen={secretBindings.length > 0}
-                    icon={<Key size={15} />}
+                    icon={<Vault size={15} />}
                     title="Custom secrets"
                     summary={secretsSummary}
                     summaryCollapsedOnly
@@ -768,7 +768,7 @@ export function useModelHarness({
                 item: {
                     value: "secrets",
                     label: "Custom secrets",
-                    icon: <Key size={14} />,
+                    icon: <Vault size={14} />,
                 },
                 header: {
                     title: "Custom secrets",
@@ -789,7 +789,7 @@ export function useModelHarness({
                 item: {
                     value: "build-kit",
                     label: "Build kit",
-                    icon: <Wrench size={14} />,
+                    icon: <Hammer size={14} />,
                 },
                 // The block carries its own title + enable switch, so it needs no panel header.
                 body: buildKitSection,

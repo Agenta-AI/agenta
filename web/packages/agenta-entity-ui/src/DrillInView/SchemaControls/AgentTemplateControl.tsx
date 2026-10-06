@@ -50,11 +50,11 @@ import {
     FileText,
     GraduationCap,
     Plugs,
-    PuzzlePiece,
     Robot,
     ShieldCheck,
     SlidersHorizontal,
     UploadSimple,
+    Wrench,
 } from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
@@ -1138,7 +1138,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
                 key: "tools",
-                icon: <PuzzlePiece size={16} />,
+                icon: <Wrench size={16} />,
                 title: "Integrations",
                 summary: countSummary(integrationCount, "integration"),
                 indicator: sectionIndicator("tools"),
@@ -1151,7 +1151,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                             onManual={openIntegrationDrawer}
                             manualTitle="Browse integrations"
                             manualHint="Pick an app and its actions"
-                            manualIcon={<PuzzlePiece size={16} />}
+                            manualIcon={<Wrench size={16} />}
                         />
                     ) : undefined,
                 defaultOpen: integrationCount > 0,
