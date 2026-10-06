@@ -278,7 +278,11 @@ class SessionHeartbeatRequest(BaseModel):
     """
 
     session_id: str
-    replica_id: str = Field(min_length=1)  # the runner POD; the turn binds to it
+    # The runner POD; the turn binds to it. No control characters: the binding joins the id and
+    # the pod address with Unit Separator, so an id that held one could forge the address.
+    replica_id: str = Field(
+        min_length=1, max_length=128, pattern=r"^[^\x00-\x1f\x7f]+$"
+    )
     # The URL that reaches this pod directly, so a Stop for its turn goes to it. Empty when
     # the runner has none (compose, Railway), which means "use the Service URL". Stored only
     # when the beat carries a valid runner token.

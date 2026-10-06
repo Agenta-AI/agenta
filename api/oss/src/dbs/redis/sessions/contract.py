@@ -62,7 +62,8 @@ TURN_STARTED_TTL_SECONDS: int = ALIVE_TTL_SECONDS
 # long as `alive` can.
 TURN_BOUND_TTL_SECONDS: int = ALIVE_TTL_SECONDS
 
-# Unit Separator cannot occur in a replica id or in a URL, so the split is unambiguous.
+# The heartbeat refuses a replica id that holds a control character, so the first Unit
+# Separator always ends the id and the split is unambiguous.
 TURN_BINDING_SEPARATOR = "\x1f"
 
 
