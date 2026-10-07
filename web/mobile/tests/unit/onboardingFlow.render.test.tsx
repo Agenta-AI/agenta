@@ -346,7 +346,7 @@ describe("first agent onboarding", () => {
         expect(() => button("Skip for now")).toThrow()
     })
 
-    it("locks a template's name and instructions and creates from its package", () => {
+    it("locks a template's name and brief and creates from its package", () => {
         const props = baseProps()
         render(props)
         toGallery()
@@ -364,7 +364,6 @@ describe("first agent onboarding", () => {
         click("Create agent")
         expect(props.onCreate).toHaveBeenCalledWith({
             name: "PR reviewer",
-            instructions: "",
             firstMessage: "",
             templateKey: "review",
             icon: {icon: "code", color: "#123456"},
@@ -408,7 +407,6 @@ describe("first agent onboarding", () => {
         click("Create agent")
         expect(props.onCreate).toHaveBeenCalledWith({
             name: "Atlas",
-            instructions: "",
             firstMessage: "Review my open pull requests",
             templateKey: null,
             icon: {icon: "robot", color: "#111111"},

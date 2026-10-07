@@ -2,9 +2,6 @@ import {tintForColor} from "@agenta/ui/agent-icon"
 import {ArrowUp} from "@phosphor-icons/react"
 import {motion} from "motion/react"
 
-import {useMotionPresets} from "@/lib/motion/presets"
-import {cn} from "@/lib/utils"
-
 import {AppTileStack} from "../marketplace/AppTileStack"
 
 import {OnboardingAgentChip} from "./OnboardingAgentChip"
@@ -12,20 +9,25 @@ import {appIdentity, type ConnectedApps} from "./onboardingApps"
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {FIRST_AGENT_FALLBACK_NAME, type OnboardingAgent} from "./onboardingDraft"
 
+import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
+
 const copy = ONBOARDING_COPY.creator
 
 /** The agent as it will look, on a dotted stage: face, name, brief, apps, and its composer. */
 export const OnboardingAgentPreview = ({
     agent,
+    brief,
     connected,
 }: {
     agent: OnboardingAgent
+    /** What the agent does, in a line. */
+    brief: string
     /** Only a connected app joins the agent, so only a connected app is previewed. */
     connected: ConnectedApps
 }) => {
     const presets = useMotionPresets()
     const name = agent.name.trim() || FIRST_AGENT_FALLBACK_NAME
-    const instructions = agent.instructions.trim()
     const apps = agent.apps
         .filter((key) => connected.has(key))
         .map((key) => appIdentity(key, connected))
@@ -71,17 +73,21 @@ export const OnboardingAgentPreview = ({
                     <p
                         className={cn(
                             "m-0 line-clamp-4 min-h-10 text-[13px] leading-5",
-                            instructions ? "text-foreground/80" : "text-muted-foreground",
+                            brief.trim() ? "text-foreground/80" : "text-muted-foreground",
                         )}
                     >
-                        {instructions || copy.previewEmpty}
+                        {brief.trim() || copy.previewEmpty}
                     </p>
                     {apps.length > 0 ? (
                         <div className="flex min-w-0 items-center gap-2">
                             <AppTileStack
                                 decorative
                                 size="xs"
-                                apps={apps.map((app) => ({slug: app.key, name: app.name, logo: app.logo}))}
+                                apps={apps.map((app) => ({
+                                    slug: app.key,
+                                    name: app.name,
+                                    logo: app.logo,
+                                }))}
                             />
                             <span className="text-muted-foreground truncate text-xs">
                                 {apps.map((app) => app.name).join(", ")}
