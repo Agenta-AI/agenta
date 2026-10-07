@@ -12,7 +12,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The live run indicator. Paints in `currentColor` (the brand primary by default). Under reduced motion it shows a still row of dots with an opacity pulse.\n\n**Used in:** the agent chat activity timeline header, while a turn runs.",
+                    "The live run indicator. Paints in `currentColor` (the brand primary by default). Omit `format` for a generic loader that cycles through the formats at random. Under reduced motion it shows a still row of dots with an opacity pulse.\n\n**Used in:** the agent chat activity timeline header, while a turn runs.",
             },
         },
     },
@@ -50,6 +50,19 @@ const FORMATS: {format: AgentActivityFormat; label: string}[] = [
 ]
 
 export const Playground: Story = {}
+
+/** No `format`: a generic loader that switches to a random format every few seconds. */
+export const Auto: Story = {
+    render: () => (
+        <div className="flex flex-col items-start gap-6">
+            <AgentActivityDots size={96} />
+            <span className="flex items-center gap-2.5 text-[13px] text-colorTextSecondary">
+                <AgentActivityDots />
+                Loading
+            </span>
+        </div>
+    ),
+}
 
 /** Every format at once, large and at the 18px it ships at beside a 13px label. */
 export const AllFormats: Story = {

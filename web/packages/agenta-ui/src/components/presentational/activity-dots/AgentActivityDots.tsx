@@ -2,14 +2,29 @@ import {memo, useEffect, useRef} from "react"
 
 import {cn} from "../../../utils/styles"
 
-import {DOTS_EXTENT, dotsFrame, switchTo, type AgentActivityFormat, type DotsSwitch} from "./motion"
+import {
+    ACTIVITY_FORMATS,
+    DOTS_EXTENT,
+    dotsFrame,
+    switchTo,
+    type AgentActivityFormat,
+    type DotsSwitch,
+} from "./motion"
 
 /** How often the dots re-read their CSS colour, so a theme switch lands without a per-frame style read. */
 const COLOR_READ_S = 0.5
+/** Without a `format`, the dots hold each random format for 2.5 to 4 seconds. */
+const AUTO_HOLD_S = 2.5
+const AUTO_SPREAD_S = 1.5
+
+const randomFormat = (not?: AgentActivityFormat) => {
+    const pool = ACTIVITY_FORMATS.filter((f) => f !== not)
+    return pool[Math.floor(Math.random() * pool.length)]
+}
 
 export interface AgentActivityDotsProps {
-    /** What the agent is doing; a change plays the merge-and-burst switch. */
-    format: AgentActivityFormat
+    /** What the agent is doing; a change plays the merge-and-burst switch. Omit to cycle at random. */
+    format?: AgentActivityFormat
     /** Edge in px. 18 sits on a 13px text line. */
     size?: number
     /** Dots paint in `currentColor`; defaults to the brand primary. */
@@ -38,14 +53,25 @@ export const AgentActivityDots = memo(function AgentActivityDots({
         if (!canvas || !ctx) return
         const reducedQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)")
         const t0 = performance.now()
-        let state: DotsSwitch = {format: formatRef.current, previous: null, since: 0, mergeFrom: 0}
+        let auto = randomFormat()
+        let autoUntil = AUTO_HOLD_S + Math.random() * AUTO_SPREAD_S
+        let state: DotsSwitch = {
+            format: formatRef.current ?? auto,
+            previous: null,
+            since: 0,
+            mergeFrom: 0,
+        }
         let color = ""
         let colorAt = -Infinity
         let raf = 0
 
         const paint = (now: number) => {
             const t = (now - t0) / 1000
-            state = switchTo(state, formatRef.current, t)
+            if (!formatRef.current && t >= autoUntil) {
+                auto = randomFormat(auto)
+                autoUntil = t + AUTO_HOLD_S + Math.random() * AUTO_SPREAD_S
+            }
+            state = switchTo(state, formatRef.current ?? auto, t)
             if (t - colorAt >= COLOR_READ_S) {
                 color = getComputedStyle(canvas).color
                 colorAt = t

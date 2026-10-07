@@ -175,6 +175,8 @@ const FORMATS: Record<AgentActivityFormat, (t: number) => Point[]> = {
         }),
 }
 
+export const ACTIVITY_FORMATS = Object.keys(FORMATS) as AgentActivityFormat[]
+
 const STILL_ROW: Point[] = [-0.9, 0, 0.9].map((x) => ({x, y: 0, z: 0, s: 0.85}))
 
 /** One format's frame; `g` pulls it into the centre (1 = fully merged). */
