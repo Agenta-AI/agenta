@@ -1195,15 +1195,20 @@ async function runAndStreamWithApiBaseResolved(
       console.error(seedForRun(request).redactString(err.stack, "stderr"));
     }
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
-    // event — persist it here as the backstop.
-    if (persistError) persistError(message);
+    // event — persist it here as the backstop. A shutdown that aborted the turn ends it with the
+    // restart error, as the settled path above does, so the client offers to retry it.
+    const endedByShutdown = isRunnerShutdownAbort(controller.signal);
+    const reported = endedByShutdown ? RUNNER_RESTARTING_MESSAGE : message;
+    if (persistError) {
+      persistError(reported, endedByShutdown ? "execution_lost" : undefined);
+    }
     if (!terminalRecordEmitted && persistTerminal) {
       persistTerminal(
         isUserStopAbort(controller.signal) ? "cancelled" : undefined,
       );
     }
     if (flushPersist) await flushPersist().catch(() => {});
-    result = { ok: false, error: message };
+    result = { ok: false, error: reported };
   } finally {
     // The drain is the only place that knows whether this turn's records all landed. A dropped
     // record means the log no longer represents the conversation, so mark the session: a later
