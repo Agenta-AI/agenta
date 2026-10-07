@@ -4,6 +4,7 @@
  * `@agenta/entities/drive`. antd-free so the mobile app renders it.
  */
 export * from "./BlockedChatLink"
+export * from "./ChatInlineImage"
 export * from "./ContextRail"
 export * from "./DriveBreadcrumb"
 export * from "./DriveExplorer"
