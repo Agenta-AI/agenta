@@ -11,7 +11,6 @@ import ipaddress
 import socket
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from functools import partial
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -20,6 +19,8 @@ from oss.src.utils.network import is_blocked_ip
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 _RESOLVE_TIMEOUT_SECONDS = 1.5
+# How long a lookup may wait for a free thread before the preview is refused as busy.
+_RESOLVE_QUEUE_TIMEOUT_SECONDS = 0.5
 # Own pool: a chat-controlled host whose DNS hangs must not hold the gateway's resolver threads.
 _RESOLVER_THREADS = 2
 
@@ -36,12 +37,24 @@ def _resolver() -> ThreadPoolExecutor:
 
 
 async def _resolve(hostname: str, port: int) -> list:
-    """`getaddrinfo` on the link pool; a timed-out lookup still queued is cancelled, not kept."""
+    """`getaddrinfo` on the link pool, with separate bounds on the queue wait and the lookup.
+
+    A lookup that already started cannot be cancelled and keeps its thread, so a saturated
+    pool refuses new lookups after a short queue wait instead of stacking them up.
+    """
     loop = asyncio.get_running_loop()
-    lookup = loop.run_in_executor(
-        _resolver(),
-        partial(socket.getaddrinfo, hostname, port, type=socket.SOCK_STREAM),
-    )
+    began: asyncio.Future = loop.create_future()
+
+    def _run() -> list:
+        loop.call_soon_threadsafe(lambda: began.done() or began.set_result(None))
+        return socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+
+    lookup = loop.run_in_executor(_resolver(), _run)
+    try:
+        await asyncio.wait_for(asyncio.shield(began), _RESOLVE_QUEUE_TIMEOUT_SECONDS)
+    except TimeoutError:
+        lookup.cancel()
+        raise
     return await asyncio.wait_for(lookup, _RESOLVE_TIMEOUT_SECONDS)
 
 
