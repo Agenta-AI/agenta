@@ -13,7 +13,7 @@
  * A cached non-empty list short-circuits the hold, so a returning user never waits behind a
  * skeleton for a question that is already answered.
  */
-export type HomeSurface = "loading" | "home" | "onboarding"
+export type HomeSurface = "loading" | "home"
 
 export interface HomeSurfaceInput {
     /** Agents in the resolved project. */
@@ -22,25 +22,14 @@ export interface HomeSurfaceInput {
     isPending: boolean
     /** The list query failed. */
     isError: boolean
-    /** The guided first-agent flow replaces an empty project's Home. */
-    onboardingFlow: boolean
-    /** A `?onboarding-preview` visit opens the flow on any project. */
-    onboardingPreview: boolean
-    /** The flow is already on screen; a list refetch (the create itself) must not swap it out. */
-    onboardingShown: boolean
 }
 
 export const resolveHomeSurface = ({
     agentCount,
     isPending,
     isError,
-    onboardingFlow,
-    onboardingPreview,
-    onboardingShown,
 }: HomeSurfaceInput): HomeSurface => {
-    if (onboardingFlow && (onboardingPreview || onboardingShown)) return "onboarding"
     if (isError) return "home"
     if (agentCount > 0) return "home"
-    if (isPending) return "loading"
-    return onboardingFlow ? "onboarding" : "home"
+    return isPending ? "loading" : "home"
 }

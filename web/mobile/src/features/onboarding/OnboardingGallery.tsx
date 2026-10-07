@@ -20,7 +20,8 @@ import {
 } from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
-import {onboardingHeadingId, type GalleryFocus, type OnboardingAgent} from "./onboardingDraft"
+import type {OnboardingAgent} from "./onboardingDraft"
+import {onboardingHeadingId, type GalleryFocus} from "./onboardingRoute"
 import {OnboardingScratchPanel} from "./OnboardingScratchPanel"
 import {OnboardingTemplateDetail} from "./OnboardingTemplateDetail"
 import {OnboardingTemplateTile} from "./OnboardingTemplateTile"
@@ -43,18 +44,22 @@ export const OnboardingGallery = ({
     create,
     onCategory,
     onFocus,
+    onCloseDetail,
     onUse,
     onChange,
 }: {
     catalog: OnboardingCatalog
     role: OnboardingRole | null
     category: GalleryCategory
+    /** From the URL: `/templates/<key>` or `/templates/scratch`. */
     focus: GalleryFocus
     /** The blank start's agent, edited in the scratch panel. */
     agent: OnboardingAgent
     create: OnboardingCreateState
     onCategory: (category: GalleryCategory) => void
-    onFocus: (focus: GalleryFocus) => void
+    /** `open`: a phone shows the panel on its own view, a new history entry. */
+    onFocus: (focus: GalleryFocus, open: boolean) => void
+    onCloseDetail: () => void
     onUse: (template: AgentStarterTemplate) => void
     onChange: (patch: Partial<Omit<OnboardingAgent, "apps">>) => void
 }) => {
@@ -75,9 +80,11 @@ export const OnboardingGallery = ({
         [catalog.templates, category, role],
     )
     const scratch = focus?.kind === "scratch"
+    const focusKey = focus?.kind === "template" ? focus.key : null
     const focused = scratch
         ? null
-        : (listed.find((item) => focus?.kind === "template" && item.key === focus.key) ??
+        : (listed.find((item) => item.key === focusKey) ??
+          catalog.templates.find((item) => item.key === focusKey) ??
           listed[0] ??
           null)
 
@@ -89,19 +96,15 @@ export const OnboardingGallery = ({
 
     const panelKey = scratch ? "scratch" : (focused?.key ?? "none")
     const rootRef = useRef<HTMLDivElement | null>(null)
-    const detail = useGalleryDetail(rootRef)
+    const detail = useGalleryDetail(rootRef, focus !== null)
     const focusAndOpen = (next: GalleryFocus) => {
-        onFocus(next)
-        detail.openDetail()
-    }
-    const use = (template: AgentStarterTemplate) => {
-        detail.dropDetail()
-        onUse(template)
+        if (!detail.twoColumn) detail.rememberListScroll()
+        onFocus(next, !detail.twoColumn)
     }
     const shownPanel: ReactNode = scratch ? (
         <OnboardingScratchPanel agent={agent} onChange={onChange} create={create} />
     ) : focused ? (
-        <OnboardingTemplateDetail template={focused} onUse={use} />
+        <OnboardingTemplateDetail template={focused} onUse={onUse} />
     ) : null
 
     return (
@@ -117,7 +120,7 @@ export const OnboardingGallery = ({
                 >
                     <Button
                         variant="ghost"
-                        onClick={detail.closeDetail}
+                        onClick={onCloseDetail}
                         className="-ml-3 h-11 self-start px-3 text-sm font-medium"
                     >
                         <ArrowLeft data-icon="inline-start" />
@@ -136,7 +139,7 @@ export const OnboardingGallery = ({
             >
             <div className="flex flex-col gap-1.5">
                 <h1
-                    id={onboardingHeadingId("gallery")}
+                    id={onboardingHeadingId("templates")}
                     tabIndex={-1}
                     className={ONBOARDING_COPY.headingClass}
                 >
@@ -224,7 +227,7 @@ export const OnboardingGallery = ({
                                             onClick={() =>
                                                 focusAndOpen({kind: "template", key: template.key})
                                             }
-                                            onDoubleClick={() => use(template)}
+                                            onDoubleClick={() => onUse(template)}
                                             className={cn(
                                                 ROW,
                                                 "border-0",

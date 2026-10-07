@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import {
     agentTemplatesAtom,
@@ -8,6 +8,7 @@ import {
     refetchAgentTemplatesAtom,
     type Workflow,
 } from "@agenta/entities/workflow"
+import {useProfile} from "@agenta/entities/profile"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
 import {getUnseenReleases, isWhatsNewOptedOut} from "@agenta/navigation"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -23,8 +24,11 @@ import {useCurrentProject} from "../context/useCurrentProject"
 import {whatsNewAtom} from "../education/whatsNewAtom"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
-import {ONBOARDING_PREVIEW_PARAM} from "../onboarding/onboardingChoices"
-import {OnboardingFlowScreen} from "../onboarding/OnboardingFlowScreen"
+import {
+    clearOnboardingPending,
+    isOnboardingPending,
+    resolvePendingOnboarding,
+} from "../onboarding/onboardingPending"
 
 import {resolveHomeSurface} from "./homeSurface"
 import {HOME_PAGE_FRAME} from "./pageFrame"
@@ -67,18 +71,27 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         if (hasAgents && unseen.length > 0 && !isWhatsNewOptedOut()) openWhatsNew({})
     }, [agentsSettled, hasAgents, openWhatsNew])
     const router = useRouter()
-    const onboardingPreview = router.query[ONBOARDING_PREVIEW_PARAM] !== undefined
-    // The project the flow has been shown for; it stays up until this route is left.
-    const [onboardingProject, setOnboardingProject] = useState<string | null>(null)
-    const surface = resolveHomeSurface({
+    const profile = useProfile()
+    const userId = profile.user?.id ?? null
+    const pendingOnboarding = resolvePendingOnboarding({
+        enabled: isOnboardingFlowEnabled(),
+        pending: profile.isPending ? null : userId !== null && isOnboardingPending(userId),
         agentCount: agents.length,
-        isPending: agentsQuery.isPending,
-        isError: agentsQuery.isError,
-        onboardingFlow: isOnboardingFlowEnabled(),
-        onboardingPreview,
-        onboardingShown: onboardingProject === projectId,
+        agentsPending: agentsQuery.isPending,
+        agentsError: agentsQuery.isError,
     })
-    if (surface === "onboarding" && onboardingProject !== projectId) setOnboardingProject(projectId)
+    useEffect(() => {
+        if (pendingOnboarding === "start") void router.replace(`${base}/onboarding`)
+        if (pendingOnboarding === "dismiss" && userId) clearOnboardingPending(userId)
+    }, [pendingOnboarding, base, userId, router])
+    const surface =
+        pendingOnboarding === "wait" || pendingOnboarding === "start"
+            ? "loading"
+            : resolveHomeSurface({
+                  agentCount: agents.length,
+                  isPending: agentsQuery.isPending,
+                  isError: agentsQuery.isError,
+              })
 
     // Newest first. The list arrives in whatever order the query returns, which put agents made
     // months ago above one created a minute earlier — and the head of this list is also what the
@@ -96,16 +109,6 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                 })),
         [agents],
     )
-
-    if (surface === "onboarding") {
-        return (
-            <OnboardingFlowScreen
-                workspaceId={workspaceId}
-                projectId={projectId}
-                preview={onboardingPreview}
-            />
-        )
-    }
 
     // The skeleton takes the SAME frame, or the hold sits somewhere the page does not.
     const frame = HOME_PAGE_FRAME

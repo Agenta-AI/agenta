@@ -5,11 +5,12 @@ export const ONBOARDING_COPY = {
     mintError: "Couldn't set up your agent.",
     stepCounter: (current: number, total: number) => `Step ${current} of ${total}`,
     continue: "Continue",
+    skip: "Skip for now",
     dots: {
         role: "Your work",
-        referral: "How you found us",
+        source: "How you found us",
         credits: "Credits",
-        gallery: "First agent",
+        templates: "First agent",
     },
     /** Focus target for each step's heading; it needs no ring of its own. */
     headingClass:
@@ -19,7 +20,7 @@ export const ONBOARDING_COPY = {
         title: "What kind of work do you do?",
         subtitle: "We’ll suggest agents that fit your work.",
     },
-    referral: {
+    source: {
         title: "How did you hear about Agenta?",
         subtitle: "Pick the one that fits best.",
     },

@@ -14,7 +14,7 @@ import {WalletCard} from "../wallet/WalletCard"
 import {formatUsd, MUSD_PER_CREDIT} from "../wallet/walletFormat"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
-import {onboardingHeadingId} from "./onboardingDraft"
+import {onboardingHeadingId} from "./onboardingRoute"
 import {OnboardingWayRow} from "./OnboardingWayRow"
 import {OnboardingCreditsSkeleton} from "./states/OnboardingCreditsSkeleton"
 import type {OnboardingModel} from "./useOnboardingModel"

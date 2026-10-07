@@ -11,25 +11,7 @@ import {
     type OnboardingRole,
     type OnboardingSource,
 } from "./onboardingChoices"
-
-/** Canonical order; analytics numbers steps by it. */
-export const ONBOARDING_STEPS = ["role", "referral", "credits", "gallery", "creator"] as const
-export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
-
-/** The four progress dots: each is the step it jumps back to, and the gallery covers the creator. */
-export const PROGRESS_STEPS = ["role", "referral", "credits", "gallery"] as const
-export const PROGRESS: Record<OnboardingStep, number> = {
-    role: 0,
-    referral: 1,
-    credits: 2,
-    gallery: 3,
-    creator: 3,
-}
-
-/** Each step's heading id: focus lands on it, and its choices are labelled by it. */
-export const onboardingHeadingId = (step: OnboardingStep) => `onboarding-heading-${step}`
-
-export const onboardingStepNumber = (step: OnboardingStep) => ONBOARDING_STEPS.indexOf(step) + 1
+import {ONBOARDING_STEPS, type OnboardingStep} from "./onboardingRoute"
 
 /** A glyph name from the agent-icon catalog and a colour. */
 export interface OnboardingIconPick {
@@ -47,20 +29,14 @@ export interface OnboardingAgent {
     firstMessage: string
 }
 
-/** The gallery's right panel: a blank start, one template, or (`null`) the first template listed. */
-export type GalleryFocus = {kind: "scratch"} | {kind: "template"; key: string} | null
-
+/** What the user chose and typed; where they are lives in the URL. */
 export interface OnboardingDraft {
-    step: OnboardingStep
     role: OnboardingRole | null
     source: OnboardingSource | null
     category: GalleryCategory
-    focus: GalleryFocus
-    /** The template the creator was filled from; `null` while the blank start is edited. */
+    /** The template the review step was filled from; `null` while the blank start is edited. */
     templateKey: string | null
     agent: OnboardingAgent
-    /** Where credits' Continue leads after a detour from a later step; `null` is the gallery. */
-    returnTo: OnboardingStep | null
     /** Steps already reported as completed, so each is reported once. */
     completed: OnboardingStep[]
 }
@@ -77,14 +53,11 @@ export const BLANK_AGENT: OnboardingAgent = {
 }
 
 export const EMPTY_ONBOARDING_DRAFT: OnboardingDraft = {
-    step: "role",
     role: null,
     source: null,
     category: RECOMMENDED,
-    focus: null,
     templateKey: null,
     agent: BLANK_AGENT,
-    returnTo: null,
     completed: [],
 }
 
@@ -101,16 +74,15 @@ export const agentFromTemplate = (
 })
 
 export type OnboardingAction =
-    | {type: "step"; step: OnboardingStep}
     | {type: "role"; role: OnboardingRole}
     | {type: "source"; source: OnboardingSource}
     | {type: "category"; category: GalleryCategory}
-    | {type: "focus"; focus: GalleryFocus}
+    /** The blank start was opened; it edits the agent a template may have filled. */
+    | {type: "scratch"}
     /** `apps`: the template's apps that are already connected. */
     | {type: "template"; template: AgentStarterTemplate; apps: readonly string[]}
     | {type: "agent"; patch: Partial<Omit<OnboardingAgent, "apps">>}
     | {type: "app"; key: string; on: boolean}
-    | {type: "returnTo"; step: OnboardingStep | null}
     | {type: "completed"; step: OnboardingStep}
 
 export const onboardingReducer = (
@@ -118,22 +90,19 @@ export const onboardingReducer = (
     action: OnboardingAction,
 ): OnboardingDraft => {
     switch (action.type) {
-        case "step":
-            return {...draft, step: action.step}
         case "role":
-            // The gallery's Recommended slice follows the role, so its focus resets with it.
+            // The gallery's Recommended slice follows the role.
             return action.role === draft.role
                 ? draft
-                : {...draft, role: action.role, category: RECOMMENDED, focus: null}
+                : {...draft, role: action.role, category: RECOMMENDED}
         case "source":
             return {...draft, source: action.source}
         case "category":
-            return {...draft, category: action.category, focus: null}
-        case "focus":
-            // The blank start edits the same agent a template filled, so it starts it over.
-            return action.focus?.kind === "scratch" && draft.templateKey !== null
-                ? {...draft, focus: action.focus, templateKey: null, agent: BLANK_AGENT}
-                : {...draft, focus: action.focus}
+            return {...draft, category: action.category}
+        case "scratch":
+            return draft.templateKey === null
+                ? draft
+                : {...draft, templateKey: null, agent: BLANK_AGENT}
         case "template":
             // Coming back to the same template keeps what the user already changed.
             return action.template.key === draft.templateKey
@@ -155,8 +124,6 @@ export const onboardingReducer = (
                 },
             }
         }
-        case "returnTo":
-            return {...draft, returnTo: action.step}
         case "completed":
             return draft.completed.includes(action.step)
                 ? draft
@@ -204,43 +171,25 @@ export const firstAgentInput = (
     return input.instructions || input.firstMessage ? input : null
 }
 
-export const onboardingDraftKey = (projectId: string) => `agenta:onboarding:draft:v2:${projectId}`
-
-const stepIndex = (step: OnboardingStep) => ONBOARDING_STEPS.indexOf(step)
+/** Per user: a preview on any project resumes the same answers. */
+export const onboardingDraftKey = (userId: string) => `agenta:onboarding:draft:v3:${userId}`
 
 const iconSchema = z.object({icon: z.string().min(1), color: z.string().min(1)})
 
-const draftSchema = z
-    .object({
-        step: z.enum(ONBOARDING_STEPS),
-        role: z.enum(ONBOARDING_ROLES.map((role) => role.label)).nullable(),
-        source: z.enum(ONBOARDING_SOURCES.map((source) => source.label)).nullable(),
-        category: z.string().min(1),
-        focus: z
-            .union([
-                z.object({kind: z.literal("scratch")}),
-                z.object({kind: z.literal("template"), key: z.string().min(1)}),
-            ])
-            .nullable(),
-        templateKey: z.string().min(1).nullable(),
-        agent: z.object({
-            name: z.string().max(ONBOARDING_NAME_MAX),
-            icon: iconSchema,
-            instructions: z.string().max(ONBOARDING_TEXT_MAX),
-            apps: z.array(z.string().min(1)),
-            firstMessage: z.string().max(ONBOARDING_TEXT_MAX),
-        }),
-        returnTo: z.enum(ONBOARDING_STEPS).nullable(),
-        completed: z.array(z.enum(ONBOARDING_STEPS)),
-    })
-    // A draft past a question must carry its answer, or the flow resumes past an empty one.
-    .refine(
-        (draft) =>
-            (draft.role !== null || draft.step === "role") &&
-            (draft.source !== null || stepIndex(draft.step) <= stepIndex("referral")) &&
-            // The creator page is only for a template; a blank start is edited in the gallery.
-            (draft.step !== "creator" || draft.templateKey !== null),
-    )
+const draftSchema = z.object({
+    role: z.enum(ONBOARDING_ROLES.map((role) => role.label)).nullable(),
+    source: z.enum(ONBOARDING_SOURCES.map((source) => source.label)).nullable(),
+    category: z.string().min(1),
+    templateKey: z.string().min(1).nullable(),
+    agent: z.object({
+        name: z.string().max(ONBOARDING_NAME_MAX),
+        icon: iconSchema,
+        instructions: z.string().max(ONBOARDING_TEXT_MAX),
+        apps: z.array(z.string().min(1)),
+        firstMessage: z.string().max(ONBOARDING_TEXT_MAX),
+    }),
+    completed: z.array(z.enum(ONBOARDING_STEPS)),
+})
 
 /** The saved draft, or a fresh one when there is none or it no longer parses. */
 export const readOnboardingDraft = (key: string): OnboardingDraft => {
