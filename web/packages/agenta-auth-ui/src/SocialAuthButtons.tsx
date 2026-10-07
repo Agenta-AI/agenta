@@ -1,5 +1,6 @@
 import type {ReactNode} from "react"
 
+import {CircleNotch} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 export interface SocialProvider {
@@ -20,6 +21,8 @@ export interface SocialAuthButtonsProps {
     yellow?: boolean
     /** Tags exactly one provider with the inline "Last used" badge. */
     lastUsedProviderId?: string
+    /** The provider whose redirect is starting; it shows a spinner while `isLoading`. */
+    pendingProviderId?: string
 }
 
 export const SocialAuthButtons = ({
@@ -30,6 +33,7 @@ export const SocialAuthButtons = ({
     variant = "default",
     yellow = false,
     lastUsedProviderId,
+    pendingProviderId,
 }: SocialAuthButtonsProps) => {
     if (providers.length === 0) return null
 
@@ -51,8 +55,17 @@ export const SocialAuthButtons = ({
                     onClick={() => onSelect(provider.id)}
                     disabled={disabled || isLoading}
                 >
-                    {provider.icon}
-                    <span>Continue with {provider.label}</span>
+                    {isLoading && provider.id === pendingProviderId ? (
+                        <>
+                            <CircleNotch size={16} className="motion-safe:animate-spin" />
+                            <span>Redirecting to {provider.label}…</span>
+                        </>
+                    ) : (
+                        <>
+                            {provider.icon}
+                            <span>Continue with {provider.label}</span>
+                        </>
+                    )}
                     {provider.id === lastUsedProviderId && (
                         <span className="auth-last-used-tag absolute right-3">Last used</span>
                     )}

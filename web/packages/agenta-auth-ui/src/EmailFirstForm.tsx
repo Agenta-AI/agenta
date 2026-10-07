@@ -1,6 +1,7 @@
 import {useState, type FormEvent} from "react"
 
 import {isValidEmailAddress} from "@agenta/auth"
+import {CircleNotch} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import {ShowErrorMessage} from "./ShowErrorMessage"
@@ -14,7 +15,7 @@ export interface EmailFirstFormProps {
     disabled?: boolean
     /** Yellow keycap Continue (the primary action) vs a neutral surface button. */
     primary?: boolean
-    /** Returning last-used slot: taller input with an inline "Last used" tag. */
+    /** Tags the field with an inline "Last used" badge (the visitor's last method was email). */
     promoted?: boolean
 }
 
@@ -34,8 +35,8 @@ export const EmailFirstForm = ({
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         const value = email.trim()
-        if (!value) return setValidation("Please add your email!")
-        if (!isValidEmailAddress(value)) return setValidation("Please enter a valid email address!")
+        if (!value) return setValidation("Please add your email.")
+        if (!isValidEmailAddress(value)) return setValidation("Please enter a valid email address.")
         setValidation(null)
         try {
             setIsLoading(true)
@@ -59,10 +60,13 @@ export const EmailFirstForm = ({
                     placeholder="Enter your email address"
                     value={email}
                     disabled={disabled}
-                    onChange={(event) => setEmail(event.target.value)}
+                    onChange={(event) => {
+                        setEmail(event.target.value)
+                        setValidation(null)
+                    }}
                     className={clsx(
                         "auth-input",
-                        promoted && "auth-input-promoted",
+                        promoted && "auth-input-tagged",
                         (message.type === "error" || validation) && "auth-input-error",
                     )}
                 />
@@ -78,9 +82,16 @@ export const EmailFirstForm = ({
                 className={clsx(primary ? "auth-btn-yellow" : "auth-surface-btn")}
                 disabled={disabled || isLoading}
             >
-                Continue
+                {isLoading ? (
+                    <>
+                        <CircleNotch size={16} className="motion-safe:animate-spin" />
+                        <span>Checking…</span>
+                    </>
+                ) : (
+                    "Continue"
+                )}
             </button>
-            {validation && <p className="m-0 text-start text-colorError">{validation}</p>}
+            {validation && <p className="auth-error-text m-0">{validation}</p>}
             {message.type === "error" && <ShowErrorMessage info={message} className="text-start" />}
         </form>
     )

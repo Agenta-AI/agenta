@@ -50,7 +50,11 @@ export const OidcCallbackScreen = () => {
             const outcome = await completeOidcSignIn()
             setPendingTurnstileToken(null)
             if (outcome.kind === "ok") {
-                await onSuccess()
+                const provider = router.query.provider
+                await onSuccess({
+                    method: (Array.isArray(provider) ? provider[0] : provider) ?? "oidc",
+                    isNewUser: outcome.createdNewUser,
+                })
                 return
             }
             setError(outcome.message)

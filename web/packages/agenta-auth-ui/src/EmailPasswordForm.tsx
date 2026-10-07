@@ -1,6 +1,7 @@
 import {useState, type FormEvent} from "react"
 
 import {signInDetailed, signUpDetailed} from "@agenta/auth"
+import {CircleNotch, Eye, EyeSlash} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import {ShowErrorMessage} from "./ShowErrorMessage"
@@ -35,6 +36,7 @@ export const EmailPasswordForm = ({
     const [email, setEmail] = useState(initialEmail ?? "")
     const [password, setPassword] = useState("")
     const [isLoading, setIsLoading] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
 
     const trySignUp = async (token: string | null) => {
         security?.stampToken(token)
@@ -59,7 +61,7 @@ export const EmailPasswordForm = ({
         if (isLoading) return
         if (!email.trim() || !password) {
             setMessage({
-                message: !email.trim() ? "Please add your email!" : "Please add your password!",
+                message: !email.trim() ? "Please add your email." : "Please add your password.",
                 type: "error",
             })
             return
@@ -108,34 +110,56 @@ export const EmailPasswordForm = ({
     }
 
     return (
-        <form className="flex w-full flex-col gap-4" onSubmit={submit} noValidate>
+        <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
+            {/* A locked address is shown by the host; the field stays for password managers. */}
             <input
                 type="email"
-                autoComplete="email"
+                autoComplete="username"
                 aria-label="Email address"
-                placeholder="Enter valid email address"
+                placeholder="Enter your email address"
                 value={email}
-                disabled={lockEmail}
+                readOnly={lockEmail}
+                tabIndex={lockEmail ? -1 : undefined}
                 className={clsx(
-                    "auth-input",
-                    lockEmail && "auth-locked-input",
+                    lockEmail ? "sr-only" : "auth-input",
                     message.type === "error" && "auth-input-error",
                 )}
                 onChange={(event) => setEmail(event.target.value)}
             />
-            <input
-                type="password"
-                autoComplete="current-password"
-                aria-label="Password"
-                placeholder="Enter your password"
-                value={password}
-                className={clsx("auth-input", message.type === "error" && "auth-input-error")}
-                onChange={(event) => setPassword(event.target.value)}
-            />
+            <div className="relative">
+                <input
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    aria-label="Password"
+                    placeholder="Password"
+                    value={password}
+                    autoFocus={lockEmail}
+                    className={clsx(
+                        "auth-input pr-11",
+                        message.type === "error" && "auth-input-error",
+                    )}
+                    onChange={(event) => setPassword(event.target.value)}
+                />
+                <button
+                    type="button"
+                    className="auth-icon-btn absolute right-2 top-1/2 -translate-y-1/2"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((shown) => !shown)}
+                >
+                    {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
+                </button>
+            </div>
             <button type="submit" className="auth-btn-yellow" disabled={isLoading}>
-                {isLoading ? "Signing in…" : "Continue with password"}
+                {isLoading ? (
+                    <>
+                        <CircleNotch size={16} className="motion-safe:animate-spin" />
+                        <span>Signing in…</span>
+                    </>
+                ) : (
+                    "Continue with password"
+                )}
             </button>
-            {message.type === "error" && <ShowErrorMessage info={message} className="text-start" />}
+            {message.type === "error" && <ShowErrorMessage info={message} />}
             {security?.widget}
         </form>
     )

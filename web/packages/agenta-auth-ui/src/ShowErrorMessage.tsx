@@ -9,8 +9,8 @@ export const ShowErrorMessage = ({
     info: Partial<AuthMessage>
     className?: string
 }) => (
-    <div className={clsx("mb-4 text-center", className)}>
-        <span className="font-medium text-colorError">{info.message}</span>
-        <div className="text-colorTextSecondary">{info.sub}</div>
+    <div className={clsx("auth-error-text text-start", className)} role="alert">
+        <span>{info.message}</span>
+        {info.sub ? <div className="auth-status-text">{info.sub}</div> : null}
     </div>
 )
