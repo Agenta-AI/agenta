@@ -7,19 +7,52 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("@agenta/entities/workflow", () => ({
     ALL_TEMPLATES_CATEGORY: "All",
     categorySlug: (category: string) => category.toLowerCase(),
-    PROVIDERS: {},
+    PROVIDERS: {
+        github: {label: "GitHub", logo: "github.svg"},
+        slack: {label: "Slack", logo: "slack.svg"},
+    },
     composioLogo: (slug: string) => slug,
     templateBuilderMessage: () => "Build a PR reviewer that comments inline.",
     templateCategories: (templates: {category: string}[]) => [
         ...new Set(templates.map((item) => item.category)),
     ],
-    templateProviderSlugs: () => ["github"],
+    templateProviderSlugs: () => ["github", "slack"],
 }))
-vi.mock("@agenta/entities/gatewayTool", () => ({
-    isConnectionActive: () => true,
-    isConnectionValid: () => true,
-    useToolConnectionsQuery: () => ({connections: [], isLoading: false, error: null}),
+// The project's tool connections, as a store a test can refetch into.
+const tools = vi.hoisted(() => {
+    let list: {integration_key: string}[] = []
+    const listeners = new Set<() => void>()
+    return {
+        get list() {
+            return list
+        },
+        set: (next: {integration_key: string}[]) => {
+            list = next
+            listeners.forEach((listener) => listener())
+        },
+        subscribe: (listener: () => void) => {
+            listeners.add(listener)
+            return () => listeners.delete(listener)
+        },
+        connect: vi.fn(),
+    }
+})
+vi.mock("@agenta/entities/gatewayTool", async () => {
+    const {useSyncExternalStore} = await import("react")
+    return {
+        isConnectionActive: () => true,
+        isConnectionValid: () => true,
+        useToolConnectionsQuery: () => ({
+            connections: useSyncExternalStore(tools.subscribe, () => tools.list),
+            isLoading: false,
+            error: null,
+        }),
+    }
+})
+vi.mock("@agenta/entity-ui/gatewayTool", () => ({
+    useDirectToolConnect: () => ({connect: tools.connect, connectingKey: null}),
 }))
+vi.mock("@agenta/shared/api/env", () => ({isToolsEnabled: () => true}))
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
     ProviderDrawer: () => null,
     SubscriptionConnectionCard: () => null,
@@ -261,6 +294,8 @@ let host: HTMLDivElement | undefined
 beforeEach(() => vi.useFakeTimers())
 
 afterEach(() => {
+    tools.set([])
+    tools.connect.mockReset()
     if (root) act(() => root!.unmount())
     host?.remove()
     root = undefined
@@ -407,6 +442,29 @@ describe("first agent onboarding", () => {
         expect(button("Creating agent").getAttribute("aria-busy")).toBe("true")
         render({...props, error: "Couldn't create the agent"})
         expect(host!.querySelector('[role="alert"]')?.textContent).toBe("Couldn't create the agent")
+    })
+
+    it("connects a template's apps in place and counts them", () => {
+        const connection = (key: string) => ({
+            slug: key,
+            name: key,
+            provider_key: "composio",
+            integration_key: key,
+        })
+        tools.set([connection("github")])
+        render(baseProps())
+        toGallery()
+        expect(host!.textContent).toContain("Connects · 1 of 2 connected")
+        expect(() => button("Connect GitHub")).toThrow()
+        click("Connect Slack")
+        expect(tools.connect).toHaveBeenCalledWith({
+            integrationKey: "slack",
+            integrationName: "Slack",
+            existingCount: 0,
+        })
+        act(() => tools.set([connection("github"), connection("slack")]))
+        expect(host!.textContent).toContain("Connects · 2 of 2 connected")
+        expect(() => button("Connect Slack")).toThrow()
     })
 
     it("blocks Use template without a model and returns to the template after choosing one", () => {
