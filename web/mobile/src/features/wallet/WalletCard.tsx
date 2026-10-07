@@ -90,7 +90,7 @@ export const WalletCard = ({
                         className="pointer-events-none absolute inset-0 z-[2] rounded-2xl transition-opacity duration-300 motion-reduce:transition-none"
                         style={{
                             opacity: tilt.hover ? 1 : 0,
-                            background: `radial-gradient(circle at ${tilt.gx}% ${tilt.gy}%, rgb(255 255 255 / 0.6) 0%, rgb(255 255 255 / 0.18) 28%, transparent 60%)`,
+                            background: `radial-gradient(circle at ${tilt.gx}% ${tilt.gy}%, color-mix(in srgb, var(--color-white) 60%, transparent) 0%, color-mix(in srgb, var(--color-white) 18%, transparent) 28%, transparent 60%)`,
                         }}
                     />
                 ) : null}
