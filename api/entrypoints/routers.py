@@ -1939,7 +1939,7 @@ app.include_router(
 app.include_router(
     router=links.router,
     prefix="/links",
-    include_in_schema=False,
+    tags=["Links"],
 )
 
 app.include_router(
