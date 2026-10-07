@@ -5,6 +5,8 @@ vi.mock("@agenta/entities/workflow", () => ({
     templateBuilderMessage: (template: {name: string}) => `Build ${template.name}`,
 }))
 
+import {withTestQuestions} from "./onboardingTestQuestion"
+
 import {galleryTemplates} from "@/features/onboarding/onboardingChoices"
 import {
     BLANK_AGENT,
@@ -35,6 +37,8 @@ const draft = (overrides: Partial<OnboardingDraft> = {}): OnboardingDraft => ({
     ...EMPTY_ONBOARDING_DRAFT,
     ...overrides,
 })
+
+withTestQuestions()
 
 describe("onboarding draft storage", () => {
     it("restores a saved draft and forgets it after creation", () => {
