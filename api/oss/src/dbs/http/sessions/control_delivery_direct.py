@@ -15,7 +15,8 @@ anywhere.
 
 WHERE IT GOES. The service passes the address of the pod bound to the target turn, and the call
 goes there once the pod at that address answers as the bound replica. A pod that does not is
-`unreachable`: its IP may now belong to another pod. Without an address (compose and Railway
+`replica_gone`, with nothing posted: its IP may now belong to another pod. The service decides
+what that means for the command (`SessionCommandsService._deliver`). Without an address (compose and Railway
 report none, and a turn no pod has beaten yet has no binding) it goes to
 `env.runner.internal_url`, one service address. Behind a load balancer with
 two runner replicas that call reaches the right process only by luck. That failure is quiet at
@@ -119,6 +120,8 @@ class DirectControlDelivery(ControlDeliveryPort):
             return DeliveryReceipt(status="accepted", replica_id=answer.replica_id)
         if answer.status == RunnerCancelResult.not_held:
             return DeliveryReceipt(status="not_held")
+        if answer.status == RunnerCancelResult.replica_gone:
+            return DeliveryReceipt(status="replica_gone")
         return DeliveryReceipt(status="unreachable")
 
     async def acknowledge(self, *, command_id: UUID, replica_id: str) -> None:

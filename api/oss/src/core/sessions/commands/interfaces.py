@@ -42,12 +42,16 @@ class DeliveryReceipt(BaseModel):
       settlement sweep recovers it.
     * `not_held` — a reachable runner said it does not hold that session, which lets the
       service settle at once instead of waiting for the deadline.
+    * `replica_gone` — the target turn's bound pod did not answer as itself, so nothing was
+      sent. The service turns it into `not_held` or `unreachable`; callers never see it.
     * `exhausted` — the bounded delivery budget is spent, so the transport was never called.
       Nothing retries the command on its own after this, which is why it is not `unreachable`:
       the caller must tell the user the truth rather than promise a redelivery.
     """
 
-    status: str  # "accepted" | "unreachable" | "not_held" | "exhausted"
+    status: (
+        str  # "accepted" | "unreachable" | "not_held" | "replica_gone" | "exhausted"
+    )
     detail: Optional[str] = None
     # Which runner process took it, when the transport learned that. The service uses it as the
     # claim owner, so the outcome route's guard reads the same way on every transport.
