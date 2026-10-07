@@ -8,10 +8,17 @@ import {AgentsQuickPanel} from "./AgentsQuickPanel"
 /** The Agents row's "+": opens the agents flyout with its top-left corner under the button. */
 export const AgentsNavAction = ({base}: {base: string}) => {
     const [open, setOpen] = useState(false)
+    const [busy, setBusy] = useState(false)
     const close = useCallback(() => setOpen(false), [])
 
     return (
-        <Popover open={open} onOpenChange={setOpen}>
+        // Outside clicks and Escape wait out a create; `close` (navigation, a pick) does not.
+        <Popover
+            open={open}
+            onOpenChange={(next) => {
+                if (next || !busy) setOpen(next)
+            }}
+        >
             <PopoverTrigger asChild>
                 {/* Same geometry and tokens as the session headings' "+". */}
                 <button
@@ -32,7 +39,7 @@ export const AgentsNavAction = ({base}: {base: string}) => {
                 // The panel takes the caret itself, a frame late.
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >
-                <AgentsQuickPanel base={base} onDone={close} />
+                <AgentsQuickPanel base={base} onDone={close} onBusyChange={setBusy} />
             </PopoverContent>
         </Popover>
     )

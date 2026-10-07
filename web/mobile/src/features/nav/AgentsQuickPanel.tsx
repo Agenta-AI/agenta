@@ -17,14 +17,22 @@ export const AgentsQuickPanel = ({
     base,
     onDone,
     autoFocusSearch = true,
+    onBusyChange,
 }: {
     /** `/w/:workspace/p/:project` */
     base: string
     /** Closes the host popover. */
     onDone: () => void
     autoFocusSearch?: boolean
+    /** A create is in flight: the host must not dismiss, or its outcome and latch are lost. */
+    onBusyChange?: (busy: boolean) => void
 }) => {
     const newAgent = useNewAgentAction(base)
+    const creating = newAgent.creating
+    useEffect(() => {
+        onBusyChange?.(creating)
+        return () => onBusyChange?.(false)
+    }, [creating, onBusyChange])
     // A create lands on a new route; close then, so a failed one keeps its error in view.
     const path = useRouter().asPath
     const openedAt = useRef(path)

@@ -186,10 +186,11 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // Start or open an agent without leaving the page: a "+" on the row, the same
                 // panel as a hover flyout on the collapsed rail.
                 rowAction: createElement(AgentsNavAction, {base: projectURL}),
-                hoverFlyout: (close: () => void) =>
+                hoverFlyout: (close: () => void, hold: (held: boolean) => void) =>
                     createElement(AgentsQuickPanel, {
                         base: projectURL,
                         onDone: close,
+                        onBusyChange: hold,
                         autoFocusSearch: false,
                     }),
             },
