@@ -17,6 +17,7 @@ import {
     isProtocolRelativeHref,
     withExplicitRelativeLinks,
 } from "@agenta/entity-ui/drive"
+import {HoverPreview} from "@agenta/ui/ui"
 import {createCodePlugin, type CodeHighlighterPlugin} from "@streamdown/code"
 import {math} from "@streamdown/math"
 import {
@@ -26,6 +27,8 @@ import {
     type IconMap,
     type ThemeInput,
 } from "streamdown"
+
+import LinkPreviewCard from "./LinkPreviewCard"
 
 /** Host-supplied renderer for a code span / relative href that may name an agent file. */
 export interface ChatMarkdownLinkResolver {
@@ -95,12 +98,25 @@ interface AnchorProps {
     children?: ReactNode
 }
 
-/** Plain link, opened in a new tab; also the fallback when a relative href isn't a known file. */
-const ExternalLink = ({href, title, className, children}: AnchorProps) => (
-    <a href={href} title={title} className={className} target="_blank" rel="noopener noreferrer">
-        {children}
-    </a>
-)
+const isWebHref = (href?: string): href is string => Boolean(href && /^https?:\/\//i.test(href))
+
+/** Plain link, opened in a new tab; also the fallback when a relative href isn't a known file. A
+ * web link previews its page on hover. */
+const ExternalLink = ({href, title, className, children}: AnchorProps) => {
+    const link = (
+        <a
+            href={href}
+            title={title}
+            className={className}
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            {children}
+        </a>
+    )
+    if (!isWebHref(href)) return link
+    return <HoverPreview content={() => <LinkPreviewCard href={href} />}>{link}</HoverPreview>
+}
 
 /** A relative href may NAME a file — resolve it through the same resolver inline code uses. */
 const DriveLink = ({href, ...rest}: AnchorProps) => {
