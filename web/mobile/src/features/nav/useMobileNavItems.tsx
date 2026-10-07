@@ -48,6 +48,8 @@ import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
+import {AgentsNavAction} from "./AgentsNavAction"
+import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
@@ -181,6 +183,15 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 title: "Agents",
                 icon: createElement(RobotIcon, {size: 16}),
                 link: `${projectURL}/agents`,
+                // Start or open an agent without leaving the page: a "+" on the row, the same
+                // panel as a hover flyout on the collapsed rail.
+                rowAction: createElement(AgentsNavAction, {base: projectURL}),
+                hoverFlyout: (close: () => void) =>
+                    createElement(AgentsQuickPanel, {
+                        base: projectURL,
+                        onDone: close,
+                        autoFocusSearch: false,
+                    }),
             },
             // After Agents: an automation is something an agent has, and Skills is what it uses.
             {
