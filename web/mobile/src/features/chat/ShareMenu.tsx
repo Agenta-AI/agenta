@@ -109,7 +109,12 @@ export const ShareMenu = ({
                     </DropdownMenuContent>
                 </DropdownMenu>
             ) : null}
-            <Button size="sm" onClick={publish.openHub} data-testid="share-menu-publish">
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={publish.openHub}
+                data-testid="share-menu-publish"
+            >
                 <Broadcast data-icon="inline-start" />
                 Publish
             </Button>
