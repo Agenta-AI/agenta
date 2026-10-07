@@ -74,6 +74,9 @@ export default function ConnectDrawer({
     const seedName = defaultConnectionName(integrationName, existingCount)
 
     const nameTouchedRef = useRef(false)
+    // An open auth popup's listener and poll; stopped if the drawer unmounts first.
+    const popupCleanupRef = useRef<(() => void) | null>(null)
+    useEffect(() => () => popupCleanupRef.current?.(), [])
     const [name, setName] = useState(seedName)
     const [nameError, setNameError] = useState<string | null>(null)
     const slug = generateDefaultSlug(
@@ -131,7 +134,8 @@ export default function ConnectDrawer({
             if (typeof redirectUrl === "string" && redirectUrl) {
                 // Composio handles all auth (OAuth and API key) via their redirect UI
                 const connectionId = result.connection?.id
-                const cleanup = openToolAuthPopup(redirectUrl, () => {
+                popupCleanupRef.current = openToolAuthPopup(redirectUrl, () => {
+                    popupCleanupRef.current = null
                     void (async () => {
                         if (connectionId) {
                             try {
@@ -145,7 +149,7 @@ export default function ConnectDrawer({
                         onSuccess?.()
                     })()
                 })
-                if (!cleanup) setLoading(false)
+                if (!popupCleanupRef.current) setLoading(false)
             } else {
                 handleClose()
                 onSuccess?.()
