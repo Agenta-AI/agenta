@@ -77,12 +77,14 @@ from oss.src.core.sessions.streams.types import SessionIdInvalid
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     HEARTBEAT_INTERVAL_SECONDS,
+    TurnBinding,
     validate_session_id,
 )
 from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
-    get_owner,
     get_running_owner,
+    get_routable_turn_binding,
+    get_turn_binding,
     reconcile_stopped_turn,
 )
 from oss.src.utils.env import env
@@ -1257,8 +1259,13 @@ class SessionCommandsService:
             )
             return DeliveryReceipt(status="unreachable", detail=str(error))
 
+        binding = await self._runner_binding_for(command)
         try:
-            receipt = await self._delivery.deliver(command=command)
+            receipt = await self._delivery.deliver(
+                command=command,
+                runner_address=binding.replica_address if binding else None,
+                runner_replica_id=binding.replica_id if binding else None,
+            )
         except Exception as e:  # noqa: BLE001 — transport failure is never a request failure
             log.warning(
                 "control delivery raised for command=%s session=%s: %s",
@@ -1302,6 +1309,27 @@ class SessionCommandsService:
             receipt.detail or "no detail",
         )
         return receipt
+
+    async def _runner_binding_for(
+        self, command: SessionCommand
+    ) -> Optional[TurnBinding]:
+        """The pod bound to a Stop's target turn, or None for the Service URL.
+
+        The binding's replica id lets the transport check that the pod at the address is still
+        that replica before it sends the token there.
+
+        Read on every attempt, first delivery and sweep redelivery alike, so a redelivery cannot
+        drift back to a random pod. A failed read falls back to the Service URL: on one pod that
+        is still the right pod, and the delivery outcome stays honest either way.
+        """
+        if command.kind != SessionCommandKind.cancel or not command.target_turn_id:
+            return None
+        return await get_routable_turn_binding(
+            self._lock,
+            project_id=str(command.project_id),
+            session_id=command.session_id,
+            turn_id=command.target_turn_id,
+        )
 
     async def _interactions_for_command(
         self, command: SessionCommand
@@ -1381,25 +1409,26 @@ class SessionCommandsService:
             project_id=command.project_id, session_id=command.session_id
         ):
             outcome = SessionCommandOutcome.lost
-            # Name the process that DOES hold the session, so the log says where the Stop
-            # should have gone rather than only that it did not arrive.
-            owner = await get_owner(
+            # Name the pod the running turn is bound to, so the log says where the Stop should
+            # have gone rather than only that it did not arrive.
+            binding = await get_turn_binding(
                 self._lock,
                 project_id=str(command.project_id),
                 session_id=command.session_id,
+                turn_id=running_owner,
             )
             log.error(
                 "control delivery: the runner answered not_held for session=%s while "
                 "execution %s holds `running` and the row is beating. A process is executing "
-                "that session and it is not the one we called, so this deployment has more "
-                "than one runner replica and the direct adapter cannot route to it. Settling "
-                "the command lost, so the user is told the Stop failed rather than that the "
-                "work had already finished. command=%s target_turn=%s owner_replica=%s",
+                "that session and it is not the one we called: the turn has no routable "
+                "binding, or its pod lost it. Settling the command lost, so the user is told "
+                "the Stop failed rather than that the work had already finished. command=%s "
+                "target_turn=%s bound_replica=%s",
                 command.session_id,
                 running_owner,
                 command.id,
                 command.target_turn_id,
-                owner or "unknown",
+                binding.replica_id if binding else "unknown",
             )
         await self.settle(
             command_id=command.id,

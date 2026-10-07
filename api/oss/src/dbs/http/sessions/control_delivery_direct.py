@@ -13,10 +13,14 @@ first and recording afterwards would give back every failure the record exists t
 between the call and the insert leaves an aborted execution with no terminal outcome written
 anywhere.
 
-WHERE IT FAILS, AND HOW THAT IS MADE LOUD. `env.runner.internal_url` is one service address.
-Behind a load balancer with two runner replicas the call reaches the right process only by luck.
-That failure is quiet at the transport level, because the wrong process honestly answers "I do
-not hold that session" — the same answer a session that really ended gives.
+WHERE IT GOES. The service passes the address of the pod bound to the target turn, and the call
+goes there once the pod at that address answers as the bound replica. A pod that does not is
+`unreachable`: its IP may now belong to another pod. Without an address (compose and Railway
+report none, and a turn no pod has beaten yet has no binding) it goes to
+`env.runner.internal_url`, one service address. Behind a load balancer with
+two runner replicas that call reaches the right process only by luck. That failure is quiet at
+the transport level, because the wrong process honestly answers "I do not hold that session" —
+the same answer a session that really ended gives.
 
 The detector is exact, and it is NOT in this file. A `not_held` for a session whose row says
 alive with a heartbeat younger than one interval means some process is running that session and
@@ -68,7 +72,13 @@ class DirectControlDelivery(ControlDeliveryPort):
         self._continue_interaction = continue_interaction
         self._continue_input = continue_input
 
-    async def deliver(self, *, command: SessionCommand) -> DeliveryReceipt:
+    async def deliver(
+        self,
+        *,
+        command: SessionCommand,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
+    ) -> DeliveryReceipt:
         if command.kind == SessionCommandKind.continue_interaction:
             if self._continue_interaction is None:
                 return DeliveryReceipt(
@@ -100,6 +110,8 @@ class DirectControlDelivery(ControlDeliveryPort):
             target_turn_id=command.target_turn_id,
             created_at=command.created_at.isoformat() if command.created_at else "",
             timeout_seconds=self._timeout,
+            base_url=runner_address,
+            runner_replica_id=runner_replica_id,
         )
         if answer.status == RunnerCancelResult.accepted:
             # The answering replica's own id, so the claim the service writes matches the id

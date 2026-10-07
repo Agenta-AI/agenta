@@ -308,6 +308,31 @@ redisDurable:
 #                              # itself defaults to 127.0.0.1, which the kubelet cannot reach, so
 #                              # the health probes fail forever and the pod never becomes ready.
 #   liveFrames: true           # AGENTA_RUNNER_LIVE_FRAMES; set false to disable live-frame relay
+#   replicas: 1                # default 1. More than 1 needs remote sandbox providers only: the
+#                              # render fails when providers.enabled lists local. With only remote
+#                              # providers the runner rolls out RollingUpdate (maxSurge 1,
+#                              # maxUnavailable 0); with local it uses Recreate.
+#   shutdownWaitSeconds: 200   # AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS. On SIGTERM the pod refuses
+#                              # new turns, lets running ones finish for this long, cancels the
+#                              # rest and deletes its sandboxes. Default: the grace period minus
+#                              # 100 (never below 0), which leaves room for the preStop delay, the
+#                              # cancel and the teardown. The render fails for a larger value. The
+#                              # 100 assumes the default AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS
+#                              # (10 s); a larger settle time needs a shorter wait, by twice the
+#                              # increase.
+#   env:                       # The chart owns AGENTA_RUNNER_REPLICA_ID (always the pod name,
+#                              # because pods that share an id can take the same turn) and
+#                              # AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS (set it with
+#                              # shutdownWaitSeconds), AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
+#                              # and AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER (set them with
+#                              # providers.enabled and providers.default). The render fails when
+#                              # env or extraEnv sets any of them.
+#     AGENTA_RUNNER_REPLICA_ADDRESS: ""  # chart default http://$(POD_IP):<port>, where the api
+#                              # sends Stop for this pod's turns and Services sends the
+#                              # session's follow-up messages. A NetworkPolicy that blocks api or
+#                              # Services traffic to runner pod IPs breaks Stop and follow-up
+#                              # routing. On an IPv6 single-stack cluster the pod IP needs
+#                              # brackets in a URL: set "http://[$(POD_IP)]:8765" here.
 #   providers:
 #     enabled: [local]        # AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS (rendered comma-joined)
 #     default: local          # AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER (must be one of enabled)
@@ -352,9 +377,10 @@ redisDurable:
 # hook, give it room with a grace period, and keep a spare pod during
 # the rollout with a strategy. See hosting/kubernetes/README.md.
 # Chart defaults when a key is unset:
-#   strategy: Recreate on agentRunner, cron and redisVolatile; RollingUpdate
-#     with maxUnavailable 0, maxSurge 1 on services, web, webMobile,
-#     workerStreams, workerQueues, supertokens and api.
+#   strategy: Recreate on cron and redisVolatile, and on agentRunner when its
+#     providers include local; RollingUpdate with maxUnavailable 0, maxSurge 1
+#     on services, web, webMobile, workerStreams, workerQueues, supertokens,
+#     api, and agentRunner with remote providers only.
 #   terminationGracePeriodSeconds: 300 on agentRunner, 120 on the two
 #     workers, 60 on services, web and webMobile. On api it is
 #     api.gunicorn.gracefulTimeout plus 30 (930 by default), so a long LLM
@@ -446,10 +472,10 @@ redisDurable:
 #       protectSingleton: true        # defer eviction of the only runner pod
 #     topologySpreadConstraints: []   # replace the generated list entirely
 #
-# The runner, cron and the volatile redis default to `strategy: Recreate`. The
-# runner, because the api has no session routing yet and two runner pods can
-# disagree about who owns a session. Cron, because supercronic fires every
-# schedule in every pod. Redis, because two caches serve different answers.
+# Cron and the volatile redis default to `strategy: Recreate`. Cron, because
+# supercronic fires every schedule in every pod. Redis, because two caches serve
+# different answers. The runner uses Recreate only with the local provider,
+# whose sandboxes run inside the runner pod.
 # ================================================================== #
 
 # ================================================================== #

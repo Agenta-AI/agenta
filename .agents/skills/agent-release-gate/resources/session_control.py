@@ -30,6 +30,20 @@ artifact:
 
     uv run resources/session_control.py --cells all --harness pi_core --sandbox local
 
+`--harness claude` runs on the vault Anthropic key by default (`ANTHROPIC_API_KEY`). To run it on
+a custom Anthropic-protocol connection instead (for example when that key has no credit), set:
+
+    AGENTA_QA_CLAUDE_MODEL            the model key, `<connection name>/custom/<model slug>`
+    AGENTA_QA_CLAUDE_PROVIDER         the protocol the connection speaks (default `anthropic`)
+    AGENTA_QA_CLAUDE_CONNECTION_SLUG  the vault slug the agent config names
+    AGENTA_QA_CLAUDE_CUSTOM_URL       the connection's base URL
+    AGENTA_QA_CLAUDE_CUSTOM_KEY       the connection's API key
+
+The driver mints a fresh account per run, so a slug from another project's vault does not resolve
+here: bootstrap stocks the minted vault with a custom provider under that slug, built from the
+model key, URL and key above. `AGENTA_QA_CLAUDE_MODEL` and `AGENTA_QA_CLAUDE_PROVIDER` also work
+alone, to pick another model on the vault Anthropic key.
+
 See `SKILL.md` for when these cells are mandatory and where the model keys live.
 """
 
@@ -935,6 +949,62 @@ HARNESSES = {
     },
 }
 
+
+def claude_spec_from_env(environ) -> tuple[dict, dict | None]:
+    """The claude entry with the `AGENTA_QA_CLAUDE_*` overrides applied, and the vault secret
+    bootstrap must stock for it (None when the run stays on the vault Anthropic key).
+
+    A connection slug names a custom provider, which must exist in the minted project's vault,
+    so a slug without its model key, URL and key is refused here rather than at the first turn.
+    """
+    spec = json.loads(json.dumps(HARNESSES["claude"]))
+    spec["model"] = environ.get("AGENTA_QA_CLAUDE_MODEL") or spec["model"]
+    spec["provider"] = environ.get("AGENTA_QA_CLAUDE_PROVIDER") or spec["provider"]
+    slug = environ.get("AGENTA_QA_CLAUDE_CONNECTION_SLUG")
+    if not slug:
+        if environ.get("AGENTA_QA_CLAUDE_CUSTOM_URL") or environ.get(
+            "AGENTA_QA_CLAUDE_CUSTOM_KEY"
+        ):
+            print(
+                "[warn] AGENTA_QA_CLAUDE_CUSTOM_URL/_KEY are ignored without "
+                "AGENTA_QA_CLAUDE_CONNECTION_SLUG; the run uses the vault Anthropic key",
+                file=sys.stderr,
+            )
+        return spec, None
+    name, sep, model_slug = spec["model"].partition("/custom/")
+    url = environ.get("AGENTA_QA_CLAUDE_CUSTOM_URL")
+    key = environ.get("AGENTA_QA_CLAUDE_CUSTOM_KEY")
+    missing = [
+        label
+        for label, ok in (
+            ("AGENTA_QA_CLAUDE_MODEL as <connection name>/custom/<model slug>", sep),
+            ("AGENTA_QA_CLAUDE_CUSTOM_URL", url),
+            ("AGENTA_QA_CLAUDE_CUSTOM_KEY", key),
+        )
+        if not ok
+    ]
+    if missing:
+        raise SystemExit(
+            "AGENTA_QA_CLAUDE_CONNECTION_SLUG is set, so the minted vault needs that custom "
+            "connection. Also set: " + ", ".join(missing) + "."
+        )
+    spec["connection"] = {"mode": "agenta", "slug": slug}
+    secret = {
+        "header": {"name": name, "description": "session-control gate"},
+        "slug": slug,
+        "secret": {
+            "kind": "custom_provider",
+            "data": {
+                "kind": "custom",
+                "protocol": spec["provider"],
+                "provider": {"url": url, "key": key},
+                "models": [{"slug": model_slug}],
+            },
+        },
+    }
+    return spec, secret
+
+
 # Read timeout for the SSE stream `invoke()` opens, per harness kind (`cfg["harness"]["kind"]`,
 # the same key HARNESSES above sets). Pi is a single in-process model loop; Codex and Claude Code
 # are agentic CLIs behind an ACP bridge and routinely take longer per turn under load, so their
@@ -1168,7 +1238,21 @@ def api(method: str, path: str, *, timeout: float = 120.0, **kw) -> httpx.Respon
     )
 
 
-def bootstrap(harness: str = "pi_core") -> None:
+def stock_custom_provider(custom_provider: dict) -> None:
+    """Create the custom connection in the minted vault, under the slug the agent config names."""
+    r = api("POST", "/vault/v1/secrets/", json=custom_provider)
+    if r.status_code != 200:
+        # A 422 echoes the request body, and the body holds the connection's key.
+        key = custom_provider["secret"]["data"]["provider"]["key"]
+        body = r.text.replace(key, "<redacted>") if key else r.text
+        raise SystemExit(f"vault create HTTP {r.status_code}: {body[:400]}")
+    print(
+        f"[bootstrap] vault stocked with custom connection {custom_provider['slug']}",
+        file=sys.stderr,
+    )
+
+
+def bootstrap(harness: str = "pi_core", custom_provider: dict | None = None) -> None:
     uid = uuid.uuid4().hex[:12]
     r = httpx.post(
         f"{BASE}/api/admin/simple/accounts/",
@@ -1208,7 +1292,9 @@ def bootstrap(harness: str = "pi_core") -> None:
         raise SystemExit(f"vault create HTTP {r.status_code}: {r.text[:400]}")
     print("[bootstrap] vault stocked with an openai provider key", file=sys.stderr)
 
-    if harness == "claude":
+    if custom_provider is not None:
+        stock_custom_provider(custom_provider)
+    elif harness == "claude":
         # The claude harness's vault connection (agent_config mode "agenta") needs a funded
         # Anthropic key, the same way the OpenAI key above covers pi_core and codex. Checked
         # here, not in resolve_env(), so a pi_core/codex-only run never needs it set.
@@ -1729,9 +1815,17 @@ def wait_for_tool(handle: dict, *, timeout: float = 60.0) -> dict | None:
 
 
 def sleep_prompt(marker: str, seconds: int) -> str:
+    """A turn that stays in one foreground shell call for `seconds`.
+
+    Not a bare `sleep N`: Claude Code refuses a standalone long sleep ("Blocked: standalone
+    sleep 45 ... use run_in_background"), so the tool ends in seconds and a later Stop finds no
+    running turn. A `timeout` around a blocking `tail` is not a sleep and runs in the foreground;
+    the trailing `echo` makes the call exit 0 when the timeout fires.
+    """
     return (
-        f"The codeword is {marker}. Run exactly this one shell command and nothing "
-        f"else: sleep {seconds}. Do not write, read or search any files. "
+        f"The codeword is {marker}. Use the bash tool to run exactly this one command, in the "
+        f"foreground and not in the background: timeout {seconds} tail -f /dev/null; "
+        f"echo {marker}. Do not run anything else. Do not write, read or search any files. "
         "When the command finishes, reply with the single word DONE."
     )
 
@@ -2111,7 +2205,9 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
     """Stop a parked approval and enforce the flag-specific late-answer behavior."""
     session_id = str(uuid.uuid4())
     marker = f"PEAR{uuid.uuid4().hex[:6].upper()}"
-    prompt = f"The codeword is {marker}. Run exactly this one shell command and nothing else: echo hello. Then reply DONE."
+    # A MUTATING command: Claude Code auto-approves a read-only one (a bare `echo`) whatever the
+    # permission policy says, so no approval would ever park on the claude harness.
+    prompt = f"The codeword is {marker}. Run exactly this one shell command and nothing else: echo hello > /tmp/qa-stop-approval.txt. Then reply DONE."
     t1 = invoke(
         session_id, [user_msg(prompt)], cfg_ask, references_ask, "approval-turn"
     )
@@ -2312,11 +2408,7 @@ def cell_records_outage(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return {}, _skip("no --project given: stopping Postgres needs docker")
     session_id = str(uuid.uuid4())
     marker = f"CEDAR{uuid.uuid4().hex[:6].upper()}"
-    msgs = [
-        user_msg(
-            f"The codeword is {marker}. Run exactly this one shell command and nothing else: sleep 30. When it finishes, reply with the single word DONE."
-        )
-    ]
+    msgs = [user_msg(sleep_prompt(marker, 30))]
     handle = invoke_async(session_id, msgs, cfg, references, "outage-turn1")
     wait_for_turn(session_id)
     time.sleep(6)
@@ -2886,11 +2978,7 @@ def cell_stale_tail(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return {}, _skip("no --project given: pausing the runner needs docker")
     session_id = str(uuid.uuid4())
     marker = f"ELDER{uuid.uuid4().hex[:6].upper()}"
-    msgs = [
-        user_msg(
-            f"The codeword is {marker}. Run exactly this one shell command and nothing else: sleep 20. When it finishes, reply with the single word DONE."
-        )
-    ]
+    msgs = [user_msg(sleep_prompt(marker, 20))]
     handle = invoke_async(session_id, msgs, cfg, references, "tail-turn1")
     wait_for_turn(session_id)
     time.sleep(3)
@@ -3330,8 +3418,12 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-    bootstrap(args.harness)
-    spec = HARNESSES[args.harness]
+    spec, custom_provider = (
+        claude_spec_from_env(os.environ)
+        if args.harness == "claude"
+        else (HARNESSES[args.harness], None)
+    )
+    bootstrap(args.harness, custom_provider)
     base_cfg = agent_config(
         spec["kind"], spec["model"], spec["provider"], spec["connection"], args.sandbox
     )
@@ -3357,6 +3449,7 @@ def main() -> int:
     results: dict = {
         "project_id": STATE["project_id"],
         "harness": args.harness,
+        "model": spec["model"],
         "sandbox": args.sandbox,
         "client_shape": args.client_shape,
         "durable_stop": {

@@ -98,6 +98,7 @@ export function buildDaytonaCreate(
   environment: Record<string, string>,
   sandboxPermission: SandboxPermission | undefined,
   secretAttachments: Record<string, string> = {},
+  labels: Record<string, string> = {},
 ): Record<string, unknown> {
   const snapshot = daytona.image
     ? undefined
@@ -111,6 +112,7 @@ export function buildDaytonaCreate(
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
     envVars: daytonaEnvVars(piExtEnv, environment),
+    ...(Object.keys(labels).length > 0 ? { labels } : {}),
     ...(Object.keys(secretAttachments).length > 0
       ? { secrets: secretAttachments }
       : {}),
@@ -159,7 +161,12 @@ export function daytonaCreateFingerprint(input: {
   image?: string;
   create: Record<string, unknown>;
 }): string {
-  return createHash("sha256").update(canonicalJson(input)).digest("hex");
+  // Labels name the session, they do not shape the sandbox: the same topology for two sessions
+  // must hash the same, and a label added later must not read as a different sandbox.
+  const { labels: _labels, ...create } = input.create;
+  return createHash("sha256")
+    .update(canonicalJson({ ...input, create }))
+    .digest("hex");
 }
 
 /** Recognized ids that are planned but not yet provisionable (fail with a specific message). */
@@ -182,6 +189,8 @@ export const PLANNED_SANDBOX_IDS = ["e2b"] as const;
 export interface BuildSandboxProviderOptions {
   /** A detached lease from a sandbox this run already convicted. See `acquireEnvironment`. */
   inheritedLease?: DaytonaSecretLease;
+  /** The session inventory labels written on a Daytona create. See `sandbox-labels.ts`. */
+  sessionLabels?: Record<string, string>;
   config?: RunnerConfig;
 }
 
@@ -213,6 +222,8 @@ export function buildSandboxProvider(
       piExtEnv,
       modelEnvironment,
       sandboxPermission,
+      {},
+      options.sessionLabels,
     );
     const buildDaytona = (secretAttachments: Record<string, string>) =>
       daytonaWithLifecycle(

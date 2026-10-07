@@ -1,7 +1,8 @@
 """The shared secret that proves a request comes from the platform's runner.
 
 A tenant credential says whose request it is; this says who is making it. Routes that only
-the runner may call (session ownership release, sandbox usage reports) require both.
+the runner may call (sandbox usage reports) require both. The session heartbeat reads it as
+optional: it decides whether the beat's pod address may be stored.
 """
 
 from secrets import compare_digest
@@ -33,3 +34,12 @@ def assert_runner_token(request: Request) -> None:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
         )
+
+
+def has_valid_runner_token(request: Request) -> bool:
+    """`assert_runner_token` for a route where the token is optional: True when it validates."""
+    try:
+        assert_runner_token(request)
+    except HTTPException:
+        return False
+    return True

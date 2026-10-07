@@ -102,6 +102,12 @@ _PUBLIC_ENDPOINTS = (
     # tenant boundary.
     "/sessions/control/commands/",
     "/api/sessions/control/commands/",
+    # SECRETS — the runner pod that ran a device login reports its outcome with the shared
+    # runner token, not a project credential: it holds none for a device login. The route
+    # checks the token itself and applies the outcome only to the row that still waits on
+    # that attempt id. No other secrets route lives under this prefix.
+    "/secrets/subscription-login/attempts/",
+    "/api/secrets/subscription-login/attempts/",
     # TRIGGERS — inbound provider events arrive from Composio with no auth token
     "/triggers/composio/events/",
     "/api/triggers/composio/events/",

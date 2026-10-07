@@ -7,6 +7,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
@@ -25,12 +26,15 @@ import {
 } from "../../src/server.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import type { KillSessionSandboxes } from "../../src/engines/sandbox_agent/kill-by-label.ts";
 import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
+import { REPLICA_ID } from "../../src/sessions/alive.ts";
 import {
   liveExecutions,
   resetExecutionsForTest,
 } from "../../src/sessions/execution-registry.ts";
 import { resetContinuationAdmissionsForTest } from "../../src/sessions/continuation-admission.ts";
+import { resetDrainForTest } from "../../src/lifecycle/shutdown.ts";
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -85,13 +89,17 @@ const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
 async function listen(
   run: RunAgent,
   token: string | null = TEST_TOKEN,
+  // `/kill` lists sandboxes on Daytona when the loaded env enables it, so a test never lets it
+  // reach the real client.
+  killLabelledSandboxes: KillSessionSandboxes = async () => {},
+  killDeadlineMs?: number,
 ): Promise<{ url: string; close: () => Promise<void> }> {
   // Force the configured token unconditionally (default TEST_TOKEN; `null` = leave the env
   // as the test set it, for the tokenless-boot case). A loaded dev env (`load-env` before
   // the suite) sets AGENTA_RUNNER_TOKEN=replace-me; a "set only if unset" guard would let
   // that leak in and 401 every AUTH request. afterEach restores the pre-suite value.
   if (token !== null) process.env[TOKEN_ENV] = token;
-  const server = createAgentServer(run);
+  const server = createAgentServer(run, killLabelledSandboxes, killDeadlineMs);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   return {
@@ -117,6 +125,8 @@ describe("createAgentServer", () => {
           (body.engines as unknown[]).includes("sandbox-agent"),
       );
       assert.ok(Array.isArray(body.harnesses));
+      // A caller compares this with a turn binding's replica id before it trusts a pod address.
+      assert.equal(body.replicaId, REPLICA_ID);
     } finally {
       await s.close();
     }
@@ -328,6 +338,160 @@ describe("createAgentServer", () => {
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean };
       assert.equal(body.ok, true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill sweeps the session's labelled sandboxes with the request's scope, and only for a scoped request", async () => {
+    const swept: Array<{ projectId: string; sessionId: string }> = [];
+    const s = await listen(okRun, TEST_TOKEN, async (scope) => {
+      swept.push(scope);
+    });
+    try {
+      const unscoped = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1" }),
+      });
+      assert.equal(unscoped.status, 400);
+      assert.deepEqual(swept, []);
+
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: " sess-1 ", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(swept, [{ sessionId: "sess-1", projectId: "proj-1" }]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill drains the session's pool entry in every pool before it sweeps the labelled sandboxes", async () => {
+    const order: string[] = [];
+    vi.spyOn(SessionPool.prototype, "destroy").mockImplementation(
+      async (key: string, reason?: string) => {
+        // Yield so a sweep that did not wait for the drain would be recorded first.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        order.push(`drain:${key}:${reason}`);
+      },
+    );
+    const s = await listen(okRun, TEST_TOKEN, async () => {
+      order.push("sweep");
+    });
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(order, [
+        "drain:proj-1:sess-1:kill",
+        "drain:proj-1:sess-1:kill",
+        "drain:proj-1:sess-1:kill",
+        "sweep",
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill whose pool drain outlasts the deadline answers 200 and never sweeps the labels", async () => {
+    // After the api stops waiting, a new turn may create a sandbox with the same labels on
+    // another pod; a sweep started by the late drain would delete it.
+    let drainsFinished = 0;
+    let releaseDrain!: () => void;
+    const drainReleased = new Promise<void>((resolve) => (releaseDrain = resolve));
+    vi.spyOn(SessionPool.prototype, "destroy").mockImplementation(async () => {
+      await drainReleased;
+      drainsFinished += 1;
+    });
+    const swept: string[] = [];
+    const s = await listen(
+      okRun,
+      TEST_TOKEN,
+      async ({ sessionId }) => {
+        swept.push(sessionId);
+      },
+      30,
+    );
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), { ok: true });
+      assert.equal(drainsFinished, 0, "the route answered before the drain finished");
+
+      releaseDrain();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      assert.equal(drainsFinished, 3, "the drain finished in the background");
+      assert.deepEqual(swept, []);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill logs a drain that fails after the deadline", async () => {
+    let failDrain!: () => void;
+    const drainFails = new Promise<void>((resolve) => (failDrain = resolve));
+    vi.spyOn(SessionPool.prototype, "destroy").mockImplementation(async () => {
+      await drainFails;
+      throw new Error("teardown exploded");
+    });
+    const written: string[] = [];
+    const write = process.stderr.write.bind(process.stderr);
+    vi.spyOn(process.stderr, "write").mockImplementation(((chunk: unknown, ...rest: never[]) => {
+      written.push(String(chunk));
+      return write(chunk as string, ...rest);
+    }) as typeof process.stderr.write);
+    const s = await listen(okRun, TEST_TOKEN, async () => {}, 30);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+
+      failDrain();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      assert.match(
+        written.join(""),
+        /kill: background drain failed session=sess-1: teardown exploded/,
+      );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill bounds the label sweep by the deadline it started when it began", async () => {
+    let sweepDeadline: AbortSignal | undefined;
+    const s = await listen(
+      okRun,
+      TEST_TOKEN,
+      async (_scope, deadline) => {
+        sweepDeadline = deadline;
+        assert.equal(deadline.aborted, false);
+        await new Promise<void>((resolve) =>
+          deadline.addEventListener("abort", () => resolve(), { once: true }),
+        );
+      },
+      30,
+    );
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(sweepDeadline?.aborted, true);
     } finally {
       await s.close();
     }
@@ -558,6 +722,7 @@ describe("createAgentServer", () => {
         runTurnCalls += 1;
         return { ok: true, output: "must not run" };
       },
+      readLatestTurnIndex: turnLogUnmoved,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -666,6 +831,7 @@ describe("createAgentServer", () => {
         runTurnCalls += 1;
         return { ok: true, output: "must not run" };
       },
+      readLatestTurnIndex: turnLogUnmoved,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -1856,6 +2022,8 @@ describe("registerShutdownHandler (sandbox-leak backstop on docker stop)", () =>
   afterEach(() => {
     for (const signal of registered.splice(0))
       process.removeAllListeners(signal);
+    // The handler puts the process into drain; later tests serve turns again.
+    resetDrainForTest();
   });
 
   function register(opts: Parameters<typeof registerShutdownHandler>[0]) {

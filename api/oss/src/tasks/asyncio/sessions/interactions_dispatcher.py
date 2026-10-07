@@ -183,9 +183,15 @@ def resolve_gated_tool_call_id(
     parked gate and drop an answerable turn to a cold replay for no reason. The row carries the
     harness call id from the moment the gate was created (`buildInteractionData`), so it is
     available even when no record is.
+
+    A client ``tool_call_id`` equal to the token is treated as absent: the app answers with the
+    approval id it rendered, which is the token, and binding the envelope to it would add a
+    tool call the harness never made, so the runner's history fingerprint would evict the
+    parked sandbox. When the token really is the harness id (the runner's fallback above, or a
+    relay-minted id), every lookup below returns that same id.
     """
     explicit = answer.get("tool_call_id")
-    if isinstance(explicit, str) and explicit:
+    if isinstance(explicit, str) and explicit and explicit != interaction.token:
         return explicit
 
     for record in records:
