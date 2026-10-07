@@ -1,12 +1,11 @@
 /**
  * An image the agent names in its reply, shown under the paragraph that names it: a downscaled
- * preview (never the full bytes) with a caption bar to expand it into the media viewer or download
- * it. The link in the sentence stays; this is the picture that goes with it.
+ * preview (never the full bytes) with Expand and Download in its corner. The link in the sentence
+ * stays and names the file; this is the picture that goes with it.
  */
 import {type ReactNode} from "react"
 
-import {humanSize, mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
-import {Button} from "@agenta/ui/ui"
+import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {ArrowsOut, DownloadSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -25,8 +24,15 @@ import {useDriveFileDownload} from "./useDriveFileDownload"
 /** The image: never wider than this, never taller than `MAX_HEIGHT`, never past its own size. */
 const MAX_WIDTH = 320
 const MAX_HEIGHT = 360
-/** The figure: wide enough for the caption's name and two buttons, whatever the image's size. */
-const MIN_FRAME_WIDTH = 180
+/** The smallest box that still holds both corner buttons; a tinier image centers inside it. */
+const MIN_FRAME = 64
+
+/** Shown on hover or keyboard focus where hovering exists; always shown on touch. */
+const CORNER_ACTIONS =
+    "absolute right-1.5 top-1.5 flex gap-1 transition-opacity motion-reduce:transition-none [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/inline-image:opacity-100 [@media(hover:hover)]:group-has-[:focus-visible]/inline-image:opacity-100"
+
+const CORNER_BUTTON =
+    "flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-black/55 p-0 text-white transition-colors hover:bg-black/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
 
 export function ChatInlineImage({candidate}: {candidate: string}) {
     const sessionId = useDriveSessionId() ?? ""
@@ -77,17 +83,16 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
             index: 0,
         })
     const width = Math.min(MAX_WIDTH, data.width, (MAX_HEIGHT * data.width) / data.height)
-    const frameWidth = Math.max(MIN_FRAME_WIDTH, width)
     return (
         <figure
-            className="mx-0 my-2 max-w-full overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary"
-            style={{width: frameWidth}}
+            className="group/inline-image relative mx-0 my-2 flex max-w-full items-center justify-center overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorFillTertiary"
+            style={{width: Math.max(MIN_FRAME, width), minHeight: MIN_FRAME}}
         >
             <button
                 type="button"
                 aria-label={`Expand ${name}`}
                 onClick={expand}
-                className="flex w-full cursor-zoom-in justify-center border-0 bg-colorFillTertiary p-0"
+                className="flex max-w-full cursor-zoom-in border-0 bg-transparent p-0"
             >
                 {/* A generated data URL; next/image cannot optimize it. */}
                 <img
@@ -100,27 +105,24 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
                     style={{width, aspectRatio: `${data.width} / ${data.height}`}}
                 />
             </button>
-            <figcaption className="flex min-w-0 items-center gap-0.5 border-0 border-t border-solid border-colorBorderSecondary py-0.5 pl-2 pr-0.5 text-xs leading-5 text-colorTextSecondary">
-                <span className="min-w-0 flex-1 truncate" title={candidate}>
-                    {name} · {humanSize(data.bytes)}
-                </span>
-                <Button
-                    variant="ghost"
-                    size="icon-xs"
+            <div className={CORNER_ACTIONS}>
+                <button
+                    type="button"
                     aria-label={`Expand ${name}`}
                     onClick={expand}
+                    className={CORNER_BUTTON}
                 >
-                    <ArrowsOut />
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon-xs"
+                    <ArrowsOut size={14} />
+                </button>
+                <button
+                    type="button"
                     aria-label={`Download ${name}`}
                     onClick={() => void download(target.mount, target.path)}
+                    className={CORNER_BUTTON}
                 >
-                    <DownloadSimple />
-                </Button>
-            </figcaption>
+                    <DownloadSimple size={14} />
+                </button>
+            </div>
         </figure>
     )
 }
