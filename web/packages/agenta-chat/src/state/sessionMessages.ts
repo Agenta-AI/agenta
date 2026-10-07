@@ -116,6 +116,18 @@ const writeMessagesWithQuotaGuard = (
     }
 }
 
+/** Sessions this tab ran that paused on an unanswered ask with no mount watching them. */
+const heldAwaitingByIdAtom = atom<Record<string, true>>({})
+
+const setHeldAwaiting = (get: Getter, set: Setter, id: string, held: boolean): void => {
+    const cur = get(heldAwaitingByIdAtom)
+    if (Boolean(cur[id]) === held) return
+    const next = {...cur}
+    if (held) next[id] = true
+    else delete next[id]
+    set(heldAwaitingByIdAtom, next)
+}
+
 /**
  * Drop cached transcripts AND their watermarks for `ids` — the two stores must never diverge, or a
  * re-adopted session would be judged against a watermark belonging to a transcript that's gone.
@@ -139,6 +151,7 @@ const dropSessionMessages = (get: Getter, set: Setter, ids: string[]): void => {
     }
     if (messagesChanged) set(sessionMessagesAtom, messages)
     if (countsChanged) set(sessionRecordCountsAtom, counts)
+    for (const id of ids) setHeldAwaiting(get, set, id, false)
 }
 
 /** Forget the given sessions' cached transcripts and watermarks together. */
@@ -189,13 +202,13 @@ const sessionStatusByIdAtom = atom<Record<string, SessionRunStatus>>({})
 /** Open run streams this tab started, per session; they outlive the mount that started them. */
 const ownedRunCountByIdAtom = atom<Record<string, number>>({})
 
+const unmountedStatus = (get: Getter, id: string): SessionRunStatus =>
+    get(ownedRunCountByIdAtom)[id] ? "running" : get(heldAwaitingByIdAtom)[id] ? "awaiting" : "idle"
+
 /** A single session's run state. Defaults to "idle" for sessions with no mounted conversation.
  * Backs a session list's status dot; reads repaint only when this session's status changes. */
 export const sessionStatusAtomFamily = atomFamily((id: string) =>
-    atom(
-        (get) =>
-            get(sessionStatusByIdAtom)[id] ?? (get(ownedRunCountByIdAtom)[id] ? "running" : "idle"),
-    ),
+    atom((get) => get(sessionStatusByIdAtom)[id] ?? unmountedStatus(get, id)),
 )
 
 /** Is THIS browser currently streaming the given session? Derived from the run state. */
@@ -206,6 +219,8 @@ export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
 /** Every session's non-idle run state in this browser tab, read-only; idle is absence. */
 export const sessionStatusesAtom = atom((get) => {
     const statuses = {...get(sessionStatusByIdAtom)}
+    for (const id of Object.keys(get(heldAwaitingByIdAtom)))
+        statuses[id] ??= unmountedStatus(get, id)
     for (const id of Object.keys(get(ownedRunCountByIdAtom))) statuses[id] ??= "running"
     return statuses
 })
@@ -232,6 +247,8 @@ export const sessionLocalSettledAtAtomFamily = atomFamily((id: string) =>
 export const setSessionStatusAtom = atom(
     null,
     (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
+        // A mounted conversation reads the ask itself, so it takes over any held wait.
+        setHeldAwaiting(get, set, id, false)
         const cur = get(sessionStatusByIdAtom)
         const prev = cur[id] ?? "idle"
         // Stamp on the active → settled edge only: `idle → idle` is a no-op so an unvisited session
@@ -257,11 +274,21 @@ export const setSessionStatusAtom = atom(
 )
 
 /** Count a run stream this tab opened for a session, or retire it once that stream ends. */
-export const trackOwnedRunAtom = atom(null, (get, set, {id, open}: {id: string; open: boolean}) => {
-    const cur = get(ownedRunCountByIdAtom)
-    const count = (cur[id] ?? 0) + (open ? 1 : -1)
-    const next = {...cur}
-    if (count > 0) next[id] = count
-    else delete next[id]
-    set(ownedRunCountByIdAtom, next)
+export const trackOwnedRunAtom = atom(
+    null,
+    (get, set, {id, open, awaiting = false}: {id: string; open: boolean; awaiting?: boolean}) => {
+        const cur = get(ownedRunCountByIdAtom)
+        const count = (cur[id] ?? 0) + (open ? 1 : -1)
+        const next = {...cur}
+        if (count > 0) next[id] = count
+        else delete next[id]
+        set(ownedRunCountByIdAtom, next)
+        // A new run supersedes the old ask; a stream that closed on an open ask holds it.
+        if (open || awaiting) setHeldAwaiting(get, set, id, !open)
+    },
+)
+
+/** Hold a session as waiting on the user after its mount leaves with the ask still open. */
+export const holdSessionAwaitingAtom = atom(null, (get, set, id: string) => {
+    setHeldAwaiting(get, set, id, true)
 })

@@ -689,6 +689,38 @@ describe("useServerSessionInputs", () => {
 
     const tabStatus = () => getDefaultStore().get(sessionStatusAtomFamily("session-1"))
 
+    it("holds the session as awaiting when its stream closes on an open ask, past the unmount", async () => {
+        const ask = `data: ${JSON.stringify({
+            type: "tool-input-available",
+            toolCallId: "call-1",
+            toolName: "request_input",
+        })}\n`
+        fetchSnapshot.mockResolvedValue(acceptedRunSnapshot)
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        fetchMock.mockResolvedValue(new Response(acceptedFrame + ask, {status: 200}))
+        const {result, unmount} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+                onExecuted: () => Promise.resolve(true),
+            }),
+        )
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        await act(async () => {
+            await result.current.submit({id: "input-1", text: "ask me"}, "queue")
+        })
+        unmount()
+        await waitFor(() => expect(tabStatus()).toBe("awaiting"))
+        getDefaultStore().set(setSessionStatusAtom, {id: "session-1", status: "idle"})
+        expect(tabStatus()).toBe("idle")
+    })
+
     it("reports the session running while its run stream is open, past the unmount", async () => {
         const {run, unmount} = await submitAccepted(() => Promise.resolve(true))
         expect(tabStatus()).toBe("running")

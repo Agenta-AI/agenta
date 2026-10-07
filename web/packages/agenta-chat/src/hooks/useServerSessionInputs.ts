@@ -7,7 +7,7 @@ import {
     updatePendingSessionInputAtom,
     type PendingInputWriteOutcome,
 } from "@agenta/entities/session"
-import {buildAgentRequest} from "@agenta/playground/agent-chat"
+import {buildAgentRequest, isHitlPending} from "@agenta/playground/agent-chat"
 import {projectIdAtom} from "@agenta/shared/state"
 import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -80,8 +80,27 @@ const emptyView = reduceSessionPendingInputs(null)
 
 const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
 
+/** The slice of a run's parts `isHitlPending` reads: tool calls and their `data-render` hints. */
+interface HitlPart {
+    type?: string
+    state?: string
+    toolCallId?: string
+    providerExecuted?: boolean
+    data?: unknown
+}
+
+const TOOL_CHUNK_STATE: Record<string, string> = {
+    "tool-input-start": "input-streaming",
+    "tool-input-available": "input-available",
+    "tool-approval-request": "approval-requested",
+    "tool-output-available": "output-available",
+    "tool-output-error": "output-error",
+    "tool-output-denied": "output-denied",
+}
+
 type RunFrame =
     | {kind: "accepted"; executionId: string}
+    | {kind: "part"; part: HitlPart}
     | {kind: "error"}
     | {kind: "started"}
     | {kind: "status"; phase: StartupPhase}
@@ -95,6 +114,8 @@ type RunFrame =
 export interface RunAdmission {
     accepted: boolean
     ended: boolean
+    /** The stream closed on an ask or approval the user has not answered yet. */
+    awaiting: boolean
 }
 
 const runFrameFromLine = (line: string): RunFrame => {
@@ -105,8 +126,25 @@ const runFrameFromLine = (line: string): RunFrame => {
             type?: unknown
             data?: {executionId?: unknown}
             messageMetadata?: {turnId?: unknown}
+            toolCallId?: unknown
+            toolName?: unknown
+            providerExecuted?: unknown
         }
         if (typeof frame.type !== "string") return null
+        if (frame.type === "data-render")
+            return {kind: "part", part: {type: frame.type, data: frame.data}}
+        const toolState = TOOL_CHUNK_STATE[frame.type]
+        if (toolState && typeof frame.toolCallId === "string") {
+            return {
+                kind: "part",
+                part: {
+                    ...(typeof frame.toolName === "string" ? {type: `tool-${frame.toolName}`} : {}),
+                    state: toolState,
+                    toolCallId: frame.toolCallId,
+                    ...(frame.providerExecuted === true ? {providerExecuted: true} : {}),
+                },
+            }
+        }
         if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
         const phase = startupPhaseFromDataPart(frame)
         if (phase) return {kind: "status", phase}
@@ -152,12 +190,14 @@ export const readRunAdmission = async (
     const reader = response.body?.getReader()
     if (!reader) {
         watcher?.onFailed?.()
-        return {accepted: false, ended: true}
+        return {accepted: false, ended: true, awaiting: false}
     }
     const decoder = new TextDecoder()
     let buffer = ""
     let accepted = false
     let started = false
+    const toolParts = new Map<string, HitlPart>()
+    const renderParts: HitlPart[] = []
     const scan = (chunk: string): "error" | "accepted" | null => {
         buffer += chunk
         // CR-only and CRLF framing are both valid SSE.
@@ -166,6 +206,13 @@ export const readRunAdmission = async (
         for (const line of lines) {
             const frame = runFrameFromLine(line)
             if (!frame) continue
+            if (frame.kind === "part") {
+                const {part} = frame
+                if (part.toolCallId) {
+                    toolParts.set(part.toolCallId, {...toolParts.get(part.toolCallId), ...part})
+                } else renderParts.push(part)
+                continue
+            }
             // Scanning continues past the turn-id frame, because a detached run names its turn in
             // a frame of its own, and that id is what retires the echo on identity.
             if (frame.kind === "status") {
@@ -197,21 +244,22 @@ export const readRunAdmission = async (
             if (scan(decoder.decode(value, {stream: true})) === "error") {
                 watcher?.onFailed?.()
                 await reader.cancel().catch(() => undefined)
-                return {accepted: false, ended: true}
+                return {accepted: false, ended: true, awaiting: false}
             }
         }
         // A last frame with no trailing newline is still a frame, and it can be the refusal.
         if (!accepted && buffer.trim() && scan("\n") === "error") {
             watcher?.onFailed?.()
-            return {accepted: false, ended: true}
+            return {accepted: false, ended: true, awaiting: false}
         }
     } catch {
         // A dropped connection says nothing about the turn either way: not a failure, and not an
         // ending. A turn that keeps running on the server after the browser's connection fell
         // over still saves its row, and reading the drop as "finished" put "wasn't sent" under it.
-        return {accepted, ended: false}
+        return {accepted, ended: false, awaiting: false}
     }
-    return {accepted, ended: true}
+    const parts = [...toolParts.values(), ...renderParts]
+    return {accepted, ended: true, awaiting: isHitlPending([{role: "assistant", parts}])}
 }
 
 export const parkedInputIdFromBody = (body: unknown): string | null => {
@@ -465,7 +513,16 @@ export const useServerSessionInputs = ({
                     if (mount.isCurrent(generation)) onTurnStageRef.current?.(stage)
                 },
             })
-                .finally(() => trackOwnedRun({id: sessionId, open: false}))
+                .then(
+                    (admission) => {
+                        trackOwnedRun({id: sessionId, open: false, awaiting: admission.awaiting})
+                        return admission
+                    },
+                    (error: unknown) => {
+                        trackOwnedRun({id: sessionId, open: false})
+                        throw error
+                    },
+                )
                 .then(async ({accepted, ended}) => {
                     watcher?.onTurnNamed?.()
                     if (!mount.isCurrent(generation)) return
