@@ -3,18 +3,15 @@ import {useCallback} from "react"
 import {useAtom} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
-import {useLoaderMotion} from "@/lib/motion/loaderMotion"
-
 import {BootLoaderScreen} from "./BootLoaderScreen"
 import {postAuthBootAtom} from "./postAuthBoot"
 
-/**
- * Covers every route change between a successful sign-in and the first real screen, so the
- * visitor sees one loader instead of a sign-in form, a skeleton, then a redirect.
- */
+import {useMotionPresets} from "@/lib/motion/presets"
+
+/** One loader over every route change between sign-in and the first real screen. */
 export const PostAuthLoader = () => {
     const [boot, setBoot] = useAtom(postAuthBootAtom)
-    const motionSet = useLoaderMotion()
+    const presets = useMotionPresets()
     const finish = useCallback(() => setBoot(null), [setBoot])
 
     return (
@@ -22,7 +19,7 @@ export const PostAuthLoader = () => {
             {boot ? (
                 <motion.div
                     key="post-auth-boot"
-                    variants={motionSet.loaderOverlay}
+                    variants={presets.overlayFade}
                     initial="initial"
                     animate="animate"
                     exit="exit"

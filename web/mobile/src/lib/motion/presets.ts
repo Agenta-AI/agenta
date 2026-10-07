@@ -80,10 +80,7 @@ const settleEase = [0.2, 0.7, 0.2, 1] as const
 /** Tween for a flow step or a swapped panel arriving. */
 export const stepTransition: Transition = {duration: 0.38, ease: settleEase}
 
-/**
- * A flow step sliding in a short distance while it fades. `custom` is the direction: +1 forward,
- * -1 back. The leaving step only fades, so the two never cross.
- */
+/** A step sliding in while it fades; `custom` is +1 forward, -1 back. */
 export const stepSlide: Variants = {
     initial: (direction: number) => ({x: direction * 24, opacity: 0}),
     animate: {x: 0, opacity: 1, transition: stepTransition},
@@ -93,11 +90,12 @@ export const stepSlide: Variants = {
 /** An item rising into place. `custom` is its delay in seconds, for a staggered list. */
 export const fadeUp: Variants = {
     initial: {y: 8, opacity: 0},
-    animate: (delay: number = 0) => ({
+    animate: (delay = 0) => ({
         y: 0,
         opacity: 1,
         transition: {duration: 0.35, ease: "easeOut", delay},
     }),
+    exit: {opacity: 0, transition: {duration: 0.12, ease: "easeOut"}},
 }
 
 /** A mark popping in when its value changes (an icon swapped for another). */
@@ -120,6 +118,32 @@ export const countUpMs = 1400
 
 /** How long a picked answer holds before a one-tap question moves on. */
 export const answerHoldMs = 420
+
+/** How long the sign-in screen's exit plays before the post-auth loader takes over. */
+export const authLeaveMs = 420
+
+/** A full-screen overlay fading in, and out over the screen beneath it. */
+export const overlayFade: Variants = {
+    initial: {opacity: 0},
+    animate: {opacity: 1, transition: {duration: 0.5, ease: "easeOut"}},
+    exit: {opacity: 0, transition: {duration: 0.3, ease: "easeOut"}},
+}
+
+/** A rotating line rising in and lifting out; pair with `AnimatePresence mode="wait"`. */
+export const tipSwap: Variants = {
+    initial: {opacity: 0, y: 6},
+    animate: {opacity: 1, y: 0, transition: {duration: 0.43, ease: "easeOut"}},
+    exit: {opacity: 0, y: -4, transition: {duration: 0.43, ease: "easeIn"}},
+}
+
+/** A mark breathing while something waits. Spread onto `animate`. */
+export const breathe = {
+    scale: [1, 1.06, 1],
+    transition: {duration: 2.4, ease: "easeInOut", repeat: Infinity} satisfies Transition,
+}
+
+/** How long each rotating tip shows. */
+export const tipRotateMs = 3600
 
 /** Instant variants used when the user prefers reduced motion. */
 const instant: Variants = {
@@ -158,6 +182,14 @@ export interface MotionPresets {
     featuredDwellMs: number
     /** 0 when reduced: a picked answer moves on at once. */
     answerHoldMs: number
+    /** 0 when reduced: the sign-in screen leaves at once. */
+    authLeaveMs: number
+    overlayFade: Variants
+    tipSwap: Variants
+    /** Undefined when reduced: the mark holds still. */
+    breathe: typeof breathe | undefined
+    /** 0 when reduced: the first tip stays. */
+    tipRotateMs: number
 }
 
 /**
@@ -192,6 +224,11 @@ export function useMotionPresets(): MotionPresets {
                       runHoldMs: 0,
                       featuredDwellMs: 0,
                       answerHoldMs: 0,
+                      authLeaveMs: 0,
+                      overlayFade: instant,
+                      tipSwap: instant,
+                      breathe: undefined,
+                      tipRotateMs: 0,
                   }
                 : {
                       reduced,
@@ -214,6 +251,11 @@ export function useMotionPresets(): MotionPresets {
                       runHoldMs,
                       featuredDwellMs,
                       answerHoldMs,
+                      authLeaveMs,
+                      overlayFade,
+                      tipSwap,
+                      breathe,
+                      tipRotateMs,
                   },
         [reduced],
     )
