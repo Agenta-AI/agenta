@@ -1,15 +1,12 @@
 import {motion} from "motion/react"
 
-import {useMotionPresets} from "@/lib/motion/presets"
-import {cn} from "@/lib/utils"
-
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {PROGRESS_STEPS, type OnboardingStep} from "./onboardingRoute"
 
-/**
- * The four progress dots at the foot of the page. They are also the way back: a dot already
- * reached jumps to its step.
- */
+import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
+
+/** The four progress dots; a reached dot jumps back to its step. */
 export const OnboardingProgressDots = ({
     current,
     reached,

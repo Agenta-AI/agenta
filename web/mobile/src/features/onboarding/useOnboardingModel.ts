@@ -71,10 +71,7 @@ const configuredSelection = (configuration: unknown): AgentModelSelection | null
     return modelId && harness && connection ? {modelId, harness, ...connection} : null
 }
 
-/**
- * The model the first agent runs on. There is no picker: credits win by default, a ChatGPT
- * sign-in or a key saved during onboarding takes over, and the first candidate is the fallback.
- */
+/** The first agent's model, no picker: credits first, then a connection made here, then any. */
 export const useOnboardingModel = (entityId: string, projectId: string): OnboardingModel => {
     const candidates = useAtomValue(agentModelCandidatesAtomFamily(true))
     const configuration = useAtomValue(
@@ -96,7 +93,8 @@ export const useOnboardingModel = (entityId: string, projectId: string): Onboard
     const creditsId = creditsConnection?.id
     const isCredits = useCallback(
         (item: AgentModelCandidate | undefined) =>
-            item?.namespace === "builtin" || (Boolean(creditsId) && item?.connectionKey === creditsId),
+            item?.namespace === "builtin" ||
+            (Boolean(creditsId) && item?.connectionKey === creditsId),
         [creditsId],
     )
     const chatgptConnection = candidates.connections.find((item) => item.subscription) ?? null

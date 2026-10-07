@@ -1,8 +1,4 @@
-/**
- * A live mock of the Automations page for the sign-in panel: one automation runs its steps while
- * the others sit in a grid, then the next one takes over. Decorative and `aria-hidden` by its
- * host; under reduced motion it holds one finished run.
- */
+/** A live, decorative mock of the Automations page for the sign-in panel. */
 import {useEffect, useState, type ComponentType} from "react"
 
 import {
@@ -110,7 +106,11 @@ const AUTOMATIONS: Automation[] = [
         apps: ["github", "slack"],
         lastRunMinutes: 38,
         event: "CI failed on main: eval-runner tests",
-        steps: ["Read the failing job logs", "Traced it to commit a41f9c2", "Pinged the author in #ci"],
+        steps: [
+            "Read the failing job logs",
+            "Traced it to commit a41f9c2",
+            "Pinged the author in #ci",
+        ],
     },
     {
         name: "Dependency digest",
@@ -202,7 +202,11 @@ const AppStack = ({apps}: {apps: AppId[]}) => (
             const {Icon, className} = APPS[id]
             return (
                 <span key={id} className="auth-preview-app -mr-1.5">
-                    <Icon size={15} weight={id === "mail" ? "regular" : "fill"} className={className} />
+                    <Icon
+                        size={15}
+                        weight={id === "mail" ? "regular" : "fill"}
+                        className={className}
+                    />
                 </span>
             )
         })}

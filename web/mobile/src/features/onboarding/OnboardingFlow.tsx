@@ -3,9 +3,6 @@ import {useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactNode
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {motion} from "motion/react"
 
-import {useMotionPresets} from "@/lib/motion/presets"
-import {cn} from "@/lib/utils"
-
 import type {ConnectedApps} from "./onboardingApps"
 import {ONBOARDING_ROLES, ONBOARDING_SOURCES, type OnboardingCatalog} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
@@ -39,6 +36,9 @@ import {
 } from "./onboardingRoute"
 import type {OnboardingModel} from "./useOnboardingModel"
 import {useOnboardingNav} from "./useOnboardingNav"
+
+import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
 
 export interface OnboardingCreateInput extends FirstAgentInput {
     icon: OnboardingIconPick
@@ -258,8 +258,7 @@ export const OnboardingFlow = ({
                     variants={presets.stepSlide}
                     initial="initial"
                     animate="animate"
-                    // `min-w-0`: a flex item's floor is otherwise its widest row, which pushed the
-                    // gallery's scrolling icon row past a phone's edge.
+                    // `min-w-0`: otherwise the widest row sets the floor and overflows a phone.
                     className={cn("w-full min-w-0", WIDTH[step])}
                 >
                     {body[step]()}

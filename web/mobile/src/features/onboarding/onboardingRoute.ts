@@ -67,7 +67,7 @@ const OPENS: Record<OnboardingStep, (answers: Answers) => boolean> = {
 export const isStepOpen = (step: OnboardingStep, answers: Answers) => OPENS[step](answers)
 
 /** The latest step the answers open, for a link to a step the user has not reached. */
-export const furthestOnboardingRoute = (answers: Answers): OnboardingRoute =>
+const furthestOnboardingRoute = (answers: Answers): OnboardingRoute =>
     stepRoute(ONBOARDING_STEPS.findLast((step) => OPENS[step](answers)) ?? "role")
 
 /** The requested route when the answers open it, else the furthest one they do. */
@@ -79,7 +79,5 @@ export const guardOnboardingRoute = (
 
 /** Each step's heading id: focus lands on it, and its choices are labelled by it. */
 export const onboardingHeadingId = (step: OnboardingStep) => `onboarding-heading-${step}`
-
-export const onboardingStepNumber = (step: OnboardingStep) => ONBOARDING_STEPS.indexOf(step) + 1
 
 export const stepIndex = (step: OnboardingStep) => ONBOARDING_STEPS.indexOf(step)
