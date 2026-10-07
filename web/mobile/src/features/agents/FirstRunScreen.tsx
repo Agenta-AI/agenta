@@ -18,18 +18,18 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {captureIntent} from "@/features/analytics/client"
-import {newId} from "@/lib/ids"
-
-import {templateSetupDraftAtom} from "../agents/templateSetupDraft"
-import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {SessionWorkspace} from "../chat/SessionWorkspace"
 
-import {FIRST_RUN_COPY} from "./copy"
 import {FirstRunComposer} from "./FirstRunComposer"
+import {FIRST_RUN_COPY} from "./firstRunCopy"
 import {FirstRunTemplates} from "./FirstRunTemplates"
 import {FirstRunHeroSkeleton} from "./states/FirstRunHeroSkeleton"
+import {templateSetupDraftAtom} from "./templateSetupDraft"
 import {useEphemeralAgent} from "./useEphemeralAgent"
+import {useNewAgentAction} from "./useNewAgentAction"
+
+import {captureIntent} from "@/features/analytics/client"
+import {newId} from "@/lib/ids"
 
 /**
  * The create-an-agent surface: what a brand-new project shows instead of Home, and where every

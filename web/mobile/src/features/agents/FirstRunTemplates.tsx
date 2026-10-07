@@ -13,7 +13,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {ChevronLeft, ChevronRight, EyeOff} from "lucide-react"
 
-import {FIRST_RUN_COPY} from "./copy"
+import {FIRST_RUN_COPY} from "./firstRunCopy"
 import {FirstRunTemplatesSkeleton} from "./states/FirstRunTemplatesSkeleton"
 import {TemplatePagerButton} from "./TemplatePagerButton"
 import {templatesHiddenAtom} from "./templatesHidden"
