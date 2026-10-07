@@ -17,6 +17,7 @@ const admitting = (answer: SandboxTurnAdmission) => vi.fn(async () => answer);
 describe("runAdmittedTurn", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.useRealTimers();
   });
 
   it("a refused turn never runs: the person reads the platform's sentence and its class", async () => {
@@ -39,6 +40,8 @@ describe("runAdmittedTurn", () => {
 
   it("an admitted turn runs under the plan's turn limit and holds its slot until it ends", async () => {
     vi.stubEnv("AGENTA_WALLETS_ENABLED", "true");
+    // The limit counts down from admission; a frozen clock reads the full limit.
+    vi.useFakeTimers({ toFake: ["Date"] });
     const release = vi.fn();
     const holdSlot = vi.fn(() => ({ release }));
     let totalMs = 0;

@@ -5,6 +5,7 @@ import {
     Broadcast,
     Buildings,
     Bug,
+    ChartLineUp,
     Coins,
     ClockCounterClockwise,
     FolderSimple,
@@ -32,6 +33,8 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
             return <Vault size={14} />
         case "llms":
             return <Sparkle size={14} />
+        case "analytics":
+            return <ChartLineUp size={14} />
         case "tools":
             return <Wrench size={14} />
         case "channels":

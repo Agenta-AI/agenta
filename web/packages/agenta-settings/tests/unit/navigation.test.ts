@@ -120,21 +120,22 @@ describe("settings sidebar scopes", () => {
             tabs.filter((tab) => tab.scope === scope).map(({key}) => key)
 
         expect(keysForScope("project")).toEqual([
-            "apiKeys",
-            "secrets",
             "llms",
             "tools",
-            "channels",
-            "webhooks",
+            "secrets",
             "mcpEndpoints",
+            "channels",
+            "apiKeys",
+            "webhooks",
+            "analytics",
         ])
         expect(keysForScope("organization")).toEqual([
-            "organizationGeneral",
+            "billing",
             "workspace",
+            "organizationGeneral",
             "projects",
             "organization",
             "auditLog",
-            "billing",
             "credits",
             "walletUsage",
         ])

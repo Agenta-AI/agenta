@@ -70,9 +70,13 @@ it.each([
     [null, false],
 ])("validates Send Now admission %j", async (response, accepted) => {
     sendNow.mockResolvedValue(response)
-    await expect(
-        sendPendingSessionInputNow({projectId: "project", sessionId: "session", inputId: "input"}),
-    ).resolves.toBe(accepted)
+    const sent = await sendPendingSessionInputNow({
+        projectId: "project",
+        sessionId: "session",
+        inputId: "input",
+    })
+    expect(sent.outcome).toBe(accepted ? "applied" : "failed")
+    expect(sent.admission === null).toBe(!accepted)
 })
 
 it.each([
@@ -103,5 +107,5 @@ it.each([
             inputId: "input",
             text: "edited",
         }),
-    ).resolves.toBe(accepted)
+    ).resolves.toBe(accepted ? "applied" : "failed")
 })

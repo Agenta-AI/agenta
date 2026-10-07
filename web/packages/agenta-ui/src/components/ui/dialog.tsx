@@ -57,6 +57,7 @@ function DialogContent({
     onEscapeKeyDown,
     showCloseButton = true,
     closeIcon,
+    overlayClassName,
     ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
     /** Portal target; defaults to document.body. */
@@ -67,17 +68,20 @@ function DialogContent({
     showCloseButton?: boolean
     /** Replaces the default X icon. */
     closeIcon?: React.ReactNode
+    /** Extra backdrop classes, e.g. a darker mask for a media lightbox. */
+    overlayClassName?: string
 }) {
     return (
         <DialogPortal container={container}>
-            <DialogOverlay />
+            <DialogOverlay className={overlayClassName} />
             {/* Flex-centred, not transform-centred: the zoom keyframes would overwrite a translate. */}
             <div
                 data-slot="dialog-positioner"
                 // p-4 keeps a phone-width modal off the viewport edges.
                 className={cn(
                     "fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none",
-                    contained && "absolute",
+                    // Contained: follow the container's corners, so the mask never squares them.
+                    contained && "absolute rounded-[inherit]",
                 )}
             >
                 {/* A non-modal Root renders no Radix overlay, so the contained mask is a plain layer. */}
@@ -86,7 +90,7 @@ function DialogContent({
                         data-slot="dialog-overlay"
                         className={cn(
                             OVERLAY_CLASS,
-                            "absolute z-0 pointer-events-auto animate-overlay-in",
+                            "absolute z-0 pointer-events-auto animate-overlay-in rounded-[inherit]",
                         )}
                     />
                 )}

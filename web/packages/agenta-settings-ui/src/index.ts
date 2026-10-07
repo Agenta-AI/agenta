@@ -1,5 +1,9 @@
 export type {ConfirmDestructive} from "./confirm"
-export {default as SettingsPageShell, type SettingsPageShellProps} from "./SettingsPageShell"
+export {
+    default as SettingsPageShell,
+    SettingsPageActions,
+    type SettingsPageShellProps,
+} from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"
 export {
     PreferencesPage,

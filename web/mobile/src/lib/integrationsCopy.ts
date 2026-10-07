@@ -17,7 +17,7 @@ const TAB_DESCRIPTIONS: Partial<Record<SettingsTabKey, string>> = {
 }
 
 const TAB_DOCS_LABELS: Partial<Record<SettingsTabKey, string>> = {
-    tools: "About integrations",
+    tools: "Learn more about integrations",
 }
 
 export const getMobileSettingsTabLabel = (key: SettingsTabKey, access: SettingsAccess) =>
@@ -39,10 +39,8 @@ export const withMobileSettingsLabels = <T extends {key: SettingsTabKey; title: 
 
 /** Copy for the shared `GatewayToolsSection`, whose defaults still say "tool" for oss/ee. */
 export const INTEGRATIONS_SECTION_COPY = {
-    integrationColumn: "Integration",
     run: "Run action",
     searchPlaceholder: "Search integrations",
-    connect: "Connect integration",
     emptyTitle: "No integrations connected yet",
     emptyBody: "Connect an integration to let your agents call it.",
     noMatch: (term: string) => `No integrations match “${term}”`,

@@ -6,7 +6,7 @@ import {
     latestTurnId,
     prepareAfterContinuationPreflight,
     resolveStopExecution,
-    startupLabelFromDataPart,
+    startupPhaseFromDataPart,
     submitServerOwnedApproval,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
@@ -251,8 +251,8 @@ export const useAgentChatSession = ({
                 acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
                 setAcceptedRunPending(true)
             }
-            const label = startupLabelFromDataPart(part)
-            if (label) setTurnStartupLabel(sessionId, label)
+            const phase = startupPhaseFromDataPart(part)
+            if (phase) setTurnStartupLabel(sessionId, phase)
         },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).

@@ -15,6 +15,8 @@ import {
     isPendingSendFailed,
     isViewable,
     PENDING_SEND_FAILED_NOTE,
+    stageWordAt,
+    stageWords,
 } from "@agenta/chat/assets"
 import {
     ClientToolPart,
@@ -41,7 +43,7 @@ import {
     messageBodyKey,
     reasoningKey,
     setExpandedAtom,
-    useStartupPhase,
+    useTurnStage,
 } from "@agenta/chat/state"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
@@ -173,13 +175,13 @@ const MessageAvatar = ({isUser = false}: {isUser?: boolean}) => {
 /** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
  * turn, not once per message in the transcript. */
 const PendingTurn = ({sessionId}: {sessionId: string}) => {
-    const startupPhase = useStartupPhase(sessionId)
-    return startupPhase ? (
+    const stage = useTurnStage(sessionId)
+    return stage ? (
         <ChatBubble
             placement="start"
             variant="borderless"
             avatar={<MessageAvatar />}
-            content={<StartupActivity label={startupPhase} />}
+            content={<StartupActivity label={stageWordAt(stageWords(stage), 0)} />}
         />
     ) : (
         <ChatBubble placement="start" variant="borderless" avatar={<MessageAvatar />} loading />

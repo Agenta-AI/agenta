@@ -71,7 +71,6 @@ const TurnRowInner = ({
     waitingOnUser = false,
     resuming = false,
     runId,
-    firstTurn = false,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -90,8 +89,6 @@ const TurnRowInner = ({
     resuming?: boolean
     /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
-    /** The session's first response: the one that narrates the agent's startup. */
-    firstTurn?: boolean
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -235,7 +232,6 @@ const TurnRowInner = ({
                 resuming={turn.isLast && resuming}
                 traceId={traceId}
                 streamedHere={streamedHereRef.current}
-                firstTurn={firstTurn}
                 renderClientTool={renderClientTool}
             />
             {activity.answer ? (
@@ -267,6 +263,10 @@ const TurnRowInner = ({
                 <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
                 </span>
+            ) : turn.status.stopped && !activity.answer && !live ? (
+                // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
+                // running call, the fold hides that failed call, and the turn would read empty.
+                <span className="text-xs italic text-colorTextSecondary">Stopped</span>
             ) : null}
             {/* The turn's meta line sits under the answer, revealed on hover or focus like the
                 desktop's; the row keeps its height so nothing shifts when it appears. Not while

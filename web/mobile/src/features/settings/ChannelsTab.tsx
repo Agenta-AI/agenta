@@ -10,11 +10,14 @@ import {useAtomValue} from "jotai"
 
 import {useAgentChannels} from "../agents/useAgentChannels"
 
+import {useConfirmModal} from "./useConfirmModal"
+
 /**
  * Settings > Channels: every connection in the project. The panel acts for one agent at a
  * time, so the channels actions are rebuilt whenever the user picks another.
  */
 export const ChannelsTab = () => {
+    const {confirm, modal: confirmModal} = useConfirmModal()
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo(
         () =>
@@ -39,17 +42,21 @@ export const ChannelsTab = () => {
     })
 
     return (
-        <ChannelsSettingsPage
-            agents={agents}
-            agentId={agent?.id}
-            onAgentChange={setPicked}
-            agentDescription={agent?.description}
-            connections={connections}
-            loading={loading}
-            loadError={loadError}
-            onRetry={() => actions.reload().then(() => undefined)}
-            actions={actions}
-            renderPanel={(props: ChannelsPanelRenderProps) => <ChannelsPanelSheet {...props} />}
-        />
+        <>
+            <ChannelsSettingsPage
+                agents={agents}
+                agentId={agent?.id}
+                onAgentChange={setPicked}
+                agentDescription={agent?.description}
+                connections={connections}
+                loading={loading}
+                loadError={loadError}
+                onRetry={() => actions.reload().then(() => undefined)}
+                actions={actions}
+                renderPanel={(props: ChannelsPanelRenderProps) => <ChannelsPanelSheet {...props} />}
+                confirm={confirm}
+            />
+            {confirmModal}
+        </>
     )
 }

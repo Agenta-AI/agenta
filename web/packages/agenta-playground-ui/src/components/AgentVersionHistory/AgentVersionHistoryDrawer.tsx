@@ -24,6 +24,7 @@ import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ChangesPane} from "./ChangesPane"
+import {RevertConfirmDialog} from "./RevertConfirmDialog"
 import {RevertFooter} from "./RevertFooter"
 import type {RevertPhase} from "./RevertFooter"
 import {
@@ -109,6 +110,8 @@ export const AgentVersionHistoryDrawer = ({
 
     // Drawer-local: nothing outside reads either.
     const [phase, setPhase] = useState<RevertPhase>("idle")
+    // The panel element, so the revert confirmation can mask the drawer and not the page.
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     // Phone: one pane at a time. Picking a version pushes the diff; a back link returns.
     const [mobileView, setMobileView] = useState<"list" | "diff">("list")
 
@@ -187,6 +190,7 @@ export const AgentVersionHistoryDrawer = ({
             onClose={handleClose}
             title={<span className="text-sm font-normal">Version history</span>}
             width={780}
+            panelRef={setPanel}
             // px-3 so the buttons' outer edge lands on the same line as the section bands.
             classNames={{body: "!p-0", footer: "px-3"}}
             footer={
@@ -213,6 +217,14 @@ export const AgentVersionHistoryDrawer = ({
                 />
             }
         >
+            <RevertConfirmDialog
+                open={phase === "confirm"}
+                container={panel}
+                selectedVersion={selectedRow?.version ?? null}
+                latestVersion={latestRow?.version ?? null}
+                onCancel={() => setPhase("idle")}
+                onConfirm={handleConfirm}
+            />
             <div className="flex h-full min-h-0">
                 <div
                     className={cn(

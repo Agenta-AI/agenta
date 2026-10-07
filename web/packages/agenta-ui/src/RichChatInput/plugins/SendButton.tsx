@@ -6,29 +6,29 @@ import {Stop} from "@phosphor-icons/react"
 
 import {Button} from "../../components/ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
-import {$isBlankMessage, submitEditorAsMarkdown} from "../assets/submit"
+import {$isBlankMessage, submitEditorAsMarkdown, type SubmitHandler} from "../assets/submit"
 import {ComposerSendButton} from "../ComposerSendButton"
 
 interface SendButtonProps {
-    onSubmit: (markdown: string) => void
+    onSubmit: SubmitHandler
     /** Keep enabled even with empty text (e.g. attachments are queued) — sends an empty message. */
     forceEnabled?: boolean
     disabled?: boolean
     /** Tooltip shown when a caller blocks submit. */
     disabledReason?: ReactNode
-    /** Keep Stop accessible for the in-flight stream, beside Send when a draft exists. */
+    /** A run is in flight: an empty composer shows Stop, a draft shows Send (which queues). */
     streaming?: boolean
     stopping?: boolean
     /** Request a durable stop — required for the `streaming` state. */
     onStop?: () => void
     /** Additional submit choices shown beside Stop while a run is active. */
-    busyActions?: {label: string; onSubmit: (markdown: string) => void}[]
+    busyActions?: {label: string; onSubmit: SubmitHandler}[]
     /** The send is in flight; see ComposerSendButton. */
     sending?: boolean
 }
 
 /** Circular send button. Mirrors the Cmd/Ctrl+Enter path via the shared submit helper.
- * While a stream is in flight, an empty composer shows Stop; a draft shows Send beside Stop. */
+ * During a run it is Stop when the composer is empty and Send when it holds a draft. */
 export function SendButton({
     onSubmit,
     forceEnabled,
@@ -54,6 +54,7 @@ export function SendButton({
         submitEditorAsMarkdown(editor, onSubmit, forceEnabled)
     }
 
+    const hasDraft = !empty || !!forceEnabled
     if (streaming || busyActions?.length) {
         // A spinning ring (stream in progress) around a Stop square — one affordance that both
         // signals progress and stops the run on click. Two-layer ring: a faint neutral track under
@@ -74,7 +75,7 @@ export function SendButton({
                         {action.label}
                     </Button>
                 ))}
-                {streaming ? (
+                {streaming && !hasDraft ? (
                     <span className="relative inline-flex">
                         <span
                             aria-hidden
@@ -105,7 +106,7 @@ export function SendButton({
                         </Button>
                     </span>
                 ) : null}
-                {!empty || forceEnabled ? (
+                {hasDraft ? (
                     <ComposerSendButton
                         onClick={handleClick}
                         disabled={disabled}

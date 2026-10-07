@@ -21,9 +21,10 @@ import {
 import type {ChannelConnection} from "./types"
 
 /**
- * **Settings > Channels.** Every connection in the project as a card, whichever agent it
- * answers as. A card opens the Publish panel on its connection; a new connection starts by
- * choosing the agent. The stories wire fake actions over an in-memory fixture.
+ * **Settings > Channels.** Every connection in the project as a row, whichever agent it
+ * answers as, then the platforms to connect. A connection opens the Publish panel on it; a
+ * platform starts a new connection by choosing the agent. The stories wire fake actions over an
+ * in-memory fixture.
  */
 const meta = {
     title: "@agenta/settings-ui/Channels/ChannelsSettingsPage",
@@ -84,7 +85,7 @@ export const Connections: Story = {
     ),
 }
 
-/** Every state a card can carry: live, broken, not linked yet, and answering as no agent. */
+/** Every state a connection can carry: live, broken, not linked yet, and answering as no agent. */
 export const CardStates: Story = {
     render: () => (
         <SettingsHost
@@ -102,7 +103,7 @@ export const Empty: Story = {
     render: () => <SettingsHost rows={[]} />,
 }
 
-/** With no agents, New connection's picker says to create one first. */
+/** With no agents, a platform's agent picker says to create one first. */
 export const NoAgents: Story = {
     render: () => <SettingsHost rows={[]} agents={[]} />,
 }

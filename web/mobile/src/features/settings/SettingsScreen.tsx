@@ -1,338 +1,51 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useRef} from "react"
 
-import {
-    fetchAllOrgsList,
-    fetchOrganizationDomains,
-    fetchOrganizationProviders,
-    fetchSingleOrg,
-    updateOrganization,
-    type OrganizationFlags,
-    type OrganizationProvider,
-} from "@agenta/entities/organization"
-import {useProfile} from "@agenta/entities/profile"
-import {fetchAllProjects} from "@agenta/entities/project"
 import {getSettingsTabVariant, type SettingsTabKey} from "@agenta/settings"
-import type {SettingsAccess} from "@agenta/settings"
-import {
-    AccessControlsSection,
-    type AccessFeature,
-    AccessUpgradeNotice,
-    AuditLogPage,
-    type AuthFlagKey,
-    DomainsSection,
-    GatewayToolsSection,
-    McpServersSection,
-    OrganizationsPage,
-    SsoProvidersSection,
-    SettingsPageShell,
-    useEntitlements,
-} from "@agenta/settings-ui"
-import {LoadError} from "@agenta/ui/components/presentational"
-import {THEME_OPTIONS, useThemeMode} from "@agenta/ui/theme"
-import {useQuery} from "@tanstack/react-query"
+import {SettingsPageShell} from "@agenta/settings-ui"
+import {useScrollFadeEdges} from "@agenta/ui/hooks"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {billingUrl} from "@/lib/context"
 import {
     getMobileSettingsTabDescription,
     getMobileSettingsTabDocs,
     getMobileSettingsTabLabel,
-    INTEGRATIONS_SECTION_COPY,
 } from "@/lib/integrationsCopy"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {openFeatureGuideAtom} from "../education/featureGuideAtom"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
-import {CreditsTab} from "../wallet/CreditsTab"
-import {WalletUsageTab} from "../wallet/WalletUsageTab"
 
-import {AccountTab} from "./AccountTab"
-import {ApiKeysTab} from "./ApiKeysTab"
-import {BillingTab} from "./BillingTab"
-import {ChannelsTab} from "./ChannelsTab"
-import {LlmProvidersTab} from "./LlmProvidersTab"
-import {MembersTab} from "./MembersTab"
 import {isNestedSettingsNavEnabled} from "./nestedNav"
-import {PreferencesTab} from "./PreferencesTab"
-import {ProjectsTab} from "./ProjectsTab"
-import {SecretsTab} from "./SecretsTab"
 import {useSettingsNavScope} from "./settingsNavScope"
+import {SettingsTabContent} from "./SettingsTabContent"
 import {SettingsTabRail} from "./SettingsTabRail"
+import {preloadAllSettingsTabs, preloadSettingsTab} from "./settingsTabRegistry"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
-import {OrganizationLoading, OrganizationNoFlags} from "./states/OrganizationStates"
-import {useConfirmModal} from "./useConfirmModal"
-import {WebhooksTab} from "./WebhooksTab"
+import {SETTINGS_WALKTHROUGHS} from "./settingsWalkthroughs"
 
-/**
- * One tab's body. Every page comes from @agenta/settings-ui. Tabs with a *Tab wrapper bring
- * this app's own bottom sheets for their writes; the rest render read-only — the lists and
- * their empty states, none of the write affordances.
- */
-const TabBody = ({
-    tab,
-    access,
-    user,
-    theme,
-    workspaceId,
-    projectId,
-}: {
-    tab: SettingsTabKey
-    access: SettingsAccess
-    user: {id?: string | null; username?: string | null; email?: string | null} | null
-    theme: {options: {mode: string; label: string}[]; mode: string; onSelect: (m: string) => void}
-    workspaceId: string
-    projectId: string
-}) => {
-    const projects = useQuery({
-        queryKey: ["projects", workspaceId],
-        queryFn: () => fetchAllProjects(workspaceId),
-        // Every organization-scoped tab resolves its org id from this list.
-        enabled: tab !== "preferences" && tab !== "account",
-    })
-
-    // A project carries its organization, which saves resolving one from the workspace id.
-    const organizationId = projects.data?.find(
-        (project) => project.organization_id && project.workspace_id === workspaceId,
-    )?.organization_id
-    // The roster lives on the org's default workspace, not behind a members endpoint — same
-    // source the desktop reads, so the two surfaces cannot disagree.
-    const org = useQuery({
-        queryKey: ["selectedOrg", organizationId],
-        queryFn: () => fetchSingleOrg({organizationId: organizationId!}),
-        enabled: (tab === "workspace" || tab === "organization") && Boolean(organizationId),
-    })
-    const organizations = useQuery({
-        queryKey: ["orgs"],
-        queryFn: () => fetchAllOrgsList(),
-        enabled: tab === "organizationGeneral",
-    })
-    const domains = useQuery({
-        queryKey: ["organization-domains", organizationId],
-        queryFn: () => fetchOrganizationDomains(),
-        enabled: tab === "organization" && Boolean(organizationId),
-    })
-    const providers = useQuery({
-        queryKey: ["organization-providers", organizationId],
-        queryFn: () => fetchOrganizationProviders(),
-        enabled: tab === "organization" && Boolean(organizationId),
-    })
-    // The same two responses the desktop gates on, so a plan without a feature reads the same
-    // on both surfaces instead of /m quietly showing controls the plan does not include.
-    const entitlements = useEntitlements({
-        projectId,
-        enabled: access.isEE && (tab === "organization" || tab === "auditLog"),
-    })
-    // Destructive actions in the shared tool sections ask for confirmation through an
-    // imperative callback (the desktop hands them antd's AlertPopup); this is the modal version.
-    const {confirm, modal: confirmModal, close: closeConfirm} = useConfirmModal()
-    // A confirmation is about the section that raised it. Leaving the tab abandons that context,
-    // so the modal must not survive into the next one and act there.
-    useEffect(() => closeConfirm, [tab, closeConfirm])
-    const [memberSearch, setMemberSearch] = useState("")
-    const [orgSearch, setOrgSearch] = useState("")
-
-    const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
-    const [lastSavedFlag, setLastSavedFlag] = useState<AuthFlagKey | null>(null)
-    const [flagError, setFlagError] = useState<string | null>(null)
-    // The success tick is a confirmation, not a state — it used to be set and never cleared, so
-    // it sat on the last-saved row for the rest of the session.
+/** Warms a tab's code when the pointer reaches its nav link, and every tab once the page is idle. */
+const usePreloadSettingsTabs = () => {
     useEffect(() => {
-        if (!lastSavedFlag) return
-        const timer = setTimeout(() => setLastSavedFlag(null), 3_000)
-        return () => clearTimeout(timer)
-    }, [lastSavedFlag])
-    const setFlag = async (flag: AuthFlagKey, value: boolean) => {
-        if (!organizationId) return
-        setSavingFlag(flag)
-        setFlagError(null)
-        setLastSavedFlag(null)
-        try {
-            await updateOrganization(organizationId, {flags: {[flag]: value}})
-            await org.refetch()
-            setLastSavedFlag(flag)
-        } catch (error) {
-            // Without this the request failed, the refetch put the switch back, and the only
-            // signal was a toggle that silently flipped itself.
-            setFlagError(
-                error instanceof Error ? error.message : "Couldn't save that setting — try again",
-            )
-        } finally {
-            setSavingFlag(null)
+        const onPointerOver = (event: PointerEvent) => {
+            const link = (event.target as Element | null)?.closest?.("a[href*='settings?tab=']")
+            const tab = link && new URL((link as HTMLAnchorElement).href).searchParams.get("tab")
+            if (tab) preloadSettingsTab(tab)
         }
-    }
-
-    switch (tab) {
-        case "preferences":
-            return <PreferencesTab theme={theme} />
-        case "account":
-            return <AccountTab user={user} />
-        case "apiKeys":
-            return (
-                <ApiKeysTab
-                    workspaceId={workspaceId}
-                    projectId={projectId}
-                    canView={access.canViewApiKeys}
-                />
-            )
-        case "llms":
-            return <LlmProvidersTab />
-        case "secrets":
-            return <SecretsTab />
-        // No date-range picker — the desktop's preset picker is its own. The entitlement gate
-        // is the desktop's, so a plan without Audit Log reads the same on both.
-        case "auditLog":
-            return (
-                <AuditLogPage
-                    hasAudit={entitlements.hasAudit}
-                    entitlementsLoading={entitlements.isLoading}
-                />
-            )
-        case "billing":
-            return <BillingTab projectId={projectId} />
-        case "credits":
-            if (!access.walletsEnabled) return null
-            return (
-                <CreditsTab
-                    projectId={projectId}
-                    billingURL={billingUrl({workspaceId, projectId})}
-                />
-            )
-        case "walletUsage":
-            if (!access.walletDebug) return null
-            return <WalletUsageTab projectId={projectId} />
-        case "webhooks":
-            return <WebhooksTab />
-        // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry
-        // no antd theming and render correctly here.
-        case "tools":
-            // Gated here too, not only in `useActiveSettingsTab`: a render boundary that trusts
-            // the router is one refactor away from rendering a disabled surface.
-            if (!access.canShowTools) return null
-            return (
-                <>
-                    <GatewayToolsSection confirm={confirm} copy={INTEGRATIONS_SECTION_COPY} />
-                    {confirmModal}
-                </>
-            )
-        // Writable, like Tools: the section and its journey are shared with the desktop, so
-        // a connection added here is the same connection added there.
-        case "mcpEndpoints":
-            // Gated here too, not only in `useActiveSettingsTab`: a render boundary that
-            // trusts the router is one refactor away from rendering a surface whose every
-            // action the gateway refuses.
-            if (!access.canShowMcpEndpoints) return null
-            return (
-                <>
-                    <McpServersSection confirm={confirm} />
-                    {confirmModal}
-                </>
-            )
-        case "channels":
-            return <ChannelsTab />
-        case "projects":
-            return (
-                <ProjectsTab
-                    projects={projects.data ?? []}
-                    isLoading={projects.isPending}
-                    workspaceId={workspaceId}
-                />
-            )
-        case "workspace":
-            return (
-                <MembersTab
-                    members={org.data?.default_workspace?.members ?? []}
-                    loading={projects.isPending || org.isPending}
-                    searchTerm={memberSearch}
-                    onSearchChange={setMemberSearch}
-                    signedInUser={user}
-                    ownerId={org.data?.owner_id}
-                    organizationId={organizationId}
-                    workspaceId={org.data?.default_workspace?.id}
-                    onChanged={() => void org.refetch()}
-                />
-            )
-        case "organizationGeneral":
-            return (
-                <OrganizationsPage
-                    organizations={organizations.data ?? []}
-                    loading={organizations.isPending}
-                    searchTerm={orgSearch}
-                    onSearchChange={setOrgSearch}
-                    selectedOrgId={organizationId}
-                    currentUserId={user?.id}
-                />
-            )
-        case "organization": {
-            const flags = org.data?.flags as OrganizationFlags | undefined
-            // Waiting on entitlements too: every `has*` reads false until they land, so
-            // rendering now would flash the locked state at an entitled organization.
-            if (org.isPending || entitlements.isLoading) return <OrganizationLoading />
-            if (org.isError)
-                return (
-                    <LoadError
-                        title="Could not load this organization's settings"
-                        onRetry={() => void org.refetch()}
-                    />
-                )
-            if (!flags) return <OrganizationNoFlags />
-            const domainList = domains.data ?? []
-            const providerList = providers.data ?? []
-            const orgSlug = org.data?.slug
-            // Three independently-sold features. Whatever the plan excludes is said once, at the
-            // end, rather than as a lock card per section. No upgrade link: changing a plan means
-            // Stripe, which lives on the desktop.
-            const locked: AccessFeature[] = [
-                !entitlements.hasAccessControl && "access",
-                !entitlements.hasDomains && "domains",
-                !entitlements.hasSSO && "sso",
-            ].filter(Boolean) as AccessFeature[]
-
-            return (
-                <div className="flex flex-col gap-8">
-                    {entitlements.hasAccessControl ? (
-                        <AccessControlsSection
-                            flags={flags}
-                            onFlagChange={(flag, value) => void setFlag(flag, value)}
-                            updating={Boolean(savingFlag)}
-                            lastSavedFlag={lastSavedFlag}
-                            error={flagError}
-                            hasActiveVerifiedProvider={providerList.some(
-                                (provider) => provider.flags?.is_active && provider.flags?.is_valid,
-                            )}
-                            hasVerifiedDomain={domainList.some(
-                                (domain) => domain.flags?.is_verified,
-                            )}
-                        />
-                    ) : null}
-
-                    {/* Read-only here: adding a domain or provider means DNS records and IdP
-                        setup, which belong on the desktop. */}
-                    {entitlements.hasDomains ? (
-                        <DomainsSection domains={domainList} loading={domains.isPending} />
-                    ) : null}
-
-                    {entitlements.hasSSO ? (
-                        <SsoProvidersSection
-                            providers={providerList}
-                            loading={providers.isPending}
-                            callbackUrlFor={(provider: OrganizationProvider) =>
-                                orgSlug
-                                    ? `${window.location.origin}/auth/callback/sso:${orgSlug}:${provider.slug}`
-                                    : null
-                            }
-                        />
-                    ) : null}
-
-                    <AccessUpgradeNotice locked={locked} />
-                </div>
-            )
+        document.addEventListener("pointerover", onPointerOver)
+        const idle = window.requestIdleCallback
+            ? window.requestIdleCallback(preloadAllSettingsTabs, {timeout: 4_000})
+            : window.setTimeout(preloadAllSettingsTabs, 2_000)
+        return () => {
+            document.removeEventListener("pointerover", onPointerOver)
+            if (window.cancelIdleCallback) window.cancelIdleCallback(idle)
+            else window.clearTimeout(idle)
         }
-        default:
-            return null
-    }
+    }, [])
 }
 
 /**
@@ -354,8 +67,7 @@ export const SettingsScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const router = useRouter()
-    const {themeMode, setMode} = useThemeMode()
-    const {user} = useProfile()
+    usePreloadSettingsTabs()
 
     const nestedNav = isNestedSettingsNavEnabled()
     const settingsScope = useSettingsNavScope(workspaceId, projectId)
@@ -368,30 +80,31 @@ export const SettingsScreen = ({
         [router],
     )
 
+    // Every tab's body fades at an edge with more to scroll, top and bottom.
+    const scrollRef = useRef<HTMLDivElement>(null)
+    // A pinned catalog search keeps its colour; the top fade starts below it.
+    useScrollFadeEdges(scrollRef, {insetSelector: "[data-sticky-search]"})
+
+    const openWalkthrough = useSetAtom(openFeatureGuideAtom)
+    const walkthrough = SETTINGS_WALKTHROUGHS[active]
+
     const content = (
-        <div className="min-w-0 flex-1 overflow-y-auto">
-            {/* The shared page cap, same as every desktop Settings tab. It was escaped here when
-                this app was phone-only; `max-w-[1248px]` never binds below ~1490px of viewport,
-                so it costs phones nothing and stops the page sprawling edge to edge on the
-                desktop widths this app now serves. */}
+        // Does not scroll: the shell keeps the title still and scrolls only its body.
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <SettingsPageShell
+                scrollRef={scrollRef}
+                scrollClassName="ag-scroll-fade"
                 variant={getSettingsTabVariant(active)}
                 title={getMobileSettingsTabLabel(active, access)}
                 description={getMobileSettingsTabDescription(active, access)}
                 docs={getMobileSettingsTabDocs(active)}
+                video={
+                    walkthrough
+                        ? {label: "Watch walkthrough", onOpen: () => openWalkthrough(walkthrough)}
+                        : undefined
+                }
             >
-                <TabBody
-                    tab={active}
-                    access={access}
-                    user={user}
-                    workspaceId={workspaceId}
-                    projectId={projectId}
-                    theme={{
-                        options: THEME_OPTIONS,
-                        mode: themeMode,
-                        onSelect: (mode) => setMode(mode as typeof themeMode),
-                    }}
-                />
+                <SettingsTabContent tab={active} workspaceId={workspaceId} projectId={projectId} />
             </SettingsPageShell>
         </div>
     )

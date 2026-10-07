@@ -4,6 +4,7 @@ export type SettingsTabKey =
     | "apiKeys"
     | "secrets"
     | "llms"
+    | "analytics"
     | "tools"
     | "channels"
     | "webhooks"
@@ -61,41 +62,30 @@ export interface SettingsTabDefinition {
 
 const DOCS_BASE = "https://docs.agenta.ai"
 
+/** In sidebar order: each scope lists its tabs in the order they appear here. */
 export const SETTINGS_TABS: SettingsTabDefinition[] = [
-    {
-        key: "apiKeys",
-        scope: "project",
-        description: "Manage API keys used to authenticate requests.",
-        docs: {label: "Using the API", href: `${DOCS_BASE}/reference/api-guide/overview`},
-    },
-    {
-        key: "secrets",
-        scope: "project",
-        description: "Store credentials your agents use at runtime.",
-    },
     {
         key: "llms",
         scope: "project",
         description: "Connect the AI providers your agents, prompts, and evaluations run on.",
-        docs: {label: "Provider setup", href: `${DOCS_BASE}/faq/integrations/llm-providers`},
+        docs: {
+            label: "Learn more about AI providers",
+            href: `${DOCS_BASE}/faq/integrations/llm-providers`,
+        },
     },
     {
         key: "tools",
         scope: "project",
         description: "Configure integrations your agents can use.",
-        docs: {label: "About tools", href: `${DOCS_BASE}/concepts/tools-and-integrations`},
+        docs: {
+            label: "Learn more about tools",
+            href: `${DOCS_BASE}/concepts/tools-and-integrations`,
+        },
     },
     {
-        key: "channels",
+        key: "secrets",
         scope: "project",
-        description:
-            "Chat platforms connected to this project. Each connection answers as one agent.",
-    },
-    {
-        key: "webhooks",
-        scope: "project",
-        description:
-            "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
+        description: "Store credentials your agents use at runtime.",
     },
     {
         key: "mcpEndpoints",
@@ -104,43 +94,30 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
             "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
     },
     {
-        key: "organizationGeneral",
-        scope: "organization",
-        description: "Every organization you belong to.",
-        docs: {
-            label: "About organizations",
-            href: `${DOCS_BASE}/administration/access-control/organizations`,
-        },
-    },
-    {
-        key: "workspace",
-        scope: "organization",
-        description: "Manage members, invitations, and access.",
-        docs: {
-            label: "Roles and permissions",
-            href: `${DOCS_BASE}/administration/access-control/rbac`,
-        },
-    },
-    {
-        key: "projects",
-        scope: "organization",
-        description: "Organize agents, datasets, and deployments.",
-        docs: {
-            label: "About projects",
-            href: `${DOCS_BASE}/administration/access-control/organizations`,
-        },
-    },
-    {
-        key: "organization",
-        scope: "organization",
+        key: "channels",
+        scope: "project",
         description:
-            "Control how members sign in and which email domains are allowed to join this organization.",
-        docs: {label: "SSO setup", href: `${DOCS_BASE}/administration/access-control/sso`},
+            "Chat platforms connected to this project. Each connection answers as one agent.",
     },
     {
-        key: "auditLog",
-        scope: "organization",
-        description: "Review changes made across your organization.",
+        key: "apiKeys",
+        scope: "project",
+        description: "Manage API keys used to authenticate requests.",
+        docs: {
+            label: "Learn more about the API",
+            href: `${DOCS_BASE}/reference/api-guide/overview`,
+        },
+    },
+    {
+        key: "webhooks",
+        scope: "project",
+        description:
+            "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
+    },
+    {
+        key: "analytics",
+        scope: "project",
+        description: "See what your agents cost, how often they run, and how reliably they finish.",
     },
     {
         key: "billing",
@@ -151,6 +128,48 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
             billingEnabled
                 ? "Track how much of your plan you have used, and manage your subscription."
                 : "Track how much of your plan you have used.",
+    },
+    {
+        key: "workspace",
+        scope: "organization",
+        description: "Manage members, invitations, and access.",
+        docs: {
+            label: "Learn more about roles",
+            href: `${DOCS_BASE}/administration/access-control/rbac`,
+        },
+    },
+    {
+        key: "organizationGeneral",
+        scope: "organization",
+        description: "Every organization you belong to.",
+        docs: {
+            label: "Learn more about organizations",
+            href: `${DOCS_BASE}/administration/access-control/organizations`,
+        },
+    },
+    {
+        key: "projects",
+        scope: "organization",
+        description: "Organize agents, datasets, and deployments.",
+        docs: {
+            label: "Learn more about projects",
+            href: `${DOCS_BASE}/administration/access-control/organizations`,
+        },
+    },
+    {
+        key: "organization",
+        scope: "organization",
+        description:
+            "Control how members sign in and which email domains are allowed to join this organization.",
+        docs: {
+            label: "Learn more about SSO",
+            href: `${DOCS_BASE}/administration/access-control/sso`,
+        },
+    },
+    {
+        key: "auditLog",
+        scope: "organization",
+        description: "Review changes made across your organization.",
     },
     {
         key: "credits",
@@ -188,6 +207,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     secrets: "Secrets",
     // The tab key stays `llms` so existing `?tab=llms` links keep working.
     llms: "AI providers",
+    analytics: "Analytics",
     tools: "Tools",
     channels: "Channels",
     webhooks: "Webhooks",
@@ -263,18 +283,9 @@ export const getSettingsSidebarTabs = (access: SettingsAccess) =>
         isHidden: !isSettingsTabVisible(tab.key, access),
     }))
 
-/** Tabs whose body is a short form, not a table: 640px, so the fields do not run the monitor. */
-const FORM_TABS = new Set<SettingsTabKey>(["account", "preferences"])
-
 /** The one tab that wants the whole width: the Audit Log's timestamp + event type + full UUID. */
 const FULL_WIDTH_TABS = new Set<SettingsTabKey>(["auditLog"])
 
-/**
- * How wide a Settings tab's body runs, for `SettingsPageShell`'s `variant`.
- *
- * Shared because the shell DEFAULTS to `full`, so a host that forgets to pass this renders an
- * uncapped page rather than an obviously broken one. /m did exactly that: Preferences ran the
- * full 1544px against the desktop's 640px, which is only visible on a large screen.
- */
-export const getSettingsTabVariant = (key: SettingsTabKey): "full" | "table" | "form" =>
-    FORM_TABS.has(key) ? "form" : FULL_WIDTH_TABS.has(key) ? "full" : "table"
+/** A Settings tab's `SettingsPageShell` variant: the Audit Log runs full width, the rest centered. */
+export const getSettingsTabVariant = (key: SettingsTabKey): "full" | "table" =>
+    FULL_WIDTH_TABS.has(key) ? "full" : "table"

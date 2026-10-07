@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
-import {CaretRight, Check, X} from "@phosphor-icons/react"
+import {CaretLeft, CaretRight, Check, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {ChevronDown} from "lucide-react"
 
@@ -8,6 +8,7 @@ import {Input} from "../components/ui/input"
 import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from "../components/ui/popover"
 import {selectTriggerVariants} from "../components/ui/select"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
+import {useMediaQuery} from "../hooks/useMediaQuery"
 import {LLMIconMap} from "../LLMIcons"
 
 import type {
@@ -36,6 +37,13 @@ const ROW_CLASS =
 
 /** A group's hover/selection identity: its own `key` when it has one, else its display label. */
 const groupKeyOf = (group: ProviderGroup): string | null => group.key ?? group.label ?? null
+
+// A group naming itself (a connection) is shown verbatim; a provider family gets its display name.
+const groupDisplayName = (group: ProviderGroup): string =>
+    group.iconKey ? (group.label ?? "") : getProviderDisplayName(group.label || "")
+
+/** Tailwind's `sm`: below it the two-column cascade does not fit. */
+const SINGLE_COLUMN_QUERY = "(max-width: 639.98px)"
 
 /**
  * Base LLM provider select component.
@@ -201,6 +209,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     }, [normalizedGroups, searchTerm])
 
     const isSearching = searchTerm.trim().length > 0
+    // Phone width: one column at a time — providers, then the tapped provider's models.
+    const singleColumn = useMediaQuery(SINGLE_COLUMN_QUERY)
     const shouldUseProviderPanels = hasModelOptions && showGroup
     // The panel cascade only renders when there is nothing to search through.
     const showPanels = shouldUseProviderPanels && !isSearching
@@ -238,9 +248,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
               ? resolvedDropdownWidth / 2
               : "50%")
     const modelListWidthCss = toCssSize(resolvedModelListWidth)
-    const providerPanelWidth = hoveredGroup
-        ? (connectionColumnCss ?? `calc(100% - ${modelListWidthCss})`)
-        : "100%"
+    const providerPanelWidth =
+        hoveredGroup && !singleColumn
+            ? (connectionColumnCss ?? `calc(100% - ${modelListWidthCss})`)
+            : "100%"
+    // Single column: the models replace the providers once you step into them.
+    const showModelsOnly = singleColumn && !!hoveredGroup && activeModelIndex !== null
 
     /** Rows of the non-cascading list (search results, or the flat/ungrouped mode). */
     const flatItems = useMemo(
@@ -536,7 +549,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             aria-selected={isSelected(option)}
             data-active={index === activeModelIndex}
             onMouseEnter={() => setActiveModelIndex(index)}
-            className={clsx(ROW_CLASS, "hover:bg-muted data-[active=true]:bg-muted")}
+            // `accent`, not `muted`: in dark `--muted` equals the popover background.
+            className={clsx(ROW_CLASS, "hover:bg-accent data-[active=true]:bg-accent")}
             onMouseDown={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -571,7 +585,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 ROW_CLASS,
                 isSelected(option)
                     ? "bg-controlItemBgActive font-semibold"
-                    : "data-[active=true]:bg-muted",
+                    : "data-[active=true]:bg-accent",
             )}
         >
             {renderOption(option, "flat")}
@@ -611,7 +625,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                         data-placeholder={selectedOption || value ? undefined : ""}
                         className={clsx(
                             selectTriggerVariants({size: TRIGGER_SIZE[size]}),
-                            "text-left",
+                            // Border-only focus: the 3px ring crowds the popover opening right below.
+                            "text-left focus:!shadow-none data-[state=open]:!shadow-none [&:has(:focus)]:!shadow-none",
                             className,
                         )}
                         style={{width: "100%", ...style}}
@@ -638,6 +653,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 onOpenAutoFocus={(e) => {
                     if (!showSearch) return
                     e.preventDefault()
+                    // Touch: focusing the search raises the keyboard over the list. Focus the panel.
+                    if (window.matchMedia("(pointer: coarse)").matches) {
+                        ;(e.currentTarget as HTMLElement | null)?.focus()
+                        return
+                    }
                     inputRef.current?.focus()
                 }}
                 // Anchored mode has no trigger to restore focus to, so Radix would drop it on
@@ -665,7 +685,13 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     className="flex flex-col gap-1"
                     style={
                         shouldUseProviderPanels
-                            ? {width: providerDropdownWidthCss, maxWidth: "100%"}
+                            ? {
+                                  // One column fits the trigger; minus the content's own `p-1`.
+                                  width: singleColumn
+                                      ? "calc(var(--radix-popover-trigger-width) - 0.5rem)"
+                                      : providerDropdownWidthCss,
+                                  maxWidth: "100%",
+                              }
                             : undefined
                     }
                 >
@@ -706,7 +732,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 variant="ghost"
                                 className={clsx(
-                                    "rounded-none py-1.5",
+                                    // 13px on a phone, 14px from md up (Input defaults to 16px).
+                                    "rounded-none py-1.5 text-[13px] md:text-sm",
                                     searchSuffix ? "pr-20" : "pr-8",
                                 )}
                             />
@@ -719,7 +746,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         inputRef.current?.focus()
                                     }}
                                     className={clsx(
-                                        "absolute top-1/2 -translate-y-1/2 cursor-pointer rounded border-none bg-transparent p-1 hover:bg-muted",
+                                        "absolute top-1/2 -translate-y-1/2 cursor-pointer rounded border-none bg-transparent p-1 hover:bg-accent",
                                         searchSuffix ? "right-14" : "right-2",
                                     )}
                                 >
@@ -793,8 +820,10 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                         <>
                             <div className="relative flex min-h-[220px] min-w-0">
                                 <div
-                                    // Keep the 132px in step with the flyout's own narrow width below.
-                                    className="flex min-w-0 flex-col max-sm:!w-[132px]"
+                                    className={clsx(
+                                        "flex min-w-0 flex-col",
+                                        showModelsOnly && "hidden",
+                                    )}
                                     style={{width: providerPanelWidth}}
                                 >
                                     <div
@@ -810,11 +839,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                             const isDisabled = !!group.disabled
                                             const isHovered =
                                                 !isDisabled && hoveredProvider === groupKeyOf(group)
-                                            // A group naming itself (a connection) is shown verbatim;
-                                            // a provider-family label still gets its display name.
-                                            const displayName = group.iconKey
-                                                ? (group.label ?? "")
-                                                : getProviderDisplayName(group.label || "")
+                                            const displayName = groupDisplayName(group)
 
                                             return (
                                                 <div
@@ -829,7 +854,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                         isHovered && activeModelIndex === null
                                                     }
                                                     onMouseEnter={() => {
-                                                        if (isDisabled) return
+                                                        // One column has no flyout to preview into.
+                                                        if (isDisabled || singleColumn) return
                                                         setHoveredProvider(groupKeyOf(group))
                                                         setActiveModelIndex(null)
                                                     }}
@@ -843,8 +869,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                         // `!` beats ROW_CLASS: stylesheet order gives cursor-pointer the win.
                                                         isDisabled
                                                             ? "!cursor-default opacity-60"
-                                                            : "hover:bg-muted",
-                                                        isHovered && "bg-muted",
+                                                            : "hover:bg-accent",
+                                                        isHovered && "bg-accent",
                                                     )}
                                                 >
                                                     {Icon && (
@@ -891,15 +917,37 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     </div>
                                 </div>
 
-                                {hoveredGroup && (
+                                {hoveredGroup && (!singleColumn || showModelsOnly) && (
                                     <div
                                         role="listbox"
                                         id={modelListId}
                                         aria-label={hoveredGroup.label ?? "Models"}
-                                        className="absolute inset-y-0 right-0 overflow-y-auto border-0 border-l border-solid border-border py-1 max-sm:!w-[calc(100%-132px)]"
-                                        style={{width: modelListWidthCss}}
+                                        className={clsx(
+                                            "overflow-y-auto py-1",
+                                            singleColumn
+                                                ? "max-h-[320px] w-full"
+                                                : "absolute inset-y-0 right-0 border-0 border-l border-solid border-border",
+                                        )}
+                                        style={
+                                            singleColumn ? undefined : {width: modelListWidthCss}
+                                        }
                                         onWheel={handleWheelScroll}
                                     >
+                                        {showModelsOnly ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveModelIndex(null)}
+                                                className={clsx(
+                                                    ROW_CLASS,
+                                                    "border-0 bg-transparent text-left text-colorTextSecondary hover:bg-accent",
+                                                )}
+                                            >
+                                                <CaretLeft size={12} className="flex-shrink-0" />
+                                                <span className="truncate text-xs">
+                                                    {groupDisplayName(hoveredGroup)}
+                                                </span>
+                                            </button>
+                                        ) : null}
                                         {(() => {
                                             // One running index across the sections: the keyboard walks
                                             // the flyout as one list, so the rows must number as one.

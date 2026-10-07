@@ -8,12 +8,18 @@ vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children?: React.ReactNode}) => <div>{children}</div>
     return {
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
+        cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
         Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
             <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
                 {children}
             </button>
         ),
+        DropdownMenu: Wrap,
+        DropdownMenuContent: () => null,
+        DropdownMenuItem: Wrap,
+        DropdownMenuSeparator: () => null,
+        DropdownMenuTrigger: Wrap,
         Empty: Wrap,
         EmptyContent: Wrap,
         EmptyDescription: Wrap,
@@ -141,7 +147,7 @@ const byTestId = (id: string) => container.querySelector(`[data-testid="${id}"]`
 const clickTestId = async (id: string) => act(async () => (byTestId(id) as HTMLElement).click())
 
 describe("ChannelsSettingsPage", () => {
-    it("opens a card's manage view under the agent it answers as", async () => {
+    it("opens a connection's manage view under the agent it answers as", async () => {
         const onAgentChange = vi.fn()
         await act(async () => root.render(<Host rows={[SLACK_A2]} onAgentChange={onAgentChange} />))
         await clickTestId("channels-card-s-a2")
@@ -158,41 +164,18 @@ describe("ChannelsSettingsPage", () => {
         expect(byTestId("manage-s-orphan")).toBeNull()
     })
 
-    it("opens a pending link on the hub without minting a new one", async () => {
-        const connectHostedTelegram = vi.fn()
-        await act(async () =>
-            root.render(
-                <Host rows={[PENDING]} actions={{...NOOP_ACTIONS, connectHostedTelegram}} />,
-            ),
-        )
+    it("opens a pending link on its linking step, past the hub", async () => {
+        await act(async () => root.render(<Host rows={[PENDING]} />))
         await clickTestId("channels-card-t-pending")
-        expect(byTestId("channels-hub")).not.toBeNull()
-        expect(connectHostedTelegram).not.toHaveBeenCalled()
+        expect(byTestId("channels-hub")).toBeNull()
+        expect(byTestId("channels-connection-list")).toBeNull()
     })
 
-    it("starts a new connection with the agent picker", async () => {
+    it("starts a new connection with the agent picker, then opens that platform", async () => {
         await act(async () => root.render(<Host rows={[SLACK_A2]} />))
-        await clickTestId("channels-settings-connect")
+        await clickTestId("channels-platform-slack")
         expect(byTestId("channels-agent-picker")).not.toBeNull()
         await clickTestId("channels-agent-a2")
-        expect(byTestId("channels-hub")).not.toBeNull()
-    })
-
-    it("filters the cards by search and says when nothing matches", async () => {
-        await act(async () => root.render(<Host rows={[SLACK_A2, ORPHAN]} />))
-        const input = byTestId("channels-settings-search") as HTMLInputElement
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
-        const type = async (value: string) =>
-            act(async () => {
-                setter.call(input, value)
-                input.dispatchEvent(new Event("input", {bubbles: true}))
-            })
-
-        await type("growth")
-        expect(byTestId("channels-card-s-a2")).not.toBeNull()
-        expect(byTestId("channels-card-s-orphan")).toBeNull()
-
-        await type("nothing-like-this")
-        expect(container.textContent).toContain("No channels found")
+        expect(byTestId("channels-connection-list")).not.toBeNull()
     })
 })

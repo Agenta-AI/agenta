@@ -58,6 +58,8 @@ export interface AgentSecretAttachmentModalProps {
     }) => Promise<{revisionId: string}>
     onAttached?: (result: AgentSecretAttachmentResult) => void
     zIndex?: number
+    /** A host panel (e.g. a drawer) to mask and centre within instead of the page. */
+    container?: HTMLElement | null
 }
 
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -124,6 +126,7 @@ export function AgentSecretAttachmentModal({
     commitBinding,
     onAttached,
     zIndex = 1000,
+    container,
 }: AgentSecretAttachmentModalProps) {
     const {namedSecrets, loading, mutate: refetchVault} = useVaultSecret()
     // The modal stacks above the Advanced dialog, and the shared Select portals its list to
@@ -299,6 +302,8 @@ export function AgentSecretAttachmentModal({
             open={open}
             onCancel={onClose}
             zIndex={zIndex}
+            getContainer={container ?? undefined}
+            contained={!!container}
             width={480}
             destroyOnClose
             title={
@@ -334,6 +339,7 @@ export function AgentSecretAttachmentModal({
                             />
                         </SelectTrigger>
                         <SelectContent
+                            container={container}
                             style={{zIndex: popupZIndex}}
                             // Radix hands focus back to the trigger on close; send it to the new fields.
                             onCloseAutoFocus={(event) => {

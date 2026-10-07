@@ -19,6 +19,8 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {FeatureOnboarding} from "../education/FeatureOnboarding"
+import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -32,7 +34,6 @@ import {
     type AgentListView,
 } from "./agentListView"
 import {NewAgentAction} from "./NewAgentAction"
-import {AgentsEmpty} from "./states/AgentsEmpty"
 import {AgentsNoMatch} from "./states/AgentsNoMatch"
 import {useAgentOwners} from "./useAgentOwners"
 import {useArchivedAgents} from "./useArchivedAgents"
@@ -142,15 +143,16 @@ export const AgentListScreen = ({
         [setView, view],
     )
 
-    const emptyState = isLoading ? null : projectHasAgents ? (
+    // No agent in use and no search: teach agents instead of listing them.
+    const projectEmpty =
+        !query.isPending && !query.isError && !projectHasAgents && !term && !showArchived
+    const emptyState = isLoading ? null : (
         <AgentsNoMatch
             term={term || undefined}
             onClear={
                 term ? () => setSearch("") : isDefaultAgentFilters(view) ? undefined : resetFilters
             }
         />
-    ) : (
-        <AgentsEmpty />
     )
 
     const body = failed ? (
@@ -183,6 +185,9 @@ export const AgentListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Agents
                                 </h1>
+                                {projectEmpty ? null : (
+                                    <HowThisWorksButton guide="agents" className="max-sm:hidden" />
+                                )}
                                 <NewAgentAction
                                     create={() => void newAgent.create()}
                                     createFromTemplate={newAgent.createFromTemplate}
@@ -197,31 +202,38 @@ export const AgentListScreen = ({
                     }
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        {/* Search belongs to the list, not to the page: it sits on the results'
-                            own left edge so it reads as the control that narrows what is below
-                            it. The facets and the grouping ride one control beside it, so the
-                            bar stays a search bar; the view switch takes the far edge, where it
-                            changes how the results are drawn rather than which ones are. */}
-                        <ListTableToolbar
-                            search={search}
-                            onSearchChange={setSearch}
-                            searchPlaceholder="Search agents by name…"
-                            actions={
-                                <>
-                                    <AgentFilterMenu
-                                        view={view}
-                                        onChange={setView}
-                                        owners={owners}
-                                    />
-                                    <ListTableViewToggle
-                                        value={view.mode}
-                                        onChange={setMode}
-                                        className="ml-auto"
-                                    />
-                                </>
-                            }
-                        />
-                        {body}
+                        {projectEmpty ? (
+                            <FeatureOnboarding guideKey="agents" base={base} />
+                        ) : (
+                            <>
+                                {/* Search belongs to the list, not to the page: it sits on the
+                                    results' own left edge so it reads as the control that narrows
+                                    what is below it. The facets and the grouping ride one control
+                                    beside it, so the bar stays a search bar; the view switch takes
+                                    the far edge, where it changes how the results are drawn rather
+                                    than which ones are. */}
+                                <ListTableToolbar
+                                    search={search}
+                                    onSearchChange={setSearch}
+                                    searchPlaceholder="Search agents by name…"
+                                    actions={
+                                        <>
+                                            <AgentFilterMenu
+                                                view={view}
+                                                onChange={setView}
+                                                owners={owners}
+                                            />
+                                            <ListTableViewToggle
+                                                value={view.mode}
+                                                onChange={setMode}
+                                                className="ml-auto"
+                                            />
+                                        </>
+                                    }
+                                />
+                                {body}
+                            </>
+                        )}
                     </div>
                 </ScreenScaffold>
             </AppShell>

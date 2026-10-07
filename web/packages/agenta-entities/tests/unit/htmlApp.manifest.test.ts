@@ -62,10 +62,12 @@ describe("parseManifest", () => {
         expect(parseManifest(minimal({entry: 3}))).toBeNull()
     })
 
-    it("keeps an access field as an unknown one: access is asked at run time", () => {
+    it("keeps access only as read or read-write, never in extra", () => {
         const manifest = parseManifest(minimal({access: "read-write"}))
-        expect(manifest?.extra).toEqual({access: "read-write"})
-        expect(manifest).not.toHaveProperty("access")
+        expect(manifest?.access).toBe("read-write")
+        expect(manifest?.extra).toBeUndefined()
+        expect(parseManifest(minimal({access: "read"}))?.access).toBe("read")
+        expect(parseManifest(minimal({access: "write"}))).not.toHaveProperty("access")
     })
 
     it("defaults kit to true and honours an explicit boolean only", () => {

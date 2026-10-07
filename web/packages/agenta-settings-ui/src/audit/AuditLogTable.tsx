@@ -1,14 +1,4 @@
-/**
- * Audit Log — Table
- *
- * Renders the `event` entity's paginated store in `DataTable`. Rows are
- * identity-only; cells resolve their own event data from the entity session
- * cache. Clicking a row opens the detail drawer.
- *
- * Pages are pulled explicitly ("Load more") rather than on scroll: `DataTable`
- * is the antd-free, fully-materialized table, so the page — not a virtual
- * viewport — owns the scroll.
- */
+/** Audit Log table: identity-only rows over the event store, paged by "Load more". */
 
 import {useCallback, useMemo, useRef, type ReactNode} from "react"
 
@@ -19,19 +9,40 @@ import {
     type EventTableRow,
 } from "@agenta/entities/event"
 import {dayjs} from "@agenta/shared/utils"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {Eye} from "@phosphor-icons/react"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
+import {ClockCounterClockwise} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsToolbar} from "../shared/SettingsToolbar"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 import {
     ActorCell,
     CountCell,
-    EventIdCell,
+    EventRowMenu,
     EventTimestampCell,
     EventTypeCell,
 } from "./AuditEventCells"
 import AuditLogFilters, {type AuditLogFiltersProps} from "./AuditLogFilters"
 import {AUDIT_LOG_PAGE_SIZE, AUDIT_LOG_SCOPE_ID} from "./constants"
+
+// The count has no heading of its own; ids live in the drawer and the row menu.
+const COLUMNS: ListTableColumn[] = [
+    {key: "event_type", label: "Event", width: "minmax(0,2.2fr)"},
+    {
+        key: "count",
+        label: "Count",
+        srOnly: true,
+        width: "56px",
+        headerClassName: "text-right",
+    },
+    {key: "timestamp", label: "Time", width: "minmax(0,1fr)"},
+    {key: "actor", label: "User", width: "minmax(0,1.2fr)"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+]
+const PHONE_KEYS = ["event_type", "timestamp", "actions"]
 
 // Mirror the relative presets offered by the host's date-range picker, so Refresh can
 // roll every relative window forward instead of falling back to the originally captured
@@ -67,9 +78,17 @@ const recomputeRelativeTimestampRange = (preset?: string | null) => {
 export interface AuditLogTableProps {
     onSelectEvent: (eventId: string) => void
     renderDateRange?: AuditLogFiltersProps["renderDateRange"]
+    /** Member names by user id, for the actor cell. */
+    names?: ReadonlyMap<string, string>
+    currentUserId?: string | null
 }
 
-export const AuditLogTable = ({onSelectEvent, renderDateRange}: AuditLogTableProps) => {
+export const AuditLogTable = ({
+    onSelectEvent,
+    renderDateRange,
+    names,
+    currentUserId,
+}: AuditLogTableProps) => {
     const refreshEvents = useSetAtom(eventsPaginatedStore.actions.refresh)
     const clearEventsCache = useSetAtom(clearEventsCacheAtom)
     const timestampRange = useAtomValue(eventTimestampRangeFilterAtom)
@@ -81,7 +100,7 @@ export const AuditLogTable = ({onSelectEvent, renderDateRange}: AuditLogTablePro
             pageSize: AUDIT_LOG_PAGE_SIZE,
         })
 
-    // Skeleton rows are the not-yet-settled tail of the page in flight; DataTable
+    // Skeleton rows are the not-yet-settled tail of the page in flight; ListTable
     // draws its own loading state, so only settled rows reach it.
     const loadedRows = useMemo(() => rows.filter((row) => !row.__isSkeleton), [rows])
 
@@ -96,53 +115,14 @@ export const AuditLogTable = ({onSelectEvent, renderDateRange}: AuditLogTablePro
         refreshEvents()
     }, [clearEventsCache, refreshEvents, resetPages, setTimestampRange, timestampRange?.preset])
 
-    const columns = useMemo<DataTableColumn<EventTableRow>[]>(
-        () => [
-            // Width strategy: columns whose content has a known footprint (Timestamp,
-            // Count, ID) carry a fixed width; Event and User are left flexible and
-            // absorb the remaining width.
-            {
-                key: "timestamp",
-                title: "Timestamp",
-                width: 190,
-                render: (record) => <EventTimestampCell eventId={record.id} />,
-            },
-            {
-                // Count maxes out at 9999 — narrow. No header label; the number reads
-                // alongside the Event column.
-                key: "count",
-                title: "",
-                width: 70,
-                align: "right",
-                render: (record) => <CountCell eventId={record.id} />,
-            },
-            {
-                key: "event_type",
-                title: "Event",
-                render: (record) => <EventTypeCell eventId={record.id} />,
-            },
-            {
-                key: "actor",
-                title: "User",
-                width: 180,
-                render: (record) => <ActorCell eventId={record.id} />,
-            },
-            {
-                key: "id",
-                title: "ID",
-                width: 330,
-                render: (record) => <EventIdCell eventId={record.id} />,
-            },
-        ],
-        [],
-    )
-
     // The filter bar commits its debounced id draft before a reload reads it.
     const flushFiltersRef = useRef<() => void>(() => undefined)
     const handleReload = useCallback(() => {
         flushFiltersRef.current()
         refreshTable()
     }, [refreshTable])
+
+    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
 
     const filters: ReactNode = (
         <AuditLogFilters
@@ -154,35 +134,48 @@ export const AuditLogTable = ({onSelectEvent, renderDateRange}: AuditLogTablePro
     )
 
     return (
-        <div className="flex flex-col gap-2">
-            <DataTable<EventTableRow>
-                columns={columns}
-                rows={loadedRows}
-                rowKey={(record) => record.key}
-                loading={paginationInfo.isFetching}
-                onRowClick={(record) => onSelectEvent(record.id)}
-                actions={(record) => [
-                    {
-                        key: "view",
-                        label: "View details",
-                        icon: <Eye size={16} />,
-                        onClick: () => onSelectEvent(record.id),
-                    },
-                ]}
+        <div className="flex flex-col">
+            <SettingsToolbar
                 filters={filters}
                 onReload={handleReload}
                 reloading={paginationInfo.isFetching}
                 reloadLabel="Reload audit log"
+            />
+            <ListTable<EventTableRow>
+                columns={columns}
+                groups={[{key: "all", label: null, rows: loadedRows}]}
+                rowKey={(record) => record.key}
+                minWidth={0}
+                loading={paginationInfo.isFetching && loadedRows.length === 0}
+                hideHeader={!paginationInfo.isFetching && loadedRows.length === 0}
+                onOpenRow={(record) => onSelectEvent(record.id)}
                 empty={
-                    <EmptyState
-                        image="simple"
-                        description="No events in this window. Widen the date range or clear the filters."
+                    <SettingsEmpty
+                        plain
+                        icon={<ClockCounterClockwise size={18} />}
+                        title="No events in this window"
+                        description="Widen the date range or clear the filters."
                     />
                 }
+                renderRow={(record) => (
+                    <>
+                        <EventTypeCell eventId={record.id} />
+                        {shows("count") ? <CountCell eventId={record.id} /> : null}
+                        <EventTimestampCell eventId={record.id} />
+                        {shows("actor") ? (
+                            <ActorCell
+                                eventId={record.id}
+                                names={names}
+                                currentUserId={currentUserId}
+                            />
+                        ) : null}
+                        <EventRowMenu eventId={record.id} onView={() => onSelectEvent(record.id)} />
+                    </>
+                )}
             />
 
             {paginationInfo.hasMore ? (
-                <div className="flex justify-center">
+                <div className="mt-3 flex justify-center">
                     <Button
                         variant="outline"
                         onClick={loadNextPage}
