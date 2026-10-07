@@ -17,7 +17,7 @@ import {categoryLabel} from "./categoryLabel"
 const VISIBLE = 6
 
 const CHIP =
-    "inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-sm border-0 px-2.5 font-[inherit] text-btn-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+    "inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-sm border-0 px-2.5 font-[inherit] text-btn-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ag-colorPrimary)]"
 
 const chipClass = (on: boolean) =>
     cn(
