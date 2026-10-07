@@ -7,6 +7,7 @@ import {memo, useMemo, useState, type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {mountFileContentQueryFamily} from "@agenta/entities/session"
+import {useInView} from "@agenta/shared/hooks"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -15,7 +16,6 @@ import {
     isInlineImage,
     isRasterImage,
     recordIndexAtomFamily,
-    useInView,
     useMountResolver,
 } from "./chatFileLookup"
 import {chatFileResolver, fileCandidate, knownFromRecords} from "./chatFileRefs"

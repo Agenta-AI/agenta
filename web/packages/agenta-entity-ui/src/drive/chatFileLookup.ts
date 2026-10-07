@@ -1,9 +1,9 @@
 /**
- * The lookups behind chat file mentions — written-file index, mount resolution, viewport gate —
+ * The lookups behind chat file mentions — written-file index and mount resolution —
  * shared by the inline links ({@link chatFileRefs}) and the inline image previews
  * ({@link ChatInlineImage}). Internal to the drive module: not re-exported from its index.
  */
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback} from "react"
 
 import {
     AGENT_FILES_DIR,
@@ -72,24 +72,4 @@ export function useMountResolver(sessionId: string, artifactId?: string | null) 
         },
         [cwdMount, agentMount],
     )
-}
-
-/** Latch true once the element scrolls near the viewport (never resets — the link stays). */
-export function useInView<T extends HTMLElement>() {
-    const ref = useRef<T>(null)
-    const [inView, setInView] = useState(false)
-    useEffect(() => {
-        if (inView) return
-        const el = ref.current
-        if (!el) return
-        const io = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((e) => e.isIntersecting)) setInView(true)
-            },
-            {rootMargin: "200px"},
-        )
-        io.observe(el)
-        return () => io.disconnect()
-    }, [inView])
-    return [ref, inView] as const
 }

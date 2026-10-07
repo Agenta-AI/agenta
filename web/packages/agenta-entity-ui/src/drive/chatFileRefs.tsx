@@ -16,14 +16,13 @@ import {type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {mountFileContentQueryFamily, mountPathMatchesToolPath} from "@agenta/entities/session"
-import {useSettledValue} from "@agenta/shared/hooks"
+import {useInView, useSettledValue} from "@agenta/shared/hooks"
 import {useAtomValue} from "jotai"
 
 import {
     CHAT_IMAGE_PREVIEW_PX,
     isRasterImage,
     recordIndexAtomFamily,
-    useInView,
     useMountResolver,
 } from "./chatFileLookup"
 import {DriveFileInlineRef} from "./DriveFileCard"

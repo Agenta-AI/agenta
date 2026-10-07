@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {mediaViewerAtom, useRemoteObjectUrl, type MediaViewerItem} from "@agenta/entity-ui/drive"
+import {useInView} from "@agenta/shared/hooks"
 import {ImageBroken, Pause, Play} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -84,9 +85,12 @@ const VIDEO_FRAME_CAP = 8 * 1024 * 1024
 const VideoTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => {
     // Fetched whole: the attachments endpoint ignores `Range`, so a URL `src` never loads metadata.
     const small = file.size !== undefined && file.size <= VIDEO_FRAME_CAP
-    const {url} = useRemoteObjectUrl(small ? (file.src ?? null) : null)
+    // Fetched only near the viewport: the transcript is not virtualized.
+    const [ref, inView] = useInView<HTMLButtonElement>()
+    const {url} = useRemoteObjectUrl(small && inView ? (file.src ?? null) : null)
     return (
         <button
+            ref={ref}
             type="button"
             aria-label={`View ${file.name}`}
             disabled={!onOpen}
