@@ -8,7 +8,7 @@ import {useAtomValue} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
 import {fetchProjects} from "@/lib/context"
-import {useMotionPresets} from "@/lib/motion/presets"
+import {useLoaderMotion} from "@/lib/motion/loaderMotion"
 
 import {
     BOOT_MAX_MS,
@@ -34,7 +34,7 @@ interface BootLoaderScreenProps {
  * which is what the home waits on to choose between onboarding and the app.
  */
 export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
-    const presets = useMotionPresets()
+    const motionSet = useLoaderMotion()
     // Same key and options as AuthGate and the root resolver, so this costs no request.
     const projectsQuery = useQuery({
         queryKey: ["mobile", "projects"],
@@ -66,10 +66,10 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
     }, [])
 
     useEffect(() => {
-        if (presets.reduced) return
+        if (motionSet.reduced) return
         const timer = setInterval(() => setTip((index) => (index + 1) % BOOT_TIPS.length), BOOT_TIP_MS)
         return () => clearInterval(timer)
-    }, [presets.reduced])
+    }, [motionSet.reduced])
 
     const elapsed = now - boot.startedAt
     const done = (stage === 2 && elapsed >= BOOT_MIN_MS) || elapsed >= BOOT_MAX_MS
@@ -84,11 +84,13 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
         <div className="bg-background text-foreground flex size-full items-center justify-center p-[clamp(24px,6vw,96px)]">
             <div className="flex w-full max-w-[600px] flex-col gap-10">
                 <div className="flex items-center gap-3" role="status" aria-live="polite">
-                    <AgentaMark className="h-[18px] w-auto flex-none" markClassName="fill-foreground" />
+                    <motion.span animate={motionSet.breathe} className="inline-flex flex-none">
+                        <AgentaMark className="h-[18px] w-auto" markClassName="fill-foreground" />
+                    </motion.span>
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.span
                             key={status}
-                            variants={presets.crossfade}
+                            variants={motionSet.statusSwap}
                             initial="initial"
                             animate="animate"
                             exit="exit"
@@ -102,7 +104,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.p
                             key={tip}
-                            variants={presets.crossfade}
+                            variants={motionSet.tipSwap}
                             initial="initial"
                             animate="animate"
                             exit="exit"

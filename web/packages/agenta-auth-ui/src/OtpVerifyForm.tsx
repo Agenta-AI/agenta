@@ -14,6 +14,7 @@ import {
 import {OtpInput, type OtpInputHandle} from "./OtpInput"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSuccessPayload} from "./types"
+import {useShake} from "./useShake"
 
 const CODE_LENGTH = 6
 const RESEND_COOLDOWN_S = 60
@@ -68,6 +69,7 @@ export const OtpVerifyForm = ({
     const [status, setStatus] = useState<"idle" | "verifying" | "verified">("idle")
     const [resendIn, setResendIn] = useState(RESEND_COOLDOWN_S)
     const inputRef = useRef<OtpInputHandle>(null)
+    const [shakeClass, shake] = useShake()
     const inbox = INBOXES[email.split("@")[1]?.trim().toLowerCase() ?? ""]
 
     // Returning to the tab means returning with the code — put the caret where it goes.
@@ -105,6 +107,7 @@ export const OtpVerifyForm = ({
             }
             setStatus("idle")
             setCode("")
+            shake()
             inputRef.current?.focus()
             if (outcome.kind === "incorrect") {
                 const left = outcome.attemptsLeft
@@ -141,6 +144,7 @@ export const OtpVerifyForm = ({
         event.preventDefault()
         if (code.length < CODE_LENGTH) {
             setMessage({message: "Enter all 6 characters of the code.", type: "error"})
+            shake()
             return
         }
         void verify(code)
@@ -162,15 +166,18 @@ export const OtpVerifyForm = ({
     return (
         <div className="flex w-full flex-col gap-[22px]">
             <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
-                <OtpInput
-                    ref={inputRef}
-                    value={code}
-                    onChange={handleCode}
-                    length={CODE_LENGTH}
-                    error={message.type === "error"}
-                    autoFocus
-                    disabled={status === "verified"}
-                />
+                <div className={shakeClass}>
+                    <OtpInput
+                        ref={inputRef}
+                        value={code}
+                        onChange={handleCode}
+                        length={CODE_LENGTH}
+                        error={message.type === "error"}
+                        status={status === "idle" ? undefined : status}
+                        autoFocus
+                        disabled={status === "verified"}
+                    />
+                </div>
                 {status === "verifying" ? (
                     <p className="auth-status-text m-0">
                         <CircleNotch size={14} className="motion-safe:animate-spin" />
