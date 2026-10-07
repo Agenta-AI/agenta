@@ -17,11 +17,13 @@ import {
     DriveFileSourceContext,
     type DriveFileSource,
     useDriveDownload,
+    useDriveFileText,
     useDriveMediaSrc,
     useObjectUrl,
 } from "./driveFileSource"
 import {DriveSessionProvider} from "./driveSessionContext"
 import {DownloadCard, DriveFileBody} from "./renderers"
+import {isSvgPath, SVG_PREVIEW_CAP, useSvgObjectUrl} from "./svgPreview"
 
 /** Where a viewer item's bytes come from. */
 export type MediaViewerSource =
@@ -117,8 +119,33 @@ interface ItemFile {
     path: string
 }
 
+/** An SVG from its text, as an `image/svg+xml` blob in `<img>`: the server's type guess for the
+ * download may not say SVG, and the markup never enters the DOM. */
+const ViewerSvg = ({mount, path, name}: {mount: Mount | null; path: string; name: string}) => {
+    const {data, isPending} = useDriveFileText(mount, path)
+    const src = useSvgObjectUrl(data)
+    if (isPending || (typeof data === "string" && data.length <= SVG_PREVIEW_CAP && !src))
+        return <Spinner className="text-white/70" aria-label="Loading image" />
+    if (!src)
+        return (
+            <div className="flex w-full max-w-md flex-col rounded-lg bg-background p-2">
+                <DownloadCard mount={mount} path={path} title="Couldn't preview this SVG" />
+            </div>
+        )
+    return (
+        <img
+            src={src}
+            alt={name}
+            draggable={false}
+            className="max-h-full max-w-full select-none object-contain"
+        />
+    )
+}
+
 const ViewerBody = ({item, file}: {item: MediaViewerItem; file: ItemFile}) => {
     const kind = mediaViewerKind(item)
+    if (kind === "image" && (isSvgPath(item.name) || item.mediaType === "image/svg+xml"))
+        return <ViewerSvg {...file} name={item.name} />
     if (kind === "image") return <ViewerImage {...file} name={item.name} />
     const fills = kind !== "audio" && kind !== "other"
     return (

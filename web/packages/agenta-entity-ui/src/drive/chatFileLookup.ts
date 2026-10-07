@@ -21,13 +21,19 @@ import {
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 
+import {isSvgPath} from "./svgPreview"
+
 /** Longest side of an inline chat image preview: sharp at 320 CSS px on a 2x screen. */
 export const CHAT_IMAGE_PREVIEW_PX = 720
 
-/** An image the browser can downscale into a preview. SVG cannot go through `createImageBitmap`,
- * so it stays a plain link. */
-export const isPreviewableImage = (candidate: string): boolean =>
-    resolveDriveFileKind(candidate) === "image" && !/\.svg$/i.test(candidate)
+/** An image the browser can downscale into a thumbnail. SVG cannot go through
+ * `createImageBitmap`; it previews from its text instead (`svgPreview.ts`). */
+export const isRasterImage = (candidate: string): boolean =>
+    resolveDriveFileKind(candidate) === "image" && !isSvgPath(candidate)
+
+/** An image the reply can show inline: a raster thumbnail or an SVG. */
+export const isInlineImage = (candidate: string): boolean =>
+    resolveDriveFileKind(candidate) === "image"
 
 /** Basenames of every file the agent wrote/edited (from records) → the tool paths sharing them, for
  * a cheap "does a written file tail-match this mention" test (records paths are tool paths — absolute

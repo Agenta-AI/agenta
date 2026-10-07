@@ -3,15 +3,17 @@
  * preview (never the full bytes); a tap opens the viewer and Download sits in its corner. The
  * link in the sentence stays and names the file; this is the picture that goes with it.
  */
-import {type ReactNode} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
+import {mountFileContentQueryFamily} from "@agenta/entities/session"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     CHAT_IMAGE_PREVIEW_PX,
-    isPreviewableImage,
+    isInlineImage,
+    isRasterImage,
     recordIndexAtomFamily,
     useInView,
     useMountResolver,
@@ -19,6 +21,7 @@ import {
 import {chatFileResolver, fileCandidate, knownFromRecords} from "./chatFileRefs"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {mediaViewerAtom} from "./MediaViewer"
+import {SVG_PREVIEW_CAP, svgIntrinsicSize, useSvgObjectUrl} from "./svgPreview"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** The image: never wider than this, never taller than `MAX_HEIGHT`, never past its own size. */
@@ -34,6 +37,33 @@ const CORNER_ACTION =
 const CORNER_BUTTON =
     "flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-black/55 p-0 text-white transition-colors hover:bg-black/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
 
+/** Default box for an SVG that states no size of its own. */
+const SVG_FALLBACK_SIZE = {width: 320, height: 240}
+
+/** An SVG's preview from the same text read its link resolves with: the read succeeding is the
+ * confirmation, and the picture is that text as an `image/svg+xml` blob. */
+function useSvgPreview(file: {mountId: string; path: string}) {
+    const read = useAtomValue(mountFileContentQueryFamily(file))
+    const text = typeof read.data === "string" ? read.data : null
+    const src = useSvgObjectUrl(text)
+    const data = useMemo(
+        () =>
+            text !== null && src
+                ? {
+                      src,
+                      bytes: new Blob([text]).size,
+                      ...(svgIntrinsicSize(text) ?? SVG_FALLBACK_SIZE),
+                  }
+                : null,
+        [text, src],
+    )
+    // Over the cap there is text but no picture: settled, and the mention stays a link.
+    return {
+        data,
+        isPending: read.isPending || (text !== null && !src && text.length <= SVG_PREVIEW_CAP),
+    }
+}
+
 export function ChatInlineImage({candidate}: {candidate: string}) {
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId()
@@ -41,13 +71,18 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
     const target = useMountResolver(sessionId, artifactId)(candidate)
     const [ref, inView] = useInView<HTMLDivElement>()
     const enabled = inView && Boolean(target)
-    const preview = useAtomValue(
-        mountFileThumbnailQueryFamily({
-            mountId: enabled ? (target?.mount.id ?? "") : "",
-            path: enabled ? (target?.path ?? "") : "",
-            px: CHAT_IMAGE_PREVIEW_PX,
-        }),
+    const raster = isRasterImage(candidate)
+    const file = {
+        mountId: enabled ? (target?.mount.id ?? "") : "",
+        path: enabled ? (target?.path ?? "") : "",
+    }
+    const thumbnail = useAtomValue(
+        mountFileThumbnailQueryFamily(
+            raster ? {...file, px: CHAT_IMAGE_PREVIEW_PX} : {mountId: "", path: ""},
+        ),
     )
+    const svg = useSvgPreview(raster ? {mountId: "", path: ""} : file)
+    const preview = raster ? thumbnail : svg
     const download = useDriveFileDownload()
     const openViewer = useSetAtom(mediaViewerAtom)
     const name = candidate.split("/").pop() ?? candidate
@@ -94,7 +129,7 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
                 onClick={expand}
                 className="flex max-w-full cursor-zoom-in border-0 bg-transparent p-0"
             >
-                {/* A generated data URL; next/image cannot optimize it. */}
+                {/* A data or object URL; next/image cannot optimize it. An SVG stays in `<img>`. */}
                 <img
                     src={data.src}
                     alt={name}
@@ -126,7 +161,7 @@ function ChatImageFollowUps({values}: {values: string[]}) {
     const byFile = new Map<string, string>()
     for (const value of values) {
         const candidate = fileCandidate(value)
-        if (!candidate || !isPreviewableImage(candidate)) continue
+        if (!candidate || !isInlineImage(candidate)) continue
         const target = resolveMount(candidate)
         const file = target
             ? `${target.mount.id}:${target.path}`

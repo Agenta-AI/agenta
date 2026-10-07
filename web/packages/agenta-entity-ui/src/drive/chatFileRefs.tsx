@@ -20,7 +20,7 @@ import {useAtomValue} from "jotai"
 
 import {
     CHAT_IMAGE_PREVIEW_PX,
-    isPreviewableImage,
+    isRasterImage,
     recordIndexAtomFamily,
     useInView,
     useMountResolver,
@@ -65,9 +65,9 @@ function OnDemandFileRef({candidate, fallback}: {candidate: string; fallback: Re
     const [ref, inView] = useInView<HTMLSpanElement>()
     const resolved = resolveMount(candidate)
     const enabled = inView && Boolean(resolved?.mount?.id)
-    // An image is checked by its preview, which the inline figure shows: one read, not a text
-    // read of its bytes and then a second one for the picture.
-    const image = isPreviewableImage(candidate)
+    // An image is checked by the read its inline figure uses: the thumbnail for a raster image,
+    // the text read (below) for an SVG. One request serves the link and the picture.
+    const image = isRasterImage(candidate)
     const target = {
         mountId: enabled ? (resolved?.mount.id ?? "") : "",
         path: enabled ? (resolved?.path ?? "") : "",
