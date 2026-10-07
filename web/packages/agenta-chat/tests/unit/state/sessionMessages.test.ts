@@ -12,6 +12,7 @@ import {
     sessionStatusAtomFamily,
     sessionStatusesAtom,
     setSessionStatusAtom,
+    holdSessionAwaitingAtom,
     trackOwnedRunAtom,
 } from "../../../src/state/sessionMessages"
 
@@ -206,5 +207,37 @@ describe("sessionMessages state", () => {
         store.set(trackOwnedRunAtom, {id: "s1", open: false})
         expect(store.get(sessionStatusAtomFamily("s1"))).toBe("idle")
         expect(store.get(sessionStatusesAtom)).toEqual({})
+    })
+
+    it("holds a run that closed on an open ask as awaiting until the session moves on", () => {
+        const store = createStore()
+        const status = () => store.get(sessionStatusAtomFamily("s1"))
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        store.set(trackOwnedRunAtom, {id: "s1", open: false, awaiting: true})
+        expect(status()).toBe("awaiting")
+        expect(store.get(sessionStatusesAtom)).toEqual({s1: "awaiting"})
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        expect(status()).toBe("running")
+        store.set(trackOwnedRunAtom, {id: "s1", open: false})
+        expect(status()).toBe("idle")
+    })
+
+    it("lets a mounted conversation take over a held wait, and its answer clear it", () => {
+        const store = createStore()
+        const status = () => store.get(sessionStatusAtomFamily("s1"))
+        store.set(holdSessionAwaitingAtom, "s1")
+        expect(status()).toBe("awaiting")
+        store.set(setSessionStatusAtom, {id: "s1", status: "running"})
+        expect(status()).toBe("running")
+        store.set(setSessionStatusAtom, {id: "s1", status: "idle"})
+        expect(status()).toBe("idle")
+        expect(store.get(sessionStatusesAtom)).toEqual({})
+    })
+
+    it("forgets a held wait when the session is dropped", () => {
+        const store = createStore()
+        store.set(holdSessionAwaitingAtom, "s1")
+        store.set(dropSessionMessagesAtom, ["s1"])
+        expect(store.get(sessionStatusAtomFamily("s1"))).toBe("idle")
     })
 })

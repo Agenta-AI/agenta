@@ -107,6 +107,7 @@ import {
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
+    holdSessionAwaitingAtom,
 } from "../state/sessionMessages"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
@@ -804,7 +805,8 @@ export const useAgentConversation = ({
     // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
     // the window between the message leaving and the turn being accepted.
     busyRef.current = busy || acceptedRunPending || sendInFlight
-    streamOpenRef.current = busy || sendInFlight
+    // A durable send in flight is not a chat stream, so it does not keep the chat either.
+    streamOpenRef.current = busy
 
     // The server owns continuation after its 202.
     const handleApprovalResponse = useCallback(
@@ -978,14 +980,18 @@ export const useAgentConversation = ({
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
     }, [runStatus, sessionId, setSessionStatus])
+    const runStatusRef = useRef(runStatus)
+    runStatusRef.current = runStatus
+    const holdSessionAwaiting = useSetAtom(holdSessionAwaitingAtom)
     // On unmount, retire the dot ONLY if the run went with us. A chat preserved past this mount is
     // still this browser's run to report, so it keeps its status until it settles — `onFinish`
     // retires it then. The release above already ran, so the registry is authoritative here.
     useEffect(
         () => () => {
             if (!hasSessionChat(sessionId)) setSessionStatus({id: sessionId, status: "idle"})
+            if (runStatusRef.current === "awaiting") holdSessionAwaiting(sessionId)
         },
-        [sessionId, setSessionStatus],
+        [sessionId, setSessionStatus, holdSessionAwaiting],
     )
 
     useEffect(() => {
