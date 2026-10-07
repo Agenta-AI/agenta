@@ -162,9 +162,13 @@ const mentionsIn = (node: HastNode, out = new Set<string>()): Set<string> => {
             if (text) out.add(text)
             continue
         }
-        const href = child.tagName === "a" ? child.properties?.href : undefined
-        if (typeof href === "string" && !isProtocolRelativeHref(href) && !isExternalHref(href))
-            out.add(decodeDriveHref(href))
+        if (child.tagName === "a") {
+            // The href is the anchor's mention; its label (often the same name as code) is not.
+            const href = child.properties?.href
+            if (typeof href === "string" && !isProtocolRelativeHref(href) && !isExternalHref(href))
+                out.add(decodeDriveHref(href))
+            continue
+        }
         mentionsIn(child, out)
     }
     return out
@@ -175,6 +179,9 @@ const mentionsIn = (node: HastNode, out = new Set<string>()): Set<string> => {
  * layout effect, so a render that never commits claims nothing, and order is read from the DOM
  * because a streamed message is parsed block by block, with no shared source offsets.
  */
+/** `./chart.png`, `/chart.png` and `chart.png` claim as one name. */
+const claimKey = (value: string) => value.replace(/^(?:\.\/|\/)+/, "")
+
 class FollowUpClaims {
     private blocks = new Map<Element, string[]>()
     private listeners = new Set<() => void>()
@@ -185,14 +192,15 @@ class FollowUpClaims {
     }
     getVersion = () => this.version
     set(block: Element, values: string[] | null) {
-        if (values) this.blocks.set(block, values)
+        if (values) this.blocks.set(block, values.map(claimKey))
         else this.blocks.delete(block)
         this.version += 1
         this.listeners.forEach((listener) => listener())
     }
     owns(block: Element, value: string): boolean {
-        for (const [other, values] of this.blocks) {
-            if (other === block || !values.includes(value)) continue
+        const key = claimKey(value)
+        for (const [other, keys] of this.blocks) {
+            if (other === block || !keys.includes(key)) continue
             if (other.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING)
                 return false
         }

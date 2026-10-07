@@ -122,17 +122,24 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
     )
 }
 
-/** The previews for one paragraph's mentions: previewable images only, once each. */
+/** The previews for one paragraph's mentions: previewable images only, one per file. Spellings
+ * that reach the same file (`./a.png`, `/a.png`, `a.png`) collapse on the resolved mount path. */
 function ChatImageFollowUps({values}: {values: string[]}) {
-    const candidates = new Set<string>()
+    const resolveMount = useMountResolver(useDriveSessionId() ?? "", useDriveArtifactId())
+    const byFile = new Map<string, string>()
     for (const value of values) {
         const candidate = fileCandidate(value)
-        if (candidate && isPreviewableImage(candidate)) candidates.add(candidate)
+        if (!candidate || !isPreviewableImage(candidate)) continue
+        const target = resolveMount(candidate)
+        const file = target
+            ? `${target.mount.id}:${target.path}`
+            : candidate.replace(/^(?:\.\/|\/)+/, "")
+        if (!byFile.has(file)) byFile.set(file, candidate)
     }
     return (
         <>
-            {[...candidates].map((candidate) => (
-                <ChatInlineImage key={candidate} candidate={candidate} />
+            {[...byFile].map(([file, candidate]) => (
+                <ChatInlineImage key={file} candidate={candidate} />
             ))}
         </>
     )
