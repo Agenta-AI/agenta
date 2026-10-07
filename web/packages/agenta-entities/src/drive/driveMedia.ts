@@ -151,18 +151,21 @@ const readAsDataUrl = (blob: Blob): Promise<string | null> =>
         reader.readAsDataURL(blob)
     })
 
-/** WebP-encode a bitmap off the main thread where the browser can (OffscreenCanvas). */
-async function encodeWebp(bitmap: ImageBitmap): Promise<Blob | null> {
-    const {width, height} = bitmap
+/** WebP-encode at the target size; the canvas scales a bitmap the browser did not resize. */
+async function encodeWebp(
+    bitmap: ImageBitmap,
+    width: number,
+    height: number,
+): Promise<Blob | null> {
     if (typeof OffscreenCanvas === "function") {
         const canvas = new OffscreenCanvas(width, height)
-        canvas.getContext("2d")?.drawImage(bitmap, 0, 0)
+        canvas.getContext("2d")?.drawImage(bitmap, 0, 0, width, height)
         return canvas.convertToBlob({type: "image/webp", quality: 0.7})
     }
     const canvas = document.createElement("canvas")
     canvas.width = width
     canvas.height = height
-    canvas.getContext("2d")?.drawImage(bitmap, 0, 0)
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, width, height)
     return new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.7))
 }
 
@@ -181,7 +184,7 @@ async function downscaleImage(blob: Blob, px: number): Promise<DriveImageThumb |
             resizeHeight: height,
             resizeQuality: "medium",
         })
-        const encoded = await encodeWebp(bitmap)
+        const encoded = await encodeWebp(bitmap, width, height)
         const src = encoded ? await readAsDataUrl(encoded) : null
         return src ? {src, width, height, bytes: blob.size} : null
     } catch {
