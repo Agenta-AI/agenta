@@ -1,4 +1,4 @@
-import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {DEFAULT_AGENT_ICON} from "@agenta/ui/agent-icon"
 import {z} from "zod"
 
@@ -94,15 +94,16 @@ export const EMPTY_ONBOARDING_DRAFT: OnboardingDraft = {
     completed: [],
 }
 
+/** A template's agent: its name and instructions come from the template and are not edited. */
 export const agentFromTemplate = (
     template: AgentStarterTemplate,
     apps: readonly string[],
 ): OnboardingAgent => ({
     name: template.name,
     icon: {icon: templateGlyph(template), color: template.color},
-    instructions: template.instructions,
+    instructions: "",
     apps: [...apps],
-    firstMessage: templateBuilderMessage(template),
+    firstMessage: "",
 })
 
 export type OnboardingAction =
@@ -184,18 +185,29 @@ export interface FirstAgentInput {
     name: string
     instructions: string
     firstMessage: string
+    /** The template whose package Create loads; `null` for a blank start. */
+    templateKey: string | null
 }
 
-/** What Create commits; it needs instructions or a first message to have anything to do. */
-export const firstAgentInput = ({
-    name,
-    instructions,
-    firstMessage,
-}: OnboardingAgent): FirstAgentInput | null => {
+/**
+ * What Create commits. A template creates from its own package, so it needs only to have loaded;
+ * a blank start needs instructions or a first message to have anything to do.
+ */
+export const firstAgentInput = (
+    {templateKey, agent}: Pick<OnboardingDraft, "templateKey" | "agent">,
+    template: AgentStarterTemplate | null,
+): FirstAgentInput | null => {
+    const firstMessage = agent.firstMessage.trim()
+    if (templateKey) {
+        return template?.key === templateKey
+            ? {name: template.name, instructions: "", firstMessage, templateKey}
+            : null
+    }
     const input = {
-        name: name.trim() || FIRST_AGENT_FALLBACK_NAME,
-        instructions: instructions.trim(),
-        firstMessage: firstMessage.trim(),
+        name: agent.name.trim() || FIRST_AGENT_FALLBACK_NAME,
+        instructions: agent.instructions.trim(),
+        firstMessage,
+        templateKey: null,
     }
     return input.instructions || input.firstMessage ? input : null
 }

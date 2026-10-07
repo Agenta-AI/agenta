@@ -115,6 +115,7 @@ export const OnboardingFlowHost = ({
         firstMessage,
         icon,
         apps: chosenApps,
+        templateKey,
     }: OnboardingCreateInput) => {
         updateConfiguration(
             entityId,
@@ -126,10 +127,13 @@ export const OnboardingFlowHost = ({
             }),
         )
         track("onboarding_create_clicked")
+        // A template's package brings its own name, instructions, tools, trigger and model; the
+        // tools already on the draft stay, and an empty first message gets the template's own.
         void newAgent.createFromPrompt({
             text: firstMessage,
             name,
             entityId,
+            templateKey: templateKey ?? undefined,
             onCreated: (agent) => {
                 saveOnboardingDraft(draftKey, null)
                 track("onboarding_agent_created", {revision_id: agent.revisionId})
