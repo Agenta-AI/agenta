@@ -1,9 +1,6 @@
 import {atom} from "jotai"
 
-/**
- * The hand-off between a successful sign-in and the first real screen. Set by `useAuthSuccess`,
- * cleared by `PostAuthLoader` once the destination has its data.
- */
+/** Set by `useAuthSuccess`, cleared by `PostAuthLoader` once the first screen has its data. */
 export type AccountKind = "new" | "returning"
 
 export interface PostAuthBoot {
@@ -36,9 +33,6 @@ export const BOOT_TIPS = [
     "Agents can run on a schedule or when something happens in a connected app.",
     "You can run agents on your Claude or ChatGPT subscription.",
 ] as const
-
-/** How long each tip shows before the next. Reduced motion keeps the first one. */
-export const BOOT_TIP_MS = 3600
 
 /** Shortest hold, so a fast boot does not flash. */
 export const BOOT_MIN_MS = 1200

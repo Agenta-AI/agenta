@@ -7,14 +7,10 @@ import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
-import {fetchProjects} from "@/lib/context"
-import {useLoaderMotion} from "@/lib/motion/loaderMotion"
-
 import {
     BOOT_MAX_MS,
     BOOT_MIN_MS,
     BOOT_STATUSES,
-    BOOT_TIP_MS,
     BOOT_TIPS,
     bootProgress,
     bootStage,
@@ -22,19 +18,18 @@ import {
     type ProjectsAnswer,
 } from "./postAuthBoot"
 
+import {fetchProjects} from "@/lib/context"
+import {useMotionPresets} from "@/lib/motion/presets"
+
 interface BootLoaderScreenProps {
     boot: PostAuthBoot
     /** The destination has answered (or the wait ran out); the loader can leave. */
     onDone: () => void
 }
 
-/**
- * The editorial post-sign-in loader: a status line, a large rotating tip, a thin progress bar.
- * Its stages follow what the app actually loads — the project list, then the project's agents,
- * which is what the home waits on to choose between onboarding and the app.
- */
+/** The editorial post-sign-in loader; its stages follow the projects, then the agents query. */
 export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
-    const motionSet = useLoaderMotion()
+    const presets = useMotionPresets()
     // Same key and options as AuthGate and the root resolver, so this costs no request.
     const projectsQuery = useQuery({
         queryKey: ["mobile", "projects"],
@@ -44,8 +39,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
     const projectId = useAtomValue(projectIdAtom)
     const agents = useAtomValue(agentWorkflowsListQueryStateAtom)
 
-    const fresh =
-        projectsQuery.dataUpdatedAt >= boot.startedAt ? projectsQuery.data : undefined
+    const fresh = projectsQuery.dataUpdatedAt >= boot.startedAt ? projectsQuery.data : undefined
     const projects: ProjectsAnswer = !fresh
         ? "pending"
         : fresh.kind !== "ok"
@@ -66,10 +60,13 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
     }, [])
 
     useEffect(() => {
-        if (motionSet.reduced) return
-        const timer = setInterval(() => setTip((index) => (index + 1) % BOOT_TIPS.length), BOOT_TIP_MS)
+        if (!presets.tipRotateMs) return
+        const timer = setInterval(
+            () => setTip((index) => (index + 1) % BOOT_TIPS.length),
+            presets.tipRotateMs,
+        )
         return () => clearInterval(timer)
-    }, [motionSet.reduced])
+    }, [presets.tipRotateMs])
 
     const elapsed = now - boot.startedAt
     const done = (stage === 2 && elapsed >= BOOT_MIN_MS) || elapsed >= BOOT_MAX_MS
@@ -84,13 +81,13 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
         <div className="bg-background text-foreground flex size-full items-center justify-center p-[clamp(24px,6vw,96px)]">
             <div className="flex w-full max-w-[600px] flex-col gap-10">
                 <div className="flex items-center gap-3" role="status" aria-live="polite">
-                    <motion.span animate={motionSet.breathe} className="inline-flex flex-none">
+                    <motion.span animate={presets.breathe} className="inline-flex flex-none">
                         <AgentaMark className="h-[18px] w-auto" markClassName="fill-foreground" />
                     </motion.span>
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.span
                             key={status}
-                            variants={motionSet.statusSwap}
+                            variants={presets.fadeUp}
                             initial="initial"
                             animate="animate"
                             exit="exit"
@@ -104,7 +101,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.p
                             key={tip}
-                            variants={motionSet.tipSwap}
+                            variants={presets.tipSwap}
                             initial="initial"
                             animate="animate"
                             exit="exit"
@@ -129,7 +126,9 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                         />
                     </div>
                     <div className="text-muted-foreground flex justify-between text-xs tabular-nums">
-                        <span className="font-medium tracking-[0.03em] uppercase">Did you know</span>
+                        <span className="font-medium tracking-[0.03em] uppercase">
+                            Did you know
+                        </span>
                         <span>{progress}%</span>
                     </div>
                 </div>

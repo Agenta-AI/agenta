@@ -22,14 +22,14 @@ import {
 import {LoadingButton} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
-import {AgentaLogo} from "@/components/AgentaLogo"
-import {clearEmailCodeAttempt, shouldShowRegionSelector, startOidcSignIn} from "@/lib/auth"
-import {useLoaderMotion} from "@/lib/motion/loaderMotion"
-
 import {providerIcon} from "./providerIcons"
 import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
 import {NoAuthMethods} from "./states/NoAuthMethods"
 import {useAuthSuccess, type AuthSuccess} from "./useAuthSuccess"
+
+import {AgentaLogo} from "@/components/AgentaLogo"
+import {clearEmailCodeAttempt, shouldShowRegionSelector, startOidcSignIn} from "@/lib/auth"
+import {useMotionPresets} from "@/lib/motion/presets"
 
 const TERMS_URL = "https://agenta.ai/docs/administration/security/terms-of-service"
 const PRIVACY_URL = "https://agenta.ai/docs/administration/security/privacy-policy"
@@ -37,22 +37,13 @@ const PRIVACY_URL = "https://agenta.ai/docs/administration/security/privacy-poli
 /** Step order, so a step change knows whether it moves forward or back. */
 const STAGE_ORDER: Record<SignInStage, number> = {entry: 0, methods: 1, code: 2}
 
-/**
- * Email first: ask for an address, discover what it can use, then show only that. A returning
- * visitor is greeted back and finds their last method tagged "Last used" (and their address
- * filled in, when it was email).
- *
- * The flow itself is `useSignInFlow` from @agenta/auth-ui; this screen renders it plus the one
- * transport that differs: /m routes its OIDC redirect through a cookie so the desktop's
- * registered callback URI still works. On EE the password and OTP forms take the Turnstile
- * adapter, since the API refuses every auth POST without a token.
- */
+/** Email-first sign-in on `useSignInFlow`; /m routes OIDC through a cookie, EE adds Turnstile. */
 export const SignInScreen = () => {
     const onSuccess = useAuthSuccess()
     const router = useRouter()
     const [pendingProvider, setPendingProvider] = useState<string | null>(null)
     const [leaving, setLeaving] = useState(false)
-    const {leaveMs} = useLoaderMotion()
+    const {authLeaveMs} = useMotionPresets()
 
     const flow = useSignInFlow({
         query: router.query,
@@ -74,8 +65,16 @@ export const SignInScreen = () => {
     // The screen plays its exit first; the post-auth loader then fades in over it.
     const leaveThen = async (success: AuthSuccess) => {
         setLeaving(true)
-        await new Promise((resolve) => setTimeout(resolve, leaveMs))
-        await onSuccess(success)
+        await new Promise((resolve) => setTimeout(resolve, authLeaveMs))
+        try {
+            await onSuccess(success)
+        } catch {
+            setLeaving(false)
+            setMessage({
+                message: "Signed in, but the app could not open. Try again.",
+                type: "error",
+            })
+        }
     }
 
     const onEmailSuccess = (payload: AuthSuccessPayload) =>

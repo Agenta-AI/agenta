@@ -27,11 +27,7 @@ const markNewAccount = async () => {
     if (user) markOnboardingPending(user.id)
 }
 
-/**
- * Where every successful sign-in lands, whatever the route (password, OTP, OIDC): remember the
- * method for the next visit, raise the post-auth loader, drop the cached unauthenticated verdict
- * so the root context resolver re-fetches, then hand over to it.
- */
+/** Every successful sign-in: remember the method, raise the loader, refetch, go home. */
 export function useAuthSuccess() {
     const router = useRouter()
     const startBoot = useSetAtom(postAuthBootAtom)
@@ -40,12 +36,17 @@ export function useAuthSuccess() {
             writeLastAuthMethod(method)
             if (method === "email" && email) writeLastAuthEmail(email)
             startBoot({account: isNewUser ? "new" : "returning", startedAt: Date.now()})
-            await Promise.all([
-                queryClient.invalidateQueries({queryKey: ["profile"]}),
-                queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
-            ])
-            if (isNewUser && isOnboardingFlowEnabled()) await markNewAccount()
-            await router.replace("/")
+            try {
+                await Promise.all([
+                    queryClient.invalidateQueries({queryKey: ["profile"]}),
+                    queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
+                ])
+                if (isNewUser && isOnboardingFlowEnabled()) await markNewAccount()
+                await router.replace("/")
+            } catch (error) {
+                startBoot(null)
+                throw error
+            }
         },
         [router, startBoot],
     )
