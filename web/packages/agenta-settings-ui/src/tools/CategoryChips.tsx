@@ -1,20 +1,10 @@
 import {useEffect, useRef, type ReactNode} from "react"
 
 import {useToolCatalogCategories} from "@agenta/entities/gatewayTool"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-    cn,
-} from "@agenta/ui/ui"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
-import {CaretDown} from "@phosphor-icons/react"
+import {cn} from "@agenta/ui/ui"
 
 import {categoryLabel} from "./categoryLabel"
-
-/** Chips shown before "More"; the catalog lists its busiest categories first. */
-const VISIBLE = 6
 
 const CHIP =
     "inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-sm border-0 px-2.5 font-[inherit] text-btn-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -34,7 +24,7 @@ const Chip = ({on, onClick, children}: {on: boolean; onClick: () => void; childr
     </button>
 )
 
-/** All, then one chip per category; `null` is All. Renders nothing when categories fail. */
+/** All, then every category in one scrolling row; `null` is All. Nothing when categories fail. */
 export const CategoryChips = ({
     selected,
     onSelect,
@@ -51,13 +41,22 @@ export const CategoryChips = ({
             ?.querySelector("[aria-pressed=true]")
             ?.scrollIntoView({block: "nearest", inline: "nearest"})
     }, [selected])
+    // The row hides its scrollbar, so a mouse wheel scrolls it sideways; at an end, the page scrolls.
+    useEffect(() => {
+        const row = rowRef.current
+        if (!row) return
+        const onWheel = (event: WheelEvent) => {
+            if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+            const max = row.scrollWidth - row.clientWidth
+            const next = Math.min(max, Math.max(0, row.scrollLeft + event.deltaY))
+            if (next === row.scrollLeft) return
+            event.preventDefault()
+            row.scrollLeft = next
+        }
+        row.addEventListener("wheel", onWheel, {passive: false})
+        return () => row.removeEventListener("wheel", onWheel)
+    }, [categories.length])
     if (error || categories.length === 0) return null
-
-    const shown = categories.slice(0, VISIBLE)
-    const rest = categories.slice(VISIBLE)
-    // A category picked from More takes a chip, so the selection always shows.
-    const picked = rest.find((category) => category.id === selected)
-    const more = rest.filter((category) => category.id !== selected)
 
     return (
         <div
@@ -70,7 +69,7 @@ export const CategoryChips = ({
             <Chip on={selected === null} onClick={() => onSelect(null)}>
                 All
             </Chip>
-            {[...shown, ...(picked ? [picked] : [])].map((category) => (
+            {categories.map((category) => (
                 <Chip
                     key={category.id}
                     on={category.id === selected}
@@ -79,26 +78,6 @@ export const CategoryChips = ({
                     {categoryLabel(category.name)}
                 </Chip>
             ))}
-            {more.length ? (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <button type="button" className={chipClass(false)}>
-                            More
-                            <CaretDown size={12} />
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
-                        {more.map((category) => (
-                            <DropdownMenuItem
-                                key={category.id}
-                                onSelect={() => onSelect(category.id)}
-                            >
-                                {categoryLabel(category.name)}
-                            </DropdownMenuItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            ) : null}
         </div>
     )
 }
