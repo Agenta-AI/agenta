@@ -2,16 +2,14 @@ import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {DEFAULT_AGENT_ICON} from "@agenta/ui/agent-icon"
 import {z} from "zod"
 
+import {RECOMMENDED, templateGlyph, type GalleryCategory} from "./onboardingChoices"
 import {
-    ONBOARDING_ROLES,
-    ONBOARDING_SOURCES,
-    RECOMMENDED,
-    templateGlyph,
-    type GalleryCategory,
-    type OnboardingRole,
-    type OnboardingSource,
-} from "./onboardingChoices"
-import {ONBOARDING_STEPS, type OnboardingStep} from "./onboardingRoute"
+    knownAnswers,
+    recommendsTemplates,
+    type OnboardingAnswers,
+    type OnboardingQuestionId,
+} from "./onboardingQuestions"
+import {isOnboardingStep, type OnboardingStep} from "./onboardingRoute"
 
 /** A glyph name from the agent-icon catalog and a colour. */
 export interface OnboardingIconPick {
@@ -30,8 +28,7 @@ export interface OnboardingAgent {
 
 /** What the user chose and typed; where they are lives in the URL. */
 export interface OnboardingDraft {
-    role: OnboardingRole | null
-    source: OnboardingSource | null
+    answers: OnboardingAnswers
     category: GalleryCategory
     /** The template the review step was filled from; `null` while the blank start is edited. */
     templateKey: string | null
@@ -51,8 +48,7 @@ export const BLANK_AGENT: OnboardingAgent = {
 }
 
 export const EMPTY_ONBOARDING_DRAFT: OnboardingDraft = {
-    role: null,
-    source: null,
+    answers: {},
     category: RECOMMENDED,
     templateKey: null,
     agent: BLANK_AGENT,
@@ -71,8 +67,7 @@ export const agentFromTemplate = (
 })
 
 export type OnboardingAction =
-    | {type: "role"; role: OnboardingRole}
-    | {type: "source"; source: OnboardingSource}
+    | {type: "answer"; question: OnboardingQuestionId; value: string}
     | {type: "category"; category: GalleryCategory}
     /** The blank start was opened; it edits the agent a template may have filled. */
     | {type: "scratch"}
@@ -87,13 +82,14 @@ export const onboardingReducer = (
     action: OnboardingAction,
 ): OnboardingDraft => {
     switch (action.type) {
-        case "role":
-            // The gallery's Recommended slice follows the role.
-            return action.role === draft.role
-                ? draft
-                : {...draft, role: action.role, category: RECOMMENDED}
-        case "source":
-            return {...draft, source: action.source}
+        case "answer": {
+            if (draft.answers[action.question] === action.value) return draft
+            const answers = {...draft.answers, [action.question]: action.value}
+            // The gallery's Recommended slice follows the answer that orders it.
+            return recommendsTemplates(action.question)
+                ? {...draft, answers, category: RECOMMENDED}
+                : {...draft, answers}
+        }
         case "category":
             return {...draft, category: action.category}
         case "scratch":
@@ -159,13 +155,12 @@ export const firstAgentInput = (
 }
 
 /** Per user: a preview on any project resumes the same answers. */
-export const onboardingDraftKey = (userId: string) => `agenta:onboarding:draft:v3:${userId}`
+export const onboardingDraftKey = (userId: string) => `agenta:onboarding:draft:v4:${userId}`
 
 const iconSchema = z.object({icon: z.string().min(1), color: z.string().min(1)})
 
 const draftSchema = z.object({
-    role: z.enum(ONBOARDING_ROLES.map((role) => role.label)).nullable(),
-    source: z.enum(ONBOARDING_SOURCES.map((source) => source.label)).nullable(),
+    answers: z.record(z.string(), z.string()),
     category: z.string().min(1),
     templateKey: z.string().min(1).nullable(),
     agent: z.object({
@@ -174,16 +169,22 @@ const draftSchema = z.object({
         apps: z.array(z.string().min(1)),
         firstMessage: z.string().max(ONBOARDING_TEXT_MAX),
     }),
-    completed: z.array(z.enum(ONBOARDING_STEPS)),
+    completed: z.array(z.string()),
 })
 
-/** The saved draft, or a fresh one when there is none or it no longer parses. */
+/** The saved draft without answers or steps the registry no longer has, else a fresh one. */
 export const readOnboardingDraft = (key: string): OnboardingDraft => {
     try {
         const raw = window.sessionStorage.getItem(key)
         if (!raw) return EMPTY_ONBOARDING_DRAFT
         const parsed = draftSchema.safeParse(JSON.parse(raw))
-        return parsed.success ? (parsed.data as OnboardingDraft) : EMPTY_ONBOARDING_DRAFT
+        if (!parsed.success) return EMPTY_ONBOARDING_DRAFT
+        const {answers, completed, ...rest} = parsed.data
+        return {
+            ...rest,
+            answers: knownAnswers(answers),
+            completed: completed.filter(isOnboardingStep),
+        }
     } catch {
         return EMPTY_ONBOARDING_DRAFT
     }

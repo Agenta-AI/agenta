@@ -16,6 +16,7 @@ import {
     saveOnboardingDraft,
     type OnboardingDraft,
 } from "@/features/onboarding/onboardingDraft"
+import {personProperties, recommendedCategory} from "@/features/onboarding/onboardingQuestions"
 
 type Template = Parameters<typeof galleryTemplates>[0][number]
 
@@ -38,8 +39,7 @@ const draft = (overrides: Partial<OnboardingDraft> = {}): OnboardingDraft => ({
 describe("onboarding draft storage", () => {
     it("restores a saved draft and forgets it after creation", () => {
         const saved = draft({
-            role: "Engineering",
-            source: "GitHub",
+            answers: {role: "Engineering", source: "GitHub"},
             templateKey: "review",
             agent: {...BLANK_AGENT, name: "Atlas", apps: ["slack"]},
             completed: ["role", "source"],
@@ -51,31 +51,51 @@ describe("onboarding draft storage", () => {
     })
 
     it("keys the draft by user, so a preview on any project resumes the same answers", () => {
-        expect(onboardingDraftKey("user-1")).toBe("agenta:onboarding:draft:v3:user-1")
+        expect(onboardingDraftKey("user-1")).toBe("agenta:onboarding:draft:v4:user-1")
     })
 
-    it("starts over on malformed stored drafts and on a removed answer", () => {
+    it("starts over on a malformed stored draft", () => {
         window.sessionStorage.setItem("draft", "{")
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
         window.sessionStorage.setItem("draft", JSON.stringify({step: "review"}))
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
+    })
+
+    it("drops answers and steps the questions no longer have, and keeps the rest", () => {
         window.sessionStorage.setItem(
             "draft",
-            JSON.stringify(draft({role: "Removed role" as OnboardingDraft["role"]})),
+            JSON.stringify({
+                ...draft({templateKey: "review"}),
+                answers: {role: "Removed role", source: "GitHub", gone: "Yes"},
+                completed: ["role", "gone"],
+            }),
         )
-        expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
+        expect(readOnboardingDraft("draft")).toEqual(
+            draft({templateKey: "review", answers: {source: "GitHub"}, completed: ["role"]}),
+        )
     })
 })
 
 describe("onboarding answers", () => {
     it("resets the gallery to Recommended when the role changes, and only then", () => {
-        const browsing = draft({role: "Engineering", category: "Sales"})
-        expect(onboardingReducer(browsing, {type: "role", role: "Sales"})).toEqual({
-            ...browsing,
-            role: "Sales",
-            category: "recommended",
+        const browsing = draft({answers: {role: "Engineering"}, category: "Sales"})
+        expect(
+            onboardingReducer(browsing, {type: "answer", question: "role", value: "Sales"}),
+        ).toEqual({...browsing, answers: {role: "Sales"}, category: "recommended"})
+        expect(
+            onboardingReducer(browsing, {type: "answer", question: "role", value: "Engineering"}),
+        ).toBe(browsing)
+        expect(
+            onboardingReducer(browsing, {type: "answer", question: "source", value: "GitHub"}),
+        ).toEqual({...browsing, answers: {role: "Engineering", source: "GitHub"}})
+    })
+
+    it("sets only the answered questions as person properties", () => {
+        expect(personProperties({role: "Engineering"})).toEqual({user_role_v2: "Engineering"})
+        expect(personProperties({role: "Sales", source: "GitHub"})).toEqual({
+            user_role_v2: "Sales",
+            referral_source_v2: "GitHub",
         })
-        expect(onboardingReducer(browsing, {type: "role", role: "Engineering"})).toBe(browsing)
     })
 
     it("fills the creator from a template and empties it for a blank start", () => {
@@ -161,17 +181,13 @@ describe("gallery templates", () => {
     ]
     const keys = (list: Template[]) => list.map((item) => item.key)
 
+    const recommended = (role?: string) =>
+        keys(galleryTemplates(templates, "recommended", recommendedCategory({role})))
+
     it("leads Recommended with the role's category and keeps six", () => {
-        expect(keys(galleryTemplates(templates, "recommended", "Customer support"))).toEqual([
-            "a",
-            "b",
-            "e0",
-            "e1",
-            "e2",
-            "e3",
-        ])
-        expect(keys(galleryTemplates(templates, "recommended", "Finance"))[0]).toBe("b")
-        expect(keys(galleryTemplates(templates, "recommended", null))).toHaveLength(6)
+        expect(recommended("Engineering")).toEqual(["e0", "e1", "e2", "e3", "e4", "e5"])
+        expect(recommended("Finance")).toEqual(["b", "a", "e0", "e1", "e2", "e3"])
+        expect(recommended()).toEqual(["a", "b", "e0", "e1", "e2", "e3"])
     })
 
     it("filters by category and lists everything under All", () => {

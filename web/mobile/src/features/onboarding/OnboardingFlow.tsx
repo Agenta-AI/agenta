@@ -1,11 +1,10 @@
-import {useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactNode} from "react"
+import {useEffect, useLayoutEffect, useReducer, useRef, useState} from "react"
 
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {motion} from "motion/react"
 
 import type {ConnectedApps} from "./onboardingApps"
-import {ONBOARDING_ROLES, ONBOARDING_SOURCES, type OnboardingCatalog} from "./onboardingChoices"
-import {ONBOARDING_COPY} from "./onboardingCopy"
+import type {OnboardingCatalog} from "./onboardingChoices"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
 import {OnboardingCreator} from "./OnboardingCreator"
 import {OnboardingCreditsStep} from "./OnboardingCreditsStep"
@@ -23,7 +22,13 @@ import {OnboardingHeader} from "./OnboardingHeader"
 import {OnboardingProgressDots} from "./OnboardingProgressDots"
 import {OnboardingQuestion} from "./OnboardingQuestion"
 import {
+    onboardingQuestion,
+    recommendedCategory,
+    type OnboardingQuestionId,
+} from "./onboardingQuestions"
+import {
     guardOnboardingRoute,
+    isFixedStep,
     isStepOpen,
     nextStep,
     onboardingHeadingId,
@@ -66,14 +71,14 @@ export interface OnboardingFlowProps {
     onSkip: (step: OnboardingStep) => void
 }
 
-/** Each step's column width, as the design sets it. */
-const WIDTH: Record<OnboardingStep, string> = {
-    role: "max-w-[680px]",
-    source: "max-w-[680px]",
+const QUESTION_WIDTH = "max-w-[680px]"
+
+/** Each fixed step's column width, as the design sets it. */
+const WIDTH = {
     credits: "max-w-[880px]",
     templates: "max-w-[1040px] max-md:self-start",
     review: "max-w-[1040px] max-md:self-start",
-}
+} as const
 
 /** Which progress dots open from here: any answered step, and the templates from review. */
 const reachable = (
@@ -88,7 +93,7 @@ const reachable = (
 
 const TEMPLATES: OnboardingRoute = {step: "templates", focus: null}
 
-/** The four-step first-agent flow; it owns the answers, the URL owns the step. */
+/** The first-agent flow; it owns the answers, the URL owns the step. */
 export const OnboardingFlow = ({
     onboardingPath,
     draftKey,
@@ -189,36 +194,29 @@ export const OnboardingFlow = ({
     const onAgent = (patch: Partial<Omit<OnboardingDraft["agent"], "apps">>) =>
         dispatch({type: "agent", patch})
 
-    const body: Record<OnboardingStep, () => ReactNode> = {
-        role: () => (
+    const question = (id: OnboardingQuestionId) => {
+        const asked = onboardingQuestion(id)
+        if (!asked) return null
+        return (
             <OnboardingQuestion
-                headingId={onboardingHeadingId("role")}
-                title={ONBOARDING_COPY.role.title}
-                subtitle={ONBOARDING_COPY.role.subtitle}
-                choices={ONBOARDING_ROLES}
-                value={draft.role}
-                onAnswer={(role) => dispatch({type: "role", role})}
-                onAdvance={() => advance("role", nextStep("role", steps))}
+                headingId={onboardingHeadingId(id)}
+                title={asked.title}
+                subtitle={asked.subtitle}
+                choices={asked.choices}
+                value={draft.answers[id] ?? null}
+                onAnswer={(value) => dispatch({type: "answer", question: id, value})}
+                onAdvance={() => advance(id, nextStep(id, steps))}
             />
-        ),
-        source: () => (
-            <OnboardingQuestion
-                headingId={onboardingHeadingId("source")}
-                title={ONBOARDING_COPY.source.title}
-                subtitle={ONBOARDING_COPY.source.subtitle}
-                choices={ONBOARDING_SOURCES}
-                value={draft.source}
-                onAnswer={(source) => dispatch({type: "source", source})}
-                onAdvance={() => advance("source", nextStep("source", steps))}
-            />
-        ),
+        )
+    }
+    const body = {
         credits: () => (
             <OnboardingCreditsStep model={model} onContinue={() => go(nav.returnTo ?? TEMPLATES)} />
         ),
         templates: () => (
             <OnboardingGallery
                 catalog={catalog}
-                role={draft.role}
+                preferred={recommendedCategory(draft.answers)}
                 category={draft.category}
                 focus={focus}
                 agent={draft.agent}
@@ -272,9 +270,12 @@ export const OnboardingFlow = ({
                     initial="initial"
                     animate="animate"
                     // `min-w-0`: otherwise the widest row sets the floor and overflows a phone.
-                    className={cn("w-full min-w-0", WIDTH[step])}
+                    className={cn(
+                        "w-full min-w-0",
+                        isFixedStep(step) ? WIDTH[step] : QUESTION_WIDTH,
+                    )}
                 >
-                    {body[step]()}
+                    {isFixedStep(step) ? body[step]() : question(step)}
                 </motion.section>
             </main>
             <OnboardingProgressDots

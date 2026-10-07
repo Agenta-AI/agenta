@@ -30,7 +30,7 @@ export const useOnboardingNav = (onboardingPath: string) => {
             const query = returnTo
                 ? `?${RETURN_PARAM}=${encodeURIComponent(onboardingRoutePath(returnTo))}`
                 : ""
-            const url = `${onboardingPath}${path ? `/${path}` : ""}${query}`
+            const url = `${onboardingPath}/${path}${query}`
             const options = {shallow: true, scroll: false}
             void (replace
                 ? router.replace(url, undefined, options)
