@@ -127,12 +127,12 @@ export const OnboardingGallery = ({
                     {shownPanel}
                 </motion.div>
             ) : null}
+            {/* One list for the page's life; a phone slides it back in from the detail view. */}
             <motion.div
-                key={detail.open ? "list-under-detail" : "list"}
                 variants={presets.stepSlide}
                 custom={-1}
-                initial={detail.returning ? "initial" : false}
-                animate="animate"
+                initial={false}
+                animate={detail.open ? "initial" : "animate"}
                 className={cn("flex min-w-0 flex-col gap-6", detail.open && "max-md:hidden")}
             >
                 <div className="flex flex-col gap-1.5">
@@ -257,14 +257,14 @@ export const OnboardingGallery = ({
                             </div>
                         )}
                     </div>
-                    {shownPanel ? (
+                    {detail.twoColumn && shownPanel ? (
                         <motion.div
                             key={panelKey}
                             variants={presets.stepSlide}
                             custom={1}
                             initial="initial"
                             animate="animate"
-                            className="sticky top-24 max-md:hidden"
+                            className="sticky top-24"
                         >
                             {shownPanel}
                         </motion.div>
