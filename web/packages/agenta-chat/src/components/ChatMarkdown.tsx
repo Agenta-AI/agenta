@@ -17,7 +17,7 @@ import {
     isProtocolRelativeHref,
     withExplicitRelativeLinks,
 } from "@agenta/entity-ui/drive"
-import {HoverPreview} from "@agenta/ui/ui"
+import {HoverCard, HoverCardContent, HoverCardTrigger} from "@agenta/ui/ui"
 import {createCodePlugin, type CodeHighlighterPlugin} from "@streamdown/code"
 import {math} from "@streamdown/math"
 import {
@@ -115,7 +115,20 @@ const ExternalLink = ({href, title, className, children}: AnchorProps) => {
         </a>
     )
     if (!isWebHref(href)) return link
-    return <HoverPreview content={() => <LinkPreviewCard href={href} />}>{link}</HoverPreview>
+    return (
+        <HoverCard openDelay={300} closeDelay={150}>
+            <HoverCardTrigger asChild>{link}</HoverCardTrigger>
+            <HoverCardContent
+                side="top"
+                align="start"
+                sideOffset={6}
+                collisionPadding={8}
+                className="w-80 max-w-[calc(100vw-1rem)] overflow-hidden p-0 text-xs"
+            >
+                <LinkPreviewCard href={href} />
+            </HoverCardContent>
+        </HoverCard>
+    )
 }
 
 /** A relative href may NAME a file — resolve it through the same resolver inline code uses. */

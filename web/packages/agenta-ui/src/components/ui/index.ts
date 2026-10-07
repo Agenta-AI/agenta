@@ -36,7 +36,7 @@ export {
     type SelectTriggerProps,
 } from "./select"
 export {Popover, PopoverTrigger, PopoverAnchor, PopoverContent} from "./popover"
-export {HoverPreview, type HoverPreviewProps} from "./hover-preview"
+export {HoverCard, HoverCardContent, HoverCardTrigger} from "./hover-card"
 export {
     Tooltip,
     TooltipTrigger,
