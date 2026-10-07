@@ -17,7 +17,7 @@ import {categoryLabel} from "./categoryLabel"
 const VISIBLE = 6
 
 const CHIP =
-    "inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-sm border-0 px-2.5 font-[inherit] text-btn-xs outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]"
+    "inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-sm border-0 px-2.5 font-[inherit] text-btn-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
 
 const chipClass = (on: boolean) =>
     cn(
@@ -63,8 +63,8 @@ export const CategoryChips = ({
             ref={rowRef}
             role="toolbar"
             aria-label="Categories"
-            // The row scrolls sideways, which clips; the padding leaves room for the focus ring.
-            className="ag-scroll-fade-x -mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 pt-2 [scrollbar-width:none]"
+            // Flush with the content edge; the row clips, so chips draw their focus ring inside.
+            className="ag-scroll-fade-x flex gap-1.5 overflow-x-auto pt-2 [scrollbar-width:none]"
         >
             <Chip on={selected === null} onClick={() => onSelect(null)}>
                 All
