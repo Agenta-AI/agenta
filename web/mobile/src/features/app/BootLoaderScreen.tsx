@@ -47,7 +47,11 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
           : fresh.projects.length
             ? "ok"
             : "empty"
-    const stage = bootStage(projects, Boolean(projectId) && !agents.isPending)
+    // Until the sign-in lands, nothing it loads describes the destination.
+    const stage =
+        boot.account === "pending"
+            ? 0
+            : bootStage(projects, Boolean(projectId) && !agents.isPending)
 
     const [now, setNow] = useState(() => Date.now())
     const [stageSince, setStageSince] = useState({stage, at: boot.startedAt})
