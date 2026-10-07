@@ -1,10 +1,9 @@
 import {useCallback, useState} from "react"
 
 import {type AgentSetupSelection, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-
-import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
 
 import {useCreateAgent} from "./useCreateAgent"
 

@@ -224,8 +224,6 @@ export function buildRuntimeEnvironment(
   if (gatewayCredentials?.value) {
     env[GATEWAY_CREDENTIALS_VALUE_ENV] = gatewayCredentials.value;
   }
-  applyCodexGatewayConnectionEnv(env, input.request, p.acpAgent as never);
-  applyClaudeConnectionEnv(env, input.request, p.acpAgent as never, input.log);
   const piSessionDir = configurePiSessionWorkspace(input.plan, env);
   configurePiSkillSnapshot(input.piSkillSnapshot as never, env);
 
@@ -237,6 +235,12 @@ export function buildRuntimeEnvironment(
         builtinGatingActive: p.tools.builtinGatingActive,
       })
     : {};
+  // The Daytona daemon environment is built from `piExtEnv`, not `env`, so the harness connection
+  // settings must land there on a Daytona run. A local run keeps them on `env`, where Claude's
+  // `??=` defaults still see the values the daemon env already holds.
+  const connectionEnv = p.isDaytona ? piExtEnv : env;
+  applyCodexGatewayConnectionEnv(connectionEnv, input.request, p.acpAgent as never);
+  applyClaudeConnectionEnv(connectionEnv, input.request, p.acpAgent as never, input.log);
   // The tool specs `buildPiExtensionEnv` just pointed the extension at ride a FILE (they are far
   // too large for an env string — see `piToolSpecsFilePath`). A local run writes it here, beside
   // the relay dir. A Daytona run cannot write there because the runner's filesystem is not the

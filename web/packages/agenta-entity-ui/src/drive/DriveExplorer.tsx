@@ -3,7 +3,15 @@
  * (folder grid / list, the editors, or a preview). Its own module so hosts `next/dynamic`-import
  * it. A composition root: every concern lives in a sibling hook.
  */
-import {type KeyboardEvent, type ReactNode, useCallback, useMemo, useRef, useState} from "react"
+import {
+    type KeyboardEvent,
+    type ReactNode,
+    useCallback,
+    useContext,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {looksLikeFilePath} from "@agenta/entities/drive"
 import {type DriveId, type DriveScope} from "@agenta/entities/drive"
@@ -38,7 +46,7 @@ import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {InputAffix as Input} from "@agenta/ui/ui"
-import {Code, Eye, MagnifyingGlass} from "@phosphor-icons/react"
+import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -47,6 +55,7 @@ import {DriveEditorSkeleton} from "./DriveEditorFrame"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {DriveEmptyState, DriveErrorState} from "./DriveExplorerStates"
 import {DriveFilePreview} from "./DriveFilePreview"
+import {type DriveFolderMenuProps} from "./DriveFolderMenu"
 import {DriveHeader} from "./DriveHeader"
 import {
     type DriveItemWriteActions,
@@ -60,8 +69,10 @@ import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
 import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
-import {DriveHtmlPreview} from "./renderers"
+import {dirOf, HtmlAppEnvContext, useAppAccessMenu} from "./htmlApp"
+import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
+import {useDrivePasteUpload} from "./useDrivePasteUpload"
 import {useDriveTreeData} from "./useDriveTreeData"
 import {useDriveWrites} from "./useDriveWrites"
 import {useSelectionReveal} from "./useSelectionReveal"
@@ -102,6 +113,7 @@ export function DriveExplorer({
     driveIds,
     expanded: drawerExpanded = false,
     onToggleExpand,
+    expandPlacement,
     stagedFiles,
     onStagedChange,
     mirrored = false,
@@ -127,6 +139,7 @@ export function DriveExplorer({
     /** The host drawer is at expanded (near-full) width — reflected by row 1's expand toggle. */
     expanded?: boolean
     onToggleExpand?: () => void
+    expandPlacement?: "leading" | "before-options"
     /** Files dropped on a recents peek, staged (unwritten) until the user picks a destination folder
      * and clicks "Upload here" — shown as ghost tiles in the grid. The host owns the list. */
     stagedFiles?: DroppedFile[]
@@ -265,6 +278,8 @@ export function DriveExplorer({
         setShowGitignored,
     })
     const selectedNode = selectedPath != null ? nodeByPath.get(selectedPath) : undefined
+    // A link inside a file picks its reading against the tree already in memory — never a fetch.
+    const linkExists = useCallback((path: string) => nodeByPath.has(path), [nodeByPath])
     // The root and any node flagged a folder render the grid; everything else the preview. In lazy
     // mode a not-yet-loaded selection is treated as a FILE (the preview reads by path), so an initial
     // file target shows its preview immediately instead of a wrong "empty folder" flash.
@@ -290,6 +305,34 @@ export function DriveExplorer({
     // The pane's own box: confirms render inside it, not over the whole window.
     const paneRef = useRef<HTMLDivElement>(null)
     const getPane = useCallback(() => paneRef.current, [])
+    // ⌘V with the pane current: the clipboard's files land in the folder being viewed.
+    // A pasted bitmap's name is dated to the second, so the destination has to be asked whether a
+    // name is free: the folder's own listing, plus the names handed out since (an upload from a
+    // paste one second ago may not be in the tree yet).
+    const pastedNames = useRef(new Set<string>())
+    const isNameTaken = useCallback(
+        (name: string) => {
+            const full = currentFolder ? `${currentFolder}/${name}` : name
+            return pastedNames.current.has(full) || nodeByPath.has(full)
+        },
+        [currentFolder, nodeByPath],
+    )
+    const onPasteFiles = useCallback(
+        (files: DroppedFile[]) => {
+            for (const f of files)
+                pastedNames.current.add(
+                    currentFolder ? `${currentFolder}/${f.relativePath}` : f.relativePath,
+                )
+            uploadIntoFolder(files, currentFolder)
+        },
+        [uploadIntoFolder, currentFolder],
+    )
+    useDrivePasteUpload({
+        paneRef,
+        enabled: chrome && canUpload,
+        onFiles: onPasteFiles,
+        isNameTaken,
+    })
     const writes = useDriveWrites(drive, getPane)
     const siblingsOf = useCallback(
         (folder: string) =>
@@ -325,10 +368,37 @@ export function DriveExplorer({
     const editableMarkdown = markdownKind && (selectedFileSize ?? 0) <= DRIVE_MARKDOWN_EDIT_CAP
     const editableCode = codeKind && (selectedFileSize ?? 0) <= DRIVE_CODE_EDIT_CAP
     const tooLargeToEdit = (markdownKind || codeKind) && !editableMarkdown && !editableCode
-    // An editable HTML file shows its source or the rendered document (row 2 switches).
-    const htmlKind = editableCode && selectedKind === "html"
-    const [htmlView, setHtmlView] = useState<"source" | "preview">("source")
-    const htmlPreview = htmlKind && htmlView === "preview"
+    // An HTML file on a mount opens as a running app; ⋯ shows its code.
+    const htmlApp = chrome && !selectedIsFolder && selectedKind === "html" && !!selectedMount
+    const htmlAppEnv = useContext(HtmlAppEnvContext)
+    // Row 2's slot for a running app's controls.
+    const [appControlsEl, setAppControlsEl] = useState<HTMLDivElement | null>(null)
+    // An app's access sheet stays inside this pane, so the chat beside it stays usable.
+    const sheetHtmlAppEnv = useMemo(
+        () => ({...htmlAppEnv, sheetContainer: getPane}),
+        [htmlAppEnv, getPane],
+    )
+    // The app whose code is on screen; every other app opens running.
+    const [htmlCodePath, setHtmlCodePath] = useState<string | null>(null)
+    if (htmlCodePath !== null && htmlCodePath !== selectedPath) setHtmlCodePath(null)
+    const htmlCode = htmlApp && htmlCodePath === selectedPath
+    const htmlRunning = htmlApp && !htmlCode
+    const appDir = dirOf(selectedMountPath)
+    const appAccess = useAppAccessMenu({
+        mountId: htmlApp ? (selectedMount?.id ?? null) : null,
+        dir: appDir,
+        displayDir: dirOf(selectedPath ?? ""),
+        appName: appDir.split("/").pop() || nameOf(selectedPath ?? ""),
+        env: sheetHtmlAppEnv,
+    })
+    const paneHtmlAppEnv = useMemo(
+        () => ({
+            ...sheetHtmlAppEnv,
+            toolbarSlot: appControlsEl,
+            openAccessSetting: appAccess.open,
+        }),
+        [sheetHtmlAppEnv, appControlsEl, appAccess.open],
+    )
     const editing = editableMarkdown || editableCode
     const editor = useDriveFileEditor(
         editing ? selectedMount : null,
@@ -505,6 +575,24 @@ export function DriveExplorer({
     } else if (drive.fileCount === 0) {
         body = <DriveEmptyState scope={scope} />
     } else {
+        // The folder's verbs — row 2's ⋯ and the blank-space right-click menu share them.
+        const folderMenu: DriveFolderMenuProps | undefined =
+            chrome && selectedIsFolder
+                ? {
+                      actions: canWrite
+                          ? {
+                                onNewFolder: () => void startNew("folder", selectedPath ?? ""),
+                                onNewFile: () => void startNew("file", selectedPath ?? ""),
+                                onUpload: staged.length ? commitStaged : openUploadPicker,
+                                stagedCount: staged.length,
+                            }
+                          : undefined,
+                      onCopyPath: onCopyCurrentPath,
+                      onDownloadAll: onDownloadCurrent,
+                      downloadingAll,
+                  }
+                : undefined
+
         // Row 2 follows the selection.
         const contentHeader = !chrome ? null : selectedIsFolder ? (
             <DriveToolbar
@@ -513,19 +601,7 @@ export function DriveExplorer({
                 setView={setView}
                 sort={sort}
                 setSort={setSort}
-                actions={
-                    canWrite
-                        ? {
-                              onNewFolder: () => void startNew("folder", selectedPath ?? ""),
-                              onNewFile: () => void startNew("file", selectedPath ?? ""),
-                              onUpload: staged.length ? commitStaged : openUploadPicker,
-                              stagedCount: staged.length,
-                          }
-                        : undefined
-                }
-                onCopyPath={onCopyCurrentPath}
-                onDownloadAll={onDownloadCurrent}
-                downloadingAll={downloadingAll}
+                {...folderMenu}
             />
         ) : editableMarkdown ? (
             <DriveToolbar
@@ -547,26 +623,16 @@ export function DriveExplorer({
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
                 note={tooLargeToEdit ? "Read-only · too large to edit here" : undefined}
-                mode={
-                    htmlKind
+                appView={
+                    htmlApp
                         ? {
-                              value: htmlView,
-                              onChange: (v) => setHtmlView(v as "source" | "preview"),
-                              options: [
-                                  {
-                                      value: "source",
-                                      label: "Source",
-                                      icon: <Code className="size-3.5" />,
-                                  },
-                                  {
-                                      value: "preview",
-                                      label: "Preview",
-                                      icon: <Eye className="size-3.5" />,
-                                  },
-                              ],
+                              code: htmlCode,
+                              onToggle: () => setHtmlCodePath(htmlCode ? null : selectedPath),
+                              access: {label: appAccess.label, onOpen: appAccess.open},
                           }
                         : undefined
                 }
+                controlsRef={htmlRunning ? setAppControlsEl : undefined}
                 onCopyPath={onCopyCurrentPath}
                 onDownload={onDownloadCurrent}
             />
@@ -597,6 +663,7 @@ export function DriveExplorer({
                     sort={sort}
                     selectedPath={selectedPath}
                     writes={itemWrites}
+                    folderMenu={folderMenu}
                     editing={nameEditView}
                     loading={
                         selectedPath !== "" &&
@@ -628,18 +695,24 @@ export function DriveExplorer({
                     loading={editor.loading}
                     failed={editor.failed}
                     onSave={onSave}
-                />
-            ) : htmlPreview ? (
-                <DriveHtmlPreview
-                    mount={selectedMount}
-                    path={selectedMountPath}
                     displayPath={selectedPath}
                     onNavigate={select}
+                    linkExists={linkExists}
                 />
+            ) : htmlRunning ? (
+                <HtmlAppEnvContext.Provider value={paneHtmlAppEnv}>
+                    <DriveHtmlApp
+                        mount={selectedMount}
+                        path={selectedMountPath}
+                        displayPath={selectedPath}
+                        onNavigate={select}
+                    />
+                </HtmlAppEnvContext.Provider>
             ) : editableCode ? (
                 <DriveCodeEditor
                     mount={selectedMount}
                     path={selectedMountPath}
+                    displayPath={selectedPath}
                     loading={editor.loading}
                     failed={editor.failed}
                     onSave={onSave}
@@ -657,6 +730,7 @@ export function DriveExplorer({
                     size={selected?.size ?? undefined}
                     hideHeader={chrome}
                     onSelect={select}
+                    linkExists={linkExists}
                 />
             )
         body = (
@@ -761,6 +835,7 @@ export function DriveExplorer({
                         closeVariant={closeVariant}
                         expanded={drawerExpanded}
                         onToggleExpand={onToggleExpand}
+                        expandPlacement={expandPlacement}
                         partialErrored={drive.partialErrored}
                         onRetry={drive.retry}
                         retrying={drive.isFetching}
@@ -786,6 +861,7 @@ export function DriveExplorer({
                     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onNavKeyDown}>
                         {body}
                     </div>
+                    {appAccess.dialog}
                 </div>
             ) : (
                 body

@@ -185,6 +185,70 @@ describe("useSessionLivePreview", () => {
         },
     )
 
+    it("does not adopt a commit made while the tab was hidden", async () => {
+        const output = {
+            status: "committed",
+            workflow_revision: {id: "revision-2", workflow_variant_id: "variant-1", version: "2"},
+        }
+        const rows = [
+            {
+                ...record("call", {
+                    type: "tool_call",
+                    id: "commit-1",
+                    name: "commit_revision",
+                    input: {},
+                }),
+                sequence: 1,
+            },
+            {
+                ...record("result", {
+                    type: "tool_result",
+                    id: "commit-1",
+                    output: JSON.stringify(output),
+                }),
+                sequence: 2,
+            },
+        ]
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: true}},
+            read: {latest_sequence: 0},
+        })
+        mocks.querySessionTranscript.mockResolvedValue([])
+        const onCommittedRevision = vi.fn()
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+        renderHook(
+            () =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: false,
+                    sender: true,
+                    onDisconnect: vi.fn().mockResolvedValue(true),
+                    onCommittedRevision,
+                }),
+            {wrapper},
+        )
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledOnce())
+
+        const setVisibility = (value: string) => {
+            Object.defineProperty(document, "visibilityState", {configurable: true, value})
+            document.dispatchEvent(new Event("visibilitychange"))
+        }
+        act(() => setVisibility("hidden"))
+        // The agent commits while nobody is looking.
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: false}},
+            read: {latest_sequence: 2},
+        })
+        mocks.querySessionTranscript.mockResolvedValue(rows)
+        act(() => setVisibility("visible"))
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2))
+        expect(onCommittedRevision).not.toHaveBeenCalled()
+    })
+
     it("retires an old approval preview when recovery adopts a newer running turn", async () => {
         mocks.fetchSessionSnapshot.mockResolvedValue({
             session: {flags: {is_running: false}},
@@ -307,7 +371,7 @@ describe("useSessionLivePreview", () => {
             execution_state: {state: "idle"},
             pending: {inputs: [], interactions: []},
             read: null,
-            capabilities: {queue: true, steer: true},
+            capabilities: {durable_approvals: true},
         })
         const onDisconnect = vi.fn().mockResolvedValue(true)
         const onExecutionSettled = vi.fn()
@@ -907,5 +971,50 @@ describe("useSessionLivePreview", () => {
         expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(3)
         await act(async () => vi.advanceTimersByTimeAsync(1))
         expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(4)
+    })
+
+    it("holds a stream only while its conversation is on screen, and re-reads the log on return", async () => {
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: false}},
+            read: {latest_sequence: 4},
+        })
+        mocks.querySessionTranscript.mockResolvedValue([])
+        const close = vi.fn()
+        mocks.connectSessionLiveEvents.mockImplementation(() => ({close}))
+        const onDisconnect = vi.fn().mockResolvedValue(true)
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+        const {rerender} = renderHook(
+            ({visible}: {visible: boolean}) =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: false,
+                    sender: true,
+                    visible,
+                    onDisconnect,
+                }),
+            {wrapper, initialProps: {visible: false}},
+        )
+        await act(async () => Promise.resolve())
+        expect(mocks.fetchSessionSnapshot).not.toHaveBeenCalled()
+        expect(mocks.connectSessionLiveEvents).not.toHaveBeenCalled()
+
+        rerender({visible: true})
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledOnce())
+        expect(mocks.querySessionTranscript).toHaveBeenCalledWith(
+            expect.objectContaining({throughSequence: 4}),
+        )
+
+        rerender({visible: false})
+        expect(close).toHaveBeenCalledOnce()
+
+        // Back on screen: the snapshot and the finished turn's records are read again first.
+        rerender({visible: true})
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2))
+        expect(mocks.fetchSessionSnapshot).toHaveBeenCalledTimes(2)
+        expect(onDisconnect).toHaveBeenCalledTimes(2)
     })
 })

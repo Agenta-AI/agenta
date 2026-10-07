@@ -1,12 +1,14 @@
-from uuid import UUID
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from oss.src.core.agent_templates.dtos import (
-    InternalTemplateSource,
     TemplateLoadCommand,
+    TemplateSource,
+    TemplateSourcePin,
 )
+from oss.src.core.agent_templates.models import AgentTemplateEntry
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 
 
@@ -40,11 +42,19 @@ TemplateConnectionChoiceRequest = Annotated[
 ]
 
 
+class TemplateValidateRequest(_StrictRequestModel):
+    source: TemplateSource
+    pin: TemplateSourcePin | None = None
+
+
 class TemplateLoadRequest(_StrictRequestModel):
-    source: InternalTemplateSource
+    source: TemplateSource
     base_revision: WorkflowRevisionData
     ui_build_kit_enabled: bool = False
     ui_disabled_ops: list[str] = Field(default_factory=list, max_length=128)
+    ui_op_permissions: dict[str, Literal["allow", "ask"]] = Field(
+        default_factory=dict, max_length=128
+    )
     staging_session_id: str | None = Field(default=None, min_length=1, max_length=256)
     attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
     initial_message: str = Field(min_length=1, max_length=20_000)
@@ -81,3 +91,18 @@ class TemplateLoadRequest(_StrictRequestModel):
                 "request_key": request_key,
             }
         )
+
+
+class TemplatesQueryRequest(_StrictRequestModel):
+    search: str | None = Field(default=None, max_length=200)
+    category: str | None = Field(default=None, max_length=64)
+    author_id: str | None = Field(default=None, max_length=64)
+
+
+class TemplatesResponse(BaseModel):
+    count: int
+    templates: list[AgentTemplateEntry]
+
+
+class TemplateResponse(BaseModel):
+    template: AgentTemplateEntry

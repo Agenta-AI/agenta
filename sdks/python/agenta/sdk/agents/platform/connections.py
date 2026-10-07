@@ -161,6 +161,7 @@ _ALLOWED_EXTRA_ENV_KEYS: Set[str] = {
     "TOGETHERAI_API_KEY",
     "TOGETHER_API_KEY",
     "OPENROUTER_API_KEY",
+    "XAI_API_KEY",
     # Bedrock / AWS.
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -396,6 +397,14 @@ class _ConnectionCandidate:
                 return stripped
             return self._funded_starter_credits_model(model) or stripped
         return self._funded_starter_credits_model(model) or model.model
+
+    def serves_custom_connection(self) -> bool:
+        """Whether spans served by this record skip public-list pricing.
+
+        A user's own custom-provider record does. A record Agenta manages (the funded
+        starter-credits connection) serves a public model at a public price, so it does not.
+        """
+        return self.kind == "custom_provider" and not self.managed
 
     def _funded_starter_credits_model(self, model: ModelRef) -> Optional[str]:
         """The funded model, when a saved id names one this connection no longer offers.
@@ -961,6 +970,7 @@ def _resolve_from_secrets(
             input_modalities=model_input_modalities(
                 harness, resolved_model, provider=provider
             ),
+            custom_connection=chosen.serves_custom_connection(),
         )
     namespace, name = gateway_target(
         kind=chosen.kind, provider=provider, slug=chosen.slug
@@ -977,6 +987,7 @@ def _resolve_from_secrets(
         input_modalities=model_input_modalities(
             harness, resolved_model, provider=provider
         ),
+        custom_connection=chosen.serves_custom_connection(),
     )
 
 
@@ -998,7 +1009,8 @@ def _llm_gateway_is_unavailable(
     Two shapes mean it, and they are the same situation seen from two API versions.
 
     ``llm_gateway_disabled`` is the current one: the route is there and the operator has the
-    plane switched off. An unrouted 404 is the older one: an SDK newer than its backend is an
+    plane switched off, or the gateway does not serve agents on this connection (a Bedrock
+    connection, `LLMGatewayConnectionNotServedError` in the API). An unrouted 404 is the older one: an SDK newer than its backend is an
     ordinary state during a rolling upgrade, and that backend has no gateway at all.
 
     Nothing else qualifies. A 403 from the permission check, a 409 for a missing secret, a 422
@@ -1026,7 +1038,7 @@ class VaultConnectionResolver:
     def __init__(self, connection: Optional[PlatformConnection] = None) -> None:
         self._connection = connection or PlatformConnection()
 
-    async def _gateway_credentials(self) -> Optional[str]:
+    async def _gateway_credentials(self, context: RuntimeAuthContext) -> Optional[str]:
         """The gateway-confined credential this resolution hands to the sandbox.
 
         A refusal surfaces as a resolution error rather than as a missing credential: the
@@ -1034,7 +1046,11 @@ class VaultConnectionResolver:
         operator from hunting a phantom "no backend configured" misconfiguration.
         """
         try:
-            return await self._connection.gateway_authorization(plane="llm")
+            return await self._connection.gateway_authorization(
+                plane="llm",
+                session_id=context.session_id,
+                agent_id=context.agent_id,
+            )
         except GatewayCredentialsError as exc:
             raise ConnectionResolutionError(str(exc)) from exc
 
@@ -1139,6 +1155,7 @@ class VaultConnectionResolver:
                         "model": model.model,
                         "provider_key": model.provider,
                         "connection_slug": model.connection.slug,
+                        "connection_namespace": model.connection.namespace,
                     },
                 )
         except Exception as exc:  # pylint: disable=broad-except
@@ -1166,6 +1183,10 @@ class VaultConnectionResolver:
                 body=body,
             )
             if _llm_gateway_is_unavailable(body=body, refusal=refusal):
+                # A built-in model has no vault record, and the vault may hold a custom
+                # connection of the same slug that the customer pays for instead.
+                if model.connection.namespace == "builtin":
+                    raise refusal
                 return await self._resolve_from_vault(
                     api_base=api_base,
                     authorization=authorization,
@@ -1181,7 +1202,7 @@ class VaultConnectionResolver:
         # NOT `authorization`. That value reads the vault in plaintext, and this one crosses
         # into the sandbox, where the gateway's whole premise is that nothing able to reach a
         # provider key lives there. Exchanged for a gateway-audience credential instead.
-        gateway_credentials_value = await self._gateway_credentials()
+        gateway_credentials_value = await self._gateway_credentials(context)
 
         # Keep the in-memory/static resolver's list shape as a test/replay compatibility
         # path. A live API always returns the non-secret ``connection`` object above.
@@ -1226,6 +1247,10 @@ class VaultConnectionResolver:
             input_modalities=model_input_modalities(
                 context.harness, resolved_model, provider=provider
             ),
+            # The gateway names the namespace from the record kind (`gateway_target`):
+            # `custom` is a custom-provider record, `standard` a provider key. The response
+            # carries no management flag, so the Agenta-funded record is known by its slug.
+            custom_connection=namespace == "custom" and name != STARTER_CREDITS_SLUG,
         )
 
 

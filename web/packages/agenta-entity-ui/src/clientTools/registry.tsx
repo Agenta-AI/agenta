@@ -31,14 +31,15 @@ import {SecretRequestWidget} from "./SecretRequestWidget"
 import {parseGatewayTarget} from "./useGatewayConnectFlow"
 
 /**
- * `request_connection` carries either an integration key or a gateway target, never both (the
- * tool's schema is a oneOf). The two need different surfaces, so the split happens here on the
- * shape of the input rather than at the dispatch axes, which only see a kind and a name.
+ * `request_connection` carries either an integration key or a gateway target. Only the tool's
+ * description rules out both (providers refuse a root-level oneOf), so a call carrying both gets
+ * the gateway surface. The two need different surfaces, so the split happens here on the shape of
+ * the input rather than at the dispatch axes, which only see a kind and a name.
  */
-export const ConnectRequestWidget = ({meta, settle}: ClientToolWidgetProps) => {
-    const target = parseGatewayTarget(meta.input)
-    if (target) return <GatewayConnectToolWidget target={target} meta={meta} settle={settle} />
-    return <ConnectToolWidget meta={meta} settle={settle} />
+export const ConnectRequestWidget = (props: ClientToolWidgetProps) => {
+    const target = parseGatewayTarget(props.meta.input)
+    if (target) return <GatewayConnectToolWidget target={target} {...props} />
+    return <ConnectToolWidget {...props} />
 }
 
 /** The built-in client-tool widgets, as a plain value.

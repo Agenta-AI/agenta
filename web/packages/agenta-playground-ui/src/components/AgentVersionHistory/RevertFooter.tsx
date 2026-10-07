@@ -1,13 +1,11 @@
 /**
- * The drawer's footer, and the whole revert flow.
- *
- * Confirmation is inline, not a dialog: a modal over an open drawer stacks two focus traps for
- * one yes/no, and the sentence explaining what revert does needs the width the footer already has.
+ * The drawer's footer: the revert button and the revert's progress and outcome. The confirmation
+ * itself is `RevertConfirmDialog`, scoped to the drawer.
  */
 
 import {cn, textColors} from "@agenta/ui/styles"
 import {Button, Spinner} from "@agenta/ui/ui"
-import {CheckCircle, WarningCircle} from "@phosphor-icons/react"
+import {CheckCircle} from "@phosphor-icons/react"
 
 /** The footer's machine. `done`/`failed` are terminal until the user acts again. */
 export type RevertPhase = "idle" | "confirm" | "reverting" | "done" | "failed"
@@ -24,6 +22,8 @@ export interface RevertFooterProps {
     onCancel: () => void
     onConfirm: () => void
     onClose: () => void
+    /** Present when the selected version is newer than this view's: switch to it. */
+    onUpdate?: () => void
 }
 
 export const RevertFooter = ({
@@ -35,6 +35,7 @@ export const RevertFooter = ({
     onCancel,
     onConfirm,
     onClose,
+    onUpdate,
 }: RevertFooterProps) => {
     if (phase === "reverting") {
         return (
@@ -71,35 +72,12 @@ export const RevertFooter = ({
         )
     }
 
-    if (phase === "confirm") {
-        return (
-            <div className="flex items-center justify-between gap-4">
-                <span className="flex min-w-0 gap-2">
-                    <WarningCircle
-                        size={15}
-                        className="mt-px shrink-0 text-[var(--ag-colorWarning)]"
-                    />
-                    <span className="text-[11.5px] leading-snug text-colorText">
-                        <strong className="font-semibold">Revert to v{selectedVersion}?</strong>{" "}
-                        This commits v{(latestVersion ?? 0) + 1} with v{selectedVersion}&apos;s
-                        configuration. Versions v1–v{latestVersion} stay exactly as they are.
-                    </span>
-                </span>
-                <span className="flex shrink-0 gap-2">
-                    <Button variant="outline" onClick={onCancel}>
-                        Cancel
-                    </Button>
-                    <Button onClick={onConfirm}>Revert</Button>
-                </span>
-            </div>
-        )
-    }
-
     return (
         <div className="flex items-center justify-end gap-2">
             <Button variant="outline" onClick={onClose}>
                 Cancel
             </Button>
+            {onUpdate ? <Button onClick={onUpdate}>Update to v{selectedVersion}</Button> : null}
             <Button disabled={disabled} onClick={onRequestConfirm}>
                 {selectedVersion === null ? "Revert" : `Revert to v${selectedVersion}`}
             </Button>

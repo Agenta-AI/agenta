@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field, field_serializer, model_validator
 # subscription connection whose stored OAuth login Agenta delivers to the run). "The project
 # default" is just ``agenta`` with no slug; there is no separate ``default`` mode.
 ConnectionMode = Literal["agenta", "self_managed"]
+ConnectionNamespace = Literal["standard", "custom", "builtin"]
 
 # Where a resolved credential comes from, as seen by the harness adapter. ``env`` ships one
 # provider's vars; ``runtime_provided`` injects nothing (the harness owns auth, e.g. an OAuth
@@ -127,6 +128,16 @@ class Connection(BaseModel):
     slug: Optional[str] = (
         None  # the secret's name, never a db id; optional in both modes
     )
+    # The gateway namespace ``slug`` was picked from. Omitted, the gateway infers it from the
+    # slug; set, it is taken as given, because a custom endpoint may share a builtin endpoint's
+    # name and the two differ in who pays for the call.
+    namespace: Optional[ConnectionNamespace] = None
+
+    @model_validator(mode="after")
+    def _namespace_names_a_slug(self) -> "Connection":
+        if self.namespace is not None and (self.mode != "agenta" or not self.slug):
+            raise ValueError("a connection namespace requires mode 'agenta' and a slug")
+        return self
 
 
 class Endpoint(BaseModel):
@@ -137,6 +148,8 @@ class Endpoint(BaseModel):
     resolved connection.
     """
 
+    # The provider's API base: the prefix a client puts before an operation path, in the
+    # provider's own shape (Gemini's includes the version: `.../v1beta`). Harnesses use it as is.
     base_url: Optional[str] = None
     api_version: Optional[str] = None
     region: Optional[str] = None
@@ -378,6 +391,12 @@ class ResolvedConnection(BaseModel):
     # environment variable Agenta binds, so the `credential_mode != env` rule below still holds.
     subscription: Optional[ResolvedSubscription] = Field(default=None, repr=False)
     gateway_credentials: Optional[GatewayCredentials] = Field(default=None, repr=False)
+    # Whether the route serves the user's own custom-provider record rather than a provider
+    # key. The resolver knows the record kind; the runner cannot infer it when a custom record
+    # uses the family's registered base URL, so it rides the wire explicitly. ``None`` means
+    # "not stated" (a resolver that does not track provenance): the runner then treats only a
+    # ``custom`` deployment as custom.
+    custom_connection: Optional[bool] = None
 
     def _require_effective_https(
         self, subject: str, *, allow_insecure_http: bool = False
@@ -453,6 +472,8 @@ class ResolvedConnection(BaseModel):
             wire["subscription"] = self.subscription.to_wire()
         if self.gateway_credentials is not None:
             wire["gatewayCredentials"] = self.gateway_credentials.to_wire()
+        if self.custom_connection is not None:
+            wire["customConnection"] = self.custom_connection
         return wire
 
 
@@ -476,3 +497,7 @@ class RuntimeAuthContext(BaseModel):
     backend: Optional[str] = (
         None  # sandbox-agent local / daytona / in-process / local SDK
     )
+    # Labels for the gateway's usage record, never authorization: the gateway credential
+    # carries them so a platform-funded call's measurement names its session and agent.
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None

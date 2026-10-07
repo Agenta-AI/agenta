@@ -45,6 +45,12 @@ class SessionInputsDAOInterface(ABC):
         pass
 
     @abstractmethod
+    async def fetch_by_execution_id(
+        self, *, project_id: UUID, session_id: str, execution_id: str
+    ) -> Optional[PendingInput]:
+        pass
+
+    @abstractmethod
     async def list_pending(
         self,
         *,

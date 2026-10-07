@@ -35,7 +35,7 @@ const invalidateProjectWorkflowQueries = (): void => {
 }
 
 /**
- * The project's live revalidation channel: one SSE stream per foregrounded app, mapping server
+ * The project's live revalidation channel: one SSE stream per browser, shared by its visible tabs, mapping server
  * change events onto the shared invalidators.
  *
  * This is the ONLY thing that tells a project list the server moved. The lists themselves are
@@ -61,5 +61,7 @@ export const useProjectWatch = ({refreshSession}: {refreshSession: RefreshSessio
     const projectId = useAtomValue(projectIdAtom)
     const url = projectId ? projectWatchUrl(projectId) : null
 
-    useWatchEventSource({url, on: projectWatchHandlers, refreshSession})
+    // Every tab of the app mounts this; the tabs elect one to hold the stream and relay its events
+    // (`tabLeader.ts`), so the browser normally holds one project watch however many tabs are open.
+    useWatchEventSource({url, on: projectWatchHandlers, refreshSession, shareAcrossTabs: true})
 }

@@ -51,6 +51,8 @@ export interface ProjectOrgSwitcherViewProps {
     theme?: SwitcherThemeControl
     /** Rendered beside the trigger on the expanded rail — the desktop's help menu button. */
     trailing?: ReactNode
+    /** Quiet text inside the expanded trigger, before the caret (the app version). */
+    triggerMeta?: ReactNode
     /** Optional rows — absent handlers render nothing, so a shell offers what it supports. */
     onCreateProject?: () => void
     onCreateOrg?: () => void
@@ -152,6 +154,7 @@ export const ProjectOrgSwitcherView = ({
     panelContainer,
     theme,
     trailing,
+    triggerMeta,
     onCreateProject,
     onCreateOrg,
     onOrgSettings,
@@ -284,10 +287,8 @@ export const ProjectOrgSwitcherView = ({
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
                 "flex gap-1 px-2 pb-1.5 transition-all duration-300",
-                // No top pad collapsed: the bottom nav already ends with its own 4px, and the
-                // two together left Settings further from the help button than the help button
-                // is from the switcher under it.
-                collapsed ? "flex-col items-center" : "w-full items-center pt-1",
+                // No top pad: the bottom nav already ends with its own spacing above the switcher.
+                collapsed ? "flex-col items-center" : "w-full items-center",
             )}
         >
             {/* Collapsed, the rail is one icon wide: the trailing control stacks above the
@@ -303,10 +304,10 @@ export const ProjectOrgSwitcherView = ({
                             // (not just colors) so the width/padding swap below travels with the
                             // rail rather than snapping ahead of it.
                             "flex cursor-pointer items-center rounded-md border-0 bg-transparent transition-all duration-300 hover:bg-colorFillTertiary",
-                            // pl-3 puts the avatar on the nav rows' icon column instead of 6px inside it.
+                            // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"
-                                : "h-8 min-w-0 flex-1 gap-[10px] pl-3 pr-1",
+                                : "h-8 min-w-0 flex-1 gap-[10px] pl-2.5 pr-1",
                         )}
                         title={`${projectLabel} · ${orgLabel}`}
                     >
@@ -319,6 +320,11 @@ export const ProjectOrgSwitcherView = ({
                                 <span className="min-w-0 flex-1 truncate text-left text-[13px] leading-none text-colorText">
                                     {projectLabel}
                                 </span>
+                                {triggerMeta ? (
+                                    <span className="shrink-0 text-[10px] leading-none text-colorTextTertiary">
+                                        {triggerMeta}
+                                    </span>
+                                ) : null}
                                 <CaretUpDown
                                     size={12}
                                     className="shrink-0 text-colorTextSecondary"

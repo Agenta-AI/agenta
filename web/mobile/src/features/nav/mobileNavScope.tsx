@@ -10,6 +10,8 @@ import type {
 import {SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
 import {useRouter} from "next/router"
 
+import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
+
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from "./useMobileNavItems"
 
@@ -77,11 +79,20 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         />
     )
 
+    const Footer = ({collapsed}: SidebarSlotContext) => (
+        <CreditsRemainingWidget
+            projectId={projectId}
+            settingsURL={`${projectURL}/settings`}
+            collapsed={collapsed}
+        />
+    )
+
     return {
         id: MOBILE_NAV_SCOPE_ID,
         useSelection,
         useSections,
         header: Header,
+        footer: Footer,
         afterBottom: AfterBottom,
     }
 }

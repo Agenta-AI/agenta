@@ -1,7 +1,6 @@
 """Smart truncation of oversized record bodies (`_truncate_attributes`).
 
-The legacy path replaces an over-cap body with `{"_truncated": True}`, losing the event's
-type/id and all content. Smart truncation preserves the event shape + partial content so the
+Smart truncation preserves the event shape + partial content of an over-cap body so the
 record log stays reconstructable server-side. These pin that contract.
 """
 
@@ -71,17 +70,6 @@ def test_non_dict_attributes_fall_back():
     huge = "z" * (MAX_ATTRIBUTES_BYTES * 2)
     out = _truncate_attributes(huge, MAX_ATTRIBUTES_BYTES, _size(huge))
     assert out == {"_truncated": True, "_original_bytes": _size(huge)}
-
-
-def test_smart_truncation_flag_is_reachable_from_the_env_object():
-    """The publish path reads `env.agenta.sessions.records.smart_truncation` inside a
-    try/except that swallows anything and drops the record. When `SessionsConfig` was not
-    attached to `AgentaConfig` this raised AttributeError, so every over-cap record was
-    discarded instead of truncated, and the tests above still passed because they call
-    `_truncate_attributes` directly and never touch the flag."""
-    from oss.src.utils.env import env
-
-    assert isinstance(env.agenta.sessions.records.smart_truncation, bool)
 
 
 def test_attachment_reference_and_delivery_payloads_fit_without_truncation():

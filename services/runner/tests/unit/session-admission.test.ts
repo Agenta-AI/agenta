@@ -42,6 +42,7 @@ import { createAgentServer, type RunAgent } from "../../src/server.ts";
 import {
   SESSION_TURN_IN_USE_CODE,
   SESSION_TURN_IN_USE_MESSAGE,
+  SESSION_ADMISSION_UNCONFIRMED_MESSAGE,
 } from "../../src/sessions/admission.ts";
 
 const TEST_TOKEN = "test-runner-token";
@@ -476,7 +477,8 @@ describe("runner admission: an admitted turn proceeds", () => {
       assert.equal(runCalls.length, 0, "an unconfirmed turn must never reach run()");
       const terminal = records.find((r) => r.kind === "result");
       assert.equal(terminal!.result!.ok, false);
-      assert.equal(terminal!.result!.error, SESSION_TURN_IN_USE_MESSAGE);
+      // Nothing is known about ownership, so the user is not told another turn holds the session.
+      assert.equal(terminal!.result!.error, SESSION_ADMISSION_UNCONFIRMED_MESSAGE);
     } finally {
       await runner.close();
     }

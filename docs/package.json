@@ -9,6 +9,7 @@
     "start:prod": "docusaurus start --port 5000 --host 0.0.0.0",
     "build": "docusaurus build",
     "build:worker": "docusaurus build --out-dir dist/docs && node scripts/stage-worker-assets.mjs",
+    "test:worker-routing": "node --test scripts/worker-routing.test.mjs",
     "build:dev": "docusaurus build --config docusaurus.config.dev.ts",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
@@ -71,7 +72,8 @@
       "minimatch@<10.2.1": ">=10.2.1",
       "lodash": ">=4.18.0",
       "follow-redirects@<1.16.0": ">=1.16.0",
-      "postcss@<8.5.10": ">=8.5.10"
+      "postcss@<8.5.10": ">=8.5.10",
+      "fast-uri": "3.1.8"
     },
     "ignoredBuiltDependencies": [
       "core-js",

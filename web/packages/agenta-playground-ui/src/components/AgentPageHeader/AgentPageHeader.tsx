@@ -109,8 +109,13 @@ export const AgentPageHeader = ({
                 )}
             </div>
 
-            {/* flex-1 + min-w-0: the desktop's evaluator-tag strip scrolls inside this cluster. */}
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">{actions}</div>
+            {/* flex-1 has a zero basis, so with min-w-0 this cluster gets only what the identity
+            leaves and its buttons spill left over the name. Below `sm` it keeps its content width
+            and the name truncates instead; from `sm` up min-w-0 lets the desktop's evaluator-tag
+            strip scroll inside it. */}
+            <div className="flex min-w-fit flex-1 items-center justify-end gap-2 sm:min-w-0">
+                {actions}
+            </div>
         </div>
     )
 }

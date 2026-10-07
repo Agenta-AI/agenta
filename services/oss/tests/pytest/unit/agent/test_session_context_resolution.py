@@ -56,6 +56,10 @@ def backend_facts(monkeypatch, sdk_singleton):
         "names": {ARTIFACT_A: "Agent A", ARTIFACT_B: "Agent B"},
         "session_name": None,
         "turns": [],
+        # Answered, like the api does, only to a read that carries this runner token.
+        "runner_address": "",
+        "runner_replica_id": "",
+        "runner_token": "runner-secret",
     }
 
     class _Client:
@@ -73,8 +77,20 @@ def backend_facts(monkeypatch, sdk_singleton):
                 artifact = url.rsplit("/", 1)[-1]
                 name = facts["names"].get(artifact)
                 return _FakeResponse(200, {"count": 1, "workflow": {"name": name}})
+            runner_verified = (headers or {}).get("X-Agenta-Runner-Token") == facts[
+                "runner_token"
+            ]
             return _FakeResponse(
-                200, {"stream": {"id": "s1", "name": facts["session_name"]}}
+                200,
+                {
+                    "stream": {"id": "s1", "name": facts["session_name"]},
+                    "runner_address": facts["runner_address"]
+                    if runner_verified
+                    else "",
+                    "runner_replica_id": facts["runner_replica_id"]
+                    if runner_verified
+                    else "",
+                },
             )
 
         async def post(self, url, json=None, headers=None):
@@ -272,3 +288,46 @@ def test_competing_families_render_no_agent_name_through_the_service(
     assert "Your name is" not in rendered
     # The session half is independent of the artifact, so it still lands.
     assert 'This session is named "Vermilion Quay"' in rendered
+
+
+_FORGED_ROUTING_META = {
+    "runner_address": "http://attacker.example:8765",
+    "runner_replica_id": "attacker",
+    "runner_url": "http://attacker.example:8765",
+    "session_context": {
+        "runner_address": "http://attacker.example:8765",
+        "runner_replica_id": "attacker",
+    },
+}
+
+
+def test_the_pod_address_the_service_reads_reaches_the_backend(
+    sdk_singleton, service, backend_facts, monkeypatch
+):
+    """A follow-up goes to the pod that ran the last turn, named by the api, never by `meta`."""
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "runner-secret")
+    backend_facts["runner_address"] = "http://10.8.2.17:8765"
+    backend_facts["runner_replica_id"] = "agenta-runner-6f9c7d5b8-aaaaa"
+    backend_facts["turns"] = [{}]
+
+    _turn(meta=_FORGED_ROUTING_META)
+
+    assert service.created_runner_addresses == ["http://10.8.2.17:8765"]
+    # The transport checks the pod at the address against this id before it posts.
+    assert service.created_runner_replica_ids == ["agenta-runner-6f9c7d5b8-aaaaa"]
+    assert "10.8.2.17" not in (service.created_turn_contexts[0] or "")
+
+
+def test_a_client_cannot_route_a_turn_through_meta(
+    sdk_singleton, service, backend_facts, monkeypatch
+):
+    """Without the runner token the api names no pod, and `meta` cannot fill the gap."""
+    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
+    backend_facts["runner_address"] = "http://10.8.2.17:8765"
+    backend_facts["runner_replica_id"] = "agenta-runner-6f9c7d5b8-aaaaa"
+    backend_facts["turns"] = [{}]
+
+    _turn(meta=_FORGED_ROUTING_META)
+
+    assert service.created_runner_addresses == [None]
+    assert service.created_runner_replica_ids == [None]

@@ -1,3 +1,5 @@
+from typing import Optional
+
 # Mount naming vocabulary. It lives here, below the service, because the protected-mount
 # policy is enforced twice against the same rows — as a SQL predicate in the Postgres DAO
 # and in Python in `MountsService` — and the two must not be able to drift apart.
@@ -106,6 +108,15 @@ class MountPathInvalid(MountError):
 class MountFileNotFound(MountError):
     def __init__(self, message: str = "No such file or folder."):
         super().__init__(message)
+
+
+class MountPreconditionFailed(MountError):
+    """An `If-Match` / `If-None-Match: *` condition on a file write or delete did not hold.
+    `etag` is the object's current etag, or None when it does not exist."""
+
+    def __init__(self, etag: Optional[str] = None):
+        super().__init__("File precondition failed.")
+        self.etag = etag
 
 
 class MountStorageUnavailable(MountError):

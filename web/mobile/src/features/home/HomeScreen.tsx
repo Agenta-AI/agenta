@@ -1,20 +1,24 @@
-import {useMemo} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import {
-    AGENT_TEMPLATES,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
     agentWorkflowsListQueryStateAtom,
     invalidateWorkflowsListCache,
+    refetchAgentTemplatesAtom,
     type Workflow,
 } from "@agenta/entities/workflow"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
+import {getUnseenReleases, isWhatsNewOptedOut} from "@agenta/navigation"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
+import {whatsNewAtom} from "../education/whatsNewAtom"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -43,6 +47,21 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
     const handoff = useHomeHandoff(base, projectId)
+    const templates = useAtomValue(agentTemplatesAtom)
+    const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
+    const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
+    // Existing users only (they have an agent), once per new release, unless they opted out.
+    const openWhatsNew = useSetAtom(whatsNewAtom)
+    const agentsSettled = !agentsQuery.isPending && !agentsQuery.isError
+    const hasAgents = agents.length > 0
+    const whatsNewCheckedRef = useRef(false)
+    useEffect(() => {
+        if (!agentsSettled || whatsNewCheckedRef.current) return
+        whatsNewCheckedRef.current = true
+        // Called for new users too: the first call seeds what already shipped as seen.
+        const unseen = getUnseenReleases()
+        if (hasAgents && unseen.length > 0 && !isWhatsNewOptedOut()) openWhatsNew({})
+    }, [agentsSettled, hasAgents, openWhatsNew])
     const surface = resolveHomeSurface({
         agentCount: agents.length,
         isPending: agentsQuery.isPending,
@@ -74,7 +93,13 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             className={frame}
             agents={listAgents}
             preferredAgentId={handoff.preferredAgentId}
-            templates={AGENT_TEMPLATES}
+            templates={templates}
+            templatesLoading={templatesStatus === "pending"}
+            templatesErrorSlot={
+                templatesStatus === "error" ? (
+                    <LoadError title="Could not load templates" onRetry={refetchTemplates} />
+                ) : undefined
+            }
             attachments={handoff.attachments}
             onStartTask={handoff.onStartTask}
             onCreateFromPrompt={handoff.onCreateFromPrompt}

@@ -1,12 +1,15 @@
 import {useState} from "react"
 
+import {isValidEmailAddress} from "@agenta/auth"
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {
     fetchAllWorkspaceRoles,
     inviteToWorkspace,
     removeFromWorkspace,
 } from "@agenta/entities/organization"
+import {updateUsername, useProfile} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -23,54 +26,39 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Input,
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-import {useMutation, useQuery} from "@tanstack/react-query"
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 
-import {Input} from "@/components/ui/input"
+import type {SettingsTabProps} from "./settingsTabProps"
+import {useSettingsOrg} from "./useSettingsOrg"
 
-interface Props {
-    members: WorkspaceMember[]
-    loading: boolean
-    searchTerm: string
-    onSearchChange: (value: string) => void
-    signedInUser: {id?: string | null; username?: string | null; email?: string | null} | null
-    ownerId?: string | null
-    organizationId?: string | null
-    workspaceId?: string | null
-    onChanged: () => void
-}
+const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
 
-/**
- * Mobile binding: the shared roster, with invite and remove as modals. Role editing
- * stays on the desktop — it is a per-row control, and a select inside a table row is a poor
- * trade on a phone.
- */
-export const MembersTab = ({
-    members,
-    loading,
-    searchTerm,
-    onSearchChange,
-    signedInUser,
-    ownerId,
-    organizationId,
-    workspaceId,
-    onChanged,
-}: Props) => {
+/** Mobile binding for Members: invite and remove as dialogs, your own name renamed in place. */
+export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) => {
+    const {user: signedInUser} = useProfile()
+    const {organizationId, org, loading, failed, retry} = useSettingsOrg(routeWorkspaceId)
+    const members = org.data?.default_workspace?.members ?? []
+    const ownerId = org.data?.owner_id
+    const workspaceId = org.data?.default_workspace?.id
+    const onChanged = () => void org.refetch()
     const [inviteOpen, setInviteOpen] = useState(false)
     const [email, setEmail] = useState("")
     const [role, setRole] = useState("")
+    const [emailTouched, setEmailTouched] = useState(false)
     const [pendingRemoval, setPendingRemoval] = useState<WorkspaceMember | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const queryClient = useQueryClient()
 
     // NOT a permission check: it only says we know which workspace to write to. Mobile's access
-    // model is deliberately optimistic (`useMobileSettingsAccess`) and the API authorizes — the
-    // desktop's RBAC rule lives in `useWorkspacePermissions`, which this app cannot import and
-    // has no packaged equivalent of yet.
+    // model is deliberately optimistic (`useMobileSettingsAccess`) and the API authorizes — there
+    // is no packaged RBAC rule yet.
     const scopeKnown = Boolean(organizationId && workspaceId)
 
     const roles = useQuery({
@@ -79,10 +67,16 @@ export const MembersTab = ({
         enabled: inviteOpen,
     })
 
+    const emailValid = isValidEmailAddress(email.trim())
+    const showEmailError = emailTouched && Boolean(email.trim()) && !emailValid
+    // A role is required wherever the API offers roles; still loading counts as offered.
+    const roleMissing = (roles.isPending || Boolean(roles.data?.length)) && !role
+
     const closeInvite = () => {
         setInviteOpen(false)
         setEmail("")
         setRole("")
+        setEmailTouched(false)
         setError(null)
     }
 
@@ -119,12 +113,13 @@ export const MembersTab = ({
             setError((cause as Error)?.message || "Unable to remove the member"),
     })
 
+    if (failed)
+        return <LoadError title="Could not load this organization's members" onRetry={retry} />
+
     return (
         <MembersPage
             members={members}
             loading={loading}
-            searchTerm={searchTerm}
-            onSearchChange={onSearchChange}
             signedInUser={signedInUser}
             ownerId={ownerId}
             canInviteMembers={scopeKnown}
@@ -133,6 +128,11 @@ export const MembersTab = ({
             onRemove={(member) => {
                 setError(null)
                 setPendingRemoval(member)
+            }}
+            onRenameSelf={async (_member, name) => {
+                await updateUsername(name)
+                await queryClient.invalidateQueries({queryKey: ["profile"]})
+                onChanged()
             }}
         >
             <Dialog open={inviteOpen} onOpenChange={(next) => (next ? undefined : closeInvite())}>
@@ -149,8 +149,15 @@ export const MembersTab = ({
                             type="email"
                             value={email}
                             onChange={(event) => setEmail(event.target.value)}
+                            onBlur={() => setEmailTouched(true)}
+                            aria-invalid={showEmailError || undefined}
                             placeholder="name@company.com"
                         />
+                        {showEmailError ? (
+                            <p className="m-0 text-sm text-colorError">
+                                Enter a valid email address
+                            </p>
+                        ) : null}
                         {roles.data?.length ? (
                             <Select value={role} onValueChange={setRole}>
                                 {/* Full width, like the field above it — the trigger's
@@ -161,7 +168,7 @@ export const MembersTab = ({
                                 <SelectContent>
                                     {roles.data.map((entry) => (
                                         <SelectItem key={entry.role_name} value={entry.role_name}>
-                                            {entry.role_name}
+                                            {roleLabel(entry.role_name)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -178,7 +185,7 @@ export const MembersTab = ({
                             Cancel
                         </Button>
                         <Button
-                            disabled={!email.trim() || inviteMutation.isPending}
+                            disabled={!emailValid || roleMissing || inviteMutation.isPending}
                             onClick={() => {
                                 setError(null)
                                 inviteMutation.mutate()

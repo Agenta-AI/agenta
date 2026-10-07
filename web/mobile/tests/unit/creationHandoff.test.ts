@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     drop: vi.fn(),
     reveal: vi.fn(),
     draft: vi.fn(),
+    captureIntent: vi.fn(),
 }))
 vi.mock("react", () => ({useCallback: (fn: unknown) => fn, useState: () => [false, vi.fn()]}))
 vi.mock("next/router", () => ({useRouter: () => ({push: mocks.push})}))
@@ -16,12 +17,17 @@ vi.mock("@agenta/chat/state", () => ({
     revealConfigPaneAtom: "reveal",
 }))
 vi.mock("@agenta/entities/workflow", () => ({
-    agentTemplateByKey: () => ({key: "reviewer", name: "Reviewer"}),
+    agentTemplatesAtom: "templates",
+    agentTemplateByKey: (templates: {key: string}[], key: string) =>
+        templates.find((template) => template.key === key),
     appendSetupPreamble: (text: string) => text,
     invalidateWorkflowsListCache: vi.fn(),
 }))
 vi.mock("@agenta/home-ui", () => ({useCreateAgent: () => mocks.create}))
+vi.mock("@/features/analytics/client", () => ({captureIntent: mocks.captureIntent}))
 vi.mock("jotai", () => ({
+    useAtomValue: (atom: string) =>
+        atom === "templates" ? [{key: "reviewer", name: "Reviewer"}] : undefined,
     useSetAtom: (atom: string) =>
         ({stash: mocks.stash, drop: mocks.drop, reveal: mocks.reveal, draft: mocks.draft})[atom],
 }))
@@ -41,6 +47,20 @@ beforeEach(() => {
 })
 
 describe("creation handoff after merging release changes", () => {
+    it("records the template choice before navigation without its prompt", () => {
+        useNewAgentAction("/base").createFromTemplate("reviewer")
+        expect(mocks.captureIntent).toHaveBeenCalledWith({
+            source: "template",
+            properties: {template: "Reviewer", templateId: "reviewer", templateCategory: undefined},
+            intentValue: "Reviewer",
+        })
+    })
+
+    it("records a skipped description for blank creation", () => {
+        useNewAgentAction("/base").create()
+        expect(mocks.captureIntent).toHaveBeenCalledWith({source: "skipped"})
+    })
+
     it("opens an existing server session without dispatching or marking it fresh", async () => {
         mocks.create.mockResolvedValue({appId: "agent", sessionId: "server-session"})
         await useNewAgentAction("/base").createFromPrompt({

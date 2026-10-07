@@ -12,5 +12,7 @@ export interface QueryRevisionQueryRequest {
     query_variant_refs?: AgentaApi.Reference[] | null;
     query_revision_refs?: AgentaApi.Reference[] | null;
     include_archived?: boolean | null;
+    /** Divide matching revisions by artifact or variant and select one revision from each group. */
+    grouping?: AgentaApi.RevisionGrouping | null;
     windowing?: AgentaApi.Windowing | null;
 }

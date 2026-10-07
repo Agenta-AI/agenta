@@ -1,0 +1,59 @@
+---
+// A catalog filter: a sidebar list on wide screens, a dropdown below 1200px.
+interface Props {
+  label: string;
+  id: string;
+  /** The current choice shown on the dropdown before the page script updates it. */
+  value: string;
+  single?: boolean;
+}
+const { label, id, value, single = false } = Astro.props;
+---
+
+<div class="ag-mkt-group" data-filter-group data-single={single ? "" : undefined}>
+  <div class="ag-mkt-group__head">
+    <span class="ag-mkt-group__label" id={`${id}-label`}>{label}</span>
+    <slot name="head" />
+  </div>
+  <button
+    type="button"
+    class="ag-mkt-group__toggle"
+    aria-expanded="false"
+    aria-controls={id}
+    data-filter-toggle
+  >
+    <span>{label}</span>
+    <span class="ag-mkt-group__value" data-filter-value>{value}</span>
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+      ><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"></path></svg
+    >
+  </button>
+  <div class="ag-mkt-group__list" id={id} role="group" aria-labelledby={`${id}-label`}>
+    <slot />
+  </div>
+</div>
+
+<script>
+  for (const group of document.querySelectorAll<HTMLElement>("[data-filter-group]")) {
+    const toggle = group.querySelector<HTMLButtonElement>("[data-filter-toggle]")!;
+    const setOpen = (open: boolean) => {
+      group.toggleAttribute("data-open", open);
+      toggle.setAttribute("aria-expanded", String(open));
+    };
+    toggle.addEventListener("click", () => setOpen(!group.hasAttribute("data-open")));
+    if (group.hasAttribute("data-single")) {
+      group.querySelector(".ag-mkt-group__list")?.addEventListener("click", (event) => {
+        if (event.target instanceof Element && event.target.closest("button")) setOpen(false);
+      });
+    }
+    document.addEventListener("click", (event) => {
+      if (!group.contains(event.target as Node)) setOpen(false);
+    });
+    group.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && group.hasAttribute("data-open")) {
+        setOpen(false);
+        toggle.focus();
+      }
+    });
+  }
+</script>

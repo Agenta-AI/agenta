@@ -12,10 +12,10 @@ import {getSettingsSidebarTabs} from "@agenta/settings"
 import {
     ChatsCircleIcon,
     GearIcon,
+    GraduationCapIcon,
     HouseIcon,
     LightningIcon,
     PlusIcon,
-    PuzzlePieceIcon,
     RobotIcon,
     SquaresFourIcon,
 } from "@phosphor-icons/react"
@@ -64,10 +64,13 @@ export const useCommandPaletteGroups = (
             label: mobileSessionsEntity.getLabel(ref),
             // At the rail's own size (an 8px dot, a 12px bolt): the row's svg rule would
             // otherwise scale the status glyph up to 16px. `!`, since that rule wins on
-            // specificity.
+            // specificity. Sized svgs (the running spinner) keep their class, not a 24px default.
             icon: createElement(
                 "span",
-                {className: "flex w-4 items-center justify-center [&_svg]:!size-auto"},
+                {
+                    className:
+                        "flex w-4 items-center justify-center [&_svg:not([class*='size-'])]:!size-auto",
+                },
                 mobileSessionsEntity.getIcon?.(ref),
             ),
             href: `${projectURL}/sessions/${ref.sessionId}`,
@@ -101,7 +104,7 @@ export const useCommandPaletteGroups = (
             {
                 key: "skills",
                 label: "Skills",
-                icon: icon(PuzzlePieceIcon),
+                icon: icon(GraduationCapIcon),
                 href: `${projectURL}/skills`,
             },
             {

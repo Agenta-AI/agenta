@@ -42,38 +42,6 @@ export interface GateInput {
     /** Case-insensitive header getter (NextRequest headers already are). */
     header: (name: string) => string | null
     cookie: (name: string) => string | undefined
-    /**
-     * AGENTA_MOBILE_GATE — every automatic hop between the desktop app and `/m`, whether the
-     * device heuristic or the Classic mode preference asks for it. Resolved by the adapter at
-     * request time with `resolveGateEnabled`. DEFAULT ON: a deployment without `/m` opts out
-     * with `AGENTA_MOBILE_GATE=false`, and nothing is redirected in either direction.
-     *
-     * One exception runs before this flag: an OAuth callback the mobile app started
-     * (`MOBILE_AUTH_CALLBACK_COOKIE`) is always handed to `/m`, where its state lives.
-     */
-    gateEnabled: boolean
-    /**
-     * AGENTA_MOBILE_REVERSE_GATE, mobile-app only. `false` keeps the forward gate (mobile
-     * devices → /m) while letting anything reach /m: tablets and desktop-UA browsers report
-     * as non-mobile, so the bounce blocks deliberate visits. Defaults to on.
-     */
-    reverseGateEnabled?: boolean
-}
-
-/**
- * Env → flag, for both gates. DEFAULT ON: only the exact string "false" turns a
- * gate off, so an unset, empty, or misspelled value keeps the mobile app
- * reachable. Both gates ship on so that no deployment (cloud, self-hosted
- * compose, Railway, local dev) needs an env key to give phones /m; the keys are
- * an opt-OUT.
- *
- * The adapters read process.env INSIDE the request handler, never at module
- * scope: on the self-hosted standalone Node server, non-NEXT_PUBLIC env is
- * resolved at runtime, so flipping the key and recreating the container is
- * enough — no rebuild.
- */
-export function resolveGateEnabled(raw: string | undefined | null): boolean {
-    return raw !== "false"
 }
 
 export type GateDecision =
@@ -149,6 +117,9 @@ export function isDesktopOnlyLink(pathname: string, search: string): boolean {
     return isTokenBearingAuthLink(pathname, search) || isPolicyAuthLink(pathname, search)
 }
 
+/** The website "Use it for free" param, also the in-app create surface's pre-selection. */
+export const TEMPLATE_QUERY_PARAM = "template"
+
 const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(?:\/(.*))?$/
 
 /**
@@ -157,7 +128,20 @@ const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(?:\/(.*))?$/
  */
 const APPS_RESERVED = new Set(["archived", "agent-templates"])
 
-const trimSlashes = (value: string) => value.replace(/^\/+|\/+$/g, "")
+/** Strips leading and trailing `/`. A loop, not a regex: `/\/+$/` backtracks on long `/` runs. */
+const trimSlashes = (value: string) => {
+    let start = 0
+    let end = value.length
+    while (start < end && value[start] === "/") start++
+    while (end > start && value[end - 1] === "/") end--
+    return value.slice(start, end)
+}
+
+/** `?template=<key>` when the URL carries a website template link, else "". */
+const templateQueryFrom = (search: string): string => {
+    const templateKey = new URLSearchParams(search).get(TEMPLATE_QUERY_PARAM)?.trim()
+    return templateKey ? `?${TEMPLATE_QUERY_PARAM}=${encodeURIComponent(templateKey)}` : ""
+}
 
 /**
  * Desktop URL → the `/m` route that shows the same thing, or `null` when `/m` has no such
@@ -171,8 +155,12 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
     // Mobile sign-in: /auth/callback never reaches here (handled as an exception).
     if (/^\/auth(\/|$)/.test(pathname)) return "/m/auth"
 
+    // A website template link (`?template=`) rides along: `/m` opens that template's setup step.
+    const templateKey = new URLSearchParams(search).get(TEMPLATE_QUERY_PARAM)?.trim()
+    const templateQuery = templateQueryFrom(search)
+
     // The mobile root resolves last-used workspace/project (same resolution as post-login).
-    if (/^\/w(\/[^/]+(\/p\/?)?)?\/?$/.test(pathname)) return "/m/"
+    if (/^\/w(\/[^/]+(\/p\/?)?)?\/?$/.test(pathname)) return `/m/${templateQuery}`
 
     const match = pathname.match(PROJECT_PATH_RE)
     if (!match) return null
@@ -185,7 +173,9 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
 
     // The project root and /apps are both the home screen.
     if (!head || head === "apps") {
-        if (head !== "apps" || !first) return `${base}/apps`
+        if (head !== "apps" || !first) {
+            return templateKey ? `${base}/agents/new${templateQuery}` : `${base}/apps`
+        }
 
         if (first === "agent-templates") {
             return second ? `${base}/templates/${second}` : `${base}/templates`
@@ -231,7 +221,8 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
  * for a page `/m` does not mirror, because the desktop page is unusable there regardless.
  */
 export function mapDesktopToMobile(pathname: string, search: string): string {
-    return mobileRouteFor(pathname, search) ?? "/m/"
+    // The `/m` root still opens a website template link (`/?template=`) on its setup step.
+    return mobileRouteFor(pathname, search) ?? `/m/${templateQueryFrom(search)}`
 }
 
 /**
@@ -277,7 +268,7 @@ export function desktopRouteFor(pathname: string, search = ""): string | null {
     return null
 }
 
-/** The same map for the reverse DEVICE gate, which must always name somewhere to go. */
+/** The same map for the Classic mode return from /m, which must always name somewhere to go. */
 export function mapMobileToDesktop(pathname: string, search = ""): string {
     return desktopRouteFor(pathname, search) ?? "/w"
 }
@@ -297,12 +288,10 @@ export function decideDesktopGate(input: GateInput): GateDecision {
         // before the flag.
         const wantsDesktop = new URLSearchParams(input.search).get(VIEW_PARAM) === "desktop"
 
-        // BEFORE the flag: a provider redirect the MOBILE app started has to reach /m whether or
-        // not the device gate is on. The cookie is an explicit intent set by /m moments earlier,
+        // A provider redirect the MOBILE app started has to reach /m. The cookie is an explicit intent set by /m moments earlier,
         // not a device heuristic, and the OAuth state lives in /m's same-origin sessionStorage.
-        // A deployment that opts out with AGENTA_MOBILE_GATE=false still runs /m, so gating this
-        // strands every mobile SSO sign-in on the desktop route, where the state it needs does
-        // not exist.
+        // Gating this would strand a mobile SSO sign-in on the desktop route, where the state it
+        // needs does not exist.
         if (
             !wantsDesktop &&
             isDocumentNavigation(input) &&
@@ -312,7 +301,6 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             return {kind: "redirect", location: `/m${input.pathname}${input.search}`}
         }
 
-        if (!input.gateEnabled) return {kind: "pass"}
         if (!isDocumentNavigation(input)) return {kind: "pass"}
 
         // Escape hatch: "View desktop site" links carry ?view=desktop. It opts out of BOTH
@@ -355,10 +343,14 @@ export function decideDesktopGate(input: GateInput): GateDecision {
     }
 }
 
-/** Reverse gate: runs in the MOBILE app. Sees only /m traffic behind Traefik. */
+/**
+ * Reverse direction: runs in the MOBILE app. Sees only /m traffic behind Traefik.
+ *
+ * It never looks at the device: a desktop browser may open /m. It only returns a user who
+ * turned Classic mode on to the desktop app.
+ */
 export function decideMobileGate(input: GateInput): GateDecision {
     try {
-        if (!input.gateEnabled) return {kind: "pass"}
         if (!isDocumentNavigation(input)) return {kind: "pass"}
 
         // Escape hatch: "Open mobile version" links carry ?view=mobile.
@@ -376,24 +368,12 @@ export function decideMobileGate(input: GateInput): GateDecision {
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
 
-        const classic = input.cookie(CLASSIC_MODE_COOKIE)
-        // Classic mode off means /m is where this user belongs, so the device heuristic must
-        // not bounce them out of it. Without this the two gates ping-pong forever on a
-        // desktop UA: the desktop gate sends them here for the preference, this one sends
-        // them back for the device, and the cookie that started it never changes.
-        if (classic === "0") return {kind: "pass"}
-        // Mirror image: the desktop gate already ranks Classic mode above the device
-        // heuristic (`wantsClassic`), so without the same precedence here a phone whose user
-        // asked for the full app is passed through below and parked on /m.
-        if (classic === "1") {
+        // The desktop gate ranks Classic mode above the device heuristic (`wantsClassic`), so a
+        // user who asked for the full app is returned to it, phone included.
+        if (input.cookie(CLASSIC_MODE_COOKIE) === "1") {
             return {kind: "redirect", location: mapMobileToDesktop(input.pathname, input.search)}
         }
-
-        // Checked after ?view=mobile so the opt-in cookie is still set if the bounce is re-enabled.
-        if (input.reverseGateEnabled === false) return {kind: "pass"}
-        if (isMobileDevice(input.header)) return {kind: "pass"}
-
-        return {kind: "redirect", location: mapMobileToDesktop(input.pathname, input.search)}
+        return {kind: "pass"}
     } catch {
         return {kind: "pass"}
     }

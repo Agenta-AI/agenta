@@ -8,6 +8,7 @@ from oss.src.core.gateways.egress import EgressRefusedError, open_egress
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind, LLMResolvedRoute
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import ResolvedSecret
+from oss.src.core.gateways.policy.types import SecretInvalidError
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.utils.env import env
 
@@ -19,9 +20,19 @@ _DEFAULT_AUTH_HEADER: Tuple[str, str] = ("Authorization", "Bearer ")
 
 
 def _secret_key(secret: ResolvedSecret) -> Optional[str]:
+    """The record's API key.
+
+    A custom provider saved from the UI keeps its key in `extras["api_key"]`, not in
+    `provider.key` (`web/packages/agenta-entities/src/secret/core/transforms.ts`). The SDK's
+    direct path reads it there too (`platform/connections.py`), and `api_key` is classified
+    as credential material in the shared extras vocabulary. Reading only `provider.key` sent
+    such a connection's calls with no key, and the upstream answered 401.
+    """
     data = secret.secret.data
-    if secret.secret.kind in (SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER):
+    if secret.secret.kind == SecretKind.PROVIDER_KEY:
         return data.provider.key
+    if secret.secret.kind == SecretKind.CUSTOM_PROVIDER:
+        return data.provider.key or (data.provider.extras or {}).get("api_key")
     return None
 
 
@@ -95,14 +106,21 @@ async def _bedrock_auth(
     route: LLMResolvedRoute, secret: Optional[ResolvedSecret]
 ) -> Dict[str, str]:
     # Bedrock API keys are sent as bearer tokens.
-    token = (secret and _secret_extras(secret).get("aws_bearer_token_bedrock")) or (
-        secret and _secret_key(secret)
-    )
+    extras = _secret_extras(secret) if secret else {}
+    token = extras.get("aws_bearer_token_bedrock") or (secret and _secret_key(secret))
     if not token:
-        raise LLMUpstreamError(
-            provider_key=route.provider_key,
-            status_code=None,
-            detail="bedrock endpoint has no bearer key",
+        # The connection card accepts an AWS access key pair instead of a Bedrock API key,
+        # and the gateway cannot sign with one. Said as a secret the caller can fix, not as
+        # an upstream failure: that one reaches the person as "upstream request failed".
+        holds_access_key = bool(extras.get("aws_access_key_id"))
+        raise SecretInvalidError(
+            target="this Bedrock connection",
+            detail=(
+                "it holds an AWS access key, and the gateway calls Bedrock only with a "
+                "Bedrock API key. Add a Bedrock API key to the connection"
+                if holds_access_key
+                else "it has no Bedrock API key. Add one to the connection"
+            ),
         )
     return {"Authorization": f"Bearer {token}"}
 
@@ -203,12 +221,25 @@ async def _guarded_credential_document(
     return document
 
 
+# One token minter for the process. LiteLLM caches each minted token on the instance, keyed
+# by the credential document and project, so a fresh instance per call minted a new token on
+# every call: an extra OAuth round trip before each request.
+_vertex_minter: Any = None
+
+
+def _vertex_token_minter() -> Any:
+    global _vertex_minter
+    if _vertex_minter is None:
+        # LiteLLM mints the Vertex access token without transforming request or response bytes.
+        from litellm.llms.vertex_ai.vertex_llm_base import VertexBase
+
+        _vertex_minter = VertexBase()
+    return _vertex_minter
+
+
 async def _vertex_auth(
     route: LLMResolvedRoute, secret: Optional[ResolvedSecret]
 ) -> Dict[str, str]:
-    # LiteLLM mints the Vertex access token without transforming request or response bytes.
-    from litellm.llms.vertex_ai.vertex_llm_base import VertexBase
-
     extras = _secret_extras(secret) if secret else {}
     credentials = extras.get("vertex_ai_credentials")
     project = (route.extras or {}).get("vertex_project")
@@ -222,7 +253,7 @@ async def _vertex_auth(
     if env.mock_gateways.enabled and credentials == "agenta-gateway-mock":
         return {"Authorization": f"Bearer {env.mock_gateways.upstream_token}"}
     document = await _guarded_credential_document(route, credentials)
-    token, _project = await VertexBase().get_access_token_async(
+    token, _project = await _vertex_token_minter().get_access_token_async(
         credentials=document, project_id=project
     )
     return {"Authorization": f"Bearer {token}"}

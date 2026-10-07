@@ -28,6 +28,12 @@ export const STARTER_CREDIT_CODES = new Set([
 ])
 
 /**
+ * Failure classes the reader clears with a model on their own provider key: the starter credits,
+ * and the included models being off for the organization.
+ */
+export const OWN_KEY_CODES = new Set([...STARTER_CREDIT_CODES, "builtin_models_not_enabled"])
+
+/**
  * Failure classes cleared by signing in again, not by a key. The subscription's stored sign-in is
  * dead and no newer one exists, so the fix is a new device login on the AI providers page — which
  * is where the provider drawer opens.
@@ -44,10 +50,46 @@ export const RETRYABLE_CODES = new Set([
     // a turn would not unwind, or by the platform's execution watchdog when the runner itself
     // was gone. Nothing is wrong with the request, so sending it again is the whole fix.
     "execution_lost",
+    // The runner ended a turn that made no progress for its idle limit, or never started
+    // responding; its sentence asks the reader to send the message again.
+    "run_idle_time_limit",
+    "run_first_response_time_limit",
     // Another session refreshed the subscription sign-in while this turn was using the old one.
     // The newer sign-in is already stored, so the next attempt uses it.
     "subscription_login_refreshed",
 ])
+
+/**
+ * Plan limits, by the code the platform puts on the turn, with the title the chat shows over the
+ * platform's own sentence. The sentence already names the limit, the plan's number, what happened
+ * to the work and what to do next, so it is shown whole; the host adds a way to the plans.
+ */
+export const PLAN_LIMIT_TITLES: Record<string, string> = {
+    wallet_balance_exhausted: "You're out of credits",
+    concurrent_turns_limit: "Too many agents running at the same time",
+    turn_time_limit_reached: "This request took too long",
+}
+
+/**
+ * Plan limits a paid plan clears by buying a credit pack. The host offers "Buy credits" for these
+ * only where the organization can buy one; the free plan keeps the way to the plans.
+ */
+export const BUY_CREDITS_CODES = new Set(["wallet_balance_exhausted"])
+
+export const planLimitTitle = (code?: string | null): string | null =>
+    (code && PLAN_LIMIT_TITLES[code]) || null
+
+/**
+ * Refusals that are not plan limits but still arrive as the platform's finished sentence, by code,
+ * with the title shown over it.
+ */
+export const REFUSAL_TITLES: Record<string, string> = {
+    builtin_models_not_enabled: "This model isn't available for your organization",
+}
+
+/** The title over a failure the platform worded itself, or `null` for an ordinary failure. */
+export const refusalTitle = (code?: string | null): string | null =>
+    planLimitTitle(code) ?? ((code && REFUSAL_TITLES[code]) || null)
 
 /** An admission refusal means the message was not sent, not that an agent run failed. */
 export const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
@@ -69,6 +111,10 @@ export interface RunFailureCalloutProps {
     onAddKey?: () => void
     /** Where the reader signs in again; offered for the dead-subscription classes. */
     onSignIn?: () => void
+    /** Where the reader sees the plans; offered for the plan-limit classes. */
+    onOpenBilling?: () => void
+    /** Where the reader buys a credit pack; offered for BUY_CREDITS_CODES. */
+    onBuyCredits?: () => void
 }
 
 export const RunFailureCallout = ({
@@ -79,14 +125,19 @@ export const RunFailureCallout = ({
     onRetry,
     onAddKey,
     onSignIn,
+    onOpenBilling,
+    onBuyCredits,
 }: RunFailureCalloutProps) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
     const expanded = stored ?? false
     const big = isBigError(text)
-    const offerOwnKey = !!onAddKey && !!code && STARTER_CREDIT_CODES.has(code)
+    const offerOwnKey = !!onAddKey && !!code && OWN_KEY_CODES.has(code)
     const offerSignIn = !!onSignIn && !!code && SUBSCRIPTION_LOGIN_CODES.has(code)
     const notSent = !!code && NOT_SENT_CODES.has(code)
+    const limitTitle = planLimitTitle(code)
+    const title = refusalTitle(code)
+    const offerBuyCredits = !!onBuyCredits && !!code && BUY_CREDITS_CODES.has(code)
     const offerRetry =
         !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
@@ -95,7 +146,7 @@ export const RunFailureCallout = ({
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <span className="text-xs font-medium text-colorError">
-                    {notSent ? "Message not sent" : "The agent run failed"}
+                    {title ?? (notSent ? "Message not sent" : "The agent run failed")}
                 </span>
                 {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
@@ -130,6 +181,16 @@ export const RunFailureCallout = ({
                 {offerSignIn && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onSignIn}>
                         Sign in again
+                    </Button>
+                )}
+                {offerBuyCredits && (
+                    <Button size="sm" variant="outline" className="mt-1" onClick={onBuyCredits}>
+                        Buy credits
+                    </Button>
+                )}
+                {limitTitle && onOpenBilling && (
+                    <Button size="sm" variant="outline" className="mt-1" onClick={onOpenBilling}>
+                        Plans and billing
                     </Button>
                 )}
                 {offerRetry && (

@@ -180,22 +180,47 @@ export async function fetchSessionSnapshot({
     return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]") ?? null
 }
 
+/** `busy` is a 409 `session_busy`: another input already rides the pending stop. */
+export type PendingInputWriteOutcome = "applied" | "not_found" | "conflict" | "busy" | "failed"
+
+const refusalOf = (error: unknown): PendingInputWriteOutcome | null => {
+    if (typeof error !== "object" || error === null) return null
+    const {statusCode, body} = error as {statusCode?: unknown; body?: unknown}
+    if (statusCode === 404) return "not_found"
+    if (statusCode !== 409) return null
+    const detail = (body as {detail?: {code?: unknown}} | undefined)?.detail
+    return detail?.code === "session_busy" ? "busy" : "conflict"
+}
+
+/** Run a pending-input write, keeping the refusal status `callFern` would otherwise swallow. */
+async function writePendingInput<T>(
+    label: string,
+    fn: () => Promise<T>,
+): Promise<{data: T | null; refusal: PendingInputWriteOutcome | null}> {
+    let refusal: PendingInputWriteOutcome | null = null
+    const data = await callFern(label, fn, (error) => {
+        refusal = refusalOf(error)
+        return refusal !== null
+    })
+    return {data, refusal}
+}
+
 export async function removePendingSessionInput({
     sessionId,
     projectId,
     appId,
     abortSignal,
     inputId,
-}: SessionScopedParams & {inputId: string}): Promise<boolean> {
-    if (!projectId || !sessionId || !inputId) return false
+}: SessionScopedParams & {inputId: string}): Promise<PendingInputWriteOutcome> {
+    if (!projectId || !sessionId || !inputId) return "failed"
 
-    const data = await callFern("[removePendingSessionInput]", () =>
+    const {data, refusal} = await writePendingInput("[removePendingSessionInput]", () =>
         getSessionsClient().removePendingSessionInput(
             {session_id: sessionId, input_id: inputId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return !!data
+    return refusal ?? (data ? "applied" : "failed")
 }
 
 export async function updatePendingSessionInput({
@@ -215,19 +240,23 @@ export async function updatePendingSessionInput({
         filename?: string
         attachment_id?: string
     }[]
-}): Promise<boolean> {
-    if (!projectId || !sessionId || !inputId) return false
-    const data = await callFern("[updatePendingSessionInput]", () =>
+}): Promise<PendingInputWriteOutcome> {
+    if (!projectId || !sessionId || !inputId) return "failed"
+    const {data, refusal} = await writePendingInput("[updatePendingSessionInput]", () =>
         getSessionsClient().updatePendingSessionInput(
             {session_id: sessionId, input_id: inputId, text, attachments},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return (
+    if (refusal) return refusal
+    return data &&
         safeParseWithLogging(pendingInputResponseSchema, data, "[updatePendingSessionInput]") !==
-        null
-    )
+            null
+        ? "applied"
+        : "failed"
 }
+
+export type PendingInputAdmission = z.infer<typeof pendingInputAdmissionResponseSchema>
 
 export async function sendPendingSessionInputNow({
     sessionId,
@@ -235,125 +264,26 @@ export async function sendPendingSessionInputNow({
     appId,
     abortSignal,
     inputId,
-}: SessionScopedParams & {inputId: string}): Promise<boolean> {
-    if (!projectId || !sessionId || !inputId) return false
-    const data = await callFern("[sendPendingSessionInputNow]", () =>
+}: SessionScopedParams & {inputId: string}): Promise<{
+    outcome: PendingInputWriteOutcome
+    admission: PendingInputAdmission | null
+}> {
+    if (!projectId || !sessionId || !inputId) return {outcome: "failed", admission: null}
+    const {data, refusal} = await writePendingInput("[sendPendingSessionInputNow]", () =>
         getSessionsClient().sendPendingSessionInputNow(
             {session_id: sessionId, input_id: inputId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return (
-        safeParseWithLogging(
-            pendingInputAdmissionResponseSchema,
-            data,
-            "[sendPendingSessionInputNow]",
-        ) !== null
-    )
-}
-
-const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2
-const SESSION_CAPABILITY_NEGATIVE_RETRY_MS = 30_000
-
-export interface SessionFeatureCapabilities {
-    durableApprovals: boolean
-    queue: boolean
-    steer: boolean
-}
-
-interface SessionCapabilityCacheEntry {
-    result?: SessionFeatureCapabilities
-    retryAt?: number
-    request?: Promise<SessionFeatureCapabilities | null>
-}
-
-const durableApprovalsCapabilityCache = new Map<string, SessionCapabilityCacheEntry>()
-
-const durableApprovalsCapabilityKey = ({projectId, sessionId}: SessionScopedParams): string =>
-    JSON.stringify([projectId, sessionId])
-
-export function invalidateSessionDurableApprovalsCapability(
-    params?: Pick<SessionScopedParams, "projectId" | "sessionId">,
-): void {
-    if (!params) {
-        durableApprovalsCapabilityCache.clear()
-        return
-    }
-    durableApprovalsCapabilityCache.delete(durableApprovalsCapabilityKey(params))
-}
-
-const hasSessionCapability = (capabilities: SessionFeatureCapabilities): boolean =>
-    capabilities.durableApprovals || capabilities.queue || capabilities.steer
-
-const cachedSessionCapabilities = (key: string): SessionFeatureCapabilities | null => {
-    const cached = durableApprovalsCapabilityCache.get(key)
-    if (!cached?.result) return null
-    if (hasSessionCapability(cached.result) || Date.now() < (cached.retryAt ?? 0)) {
-        return cached.result
-    }
-    return null
-}
-
-export const fetchSessionCapabilities = async ({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-}: SessionScopedParams): Promise<SessionFeatureCapabilities | null> => {
-    if (!projectId || !sessionId) return null
-
-    const key = durableApprovalsCapabilityKey({projectId, sessionId})
-    const cached = cachedSessionCapabilities(key)
-    if (cached) return cached
-
-    const existing = durableApprovalsCapabilityCache.get(key)
-    if (existing?.request) return existing.request
-
-    const entry: SessionCapabilityCacheEntry = {}
-    const request = (async () => {
-        let capabilities: SessionFeatureCapabilities | null = null
-        try {
-            const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
-                getSessionsClient().fetchSessionStream(
-                    {session_id: sessionId},
-                    {
-                        ...projectScopedRequest(projectId, appId, abortSignal),
-                        timeoutInSeconds: SESSION_CAPABILITY_TIMEOUT_SECONDS,
-                        maxRetries: 0,
-                    },
-                ),
-            )
-            const validated = data
-                ? safeParseWithLogging(
-                      sessionStreamResponseSchema,
-                      data,
-                      "[fetchSessionDurableApprovalsCapability]",
-                  )
-                : null
-            capabilities = validated
-                ? {
-                      durableApprovals: validated.capabilities.durable_approvals,
-                      queue: validated.capabilities.queue,
-                      steer: validated.capabilities.steer,
-                  }
-                : null
-        } catch {
-            capabilities = null
-        }
-
-        if (durableApprovalsCapabilityCache.get(key) === entry) {
-            entry.result = capabilities ?? undefined
-            entry.retryAt =
-                !capabilities || hasSessionCapability(capabilities)
-                    ? undefined
-                    : Date.now() + SESSION_CAPABILITY_NEGATIVE_RETRY_MS
-            entry.request = undefined
-        }
-        return capabilities
-    })()
-    entry.request = request
-    durableApprovalsCapabilityCache.set(key, entry)
-    return request
+    if (refusal) return {outcome: refusal, admission: null}
+    const admission = data
+        ? safeParseWithLogging(
+              pendingInputAdmissionResponseSchema,
+              data,
+              "[sendPendingSessionInputNow]",
+          )
+        : null
+    return admission ? {outcome: "applied", admission} : {outcome: "failed", admission: null}
 }
 
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
@@ -628,6 +558,25 @@ export async function querySessionStreams({
         "[querySessionStreams]",
     )
     return validated?.streams ?? null
+}
+
+/**
+ * The project's alive streams for a liveness poll. A failed read throws instead of resolving
+ * `null`: cached as success, `null` read as "nothing alive", which stopped the poll and tore down
+ * the live reader of a turn running elsewhere until a reload.
+ */
+export async function readAliveStreams(
+    projectId: string,
+    signal?: AbortSignal,
+): Promise<SessionStream[]> {
+    const streams = await querySessionStreams({
+        projectId,
+        isAlive: true,
+        abortSignal: signal,
+        lowPriority: true,
+    })
+    if (streams === null) throw new Error("Session liveness is unavailable")
+    return streams
 }
 
 interface SessionPredicatesParams {
@@ -929,15 +878,6 @@ export async function fetchSessionStream({
         "[fetchSessionStream]",
     )
     return validated?.stream ?? null
-}
-
-/** Resolve the approval owner before mutating either the server gate or the local transcript. */
-export async function fetchSessionDurableApprovalsCapability(
-    params: SessionScopedParams,
-): Promise<boolean> {
-    const capabilities = await fetchSessionCapabilities(params)
-    if (!capabilities) throw new Error("Session capabilities are unavailable. Please try again.")
-    return capabilities.durableApprovals
 }
 
 export interface CommandSessionStreamParams extends SessionScopedParams {
@@ -1481,14 +1421,6 @@ export async function cancelSessionExecution({
             "[cancelSessionExecution]",
         )
         if (!validated) return null
-        if (!("command" in validated)) {
-            return {
-                command: {id: "", state: "applied"},
-                execution: {id: validated.turn_id ?? null, state: "idle"},
-                accepted: true,
-                conflict: false,
-            }
-        }
         return {
             command: validated.command,
             execution: {...validated.execution, id: validated.execution.id ?? null},

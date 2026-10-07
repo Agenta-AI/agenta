@@ -27,6 +27,7 @@ import os
 import pathlib
 import re
 import subprocess
+import threading
 import time
 import uuid
 
@@ -101,7 +102,8 @@ def resolve_credentials(env_file: str | pathlib.Path | None = None) -> None:
 # well-known free reference server (tools: read_wiki_structure / read_wiki_contents / ask_question).
 # Override with --mcp-url to point at any other public server. The runner/SDK both reject non-https
 # and private/loopback hosts (SSRF guard), so a LOCAL server is NOT reachable from the deployment —
-# it must be a public HTTPS URL. See STATUS.md "MCP smoke test".
+# it must be a public HTTPS URL. The journey registers it as a project MCP connection first, since
+# the gateway, not the harness, dials it (LESSONS.md section 15).
 DEFAULT_MCP_URL = "https://mcp.deepwiki.com/mcp"
 MCP_URL = DEFAULT_MCP_URL
 
@@ -130,6 +132,65 @@ SUBSCRIPTION_REDIS_CONTAINER = ""
 # cache clear, raise the wait past the deployment's cache TTL or the journey reports a FAIL that
 # is really the cache.
 SUBSCRIPTION_CACHE_WAIT = 60.0
+
+
+# The stable reason a turn carries when `invoke` abandoned its stream at the deadline. One
+# spelling, so a result file and an assertion cannot drift apart.
+HUNG_AT_DEADLINE = "abandoned by the client at its absolute deadline"
+
+# HTTPX needs a POSITIVE timeout, so this is the smallest value worth handing it. It is a floor,
+# never a grant: an operation with less than this left is not started at all, because starting one
+# would hand out time the turn does not have. Measured cost of getting this wrong: a turn with 5ms
+# remaining came back 50ms late.
+DEADLINE_FLOOR_SECONDS = 0.05
+
+# Anything key-shaped, masked before it reaches stdout or a result file. The gate writes results
+# to disk and commits them as evidence, and an error body from a provider can quote the credential
+# it refused. The hosted cells handle ChatGPT logins, whose access and refresh tokens are JWTs.
+# Keep the shape visible (the prefix) and drop the value.
+_SECRET_PATTERNS = (
+    re.compile(r"\bsk-[A-Za-z0-9_-]{8,}"),
+    re.compile(r"\bdtn_[A-Za-z0-9_]{8,}"),
+    re.compile(r"\b(ApiKey|Bearer)\s+[A-Za-z0-9._-]{8,}"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),
+)
+
+
+def redact(text: object) -> str:
+    """Mask key-shaped runs and the gate's own API key. No truncation, so it is safe to apply to
+    anything."""
+    out = str(text or "")
+    if KEY:
+        out = out.replace(KEY, "<redacted>")
+    out = _SECRET_PATTERNS[0].sub("sk-<redacted>", out)
+    out = _SECRET_PATTERNS[1].sub("dtn_<redacted>", out)
+    out = _SECRET_PATTERNS[2].sub(lambda m: f"{m.group(1)} <redacted>", out)
+    out = _SECRET_PATTERNS[3].sub("eyJ<redacted>", out)
+    return out
+
+
+def sanitize(text: object, limit: int = 300) -> str:
+    """`redact`, then truncate. For a field a journey is about to put in its own evidence."""
+    return redact(text)[:limit]
+
+
+def redact_tree(value):
+    """Every string in a nested result, redacted, right before it is written to disk.
+
+    Journeys redact the fields they build themselves, but they also embed whole `Turn.summary()`
+    blobs, and a provider's error body can quote the credential it refused ANYWHERE in one. The
+    results file is committed as release evidence, so the last thing that touches it is a walk
+    over the entire object. One boundary, one guarantee.
+    """
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {k: redact_tree(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redact_tree(v) for v in value]
+    if isinstance(value, tuple):
+        return [redact_tree(v) for v in value]
+    return value
 
 
 def api_call(
@@ -234,11 +295,9 @@ CELLS = {
         "provider": "openai",
     },
     # X2: the CODEX harness on DAYTONA with a managed vault key. Daytona rejects subscription
-    # auth by design, so managed is the only codex cell a cloud sandbox can have. It exists
-    # because the continuity tiers mean DIFFERENT things per sandbox: a cold-2 resume (runner
-    # replica replaced) can only COMPLETE on a remote sandbox — on local it correctly refuses,
-    # since a local sandbox lives inside the runner process. Without a codex-on-daytona cell the
-    # gate can never observe a completed codex cold 2. Verified out of band during the v0.108.0
+    # auth by design, so managed is the only codex cell a cloud sandbox can have. It is the only
+    # codex cell on a remote sandbox, so the continuity tiers (`park`, `cold2`) see codex rebuild
+    # a Daytona session as well as a local one. Verified out of band during the v0.108.0
     # release run (a one-off staging probe); promoted into the gate here.
     "X2": {
         "harness": "codex",
@@ -279,11 +338,12 @@ CELLS = {
     "H1": {
         "harness": "pi_core",
         "sandbox": "local",
-        # The connection advertises seven models, but a ChatGPT subscription does NOT accept all
-        # of them through this path: `gpt-5.4-mini` is refused with "not supported when using
-        # Codex with a ChatGPT account". Pin the codex model the subscription really serves; a
-        # cheaper-looking id from the same list is not interchangeable.
-        "model": "gpt-5.3-codex-spark",
+        # The connection advertises several models, but a ChatGPT subscription does NOT accept
+        # all of them through this path: `gpt-5.4-mini` and `gpt-5.3-codex-spark` are refused
+        # with "not supported when using Codex with a ChatGPT account". Pin a model the
+        # subscription really serves; a cheaper-looking id from the same list is not
+        # interchangeable.
+        "model": "gpt-5.5",
         # `openai-codex`, not `openai`: the subscription provider slug Pi authenticates against.
         # The vault-key `openai` provider is a different code path (cell C3).
         "provider": "openai-codex",
@@ -300,7 +360,7 @@ CELLS = {
     "H2": {
         "harness": "pi_core",
         "sandbox": "daytona",
-        "model": "gpt-5.3-codex-spark",
+        "model": "gpt-5.5",
         "provider": "openai-codex",
         "connection": {"mode": "self_managed", "slug": None},
         "subscription": True,
@@ -378,12 +438,72 @@ CELLS = {
 # `echo "QA-BASH-$((6*7+1))"` — and the model simply computed 43 and reported it WITHOUT running
 # bash, so a DENIED tool call still produced a "passing" reply. The wire said denied; the prose
 # lied. Lesson, and the rule for this whole driver: assert on FRAMES, and only ever use a token
-# the model cannot compute. The container hostname is random per container.
+# the model cannot compute. The sandbox hostname is random per sandbox.
 BASH_PROMPT = (
     'Use the bash tool to run exactly: echo "QA-BASH-$(hostname)-$(uname -m)" '
     "and reply with only its stdout."
 )
-BASH_TOKEN_RE = re.compile(r"QA-BASH-[0-9a-f]{6,}-\w+")
+# The hostname shape depends on where the sandbox runs: a Docker container id is hex, but a
+# Kubernetes pod name carries letters beyond hex and dashes ("agenta-runner-7bccbff75-g9lmw").
+# An older hex-only pattern failed the journey on every Kubernetes stage even though the tool
+# had run and its output reached the reply. Accept any hostname, and keep the minimum length,
+# which is what stops a model from passing with a short value it invented instead of running
+# the tool.
+BASH_TOKEN_RE = re.compile(r"QA-BASH-[A-Za-z0-9][A-Za-z0-9.-]{5,}-\w+")
+
+# Extraction from the tool's OWN output runs the match on to the end of the token, because
+# `\w` stops at a dot and would hand back a truncated value for an architecture like
+# "x86_64.v2". The reply would then only have to carry that shorter string. The pattern above
+# stays unanchored and is what scans REPLY prose, where the deny journey has to find a
+# fabricated token wherever the model put it.
+BASH_TOKEN_FULL_RE = re.compile(BASH_TOKEN_RE.pattern + r"[A-Za-z0-9._-]*")
+
+
+def reply_carries_token(reply: str, token: str) -> bool:
+    """Does ``reply`` carry exactly ``token``, and not a longer run of token characters?
+
+    A plain ``in`` test also accepts the token with more hostname or architecture characters
+    glued to it, so a mangled value would pass. Boundaries reject that. The boundary classes
+    leave punctuation out on purpose: a reply that ends the sentence with a full stop, or wraps
+    the token in backticks, is still reporting the right value.
+    """
+    return (
+        re.search(
+            # A dot is rejected only when another hostname label follows it, so `token.extra`
+            # fails while a reply that ends the sentence with `token.` still passes. The
+            # pattern is built from re.escape(token), so it carries no user-supplied syntax.
+            rf"(?<![A-Za-z0-9_-]){re.escape(token)}(?![A-Za-z0-9_-]|\.(?=[A-Za-z0-9]))",
+            reply,
+        )
+        is not None
+    )
+
+
+def bash_token_from_output(t: "Turn", tool_call_id: str) -> str | None:
+    """The QA-BASH token as the SHELL printed it, read off THIS call's output frame.
+
+    A token found only in the reply proves nothing on its own: the model writes the reply, so it
+    can write a plausible token without running anything. That is the failure this journey was
+    built around. Reading the token off the tool's own output and then requiring the REPLY to
+    carry that exact string ties the two together, so a fabricated value cannot pass however
+    well shaped it is.
+
+    Scoped to one ``toolCallId`` on purpose. A turn often carries several calls, and scanning
+    all of them would accept a token another tool happened to print while the bash call
+    produced none.
+    """
+    if t.tool_outcomes.get(tool_call_id) != "available":
+        return None
+    payload = t.tool_payloads.get(tool_call_id)
+    if not isinstance(payload, dict):
+        return None
+    output = payload.get("output")
+    if output is None:
+        return None
+    text = output if isinstance(output, str) else json.dumps(output, default=str)
+    found = BASH_TOKEN_FULL_RE.search(text)
+    return found.group(0) if found else None
+
 
 # For the APPROVAL journeys the command must MUTATE. Claude Code classifies bash commands and
 # auto-approves read-only ones (a bare `echo`) no matter what the permission policy says, so
@@ -496,12 +616,21 @@ class Turn:
         self._segments: list[dict] = []
         self.finish_reason: str | None = None
         self.errors: list[str] = []
-        # Machine-readable failure codes, from BOTH places the product can report one: the
-        # `data-agent-error` SSE frame (a failure the runner found mid-turn) and the
-        # `status.failure_code` of a >=400 JSON body (a failure the API found before the turn
-        # started). A journey that asserts on a specific failure must read the code, never the
-        # prose: the message is written for a human and is free to change.
-        self.failure_codes: list[str] = []
+        # The CODED failure classes of this turn: the `data-agent-error` frames (a failure the
+        # runner found mid-turn) and `status.failure_code` of a >=400 JSON body (a failure the
+        # API found before the turn started).
+        # The plain `error` frame carries display prose only; the code beside it is the runner's
+        # stable class (`RunErrorCode` in engines/sandbox_agent/errors.ts —
+        # `credential_delivery_failed`, `rate_limited`, `runner_error`, ...). A journey that
+        # records the code can name WHY a run failed instead of matching on a message that
+        # changes with the copy. Same source as `agent_error_frames` in
+        # matrix_c5_first_call_race.py.
+        self.error_codes: list[str] = []
+        self.error_texts: list[str] = []
+        # Set when invoke() abandoned the stream at its absolute deadline. HTTPX bounds each read,
+        # never the whole turn, so a stream that keeps emitting bytes would otherwise run forever.
+        self.hung: bool = False
+        self.hung_reason: str = ""
         self.committed_revision: dict | None = None
         self.http_status: int = 0
         self.ms: int = 0
@@ -566,14 +695,82 @@ class Turn:
             "tools": [t.get("toolName") for t in self.tool_calls],
             "approval": bool(self.approval),
             "errors": self.errors,
-            "failure_codes": self.failure_codes,
+            "error_codes": self.error_codes,
+            "hung": self.hung,
             "reply": self.reply[:400],
         }
 
 
+def _sse_lines(response, out_of_time):
+    """Yield SSE lines from the response's byte stream, and `None` the moment time runs out.
+
+    `iter_lines()` cannot be used where a deadline must hold: it only yields on a newline, so a
+    stream that sends bytes without one (or nothing at all) never gives the caller a chance to
+    check the clock. Reading chunks moves the check to every chunk boundary.
+
+    `iter_bytes()`, NOT `iter_raw()`. `iter_raw()` hands over the bytes exactly as they arrived,
+    which for a `Content-Encoding: gzip` (or deflate, or br) response is compressed data: the
+    frames never parse, the turn ends with nothing, and no error says why. `iter_bytes()` is the
+    same stream after HTTPX has decoded the content encoding, which is what `iter_lines()` was
+    reading before.
+
+    The clock is checked BEFORE every read, the first one included, by stepping the iterator by
+    hand. `for chunk in response.iter_bytes()` starts a read and only then reaches the check, so
+    setting the request up can eat the whole budget and the driver would still begin a read it
+    cannot afford.
+
+    Splitting on b"\n" before decoding is safe: a newline byte cannot appear inside a UTF-8
+    multi-byte sequence, so no character is ever cut in half. Trailing CR is stripped for CRLF
+    senders; a bare-CR line ending is not supported, and never was, because the emitter writes LF.
+    """
+    buffer = bytearray()
+    chunks = iter(response.iter_bytes())
+    while True:
+        if out_of_time():
+            yield None
+            return
+        try:
+            chunk = next(chunks)
+        except StopIteration:
+            break
+        buffer.extend(chunk)
+        while True:
+            index = buffer.find(b"\n")
+            if index < 0:
+                break
+            line = bytes(buffer[:index])
+            del buffer[: index + 1]
+            yield line.rstrip(b"\r").decode("utf-8", "replace")
+    if buffer:
+        yield bytes(buffer).rstrip(b"\r").decode("utf-8", "replace")
+
+
 def invoke(
-    session_id: str, messages: list, params: dict, timeout: float = 300.0
+    session_id: str,
+    messages: list,
+    params: dict,
+    timeout: float = 300.0,
+    deadline: float | None = None,
 ) -> Turn:
+    """One turn. `timeout` is HTTPX's per-operation bound; `deadline` is an ABSOLUTE
+    `time.monotonic()` value that bounds the WHOLE turn.
+
+    The two are not the same guarantee and only the second one holds. HTTPX applies its timeout to
+    connect, write, read and pool SEPARATELY, so a stream that keeps sending bytes never trips it
+    and the turn runs forever. A caller that must come back at a known time (the concurrency
+    journeys) passes a deadline, and three things enforce it:
+
+      - The HTTPX timeout is lowered to whatever time is actually left, so connect, write, an
+        error-body read, and a silent read cannot each be granted the full configured value when
+        there are milliseconds left.
+      - The body is read as RAW CHUNKS with the lines assembled here, and the deadline is checked
+        per chunk. `iter_lines()` only yields on a newline, so a stream that sends bytes without
+        one would never reach a check.
+      - A read that times out past the deadline is recorded as hung rather than raised, because
+        that is the same event seen from the other side.
+
+    Without a deadline the behaviour is exactly what it always was, including the raise.
+    """
     t = Turn()
     body = {
         "session_id": session_id,
@@ -586,103 +783,168 @@ def invoke(
         "Content-Type": "application/json",
     }
     start = time.time()
-    with httpx.Client(timeout=timeout) as client:
-        with client.stream(
-            "POST",
-            f"{BASE}/services/agent/v0/invoke",
-            params={"project_id": PROJECT},
-            json=body,
-            headers=headers,
-        ) as r:
-            t.http_status = r.status_code
-            if r.status_code >= 400:
-                body = r.read().decode()
-                t.errors.append(f"HTTP {r.status_code}: {body[:500]}")
-                try:
-                    code = (json.loads(body).get("status") or {}).get("failure_code")
-                except (json.JSONDecodeError, AttributeError):
-                    code = None
-                if code:
-                    t.failure_codes.append(code)
-                t.ms = int((time.time() - start) * 1000)
-                return t
-            for line in r.iter_lines():
-                if not line or line.startswith(":") or not line.startswith("data: "):
-                    continue
-                payload = line[6:]
-                if payload == "[DONE]":
-                    break
-                try:
-                    f = json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
-                ftype = f.get("type", "?")
-                t.frames.append(ftype)
-                if ftype == "text-delta":
-                    delta = f.get("delta", "")
-                    t.text.append(delta)
-                    # Coalesce consecutive text-delta frames into ONE running text segment;
-                    # a tool call between two text runs starts a NEW segment (see below), so
-                    # this reproduces the AI SDK's interleaved part order.
-                    if t._segments and t._segments[-1]["kind"] == "text":
-                        t._segments[-1]["text"] += delta
-                    else:
-                        t._segments.append({"kind": "text", "text": delta})
-                elif ftype == "tool-input-available":
-                    # CAREFUL: this frame is emitted REPEATEDLY for one tool call, carrying a
-                    # progressively-built PARTIAL input, and `toolName` changes case along the way
-                    # ("bash" while streaming -> "Bash" when complete). Only the LAST frame per
-                    # toolCallId holds the real command. Keeping the first one approves a
-                    # truncated command under the wrong name, the runner's decision key
-                    # (name+args) misses the parked gate, and the approval re-parks forever.
-                    call = {
-                        "toolCallId": f.get("toolCallId"),
-                        "toolName": f.get("toolName"),
-                        "input": f.get("input"),
-                    }
-                    is_new_call = not any(
-                        c["toolCallId"] == call["toolCallId"] for c in t.tool_calls
-                    )
-                    t.tool_calls = [
-                        c for c in t.tool_calls if c["toolCallId"] != call["toolCallId"]
-                    ] + [call]
-                    # Segment position is fixed at FIRST appearance (when the call starts),
-                    # never moved by later partial-input updates — that's when the AI SDK
-                    # would have inserted the tool part into UIMessage.parts.
-                    if is_new_call:
-                        t._segments.append({"kind": "tool", "id": call["toolCallId"]})
-                elif ftype == "tool-approval-request":
-                    t.approval = {
-                        "approvalId": f.get("approvalId"),
-                        "toolCallId": f.get("toolCallId"),
-                    }
-                elif ftype in (
-                    "tool-output-available",
-                    "tool-output-error",
-                    "tool-output-denied",
-                ):
-                    tcid = f.get("toolCallId")
-                    if tcid:
-                        t.tool_outcomes[tcid] = ftype.replace("tool-output-", "")
-                        if ftype == "tool-output-available":
-                            t.tool_payloads[tcid] = {"output": f.get("output")}
-                        elif ftype == "tool-output-error":
-                            t.tool_payloads[tcid] = {"errorText": f.get("errorText")}
-                elif ftype == "data-committed-revision":
-                    t.committed_revision = f.get("data")
-                elif ftype == "data-agent-error":
-                    # The runner found the failure DURING the turn, so it arrives as a data
-                    # frame rather than an HTTP status. The chat surface renders this frame as
-                    # the error card, which is why a journey asserting on a failure the user
-                    # sees must read it here.
-                    code = (f.get("data") or {}).get("code")
+
+    def _remaining() -> float | None:
+        return None if deadline is None else deadline - time.monotonic()
+
+    def _out_of_time() -> bool:
+        # At or below the floor counts as out of time. An operation that cannot fit in what is
+        # left must not be started, rather than be given the floor as a grant.
+        left = _remaining()
+        return left is not None and left <= DEADLINE_FLOOR_SECONDS
+
+    def _mark_hung() -> None:
+        t.hung = True
+        t.hung_reason = HUNG_AT_DEADLINE
+
+    # Never START an operation the turn has no time for, and never grant one more time than the
+    # turn has left.
+    if _out_of_time():
+        _mark_hung()
+        t.ms = int((time.time() - start) * 1000)
+        return t
+    left = _remaining()
+    effective = timeout if left is None else min(timeout, left)
+    try:
+        with httpx.Client(timeout=effective) as client:
+            with client.stream(
+                "POST",
+                f"{BASE}/services/agent/v0/invoke",
+                params={"project_id": PROJECT},
+                json=body,
+                headers=headers,
+            ) as r:
+                t.http_status = r.status_code
+                if r.status_code >= 400:
+                    # Reading the error body is a read like any other, and setting the request up
+                    # may already have spent the budget. Check before it, not after.
+                    if _out_of_time():
+                        _mark_hung()
+                        r.close()
+                        t.ms = int((time.time() - start) * 1000)
+                        return t
+                    error_body = r.read().decode()
+                    t.errors.append(f"HTTP {r.status_code}: {error_body[:500]}")
+                    # A failure the API found before the turn started carries its code in
+                    # `status.failure_code` of the JSON body.
+                    try:
+                        code = (json.loads(error_body).get("status") or {}).get(
+                            "failure_code"
+                        )
+                    except (json.JSONDecodeError, AttributeError):
+                        code = None
                     if code:
-                        t.failure_codes.append(code)
-                    t.errors.append(json.dumps(f)[:300])
-                elif ftype == "error":
-                    t.errors.append(json.dumps(f)[:300])
-                elif ftype == "finish":
-                    t.finish_reason = f.get("finishReason")
+                        t.error_codes.append(str(code))
+                    t.ms = int((time.time() - start) * 1000)
+                    return t
+                for line in _sse_lines(r, _out_of_time):
+                    if line is None:
+                        # The generator ran out of time. Abandon the stream where it is; the turn
+                        # carries what it received plus the reason it stopped.
+                        _mark_hung()
+                        r.close()
+                        break
+                    if (
+                        not line
+                        or line.startswith(":")
+                        or not line.startswith("data: ")
+                    ):
+                        continue
+                    payload = line[6:]
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        f = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    ftype = f.get("type", "?")
+                    t.frames.append(ftype)
+                    if ftype == "text-delta":
+                        delta = f.get("delta", "")
+                        t.text.append(delta)
+                        # Coalesce consecutive text-delta frames into ONE running text segment;
+                        # a tool call between two text runs starts a NEW segment (see below), so
+                        # this reproduces the AI SDK's interleaved part order.
+                        if t._segments and t._segments[-1]["kind"] == "text":
+                            t._segments[-1]["text"] += delta
+                        else:
+                            t._segments.append({"kind": "text", "text": delta})
+                    elif ftype == "tool-input-available":
+                        # CAREFUL: this frame is emitted REPEATEDLY for one tool call, carrying a
+                        # progressively-built PARTIAL input, and `toolName` changes case along the way
+                        # ("bash" while streaming -> "Bash" when complete). Only the LAST frame per
+                        # toolCallId holds the real command. Keeping the first one approves a
+                        # truncated command under the wrong name, the runner's decision key
+                        # (name+args) misses the parked gate, and the approval re-parks forever.
+                        call = {
+                            "toolCallId": f.get("toolCallId"),
+                            "toolName": f.get("toolName"),
+                            "input": f.get("input"),
+                        }
+                        is_new_call = not any(
+                            c["toolCallId"] == call["toolCallId"] for c in t.tool_calls
+                        )
+                        t.tool_calls = [
+                            c
+                            for c in t.tool_calls
+                            if c["toolCallId"] != call["toolCallId"]
+                        ] + [call]
+                        # Segment position is fixed at FIRST appearance (when the call starts),
+                        # never moved by later partial-input updates — that's when the AI SDK
+                        # would have inserted the tool part into UIMessage.parts.
+                        if is_new_call:
+                            t._segments.append(
+                                {"kind": "tool", "id": call["toolCallId"]}
+                            )
+                    elif ftype == "tool-approval-request":
+                        t.approval = {
+                            "approvalId": f.get("approvalId"),
+                            "toolCallId": f.get("toolCallId"),
+                        }
+                    elif ftype in (
+                        "tool-output-available",
+                        "tool-output-error",
+                        "tool-output-denied",
+                    ):
+                        tcid = f.get("toolCallId")
+                        if tcid:
+                            t.tool_outcomes[tcid] = ftype.replace("tool-output-", "")
+                            if ftype == "tool-output-available":
+                                t.tool_payloads[tcid] = {"output": f.get("output")}
+                            elif ftype == "tool-output-error":
+                                t.tool_payloads[tcid] = {
+                                    "errorText": f.get("errorText")
+                                }
+                    elif ftype == "data-committed-revision":
+                        t.committed_revision = f.get("data")
+                    elif ftype == "data-agent-error":
+                        # The coded twin of the `error` frame below. The SDK emits both for one
+                        # failure (`_error_parts`, adapters/vercel/stream.py): this one carries the
+                        # runner's stable code, the next one carries the prose. Keep the code, so a
+                        # journey can report the CLASS of a failure.
+                        data = f.get("data") or {}
+                        code = data.get("code")
+                        if code:
+                            t.error_codes.append(str(code))
+                        text = data.get("errorText")
+                        if text:
+                            t.error_texts.append(str(text))
+                        # The chat surface renders this frame as the error card, so a turn that
+                        # carries it failed even when no plain `error` frame follows.
+                        t.errors.append(json.dumps(f)[:300])
+                    elif ftype == "error":
+                        t.errors.append(json.dumps(f)[:300])
+                    elif ftype == "finish":
+                        t.finish_reason = f.get("finishReason")
+    except httpx.TimeoutException:
+        # A read that ran out of time IS the deadline, seen from HTTPX's side: the effective
+        # timeout above was lowered to the time remaining. Record it the same way, so a turn
+        # that produced no bytes at all is not a driver crash. With no deadline the caller
+        # asked for the old behaviour and still gets the raise.
+        if deadline is None:
+            raise
+        t.hung = True
+        t.hung_reason = HUNG_AT_DEADLINE
     t.ms = int((time.time() - start) * 1000)
     return t
 
@@ -737,7 +999,16 @@ def j3_tool(cell: dict) -> dict:
             permission_default="allow",
         ),
     )
-    ok = tool_ran(t) and bool(BASH_TOKEN_RE.search(t.reply)) and not t.errors
+    bash_call, _ = _bash_call_outcome(t)
+    shell_token = (
+        bash_token_from_output(t, bash_call["toolCallId"]) if bash_call else None
+    )
+    ok = (
+        tool_ran(t)
+        and shell_token is not None
+        and reply_carries_token(t.reply, shell_token)
+        and not t.errors
+    )
     return {
         "pass": ok,
         "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit, with no wire errors",
@@ -745,7 +1016,14 @@ def j3_tool(cell: dict) -> dict:
     }
 
 
-def _approval_flow(cell: dict, approved: bool) -> dict:
+def _approval_flow(
+    cell: dict,
+    approved: bool,
+    timeout: float = 300.0,
+    deadline: float | None = None,
+    session_id: str | None = None,
+    prompt: str | None = None,
+) -> dict:
     """J4: with permission `ask`, a tool call must PAUSE with a tool-approval-request, then
     resume on the user's decision — the same in-band protocol the browser uses.
 
@@ -758,8 +1036,15 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
     `list_connections` platform tool with per-tool `permission: "ask"` — empty arguments, so the
     resume matches on input exactly. Verified across {local, daytona} x {warm, cold} in
     docs/design/codex-harness/reports/warm-approvals-qa.md.
+
+    `timeout` bounds EACH of the two turns, so a caller that runs this beside other work has to
+    budget two of them, and `deadline` bounds the whole flow in absolute time. The `crosstalk`
+    journey passes both, plus its own `session_id` (so a record exists even if the flow never
+    returns) and its own `prompt` (a mutating command carrying a nonce, so the resumed output can
+    be told apart from every other flow in the journey). `prompt` is ignored on codex, whose gate
+    rides a platform tool rather than the shell.
     """
-    s = str(uuid.uuid4())
+    s = session_id or str(uuid.uuid4())
     if cell["harness"] == "codex":
         params = template(
             cell,
@@ -775,13 +1060,14 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
             instructions="Use the bash tool when asked to run a command. Report only its stdout.",
             permission_default="ask",
         )
-        msgs = [user_msg(MUTATE_PROMPT)]
-    t1 = invoke(s, msgs, params)
+        msgs = [user_msg(prompt or MUTATE_PROMPT)]
+    t1 = invoke(s, msgs, params, timeout=timeout, deadline=deadline)
 
     if not t1.approval:
         return {
             "pass": False,
             "why": "expected a tool-approval-request frame; the gate never fired",
+            "session_id": s,
             "turn": t1.summary(),
         }
     # A paused turn finishes with reason "other", not "stop".
@@ -793,27 +1079,74 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
     )
     gated_input = gated_call.get("input") or {}
     msgs = msgs + [approval_reply(t1, approved)]
-    t2 = invoke(s, msgs, params)
+    t2 = invoke(s, msgs, params, timeout=timeout, deadline=deadline)
     outcome = outcome_for_input(t2, gated_input)
 
     # Require the turn to have actually paused (paused_ok) and the resume to have reached a
     # definite, error-free, non-re-parked state (not t2.errors, not t2.approval) before trusting
     # `outcome` at all — otherwise an indeterminate resume (outcome=None from a failed resume or
     # a re-parked gate) reads as a silent PASS on the deny branch below.
+    #
+    # A CODED error on either turn fails the flow whatever the outcome says. A run whose
+    # credentials never arrived can still park a gate and still report a tool outcome, and
+    # reading that as a healthy approval is how a credential fault hides inside a green
+    # approval journey. The resume must also END, with `finish=stop`: a resume that stopped for
+    # any other reason did not complete the decision the user made.
+    clean = not t1.error_codes and not t2.error_codes and not t1.hung and not t2.hung
+    resumed_stop = t2.finish_reason == "stop"
     if approved:
-        ok = paused_ok and outcome == "available" and not t2.errors and not t2.approval
-        why = f"approved: the gated command executed after approval (outcome={outcome}, paused finish=other: {paused_ok})"
+        ok = (
+            paused_ok
+            and outcome == "available"
+            and not t2.errors
+            and not t2.approval
+            and clean
+            and resumed_stop
+        )
+        why = (
+            f"approved: the gated command executed after approval (outcome={outcome}, "
+            f"paused finish=other: {paused_ok}, resumed finish=stop: {resumed_stop}, "
+            f"no coded error and neither turn hung: {clean})"
+        )
     else:
         # Denied: the gated COMMAND must never have executed. Assert the WIRE, never the reply —
         # a denied model will happily hallucinate the output it never received. Require the
         # precise "denied" outcome (not merely "not available") so an indeterminate or errored
         # resume can't be misread as a successful deny.
-        ok = paused_ok and outcome == "denied" and not t2.errors and not t2.approval
-        why = f"denied: the gated command never executed (outcome={outcome})"
+        ok = (
+            paused_ok
+            and outcome == "denied"
+            and not t2.errors
+            and not t2.approval
+            and clean
+            and resumed_stop
+        )
+        why = (
+            f"denied: the gated command never executed (outcome={outcome}, "
+            f"resumed finish=stop: {resumed_stop}, no coded error and neither turn hung: "
+            f"{clean})"
+        )
+    # Everything the resumed turn produced, reply and tool output alike. A caller that gave this
+    # flow a nonce reads its proof here: the model does not always repeat a command's stdout in
+    # prose, so the tool payload has to count too.
+    resumed_output = " ".join(
+        [t2.reply]
+        + [
+            str(payload.get("output") or payload.get("errorText") or "")
+            for payload in t2.tool_payloads.values()
+        ]
+    )
     return {
         "pass": ok,
         "why": why,
         "paused_finish_other": paused_ok,
+        "resumed_finish": t2.finish_reason,
+        "hung": bool(t1.hung or t2.hung),
+        "error_codes": sorted(set(t1.error_codes + t2.error_codes)),
+        # The session id rides the result so a caller that runs several approval flows at the
+        # same time (the `crosstalk` journey) can name which conversation each record belongs to.
+        "session_id": s,
+        "resumed_output": resumed_output[:600],
         "turn_paused": t1.summary(),
         "turn_resumed": t2.summary(),
     }
@@ -859,14 +1192,13 @@ def j4_deny(cell: dict) -> dict:
 REQUIRE_STORE = False
 STORE_SETTLE_SECONDS = 45.0
 COLD2_REPLACE_CMD: str | None = None
-OWNER_TTL_SECONDS = 120.0
 # A hung operator hook must not hang the whole gate run.
 COLD2_REPLACE_TIMEOUT_SECONDS = 180.0
-# The owner key lapses AT the TTL, and the replacement replica may still be coming up, so a
-# resume timed exactly on the boundary races both and fails for an unrelated, misleading reason.
-# The approval-matrix driver waits for container health plus the same margin
+# The replacement replica may still be coming up when the hook returns, so a resume sent at once
+# races its startup and fails for an unrelated, misleading reason. The approval-matrix driver
+# waits for container health plus the same margin
 # (docs/design/codex-harness/spike/scripts/codex-approval-matrix-qa.py).
-OWNER_TTL_MARGIN_SECONDS = 20.0
+COLD2_SETTLE_SECONDS = 20.0
 
 # How long the `park` tier idles so the session pool expires the session on its own. The runner
 # parks a Daytona session at `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` (120s by default), and an
@@ -874,13 +1206,6 @@ OWNER_TTL_MARGIN_SECONDS = 20.0
 # reconnect. Override with --park-wait when a deployment runs a different TTL.
 PARK_IDLE_TTL_SECONDS = 120.0
 PARK_MARGIN_SECONDS = 45.0
-
-# The runner's refusal when a replacement replica tries to adopt a local-sandbox session
-# (`LocalSandboxNotOwnerError`, session-continuity.ts). Asserted by the cold2 journey and quoted
-# in coverage.md — one spelling, one source, so the doc and the assertion cannot drift apart.
-# Full text: "local sandbox requires a single runner: replica '<a>' is not the owner of session
-# '<b>' (owned by '<c>'). Refusing to cold-start on the wrong host."
-LOCAL_NOT_OWNER_MARKER = "is not the owner of session"
 
 CWD_PROBE_FILE = "qa-cwd.txt"
 STORE_PROBE_FILE = "qa-store.txt"
@@ -1195,14 +1520,11 @@ def _continuity(cell: dict, tier: str) -> dict:
                 "pass": False,
                 "why": f"cold 2: the replica-replacement command failed ({proc.returncode}): {proc.stderr[:200]}",
             }
-        # Wait out the session-owner key. The killed replica never released `owner:session:<id>`
-        # and `claim_owner` never steals from an owner that still looks live, so a resume inside
-        # the window fails for the wrong reason (issue #5611's misleading MCP-shim error). The
-        # margin matters as much as the TTL: the key lapses AT the boundary, so a resume timed
-        # exactly on it races the lapse and the replacement replica's own startup.
-        wait = OWNER_TTL_SECONDS + OWNER_TTL_MARGIN_SECONDS
+        # No lease to wait out: the next turn has a new turn id, so the API binds it to the
+        # replacement replica on its first beat. Only the replacement's own startup is waited.
+        wait = COLD2_SETTLE_SECONDS
         time.sleep(wait)
-        transition = f"replica replaced via the operator hook, then {int(wait)}s of owner-TTL wait"
+        transition = f"replica replaced via the operator hook, then {int(wait)}s for it to settle"
     else:  # pragma: no cover - guarded by the JOURNEYS table
         raise ValueError(f"unknown continuity tier {tier}")
 
@@ -1240,43 +1562,10 @@ def _continuity(cell: dict, tier: str) -> dict:
         }[tier],
     }
 
-    if tier == "cold2" and cell["sandbox"] == "local":
-        # This journey used to demand the ownership guard REFUSE here, citing warm-approvals-qa.md.
-        # That expectation cannot hold alongside the transition this journey performs, and the two
-        # halves contradict each other:
-        #
-        #   `isLocalRunnerEligible` (session-continuity.ts) allows the run when the owner is
-        #   unknown OR is this replica. The transition above deliberately waits out the owner key
-        #   so the resume does not fail on a stale owner. Once it lapses, `claim_owner` hands
-        #   ownership to whoever asks next — the replacement replica — so the guard sees itself as
-        #   the owner and correctly does not refuse.
-        #
-        # Refusing is right when the ORIGINAL owner is still ALIVE, which is a different scenario
-        # this journey never creates: it needs two replicas running at once, and the gate drives
-        # one deployment over HTTP. The pure function is covered by the runner's own
-        # session-ownership tests; an end-to-end two-replica journey is a follow-up.
-        #
-        # What IS correct after a genuine replica loss is what the remote tiers assert: the dead
-        # replica took its local sandbox with it, and the replacement rebuilds the conversation
-        # from the durable working directory in the object store. So local cold 2 now asserts the
-        # same resume as remote, plus one extra guard below — a refusal here means the owner key
-        # outlived the wait, which measures the wait rather than the product.
-        refused = any(LOCAL_NOT_OWNER_MARKER in str(e) for e in t_last.errors)
-        if refused:
-            return {
-                "pass": False,
-                "why": (
-                    "cold 2 refused with "
-                    f'"{LOCAL_NOT_OWNER_MARKER}" even though the journey waited out the owner key '
-                    f"({OWNER_TTL_SECONDS:.0f}s + {OWNER_TTL_MARGIN_SECONDS:.0f}s margin). The "
-                    "dead replica's ownership outlived the wait, so this run measured the wait, "
-                    "not the product. Raise --owner-ttl to the deployment's real session-owner "
-                    "TTL and run it again."
-                ),
-                "evidence": evidence,
-                "turn_resumed": t_last.summary(),
-            }
-
+    # Local cold 2 asserts the same resume as remote. The dead replica took its local sandbox
+    # with it, and the replacement rebuilds the conversation from the durable working directory
+    # in the object store. The runner has no runtime refusal for a local session on another
+    # replica: the chart keeps the local provider at one runner instead.
     reply = t_last.reply
     cwd_back = token in reply
     store_back = store_token in reply if tier != "warm" else None
@@ -1636,8 +1925,8 @@ def j6_park(cell: dict) -> dict:
 
 
 def j6_cold2(cell: dict) -> dict:
-    """Cold 2: the runner replica is replaced. Needs an operator hook (SIGKILL), and the expected
-    result differs per sandbox: a local sandbox correctly REFUSES, a remote one resumes cold."""
+    """Cold 2: the runner replica is replaced. Needs an operator hook (SIGKILL). On a local and a
+    remote sandbox alike, the replacement rebuilds the session cold and the resume completes."""
     return _continuity(cell, "cold2")
 
 
@@ -1885,8 +2174,12 @@ def j7_mcp(cell: dict) -> dict:
       http:// and private/loopback/metadata hosts, so a local MCP server is unreachable from the
       deployment. --mcp-url must be a public HTTPS Streamable-HTTP endpoint (default: DeepWiki).
 
-    The harness dials the URL directly (on `local`, from the runner host), so the endpoint must be
-    reachable from the deployment's network.
+    The server is registered first as a project MCP connection and the agent references it by
+    slug. Since v0.119.0 the SDK routes every agent MCP server through the MCP gateway whenever the
+    run carries a gateway (`sdk/agents/mcp/resolver.py` `_resolve_gateway`): the author's URL is
+    not dialled, and a server with no stored connection answers 404 at
+    `/gateways/mcps/custom/<name>`. So the gateway, not the harness, dials the URL, and it must be
+    reachable from the API container.
     """
     if cell["harness"] != "claude":
         return {
@@ -1894,10 +2187,45 @@ def j7_mcp(cell: dict) -> dict:
             "why": f"MCP requires a Claude harness; Pi rejects any run with mcps (cell harness={cell['harness']}). Run with --cell C1.",
         }
 
+    slug = f"qa-gate-mcp-{uuid.uuid4().hex[:8]}"
+    created = api_call(
+        "POST",
+        "/gateways/mcps/endpoints/",
+        json={
+            "endpoint": {
+                "slug": slug,
+                "auth_mode": "none",
+                "secret_id": None,
+                "data": {"route": {"base_url": MCP_URL}},
+            }
+        },
+    )
+    if created.status_code != 200:
+        return {
+            "pass": False,
+            "why": f"could not register {MCP_URL} as an MCP connection: "
+            f"HTTP {created.status_code} {created.text[:300]}",
+        }
+    endpoint_id = created.json()["endpoint"]["id"]
+    try:
+        result = _j7_mcp_turn(cell, slug)
+    finally:
+        deleted = api_call("DELETE", f"/gateways/mcps/endpoints/{endpoint_id}")
+    # A leaked connection stays in the project the gate shares with other runs, so it fails the
+    # journey rather than passing quietly.
+    if not deleted.is_success:
+        result["pass"] = False
+        result["why"] += (
+            f"; cleanup of MCP connection {slug} failed: HTTP {deleted.status_code}"
+        )
+    return result
+
+
+def _j7_mcp_turn(cell: dict, slug: str) -> dict:
     s = str(uuid.uuid4())
     mcp = {
         "name": "deepwiki",
-        "connection": {"type": "http", "url": MCP_URL},
+        "connection": {"type": "gateway", "namespace": "custom", "slug": slug},
         "policy": {"tools": {"mode": "all"}},
     }
     prompt = (
@@ -1991,10 +2319,20 @@ def _pi_only(cell: dict, what: str) -> dict | None:
 
 
 def _bash_call_outcome(t: "Turn") -> tuple[dict | None, str | None]:
-    """The bash call the model attempted and its wire outcome, or (None, None)."""
+    """The shell call the model attempted and its wire outcome, or (None, None).
+
+    A shell call is named `bash` or `terminal` (Claude, Pi), or carries a string `command`
+    input. Codex names its exec call after the command text itself
+    (`echo "QA-BASH-$(hostname)-$(uname -m)"`), so the name alone never matches there. The
+    token checks stay on this call's own output, so a fabricated reply still fails.
+    """
     for call in t.tool_calls:
         name = (call.get("toolName") or "").lower()
-        if name in ("bash", "terminal"):
+        call_input = call.get("input")
+        has_command = isinstance(call_input, dict) and isinstance(
+            call_input.get("command"), str
+        )
+        if name in ("bash", "terminal") or has_command:
             return call, t.tool_outcomes.get(call["toolCallId"])
     return None, None
 
@@ -2027,6 +2365,9 @@ def j_rule_deny(cell: dict) -> dict:
     # outcome at all, and reading that as a refusal would pass this journey on a broken run.
     refused = outcome is not None and outcome != "available"
     no_card = t.approval is None
+    # Absence is asserted on the REPLY here, not on a tool output: a denied call produces no
+    # output to match against, and the point of this journey is that the model did not invent a
+    # token to cover the refusal. Any shaped token in the reply is a failure.
     no_token = not BASH_TOKEN_RE.search(t.reply)
     ok = attempted and refused and no_card and no_token and not t.errors
     return {
@@ -2054,11 +2395,15 @@ def _allow_rule_flow(cell: dict, rule: str) -> dict:
             harness_permissions={"allow": [rule]},
         ),
     )
-    _, outcome = _bash_call_outcome(t)
+    bash_call, outcome = _bash_call_outcome(t)
+    shell_token = (
+        bash_token_from_output(t, bash_call["toolCallId"]) if bash_call else None
+    )
     ok = (
         t.approval is None
         and outcome == "available"
-        and bool(BASH_TOKEN_RE.search(t.reply))
+        and shell_token is not None
+        and reply_carries_token(t.reply, shell_token)
         and not t.errors
     )
     return {
@@ -2682,7 +3027,7 @@ def j_hosted_dead(cell: dict) -> dict:
     while time.time() < deadline and after and after["login_state"] == "ready":
         time.sleep(3)
         after, _ = hosted_connection()
-    coded = "subscription_login_required" in t.failure_codes
+    coded = "subscription_login_required" in t.error_codes
     return {
         "pass": coded and bool(after) and after["login_state"] == "needs_login",
         "why": "the run reported subscription_login_required AND the connection moved to needs_login (a human must sign in again before any later hosted journey)",
@@ -2721,6 +3066,679 @@ def j_hosted_relogin_needed(cell: dict) -> dict:
     }
 
 
+# --------------------------------------------------------------------------------------------
+# Concurrency: many runs at the same time (AGE-4249 / #6485)
+# --------------------------------------------------------------------------------------------
+# Every other journey in this file drives ONE run at a time, so the gate can only ever see faults
+# that reproduce on a quiet deployment. The production failure these two journeys exist for does
+# not: about one first message in five failed with "A temporary issue kept this run's credentials
+# from reaching the model", because a fresh Daytona sandbox sometimes starts without its Secret
+# substitution wiring. The fault needs MANY cold starts to show up, and it is stochastic.
+#
+# SO A PASS HERE IS PROBABILISTIC AND A FAIL IS PROOF. At the 8 percent per-cold-start rate the
+# incident measured, a burst of 8 misses the fault 51 percent of the time (0.92 ** 8), a burst of
+# 16 misses it 26 percent (0.92 ** 16), and two Daytona cells at 16 miss it about 7 percent
+# (0.92 ** 32). The default is 16 for that reason. One green run is not evidence that the fault is
+# gone; one red run is evidence that it is not.
+#
+# `burst` starts N fresh sessions at once. `crosstalk` runs long conversations and approval flows
+# side by side and checks that no stream carries another session's data. Both are Daytona-only by
+# default: the fault lives in the remote credential path, and a local sandbox has no Secrets to
+# lose. `--concurrency-everywhere` runs them on local cells too, which is cheap and proves the
+# journeys themselves.
+#
+# COST. Each concurrent run holds its own Daytona sandbox, about 5 GiB of the organization's disk
+# quota, and a parked sandbox keeps counting until its auto-delete window closes. A burst of 16 is
+# therefore about 80 GiB in flight, and back-to-back bursts on several cells can exhaust the
+# organization's total disk before the first ones are reclaimed. Plan a release run accordingly.
+BURST_SIZE = 16
+CROSSTALK_CONVERSATIONS = 3
+CROSSTALK_APPROVALS = 2
+# One cell must not be able to ask for an unbounded number of sandboxes by typo.
+CONCURRENCY_MAX_JOBS = 32
+CONCURRENCY_EVERYWHERE = False
+# Per TURN. `invoke` also gets this as an absolute deadline, so a stream that keeps emitting bytes
+# is abandoned rather than followed forever.
+CONCURRENCY_TURN_TIMEOUT_SECONDS = 300.0
+CONCURRENCY_WAIT_MARGIN_SECONDS = 120.0
+# How many lines the `crosstalk` conversations ask for, how many text-delta frames a reply must
+# have arrived in, and how big the reply itself must be.
+#
+# The frame bar is "the reply STREAMED", never a claim about a harness's chunking: measured on
+# staging, Pi sends this reply in about 312 frames and Claude sends the same reply in 4 to 7. A
+# threshold of 10 read as a Claude failure while every product property held.
+#
+# The SIZE bar is what makes this a long-output journey rather than a two-word one. 150 numbered
+# lines are about 500 characters, so the check passes on either shape: at least 100 lines, or at
+# least 600 characters. The real counts stay in the evidence.
+CROSSTALK_LINES = 150
+CROSSTALK_MIN_TEXT_DELTAS = 2
+CROSSTALK_MIN_REPLY_LINES = 100
+CROSSTALK_MIN_REPLY_CHARS = 600
+# The turn ledger is written after the stream closes. matrix_c5_first_call_race.py waits the same
+# second before reading it; the concurrency journeys then poll a few more, because they record the
+# rows as evidence rather than asserting on them.
+LEDGER_SETTLE_SECONDS = 1.0
+LEDGER_POLL_SECONDS = 5.0
+
+# A failure whose text says the model refused the credentials. The CODE is the primary evidence
+# (`credential_delivery_failed`), and this regex is the backstop for a deployment whose runner is
+# older than the coded frame, so an auth failure can never read as an unexplained error.
+AUTH_FAILURE_RE = re.compile(
+    r"authentication failed|invalid[_ ]api[_ ]key|unauthorized|\b401\b|credentials",
+    re.I,
+)
+CREDENTIAL_DELIVERY_CODE = "credential_delivery_failed"
+
+# The sandbox provider ran out of room. This is the environment refusing to give the journey what
+# it asked for, not the product failing, so it is a SKIP with a loud reason rather than a FAIL.
+#
+# The match is deliberately narrow and quotes Daytona's own create-path refusal, plus the sentence
+# the runner puts in its place (code `sandbox_capacity`) once the provider refused twice. It must
+# NEVER grow to cover `rate_limited`, nor the runner's own sandbox-slot limit, which shares the
+# `sandbox_capacity` code: an internal limit under a load the product is supposed to support is a
+# real finding, and hiding it behind a SKIP would delete the only signal the gate has.
+CAPACITY_REFUSAL_RE = re.compile(
+    r"total disk limit exceeded|disk quota exceeded|sandbox quota exceeded"
+    r"|sandbox provider is at its capacity limit",
+    re.I,
+)
+
+
+def _concurrency_skip(cell: dict, what: str) -> dict | None:
+    """Concurrency journeys are Daytona-only unless the operator asks for more."""
+    if cell["sandbox"] == "daytona" or CONCURRENCY_EVERYWHERE:
+        return None
+    return {
+        "skip": True,
+        "why": (
+            f"{what} targets the remote credential path, which only a cloud sandbox has "
+            f"(cell sandbox={cell['sandbox']}). Run --cell C2, C4, P3 or X2, or pass "
+            "--concurrency-everywhere to run it on local cells too."
+        ),
+    }
+
+
+def _run_record(label: str, session_id: str, t: "Turn", **extra) -> dict:
+    """One run's evidence, in the shape both concurrency journeys report."""
+    text = " ".join(t.error_texts + t.errors + ([t.hung_reason] if t.hung else []))
+    return {
+        "label": label,
+        "session_id": session_id,
+        "finish_reason": t.finish_reason,
+        "error_code": t.error_codes[0] if t.error_codes else None,
+        "error_codes": t.error_codes,
+        "error_text": sanitize(text),
+        "hung": t.hung,
+        "ms": t.ms,
+        "http": t.http_status,
+        **extra,
+    }
+
+
+def _run_concurrently(
+    jobs: list,
+    turns_per_job: int = 1,
+    progress: dict | None = None,
+    journey_start: float | None = None,
+) -> list:
+    """Run every job at the same time, on daemon threads, and always come back.
+
+    A job is `(label, session_id, callable)`. The session id is allocated by the CALLER, before
+    the job starts, so a job that never returns still has a record naming the session a human can
+    go and look at.
+
+    Threads are daemons on purpose. `ThreadPoolExecutor` cannot cancel a thread that is already
+    running, and the interpreter JOINS its worker threads at exit, so one abandoned turn would
+    hold the whole gate open. A daemon thread cannot. The turn itself is bounded too: every job
+    receives the same absolute deadline and passes it to `invoke`, which abandons the stream there
+    rather than reading it forever.
+
+    `progress` is a dict a job writes its current phase into, keyed by label. It is read only
+    when a job never returns, which is exactly when nothing else can say how far it got.
+
+    `journey_start` is the monotonic instant the journey began, so a record this function has to
+    invent — a hung job, a crashed one — still carries the offsets at which it started and
+    stopped. Overlap is only checkable if every job reports both, including the ones that failed.
+
+    `turns_per_job` is how many SEQUENTIAL turns one job runs, and the bound is that many per-turn
+    timeouts plus one margin. A two-turn job judged against a one-turn bound would be called hung
+    for a limit it never had, which reports a product fault that is really an arithmetic error in
+    the check.
+    """
+    span = max(1, turns_per_job) * CONCURRENCY_TURN_TIMEOUT_SECONDS
+    wait_for = span + CONCURRENCY_WAIT_MARGIN_SECONDS
+    started = time.monotonic()
+    origin = journey_start if journey_start is not None else started
+    end_by = started + wait_for
+    done: dict = {}
+    submitted: dict = {}
+    threads = []
+    for label, session_id, job in jobs:
+        submitted[label] = round(time.monotonic() - origin, 2)
+
+        def target(label=label, job=job):
+            try:
+                done[label] = job()
+            except Exception as e:  # a crash is one run's result, not the journey's
+                done[label] = {
+                    "ok": False,
+                    "phase": (progress or {}).get(label, "unknown"),
+                    "started_s": submitted.get(label),
+                    "ended_s": round(time.monotonic() - origin, 2),
+                    "why": sanitize(f"driver exception: {type(e).__name__}: {e}"),
+                }
+
+        thread = threading.Thread(target=target, name=f"qa-{label}", daemon=True)
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join(max(0.0, end_by - time.monotonic()))
+    gave_up_at = round(time.monotonic() - origin, 2)
+    records = []
+    for label, session_id, _ in jobs:
+        record = done.get(label)
+        if record is None:
+            record = {
+                "ok": False,
+                "hung": True,
+                "phase": (progress or {}).get(label, "unknown"),
+                "started_s": submitted.get(label),
+                "ended_s": gave_up_at,
+                "why": (
+                    f"still running after {wait_for:.0f}s "
+                    f"({max(1, turns_per_job)} turn(s) at "
+                    f"{CONCURRENCY_TURN_TIMEOUT_SECONDS:.0f}s plus a "
+                    f"{CONCURRENCY_WAIT_MARGIN_SECONDS:.0f}s margin)"
+                ),
+            }
+        record.setdefault("label", label)
+        record.setdefault("session_id", session_id)
+        record.setdefault("started_s", submitted.get(label))
+        record.setdefault("ended_s", gave_up_at)
+        records.append(record)
+    return sorted(records, key=lambda r: r["label"])
+
+
+def _is_capacity_refusal(run: dict) -> str | None:
+    """The provider's own capacity refusal on THIS run, or None."""
+    text = str(run.get("error_text") or "") + " " + str(run.get("why") or "")
+    hit = CAPACITY_REFUSAL_RE.search(text)
+    return hit.group(0) if hit else None
+
+
+def _concurrency_verdict(runs: list, n: int, headline: str) -> dict:
+    """The shared summary: what failed, and the codes that say why."""
+    failed = [r for r in runs if not r.get("ok")]
+    codes = sorted({c for r in runs for c in (r.get("error_codes") or [])})
+    texts = " ".join(str(r.get("error_text") or "") for r in runs)
+    hung = [r["label"] for r in runs if r.get("hung")]
+    # Both sets, always. A capacity refusal excuses ONLY the runs it actually refused: if one run
+    # died on disk and another came back `credential_delivery_failed`, the journey found the fault
+    # it exists to find, and a SKIP would delete that result.
+    capacity = {
+        r["label"]: reason
+        for r in failed
+        if (reason := _is_capacity_refusal(r)) is not None
+    }
+    product = [r for r in failed if r["label"] not in capacity]
+    if capacity and not product:
+        return {
+            "skip": True,
+            "why": (
+                f"ENVIRONMENT, NOT THE PRODUCT: the sandbox provider refused "
+                f"{len(capacity)}/{n} runs on capacity ({sorted(capacity.values())[0]}), and no "
+                "run failed for any other reason. A burst holds about 5 GiB per sandbox and a "
+                "parked sandbox keeps counting until it is deleted, so free the organization's "
+                "disk or lower --burst-size, then run this cell again. Nothing about the product "
+                "was measured."
+            ),
+            "capacity_refusals": sorted(capacity),
+            "failed": len(failed),
+            "total": n,
+            "runs": runs,
+        }
+    why = f"{headline}: {len(failed)}/{n} failed"
+    if capacity:
+        why += (
+            f" ({len(product)} product failure(s) and {len(capacity)} capacity refusal(s) "
+            f"{sorted(capacity)}; the capacity refusals excuse themselves and nothing else)"
+        )
+    if codes:
+        why += f", runner error codes {codes}"
+    if CREDENTIAL_DELIVERY_CODE in codes:
+        count = sum(
+            1 for r in runs if CREDENTIAL_DELIVERY_CODE in (r.get("error_codes") or [])
+        )
+        why += (
+            f". CREDENTIAL DELIVERY FAILED on {count} run(s): the provider key never reached the "
+            "model on a cold sandbox. This is AGE-4249, and it is the fault this journey exists "
+            "to catch"
+        )
+    elif failed and AUTH_FAILURE_RE.search(texts):
+        why += (
+            ". At least one run failed on an AUTHENTICATION refusal. Read error_text per run: a "
+            "cold sandbox that never got its credential wiring fails exactly this way"
+        )
+    if hung:
+        why += f". Abandoned at the deadline: {hung}"
+    if not failed:
+        why += (
+            ". A PASS here is probabilistic: at the incident's 8 percent per-cold-start rate, "
+            f"{n} runs miss the fault {0.92**n:.0%} of the time"
+        )
+    return {
+        "pass": not failed,
+        "why": why,
+        "failed": len(failed),
+        "product_failures": len(product),
+        "capacity_refusals": sorted(capacity),
+        "total": n,
+        "error_codes": codes,
+        "hung": hung,
+        "runs": runs,
+    }
+
+
+def _warm_reuse_evidence(session_id: str) -> dict:
+    """The turn ledger's view of one session, polled briefly. EVIDENCE, never a verdict.
+
+    `crosstalk` records this and does not fail on it. Two sandbox ids across a session can be
+    perfectly correct here: a preflight rebuild replaces the sandbox on purpose (LESSONS.md, the
+    credential-preflight entry). The `warm` journey owns the warm-reuse claim, on a quiet
+    deployment where a second id really does mean the turn was not served warm.
+    """
+    deadline = time.monotonic() + LEDGER_POLL_SECONDS
+    agents: list = []
+    sandboxes: list = []
+    polls = 0
+    while True:
+        polls += 1
+        agents, sandboxes = _ledger_ids(session_id)
+        if (agents or sandboxes) or time.monotonic() >= deadline:
+            break
+        time.sleep(LEDGER_SETTLE_SECONDS)
+    return {
+        "agent_session_ids": agents,
+        "sandbox_ids": sandboxes,
+        "ids_stable": len(agents) == 1 and len(sandboxes) == 1,
+        "ledger_rows_seen": bool(agents or sandboxes),
+        "polls": polls,
+        "note": (
+            "evidence only; a preflight rebuild legitimately yields two sandbox ids, and the "
+            "`warm` journey owns the warm-reuse verdict"
+        ),
+    }
+
+
+def j_burst(cell: dict) -> dict:
+    """N first messages, sent to N brand new sessions at the same time.
+
+    Every run must finish normally and reply with its OWN nonce. A fresh session id is a pool key
+    the runner has never seen, so each run creates a sandbox from cold. That is what makes this
+    journey a credential-delivery probe rather than a load test: N cold starts in one burst,
+    against a fault that only some cold starts hit.
+
+    The nonce does double duty. It proves the reply belongs to this run (the model cannot guess
+    it), and a nonce from another run appearing here would prove the streams crossed.
+    """
+    if skip := _concurrency_skip(cell, "a burst of cold starts"):
+        return skip
+    n = BURST_SIZE
+    if n < 1:
+        return {"pass": False, "why": "--burst-size must be at least 1"}
+    nonces = {i: f"QA-BURST-{uuid.uuid4().hex[:12].upper()}" for i in range(n)}
+    params = template(
+        cell,
+        instructions="Be terse. Reply with exactly what is asked and nothing else.",
+    )
+    journey_start = time.monotonic()
+    deadline = journey_start + CONCURRENCY_TURN_TIMEOUT_SECONDS
+    sessions = {i: str(uuid.uuid4()) for i in range(n)}
+    progress: dict = {}
+
+    def one(i: int) -> dict:
+        started = time.monotonic() - journey_start
+        progress[f"burst-{i:02d}"] = "turn"
+        nonce = nonces[i]
+        t = invoke(
+            sessions[i],
+            [user_msg(f"Reply with exactly: {nonce}")],
+            params,
+            timeout=CONCURRENCY_TURN_TIMEOUT_SECONDS,
+            deadline=deadline,
+        )
+        mine = nonce in t.reply
+        theirs = sorted(v for k, v in nonces.items() if k != i and v in t.reply)
+        record = _run_record(
+            f"burst-{i:02d}",
+            sessions[i],
+            t,
+            phase="done",
+            started_s=round(started, 2),
+            ended_s=round(time.monotonic() - journey_start, 2),
+            own_nonce_in_reply=mine,
+            other_nonces_in_reply=theirs,
+            reply=sanitize(t.reply, 120),
+        )
+        record["ok"] = bool(
+            t.finish_reason == "stop"
+            and not t.errors
+            and not t.error_codes
+            and not t.hung
+            and mine
+            and not theirs
+        )
+        return record
+
+    runs = _run_concurrently(
+        [(f"burst-{i:02d}", sessions[i], lambda i=i: one(i)) for i in range(n)],
+        progress=progress,
+        journey_start=journey_start,
+    )
+    result = _concurrency_verdict(
+        runs, n, f"{n} first messages sent at the same time on {n} fresh sessions"
+    )
+    bleed = [r["label"] for r in runs if r.get("other_nonces_in_reply")]
+    if bleed and not result.get("skip"):
+        result["pass"] = False
+        result["why"] += f". Nonce bleed between sessions: {bleed}"
+    result["nonce_bleed"] = bleed
+    return result
+
+
+def j_crosstalk(cell: dict) -> dict:
+    """Long conversations and approval flows, all running at the same time.
+
+    Two shapes share the deployment. K conversations ask for a long deterministic output over two
+    turns on ONE session each, and M approval flows pause and resume beside them. Together they
+    hold several sandboxes, several streams and several parked gates open at once, which is the
+    state a single-run gate never reaches.
+
+    What this asserts:
+
+      - Every turn arrives as more than one text-delta frame AND carries a reply of the size the
+        prompt asked for (at least 100 lines, or 600 characters). "It streamed" and "it answered
+        at length" are different claims and this journey makes both.
+      - Every turn ends with the nonce that belongs to THAT turn, and with no other nonce in the
+        journey. Exclusivity covers the other turn of the same conversation and every approval,
+        so a replayed or crossed stream cannot pass.
+      - Every approval pauses and resumes, and the resumed output carries that flow's own nonce
+        and no other. A gate that parks under load and never comes back is the same defect class
+        as a stream that never finishes.
+
+        NOT ON CODEX. The codex gate rides a platform tool with empty arguments rather than the
+        shell, so its approval command cannot carry a nonce. Those records set
+        `nonce_checked=false` and the isolation claim is simply not made there, rather than being
+        faked. Everything else about a codex approval is asserted as usual.
+      - Warm reuse is RECORDED, not required. See `_warm_reuse_evidence`.
+
+    Every job reports the offsets, from the journey's start, at which it began and ended, so a
+    reader can confirm afterwards that the runs really did overlap. There is no barrier: the point
+    is a realistic pile-up, not a synchronised stress test.
+    """
+    if skip := _concurrency_skip(cell, "concurrent conversations and approvals"):
+        return skip
+    conversations = CROSSTALK_CONVERSATIONS
+    approvals = CROSSTALK_APPROVALS
+    if conversations < 1 and approvals < 1:
+        return {
+            "pass": False,
+            "why": "crosstalk needs at least one conversation or one approval",
+        }
+    # Every nonce in the journey, so each job can check its own AND everyone else's.
+    nonces = {
+        (i, turn): f"QA-XT{i:02d}{turn}-{uuid.uuid4().hex[:10].upper()}"
+        for i in range(conversations)
+        for turn in ("A", "B")
+    }
+    approval_nonces = {
+        i: f"QA-XTAP{i:02d}-{uuid.uuid4().hex[:10].upper()}" for i in range(approvals)
+    }
+    all_nonces = dict(nonces)
+    all_nonces.update({("approval", i): v for i, v in approval_nonces.items()})
+    params = template(
+        cell,
+        instructions=(
+            "Be terse. Answer directly in text. Do not use any tool. Do exactly what is "
+            "asked and nothing more."
+        ),
+    )
+    journey_start = time.monotonic()
+    # Both halves run two sequential turns, so a job may take two per-turn timeouts.
+    deadline = journey_start + 2 * CONCURRENCY_TURN_TIMEOUT_SECONDS
+    conv_sessions = {i: str(uuid.uuid4()) for i in range(conversations)}
+    appr_sessions = {i: str(uuid.uuid4()) for i in range(approvals)}
+    # How far each job got, so a job that never returns still says where it stopped.
+    progress: dict = {}
+
+    def foreign(mine: list, text: str) -> list:
+        """Every nonce in the journey that is NOT this turn's and appears in the text."""
+        return sorted({v for v in all_nonces.values() if v not in mine and v in text})
+
+    def long_prompt(first: int, last: int, nonce: str) -> str:
+        return (
+            f"Print the numbers {first} to {last}, one per line, then print {nonce} "
+            "on its own line as the last line. Print nothing else."
+        )
+
+    def big_enough(reply: str) -> bool:
+        return (
+            len(reply.splitlines()) >= CROSSTALK_MIN_REPLY_LINES
+            or len(reply) >= CROSSTALK_MIN_REPLY_CHARS
+        )
+
+    def conversation(i: int) -> dict:
+        started = time.monotonic() - journey_start
+        session = conv_sessions[i]
+        label = f"conversation-{i:02d}"
+        a, b = nonces[(i, "A")], nonces[(i, "B")]
+        progress[label] = phase = "turn1"
+        msgs = [user_msg(long_prompt(1, CROSSTALK_LINES, a))]
+        t1 = invoke(
+            session,
+            msgs,
+            params,
+            timeout=CONCURRENCY_TURN_TIMEOUT_SECONDS,
+            deadline=deadline,
+        )
+        # Byte-faithful history, so the runner's history fingerprint still matches and turn 2 is
+        # genuinely a continuation. A text-only replay would evict the session (see
+        # assistant_message()).
+        progress[label] = phase = "turn2"
+        msgs = msgs + [
+            t1.assistant_message(),
+            user_msg(long_prompt(CROSSTALK_LINES + 1, CROSSTALK_LINES * 2, b)),
+        ]
+        t2 = invoke(
+            session,
+            msgs,
+            params,
+            timeout=CONCURRENCY_TURN_TIMEOUT_SECONDS,
+            deadline=deadline,
+        )
+        progress[label] = phase = "ledger"
+        warm = _warm_reuse_evidence(session)
+        progress[label] = phase = "done"
+        deltas = [t1.frames.count("text-delta"), t2.frames.count("text-delta")]
+        lines = [len(t1.reply.splitlines()), len(t2.reply.splitlines())]
+        chars = [len(t1.reply), len(t2.reply)]
+        streamed = all(d >= CROSSTALK_MIN_TEXT_DELTAS for d in deltas)
+        long_enough = big_enough(t1.reply) and big_enough(t2.reply)
+        mine = a in t1.reply and b in t2.reply
+        bled = sorted(set(foreign([a], t1.reply) + foreign([b], t2.reply)))
+        clean = (
+            t1.finish_reason == "stop"
+            and t2.finish_reason == "stop"
+            and not t1.errors
+            and not t2.errors
+            and not t1.error_codes
+            and not t2.error_codes
+            and not t1.hung
+            and not t2.hung
+        )
+        record = _run_record(
+            label,
+            session,
+            t2,
+            kind="conversation",
+            phase=phase,
+            started_s=round(started, 2),
+            ended_s=round(time.monotonic() - journey_start, 2),
+            text_deltas=deltas,
+            reply_lines=lines,
+            reply_chars=chars,
+            long_enough=long_enough,
+            own_nonces_in_replies=mine,
+            other_nonces_in_replies=bled,
+            warm_reuse=warm,
+            turn1=t1.summary(),
+            turn2=t2.summary(),
+        )
+        # Turn 1's codes belong in the record too: _run_record reads turn 2 only.
+        record["error_codes"] = sorted(set(t1.error_codes + t2.error_codes))
+        record["error_code"] = (
+            record["error_codes"][0] if record["error_codes"] else None
+        )
+        record["error_text"] = sanitize(
+            " ".join(t1.error_texts + t1.errors + t2.error_texts + t2.errors)
+        )
+        record["hung"] = bool(t1.hung or t2.hung)
+        record["ok"] = bool(clean and streamed and long_enough and mine and not bled)
+        return record
+
+    def approval(i: int) -> dict:
+        started = time.monotonic() - journey_start
+        session = appr_sessions[i]
+        label = f"approval-{i:02d}"
+        progress[label] = "paused"
+        nonce = approval_nonces[i]
+        # A MUTATING command, so Claude's read-only auto-approval cannot skip the gate, carrying
+        # this flow's own nonce so its output can be told apart from every other flow's.
+        prompt = (
+            f"Use the bash tool to run exactly: "
+            f"echo {nonce} > /tmp/qa-{nonce}.txt && cat /tmp/qa-{nonce}.txt "
+            "and reply with only its stdout."
+        )
+        r = _approval_flow(
+            cell,
+            approved=True,
+            timeout=CONCURRENCY_TURN_TIMEOUT_SECONDS,
+            deadline=deadline,
+            session_id=session,
+            prompt=prompt,
+        )
+        progress[label] = "resumed"
+        summaries = [
+            s for s in (r.get("turn_paused"), r.get("turn_resumed"), r.get("turn")) if s
+        ]
+        codes = sorted(set(r.get("error_codes") or []))
+        errors = [e for s in summaries for e in (s.get("errors") or [])]
+        output = str(r.get("resumed_output") or "")
+        # Codex gates a platform tool with empty arguments, not the shell, so it cannot carry a
+        # nonce. The isolation claim is not made there rather than being faked.
+        nonce_checked = cell["harness"] != "codex"
+        mine = (nonce in output) if nonce_checked else None
+        bled = foreign([nonce], output) if nonce_checked else []
+        return {
+            "label": label,
+            "kind": "approval",
+            "phase": "resumed" if r.get("turn_resumed") else "paused",
+            "started_s": round(started, 2),
+            "ended_s": round(time.monotonic() - journey_start, 2),
+            "ok": bool(
+                r.get("pass")
+                and not codes
+                and not r.get("hung")
+                and not any(s.get("hung") for s in summaries)
+                and (mine is not False)
+                and not bled
+            ),
+            "session_id": r.get("session_id") or session,
+            "finish_reason": r.get("resumed_finish"),
+            "http": (summaries[-1].get("http") if summaries else None),
+            "ms": sum(int(s.get("ms") or 0) for s in summaries),
+            "error_code": codes[0] if codes else None,
+            "error_codes": codes,
+            "error_text": sanitize(" ".join(str(e) for e in errors)),
+            "hung": bool(r.get("hung")) or any(s.get("hung") for s in summaries),
+            "why": r.get("why"),
+            "paused_finish_other": r.get("paused_finish_other"),
+            "nonce_checked": nonce_checked,
+            "own_nonce_in_output": mine,
+            "other_nonces_in_output": bled,
+            "resumed_output": sanitize(output, 200),
+            "turn_paused": r.get("turn_paused"),
+            "turn_resumed": r.get("turn_resumed"),
+        }
+
+    jobs = [
+        (f"conversation-{i:02d}", conv_sessions[i], lambda i=i: conversation(i))
+        for i in range(conversations)
+    ] + [
+        (f"approval-{i:02d}", appr_sessions[i], lambda i=i: approval(i))
+        for i in range(approvals)
+    ]
+    runs = _run_concurrently(
+        jobs, turns_per_job=2, progress=progress, journey_start=journey_start
+    )
+    total = len(jobs)
+    result = _concurrency_verdict(
+        runs,
+        total,
+        (
+            f"{conversations} two-turn conversations with long output and {approvals} approval "
+            "flows, all at the same time"
+        ),
+    )
+    if result.get("skip"):
+        return result
+    bleed = [
+        r["label"]
+        for r in runs
+        if r.get("other_nonces_in_replies") or r.get("other_nonces_in_output")
+    ]
+    thin = [
+        r["label"]
+        for r in runs
+        if r.get("kind") == "conversation"
+        and not all(
+            d >= CROSSTALK_MIN_TEXT_DELTAS for d in (r.get("text_deltas") or [0])
+        )
+    ]
+    short = [
+        r["label"]
+        for r in runs
+        if r.get("kind") == "conversation" and r.get("long_enough") is False
+    ]
+    if bleed:
+        result["pass"] = False
+        result["why"] += f". Nonce bleed between sessions: {bleed}"
+    if thin:
+        result["why"] += (
+            f". These conversations never streamed {CROSSTALK_MIN_TEXT_DELTAS} text-delta "
+            f"frames on both turns: {thin}"
+        )
+    if short:
+        result["why"] += (
+            f". These conversations answered below the size the prompt asked for "
+            f"({CROSSTALK_MIN_REPLY_LINES} lines or {CROSSTALK_MIN_REPLY_CHARS} characters): "
+            f"{short}"
+        )
+    result["nonce_bleed"] = bleed
+    result["not_streamed"] = thin
+    result["too_short"] = short
+    result["overlap_s"] = [
+        {
+            "label": r["label"],
+            "started_s": r.get("started_s"),
+            "ended_s": r.get("ended_s"),
+        }
+        for r in runs
+    ]
+    return result
+
+
 JOURNEYS = {
     "chat": j1_chat,
     "mount": j2_mount,
@@ -2743,13 +3761,81 @@ JOURNEYS = {
     "refresh": j_hosted_refresh,
     "dead": j_hosted_dead,
     "relogin_needed": j_hosted_relogin_needed,
+    "burst": j_burst,
+    "crosstalk": j_crosstalk,
 }
+
+
+def _load_session_control_result(path: str) -> dict:
+    """Load and summarize a complete standalone session-control result."""
+    result_path = pathlib.Path(path).expanduser()
+    try:
+        payload = json.loads(result_path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(
+            f"Cannot read --session-control-results {result_path}: {exc}"
+        ) from exc
+
+    cells = payload.get("cells")
+    if not isinstance(cells, dict):
+        raise SystemExit(
+            f"Invalid session-control result {result_path}: expected a top-level cells object."
+        )
+
+    # Import the standalone driver's registry instead of copying its cell names here. A newly
+    # added session-control cell must become release-mandatory without a second list to update.
+    from session_control import CELLS as session_control_cells
+
+    missing = sorted(set(session_control_cells) - set(cells))
+    if missing:
+        raise SystemExit(
+            f"Incomplete session-control result {result_path}: missing cells: "
+            + ", ".join(missing)
+        )
+
+    statuses: dict[str, str] = {}
+    for name in session_control_cells:
+        entry = cells.get(name)
+        verdict = entry.get("verdict") if isinstance(entry, dict) else None
+        if (
+            not isinstance(verdict, dict)
+            or not isinstance(verdict.get("pass"), bool)
+            or not isinstance(verdict.get("skip"), bool)
+            or (verdict["pass"] and verdict["skip"])
+        ):
+            raise SystemExit(
+                f"Invalid session-control result {result_path}: cell {name!r} has no valid "
+                "PASS/FAIL/SKIP verdict."
+            )
+        statuses[name] = (
+            "SKIP" if verdict["skip"] else ("PASS" if verdict["pass"] else "FAIL")
+        )
+
+    failed = sorted(name for name, status in statuses.items() if status == "FAIL")
+    skipped = sorted(name for name, status in statuses.items() if status == "SKIP")
+    return {
+        "path": str(result_path),
+        "status": "FAIL" if failed else ("INCOMPLETE" if skipped else "PASS"),
+        "failed": failed,
+        "skipped": skipped,
+    }
+
+
+def _session_control_result_label(result: dict) -> str:
+    label = f"recorded {result['status']}"
+    if result["skipped"]:
+        label += "; SKIPPED, UNTESTED: " + ", ".join(result["skipped"])
+    return label
 
 
 def main() -> int:
     global SUBSCRIPTION_SLUG, RUNNER_CONTAINER, SUBSCRIPTION_EXPIRE_CMD
     global SUBSCRIPTION_CACHE_WAIT, SUBSCRIPTION_DB_CONTAINER, SUBSCRIPTION_DB_NAME
     global SUBSCRIPTION_DB_USER, SUBSCRIPTION_STACK_ENV, SUBSCRIPTION_REDIS_CONTAINER
+    # Declared here, not beside the assignments below, because the flag help strings read these
+    # module defaults and a `global` statement must precede every use of the name in a function.
+    global BURST_SIZE, CROSSTALK_CONVERSATIONS, CROSSTALK_APPROVALS
+    global CONCURRENCY_EVERYWHERE, CONCURRENCY_TURN_TIMEOUT_SECONDS
     p = argparse.ArgumentParser()
     p.add_argument(
         "--cell",
@@ -2819,15 +3905,6 @@ def main() -> int:
             "because Docker skips the restart policy for an operator-issued kill. So: "
             "`docker kill -s KILL <runner> && docker start <runner>` plus a wait for health, NOT "
             "a bare `docker kill`. Without it, cold2 SKIPs."
-        ),
-    )
-    p.add_argument(
-        "--owner-ttl",
-        type=float,
-        default=120.0,
-        help=(
-            "seconds to wait after replacing the replica, so the dead replica's session-owner key "
-            "lapses (AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS, default 120)"
         ),
     )
     p.add_argument(
@@ -2911,6 +3988,53 @@ def main() -> int:
         ),
     )
     p.add_argument(
+        "--burst-size",
+        type=int,
+        default=BURST_SIZE,
+        help=(
+            "first messages the `burst` journey sends at the same time, each on a fresh session "
+            f"and therefore a cold sandbox (default {BURST_SIZE}, maximum "
+            f"{CONCURRENCY_MAX_JOBS}). At the incident's 8 percent per-cold-start fault rate, 8 "
+            "runs miss the fault 51 percent of the time and 16 miss it 26 percent. Each run "
+            "holds about 5 GiB of Daytona disk."
+        ),
+    )
+    p.add_argument(
+        "--crosstalk-conversations",
+        type=int,
+        default=CROSSTALK_CONVERSATIONS,
+        help=(
+            "two-turn conversations with long output the `crosstalk` journey runs at the same "
+            f"time (default {CROSSTALK_CONVERSATIONS})"
+        ),
+    )
+    p.add_argument(
+        "--crosstalk-approvals",
+        type=int,
+        default=CROSSTALK_APPROVALS,
+        help=(
+            "approval flows the `crosstalk` journey interleaves with those conversations "
+            f"(default {CROSSTALK_APPROVALS})"
+        ),
+    )
+    p.add_argument(
+        "--concurrency-everywhere",
+        action="store_true",
+        help=(
+            "run `burst` and `crosstalk` on local cells too. They target the remote credential "
+            "path, so they are Daytona-only by default."
+        ),
+    )
+    p.add_argument(
+        "--concurrency-timeout",
+        type=float,
+        default=CONCURRENCY_TURN_TIMEOUT_SECONDS,
+        help=(
+            "seconds one concurrent run may take before it is recorded as hung (default "
+            f"{CONCURRENCY_TURN_TIMEOUT_SECONDS:.0f})"
+        ),
+    )
+    p.add_argument(
         "--env-file",
         help=f"credentials file (fallback when the env vars are unset; default {DEFAULT_ENV_FILE})",
     )
@@ -2934,16 +4058,61 @@ def main() -> int:
         "--repo",
         help="repository the release diff is read from (default: the current directory)",
     )
+    p.add_argument(
+        "--session-control-results",
+        help=(
+            "results.json written by resources/session_control.py. Required when a path rule "
+            "makes that standalone driver mandatory; all of its cells must be recorded."
+        ),
+    )
     args = p.parse_args()
 
     resolve_credentials(args.env_file)
 
-    global REQUIRE_STORE, STORE_SETTLE_SECONDS, COLD2_REPLACE_CMD, OWNER_TTL_SECONDS
+    global REQUIRE_STORE, STORE_SETTLE_SECONDS, COLD2_REPLACE_CMD
     global PARK_IDLE_TTL_SECONDS, PARK_MARGIN_SECONDS
+    # A count of zero would make a concurrency journey pass on nothing, which is the one result
+    # this class of check must never produce. Stop before spending a single run. The two
+    # crosstalk halves may each be zero, because either half alone is a valid narrower run, but
+    # not both.
+    if args.burst_size < 1:
+        raise SystemExit(f"--burst-size must be at least 1 (got {args.burst_size}).")
+    # A cap, because every concurrent run holds a sandbox worth about 5 GiB of the Daytona
+    # organization's disk quota, and a parked sandbox keeps counting until it is deleted. A typo
+    # here bills real capacity and can take the whole organization down for everyone else.
+    # The cap is on what runs AT ONCE, so crosstalk counts against its TOTAL: 20 conversations
+    # and 20 approvals is 40 sandboxes however the two flags are spelled.
+    capped = (
+        ("--burst-size", args.burst_size),
+        (
+            "--crosstalk-conversations plus --crosstalk-approvals",
+            args.crosstalk_conversations + args.crosstalk_approvals,
+        ),
+    )
+    for flag, value in capped:
+        if value > CONCURRENCY_MAX_JOBS:
+            raise SystemExit(
+                f"{flag} is capped at {CONCURRENCY_MAX_JOBS} concurrent runs (got {value}). Each "
+                "run holds its own sandbox, about 5 GiB of the Daytona organization's disk, and a "
+                "parked sandbox keeps counting until its auto-delete window closes. Run the cell "
+                "twice instead of asking for more at once."
+            )
+    if min(args.crosstalk_conversations, args.crosstalk_approvals) < 0:
+        raise SystemExit(
+            "--crosstalk-conversations and --crosstalk-approvals cannot be negative."
+        )
+    if args.crosstalk_conversations + args.crosstalk_approvals < 1:
+        raise SystemExit(
+            "crosstalk needs at least one conversation or one approval; both counts are 0."
+        )
+    BURST_SIZE = args.burst_size
+    CROSSTALK_CONVERSATIONS = args.crosstalk_conversations
+    CROSSTALK_APPROVALS = args.crosstalk_approvals
+    CONCURRENCY_EVERYWHERE = args.concurrency_everywhere
+    CONCURRENCY_TURN_TIMEOUT_SECONDS = args.concurrency_timeout
     REQUIRE_STORE = args.require_store
     STORE_SETTLE_SECONDS = args.store_settle
     COLD2_REPLACE_CMD = args.cold2_replace_cmd
-    OWNER_TTL_SECONDS = args.owner_ttl
     if args.park_wait is not None:
         # One flag, one knob: the caller states the total idle, so the margin is already in it.
         PARK_IDLE_TTL_SECONDS = args.park_wait
@@ -2971,6 +4140,16 @@ def main() -> int:
     external_cells = [
         cell for cell in triggered if cell not in CELLS and cell not in missing_cells
     ]
+    session_control_result = None
+    if "session_control.py" in external_cells:
+        if not args.session_control_results:
+            raise SystemExit(
+                "This release makes session_control.py mandatory. Run it separately, then pass "
+                "its results.json with --session-control-results."
+            )
+        session_control_result = _load_session_control_result(
+            args.session_control_results
+        )
     for cell in triggered:
         if cell in CELLS and cell not in cells:
             cells.append(cell)
@@ -2992,7 +4171,11 @@ def main() -> int:
                 else (
                     "MISSING — no such cell exists"
                     if cell in missing_cells
-                    else "run it separately"
+                    else (
+                        _session_control_result_label(session_control_result)
+                        if cell == "session_control.py" and session_control_result
+                        else "run it separately"
+                    )
                 )
             )
             print(f"  {cell} ({where})")
@@ -3099,8 +4282,12 @@ def main() -> int:
                 r = {"pass": False, "why": f"driver exception: {type(e).__name__}: {e}"}
             results[cid]["journeys"][jname] = r
             verdict = "SKIP" if r.get("skip") else ("PASS" if r.get("pass") else "FAIL")
-            print(verdict, f"— {r.get('why', '')[:90]}")
-            (outdir / "results.json").write_text(json.dumps(results, indent=2))
+            print(verdict, f"— {redact(r.get('why', ''))[:90]}")
+            # Redact at the boundary, never only at the source: a journey's own fields are
+            # already masked, but the turn summaries it embeds are copied straight off the wire.
+            (outdir / "results.json").write_text(
+                json.dumps(redact_tree(results), indent=2)
+            )
 
     lines = ["| cell | harness | sandbox | model | " + " | ".join(journeys) + " |"]
     lines.append("|" + "---|" * (4 + len(journeys)))
@@ -3124,25 +4311,41 @@ def main() -> int:
         # A separate file, never a key inside results.json: that file is a flat cell -> result map
         # that the seeds and the failure scan both walk, and a non-cell entry in it would break
         # them.
-        (outdir / "mandatory.json").write_text(json.dumps(triggered, indent=2))
+        (outdir / "mandatory.json").write_text(
+            json.dumps(redact_tree(triggered), indent=2)
+        )
         table += "\n\nMandatory for this release, by path rule:\n\n"
         table += "| cell | run here | because this release changed |\n|---|---|---|\n"
         for cell, why in triggered.items():
-            here = "yes" if cell in CELLS else "no — run it separately"
+            if cell in CELLS:
+                here = "yes"
+            elif cell == "session_control.py" and session_control_result:
+                here = _session_control_result_label(session_control_result)
+            else:
+                here = "no — run it separately"
             table += f"| {cell} | {here} | {', '.join(why)} |\n"
-        if external_cells:
+        unrecorded_external_cells = [
+            cell
+            for cell in external_cells
+            if not (cell == "session_control.py" and session_control_result)
+        ]
+        if unrecorded_external_cells:
             table += (
                 "\nThis release is NOT green until every cell above marked "
                 "`run it separately` has a recorded result.\n"
             )
     if triggered_journeys:
+        # Its own file, never a key in mandatory.json: that file is a flat cell -> reasons map
+        # the seeds and the failure scan walk, and a journey entry in it would break them.
         (outdir / "mandatory-journeys.json").write_text(
-            json.dumps(triggered_journeys, indent=2)
+            json.dumps(redact_tree(triggered_journeys), indent=2)
         )
         table += "\n\nMandatory journeys for this release, by path rule:\n\n"
         table += "| journey | because this release changed |\n|---|---|\n"
         for journey, why in triggered_journeys.items():
             table += f"| {journey} | {', '.join(why)} |\n"
+    # Everything this run prints or writes goes through `redact`, the summary included.
+    table = redact(table)
     (outdir / "summary.md").write_text(table + "\n")
     print("\n" + table)
     print(f"\nresults: {outdir}")
@@ -3153,7 +4356,10 @@ def main() -> int:
         for cell in results.values()
         for journey in cell["journeys"].values()
     )
-    return 1 if failed else 0
+    standalone_failed = bool(
+        session_control_result and session_control_result["status"] != "PASS"
+    )
+    return 1 if failed or standalone_failed else 0
 
 
 if __name__ == "__main__":

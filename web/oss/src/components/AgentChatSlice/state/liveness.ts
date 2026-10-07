@@ -3,8 +3,8 @@ import {sessionLocalSettledAtAtomFamily, sessionStatusAtomFamily} from "@agenta/
 import {
     deriveSessionLifecycle,
     deriveStreamNest,
-    livenessPollInterval,
-    querySessionStreams,
+    livenessRefetchInterval,
+    readAliveStreams,
     type SessionLifecycle,
     type SessionStream,
     type SessionStreamNest,
@@ -15,21 +15,15 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-/** One low-priority project query supplies cross-device liveness for every tab dot. */
+/** One low-priority project query supplies cross-device liveness for every tab dot (`readAliveStreams`). */
 const aliveStreamsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
     const projectId = get(projectIdAtom)
     return {
         queryKey: ["session-liveness", "alive", projectId],
-        queryFn: ({signal}) =>
-            querySessionStreams({
-                projectId: projectId ?? "",
-                isAlive: true,
-                abortSignal: signal,
-                lowPriority: true,
-            }),
+        queryFn: ({signal}) => readAliveStreams(projectId ?? "", signal),
         enabled: Boolean(projectId),
         staleTime: 10_000,
-        refetchInterval: (query) => livenessPollInterval(query.state.data),
+        refetchInterval: livenessRefetchInterval,
         refetchOnWindowFocus: true,
     }
 })

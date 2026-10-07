@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Six Apps, One Bridge</title>
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F4F5F7; --surface:#FFFFFF; --sunken:#ECEEF2; --ink:#16181D; --muted:#5B6270; --line:#D9DCE3; --line-strong:#B8BEC9;
+  --accent:#0F766E; --accent-soft:#D9F0EC; --accent-ink:#0B5A54;
+  --warn:#B45309; --warn-soft:#FBEBD5; --crit:#B91C1C; --crit-soft:#F8DEDE; --ok:#15803D; --ok-soft:#DCF1E3;
+  --code-bg:#EEF0F4;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+}}
+:root[data-theme="dark"]{
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55;padding-inline:20px;padding-block:0 96px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,pre{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+code{font-size:.88em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+pre{background:var(--code-bg);padding:12px 14px;border-radius:6px;overflow-x:auto;font-size:12px;line-height:1.5;margin:0}
+pre code{background:none;padding:0;font-size:inherit}
+h1,h2,h3,h4{font-family:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,4.2vw,44px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:26px;font-weight:700;margin-top:64px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:18px;font-weight:600;margin-top:28px}
+h4{font-size:14px;font-weight:600;margin-top:18px;letter-spacing:.02em}
+p{margin:12px 0;max-width:72ch}
+ul,ol{max-width:72ch;padding-left:22px;margin:10px 0}
+li{margin:5px 0}
+.wrap{max-width:1080px;margin:0 auto}
+.layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+.toc{position:sticky;top:24px;font-size:13px;padding-top:88px}
+.toc a{display:block;border:0;color:var(--muted);padding:4px 0}
+.toc a:hover{color:var(--ink)}
+.toc .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+header.hero{padding-block:56px 12px}
+.eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:14px}
+.lede{font-size:18px;color:var(--muted);max-width:64ch;margin-top:14px}
+figure{margin:20px 0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 14px 10px}
+figure svg{display:block;max-width:100%;height:auto;color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;max-width:80ch}
+.tbl{overflow-x:auto;margin:16px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--sunken)}
+tr:last-child td{border-bottom:0}
+td.mono{font-family:"IBM Plex Mono",monospace;font-size:12px}
+td.c{text-align:center;font-weight:600}
+.ok{color:var(--ok)}.wn{color:var(--warn)}.cr{color:var(--crit)}
+.app{margin-top:56px;padding-top:8px}
+.app .head{display:grid;grid-template-columns:44px minmax(0,1fr);gap:16px;align-items:start}
+.app .n{width:36px;height:36px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:17px}
+.app .probe{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-top:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.chip{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink)}
+.chip.off{background:var(--sunken);color:var(--muted);text-decoration:line-through}
+.chip.gap{background:var(--crit-soft);color:var(--crit)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:14px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.box .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:6px}
+.box pre{font-size:11.5px}
+.ops{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:5px;max-width:80ch}
+.ops li{display:grid;grid-template-columns:24px 90px minmax(0,1fr);gap:10px;align-items:baseline;font-size:13.5px;padding:7px 10px;background:var(--sunken);border-radius:6px}
+.ops .k{width:18px;height:18px;border-radius:50%;font-size:11px;font-weight:600;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink)}
+.ops .op{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500}
+.ops .op.r{color:var(--accent-ink)}.ops .op.w{color:var(--warn)}.ops .op.x{color:var(--crit)}
+.tag{display:inline-block;font-size:11px;font-weight:500;padding:1px 7px;border-radius:999px}
+.tag.agent{background:var(--sunken);color:var(--ink);border:1px solid var(--line)}
+.tag.app{background:var(--accent-soft);color:var(--accent-ink)}
+.tag.user{background:var(--warn-soft);color:var(--warn)}
+.tag.cron{background:var(--sunken);color:var(--muted);border:1px solid var(--line)}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px}
+.v{border-radius:8px;padding:12px 14px;font-size:14px;border:1px solid var(--line);background:var(--surface)}
+.v b{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.v.fits b{color:var(--ok)}.v.strain b{color:var(--warn)}.v.gap b{color:var(--crit)}
+.v ul{margin:0;padding-left:16px;font-size:13.5px}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;max-width:80ch;font-size:14px}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.callout.crit{border-left-color:var(--crit);background:var(--crit-soft)}
+.callout p{margin:4px 0}
+.small{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="wrap"><div class="layout">
+<nav class="toc" aria-label="Sections">
+  <div class="lbl">Contents</div>
+  <a href="#method">How to read this</a>
+  <a href="#a1">1 · Changelog review queue</a>
+  <a href="#a2">2 · Grading sheet</a>
+  <a href="#a3">3 · Team standup board</a>
+  <a href="#a4">4 · Metrics dashboard</a>
+  <a href="#a5">5 · Campaign brief wizard</a>
+  <a href="#a6">6 · Multi-page docs site</a>
+  <a href="#matrix">Capability matrix</a>
+  <a href="#gaps">Gaps, ranked</a>
+  <a href="#reach">What an App can reach</a>
+</nav>
+<main>
+<header class="hero">
+  <div class="eyebrow">Agenta · agent HTML apps · field test on paper</div>
+  <h1>Six apps, one bridge</h1>
+  <p class="lede">The launch board proved the loop. This page pushes the same file bridge through six different app shapes to see where it holds, where it strains, and where it cannot go. Each case is end to end: files, flow, a mockup, the operations, and a verdict. Companion to the <a href="plan.html">plan</a> and the <a href="walkthrough.html">walkthrough</a>.</p>
+</header>
+
+<section id="method">
+  <h2 style="margin-top:36px">How to read this</h2>
+  <p>Every case is built only from what PR #6529 proposes: an HTML file in a drive, opened in Run mode, with <code>agenta.fs</code> offering <code>read</code>, <code>readJSON</code>, <code>write</code>, <code>writeJSON</code>, <code>list</code>, <code>exists</code> and <code>remove</code>, scoped to the file's folder, and nothing else. The cases were chosen to each lean on a different capability the board never touched:</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>App</th><th>What it probes</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Changelog review queue</td><td>Many files, <code>list</code>, <code>remove</code>, moving a file between folders, rendering markdown</td></tr>
+      <tr><td>2</td><td>Grading sheet for eval results</td><td>A large input file, frequent writes, two writers that never collide</td></tr>
+      <tr><td>3</td><td>Team standup board</td><td>The agent drive instead of a session drive, cron runs, several people, identity</td></tr>
+      <tr><td>4</td><td>Metrics dashboard</td><td>Read-only grant, charts with no CDN, data the app cannot fetch itself</td></tr>
+      <tr><td>5</td><td>Campaign brief wizard</td><td>Structured input for the agent, and how the app hands control back</td></tr>
+      <tr><td>6</td><td>Multi-page docs site</td><td>Several HTML pages, a shared script file, navigation while running</td></tr>
+    </tbody>
+  </table></div>
+  <p>Convention note: these cases were written before the folder convention in the creation doc. Under it, each app is <code>apps/&lt;slug&gt;/index.html</code> beside an <code>app.json</code> manifest, so <code>changelog/review.html</code> reads as <code>apps/changelog-review/index.html</code>. Nothing else about the cases changes.</p>
+  <p>Verdicts use three words. <b class="ok">Fits</b>: works as proposed. <b class="wn">Strains</b>: works with a pattern the template must teach, or a small addition. <b class="cr">Gap</b>: the design cannot do it, and the page says whether that is acceptable.</p>
+</section>
+
+<!-- ================= APP 1 ================= -->
+<section id="a1" class="app">
+  <div class="head"><div class="n">1</div><div>
+    <h2 style="margin-top:0;padding-top:0;border:0">Changelog review queue</h2>
+    <div class="probe">Probes · many files · list · remove · move between folders · markdown</div>
+  </div></div>
+  <p>A release manager asks the changelog agent to draft entries for every merged PR of the week. The agent writes one markdown file per PR into a drafts folder and an app to review them. The user approves, sends back, or rejects each draft; approved ones move to a folder the docs pipeline reads.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files</div><pre><code>changelog/
+  review.html          ← the app
+  review.json          ← app writes: decisions
+  drafts/
+    6529-run-mode.md    ← agent writes
+    6775-workspace.md
+    6802-turn-pulse.md
+  approved/
+    6802-turn-pulse.md  ← app "moves" here</code></pre></div>
+    <div class="box"><div class="lbl">Bridge methods used</div>
+      <div class="chips"><span class="chip">list("drafts")</span><span class="chip">read(path)</span><span class="chip">writeJSON("review.json")</span><span class="chip">write("approved/…")</span><span class="chip">remove("drafts/…")</span><span class="chip">exists</span></div>
+      <div class="lbl" style="margin-top:10px">Grant</div><div>Read and write on <code>changelog/</code></div>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 360" role="img" aria-label="Pane B mockup: a two-column review app. Left, a list of drafts from list('drafts') with status dots; right, the selected draft rendered from markdown with three buttons: Approve, Request changes, Reject. A footer shows the review.json summary: 1 approved, 1 changes requested, 1 pending.">
+      <rect x="0" y="0" width="960" height="360" rx="8" fill="var(--sunken)"/>
+      <g font-size="11" fill="currentColor">
+        <rect x="0" y="0" width="960" height="28" fill="currentColor" opacity=".05"/>
+        <rect x="8" y="4" width="96" height="20" rx="4" fill="currentColor" opacity=".1"/><text x="56" y="18" text-anchor="middle">review.html</text>
+        <circle cx="140" cy="14" r="4" fill="var(--ok)"/><text x="150" y="18">Running · read + write · changelog/</text>
+        <rect x="880" y="3" width="70" height="22" rx="5" fill="none" stroke="var(--line-strong)"/><text x="915" y="18" text-anchor="middle">↻ Refresh</text>
+        <!-- left list -->
+        <rect x="12" y="40" width="270" height="270" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="24" y="62" font-weight="600" font-size="12">Drafts · 3</text>
+        <rect x="20" y="74" width="254" height="40" rx="4" fill="var(--accent)" opacity=".14"/>
+        <circle cx="34" cy="94" r="4" fill="var(--line-strong)"/><text x="46" y="90" font-family="IBM Plex Mono, monospace">6529-run-mode.md</text><text x="46" y="105" opacity=".65">pending · 1.4 KB</text>
+        <circle cx="34" cy="138" r="4" fill="var(--warn)"/><text x="46" y="134" font-family="IBM Plex Mono, monospace">6775-workspace.md</text><text x="46" y="149" opacity=".65">changes requested</text>
+        <circle cx="34" cy="182" r="4" fill="var(--ok)"/><text x="46" y="178" font-family="IBM Plex Mono, monospace">6802-turn-pulse.md</text><text x="46" y="193" opacity=".65">approved · moved</text>
+        <!-- right -->
+        <rect x="294" y="40" width="654" height="270" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="310" y="66" font-weight="600" font-size="14">Run mode for agent-built HTML apps</text>
+        <text x="310" y="88" opacity=".85">HTML files in a session drive can now be executed beside the</text>
+        <text x="310" y="104" opacity=".85">conversation. Choose Run, grant read or read-and-write access to</text>
+        <text x="310" y="120" opacity=".85">the file's folder, and the app can load and save files there…</text>
+        <rect x="310" y="136" width="420" height="1" fill="var(--line)"/>
+        <text x="310" y="156" opacity=".6">rendered from markdown by a 40-line inline renderer</text>
+        <rect x="310" y="262" width="80" height="26" rx="5" fill="var(--accent)"/><text x="350" y="279" text-anchor="middle" fill="#fff" font-weight="500">Approve</text>
+        <rect x="400" y="262" width="130" height="26" rx="5" fill="none" stroke="var(--line-strong)"/><text x="465" y="279" text-anchor="middle">Request changes</text>
+        <rect x="540" y="262" width="70" height="26" rx="5" fill="none" stroke="var(--line-strong)"/><text x="575" y="279" text-anchor="middle">Reject</text>
+        <!-- footer -->
+        <text x="12" y="336" opacity=".7">review.json · 1 approved · 1 changes requested · 1 pending · agent reads this next turn</text>
+      </g>
+    </svg>
+    <figcaption>The list on the left is a <code>list("drafts")</code> result joined with <code>review.json</code>. Approving does three operations, because the bridge has no move.</figcaption>
+  </figure>
+
+  <h4>End to end</h4>
+  <ul class="ops">
+    <li><span class="k">1</span><span class="op w">write ×4</span><span><span class="tag agent">agent</span> <code>review.html</code> and three drafts under <code>drafts/</code>. Folders need no create call; writing a nested path is enough on an object store</span></li>
+    <li><span class="k">2</span><span class="op r">list</span><span><span class="tag app">app</span> <code>list("drafts")</code> → three entries with name, size, modified</span></li>
+    <li><span class="k">3</span><span class="op r">read ×3</span><span><span class="tag app">app</span> one <code>read</code> per draft, fired in parallel; the stub matches replies by id</span></li>
+    <li><span class="k">4</span><span class="op r">readJSON</span><span><span class="tag app">app</span> <code>review.json</code>; <code>not_found</code> on first run, which the app treats as empty</span></li>
+    <li><span class="k">5</span><span class="op w">writeJSON</span><span><span class="tag user">user</span> clicks Request changes on 6775 with a note → <code>review.json</code> gains <code>{"6775": {"status": "changes", "note": "…"}}</code></span></li>
+    <li><span class="k">6</span><span class="op w">write</span><span><span class="tag user">user</span> clicks Approve on 6802 → app writes <code>approved/6802-turn-pulse.md</code> with the draft's text</span></li>
+    <li><span class="k">7</span><span class="op x">remove</span><span><span class="tag app">app</span> <code>drafts/6802-turn-pulse.md</code>. Steps 6 and 7 are the "move". They are two calls, not one</span></li>
+    <li><span class="k">8</span><span class="op r">read</span><span><span class="tag agent">agent</span> next turn: reads <code>review.json</code>, rewrites the draft with changes requested, replies "Updated 6775, ready for another look"</span></li>
+  </ul>
+
+  <div class="verdict">
+    <div class="v fits"><b>Fits</b><ul><li>Many small files is the bridge's natural shape</li><li>Parallel reads by id keep it fast enough for dozens of drafts</li><li>Decisions in one JSON file give the agent a single thing to read</li></ul></div>
+    <div class="v strain"><b>Strains</b><ul><li>No <code>move</code>: copy then remove is two calls, and a failure between them leaves the draft in both folders</li><li>Markdown rendering must be inlined; the template ships a small renderer or the agent writes drafts as HTML fragments</li></ul></div>
+    <div class="v gap"><b>Gap</b><ul><li>None that blocks it</li></ul></div>
+  </div>
+  <p class="small">Plan impact: <code>fs.move</code> is a candidate for v2. Not required; the template can order the two calls write-then-remove so the worst case is a duplicate, never a loss.</p>
+</section>
+
+<!-- ================= APP 2 ================= -->
+<section id="a2" class="app">
+  <div class="head"><div class="n">2</div><div>
+    <h2 style="margin-top:0;padding-top:0;border:0">Grading sheet for eval results</h2>
+    <div class="probe">Probes · large input · frequent writes · two writers · JSONL</div>
+  </div></div>
+  <p>An engineer asks the agent to run a prompt over 300 test cases and let them grade the outputs by hand. The agent writes the outputs as JSON Lines and an app that shows one row at a time with a 1 to 5 scale and a comment box. The grades go to a separate file the agent turns into a report.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files</div><pre><code>eval/
+  grade.html        ← the app
+  results.jsonl     ← agent writes, 300 rows, ~180 KB
+  grades.json       ← app writes, ~20 KB when full
+  report.md         ← agent writes at the end</code></pre></div>
+    <div class="box"><div class="lbl">Bridge methods used</div>
+      <div class="chips"><span class="chip">read("results.jsonl")</span><span class="chip">readJSON("grades.json")</span><span class="chip">writeJSON("grades.json")</span></div>
+      <div class="lbl" style="margin-top:10px">Pattern</div><div>One writer per file. The agent owns <code>results.jsonl</code>; the app owns <code>grades.json</code>. They never overwrite each other.</div>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 260" role="img" aria-label="Two files, two writers. The agent writes results.jsonl and later reads grades.json. The app reads results.jsonl and writes grades.json, debounced. Arrows never cross onto the same file from both sides. A note shows write sizes: results 180 KB once, grades 20 KB per debounced save.">
+      <defs><marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="12" fill="currentColor">
+        <rect x="20" y="90" width="170" height="70" rx="6" fill="none" stroke="currentColor"/>
+        <text x="105" y="118" text-anchor="middle" font-weight="600">Agent</text><text x="105" y="136" text-anchor="middle" opacity=".7">runs 300 cases</text>
+        <rect x="770" y="90" width="170" height="70" rx="6" fill="var(--accent)" opacity=".15"/><rect x="770" y="90" width="170" height="70" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="855" y="118" text-anchor="middle" font-weight="600">App · grade.html</text><text x="855" y="136" text-anchor="middle" opacity=".7">one row at a time</text>
+        <rect x="380" y="30" width="200" height="60" rx="6" fill="currentColor" opacity=".06"/><rect x="380" y="30" width="200" height="60" rx="6" fill="none" stroke="currentColor"/>
+        <text x="480" y="54" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">results.jsonl</text><text x="480" y="72" text-anchor="middle" opacity=".7" font-size="11">agent-owned · 180 KB</text>
+        <rect x="380" y="160" width="200" height="60" rx="6" fill="var(--accent)" opacity=".18"/><rect x="380" y="160" width="200" height="60" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="480" y="184" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">grades.json</text><text x="480" y="202" text-anchor="middle" opacity=".7" font-size="11">app-owned · 20 KB</text>
+      </g>
+      <g font-size="11" fill="currentColor">
+        <path d="M190 110 C 280 110, 300 60, 380 60" fill="none" stroke="currentColor" marker-end="url(#m2)"/><text x="270" y="72" text-anchor="middle">write once</text>
+        <path d="M580 60 C 660 60, 690 110, 770 110" fill="none" stroke="currentColor" marker-end="url(#m2)"/><text x="690" y="72" text-anchor="middle">read on load</text>
+        <path d="M770 140 C 690 140, 660 190, 580 190" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#m2)"/><text x="690" y="204" text-anchor="middle" fill="var(--accent)">writeJSON, debounced 500 ms</text>
+        <path d="M380 190 C 300 190, 280 140, 190 140" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#m2)"/><text x="270" y="204" text-anchor="middle">read at the end</text>
+      </g>
+      <text x="480" y="246" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">No arrow points at a file from both sides. Last-writer-wins never has two writers.</text>
+    </svg>
+    <figcaption>The pattern that makes concurrency a non-issue: give each writer its own file. It costs nothing and the agent can be told to do it. Where a file must have two writers, the bridge's automatic <code>If-Match</code> catches the collision on the app side.</figcaption>
+  </figure>
+
+  <h4>End to end</h4>
+  <ul class="ops">
+    <li><span class="k">1</span><span class="op w">write ×2</span><span><span class="tag agent">agent</span> <code>results.jsonl</code> after the batch, then <code>grade.html</code></span></li>
+    <li><span class="k">2</span><span class="op r">read</span><span><span class="tag app">app</span> <code>read("results.jsonl")</code> as text, splits on newlines, parses each row. <code>readJSON</code> would fail on JSONL, so the template uses <code>read</code></span></li>
+    <li><span class="k">3</span><span class="op r">readJSON</span><span><span class="tag app">app</span> <code>grades.json</code> to resume where the user left off; <code>not_found</code> means start at row 1</span></li>
+    <li><span class="k">4</span><span class="op w">writeJSON ×~60</span><span><span class="tag user">user</span> grades 300 rows over an hour. The app debounces saves to one per 500 ms of quiet, so a burst of clicks is one write of the whole grades file</span></li>
+    <li><span class="k">5</span><span class="op r">read</span><span><span class="tag agent">agent</span> "Summarize the grades" → reads <code>grades.json</code>, computes the distribution, writes <code>report.md</code>, and can also push the graded rows into an Agenta testset with its own tools</span></li>
+  </ul>
+
+  <div class="verdict">
+    <div class="v fits"><b>Fits</b><ul><li>Separate files per writer removes the concurrency question entirely</li><li>Whole-file writes of 20 KB every half second are trivial for the API</li><li>Resume after reload is free: state is in the file</li></ul></div>
+    <div class="v strain"><b>Strains</b><ul><li>A size cap must exist and must be known. 180 KB is fine; a 20 MB results file is not. Proposal: 4 MB per read, 1 MB per write, both errors surfaced as <code>too_large</code></li><li>No partial read: the app loads all 300 rows to show one. Acceptable to a few MB</li></ul></div>
+    <div class="v gap"><b>Gap</b><ul><li>Very large datasets. Above the cap, the agent must shard into <code>results-1.jsonl</code>, <code>results-2.jsonl</code> and the app lists and pages them</li></ul></div>
+  </div>
+  <p class="small">Plan impact: the size caps are a decision the plan should record in the contract, not leave to the implementation.</p>
+</section>
+
+<!-- ================= APP 3 ================= -->
+<section id="a3" class="app">
+  <div class="head"><div class="n">3</div><div>
+    <h2 style="margin-top:0;padding-top:0;border:0">Team standup board</h2>
+    <div class="probe">Probes · agent drive not session drive · cron trigger · several people · identity</div>
+  </div></div>
+  <p>A team uses one agent for daily standups. Each morning a scheduled run posts yesterday's board to Slack and clears it. During the day each person opens the board and types their three lines. This app must outlive any single session, so it lives in the agent's own drive, which every session of that agent and every trigger run can see.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files · in the agent drive</div><pre><code>standup/
+  board.html
+  today.json        ← everyone writes  ⚠
+  people/
+    arda.json       ← one file per person (better)
+    mahmoud.json
+  archive/
+    2026-09-16.json ← cron run writes</code></pre></div>
+    <div class="box"><div class="lbl">Bridge methods used</div>
+      <div class="chips"><span class="chip">list("people")</span><span class="chip">readJSON</span><span class="chip">writeJSON("people/&lt;me&gt;.json")</span><span class="chip gap">agenta.user</span></div>
+      <div class="lbl" style="margin-top:10px">Grant</div><div>Read and write on <code>standup/</code>, keyed per person per browser session</div>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-label="Three people in three sessions each open the board app from the agent drive and write their own file under people/. A cron trigger run reads all people files, posts to Slack via a tool, writes an archive file, and clears them. A note shows that a single shared today.json would be last-writer-wins across people.">
+      <defs><marker id="m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="12" fill="currentColor">
+        <rect x="20" y="30" width="150" height="50" rx="6" fill="none" stroke="currentColor"/><text x="95" y="52" text-anchor="middle" font-weight="600">Arda · session 1</text><text x="95" y="68" text-anchor="middle" opacity=".7" font-size="11">board.html running</text>
+        <rect x="20" y="110" width="150" height="50" rx="6" fill="none" stroke="currentColor"/><text x="95" y="132" text-anchor="middle" font-weight="600">Mahmoud · session 2</text><text x="95" y="148" text-anchor="middle" opacity=".7" font-size="11">board.html running</text>
+        <rect x="20" y="190" width="150" height="50" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/><text x="95" y="212" text-anchor="middle" font-weight="600">Cron · 09:00 run</text><text x="95" y="228" text-anchor="middle" opacity=".7" font-size="11">no browser, tools only</text>
+
+        <rect x="330" y="20" width="300" height="250" rx="8" fill="currentColor" opacity=".05"/><rect x="330" y="20" width="300" height="250" rx="8" fill="none" stroke="currentColor"/>
+        <text x="480" y="44" text-anchor="middle" font-weight="600">Agent drive · standup/</text>
+        <rect x="350" y="60" width="260" height="30" rx="4" fill="currentColor" opacity=".08"/><text x="480" y="80" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">board.html</text>
+        <rect x="350" y="100" width="122" height="30" rx="4" fill="var(--accent)" opacity=".2"/><text x="411" y="120" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">people/arda.json</text>
+        <rect x="488" y="100" width="122" height="30" rx="4" fill="var(--accent)" opacity=".2"/><text x="549" y="120" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">people/mahmoud.json</text>
+        <rect x="350" y="140" width="260" height="30" rx="4" fill="var(--crit)" opacity=".12"/><text x="480" y="160" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">today.json  ← shared: last writer wins</text>
+        <rect x="350" y="180" width="260" height="30" rx="4" fill="currentColor" opacity=".08"/><text x="480" y="200" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">archive/2026-09-16.json</text>
+        <text x="480" y="250" text-anchor="middle" font-size="11" opacity=".7">shared by every session and run of this agent</text>
+
+        <rect x="770" y="90" width="170" height="60" rx="6" fill="none" stroke="currentColor"/><text x="855" y="114" text-anchor="middle" font-weight="600">Slack</text><text x="855" y="132" text-anchor="middle" opacity=".7" font-size="11">via a gateway tool</text>
+      </g>
+      <g font-size="11" fill="currentColor">
+        <path d="M170 55 C 260 55, 280 115, 350 115" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#m3)"/>
+        <path d="M170 135 C 260 135, 300 115, 488 115" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#m3)"/>
+        <text x="250" y="90" text-anchor="middle" fill="var(--accent)">writeJSON own file</text>
+        <path d="M170 215 C 260 215, 280 195, 350 195" fill="none" stroke="currentColor" marker-end="url(#m3)"/>
+        <text x="250" y="232" text-anchor="middle">reads people/*, writes archive, clears</text>
+        <path d="M630 120 C 700 120, 720 120, 770 120" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#m3)"/>
+        <text x="700" y="110" text-anchor="middle">cron posts</text>
+      </g>
+    </svg>
+    <figcaption>The app is the same file for everyone. What keeps people from overwriting each other is one file per person, and that needs the app to know who is typing.</figcaption>
+  </figure>
+
+  <h4>End to end</h4>
+  <ul class="ops">
+    <li><span class="k">1</span><span class="op w">write</span><span><span class="tag agent">agent</span> <code>standup/board.html</code> into the agent drive, on request from whoever set the standup up</span></li>
+    <li><span class="k">2</span><span class="op r">list + read</span><span><span class="tag app">app</span> Arda opens the board from a file card; <code>list("people")</code> then one <code>readJSON</code> per file to show everyone's lines</span></li>
+    <li><span class="k">3</span><span class="op w">writeJSON</span><span><span class="tag user">user</span> Arda types three lines → <code>people/arda.json</code>. The app needs to know it is Arda to pick that path; today it cannot</span></li>
+    <li><span class="k">4</span><span class="op w">writeJSON</span><span><span class="tag user">user</span> Mahmoud, in his own session, writes <code>people/mahmoud.json</code>. Arda's open board does not see it until Refresh</span></li>
+    <li><span class="k">5</span><span class="op r">read ×N</span><span><span class="tag cron">cron</span> 09:00 run reads every <code>people/*.json</code> with its file tools, formats the post, sends via the Slack tool</span></li>
+    <li><span class="k">6</span><span class="op w">write + remove</span><span><span class="tag cron">cron</span> writes <code>archive/2026-09-16.json</code>, clears the people files. No bridge involved; the agent's tools have the full drive</span></li>
+  </ul>
+
+  <div class="verdict">
+    <div class="v fits"><b>Fits</b><ul><li>Agent drive gives cross-session and cross-run persistence with no new machinery</li><li>Grants are keyed by mount and path, so the same file works from any session</li><li>Cron runs never touch the bridge; they are ordinary agent turns with file tools</li></ul></div>
+    <div class="v strain"><b>Strains</b><ul><li>The app has no idea who the user is. A sandboxed iframe has an opaque origin, so it cannot even remember a name in localStorage. Proposal: <code>agenta.user = {id, name}</code> in the hello. It is the user's own name shown in their own browser; no new reach</li><li>No push between people. The parent's <code>changed</code> hint covers it once the other person's write lands; the app re-reads when nothing is pending locally</li></ul></div>
+    <div class="v gap"><b>Gap</b><ul><li>Real-time collaboration, and only because this app sits in the project-wide agent drive. Session-drive apps are one user by construction. Two people on one file is last-writer-wins; per-person files are the answer</li></ul></div>
+  </div>
+  <p class="small">Plan impact: add <code>agenta.user</code> to the v1 hello payload. It is one field and it unlocks every multi-person app.</p>
+</section>
+
+<!-- ================= APP 4 ================= -->
+<section id="a4" class="app">
+  <div class="head"><div class="n">4</div><div>
+    <h2 style="margin-top:0;padding-top:0;border:0">Metrics dashboard</h2>
+    <div class="probe">Probes · read-only grant · charts without a CDN · data the app cannot fetch</div>
+  </div></div>
+  <p>A founder asks the agent for a weekly view of token spend and latency per agent. The agent has tools that can query Agenta's own analytics; the App has none. So the agent pulls the numbers, writes a CSV, and writes a dashboard that only reads. A cron trigger regenerates the CSV every Monday.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files</div><pre><code>metrics/
+  dashboard.html    ← the app, read-only
+  weekly.csv        ← agent writes (cron, Mondays)
+  notes.md          ← agent's commentary</code></pre></div>
+    <div class="box"><div class="lbl">Bridge methods used</div>
+      <div class="chips"><span class="chip">read("weekly.csv")</span><span class="chip">read("notes.md")</span><span class="chip off">fetch(analytics API)</span><span class="chip off">&lt;script src="cdn/chart.js"&gt;</span></div>
+      <div class="lbl" style="margin-top:10px">Grant</div><div>Read only on <code>metrics/</code>. The write option is never needed, so the user is not asked for it</div>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 330" role="img" aria-label="Pane B mockup of the dashboard: a title, two small stat tiles for tokens and p95 latency, a hand-drawn SVG bar chart of tokens per agent per week, and a footer noting data as of Monday 09:00 with a Refresh button. Beside it, two crossed-out arrows from the app: to the internet and to the Agenta API, and one solid arrow from the agent's tools to weekly.csv.">
+      <defs><marker id="m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <rect x="0" y="0" width="640" height="330" rx="8" fill="var(--sunken)"/>
+      <g font-size="11" fill="currentColor">
+        <rect x="0" y="0" width="640" height="28" fill="currentColor" opacity=".05"/>
+        <rect x="8" y="4" width="110" height="20" rx="4" fill="currentColor" opacity=".1"/><text x="63" y="18" text-anchor="middle">dashboard.html</text>
+        <circle cx="150" cy="14" r="4" fill="var(--ok)"/><text x="160" y="18">Running · read only · metrics/</text>
+        <rect x="560" y="3" width="70" height="22" rx="5" fill="none" stroke="var(--line-strong)"/><text x="595" y="18" text-anchor="middle">↻ Refresh</text>
+        <rect x="12" y="40" width="616" height="278" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="28" y="66" font-weight="600" font-size="14">Agent spend · week 38</text>
+        <rect x="28" y="80" width="140" height="48" rx="5" fill="currentColor" opacity=".05"/><text x="40" y="98" opacity=".7">Tokens</text><text x="40" y="118" font-weight="600" font-size="16">4.2 M</text>
+        <rect x="180" y="80" width="140" height="48" rx="5" fill="currentColor" opacity=".05"/><text x="192" y="98" opacity=".7">p95 latency</text><text x="192" y="118" font-weight="600" font-size="16">6.1 s</text>
+        <!-- bars -->
+        <line x1="40" y1="290" x2="600" y2="290" stroke="currentColor" opacity=".3"/>
+        <rect x="60" y="200" width="36" height="90" fill="var(--accent)" opacity=".7"/><text x="78" y="306" text-anchor="middle" font-size="10">Launch</text>
+        <rect x="120" y="230" width="36" height="60" fill="var(--accent)" opacity=".7"/><text x="138" y="306" text-anchor="middle" font-size="10">Support</text>
+        <rect x="180" y="160" width="36" height="130" fill="var(--accent)" opacity=".7"/><text x="198" y="306" text-anchor="middle" font-size="10">Changelog</text>
+        <rect x="240" y="250" width="36" height="40" fill="var(--accent)" opacity=".7"/><text x="258" y="306" text-anchor="middle" font-size="10">Triage</text>
+        <rect x="300" y="215" width="36" height="75" fill="var(--accent)" opacity=".7"/><text x="318" y="306" text-anchor="middle" font-size="10">Docs</text>
+        <text x="600" y="160" text-anchor="end" opacity=".6">chart: 60 lines of inline SVG, no library</text>
+        <text x="600" y="180" text-anchor="end" opacity=".6">data as of Mon 09:00 · weekly.csv</text>
+      </g>
+      <!-- right side reach -->
+      <g font-size="11" fill="currentColor">
+        <rect x="680" y="40" width="260" height="60" rx="6" fill="none" stroke="currentColor"/><text x="810" y="64" text-anchor="middle" font-weight="600" font-size="12">Agent tools</text><text x="810" y="82" text-anchor="middle" opacity=".7">analytics query → CSV, every Monday</text>
+        <rect x="680" y="130" width="260" height="44" rx="6" fill="currentColor" opacity=".06"/><rect x="680" y="130" width="260" height="44" rx="6" fill="none" stroke="currentColor"/><text x="810" y="157" text-anchor="middle" font-family="IBM Plex Mono, monospace">metrics/weekly.csv</text>
+        <line x1="810" y1="100" x2="810" y2="130" stroke="currentColor" marker-end="url(#m4)"/>
+        <line x1="680" y1="152" x2="640" y2="152" stroke="currentColor" marker-end="url(#m4)"/><text x="660" y="144" text-anchor="middle" font-size="10">read</text>
+        <rect x="680" y="210" width="260" height="40" rx="6" fill="none" stroke="var(--crit)" stroke-dasharray="5 4"/><text x="810" y="234" text-anchor="middle" fill="var(--crit)">Agenta analytics API · unreachable</text>
+        <rect x="680" y="262" width="260" height="40" rx="6" fill="none" stroke="var(--crit)" stroke-dasharray="5 4"/><text x="810" y="286" text-anchor="middle" fill="var(--crit)">cdn.jsdelivr.net/chart.js · blocked by CSP</text>
+        <line x1="640" y1="230" x2="680" y2="230" stroke="var(--crit)" stroke-dasharray="4 3"/><line x1="655" y1="222" x2="665" y2="238" stroke="var(--crit)" stroke-width="2"/>
+        <line x1="640" y1="282" x2="680" y2="282" stroke="var(--crit)" stroke-dasharray="4 3"/><line x1="655" y1="274" x2="665" y2="290" stroke="var(--crit)" stroke-width="2"/>
+      </g>
+    </svg>
+    <figcaption>Freshness is whenever the agent last wrote the file. The App is a viewer, and the two crossed arrows are the design working as intended.</figcaption>
+  </figure>
+
+  <h4>End to end</h4>
+  <ul class="ops">
+    <li><span class="k">1</span><span class="op w">write ×2</span><span><span class="tag agent">agent</span> queries analytics with its tools, writes <code>weekly.csv</code> and <code>dashboard.html</code></span></li>
+    <li><span class="k">2</span><span class="op r">read ×2</span><span><span class="tag app">app</span> on load: <code>weekly.csv</code> parsed by a 10-line CSV splitter, <code>notes.md</code> shown as text</span></li>
+    <li><span class="k">3</span><span class="op w">write</span><span><span class="tag cron">cron</span> Monday 09:00 run rewrites <code>weekly.csv</code></span></li>
+    <li><span class="k">4</span><span class="op r">read</span><span><span class="tag app">app</span> Monday afternoon the tab is open; the parent posts <code>changed</code> for <code>weekly.csv</code> and the app re-reads on its own. A closed tab simply reads the new file on open. "Ask agent to refresh data" in the Refresh menu is for the week the schedule did not run</span></li>
+  </ul>
+
+  <div class="verdict">
+    <div class="v fits"><b>Fits</b><ul><li>Read-only grant means the prompt is one click and the app can never damage anything</li><li>Cron plus CSV gives a schedule without any live infrastructure</li><li>Hand-drawn SVG charts are well within what an agent writes reliably</li></ul></div>
+    <div class="v strain"><b>Strains</b><ul><li>No CDN. A charting library must be inlined into the HTML (200 KB for Chart.js) or avoided. The template should default to SVG and say so</li><li>"Data as of" must be visible; <code>fs.stat</code> gives the real mtime so the app does not guess</li></ul></div>
+    <div class="v gap"><b>Gap</b><ul><li>Live data. The App cannot call any API. Today's spend, new tickets, CI status, an LLM call: all must arrive as a file the agent wrote, on request or on a cron</li></ul></div>
+  </div>
+  <p class="small">Plan impact: none to the contract. Template guidance: charts as SVG, CSV over JSON for tabular data, always render the file's modified time.</p>
+</section>
+
+<!-- ================= APP 5 ================= -->
+<section id="a5" class="app">
+  <div class="head"><div class="n">5</div><div>
+    <h2 style="margin-top:0;padding-top:0;border:0">Campaign brief wizard</h2>
+    <div class="probe">Probes · structured input for the agent · handing control back to the conversation</div>
+  </div></div>
+  <p>A marketer wants the agent to write campaign copy but keeps forgetting to give it the audience, the tone, the channels and the dates. The agent writes a six-step wizard that collects exactly what it needs into a JSON file, and the marketer fills it in beside the chat. Then the marketer wants one button: "send this to the agent".</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files</div><pre><code>brief/
+  wizard.html       ← the app
+  schema.json       ← agent writes: the questions
+  brief.json        ← app writes: the answers, autosaved
+  copy/
+    email-1.md      ← agent writes after reading brief.json</code></pre></div>
+    <div class="box"><div class="lbl">Bridge methods used</div>
+      <div class="chips"><span class="chip">readJSON("schema.json")</span><span class="chip">readJSON("brief.json")</span><span class="chip">writeJSON("brief.json")</span><span class="chip gap">agenta.chat.draft(text)</span></div>
+      <div class="lbl" style="margin-top:10px">Grant</div><div>Read and write on <code>brief/</code></div>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 330" role="img" aria-label="Pane B mockup of the wizard at step 4 of 6, Channels, with checkboxes for Email, LinkedIn, Blog, Webinar; a Back and Next button; an autosave note saying brief.json saved 2 s ago; and a final-step button, Send to agent, shown greyed with a callout: today this can only tell the user to type it; proposed, it prefills the composer.">
+      <rect x="0" y="0" width="960" height="330" rx="8" fill="var(--sunken)"/>
+      <g font-size="11" fill="currentColor">
+        <rect x="0" y="0" width="960" height="28" fill="currentColor" opacity=".05"/>
+        <rect x="8" y="4" width="96" height="20" rx="4" fill="currentColor" opacity=".1"/><text x="56" y="18" text-anchor="middle">wizard.html</text>
+        <circle cx="140" cy="14" r="4" fill="var(--ok)"/><text x="150" y="18">Running · read + write · brief/</text>
+        <rect x="12" y="40" width="560" height="278" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <!-- progress -->
+        <g>
+          <rect x="28" y="56" width="80" height="4" rx="2" fill="var(--accent)"/><rect x="114" y="56" width="80" height="4" rx="2" fill="var(--accent)"/><rect x="200" y="56" width="80" height="4" rx="2" fill="var(--accent)"/><rect x="286" y="56" width="80" height="4" rx="2" fill="var(--accent)"/>
+          <rect x="372" y="56" width="80" height="4" rx="2" fill="currentColor" opacity=".15"/><rect x="458" y="56" width="80" height="4" rx="2" fill="currentColor" opacity=".15"/>
+        </g>
+        <text x="28" y="86" font-weight="600" font-size="14">4 of 6 · Channels</text>
+        <text x="28" y="106" opacity=".75">Where should this campaign run?</text>
+        <rect x="28" y="122" width="14" height="14" rx="3" fill="var(--accent)"/><text x="50" y="134">Email</text>
+        <rect x="28" y="146" width="14" height="14" rx="3" fill="var(--accent)"/><text x="50" y="158">LinkedIn</text>
+        <rect x="28" y="170" width="14" height="14" rx="3" fill="none" stroke="var(--line-strong)"/><text x="50" y="182">Blog</text>
+        <rect x="28" y="194" width="14" height="14" rx="3" fill="none" stroke="var(--line-strong)"/><text x="50" y="206">Webinar</text>
+        <text x="28" y="240" opacity=".6">brief.json · saved 2 s ago</text>
+        <rect x="28" y="270" width="64" height="26" rx="5" fill="none" stroke="var(--line-strong)"/><text x="60" y="287" text-anchor="middle">Back</text>
+        <rect x="100" y="270" width="64" height="26" rx="5" fill="var(--accent)"/><text x="132" y="287" text-anchor="middle" fill="#fff" font-weight="500">Next</text>
+        <!-- final step preview -->
+        <rect x="330" y="122" width="220" height="140" rx="6" fill="none" stroke="var(--line)" stroke-dasharray="4 3"/>
+        <text x="440" y="144" text-anchor="middle" opacity=".7">step 6 · Review</text>
+        <rect x="350" y="160" width="180" height="26" rx="5" fill="currentColor" opacity=".12"/><text x="440" y="177" text-anchor="middle" opacity=".6">Send to agent</text>
+        <text x="440" y="208" text-anchor="middle" font-size="10" fill="var(--crit)">v1: no way to reach the chat.</text>
+        <text x="440" y="222" text-anchor="middle" font-size="10" fill="var(--crit)">Shows "type: brief is ready" instead</text>
+        <text x="440" y="246" text-anchor="middle" font-size="10" fill="var(--accent)">proposed: prefill the composer</text>
+      </g>
+      <!-- right: the gap -->
+      <g font-size="11" fill="currentColor">
+        <rect x="590" y="40" width="358" height="278" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="606" y="64" font-weight="600" font-size="12">Proposed: agenta.chat.draft(text)</text>
+        <text x="606" y="88">App → port → parent. The parent puts the text</text>
+        <text x="606" y="104">into the session's composer as a draft.</text>
+        <text x="606" y="120">The user still presses Send.</text>
+        <rect x="606" y="140" width="326" height="60" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="618" y="160" opacity=".5">Message Launch assistant…</text>
+        <text x="618" y="180" font-family="IBM Plex Mono, monospace" font-size="10">The brief is complete in brief/brief.json.</text>
+        <text x="618" y="192" font-family="IBM Plex Mono, monospace" font-size="10">Draft the email and LinkedIn copy.</text>
+        <text x="606" y="228" opacity=".75">Why it is safe: no new reach. The App cannot</text>
+        <text x="606" y="244" opacity=".75">send, cannot read the transcript, cannot pick</text>
+        <text x="606" y="260" opacity=".75">the session. It suggests text; the user decides.</text>
+        <text x="606" y="290" opacity=".75">Needs: the app tab's ref already carries sessionId.</text>
+      </g>
+    </svg>
+    <figcaption>The wizard works today. The last button is the gap: the App has no way to tell the agent it is done, so the user types it. A composer prefill closes the loop without giving the App any power to act.</figcaption>
+  </figure>
+
+  <h4>End to end</h4>
+  <ul class="ops">
+    <li><span class="k">1</span><span class="op w">write ×2</span><span><span class="tag agent">agent</span> <code>schema.json</code> with six questions and their field types, and <code>wizard.html</code> which renders any schema</span></li>
+    <li><span class="k">2</span><span class="op r">readJSON ×2</span><span><span class="tag app">app</span> the schema, then <code>brief.json</code> to resume a half-finished brief</span></li>
+    <li><span class="k">3</span><span class="op w">writeJSON ×6</span><span><span class="tag user">user</span> one write per completed step; the whole brief each time</span></li>
+    <li><span class="k">4</span><span class="op x">—</span><span><span class="tag user">user</span> clicks Send to agent. v1: the app shows "Tell the agent the brief is ready". Proposed: the composer fills with that sentence and the user presses Send</span></li>
+    <li><span class="k">5</span><span class="op r">readJSON</span><span><span class="tag agent">agent</span> reads <code>brief.json</code>, writes <code>copy/email-1.md</code> and <code>copy/linkedin-1.md</code>, replies with file cards</span></li>
+  </ul>
+
+  <div class="verdict">
+    <div class="v fits"><b>Fits</b><ul><li>Schema-driven forms are exactly what an agent writes well and a file stores well</li><li>Autosave per step means a closed tab loses nothing</li><li>The agent's next turn has structured input instead of a paragraph</li></ul></div>
+    <div class="v strain"><b>Strains</b><ul><li>Handing back to the agent. The App cannot send a message, and should not. A composer prefill is a parent-side feature: the iframe posts text, the parent writes a draft, the user sends</li></ul></div>
+    <div class="v gap"><b>Gap</b><ul><li>Autonomous action. An App that triggers a run by itself would be a new capability class with real risk. Not proposed</li></ul></div>
+  </div>
+  <p class="small">Plan impact: <code>agenta.chat.draft(text)</code> as a v1.1 method. Small, host-side, and it turns "fill a form" into "fill a form and go".</p>
+</section>
+
+<!-- ================= APP 6 ================= -->
+<section id="a6" class="app">
+  <div class="head"><div class="n">6</div><div>
+    <h2 style="margin-top:0;padding-top:0;border:0">Multi-page docs site with a shared script</h2>
+    <div class="probe">Probes · several HTML pages · a script in its own file · navigation while running · state across pages</div>
+  </div></div>
+  <p>An agent generates internal docs for a project: an index page, one page per module, a search box backed by a JSON index, and a shared <code>app.js</code> for the search and navigation. This is what agents write when asked for "a small site". It is also the case that exposes two things the current assembler does not do.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files</div><pre><code>site/
+  index.html
+  guide.html
+  api.html
+  app.js            ← shared script  ⚠ assembler strips scripts
+  site.css          ← inlined today ✓
+  search-index.json ← app reads</code></pre></div>
+    <div class="box"><div class="lbl">Bridge methods used</div>
+      <div class="chips"><span class="chip">readJSON("search-index.json")</span><span class="chip gap">&lt;script src="app.js"&gt; in Run</span><span class="chip gap">navigate in-tab under the same grant</span><span class="chip gap">agenta.location</span></div>
+      <div class="lbl" style="margin-top:10px">Grant</div><div>Read only on <code>site/</code></div>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-label="Left: how the assembler builds a Run document from index.html. site.css is inlined already; app.js must be inlined too, which is new; external script tags are dropped by the CSP. Right: clicking guide.html inside the running page. Today the nav interceptor asks the parent to open the file in the drive, which would open a new Preview tab. Proposed: the same tab re-assembles guide.html under the same grant because it is in the same folder, and the hello carries agenta.location with the path and query.">
+      <defs><marker id="m6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <text x="20" y="22" font-size="12" font-weight="600">A · assembling index.html for Run</text>
+        <rect x="20" y="36" width="130" height="34" rx="4" fill="currentColor" opacity=".08"/><text x="85" y="57" text-anchor="middle" font-family="IBM Plex Mono, monospace">index.html</text>
+        <rect x="20" y="86" width="130" height="34" rx="4" fill="currentColor" opacity=".08"/><text x="85" y="107" text-anchor="middle" font-family="IBM Plex Mono, monospace">site.css</text>
+        <rect x="20" y="136" width="130" height="34" rx="4" fill="var(--warn)" opacity=".18"/><rect x="20" y="136" width="130" height="34" rx="4" fill="none" stroke="var(--warn)"/><text x="85" y="157" text-anchor="middle" font-family="IBM Plex Mono, monospace">app.js</text>
+        <rect x="20" y="186" width="130" height="34" rx="4" fill="none" stroke="var(--crit)" stroke-dasharray="4 3"/><text x="85" y="207" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">cdn…/marked.js</text>
+        <rect x="260" y="60" width="160" height="140" rx="6" fill="var(--surface)" stroke="currentColor"/>
+        <text x="340" y="84" text-anchor="middle" font-weight="600">srcdoc</text>
+        <text x="340" y="106" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">&lt;meta CSP&gt;</text>
+        <text x="340" y="122" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">&lt;script&gt;bridge stub&lt;/script&gt;</text>
+        <text x="340" y="138" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">&lt;style&gt;site.css&lt;/style&gt;</text>
+        <text x="340" y="154" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--warn)">&lt;script&gt;app.js&lt;/script&gt;</text>
+        <text x="340" y="170" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">…body…</text>
+        <line x1="150" y1="53" x2="260" y2="90" stroke="currentColor" marker-end="url(#m6)"/>
+        <line x1="150" y1="103" x2="260" y2="130" stroke="currentColor" marker-end="url(#m6)"/>
+        <line x1="150" y1="153" x2="260" y2="150" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#m6)"/>
+        <text x="205" y="140" text-anchor="middle" fill="var(--warn)" font-size="10">inline it (new)</text>
+        <line x1="150" y1="203" x2="220" y2="203" stroke="var(--crit)" stroke-dasharray="4 3"/><line x1="214" y1="195" x2="226" y2="211" stroke="var(--crit)" stroke-width="2"/>
+        <text x="205" y="228" text-anchor="middle" fill="var(--crit)" font-size="10">dropped by CSP</text>
+        <text x="220" y="270" text-anchor="middle" opacity=".7">Today Run would strip app.js with every other script and the site is dead on arrival.</text>
+
+        <line x1="470" y1="20" x2="470" y2="280" stroke="currentColor" opacity=".2"/>
+        <text x="500" y="22" font-size="12" font-weight="600">B · clicking guide.html while running</text>
+        <rect x="500" y="40" width="200" height="50" rx="6" fill="var(--accent)" opacity=".15"/><rect x="500" y="40" width="200" height="50" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="600" y="60" text-anchor="middle" font-weight="600">index.html · running</text><text x="600" y="78" text-anchor="middle" opacity=".7">user clicks &lt;a href="guide.html?q=api"&gt;</text>
+        <line x1="600" y1="90" x2="600" y2="120" stroke="currentColor" marker-end="url(#m6)"/>
+        <text x="612" y="110">nav interceptor → parent</text>
+        <rect x="500" y="120" width="200" height="60" rx="6" fill="none" stroke="var(--crit)" stroke-dasharray="4 3"/>
+        <text x="600" y="142" text-anchor="middle" fill="var(--crit)">today: opens guide.html</text><text x="600" y="158" text-anchor="middle" fill="var(--crit)">as a NEW Preview tab</text>
+        <text x="600" y="172" text-anchor="middle" fill="var(--crit)" font-size="10">search state and grant left behind</text>
+        <rect x="730" y="120" width="210" height="60" rx="6" fill="var(--accent)" opacity=".15"/><rect x="730" y="120" width="210" height="60" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="835" y="142" text-anchor="middle" font-weight="600">proposed: same tab</text><text x="835" y="158" text-anchor="middle" opacity=".8">re-assemble guide.html, same grant</text>
+        <text x="835" y="172" text-anchor="middle" opacity=".8" font-size="10">hello carries location {path, query: "q=api"}</text>
+        <path d="M700 150 C 715 150, 715 150, 730 150" fill="none" stroke="var(--accent)" marker-end="url(#m6)"/>
+        <text x="720" y="220" text-anchor="middle" opacity=".7">Same folder means the grant already covers it. A link outside site/ falls</text>
+        <text x="720" y="236" text-anchor="middle" opacity=".7">back to today's behaviour: open it in the drive, in Preview.</text>
+      </g>
+    </svg>
+    <figcaption>Two must-fixes for Run that the board never exercised: inline same-folder scripts, and treat an in-folder link as navigation inside the running tab.</figcaption>
+  </figure>
+
+  <h4>End to end</h4>
+  <ul class="ops">
+    <li><span class="k">1</span><span class="op w">write ×6</span><span><span class="tag agent">agent</span> three pages, the shared script, the stylesheet and the search index</span></li>
+    <li><span class="k">2</span><span class="op r">read ×2</span><span><span class="tag app">app</span> the assembler fetches <code>site.css</code> (already does) and <code>app.js</code> (new) from the mount and inlines both before injecting the bridge</span></li>
+    <li><span class="k">3</span><span class="op r">readJSON</span><span><span class="tag app">app</span> <code>app.js</code> loads <code>search-index.json</code> on first keystroke in the search box</span></li>
+    <li><span class="k">4</span><span class="op r">read ×2</span><span><span class="tag user">user</span> clicks a result linking to <code>guide.html?q=api</code>. Proposed: the parent re-assembles <code>guide.html</code> in the same tab under the same grant and passes <code>location</code> in the hello, so <code>app.js</code> can highlight the query</span></li>
+    <li><span class="k">5</span><span class="op r">read</span><span><span class="tag user">user</span> clicks a link to <code>../README.md</code>. Outside <code>site/</code>, so it opens in the drive as today, in Preview, in another tab</span></li>
+  </ul>
+
+  <div class="verdict">
+    <div class="v fits"><b>Fits</b><ul><li>Static multi-file sites already assemble, minus scripts</li><li>Read-only grant is enough for a site; nothing writes</li></ul></div>
+    <div class="v strain"><b>Strains</b><ul><li><b>Must fix for v1:</b> Run has to inline same-folder <code>&lt;script src&gt;</code> files, exactly as it inlines CSS. Without this, every app with a separate script file is broken</li><li><b>Should fix for v1:</b> in-folder links navigate the running tab and keep the grant. Otherwise each click opens a new inert tab</li><li><code>agenta.location</code> in the hello is one field and makes query strings work</li></ul></div>
+    <div class="v gap"><b>Gap</b><ul><li>Cross-page state. An opaque origin has no storage, and there is no URL. Anything that must survive navigation goes in a file or in the query string</li></ul></div>
+  </div>
+  <p class="small">Plan impact: two items move into phase 1 work package 1.4. The assembler change is small; the navigation change touches the nav interceptor the preview already has.</p>
+</section>
+
+<!-- ================= MATRIX ================= -->
+<section id="matrix">
+  <h2>Capability matrix</h2>
+  <p>Each need the six apps raised, against what the bridge does as proposed. Green is proposed and sufficient, amber is a template pattern or a one-field addition, red is outside the design.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Need</th><th>Raised by</th><th>As proposed</th><th>What closes it</th></tr></thead>
+    <tbody>
+      <tr><td>Read and write JSON in the app's folder</td><td>all</td><td class="c ok">✓</td><td>—</td></tr>
+      <tr><td>Many files, list, delete</td><td>1, 3</td><td class="c ok">✓</td><td>—</td></tr>
+      <tr><td>Nested folders without a create call</td><td>1, 3</td><td class="c ok">✓</td><td>Object-store keys; document it</td></tr>
+      <tr><td>Move or rename a file</td><td>1</td><td class="c wn">~</td><td>write + remove in that order; <code>fs.move</code> in v2</td></tr>
+      <tr><td>Large input file</td><td>2</td><td class="c wn">~</td><td>Record caps in the contract: 4 MB read, 1 MB write, <code>too_large</code></td></tr>
+      <tr><td>Frequent saves</td><td>2, 5</td><td class="c ok">✓</td><td>Template debounces; whole-file writes of tens of KB are fine</td></tr>
+      <tr><td>Two writers on one file</td><td>2, 3</td><td class="c ok">✓</td><td>ETag + <code>If-Match</code>, sent automatically by the stub; the app gets <code>conflict</code> and retries. One writer per file is still the simpler pattern</td></tr>
+      <tr><td>Outlive a session; visible to cron runs</td><td>3, 4</td><td class="c ok">✓</td><td>Put the app in the agent drive; grants are per mount and path already</td></tr>
+      <tr><td>Know who the user is</td><td>3</td><td class="c cr">✗</td><td>Add <code>agenta.user {id, name}</code> to the hello. One field</td></tr>
+      <tr><td>See other people's changes live</td><td>3</td><td class="c ok">✓</td><td>The parent posts <code>changed</code> when the drive generation bumps; the app re-reads. Phase 1</td></tr>
+      <tr><td>Fetch data from an API</td><td>4</td><td class="c wn">~</td><td>Never directly. The agent fetches and writes a file; "Ask agent to refresh" drafts the request in v1.1. A proxied read-only tool call is designed as tier 2 in the plan, not scheduled</td></tr>
+      <tr><td>Charting or markdown library</td><td>1, 4</td><td class="c wn">~</td><td>Inline it in the HTML or avoid it; CDNs are blocked by the CSP</td></tr>
+      <tr><td>Hand control back to the agent</td><td>5</td><td class="c cr">✗</td><td>Add <code>agenta.chat.draft(text)</code>; the user still sends</td></tr>
+      <tr><td>Script in a separate file</td><td>6</td><td class="c cr">✗</td><td><b>Must fix in v1:</b> assembler inlines same-folder <code>&lt;script src&gt;</code></td></tr>
+      <tr><td>Navigate between pages while running</td><td>6</td><td class="c cr">✗</td><td><b>Should fix in v1:</b> in-folder links re-assemble in the same tab under the same grant</td></tr>
+      <tr><td>State across pages or reloads inside the app</td><td>6, 3</td><td class="c cr">✗</td><td>Opaque origin has no storage. Files are the storage; query string via <code>agenta.location</code></td></tr>
+      <tr><td>Images and binary files</td><td>—</td><td class="c wn">~</td><td>Static images are inlined at assembly today. Manifest-declared assets preload as data URLs in v1.1; binary write is v2</td></tr>
+      <tr><td>Canvas, WebGL, pen input, large charts</td><td>—</td><td class="c ok">✓</td><td>Works in the sandbox as is. See <a href="canvas.html">Canvas Apps</a> for the format, the library shelf and the visibility signal</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ================= GAPS ================= -->
+<section id="gaps">
+  <h2>Gaps, ranked</h2>
+  <p>Ordered by how much they change the plan. The first two are corrections to phase 1; the next three are one-field additions that fit a v1.1; the rest are deliberate limits.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Gap</th><th>Disposition</th><th>Where it lands</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Run strips <code>&lt;script src="app.js"&gt;</code> along with everything else</td><td class="cr">Fix in v1</td><td>Plan WP 1.4: assembler inlines same-folder scripts before the bridge is injected; the CSP still blocks external ones</td></tr>
+      <tr><td>2</td><td>In-folder links open a new Preview tab instead of navigating the running app</td><td class="cr">Fix in v1</td><td>Plan WP 1.4: nav interceptor → parent re-assembles the target in the same tab if it is inside the granted folder</td></tr>
+      <tr><td>3</td><td>No user identity in the app</td><td class="wn">v1.1</td><td><code>agenta.user = {id, name}</code> in the hello payload</td></tr>
+      <tr><td>4</td><td>No way to hand a sentence to the composer</td><td class="wn">v1.1</td><td><code>agenta.chat.draft(text)</code>; parent writes a composer draft for the tab's session; user sends</td></tr>
+      <tr><td>5</td><td>No path or query context after navigation</td><td class="wn">v1.1</td><td><code>agenta.location = {path, query}</code> in the hello</td></tr>
+      <tr><td>6</td><td>Size caps unspecified</td><td class="wn">Decide now</td><td>Contract: 4 MB read, 1 MB write, error <code>too_large</code></td></tr>
+      <tr><td>7</td><td>No move or rename</td><td class="wn">v2</td><td><code>fs.move(from, to)</code>; until then write-then-remove</td></tr>
+      <tr><td>8</td><td>App does not learn that a file changed under it</td><td class="ok">Phase 1</td><td>Parent posts <code>changed</code> with paths on a drive-generation bump; <code>fs.stat</code> gives etag and mtime; app decides whether to reload</td></tr>
+      <tr><td>9</td><td>No binary read or write</td><td class="wn">v2</td><td><code>fs.readDataUrl</code>, <code>fs.writeBlob</code>, both capped</td></tr>
+      <tr><td>10</td><td>No live data, no network</td><td class="ok">Tiered in the plan</td><td>Tier 0 change hint and <code>fs.stat</code> in phase 1; tier 1 "Ask agent to refresh" plus schedule readout in v1.1; tier 2 proxied read-only tool calls via the existing <code>call_tool</code> endpoint and the <code>read_only</code> action flag, designed and not scheduled; tier 3 model calls, planning only</td></tr>
+      <tr><td>11</td><td>No real-time multi-user editing</td><td class="ok">Only arises in the agent drive</td><td>Session drives are one session, one user, so this is user-versus-agent only, and the app side of that is caught by <code>If-Match</code>. Case 3 chose the agent drive for a team tool; per-person files cover it there</td></tr>
+      <tr><td>12</td><td>App cannot start a run by itself</td><td class="ok">Never</td><td>Draft, yes; send, no. Autonomous action from generated code is a capability class we do not want</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout">
+    <p><strong>Net read.</strong> The bridge handles every "edit structured state beside the conversation" app the six cases threw at it, which is the product loop #6529 set out to enable. It exposed two real bugs in the Run assembly path, both cheap, and three one-field additions that widen the range without widening the security surface. The things it cannot do are the things it should not do.</p>
+  </div>
+</section>
+
+<!-- ================= REACH ================= -->
+<section id="reach">
+  <h2>What an App can reach</h2>
+  <figure>
+    <svg viewBox="0 0 960 330" role="img" aria-label="Three concentric zones. Inner: what the app owns outright: its DOM, its own code, inlined libraries, the query it was opened with. Middle, via the bridge: the eight file methods on its own folder, the visibility and changed events, plus the proposed user name, composer draft, location and preloaded assets. Outer, out of reach: the network, the Agenta API, other folders and drives, the transcript, sending messages, browser storage, external scripts, popups escaping the sandbox.">
+      <g font-size="11" fill="currentColor">
+        <rect x="20" y="20" width="920" height="290" rx="10" fill="var(--crit)" opacity=".06"/><rect x="20" y="20" width="920" height="290" rx="10" fill="none" stroke="var(--crit)" stroke-dasharray="6 4"/>
+        <text x="36" y="42" font-weight="600" fill="var(--crit)" letter-spacing=".06em">OUT OF REACH</text>
+        <text x="36" y="64">network · Agenta API · other folders · other drives · the transcript · sending a message</text>
+        <text x="36" y="82">localStorage / cookies · external &lt;script src&gt; · popups that leave the sandbox · starting a run</text>
+        <rect x="120" y="100" width="720" height="190" rx="8" fill="var(--accent)" opacity=".08"/><rect x="120" y="100" width="720" height="190" rx="8" fill="none" stroke="var(--accent)"/>
+        <text x="136" y="122" font-weight="600" fill="var(--accent-ink)" letter-spacing=".06em">VIA THE BRIDGE · parent does it for you</text>
+        <text x="136" y="144" font-family="IBM Plex Mono, monospace">fs.read · readJSON · write · writeJSON · list · exists · stat · remove   → its own folder only</text>
+        <text x="136" y="162" font-family="IBM Plex Mono, monospace" opacity=".8">ready · version · canWrite · dir · visible   events: visibilitychange · changed</text>
+        <text x="136" y="184" font-family="IBM Plex Mono, monospace" fill="var(--warn)">v1.1: user {id, name} · chat.draft(text) · location {path, query} · assets</text>
+        <rect x="260" y="200" width="440" height="76" rx="6" fill="var(--surface)" stroke="currentColor"/>
+        <text x="276" y="222" font-weight="600" letter-spacing=".06em">OWNED OUTRIGHT</text>
+        <text x="276" y="242">its DOM · its own functions · inlined CSS and libraries</text>
+        <text x="276" y="260">in-memory state for as long as the tab is open</text>
+      </g>
+    </svg>
+    <figcaption>Everything the six apps needed lives in the inner two zones or is a one-line addition to the middle one. Nothing needed the outer zone.</figcaption>
+  </figure>
+</section>
+</main>
+</div></div>
+
+</body>
+</html>

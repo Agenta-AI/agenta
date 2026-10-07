@@ -1,6 +1,6 @@
 """Agenta-shipped platform skills.
 
-The platform skills (getting started, build-an-agent) live here as concrete inline packages.
+The platform skills (getting started, build-an-agent, create-template) live here as concrete inline packages.
 The canonical skill content is defined here (the SDK, the lowest layer); the server-side
 ``StaticWorkflowCatalog`` imports the same constants so the embed path and the catalog stay
 one source of truth.
@@ -12,23 +12,14 @@ went with it.
 
 from __future__ import annotations
 
-from ..flags import ordered_operations_enabled
-
 from ..skills import SkillFile, SkillTemplate
-
-# Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
-# TEACHES the commit surface the catalog ADVERTISES, and one deployment must show one shape:
-# a model that sees the ordered form in the tool description and the legacy form in its skill
-# picks between them unpredictably. That is not hypothetical — a live agent followed a legacy
-# `delta.set` example from this skill against an ordered-operations deployment and replaced a
-# skills list it meant to append to.
-_ORDERED = ordered_operations_enabled()
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
 # SkillTemplate below. Kept here so the catalogue and the forced path share one slug constant.
 GETTING_STARTED_WITH_AGENTA_SLUG = "__ag__getting_started_with_agenta"
 BUILD_AN_AGENT_SLUG = "__ag__build_an_agent"
+CREATE_TEMPLATE_SLUG = "__ag__create_template"
 
 # RETIRED on 2026-09-07. Two of the four conventions this skill carried moved into the platform
 # prompt (`platform_instructions.py`), which every harness reads first: state assumptions, and
@@ -63,8 +54,7 @@ GETTING_STARTED_WITH_AGENTA_SKILL = SkillTemplate(
 # builtins_reference_files.py) asserts this text names every top-level template field and every
 # tool `type`, so a schema that grows without updating this file fails CI.
 #
-# Assembled in three pieces: an intro and a commit chapter that follow the deployment's commit
-# surface, around the field-by-field middle that is the same either way.
+# Assembled in three pieces: an intro, the field-by-field middle, and the commit chapter.
 _CONFIG_SCHEMA_INTRO_ORDERED = """\
 # The agent config, field by field
 
@@ -78,20 +68,6 @@ below is addressed as `["parameters", "agent", ...]`. The portable definition �
 `sandbox` — are nested sub-objects. The commit checks your target, NOT the value you write into
 it: a misplaced or misspelled field inside an entry commits fine and only bites when the agent
 next runs. Get the shape right from this reference before you commit.
-"""
-
-_CONFIG_SCHEMA_INTRO_LEGACY = """\
-# The agent config, field by field
-
-Read this before your first `commit_revision`, and whenever a run misbehaves after a commit and
-you need to check the shape.
-
-`parameters.agent` is one object. You edit it by sending only the changed fields under
-`commit_revision`'s `workflow_revision.delta.set.parameters.agent`. The portable definition —
-`instructions`, `llm`, `tools`, `mcps`, `skills` — is flat on it; the execution parts —
-`harness`, `runner`, `sandbox` — are nested sub-objects. The commit does NOT validate this shape:
-a misplaced or misspelled field commits fine and only bites when the agent next runs. Get the
-shape right from this reference before you commit.
 """
 
 _CONFIG_SCHEMA_FIELDS = """\
@@ -143,7 +119,7 @@ to change the model, provider, or connection. The rules below matter only when t
 ### tools
 
 A list of tool entries, each discriminated on `type`. Every entry except `gateway_connection`
-may also carry two shared optional fields: `render` (a UI hint) and `permission` (`allow` /
+and `agenta_tools` may also carry two shared optional fields: `render` (a UI hint) and `permission` (`allow` /
 `ask` / `deny`, overriding the runner default for that one tool). A `gateway_connection` entry
 covers a whole integration, so it takes neither: its permissions live in its own `policy`, and
 a top-level `permission` on one is refused. The `type` values, with `gateway` legacy —
@@ -203,6 +179,10 @@ read it when a revision carries one, never write a new one:
   "discover_tools" }`. The catalog owns everything else about it. You never commit one: the
   platform tools you call are injected into your run, and a commit whose `tools` carries a
   `platform` entry is refused.
+- `agenta_tools` — which Agenta tools the agent gets in every run, not only here:
+  `{ "type": "agenta_tools", "tools": { "get_current_session": "allow", "rename_session":
+  "allow" } }`. Each value is `allow` or `ask`; a tool not listed is off. Keep this entry when
+  you edit `tools`; the author manages it in the Agenta tools section.
 
 ### mcps
 
@@ -282,8 +262,7 @@ the run:
   "strict"|"best_effort" }`.
 """
 
-# The commit chapter for a deployment that serves the ordered-operations surface: the
-# read-then-commit loop, the target grammar, the seven operations, and the failure modes the
+# The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the
 # contracts (docs/design/agent-config-editing/contracts/) actually produce. Every example
 # validates against the ordered arm of `_COMMIT_REVISION_INPUT_SCHEMA`; a test asserts it.
 _CONFIG_SCHEMA_COMMIT_ORDERED = """\
@@ -527,170 +506,8 @@ Don't forget:
 - Touch `harness`, `runner`, `sandbox`, and `llm` only when you are intentionally changing them.
 """
 
-_CONFIG_SCHEMA_COMMIT_LEGACY = """\
-
-## How a delta commits (merge semantics)
-
-`commit_revision` sends `workflow_revision.delta.set` and an optional `delta.remove`:
-
-- `set` **deep-merges** onto your current config: a nested object key you leave out keeps its old
-  value.
-- **Lists replace wholesale.** `tools`, `skills`, and `mcps` are NOT merged item by item — the
-  list you send REPLACES the old one. To add one tool, send the full list (your current entries
-  plus the new one). Sending only the new tool wipes the rest — every skill, MCP, and gateway
-  tool you left out is gone on your next run.
-- `remove` takes dotted paths, e.g. `parameters.agent.tools`.
-
-## Mistakes that break your agent
-
-The commit accepts whatever you send — none of these return a validation error. Each one commits
-fine and then bites later, at a different spot. Check each of these before you commit. They
-show up as a skill that fails to load on the next run, or in the `resolved` block of a
-`test_run` the person asked for.
-
-- `slug` or `content` as top-level fields on a skill entry. The skill's Markdown goes in `body`;
-  a bundled file's text goes in that file's `content` inside `files`. Bites at RUN time: skill
-  parsing rejects the unknown keys and the run fails to load the skill.
-- Any unknown or misspelled key in a skill entry or a tool entry. Same failure point: the run
-  rejects the entry when it parses the config, not the commit.
-- `harness.kind: "claude"` paired with a non-Anthropic `provider`. Claude reaches `anthropic`
-  only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
-- A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
-  `pi_core` harness (Pi selects by provider/id). Bites silently: the run falls back
-  to a default model with no error. Only the `resolved` block of a `test_run` shows the fallback.
-- Sending a short `tools`/`skills`/`mcps` list. Bites on the NEXT run: lists replace wholesale,
-  so every entry you left out is gone.
-- Rebuilding the whole `parameters.agent` object instead of a narrow delta. Prefer a `delta.set`
-  that touches only what you change, so `harness`, `runner`, `sandbox`, and `llm` survive the
-  deep merge untouched.
-
-## Example requests
-
-These are complete `commit_revision` payloads, ready to adapt. Field names match exactly; only the
-values are placeholders. Most of the time you change only `instructions` and `skills` — the first
-two examples cover the common case.
-
-Instructions only, the minimal two-step case — just a persona and a task:
-
-```json
-{
-  "workflow_revision": {
-    "message": "Set the agent's persona: triage inbound support emails.",
-    "delta": {
-      "set": {
-        "parameters": {
-          "agent": {
-            "instructions": {
-              "agents_md": "You triage inbound support emails. For each email: (1) classify it as bug, billing, or question; (2) draft a one-paragraph reply; (3) hand off billing issues instead of answering them."
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Adding a skill entry — an inline skill template with one bundled reference file. `skills` replaces
-wholesale too, so include your existing entries (this example assumes the list was empty):
-
-```json
-{
-  "workflow_revision": {
-    "message": "Add a code-review-checklist skill.",
-    "delta": {
-      "set": {
-        "parameters": {
-          "agent": {
-            "skills": [
-              {
-                "name": "code-review-checklist",
-                "description": "Use when reviewing a pull request for style and correctness issues.",
-                "body": "# Code review checklist\\n\\nWalk every changed file against `references/checklist.md` before approving.\\n",
-                "files": [
-                  {
-                    "path": "references/checklist.md",
-                    "content": "- No commented-out code\\n- Tests cover the new branch\\n- Error messages are actionable\\n"
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Adding ONE gateway tool — `tools` replaces wholesale, so resend every entry you already have (any
-`@ag.embed` tool, every gateway tool) plus the new one. Leave every `platform` entry out: those
-tools are injected into your run, and a commit that carries one is refused. The gateway
-entry is copied from what `discover_tools` returned, with the `connection` slug filled in.
-New integrations always start with every tool allowed and no per-tool overrides. Do not infer a
-stricter policy from the task; only restrict it when the user explicitly asks.
-CAVEAT: the list below is SHORTENED to keep the example readable — in a real commit, resend your
-ENTIRE current tools list, every entry you have, not this subset:
-
-```json
-{
-  "workflow_revision": {
-    "message": "Add the GitHub create-issue tool.",
-    "delta": {
-      "set": {
-        "parameters": {
-          "agent": {
-            "tools": [
-              { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__some_tool" } },
-                                "@ag.selector": { "path": "parameters.tool" } } },
-              {
-                "type": "gateway_connection",
-                "connection": {
-                  "provider": "composio",
-                  "integration": "github",
-                  "slug": "github-7f2a"
-                },
-                "policy": { "permissions": { "default": "allow", "tools": {} } }
-              }
-            ]
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Dropping one field with `delta.remove` — a dotted path, no `set` required:
-
-```json
-{
-  "workflow_revision": {
-    "message": "Drop the reasoning_effort override; use the model's default again.",
-    "delta": {
-      "remove": ["parameters.agent.llm.extras.reasoning_effort"]
-    }
-  }
-}
-```
-
-Don't forget:
-
-- Re-send the complete list for `tools`, `skills`, and `mcps`, minus every `platform` entry. A
-  one-entry list wipes the rest.
-- Copy `@ag.embed` entries through unchanged; do not try to inline or edit what they point at.
-- `message` is a real commit message. Say what changed and why, not a placeholder.
-- After the user connects an integration, re-run `discover_tools` and copy the REAL slug it
-  reports as ready onto the `gateway_connection` entry. NEVER invent a slug: a plausible guess
-  commits without complaint and fails at run time as connection-not-found.
-- Keep `harness`, `runner`, `sandbox`, and `llm` out of `delta.set` unless you are intentionally
-  changing them; a narrow delta preserves them through the deep merge.
-"""
-
 _CONFIG_SCHEMA_REFERENCE = (
-    (_CONFIG_SCHEMA_INTRO_ORDERED if _ORDERED else _CONFIG_SCHEMA_INTRO_LEGACY)
-    + _CONFIG_SCHEMA_FIELDS
-    + (_CONFIG_SCHEMA_COMMIT_ORDERED if _ORDERED else _CONFIG_SCHEMA_COMMIT_LEGACY)
+    _CONFIG_SCHEMA_INTRO_ORDERED + _CONFIG_SCHEMA_FIELDS + _CONFIG_SCHEMA_COMMIT_ORDERED
 )
 
 # Bundled reference file: the `inputs_fields` template language. Verified against the runtime
@@ -835,8 +652,6 @@ Don't forget:
 
 
 # SKILL.md, assembled from a common spine plus the passages that describe HOW a commit is made.
-# Those follow the deployment's commit surface (see `_ORDERED` above); everything else is the
-# same either way and lives in one copy so it cannot drift between the two arms.
 #
 # WHAT THIS SKILL IS FOR, AND WHAT IT IS NOT. The platform prompt (`platform_instructions.py`)
 # owns behavior: decide and proceed, the three ask gates, show a sample before building an
@@ -876,12 +691,6 @@ one field or one list entry and leaves everything else alone. Read
 field, the operations, worked examples, and the mistakes that break an agent.
 """
 
-_BUILD_SHAPE_LEGACY = """\
-Change your configuration only with `commit_revision`, by setting `parameters.agent` fields.
-Read `references/config-schema.md` before your first commit: it gives the exact shape of every
-field, the delta merge semantics, worked examples, and the mistakes that break an agent.
-"""
-
 _BUILD_LOOP_ORDERED = """\
 
 ## How a change goes
@@ -902,7 +711,8 @@ _BUILD_LOOP_ORDERED = """\
    `references/trigger-inputs.md` first. For a schedule, cron is UTC, five fields, one-minute
    floor; convert the person's timezone yourself, then `create_schedule`. For an event,
    `discover_triggers`, check that the returned event description really fits the ask (the
-   match is keyword search), then `create_subscription`. Both are approval stops. A trigger
+   match is keyword search), then `create_subscription`. Use the configured permission gate;
+   do not add a conversational confirmation for an allowed call. A trigger
    pins the revision it was created on: after a later commit, re-point it.
 5. Say what changed in two or three sentences, offer a test, and stop. Run `test_run` only if
    the person asks. When you do, read `verdict`, `tools`, and `approvals`, not the status
@@ -911,29 +721,6 @@ _BUILD_LOOP_ORDERED = """\
 Do not ask for details you can look up or default. When you need a value only the person has,
 such as a repo, a channel, or a timezone, ask once with `request_input`, with a proposed
 default in every field you can guess.
-"""
-
-_BUILD_LOOP_LEGACY = """\
-
-## How a change goes
-
-1. If the change needs an outside app, call `discover_tools` with one short fragment per
-   capability. Read the per-integration connection state, not the headline match. If the
-   integration is not connected, call `request_connection` and stop until the person has
-   connected it; then run `discover_tools` again and take the real slug. Never invent a slug.
-2. `commit_revision` with the chosen `gateway_connection` entries in `tools` and the new
-   `instructions.agents_md`. This is an approval stop. A refused commit does not undo earlier
-   connections or triggers.
-3. Add a trigger only when the person asked for one or the job clearly repeats. Read
-   `references/trigger-inputs.md` first. Cron is UTC, five fields; convert the person's
-   timezone. For an event, `discover_triggers`, check the event fits, then
-   `create_subscription`. A trigger pins the revision it was created on: after a later commit,
-   re-point it.
-4. Say what changed in two or three sentences, offer a test, and stop. Run `test_run` only if
-   the person asks.
-
-Do not ask for details you can look up or default. When you need a value only the person has,
-ask once with `request_input`, with a proposed default in every field you can guess.
 """
 
 # NOTE for a future audit: this block deliberately CONTAINS a banned provider action name
@@ -1010,31 +797,6 @@ File tools, or raw HTTP only when your wired tools cannot do the job, and say so
   against `references/config-schema.md`.
 """
 
-_BUILD_TOOLS_AND_FAILURES_LEGACY = """\
-
-## Prefer wired tools
-
-Prefer your wired tools (`discover_tools`, `request_input`, `request_connection`, `request_secret`,
-`commit_revision`, `test_run`, `create_schedule`, `list_schedules`, `discover_triggers`,
-`create_subscription`, `test_subscription`, `list_deliveries`, `remove_schedule`,
-`remove_subscription`) over harness builtins. Touch Terminal, RemoteTrigger, File tools, or raw
-HTTP only when your wired tools cannot do the job, and say so when you do.
-
-## When something fails
-
-- A denied or failed `commit_revision` does not undo earlier connections or triggers; they still
-  exist. Do not redo them.
-- The commit does not validate your config: a wrong shape commits fine and surfaces at run time —
-  a skill fails to load, the model silently falls back, a tool goes missing. Check the shape
-  against `references/config-schema.md` before you commit, and when a run misbehaves after a
-  commit, check it again and re-commit the fix; do not start over.
-- After any commit, existing schedules and subscriptions still point at the previous revision.
-  Re-point them so they run the new config.
-- If a `test_run` the person asked for shows a `resolved` harness or model that differs from what
-  you committed, the config silently fell back (usually a harness/model/provider mismatch). Fix it
-  against `references/config-schema.md`.
-"""
-
 _BUILD_FOOTGUNS = """\
 
 ## Footguns
@@ -1050,14 +812,10 @@ _BUILD_FOOTGUNS = """\
 
 _BUILD_AN_AGENT_BODY = (
     _BUILD_HEAD
-    + (_BUILD_SHAPE_ORDERED if _ORDERED else _BUILD_SHAPE_LEGACY)
-    + (_BUILD_LOOP_ORDERED if _ORDERED else _BUILD_LOOP_LEGACY)
+    + _BUILD_SHAPE_ORDERED
+    + _BUILD_LOOP_ORDERED
     + _BUILD_INSTRUCTIONS_WRITING
-    + (
-        _BUILD_TOOLS_AND_FAILURES_ORDERED
-        if _ORDERED
-        else _BUILD_TOOLS_AND_FAILURES_LEGACY
-    )
+    + _BUILD_TOOLS_AND_FAILURES_ORDERED
     + _BUILD_FOOTGUNS
 )
 
@@ -1075,6 +833,408 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
         SkillFile(path="references/config-schema.md", content=_CONFIG_SCHEMA_REFERENCE),
         SkillFile(
             path="references/trigger-inputs.md", content=_TRIGGER_INPUTS_REFERENCE
+        ),
+    ],
+)
+
+
+# create-template: package this agent as a portable template zip, validate the zip, deliver it.
+#
+# The format reference is sourced from the API's single-agent template parser
+# (api/oss/src/core/agent_templates/parser.py + models.py and the JSON schemas under
+# api/oss/src/resources/agent_templates/schemas/), and its example copies the structure of the
+# bundled packages. The SDK cannot import the API, so the drift test lives on the API side
+# (api/oss/tests/pytest/unit/agent_templates/test_create_template_reference.py): it parses the
+# example package with the real parser and asserts the reference names every manifest field.
+_TEMPLATE_PACKAGE_FORMAT_REFERENCE = """\
+# The template package format
+
+Read this before you write the package files, and again when `validate_template` reports an
+issue. It is the only format the template loader accepts: one agent, no subagents.
+
+## The tree
+
+```
+<key>/                                  the package root; zip its CONTENTS, not the folder
+  plugin.json                           required
+  ai.agenta/agents.json                 required: the Agenta manifest
+  ai.agenta/agents/<key>/AGENTS.md      required: the agent's instructions
+  ai.agenta/agents/<key>/SETUP.md       setup guidance for the recipient
+  ai.agenta/agents/<key>/files/...      optional seed files for the agent's working files
+  skills/<skill-name>/SKILL.md          one folder per skill named in the manifest
+  skills/<skill-name>/references/...    optional files bundled with that skill
+  mcp.json                              only when a connection offers an MCP server
+```
+
+`<key>` is kebab-case: lowercase letters, digits and single hyphens, at most 64 characters.
+
+## plugin.json
+
+- `$schema`: exactly `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`.
+- `name`: the package key.
+- `version`: a version string such as `1.0.0`. Validation reports it back with the digest.
+- `description`: one sentence.
+- `extensions`: exactly `{ "ai.agenta": { "manifest": "./ai.agenta/agents.json" } }`.
+- Optional: `author` (`name`, `email`, `url` only), `license`, `keywords`, `homepage`,
+  `repository`. No other keys are allowed.
+
+## ai.agenta/agents.json
+
+- `schema_version`: `1`.
+- `entry`: the agent key. It must equal the one key under `agents`.
+- `agents`: an object with exactly one agent, keyed by the agent key. The agent has:
+  - `name` (required): the display name.
+  - `description` (required): one sentence.
+  - `instructions` (required): `./ai.agenta/agents/<key>/AGENTS.md`.
+  - `setup`: `./ai.agenta/agents/<key>/SETUP.md`.
+  - `skills`: a list of skill names. Each needs `skills/<name>/SKILL.md`.
+  - `connections`: a list of connection requirements (below).
+  - `automations`: a list of automation recipes (below). They are never activated on load.
+  - `workspace`: `{ "entries": [...] }`, the seed files (below).
+
+No other keys are allowed anywhere in the manifest, and there is no `subagents` key. Every
+package path (`instructions`, `setup`, a workspace `source`) starts with `./ai.agenta/`, stays
+inside the package, and names a regular file.
+
+### A connection requirement
+
+- `key`: kebab-case, unique in the agent.
+- `required`: `true` or `false`.
+- `purpose`: what the agent does with this account, in one sentence.
+- `options`: one or more of
+  - `{ "kind": "gateway", "provider": "composio", "integration": "<integration>" }`, for
+    example `github`, `slack`, `gmail`;
+  - `{ "kind": "mcp", "server": "<server name in mcp.json>" }`.
+- `policy` (optional): `{ "permissions": { "default": "allow", "tools": { "<TOOL>": "ask" } } }`.
+  Each value is `inherit`, `allow`, `ask`, `deny` or `allow_reads` (reads run, writes ask).
+- `setup_notes` (optional): what the recipient chooses or checks when they connect it.
+
+A requirement never names an account, a connection slug, an id or a credential. The recipient
+connects their own account when they load the template.
+
+### An automation recipe
+
+- `key`: kebab-case, unique in the agent.
+- `name`: a display name.
+- `required`: `true` or `false`.
+- `trigger`: one of
+  - `{ "type": "schedule", "schedule": "<five-field cron, UTC>" }`;
+  - `{ "type": "subscription", "connection": "<connection requirement key>", "event_key":
+    "<provider event key>", "trigger_config": { ... } }`.
+- `inputs_fields` (optional): the run inputs template, for example
+  `{ "messages": [ { "role": "user", "content": "Run the weekly report now." } ] }`.
+- `setup_notes` (optional): what the recipient confirms before they turn it on.
+
+### A workspace entry
+
+- `{ "type": "file", "source": "./ai.agenta/agents/<key>/files/<name>", "path": "<name>" }`
+  copies a package file into the agent's working files.
+- `{ "type": "directory", "path": "<folder>" }` creates an empty folder.
+
+`path` is relative, has no `..` segment, and does not start with `.agenta`, `.agents`,
+`.claude`, `.env`, `.github`, `.pi`, `AGENTS.md` or `CLAUDE.md`. Each `path` is unique.
+
+## skills/<name>/SKILL.md
+
+YAML frontmatter with `name` (the folder name) and `description` (when to use the skill), then
+a non-empty Markdown body. Other files in the folder travel with the skill. Every file is UTF-8
+text.
+
+## mcp.json
+
+Only for an MCP option: `{ "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+"mcpServers": { "<server>": { "type": "streamable-http", "url": "<url>" } } }`. Never add
+`headers`: a package cannot carry MCP credentials.
+
+## Limits and file rules
+
+- At most 256 files, 1 MiB per file, 4 MiB in total, 12 path segments.
+- Regular files only: no symbolic links, and no executable files.
+- Paths use `/`, never `\\`, and never start with `/`.
+
+## A complete example
+
+This package passes validation. Copy its shape; replace every value.
+
+#### `plugin.json`
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "seo-assistant",
+  "version": "1.0.0",
+  "description": "Plans and reviews SEO articles for a content team.",
+  "author": { "name": "Content team" },
+  "keywords": ["marketing", "seo", "agent-template"],
+  "extensions": { "ai.agenta": { "manifest": "./ai.agenta/agents.json" } }
+}
+```
+
+#### `ai.agenta/agents.json`
+
+```json
+{
+  "schema_version": 1,
+  "entry": "seo-assistant",
+  "agents": {
+    "seo-assistant": {
+      "name": "SEO assistant",
+      "description": "Plans and reviews SEO articles for a content team.",
+      "instructions": "./ai.agenta/agents/seo-assistant/AGENTS.md",
+      "setup": "./ai.agenta/agents/seo-assistant/SETUP.md",
+      "skills": ["article-brief"],
+      "connections": [
+        {
+          "key": "article-docs",
+          "required": false,
+          "purpose": "Read drafts and save article briefs.",
+          "options": [
+            { "kind": "gateway", "provider": "composio", "integration": "googledocs" },
+            { "kind": "gateway", "provider": "composio", "integration": "notion" }
+          ],
+          "policy": { "permissions": { "default": "allow", "tools": {} } },
+          "setup_notes": "Choose the workspace that holds your drafts. Without it, briefs are saved as files."
+        }
+      ],
+      "automations": [
+        {
+          "key": "weekly-plan",
+          "name": "Weekly article plan",
+          "required": false,
+          "trigger": { "type": "schedule", "schedule": "0 8 * * 1" },
+          "inputs_fields": {
+            "messages": [
+              { "role": "user", "content": "Plan next week's articles from the saved style guide." }
+            ]
+          },
+          "setup_notes": "Confirm the day, time and timezone before you turn this on."
+        }
+      ],
+      "workspace": {
+        "entries": [
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-assistant/files/style-guide.md",
+            "path": "style-guide.md"
+          },
+          { "type": "directory", "path": "briefs" }
+        ]
+      }
+    }
+  }
+}
+```
+
+#### `ai.agenta/agents/seo-assistant/AGENTS.md`
+
+```markdown
+# SEO assistant
+
+You plan and review SEO articles. For each request: (1) read `style-guide.md`; (2) use the
+article-brief skill to write a brief; (3) save it under `briefs/`.
+
+## Memory
+
+- Keep titles under 60 characters.
+```
+
+#### `ai.agenta/agents/seo-assistant/SETUP.md`
+
+```markdown
+# SEO assistant setup
+
+Purpose: plans and reviews SEO articles against your style guide.
+
+1. Optional: connect Google Docs or Notion so the agent can read drafts. You choose your own
+   account.
+2. Fill in your audience and tone in `style-guide.md`.
+3. The weekly plan is a suggestion and is not active. Confirm its day, time and timezone
+   before you turn it on.
+
+First-use check: ask "Write a brief for an article about onboarding checklists." Expect a
+brief in `briefs/` that follows the style guide.
+```
+
+#### `ai.agenta/agents/seo-assistant/files/style-guide.md`
+
+```markdown
+# Style guide
+
+- Audience: <your audience>
+- Tone: <your tone>
+```
+
+#### `skills/article-brief/SKILL.md`
+
+```markdown
+---
+name: article-brief
+description: Use when asked to plan an SEO article. Writes a one-page brief.
+---
+
+# Article brief
+
+Write the target query, the reader's question, an outline of three to five sections, and two
+internal links to suggest.
+```
+"""
+
+_TEMPLATE_MARKETPLACE_REFERENCE = """\
+# Submit a template to the Agenta marketplace
+
+Read this only when the person asked to submit the template to the marketplace, and only
+after `validate_template` said the zip is valid. The marketplace is the bundled catalog in
+the Agenta repository; one pull request adds a template. Open it yourself.
+
+## Where things go
+
+Everything lives under `api/oss/src/resources/agent_templates/` in `Agenta-AI/agenta`:
+
+- `packages/<key>/<version>/`: the package, the same files as your validated zip.
+- `catalog.json`: one record per key under `templates`: `latest`, `versions`
+  (`{"<version>": "packages/<key>/<version>"}`) and `metadata`. Copy the shape of an
+  existing record. Set `metadata.author_id`. Keys in `display.connection_tools` must be
+  connection keys your package declares. Add `media` only with hosted URLs.
+- `authors/<id>.json`: `{"schema_version": 1, "id": "<id>", "name": "...", "bio": "...",
+  "links": [{"kind": "github", "url": "https://github.com/<login>"}]}`. The file name must
+  equal its `id`.
+
+Published versions never change, and a key belongs to its author. If the key is already in
+`catalog.json`, pick a new key; never add a version to someone else's template. A new key
+means a new `plugin.json` `name`: change it, then zip and validate again.
+
+## Steps
+
+1. Run `gh auth status`. If it fails, call `request_secret` with `env_var: "GITHUB_TOKEN"`
+   and tell the person to create a token at https://github.com/settings/tokens. Never ask
+   them to paste a token in the chat.
+2. Fork and clone into `/tmp` with a shallow clone:
+
+       cd /tmp && gh repo fork Agenta-AI/agenta --clone -- --depth 1
+
+   Always `--depth 1`. Never clone with `--filter=blob:none`: every `git show` or `grep`
+   then fetches blobs one by one.
+3. `cd /tmp/agenta && git checkout -b template/<key>`.
+4. Copy the contents of your `templates/<key>/` folder to
+   `api/oss/src/resources/agent_templates/packages/<key>/<version>/`. Add the catalog record. Reuse
+   an `authors/<id>.json` that matches the person (`gh api user` gives the login and name);
+   otherwise add one.
+5. If `uv` is available, from `api/`:
+
+       git fetch --depth 1 upstream main
+       uv run python -m oss.src.core.agent_templates.marketplace validate --base-ref upstream/main
+       uv run python -m oss.src.core.agent_templates.marketplace website
+
+   The second command regenerates `web/website/src/data/templates.json`; commit it, never
+   edit it by hand. If you cannot run them, say so in the PR: the `check template catalog`
+   workflow runs both and reports what to fix.
+6. Commit, push with `git push -u origin template/<key>`, then
+   `gh pr create --repo Agenta-AI/agenta --base main`. The body states the head repository,
+   the commit and the package path, so a reviewer can load the package in Agenta.
+7. Reply with the PR URL. Say that the author may need to sign the CLA on the PR.
+"""
+
+
+_CREATE_TEMPLATE_BODY = """\
+# Create a template from this agent
+
+Read this when the person asks to save, export or share this agent as a template, including
+the "Save as template" request. The result is a validated zip in this session's files that
+another person can load as a new agent.
+
+## Steps
+
+1. `read_config` with no path to read your own configuration. For triggers, call
+   `list_schedules` and `list_subscriptions` and keep only the ones that run this agent.
+2. Establish the audience, unless the request already says it:
+   - general: anyone can reuse it, so company-specific details become recipient inputs;
+   - team-specific: a teammate gets your company's process as it is.
+   Ask once with `request_input`, with a proposed default in every field. In the same form,
+   list the company-specific content you are unsure about (names, internal URLs in the
+   instructions, channel or repo ids, house style) and ask, for each one, whether to keep it
+   or replace it with an input the recipient supplies.
+   Do not ask the person to review the whole package.
+   The form asks only about audience and context. Never add a field for a connection URL,
+   endpoint, key, token or credential, not even to say none is needed: the form refuses such
+   a field, and the audience questions are lost with it. Connections and MCP servers go into
+   SETUP.md as steps the recipient takes.
+3. Read `references/package-format.md`. Write the package under `templates/<key>/` in your
+   working directory, as the next section says. Use version `1.0.0` unless the person
+   names another version.
+4. Write `SETUP.md` from the package you actually wrote (see below).
+5. Zip the package contents, not the folder, into `templates/<key>-<version>.zip`:
+
+       cd templates/<key> && rm -f ../<key>-<version>.zip && python3 -m zipfile -c ../<key>-<version>.zip .
+
+6. Call `validate_template` with `path` set to `templates/<key>-<version>.zip`.
+7. If `valid` is false, fix each issue as its `next_step` says, then do steps 5 and 6 again.
+   Stop after three failed rounds and report the issues that remain. Never say the template
+   is ready, and never offer the zip, while its last validation is invalid.
+8. When `valid` is true, reply with the zip's path in the session files, its `version` and
+   its `digest`, one line on what the package keeps, and what the recipient must set up.
+9. Only when the person asked to submit the template to the Agenta marketplace: read
+   `references/marketplace.md` and follow it to open the pull request yourself.
+
+## What goes into the package
+
+- `instructions.agents_md` becomes `AGENTS.md`. Keep the useful memory under `## Memory`:
+  lessons, preferences and conventions that help the recipient. Drop only the entries that
+  are secret, about one person, or about one past run. Do not drop the whole section.
+- Each inline skill becomes `skills/<name>/SKILL.md` with its `files`. Skip every
+  `@ag.embed` entry whose slug starts with `__ag__`: the platform supplies those. For another
+  embedded skill, copy its SKILL.md and files if you can read them in your skills folder;
+  otherwise name it in SETUP.md as a skill the recipient installs.
+- Each `gateway_connection` tool becomes one connection requirement with a `gateway` option
+  for its integration, and its `policy`. Each MCP server whose `connection` shows a `url`
+  becomes an `mcp` option and an `mcp.json` entry with its URL only. An MCP server whose
+  `connection` is a gateway reference (`type: gateway`, such as `namespace: custom` with a
+  `slug`) shows no URL: do not guess one, and never drop the server silently. Name it in
+  SETUP.md as a manual step instead: its `name`, what the agent uses it for, and "add this
+  MCP server in Tools" with the recipient's own URL and credentials.
+- Each schedule or subscription becomes an automation recipe. Loading never activates it.
+- A file that the instructions rely on (a style guide, a profile) becomes a workspace entry.
+- The template carries no model, harness, runner or sandbox settings. `code`, `client` and
+  `reference` tools have no place in the format: name them in SETUP.md and tell the person.
+
+Never copy credentials, secret values, API keys, tokens or MCP headers. Never copy a project
+binding: no connection slug or id, no vault reference, no schedule or subscription id, no
+account name. A connection is a requirement that the recipient meets with their own account.
+
+## SETUP.md
+
+Write it for this package version and this audience. The loaded agent also reads it in its
+first message. Cover, briefly and only from what the package contains:
+
+- purpose: what the agent does;
+- prerequisites;
+- accounts to connect: each connection, what it is for, and that the recipient chooses
+  their own account;
+- MCP servers to add: each one the package could not carry, by name, what it is used for,
+  and "add this MCP server in Tools";
+- inputs the recipient supplies: every value you generalized;
+- company choices kept on purpose, for a team-specific template;
+- suggested automations: each one stays inactive until the recipient reviews its schedule,
+  timezone and inputs and turns it on;
+- one first-use check: a message to send and what a good answer looks like.
+"""
+
+CREATE_TEMPLATE_SKILL = SkillTemplate(
+    name="create-template",
+    description=(
+        "How to save this agent as a shareable template: a validated zip in the session "
+        "files that another person loads as a new agent. Read it when the person asks to "
+        "save, export or share this agent as a template, including the Save as template "
+        "request, or to submit it to the Agenta marketplace."
+    ),
+    body=_CREATE_TEMPLATE_BODY,
+    files=[
+        SkillFile(
+            path="references/package-format.md",
+            content=_TEMPLATE_PACKAGE_FORMAT_REFERENCE,
+        ),
+        SkillFile(
+            path="references/marketplace.md",
+            content=_TEMPLATE_MARKETPLACE_REFERENCE,
         ),
     ],
 )

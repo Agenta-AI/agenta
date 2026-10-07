@@ -23,6 +23,7 @@ import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
+  PI_MODELS_AHEAD_OF_CATALOG,
   buildPiModelRegistrationPlan,
   describePiModelsJsonPlan,
   isPiModelRegistrationPlan,
@@ -281,6 +282,145 @@ describe("Pi's real built-in registry (the table the pinned harness runs)", () =
     );
   });
 });
+
+describe("models newer than the pinned Pi catalog", () => {
+  // Pi 0.87.1 carries Opus 5.5 and Grok 4.7 itself, so the runner registers nothing for them and
+  // Pi prices each turn from its own catalog instead of from a runner-side copy.
+  it("leaves Opus 5.5 and Grok 4.7 to the pinned catalog, which prices them", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+
+    const opus = registry
+      .models("anthropic")
+      .find((model) => model.id === "claude-opus-5-5");
+    assert.deepEqual(pickRates(opus?.cost), {
+      input: 4,
+      output: 20,
+      cacheRead: 0.2,
+      cacheWrite: 5,
+    });
+    const grok = registry
+      .models("xai")
+      .find((model) => model.id === "grok-4.7");
+    assert.deepEqual(pickRates(grok?.cost), {
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+    });
+
+    assert.equal(
+      buildPiModelRegistrationPlan(
+        piRequest("anthropic/claude-opus-5-5"),
+        registry,
+      ),
+      undefined,
+    );
+    assert.equal(
+      buildPiModelRegistrationPlan(piRequest("xai/grok-4.7"), registry),
+      undefined,
+    );
+  });
+
+  // Pi 0.99.1 carries Sonnet 5.5 and GPT-6.1 Sol itself, so the runner registers nothing for
+  // them either (Sonnet 5.5's runner-side entry was dropped with the 0.99.1 bump).
+  it("leaves Sonnet 5.5 and GPT-6.1 Sol to the pinned catalog, which prices them", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+
+    const sonnet = registry
+      .models("anthropic")
+      .find((model) => model.id === "claude-sonnet-5-5");
+    assert.deepEqual(pickRates(sonnet?.cost), {
+      input: 2,
+      output: 10,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+    });
+    const sol = registry
+      .models("openai")
+      .find((model) => model.id === "gpt-6.1-sol");
+    assert.deepEqual(pickRates(sol?.cost), {
+      input: 2,
+      output: 10,
+      cacheRead: 0.1,
+      cacheWrite: 2.5,
+    });
+
+    assert.equal(
+      buildPiModelRegistrationPlan(
+        piRequest("anthropic/claude-sonnet-5-5"),
+        registry,
+      ),
+      undefined,
+    );
+    assert.equal(
+      buildPiModelRegistrationPlan(piRequest("openai/gpt-6.1-sol"), registry),
+      undefined,
+    );
+  });
+
+  it("lists only models the pinned catalog still lacks", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    for (const id of Object.keys(PI_MODELS_AHEAD_OF_CATALOG)) {
+      const separator = id.indexOf("/");
+      const provider = id.slice(0, separator);
+      const modelId = id.slice(separator + 1);
+      assert.equal(
+        registry.models(provider).some((model) => model.id === modelId),
+        false,
+        `${id} is in the pinned Pi catalog now; drop its entry`,
+      );
+    }
+  });
+
+  it("matches the SDK's curated additions, so the picker and the run agree on price", () => {
+    const curated = JSON.parse(
+      readFileSync(
+        join(
+          import.meta.dirname,
+          "../../../../sdks/python/agenta/sdk/agents/data/pi_models.curated.json",
+        ),
+        "utf8",
+      ),
+    ) as {
+      additions: Array<{
+        id: string;
+        pricing: Record<string, number>;
+        context_window: number;
+      }>;
+    };
+    const additions = new Map(curated.additions.map((entry) => [entry.id, entry]));
+
+    for (const [id, known] of Object.entries(PI_MODELS_AHEAD_OF_CATALOG)) {
+      const addition = additions.get(id);
+      assert.ok(addition, `${id} has no SDK catalog addition`);
+      assert.deepEqual(
+        known.cost,
+        {
+          input: addition.pricing.input_per_mtok,
+          output: addition.pricing.output_per_mtok,
+          cacheRead: addition.pricing.cache_read_per_mtok,
+          cacheWrite: addition.pricing.cache_write_per_mtok,
+        },
+        id,
+      );
+    }
+  });
+});
+
+function pickRates(
+  cost: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!cost) return undefined;
+  return {
+    input: cost.input,
+    output: cost.output,
+    cacheRead: cost.cacheRead,
+    cacheWrite: cost.cacheWrite,
+  };
+}
 
 const dirs: string[] = [];
 

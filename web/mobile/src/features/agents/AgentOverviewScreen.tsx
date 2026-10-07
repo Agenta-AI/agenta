@@ -15,8 +15,10 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {SessionAutomationDrawers} from "../sessions/SessionAutomationDrawers"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {AgentChannelsCard} from "./AgentChannelsCard"
 import {AgentOverviewBody} from "./AgentOverviewBody"
 import {AgentOverviewTitle} from "./AgentOverviewTitle"
+import {useAgentPublishPanel} from "./useAgentPublishPanel"
 
 /** One agent's overview: who it is, a composer, its activity in tabs, and its own state in a rail. */
 export const AgentOverviewScreen = ({
@@ -40,6 +42,19 @@ export const AgentOverviewScreen = ({
         () => new Map(agents.map((entry) => [entry.id, entry.name || entry.slug || "Agent"])),
         [agents],
     )
+
+    // The Channels card resolves the agent a connection answers as, from the same roster the
+    // body's rows read; a connection pointed at an agent this project no longer holds is
+    // unknown, hence null.
+    const resolveAgentName = useCallback((id: string) => agentNames.get(id) ?? null, [agentNames])
+    const publish = useAgentPublishPanel({
+        agentId,
+        agentName: name,
+        agentDescription: description,
+        resolveAgentName,
+        projectId,
+        workspaceId,
+    })
 
     // The shared row verbs — rename, pin, archive, delete — bound here, resolved by the rows.
     const sessionMenu = useSessionRowMenu(base)
@@ -87,6 +102,7 @@ export const AgentOverviewScreen = ({
                                     pending={agentsQuery.isPending && !agent}
                                     onOpenChat={openChat}
                                     onEditConfig={onEditConfig}
+                                    onPublish={publish.openHub}
                                 />
                             </div>
                         </div>
@@ -102,12 +118,23 @@ export const AgentOverviewScreen = ({
                             agentName={name}
                             base={base}
                             agentNames={agentNames}
+                            channels={
+                                <AgentChannelsCard
+                                    connections={publish.connections}
+                                    loading={publish.loading}
+                                    loadError={publish.loadError}
+                                    onRetry={() => void publish.reload().catch(() => null)}
+                                    onOpenHub={publish.openHub}
+                                    onOpenConnection={publish.openConnection}
+                                />
+                            }
                             verbs={verbs}
                             onEditConfig={onEditConfig}
                         />
                     </div>
                 </ScreenScaffold>
             </AppShell>
+            {publish.panel}
             {/* Mounted at screen level so a drawer survives its row unmounting underneath it. */}
             <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
         </>

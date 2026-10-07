@@ -76,7 +76,7 @@ def _fake_async_client(*, response, raises, capture: Dict[str, Any]):
         async def post(self, url, json=None, headers=None):
             if url.endswith(GATEWAY_CREDENTIALS_PATH):
                 capture.setdefault("gateway_credentials_requests", []).append(
-                    {"url": url, "headers": headers}
+                    {"url": url, "headers": headers, "json": json}
                 )
                 return _FakeResponse(
                     200, {"credentials": GATEWAY_CREDENTIALS_VALUE}, None

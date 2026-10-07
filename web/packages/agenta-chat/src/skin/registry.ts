@@ -190,6 +190,10 @@ const matchedTool = (output: unknown): {slug?: string; action?: string} => {
  * would rename THEIR nouns. A missing op still conjugates, so it costs plain wording, not wrong. */
 const PLATFORM_OPS = new Set([
     "annotate_trace",
+    "list_channel_destinations",
+    "read_channel_messages",
+    "search_channel_messages",
+    "send_channel_message",
     "commit_revision",
     "create_schedule",
     "create_subscription",

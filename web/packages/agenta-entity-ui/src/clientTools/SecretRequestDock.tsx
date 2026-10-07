@@ -7,18 +7,20 @@ import {Button} from "@agenta/ui/ui"
 import {Key} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {AgentSecretAttachmentDrawer} from "../secret"
+import {AgentSecretAttachmentModal} from "../secret"
 
 interface SecretRequestDockProps {
     meta: ClientToolMeta
     revisionId: string
     canEditSecrets?: boolean
     onAdoptRevision: (revisionId: string) => void
+    /** Settle channel. Resolving `false` means the write did not land and the gate is still open
+     *  (see `SettleClientTool`), so the buttons come back. */
     onOutput: (args: {
         toolName: string
         toolCallId: string
         output: Record<string, unknown>
-    }) => void
+    }) => void | boolean | Promise<void | boolean>
 }
 
 export const SecretRequestDock = ({
@@ -41,7 +43,6 @@ export const SecretRequestDock = ({
     const configuration = useAtomValue(workflowMolecule.selectors.configuration(targetId))
     const dirty = useAtomValue(workflowMolecule.selectors.isDirty(targetId))
     const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(targetId))
-    const variantLabel = useAtomValue(workflowMolecule.selectors.variantLabel(targetId))
     const entity = useAtomValue(workflowMolecule.selectors.data(targetId))
     const agent = configuration?.agent as
         | {sandbox?: {credentials?: AgentSecretBinding[]}}
@@ -59,7 +60,7 @@ export const SecretRequestDock = ({
               reason: input.reason as string,
           }
         : undefined
-    const label = [artifactName, variantLabel].filter(Boolean).join(" / ") || "This agent"
+    const label = artifactName || "This agent"
     const existingIndex = request
         ? bindings.findIndex((item) => item.binding.name === request.envVar)
         : -1
@@ -67,7 +68,17 @@ export const SecretRequestDock = ({
     const settle = (output: Record<string, unknown>) => {
         if (settling || meta.settled) return
         setSettling(true)
-        onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output})
+        // A host that reports the failure itself still resolves, with `false` (see
+        // `ClientToolOutputHandler`). Give the buttons back rather than spinning over a gate that
+        // is still open.
+        void Promise.resolve(
+            onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output}),
+        ).then(
+            (landed) => {
+                if (landed === false) setSettling(false)
+            },
+            () => setSettling(false),
+        )
     }
     const configured = (slug: string, envVar: string, nextRevisionId: string) => {
         onAdoptRevision(nextRevisionId)
@@ -82,10 +93,12 @@ export const SecretRequestDock = ({
             >
                 <div className="flex items-center gap-2 text-xs font-medium">
                     <Key size={14} />
-                    The agent is waiting for you
+                    Secret needed to continue
                 </div>
                 <p className="mb-1 mt-3 text-sm">
-                    <strong>{request?.name ?? "Secret setup unavailable"}</strong>
+                    <strong className="font-semibold">
+                        {request?.name ?? "Secret setup unavailable"}
+                    </strong>
                     {request
                         ? ` · ${request.reason}`
                         : "This request is missing its setup details."}
@@ -144,7 +157,7 @@ export const SecretRequestDock = ({
                     </p>
                 ) : null}
             </div>
-            <AgentSecretAttachmentDrawer
+            <AgentSecretAttachmentModal
                 open={open}
                 onClose={() => setOpen(false)}
                 target={{revisionId: targetId, label}}

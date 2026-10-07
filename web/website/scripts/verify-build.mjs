@@ -34,6 +34,7 @@ for (const twin of [
   "imprint.md",
   "blog.md",
   "authors.md",
+  "marketplace.md",
 ]) {
   check(existsSync(resolve(dist, twin)), `missing markdown twin: dist/${twin}`);
 }
@@ -67,6 +68,44 @@ const authors = readdirSync(resolve(root, "src/content/authors")).filter(
 for (const author of authors) {
   const twin = `authors/${author.replace(/\.json$/, "")}.md`;
   check(existsSync(resolve(dist, twin)), `missing markdown twin: dist/${twin}`);
+}
+
+// Agent Marketplace: every catalog template has a page and a twin, the page
+// carries its own "Use it for free" link, and every template author has a
+// creator page under /creators/<id>.
+const templateData = JSON.parse(
+  readFileSync(resolve(root, "src/data/templates.json"), "utf8"),
+);
+for (const template of templateData.templates) {
+  const html = resolve(dist, `marketplace/${template.key}/index.html`);
+  check(
+    existsSync(html),
+    `missing template page: dist/marketplace/${template.key}/`,
+  );
+  check(
+    existsSync(resolve(dist, `marketplace/${template.key}.md`)),
+    `missing markdown twin: dist/marketplace/${template.key}.md`,
+  );
+  if (existsSync(html)) {
+    check(
+      readFileSync(html, "utf8").includes(`?template=${template.key}"`),
+      `dist/marketplace/${template.key}/ has no Use it for free link for its key.`,
+    );
+  }
+}
+const templateAuthorIds = new Set([
+  ...templateData.authors.map((author) => author.id),
+  ...templateData.templates.map((template) => template.author.id),
+]);
+for (const id of templateAuthorIds) {
+  check(
+    existsSync(resolve(dist, `creators/${id}/index.html`)),
+    `missing template creator page: dist/creators/${id}/`,
+  );
+  check(
+    existsSync(resolve(dist, `creators/${id}.md`)),
+    `missing markdown twin: dist/creators/${id}.md`,
+  );
 }
 
 // 2. The twin content is real markdown, not an empty file or an HTML page.

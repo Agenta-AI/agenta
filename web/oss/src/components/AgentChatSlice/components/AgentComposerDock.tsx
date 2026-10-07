@@ -84,7 +84,6 @@ const AgentComposerDock = ({
     onSubmit,
     onStop,
     stopping,
-    queueEnabled,
     stopShortcutEnabled,
     richInputRef,
     composer,
@@ -104,7 +103,7 @@ const AgentComposerDock = ({
     queue: {
         queued: QueuedMessage[]
         removeQueued: (id: string) => void
-        sendQueuedNow: ((id: string) => Promise<void>) | undefined
+        sendQueuedNow: ((id: string) => void) | undefined
         editingId: string | null
         beginEdit: (id: string, draft?: string) => void
         cancelEdit: () => string
@@ -135,8 +134,6 @@ const AgentComposerDock = ({
     onSteer: (text: string) => void | Promise<void>
     onStop: () => void
     stopping: boolean
-    queueEnabled: boolean
-    steerEnabled: boolean
     stopShortcutEnabled: boolean
     richInputRef: RefObject<RichChatInputHandle | null>
     composer: ReturnType<typeof useComposerDraft>
@@ -153,7 +150,6 @@ const AgentComposerDock = ({
     const stoppable = isComposerRunStoppable({
         localStreaming: busy,
         serverBusy: queue.serverBusy,
-        serverControlEnabled: queueEnabled,
         waitingOnUser: hitlPending,
     })
     const {
@@ -454,6 +450,7 @@ const AgentComposerDock = ({
                                 sectionTooltip={<HarnessTooltip />}
                                 options={slash.modelGroups}
                                 value={slash.currentModel}
+                                selectedKey={slash.currentModelKey}
                                 // The option carries a vault pick's connection slug + kind; `applyModel`
                                 // needs it to attach the right connection instead of guessing by model id.
                                 onChange={(next, option) => slash.applyModel(next, option)}

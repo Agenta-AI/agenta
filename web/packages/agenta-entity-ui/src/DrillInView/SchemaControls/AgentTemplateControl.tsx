@@ -27,8 +27,8 @@ import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/enti
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
-    workflowBuildKitDisabledOpsAtomFamily,
-    workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    migrateBuildKitStateAtom,
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
@@ -50,11 +50,11 @@ import {
     FileText,
     GraduationCap,
     Plugs,
-    PuzzlePiece,
     Robot,
     ShieldCheck,
     SlidersHorizontal,
     UploadSimple,
+    Wrench,
 } from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
@@ -62,7 +62,6 @@ import {useAtom, useAtomValue, useStore} from "jotai"
 import {ChangedPathsProvider} from "../../drawers/shared"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
-import {AddTextLink} from "./AddTextLink"
 import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
@@ -72,6 +71,7 @@ import {
 } from "./agentTemplate/AgentTemplateSectionList"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
+import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
 import {
     embedRevisionVersion,
@@ -284,10 +284,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             if (isCurrentSectionDirty()) return
             const snapshotConfig = (value ?? {}) as Record<string, unknown>
             const snapshotRevision = revisionIdRef.current ?? ""
-            const snapshotBuildKit: BuildKitUiState = {
-                enabled: store.get(workflowBuildKitEnabledAtomFamily(snapshotRevision)),
-                disabledOps: store.get(workflowBuildKitDisabledOpsAtomFamily(snapshotRevision)),
-            }
+            store.set(migrateBuildKitStateAtom, snapshotRevision)
+            const snapshotBuildKit = store.get(workflowBuildKitUiStateAtomFamily(snapshotRevision))
             setDraftConfig(snapshotConfig)
             setDraftBuildKit(snapshotBuildKit)
             setSectionRevision(snapshotRevision)
@@ -352,18 +350,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     provider: connection.provider ?? undefined,
                     connectionMode: connection.mode ?? prev.connectionMode,
                     connectionSlug: connection.slug ?? undefined,
+                    connectionNamespace: connection.namespace ?? undefined,
                 }))
             }
         }
         if (draftBuildKit !== null && sectionBaseline.current !== null) {
             const revision = sectionRevision ?? revisionIdRef.current ?? ""
-            if (draftBuildKit.enabled !== sectionBaseline.current.buildKit.enabled)
-                store.set(workflowBuildKitEnabledAtomFamily(revision), draftBuildKit.enabled)
-            if (!deepEqual(draftBuildKit.disabledOps, sectionBaseline.current.buildKit.disabledOps))
-                store.set(
-                    workflowBuildKitDisabledOpsAtomFamily(revision),
-                    draftBuildKit.disabledOps,
-                )
+            if (!deepEqual(draftBuildKit, sectionBaseline.current.buildKit))
+                store.set(workflowBuildKitUiStateAtomFamily(revision), draftBuildKit)
         }
         closeSectionDraft()
     }, [
@@ -394,9 +388,39 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+    // A secret attach/edit/remove commits a new revision from inside the open drawer. Keep the
+    // drawer open on it: re-snapshot the (clean) draft from the adopted revision instead of closing.
+    const credentialRebaseTarget = useRef<string | null>(null)
+    const rebaseSectionOnCredentialCommit = useCallback((nextRevisionId: string) => {
+        credentialRebaseTarget.current = nextRevisionId
+    }, [])
     useEffect(() => {
-        if (openSection && sectionRevision !== (revisionId ?? "")) closeSectionDraft()
-    }, [revisionId, sectionRevision, openSection, closeSectionDraft])
+        if (!openSection || sectionRevision === (revisionId ?? "")) return
+        const rebase =
+            revisionId !== null &&
+            credentialRebaseTarget.current === revisionId &&
+            !isCurrentSectionDirty()
+        credentialRebaseTarget.current = null
+        if (!rebase) {
+            closeSectionDraft()
+            return
+        }
+        const snapshotConfig = (value ?? {}) as Record<string, unknown>
+        store.set(migrateBuildKitStateAtom, revisionId)
+        const snapshotBuildKit = store.get(workflowBuildKitUiStateAtomFamily(revisionId))
+        setDraftConfig(snapshotConfig)
+        setDraftBuildKit(snapshotBuildKit)
+        setSectionRevision(revisionId)
+        sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
+    }, [
+        revisionId,
+        sectionRevision,
+        openSection,
+        closeSectionDraft,
+        isCurrentSectionDirty,
+        value,
+        store,
+    ])
 
     // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
     // the sibling AgentOperationsSections; this shares the same deduped query).
@@ -1056,9 +1080,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         closeEditor,
         disabled,
         statusFor: toolStatusFor,
-        emptyAdd: openSubagentSelector ? (
-            <AddTextLink label="add a subagent" onClick={openSubagentSelector} />
-        ) : undefined,
     }
 
     // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
@@ -1100,7 +1121,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             key: "instructions",
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
-            summary: countSummary(1, "file"),
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
             content: (
@@ -1118,15 +1138,22 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
                 key: "tools",
-                icon: <PuzzlePiece size={16} />,
+                icon: <Wrench size={16} />,
                 title: "Integrations",
                 summary: countSummary(integrationCount, "integration"),
                 indicator: sectionIndicator("tools"),
-                // One action, so the header plus opens the drawer directly instead of a menu.
+                // "Create with AI" beside the drawer that adds one by hand.
                 extra:
-                    !disabled && openIntegrationDrawer
-                        ? headerAddButton("Add integration", openIntegrationDrawer)
-                        : undefined,
+                    !disabled && openIntegrationDrawer ? (
+                        <CreateWithAIAddMenu
+                            label="Add integration"
+                            starterPrompt="I want to connect"
+                            onManual={openIntegrationDrawer}
+                            manualTitle="Browse integrations"
+                            manualHint="Pick an app and its actions"
+                            manualIcon={<Wrench size={16} />}
+                        />
+                    ) : undefined,
                 defaultOpen: integrationCount > 0,
                 content: (
                     <ToolManagementList
@@ -1141,15 +1168,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                             removeIntegration(row)
                             closeEditor()
                         }}
-                        // The empty-state add opens the header's drawer, and hides when there is none.
-                        emptyAdd={
-                            openIntegrationDrawer ? (
-                                <AddTextLink
-                                    label="add an integration"
-                                    onClick={openIntegrationDrawer}
-                                />
-                            ) : undefined
-                        }
                     />
                 ),
             },
@@ -1191,9 +1209,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     removeItem={(index: number) => removeItem("mcp", index)}
                     closeEditor={closeEditor}
                     statusFor={mcpStatusFor}
-                    emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
                     addOpen={addMcpOpen}
                     onAddClose={() => setAddMcpOpen(false)}
+                    onAddOpen={() => setAddMcpOpen(true)}
                 />
             ),
         },
@@ -1203,7 +1221,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
             indicator: sectionIndicator("skills"),
-            extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
+            extra: !disabled ? (
+                <CreateWithAIAddMenu
+                    label="Add skill"
+                    starterPrompt="I want a skill that"
+                    onManual={handleAddSkill}
+                    manualTitle="Add manually"
+                    manualHint="From your library, or write one"
+                    manualIcon={<GraduationCap size={16} />}
+                />
+            ) : undefined,
             defaultOpen: skills.length > 0,
             content: (
                 <>
@@ -1220,7 +1247,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         closeEditor={closeEditor}
                         disabled={disabled}
                         statusFor={skillStatusFor}
-                        emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
                     />
                 </>
             ),
@@ -1481,6 +1507,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 disabled={disabled || !sectionDirty}
                 dirty={sectionDirty}
                 width={mh.advancedDrawerWidth}
+                // No top or bottom gutter: the rail and its divider run header to footer.
+                bodyPadding="0 12px"
             >
                 <ChangedPathsProvider changes={drawerChangedPaths}>
                     <ModelHarnessSectionBody
@@ -1493,7 +1521,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         revisionId={sectionRevision ?? revisionId}
                         buildKitOverride={draftBuildKitOverride}
                         credentialOperationsBlocked={sectionDirty}
-                        onCredentialRevisionCommitted={closeSectionDraft}
+                        onCredentialRevisionCommitted={rebaseSectionOnCredentialCommit}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>

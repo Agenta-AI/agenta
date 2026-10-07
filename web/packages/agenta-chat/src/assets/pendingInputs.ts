@@ -6,7 +6,6 @@ import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 import {attachmentContentUrl} from "./transcriptToMessages"
 
 export interface SessionPendingInputView {
-    capabilities: {queue: boolean; steer: boolean}
     executionState: "idle" | "running" | "stopping"
     queued: QueuedMessage[]
 }
@@ -97,17 +96,18 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         attachmentCount,
         policy: input.policy,
         source: "server",
+        clientId: input.idempotency_key ?? null,
         editable: input.state === "pending" && display === undefined,
+        // Promoted: its turn is starting, so it can no longer be removed, edited or sent again.
+        ...(input.state === "promoted"
+            ? {removable: false, promotedExecutionId: input.promoted_execution_id ?? null}
+            : {}),
     }
 }
 
 export const reduceSessionPendingInputs = (
     snapshot: SessionSnapshot | null,
 ): SessionPendingInputView => ({
-    capabilities: {
-        queue: snapshot?.capabilities.queue ?? false,
-        steer: snapshot?.capabilities.steer ?? false,
-    },
     executionState: snapshot?.execution_state.state ?? "idle",
     queued: (snapshot?.pending.inputs ?? [])
         .filter((input) => input.state === "pending" || input.state === "promoted")

@@ -1,16 +1,27 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {PendingInputWriteOutcome} from "@agenta/entities/session"
 import {
     approvalContinuationSettled,
-    canReleaseQueuedMessage,
     hasRunningApprovalContinuation,
     isHitlPending,
 } from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
-import {latestTurnId} from "../assets/agentTurn"
+import {countUserMessages, durableUserTurnIds} from "../assets/pendingSendEchoes"
+import {
+    applyQueueOps,
+    pruneQueueOps,
+    pruneQueueRowErrors,
+    type QueueOpBody,
+    type QueueOps,
+    type QueueRowError,
+    type QueueRowErrors,
+} from "../assets/queueOverlay"
+import {getPendingConnectInteractions} from "../clientTools/connectInteractions"
+import {getPendingElicitationInteractions} from "../clientTools/elicitationInteractions"
 
 import type {ComposerAttachment} from "./useComposerAttachments"
 import {usePendingSendEchoes} from "./usePendingSendEchoes"
@@ -25,13 +36,27 @@ export interface QueuedMessage {
     policy?: "queue" | "steer"
     source?: "local" | "server"
     editable?: boolean
+    /** The send this server row came from (its `Idempotency-Key`), so its echo can step aside. */
+    clientId?: string | null
+    removable?: boolean
+    error?: string
+    /** An edit that did not save; the pencil reopens it instead of the saved text. */
+    unsavedEdit?: {text: string; fileParts?: FileUIPart[]}
+    promotedExecutionId?: string | null
+    /** An edit of this row is still saving. */
+    saving?: boolean
+}
+
+/** `settledSeq`: a snapshot read with a higher sequence reflects this write. */
+export interface ServerQueueWriteResult {
+    outcome: PendingInputWriteOutcome
+    settledSeq: number
 }
 
 export interface ServerQueueAdapter {
-    capabilities: {queue: boolean; steer: boolean}
-    resolveCapabilities?: () => Promise<{queue: boolean; steer: boolean}>
     busy: boolean
     queued: QueuedMessage[]
+    viewSeq: number
     /**
      * Admits one input. `watcher` reports what happened to THIS send: the turn it started, the
      * durable input it was parked as, or its failure.
@@ -44,32 +69,34 @@ export interface ServerQueueAdapter {
             onParked?: (inputId: string) => void
             onFailed?: () => void
             onSettled?: () => void
+            opensTurn?: boolean
+            onTurnNamed?: () => void
         },
     ) => Promise<"queued" | "running">
-    remove: (id: string) => Promise<void>
-    sendNow?: (id: string) => Promise<void>
-    edit?: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
+    remove: (id: string) => Promise<ServerQueueWriteResult>
+    /** `executionId` is set only when the server promoted the input on the spot. */
+    sendNow?: (id: string) => Promise<ServerQueueWriteResult & {executionId: string | null}>
+    edit?: (
+        id: string,
+        item: {text: string; fileParts?: FileUIPart[]},
+    ) => Promise<ServerQueueWriteResult>
+    /** Resolves with the sequence of the read it made, or null when that read failed. */
+    refresh?: (options?: {fresh?: boolean}) => Promise<number | null>
 }
 
+const REMOVE_FAILED = "Couldn't remove this message. Try again."
+const REMOVE_ABOUT_TO_RUN = "This message is about to run and can't be removed."
+const NOT_QUEUED = "This message is no longer queued."
+const SEND_NOW_FAILED = "Couldn't send this message now. Try again."
+const SEND_NOW_BUSY = "Another message is being sent first. Try again once it starts."
+const EDIT_FAILED = "Your edit wasn't saved. Edit to try again."
+const EDIT_ABOUT_TO_RUN = "This message is about to run and can't be edited."
+
 interface UseAgentChatQueueArgs {
-    status: string
     messages: UIMessage[]
-    /** The invoke stream disconnected after acceptance, but the shared session run still owns the
-     * turn. New messages stay queued until its durable terminal event arrives. */
-    acceptedRunPending?: boolean
-    /** The last turn was user-stopped (cancelled). A stop voids any pending approval / imminent
-     * auto-resume, so the aborted turn's tool parts still reading as mid-HITL must NOT hold a new
-     * send — a stopped-and-settled conversation is releasable. */
+    /** The last turn was user-stopped (cancelled). A stop voids any pending approval, so the
+     * aborted turn's tool parts still reading as mid-HITL are not reported as awaiting. */
     stopped: boolean
-    /** The tail's "resume imminent" shape is an orphan: it was RESTORED from storage (page
-     * reload / pane remount killed the run mid-approval-resume) and no interaction in this
-     * mount can fire the auto-resume. Holding for it would freeze the queue forever with no
-     * dock and no stop (AGE-3937), so it voids the hold exactly like a user stop. */
-    resumeOrphaned?: boolean
-    /** The approval answer is durable but its continuation was not delivered. A composer Send
-     * keeps the message held and uses the click to retry that continuation first. */
-    recoverable?: boolean
-    retryContinuation?: () => Promise<boolean>
     /**
      * Execution id of the durable approval continuation this mount just started, read from the
      * respond body (`execution.id`). Non-null means the server owns the next turn: nothing may
@@ -82,8 +109,6 @@ interface UseAgentChatQueueArgs {
      * reads as settled.
      */
     continuationExecutionId?: string | null
-    /** Mark this tab as the next run's owner before a released send reaches the transport. */
-    markRunOwned: () => void
     /**
      * Hand a refused send back to the composer. Reports whether the composer took it: if it did,
      * the message lives there and its echo row goes; if it could not (no mounted editor), the row
@@ -97,18 +122,11 @@ interface UseAgentChatQueueArgs {
     onSendAccepted?: (message: QueuedMessage, executionId: string | null) => void
     /** A durable send will never become a turn: rejected before it left, or refused after. */
     onSendFailed?: (message: QueuedMessage) => void
-    /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
-     * referentially stable so the release effect doesn't churn on every streamed token. */
-    sendQueued: (item: QueuedMessage) => void
-    /** Persist held messages under this key across pane remounts (route re-entry, tab
-     * close/reopen) — a restored queue releases normally once the conversation settles. */
-    sessionId?: string
-    /** Durable server queue. Omit (or advertise queue=false) for the browser-local fallback. */
-    server?: ServerQueueAdapter
+    /** The durable session queue. Every send is admitted through it. */
+    server: ServerQueueAdapter
+    /** This tab's own run is going, which the server snapshot reports a poll late. */
+    runActive?: boolean
 }
-
-// In-memory, page-session lifetime — same as the composer drafts it accompanies.
-const queuedBySession = new Map<string, QueuedMessage[]>()
 
 /**
  * Ceiling on the id-keyed continuation hold.
@@ -122,55 +140,37 @@ const queuedBySession = new Map<string, QueuedMessage[]>()
  */
 export const CONTINUATION_HOLD_MAX_MS = 45_000
 
+/** Longest the next send waits for this one's turn to be named before it is admitted anyway. */
+const ADMISSION_NAME_MAX_MS = 10_000
+
+/** Longest a started row stays in the dock while its user row is on its way. */
+const RELEASE_HOLD_MAX_MS = 2_000
+
 /**
- * Holds user messages typed while a turn is in flight and releases them ONE AT A TIME once the
- * stream truly settles. It never releases mid human-in-the-loop (a tool-approval gate) — that
- * decision lives in `canReleaseQueuedMessage`. Releasing one message flips the conversation back
- * to busy, so the next stays queued until that turn settles too.
+ * Admits every composer send through the durable session queue, keeps an echo row for each send
+ * until the transcript or the dock owns it, and edits the server-held queue.
  *
- * Exception: a user STOP. Stopping aborts the run, which cancels any pending approval or the tick
- * before an auto-resume — but the aborted turn's tool parts keep their `approval-requested` /
- * `approval-responded` / client-tool-result shape, so `canReleaseQueuedMessage` would keep holding.
- * When `stopped`, a settled conversation is releasable so a fresh send goes immediately.
+ * The server decides whether a send starts a turn or parks behind the running one, so nothing is
+ * held in the browser.
  */
 export const useAgentChatQueue = ({
-    status,
     messages,
-    acceptedRunPending = false,
     stopped,
-    resumeOrphaned = false,
-    recoverable = false,
-    retryContinuation,
     continuationExecutionId = null,
-    markRunOwned,
     restoreRefusedSend,
     onSendAccepted,
     onSendFailed,
-    sendQueued,
-    sessionId,
     server,
+    runActive = false,
 }: UseAgentChatQueueArgs) => {
-    const serverBusyRef = useRef(server?.busy)
-    serverBusyRef.current = server?.busy
-    const [queued, setQueued] = useState<QueuedMessage[]>(
-        () => (sessionId && queuedBySession.get(sessionId)) || [],
-    )
-
-    // Mirror every queue change into the per-session store so a remount restores it.
-    useEffect(() => {
-        if (!sessionId) return
-        if (queued.length > 0) queuedBySession.set(sessionId, queued)
-        else queuedBySession.delete(sessionId)
-    }, [queued, sessionId])
-
-    // Settled = the stream is over (done or failed). A stop lands here (abort → "ready").
-    const settled = status === "ready" || status === "error"
+    const serverBusyRef = useRef(server.busy)
+    serverBusyRef.current = server.busy
+    const runActiveRef = useRef(runActive)
+    runActiveRef.current = runActive
 
     // ── The durable-continuation hold ─────────────────────────────────────────────────────────
-    // A server-owned continuation is a TURN. Sending into it starts a second turn for the same
-    // session, and the runner resolves that collision by superseding: it tears down the warm
-    // sandbox mid-call, so the tool the user just approved comes back "Command aborted" and the
-    // sent message dies with it. Nothing below may release while one is in flight.
+    // A server-owned continuation is a TURN. The tab that answered the approval owns it until
+    // that execution's own terminal record lands.
     const [, forceHoldRecheck] = useState(0)
     const holdStartedAtRef = useRef<{id: string; at: number} | null>(null)
     if (continuationExecutionId) {
@@ -187,7 +187,7 @@ export const useAgentChatQueue = ({
         !!continuationExecutionId &&
         !idHoldExpired &&
         !approvalContinuationSettled(messages, continuationExecutionId)
-    // The ceiling needs a render to take effect; nothing else re-renders a queue that is holding.
+    // The ceiling needs a render to take effect; nothing else re-renders a hold that is waiting.
     useEffect(() => {
         if (!holdStartedAt || idHoldExpired) return
         const remaining = holdStartedAt.at + CONTINUATION_HOLD_MAX_MS - Date.now()
@@ -195,9 +195,6 @@ export const useAgentChatQueue = ({
         return () => clearTimeout(timer)
     }, [holdStartedAt, idHoldExpired])
 
-    // A user stop cancels the continuation too, so it outranks the hold exactly as it outranks
-    // every other gate here.
-    const continuationHold = !stopped && (idHold || hasRunningApprovalContinuation(messages))
     // Ownership is scoped by the respond body's execution id, so an observer rendering the same
     // continuation records never claims it. Keep ownership past the gap ceiling once that exact
     // execution is visibly running; the ceiling only protects a continuation that wrote nothing.
@@ -207,28 +204,18 @@ export const useAgentChatQueue = ({
             hasRunningApprovalContinuation(messages) &&
             !approvalContinuationSettled(messages, continuationExecutionId))
 
-    // Releasable now: the normal gate, OR a settled turn whose hold was voided — by a user stop,
-    // or by an orphaned restored resume shape that nothing in this mount can ever fire.
-    const canReleaseNow =
-        !acceptedRunPending &&
-        !continuationHold &&
-        (canReleaseQueuedMessage(status, messages) || ((stopped || resumeOrphaned) && settled))
-
-    const canReleaseNowRef = useRef(canReleaseNow)
-    canReleaseNowRef.current = canReleaseNow
-
-    // A stop voids the gate for release (above), so it must void it for reporting too — else the
-    // aborted turn's lingering `approval-requested` part still reads as "awaiting" while `submit`
-    // sends immediately. Keep `hitlPending` in lockstep with the release decision.
+    // A stop voids the approval gate, so the aborted turn's lingering `approval-requested` part
+    // must not read as "awaiting".
     const hitlPending = !stopped && isHitlPending(messages)
-
-    // One latch shared by both send paths caps releases to one per settle and preserves FIFO.
-    const releasingRef = useRef(false)
-    const retryingContinuationRef = useRef(false)
-    const queuedRef = useRef(queued)
-    useEffect(() => {
-        queuedRef.current = queued
-    }, [queued])
+    // Parked CLIENT TOOLS only, not approvals. The steer guard below reads this, and an approval
+    // gate must keep sending a typed message to the queue: answering it is what the dock's buttons
+    // are for, and a message is as likely to be consent as a redirect.
+    const parkedClientTools =
+        !stopped &&
+        (getPendingElicitationInteractions(messages).length > 0 ||
+            getPendingConnectInteractions(messages).length > 0)
+    const parkedClientToolsRef = useRef(parkedClientTools)
+    parkedClientToolsRef.current = parkedClientTools
 
     const restoreRefusedSendRef = useRef(restoreRefusedSend)
     restoreRefusedSendRef.current = restoreRefusedSend
@@ -237,129 +224,328 @@ export const useAgentChatQueue = ({
     const onSendFailedRef = useRef(onSendFailed)
     onSendFailedRef.current = onSendFailed
 
-    /**
-     * Hand a message to the transport on the NON-durable path, and report it as admitted.
-     *
-     * The durable path has a server admission event to report; this one has none — `sendQueued`
-     * is synchronous and answers nothing. Staying silent left the send lifecycle half-driven
-     * here: a fresh session's optimistic row never left `submitting`, so the `accepted` guard
-     * that protects it could not hold, and a later message's failure deleted a row the server
-     * was going to list. Reaching the transport IS the admission this path has, and it is the
-     * same moment `markRunOwned` already claims the run.
-     */
-    const dispatchUnqueued = useCallback(
-        (message: QueuedMessage) => {
-            markRunOwned()
-            sendQueued(message)
-            onSendAcceptedRef.current?.(message, null)
-        },
-        [markRunOwned, sendQueued],
-    )
-
     // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
-    // this one keeps to admission, queueing, and editing.
+    // this one keeps to admission and editing.
+    //
+    // Retirement reads EVERY durable row, including the ones the dock hides below: a queued send's
+    // echo retires precisely because its row is now in the snapshot, so filtering here would leave
+    // it waiting forever.
     const dockedInputIds = useMemo(
-        () => new Set((server?.queued ?? []).map((item) => item.id)),
-        [server?.queued],
+        () => new Set(server.queued.map((item) => item.id)),
+        [server.queued],
     )
     const echoes = usePendingSendEchoes({messages, dockedInputIds})
-
-    // Retained until admission so a refused immediate send can return to the composer.
-    const lastSentRef = useRef<QueuedMessage | undefined>(undefined)
-
-    const admittedTurnId = latestTurnId(messages)
-    useEffect(() => {
-        if (admittedTurnId) lastSentRef.current = undefined
-    }, [admittedTurnId])
-
-    /** Take back the last sent message only after an optional placement succeeds. */
-    const takeLastSent = useCallback((place?: (message: QueuedMessage) => boolean) => {
-        const message = lastSentRef.current
-        if (!message || (place && !place(message))) return undefined
-        lastSentRef.current = undefined
-        return message
-    }, [])
 
     const [editingId, setEditingId] = useState<string | null>(null)
     const stashRef = useRef("")
     const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
+    const serverQueuedRef = useRef(server.queued)
+    serverQueuedRef.current = server.queued
 
-    // A message held before an approval answer predates the server-owned continuation. Move it
-    // under the same durable admission before that continuation can promote a different input.
-    const migrationRef = useRef<string | null>(null)
-    const migrationPromiseRef = useRef<{
-        id: string
-        promise: Promise<void>
-        retry: () => Promise<void>
-        failed: boolean
-    } | null>(null)
-    const migrationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const [migrationRetry, setMigrationRetry] = useState(0)
-    useEffect(
-        () => () => {
-            if (migrationRetryTimerRef.current) clearTimeout(migrationRetryTimerRef.current)
-        },
-        [],
-    )
+    // Optimistic queue writes: undone on failure, dropped once a later snapshot reflects them.
+    const [ops, setOps] = useState<QueueOps>({})
+    const [rowErrors, setRowErrors] = useState<QueueRowErrors>({})
+    // Client ids of just-sent rows removed before the server named their input.
+    const [deferredRemovals, setDeferredRemovals] = useState<ReadonlySet<string>>(() => new Set())
+    const deferredRemovalsRef = useRef(new Set<string>())
+    const admissionChainRef = useRef<Promise<void>>(Promise.resolve())
+    const admittingRef = useRef(0)
+
+    const opsRef = useRef(ops)
+    opsRef.current = ops
+    const opTokenRef = useRef(0)
+    const opOwnersRef = useRef(new Map<string, number>())
+    const setOp = useCallback((id: string, body: QueueOpBody) => {
+        const token = ++opTokenRef.current
+        opOwnersRef.current.set(id, token)
+        setOps((current) => ({...current, [id]: {...body, token}}))
+        return token
+    }, [])
+    // A later write on the same row owns its overlay; an earlier one's outcome must not touch it.
+    const dropOp = useCallback((id: string, token: number) => {
+        if (opOwnersRef.current.get(id) !== token) return false
+        opOwnersRef.current.delete(id)
+        setOps((current) => {
+            if (current[id]?.token !== token) return current
+            const next = {...current}
+            delete next[id]
+            return next
+        })
+        return true
+    }, [])
+    const settleOp = useCallback((id: string, token: number, settledSeq: number) => {
+        setOps((current) =>
+            current[id]?.token === token
+                ? {...current, [id]: {...current[id], settledSeq}}
+                : current,
+        )
+    }, [])
+    const setRowError = useCallback((id: string, error: QueueRowError | null) => {
+        setRowErrors((current) => {
+            if (error) return {...current, [id]: error}
+            if (!(id in current)) return current
+            const next = {...current}
+            delete next[id]
+            return next
+        })
+    }, [])
+    const forgetDeferredRemoval = useCallback((id: string) => {
+        if (!deferredRemovalsRef.current.delete(id)) return false
+        setDeferredRemovals(new Set(deferredRemovalsRef.current))
+        return true
+    }, [])
+
+    // `ops` too: a write can settle after the read that reflects it has already landed.
     useEffect(() => {
-        const head = queued[0]
-        const submitToServer = server?.submit
-        if (
-            !continuationExecutionId ||
-            !continuationHold ||
-            !server?.capabilities.queue ||
-            !submitToServer ||
-            !head ||
-            editingId === head.id ||
-            migrationRef.current
-        ) {
+        setOps((current) => pruneQueueOps(current, server.queued, server.viewSeq))
+    }, [ops, server.queued, server.viewSeq])
+    useEffect(() => {
+        setRowErrors((current) => pruneQueueRowErrors(current, server.queued))
+    }, [server.queued])
+
+    // A new user row may be a started input: re-read once, hiding its echo's input until then.
+    const transcriptTurnIds = useMemo(() => durableUserTurnIds(messages), [messages])
+    const userCount = countUserMessages(messages)
+    const lastUserCountRef = useRef(userCount)
+    const retiredParkedIdsRef = useRef(echoes.retiredParkedIds)
+    retiredParkedIdsRef.current = echoes.retiredParkedIds
+    const [handoff, setHandoff] = useState<{
+        ids: ReadonlySet<string>
+        untilSeq: number | null
+    } | null>(null)
+    const refreshQueue = server.refresh
+    useEffect(() => {
+        const grew = userCount > lastUserCountRef.current
+        lastUserCountRef.current = userCount
+        if (!grew) return
+        const ids = retiredParkedIdsRef.current
+        const settle = (untilSeq: number) =>
+            setHandoff((current) => (current?.ids === ids ? {ids, untilSeq} : current))
+        setHandoff({ids, untilSeq: null})
+        if (!refreshQueue) {
+            settle(-1)
             return
         }
+        void refreshQueue({fresh: true}).then(
+            (seq) => settle(seq ?? -1),
+            () => settle(-1),
+        )
+    }, [userCount, refreshQueue])
+    useEffect(() => {
+        if (handoff?.untilSeq != null && server.viewSeq >= handoff.untilSeq) setHandoff(null)
+    }, [handoff, server.viewSeq])
 
-        migrationRef.current = head.id
-        const retry = () =>
-            submitToServer(head, "queue").then(() => {
-                if (editSessionRef.current?.id === head.id) editSessionRef.current.server = true
-                if (sessionId) {
-                    const stored = queuedBySession.get(sessionId)
-                    if (stored) {
-                        const remaining = stored.filter((item) => item.id !== head.id)
-                        if (remaining.length > 0) queuedBySession.set(sessionId, remaining)
-                        else queuedBySession.delete(sessionId)
-                    }
-                }
-                setQueued((items) => items.filter((item) => item.id !== head.id))
-            })
-        const migration = {id: head.id, promise: retry(), retry, failed: false}
-        migrationPromiseRef.current = migration
-        void migration.promise
-            .catch(() => {
-                migration.failed = true
-                if (migrationRef.current !== head.id) return
-                migrationRef.current = null
-                migrationRetryTimerRef.current = setTimeout(() => {
-                    migrationRetryTimerRef.current = null
-                    migrationRef.current = null
-                    setMigrationRetry((attempt) => attempt + 1)
-                }, 2_000)
-            })
-            .finally(() => {
-                if (migrationRef.current === head.id) migrationRef.current = null
-                if (migrationPromiseRef.current === migration && !migration.failed)
-                    migrationPromiseRef.current = null
-            })
+    // A promoted row the server stops listing stays, button-less, until its turn's user row lands.
+    const [held, setHeld] = useState<{row: QueuedMessage; turnId: string; until: number}[]>([])
+    const queuedKey = server.queued
+        .map((row) => `${row.id}:${row.promotedExecutionId ?? ""}`)
+        .join()
+    const [lastQueued, setLastQueued] = useState({key: queuedKey, rows: server.queued})
+    if (lastQueued.key !== queuedKey) {
+        setLastQueued({key: queuedKey, rows: server.queued})
+        const listed = new Set(server.queued.map((item) => item.id))
+        const until = Date.now() + RELEASE_HOLD_MAX_MS
+        const started = lastQueued.rows.flatMap((row) => {
+            const turnId = row.promotedExecutionId
+            if (!turnId || transcriptTurnIds.has(turnId) || listed.has(row.id)) return []
+            if (row.policy === "steer" || row.id === editingId || ops[row.id]) return []
+            return [{row: {...row, source: "local" as const, editable: false}, turnId, until}]
+        })
+        if (started.length) {
+            const ids = new Set(started.map((item) => item.row.id))
+            setHeld((current) => [...current.filter((item) => !ids.has(item.row.id)), ...started])
+        }
+    }
+    const heldRows = useMemo(() => {
+        const listed = new Set(server.queued.map((item) => item.id))
+        return held
+            .filter(
+                (item) =>
+                    Date.now() < item.until &&
+                    !transcriptTurnIds.has(item.turnId) &&
+                    !listed.has(item.row.id),
+            )
+            .map((item) => item.row)
+    }, [held, server.queued, transcriptTurnIds])
+    // The time limit needs a render of its own once nothing else changes.
+    useEffect(() => {
+        if (!held.length) return
+        const next = Math.min(...held.map((item) => item.until)) - Date.now()
+        const timer = setTimeout(
+            () => setHeld((current) => current.filter((item) => Date.now() < item.until)),
+            Math.max(next, 0),
+        )
+        return () => clearTimeout(timer)
+    }, [held])
+
+    // A steer this tab sent is on its way INTO the running turn, not held behind it, so while its
+    // echo is on screen the dock leaves the row out rather than showing the same message twice.
+    // Derived from the live echoes, so the row comes back the moment the echo stops covering it —
+    // an input the turn ended without consuming is visible again, and removable.
+    // A docked echo steps aside the moment the server lists the input it became.
+    const dockedServerQueued = useMemo(() => {
+        const listedClientIds = new Set(server.queued.map((item) => item.clientId))
+        const removing = (clientId?: string | null) => !!clientId && deferredRemovals.has(clientId)
+        // The transcript already shows it: its promoted turn landed, or its echo just retired.
+        const inTranscript = (item: QueuedMessage) =>
+            (!!item.promotedExecutionId && transcriptTurnIds.has(item.promotedExecutionId)) ||
+            echoes.retiredParkedIds.has(item.id) ||
+            !!handoff?.ids.has(item.id)
+        return [
+            ...heldRows,
+            ...applyQueueOps(server.queued, ops, rowErrors).filter(
+                (item) =>
+                    !echoes.dockCoveredIds.has(item.id) &&
+                    !removing(item.clientId) &&
+                    !inTranscript(item),
+            ),
+            ...echoes.dockRows
+                .filter((item) => !listedClientIds.has(item.id) && !removing(item.id))
+                .map((item) => ({...item, removable: true})),
+        ]
     }, [
-        continuationExecutionId,
-        continuationHold,
-        editingId,
-        migrationRetry,
-        queued,
-        sessionId,
-        server?.capabilities.queue,
-        server?.submit,
+        heldRows,
+        server.queued,
+        ops,
+        rowErrors,
+        echoes.dockCoveredIds,
+        echoes.dockRows,
+        echoes.retiredParkedIds,
+        deferredRemovals,
+        transcriptTurnIds,
+        handoff,
     ])
 
-    // Send now only if idle, unlatched, and the queue is empty; otherwise append (FIFO).
+    const startRemove = useCallback(
+        (id: string) => {
+            setRowError(id, null)
+            const token = setOp(id, {kind: "remove", settledSeq: null})
+            const fail = (message: string) => {
+                if (dropOp(id, token)) setRowError(id, {message})
+            }
+            void server
+                .remove(id)
+                .then(({outcome, settledSeq}) => {
+                    // Gone already is the end state the user asked for.
+                    if (outcome === "applied" || outcome === "not_found") {
+                        settleOp(id, token, settledSeq)
+                    }
+                    // 409: promoted, or bound to a pending stop.
+                    else fail(outcome === "conflict" ? REMOVE_ABOUT_TO_RUN : REMOVE_FAILED)
+                })
+                .catch(() => fail(REMOVE_FAILED))
+        },
+        [dropOp, server, setOp, setRowError, settleOp],
+    )
+
+    // One durable admission for both policies, so a steer gets the same echo and refusal
+    // recovery a queued send has.
+    const submitDurable = useCallback(
+        (message: QueuedMessage, policy: "queue" | "steer"): Promise<void> => {
+            // Show it before the request leaves. Every exit is driven by evidence about this
+            // send: the turn it started, the dock row (queue) or parked input (steer) it
+            // became, or its failure.
+            // A queued send while a run is busy, or behind a send still being admitted, parks.
+            const busy =
+                serverBusyRef.current ||
+                runActiveRef.current ||
+                echoes.inFlight ||
+                admittingRef.current > 0
+            echoes.add({...message, policy, docked: policy === "queue" && busy})
+            const waiting = admittingRef.current > 0
+            admittingRef.current += 1
+            // Until the runner names this turn, the API reads the session as idle and runs both.
+            let nameTurn = () => {}
+            const named = new Promise<void>((resolve) => (nameTurn = resolve))
+            const cap = setTimeout(nameTurn, ADMISSION_NAME_MAX_MS)
+            const release = () => {
+                clearTimeout(cap)
+                admittingRef.current -= 1
+            }
+            const admit = () =>
+                server.submit(message, policy, {
+                    opensTurn: policy === "queue" && !busy,
+                    onTurnNamed: nameTurn,
+                    onAccepted: (executionId) => {
+                        forgetDeferredRemoval(message.id)
+                        echoes.markAccepted(message.id, executionId)
+                        onSendAcceptedRef.current?.(message, executionId)
+                    },
+                    onParked: (inputId) => {
+                        onSendAcceptedRef.current?.(message, null)
+                        if (forgetDeferredRemoval(message.id)) {
+                            echoes.drop(message.id)
+                            startRemove(inputId)
+                            return
+                        }
+                        echoes.markParked(message.id, inputId)
+                    },
+                    // One event, one recovery. A refusal that arrives after the promise resolved
+                    // goes back to the composer exactly like one that rejected it, so there is a
+                    // single place the message lives and a single wording for it. The row is the
+                    // fallback only when no composer can take the text.
+                    onFailed: () => {
+                        nameTurn()
+                        // Removed by the user: nothing to give back.
+                        if (forgetDeferredRemoval(message.id)) {
+                            echoes.drop(message.id)
+                            onSendFailedRef.current?.(message)
+                            return
+                        }
+                        // The row goes up FIRST and comes down only once the composer confirms it
+                        // took the text. It is the safe side to fail to: the message must never be
+                        // in neither place, and a host cannot always answer in this tick, because
+                        // its editor commits a write on a following one. Deciding on a same-tick
+                        // answer left a refused message in the transcript AND the composer, where
+                        // it could be sent twice (staging, `66ed5a6c57`).
+                        //
+                        // Passing the message re-creates the row when the count rule has already
+                        // retired it, so a late refusal always has somewhere to be.
+                        echoes.markFailed(message.id, message)
+                        onSendFailedRef.current?.(message)
+                        const restoring = restoreRefusedSendRef.current?.(message)
+                        if (!restoring) return
+                        void Promise.resolve(restoring).then((taken) => {
+                            if (taken) echoes.drop(message.id)
+                        })
+                    },
+                    // The turn ended and its records were re-read. An echo still on screen is one
+                    // whose row was never persisted, so it stops waiting silently; a row that
+                    // arrives later still retires it.
+                    // Settlement never touches the composer. It only marks an echo that is STILL
+                    // waiting, and marking one that has already retired is a no-op. Restoring
+                    // here would write a delivered message back into the input under "wasn't
+                    // sent", which is the normal accepted path: row adopted, echo retired, stream
+                    // ends.
+                    onSettled: () => {
+                        nameTurn()
+                        echoes.markFailed(message.id)
+                    },
+                })
+            const admitted = waiting ? admissionChainRef.current.then(admit) : admit()
+            admissionChainRef.current = admitted
+                .then(
+                    (admission) => (admission === "running" ? named : undefined),
+                    () => undefined,
+                )
+                .then(release)
+            return admitted.then(
+                (admission) => {
+                    if (admission !== "running") return
+                    forgetDeferredRemoval(message.id)
+                    echoes.markStarted(message.id)
+                },
+                (error: unknown) => {
+                    echoes.drop(message.id)
+                    onSendFailedRef.current?.(message)
+                    if (forgetDeferredRemoval(message.id)) return
+                    throw error
+                },
+            )
+        },
+        [echoes, forgetDeferredRemoval, server, startRemove],
+    )
+
     const submit = useCallback(
         (item: {
             text: string
@@ -372,101 +558,74 @@ export const useAgentChatQueue = ({
                 id: generateId(),
                 ...(item.executionText !== undefined ? {editable: false} : {}),
             }
-            const admit = (queue: boolean) => {
-                if (queue && server) {
-                    // Show it before the request leaves. Every exit is driven by evidence about
-                    // this send: the turn it started, the dock row it became, or its failure.
-                    echoes.add(message)
-                    return server
-                        .submit(message, "queue", {
-                            onAccepted: (executionId) => {
-                                echoes.markAccepted(message.id, executionId)
-                                onSendAcceptedRef.current?.(message, executionId)
-                            },
-                            onParked: (inputId) => {
-                                echoes.markParked(message.id, inputId)
-                                onSendAcceptedRef.current?.(message, null)
-                            },
-                            // One event, one recovery. A refusal that arrives after the promise
-                            // resolved goes back to the composer exactly like one that rejected
-                            // it, so there is a single place the message lives and a single
-                            // wording for it. The row is the fallback only when no composer can
-                            // take the text.
-                            onFailed: () => {
-                                // The row goes up FIRST and comes down only once the composer
-                                // confirms it took the text. It is the safe side to fail to: the
-                                // message must never be in neither place, and a host cannot always
-                                // answer in this tick, because its editor commits a write on a
-                                // following one. Deciding on a same-tick answer left a refused
-                                // message in the transcript AND the composer, where it could be
-                                // sent twice (staging, `66ed5a6c57`).
-                                //
-                                // Passing the message re-creates the row when the count rule has
-                                // already retired it, so a late refusal always has somewhere to be.
-                                echoes.markFailed(message.id, message)
-                                onSendFailedRef.current?.(message)
-                                const restoring = restoreRefusedSendRef.current?.(message)
-                                if (!restoring) return
-                                void Promise.resolve(restoring).then((taken) => {
-                                    if (taken) echoes.drop(message.id)
-                                })
-                            },
-                            // The turn ended and its records were re-read. An echo still on
-                            // screen is one whose row was never persisted, so it stops waiting
-                            // silently; a row that arrives later still retires it.
-                            // Settlement never touches the composer. It only marks an echo that
-                            // is STILL waiting, and marking one that has already retired is a
-                            // no-op. Restoring here would write a delivered message back into
-                            // the input under "wasn't sent", which is the normal accepted path:
-                            // row adopted, echo retired, stream ends.
-                            onSettled: () => echoes.markFailed(message.id),
-                        })
-                        .then(undefined, (error: unknown) => {
-                            echoes.drop(message.id)
-                            onSendFailedRef.current?.(message)
-                            throw error
-                        })
-                }
-                if (recoverable && retryContinuation) {
-                    setQueued((q) => [...q, message])
-                    if (!retryingContinuationRef.current) {
-                        retryingContinuationRef.current = true
-                        void retryContinuation()
-                            .catch(() => false)
-                            .finally(() => {
-                                retryingContinuationRef.current = false
-                            })
-                    }
-                    return
-                }
-                if (
-                    !releasingRef.current &&
-                    queuedRef.current.length === 0 &&
-                    canReleaseNowRef.current
-                ) {
-                    releasingRef.current = true
-                    lastSentRef.current = message
-                    dispatchUnqueued(message)
-                } else {
-                    setQueued((q) => [...q, message])
-                }
-            }
-            return server?.resolveCapabilities
-                ? server.resolveCapabilities().then((capabilities) => admit(capabilities.queue))
-                : admit(server?.capabilities.queue === true)
+            return submitDurable(message, "queue")
         },
-        [canReleaseNow, dispatchUnqueued, echoes, recoverable, retryContinuation, server],
+        [submitDurable],
     )
 
     const removeQueued = useCallback(
         (id: string) => {
-            if (server?.queued.some((message) => message.id === id)) {
-                void server.remove(id).catch(() => {})
+            if (server.queued.some((message) => message.id === id)) {
+                // A saving edit owns the row; removing now would lose its recovery text.
+                const op = opsRef.current[id]
+                if (op?.kind === "edit" && op.settledSeq === null) return
+                startRemove(id)
                 return
             }
-            setQueued((q) => q.filter((m) => m.id !== id))
+            // Not listed yet: hidden now, removed once the server names its input.
+            if (echoes.dockRows.some((message) => message.id === id)) {
+                deferredRemovalsRef.current.add(id)
+                setDeferredRemovals(new Set(deferredRemovalsRef.current))
+            }
         },
-        [server],
+        [echoes.dockRows, server.queued, startRemove],
+    )
+
+    const sendQueuedNow = useCallback(
+        (id: string) => {
+            const row = server.queued.find((message) => message.id === id)
+            const sendNow = server.sendNow
+            const op = opsRef.current[id]
+            if (!row || !sendNow || (op?.kind === "edit" && op.settledSeq === null)) return
+            // A saved edit the snapshot has not caught up with is the text that runs.
+            const sent =
+                op?.kind === "edit"
+                    ? {text: op.text, fileParts: op.fileParts ?? row.fileParts}
+                    : row
+            const echoId = `send-now-${id}`
+            setRowError(id, null)
+            const token = setOp(id, {kind: "sendNow", settledSeq: null})
+            echoes.add({id: echoId, text: sent.text, fileParts: sent.fileParts})
+            const fail = (message: string) => {
+                echoes.drop(echoId)
+                if (dropOp(id, token)) setRowError(id, {message})
+            }
+            void sendNow(id)
+                .then(({outcome, settledSeq, executionId}) => {
+                    if (outcome !== "applied") {
+                        fail(
+                            outcome === "busy"
+                                ? SEND_NOW_BUSY
+                                : outcome === "failed"
+                                  ? SEND_NOW_FAILED
+                                  : NOT_QUEUED,
+                        )
+                        return
+                    }
+                    settleOp(id, token, settledSeq)
+                    if (executionId) echoes.markAccepted(echoId, executionId)
+                })
+                .catch(() => fail(SEND_NOW_FAILED))
+        },
+        [dropOp, echoes, server, setOp, setRowError, settleOp],
+    )
+
+    // The API binds one input to a pending stop, so a second Send Now waits for it.
+    const sendNowPending = useMemo(
+        () =>
+            Object.values(ops).some((op) => op.kind === "sendNow") ||
+            server.queued.some((row) => row.policy === "steer" && !row.promotedExecutionId),
+        [ops, server.queued],
     )
 
     const steer = useCallback(
@@ -476,10 +635,13 @@ export const useAgentChatQueue = ({
             fileParts?: FileUIPart[]
             stagedFiles?: ComposerAttachment[]
         }) => {
-            const capabilities = server?.resolveCapabilities
-                ? await server.resolveCapabilities()
-                : server?.capabilities
-            if (!capabilities?.steer || !serverBusyRef.current || !server) {
+            // A run parked on a client tool counts as busy. Its heartbeat is not in the snapshot
+            // (a parked run reads `idle`), but the turn is still open server-side: the host's
+            // dismiss-then-steer over a parked question or connection resumes it, and the steer
+            // lands in the resumed turn. Read through a ref, not the transcript: the call comes
+            // straight after the dismiss write, before anything has re-rendered. Approvals are
+            // deliberately excluded — see `parkedClientTools`.
+            if (!(serverBusyRef.current || parkedClientToolsRef.current)) {
                 throw new Error("The session is not ready to accept a Steer input.")
             }
             const message: QueuedMessage = {
@@ -487,9 +649,9 @@ export const useAgentChatQueue = ({
                 id: generateId(),
                 ...(item.executionText !== undefined ? {editable: false} : {}),
             }
-            await server.submit(message, "steer")
+            await submitDurable(message, "steer")
         },
-        [server],
+        [submitDurable],
     )
 
     // ── Editing a held message ────────────────────────────────────────────────────────────────
@@ -500,14 +662,17 @@ export const useAgentChatQueue = ({
     /** Open a session on `id`, stashing the composer's current draft. */
     const beginEdit = useCallback(
         (id: string, draft = "") => {
+            const op = opsRef.current[id]
+            if (op?.kind === "edit" && op.settledSeq === null) return
             editSessionRef.current = {
                 id,
-                server: !!server?.queued.some((message) => message.id === id),
+                server: server.queued.some((message) => message.id === id),
             }
             stashRef.current = draft
+            setRowError(id, null)
             setEditingId(id)
         },
-        [server],
+        [server, setRowError],
     )
 
     /** Take the stashed draft back, once. Both ends of a session hand the composer back. */
@@ -517,6 +682,16 @@ export const useAgentChatQueue = ({
         return draft
     }, [])
 
+    // A refused send the composer cannot take back (a newer draft is there) stays as a flagged row.
+    const {markFailed} = echoes
+    const keepRefusedSend = useCallback(
+        (item: {text: string; fileParts?: FileUIPart[]}) => {
+            const id = generateId()
+            markFailed(id, {id, ...item})
+        },
+        [markFailed],
+    )
+
     /** Close the session without touching the message. Returns the draft to restore. */
     const cancelEdit = useCallback(() => {
         editSessionRef.current = null
@@ -524,15 +699,49 @@ export const useAgentChatQueue = ({
         return takeStash()
     }, [takeStash])
 
+    // A refused edit stays on a row that is still queued; only a row that is gone hands it back.
+    const saveEdit = useCallback(
+        (
+            id: string,
+            item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]},
+            save: NonNullable<ServerQueueAdapter["edit"]>,
+        ) => {
+            const token = setOp(id, {
+                kind: "edit",
+                text: item.text,
+                fileParts: item.fileParts,
+                settledSeq: null,
+            })
+            const fail = (outcome: PendingInputWriteOutcome) => {
+                if (!dropOp(id, token)) return
+                if (serverQueuedRef.current.some((message) => message.id === id)) {
+                    setRowError(id, {
+                        message: outcome === "conflict" ? EDIT_ABOUT_TO_RUN : EDIT_FAILED,
+                        unsavedEdit: {text: item.text, fileParts: item.fileParts},
+                    })
+                    return
+                }
+                const recovery: QueuedMessage = {...item, id: `edit-${id}`}
+                void Promise.resolve(restoreRefusedSendRef.current?.(recovery)).then((taken) => {
+                    if (!taken) echoes.markFailed(recovery.id, recovery)
+                })
+            }
+            void save(id, {text: item.text, fileParts: item.fileParts})
+                .then(({outcome, settledSeq}) =>
+                    outcome === "applied" ? settleOp(id, token, settledSeq) : fail(outcome),
+                )
+                .catch(() => fail("failed"))
+        },
+        [dropOp, echoes, setOp, setRowError, settleOp],
+    )
+
     /**
      * Apply the composer's content to the message under edit. Deliberately NOT a branch inside
      * `submit`: that one is also called by the steer-on-denial and pending-run paths, which would
      * otherwise overwrite whatever the user happened to be editing.
      *
-     * Attachments MERGE rather than replace — the composer only submits newly staged files, so
-     * replacing would delete the queued message's originals on every text-only edit.
-     *
-     * A drained local target becomes a new message; durable edits instead preserve server refusal.
+     * A durable edit closes at once and saves in the background; a target no longer held
+     * becomes a new message.
      *
      * Returns the stashed draft, exactly as `cancelEdit` does: committing consumes the composer,
      * so the text the session displaced has to come back here too or it is lost for good.
@@ -547,99 +756,25 @@ export const useAgentChatQueue = ({
             const id = editingId
             const editSession = editSessionRef.current
             const serverOwnsInput =
-                editSession?.server || server?.queued.some((message) => message.id === id)
+                editSession?.server || server.queued.some((message) => message.id === id)
             if (id && serverOwnsInput) {
-                if (editSession) editSession.server = true
-                setQueued((queue) => queue.filter((message) => message.id !== id))
-                if (migrationRef.current === id) migrationRef.current = null
-                if (migrationPromiseRef.current?.id === id) migrationPromiseRef.current = null
-            }
-            const migration =
-                migrationPromiseRef.current?.id === id ? migrationPromiseRef.current : null
-            if (id && (serverOwnsInput || migration)) {
-                const save = server?.edit
+                const save = server.edit
                 if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
-                if (migration?.failed) {
-                    migration.failed = false
-                    migration.promise = migration.retry().catch((error: unknown) => {
-                        migration.failed = true
-                        throw error
-                    })
-                }
-                const saved = migration
-                    ? migration.promise.then(() =>
-                          editSessionRef.current === editSession ? save(id, item) : undefined,
-                      )
-                    : save(id, item)
-                return saved.then(
-                    () => {
-                        if (editSessionRef.current !== editSession) return ""
-                        editSessionRef.current = null
-                        setEditingId(null)
-                        return takeStash()
-                    },
-                    (error: unknown) => {
-                        if (editSessionRef.current !== editSession) return ""
-                        throw error
-                    },
-                )
+                saveEdit(id, item, save)
+                editSessionRef.current = null
+                setEditingId(null)
+                return Promise.resolve(takeStash())
             }
-            const target = id ? queuedRef.current.find((m) => m.id === id) : undefined
-            if (!target) {
-                const submission = submit(item)
-                const finish = () => {
-                    setEditingId(null)
-                    return takeStash()
-                }
-                return submission ? submission.then(finish) : finish()
-            }
-            setEditingId(null)
-            const draft = takeStash()
-            const fileParts = [...(target.fileParts ?? []), ...(item.fileParts ?? [])]
-            const stagedFiles = [...(target.stagedFiles ?? []), ...(item.stagedFiles ?? [])]
-            // Edited down to nothing and carrying no files: there is no message left to hold.
-            if (!item.text.trim() && fileParts.length === 0) {
-                setQueued((q) => q.filter((m) => m.id !== id))
-                return draft
-            }
-            setQueued((q) =>
-                q.map((m) =>
-                    m.id === id
-                        ? {
-                              ...m,
-                              text: item.text,
-                              fileParts: fileParts.length ? fileParts : undefined,
-                              stagedFiles: stagedFiles.length ? stagedFiles : undefined,
-                          }
-                        : m,
-                ),
-            )
-            return draft
+            return submit(item).then(() => {
+                setEditingId(null)
+                return takeStash()
+            })
         },
-        [editingId, server, submit, takeStash],
+        [editingId, saveEdit, server, submit, takeStash],
     )
 
-    // Release the queue head once the stream settles; the latch caps it at one per settle. Both
-    // "ready" and "error" are settled — releasing on "error" retries the failed turn with the
-    // queued message (which clears the error) instead of stranding the queue. "submitted"/
-    // "streaming" are in-flight: reset the latch and hold.
-    useEffect(() => {
-        if (!settled) {
-            releasingRef.current = false
-            return
-        }
-        if (releasingRef.current || migrationRef.current || queued.length === 0) return
-        if (!canReleaseNow) return
-        releasingRef.current = true
-        const [head, ...rest] = queued
-        setQueued(rest)
-        // A released head also needs refusal recovery because it has left the queue.
-        lastSentRef.current = head
-        dispatchUnqueued(head)
-    }, [settled, canReleaseNow, queued, dispatchUnqueued])
-
     return {
-        queued: [...(server?.queued ?? []), ...queued],
+        queued: dockedServerQueued,
         /** Sent-but-not-yet-saved user rows; merge with `mergePendingSendEchoRows`. */
         pendingSendRows: echoes.rows,
         /** A send of this mount is on its way: admitted, not yet named by the runner or refused.
@@ -649,13 +784,11 @@ export const useAgentChatQueue = ({
         submit,
         steer,
         removeQueued,
-        sendQueuedNow:
-            server?.capabilities.queue && server.capabilities.steer ? server.sendNow : undefined,
+        sendQueuedNow: server.sendNow ? sendQueuedNow : undefined,
+        sendNowPending,
         /** This tab received the durable respond body for this still-running execution. */
         ownsContinuation,
-        queueEnabled: !!server?.capabilities.queue,
-        steerEnabled: !!server?.capabilities.steer,
-        serverBusy: !!server?.busy,
+        serverBusy: server.busy,
         /** The conversation is paused on a HITL approval — typed messages should queue, not send. */
         hitlPending,
         /** Id of the held message the composer is currently editing, or null. */
@@ -663,7 +796,6 @@ export const useAgentChatQueue = ({
         beginEdit,
         cancelEdit,
         commitEdit,
-        /** Reclaim the last immediately-sent message (e.g. the backend refused it). */
-        takeLastSent,
+        keepRefusedSend,
     }
 }

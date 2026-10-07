@@ -9,7 +9,7 @@ import type * as AgentaApi from "../../../../index.js";
  *         secret: {
  *             kind: "provider_key",
  *             data: {
- *                 kind: "openai",
+ *                 kind: "mock",
  *                 provider: {}
  *             }
  *         }

@@ -217,11 +217,15 @@ def record_usage(usage: Optional[Dict[str, Any]]) -> None:
     Agenta's per-batch cumulative roll-up cannot bridge the totals onto the workflow span.
     Setting ``gen_ai.usage.*`` here records them directly on that span (the root of its
     batch), so the trace shows the run's tokens and cost. Best-effort.
+
+    ``ag.flags.aggregate_usage`` tells the roll-up that these totals cover the harness spans
+    below, so it does not add them to the children's usage.
     """
     if not usage:
         return
     try:
         span = otel_trace.get_current_span()
+        span.set_attribute("ag.flags.aggregate_usage", True)
         input_tokens = usage.get("input")
         output_tokens = usage.get("output")
         total_tokens = usage.get("total")
@@ -247,3 +251,20 @@ def record_usage(usage: Optional[Dict[str, Any]]) -> None:
             span.set_attribute("gen_ai.usage.cost", float(cost))
     except Exception:  # pylint: disable=broad-except
         log.warning("agent: failed to record usage on workflow span", exc_info=True)
+
+
+def record_sandbox(sandbox: Optional[str]) -> None:
+    """Stamp the sandbox provider the run executed on onto the active workflow span.
+
+    The runner routes by harness (Pi chosen on ``daytona`` runs ``inprocess``), so the saved
+    ``sandbox.kind`` in the span's parameters can differ from the provider that ran. The runner
+    reports the provider that ran in its result; ``ag.meta.agent.sandbox`` shows it. Best-effort.
+    """
+    if not sandbox:
+        return
+    try:
+        otel_trace.get_current_span().set_attribute("ag.meta.agent.sandbox", sandbox)
+    except Exception:  # pylint: disable=broad-except
+        log.warning(
+            "agent: failed to record the sandbox on workflow span", exc_info=True
+        )

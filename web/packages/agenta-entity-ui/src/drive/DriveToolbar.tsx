@@ -26,23 +26,24 @@ import {
     CaretDown,
     CircleNotch,
     Clock,
+    Code,
     DotsThreeVertical,
     DownloadSimple,
-    FilePlus,
-    FolderPlus,
     HardDrive,
+    Key,
     LinkSimple,
     ListBullets,
     MarkdownLogo,
     PencilSimple,
+    Play,
     SortAscending,
     SquaresFour,
     TextAa,
     TextAlignLeft,
     Trash,
-    UploadSimple,
 } from "@phosphor-icons/react"
 
+import {type DriveFolderActions, driveFolderMenuEntries} from "./DriveFolderMenu"
 import {ROW_ICON_BTN} from "./DriveHeader"
 import {DriveInlineName} from "./DriveInlineName"
 import {SelectedMark} from "./DriveMenuMark"
@@ -91,6 +92,14 @@ const IconPill = ({value, options, onChange}: ToolbarMode) => (
     </Tabs>
 )
 
+/** An HTML app's ⋯ entries: the app / code switch and its file-access setting. */
+export interface DriveAppView {
+    code: boolean
+    onToggle: () => void
+    /** The stored access level as shown ("Read", "Not set", …) and the setting it opens. */
+    access: {label: string; onOpen: () => void}
+}
+
 /** A file's write actions; absent on a read-only mount. */
 export interface DriveFileActions {
     /** Rename from the menu: the tile / row field in the file's folder. */
@@ -100,15 +109,6 @@ export interface DriveFileActions {
     /** A reason a name can't be used, or null. */
     validateName: (name: string) => string | null
     onDelete: () => void
-}
-
-/** A folder's write actions; absent on a read-only mount. */
-interface DriveFolderActions {
-    onNewFolder: () => void
-    onNewFile: () => void
-    /** Pick files, or write the staged ones here. */
-    onUpload: () => void
-    stagedCount?: number
 }
 
 type DriveToolbarProps =
@@ -145,8 +145,10 @@ type DriveToolbarProps =
           draft?: {status: DriveSaveStatus; onRetry: () => void}
           /** A muted line after the name. */
           note?: string
-          /** A view switch (HTML: Source / Preview). */
-          mode?: ToolbarMode
+          /** An HTML app: the ⋯ menu switches between the app and its code. */
+          appView?: DriveAppView
+          /** Where a running app portals its controls (Refresh, errors), before the ⋯ menu. */
+          controlsRef?: (el: HTMLDivElement | null) => void
           onCopyPath?: () => void
           onDownload?: () => void
       }
@@ -174,10 +176,12 @@ const DraftStatus = ({status, onRetry}: {status: DriveSaveStatus; onRetry: () =>
 
 const FileActionsMenu = ({
     actions,
+    appView,
     onCopyPath,
     onDownload,
 }: {
     actions?: DriveFileActions
+    appView?: DriveAppView
     /** Read-side actions, offered on a read-only mount too. */
     onCopyPath?: () => void
     onDownload?: () => void
@@ -200,6 +204,22 @@ const FileActionsMenu = ({
             // New / Rename open a name field; the menu must not pull focus back to its trigger.
             onCloseAutoFocus={(e) => e.preventDefault()}
         >
+            {appView ? (
+                <>
+                    <DropdownMenuItem onSelect={appView.onToggle}>
+                        {appView.code ? <Play /> : <Code />}
+                        {appView.code ? "View app" : "View code"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={appView.access.onOpen}>
+                        <Key />
+                        File access…
+                        <span className="ml-auto pl-3 text-xs text-colorTextTertiary">
+                            {appView.access.label}
+                        </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                </>
+            ) : null}
             <DropdownMenuItem disabled={!onDownload} onSelect={onDownload}>
                 <DownloadSimple />
                 Download
@@ -289,33 +309,31 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         // New / Rename open a name field; the menu must not pull focus back to its trigger.
                         onCloseAutoFocus={(e) => e.preventDefault()}
                     >
-                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFolder}>
-                            <FolderPlus />
-                            New folder
-                        </DropdownMenuItem>
-                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFile}>
-                            <FilePlus />
-                            New file
-                        </DropdownMenuItem>
-                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onUpload}>
-                            <UploadSimple />
-                            {actions?.stagedCount
-                                ? `Upload ${actions.stagedCount} staged ${actions.stagedCount === 1 ? "file" : "files"} here`
-                                : "Upload files…"}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled={!onCopyPath} onSelect={onCopyPath}>
-                            <LinkSimple />
-                            Copy path
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            disabled={!onDownloadAll || downloadingAll}
-                            onSelect={onDownloadAll}
-                        >
-                            <DownloadSimple />
-                            {downloadingAll ? "Preparing download…" : "Download all"}
-                            <DropdownMenuShortcut>.zip</DropdownMenuShortcut>
-                        </DropdownMenuItem>
+                        {/* Same entries as the blank-space right-click menu (DriveFolderMenu). */}
+                        {driveFolderMenuEntries({
+                            actions,
+                            onCopyPath,
+                            onDownloadAll,
+                            downloadingAll,
+                        }).map((entry, i) =>
+                            entry === "separator" ? (
+                                <DropdownMenuSeparator key={`sep-${i}`} />
+                            ) : (
+                                <DropdownMenuItem
+                                    key={entry.key}
+                                    disabled={entry.disabled}
+                                    onSelect={entry.onSelect}
+                                >
+                                    {entry.icon}
+                                    {entry.label}
+                                    {entry.shortcut ? (
+                                        <DropdownMenuShortcut>
+                                            {entry.shortcut}
+                                        </DropdownMenuShortcut>
+                                    ) : null}
+                                </DropdownMenuItem>
+                            ),
+                        )}
                     </DropdownMenuContent>
                 </DropdownMenu>
             </Row>
@@ -367,7 +385,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
         )
     }
 
-    const {path, actions, draft, note, mode, onCopyPath, onDownload} = props
+    const {path, actions, draft, note, appView, controlsRef, onCopyPath, onDownload} = props
     return (
         <Row>
             <DriveInlineName
@@ -380,8 +398,13 @@ export function DriveToolbar(props: DriveToolbarProps) {
             ) : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
-            {mode ? <IconPill {...mode} /> : null}
-            <FileActionsMenu actions={actions} onCopyPath={onCopyPath} onDownload={onDownload} />
+            {controlsRef ? <div ref={controlsRef} className="flex items-center gap-1" /> : null}
+            <FileActionsMenu
+                actions={actions}
+                appView={appView}
+                onCopyPath={onCopyPath}
+                onDownload={onDownload}
+            />
         </Row>
     )
 }

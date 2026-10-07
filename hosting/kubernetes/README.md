@@ -111,6 +111,10 @@ one in every phase, because it exists before the install starts.
 ## A managed ingress (GKE)
 
 ```yaml
+agenta:
+  webUrl: "https://agenta.example.com"
+  apiUrl: "https://agenta.example.com/api"
+  servicesUrl: "https://agenta.example.com/services"
 ingress:
   enabled: true
   className: ""            # see the note below: GKE ignores this field
@@ -119,12 +123,14 @@ ingress:
     kubernetes.io/ingress.class: gce
     kubernetes.io/ingress.global-static-ip-name: agenta-ip
     networking.gke.io/managed-certificates: agenta-cert
-  paths:
-    api:       { path: /api,      pathType: ImplementationSpecific }
-    services:  { path: /services, pathType: ImplementationSpecific }
-    webMobile: { path: /m,        pathType: ImplementationSpecific }
-    web:       { path: /,         pathType: ImplementationSpecific }
+    networking.gke.io/v1beta1.FrontendConfig: agenta-https
 ```
+
+Set the three public URLs yourself. A Google-managed certificate leaves
+`ingress.tls` empty, and the chart then derives `http://` URLs. Keep the default paths, which use `pathType: Prefix`. With `ImplementationSpecific`
+GKE treats `/api` as an exact path, and `/api/...` never reaches the API. The
+static IP, the ManagedCertificate and the FrontendConfig are yours to create; see
+[Prepare a Kubernetes deployment for production](../../docs/docs/self-host/deploy/05-kubernetes-production.mdx).
 
 The GKE ingress controller ignores `spec.ingressClassName`. An Ingress carrying
 `className: gce` gets no controller events and never gets an IP, even with an
@@ -134,9 +140,12 @@ chart leaves the field out, and route with the annotation. An unset
 `ingress.className` still defaults to `traefik`, which is right for the bundled
 stack.
 
-Do not strip `/api`. The API is mounted at `/api` and its redirects keep the
-prefix. Do strip `/services`. Keep the mobile path at `/m`, because the mobile
-image is built with that basePath.
+You do not have to strip either prefix, and the GCE controller cannot. The API
+strips a leading `/api` itself, and the services backend strips a leading
+`/services`. Each strips in a loop, so a double prefix also routes, and neither
+emits a redirect. A controller that does strip the prefix also works, because
+after the strip the request arrives with no prefix. Keep the mobile path at
+`/m`, because the mobile image is built with that basePath.
 
 The GCE ingress controller reads two annotations off each Service, so set them
 per component. Set the NEG annotation yourself even on Autopilot, which adds it
@@ -186,8 +195,9 @@ Ingress spec uses. Any non-empty list also switches the derived URLs to https.
 A managed load balancer keeps sending requests to a pod for a few seconds after
 Kubernetes removes it from the endpoints. On GKE the endpoint group needs that
 long to notice. A pod that exits as soon as it gets the TERM signal answers those
-requests with a 502, so every rollout drops a few requests. Three optional keys
-per workload close the window, and all three are unset by default:
+requests with a 502, so every rollout drops a few requests. Three keys per
+workload close the window. The chart sets defaults on most workloads (listed in
+`values.yaml` under "Graceful rollouts"), and a key you set replaces its default:
 
 ```yaml
 api:
@@ -213,7 +223,9 @@ Four things to get right:
   whatever the hook is still doing.
 - `preStop: {sleep: ...}` needs Kubernetes 1.30 or later. Below that, use
   `preStop: {exec: {command: ["sh", "-c", "sleep 10"]}}`, and note that the image
-  must have that shell.
+  must have that shell. The chart's own default hook is an exec `sleep 10` on
+  `agentRunner`, `api`, `services`, `web` and `webMobile`; a custom image without
+  `sleep` must set its own `lifecycle`.
 - `strategy` is for Deployments. The durable Redis and SeaweedFS are
   StatefulSets and the migration is a Job; neither has a `spec.strategy`, so the
   chart does not render one there. `lifecycle` and
@@ -224,6 +236,83 @@ Four things to get right:
 The keys work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
 `workerStreams`, `workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`,
 `redisDurable`, `store.seaweedfs` and `alembic`.
+
+## Long streams and worker shutdown
+
+The api proxies every agent model call through the LLM gateway as a streaming
+response, and one response can run for many minutes. Gunicorn stops a worker in
+two cases: when the worker has served `api.gunicorn.maxRequests` requests (a
+guard against slow memory leaks), and when the pod gets the TERM signal. In both
+cases the worker stops taking new requests and finishes the requests it has open,
+for at most `api.gunicorn.gracefulTimeout` seconds. Then it is killed and any
+stream still open is cut.
+
+```yaml
+api:
+  gunicorn:
+    gracefulTimeout: 900      # default; cover the longest stream you allow
+    maxRequests: 100000       # default; 0 turns recycling off
+    maxRequestsJitter: 10000  # default
+    timeout: 60               # default; the hung-worker check, not a request limit
+  # terminationGracePeriodSeconds defaults to gracefulTimeout + 30
+```
+
+Three settings outside the gunicorn block must be at least as long as
+`gracefulTimeout`, or they cut the stream first:
+
+- `api.terminationGracePeriodSeconds`. The kubelet sends KILL at the end of it.
+  The chart default is `gracefulTimeout + 30`, which covers the 10-second preStop
+  delay. If you set the grace period yourself, keep that margin.
+  GKE Autopilot caps the grace period at 600 seconds and silently rewrites a
+  larger value to 600, so the default of 930 does not hold there. On Autopilot,
+  set `gracefulTimeout` to 560 or less and `terminationGracePeriodSeconds` to
+  600. Check the value the cluster applied with
+  `kubectl get deploy <release>-api -o jsonpath='{.spec.template.spec.terminationGracePeriodSeconds}'`.
+- The load balancer's connection draining. On GKE this is
+  `connectionDraining.drainingTimeoutSec` on the api's `BackendConfig`. After that
+  timeout the load balancer stops all traffic to the old pod, open streams
+  included.
+- The load balancer's response timeout, for example `timeoutSec` on a GKE
+  `BackendConfig`. This one caps every stream, not only the ones on a pod that is
+  stopping.
+
+A worker that is draining does not take new requests, and gunicorn starts its
+replacement only after it exits. With the default of two workers, a pod serves on
+one worker while the other drains. The jitter keeps the two workers from
+recycling at the same time.
+
+## Availability under disruption
+
+The chart renders a PodDisruptionBudget and topologySpreadConstraints per
+workload, both on by default. A workload with two or more replicas gets
+`maxUnavailable: 1` and a hard one-pod-per-node constraint plus a soft
+one-per-zone constraint. A workload with one replica gets neither, unless you
+ask for a budget with `<workload>.pdb.protectSingleton: true`.
+
+```yaml
+podDisruptionBudgets:
+  enabled: true           # false removes every generated budget
+topologySpread:
+  enabled: true           # false removes every generated constraint
+api:
+  replicas: 2
+  pdb:
+    maxUnavailable: 1     # or minAvailable; replaces the default
+agentRunner:
+  pdb:
+    protectSingleton: true
+```
+
+Nothing here makes a single replica highly available. A budget over a single pod
+defers the eviction of its node; the pod still moves. Give any workload that
+must stay reachable `replicas: 2`.
+
+An empty `<workload>.topologySpreadConstraints` list removes the constraints for
+that workload. `topologySpread.enabled: false` removes them for every workload.
+
+The block in `values.yaml` under "Availability under disruption" is the source of
+truth. The operator-facing guide is
+[Prepare a Kubernetes deployment for production](../../docs/docs/self-host/deploy/05-kubernetes-production.mdx).
 
 ## Restricting the bundled data stores
 
@@ -406,6 +495,37 @@ pod IP, so a runner bound to loopback refuses every health probe and never
 becomes ready. The chart sets `AGENTA_RUNNER_HOST=0.0.0.0` for you. Change it
 with `agentRunner.host`, or through the `agentRunner.env` map, which suppresses
 the chart's entry rather than adding a second one.
+
+## More than one runner pod
+
+`agentRunner.replicas` above 1 needs remote sandbox providers only. A local
+sandbox runs inside the runner pod that started it, so the render fails when
+`agentRunner.providers.enabled` lists `local` with more than one runner. With
+only remote providers the runner rolls out with `RollingUpdate` (`maxSurge: 1`,
+`maxUnavailable: 0`); with `local` it keeps `Recreate`, and the render fails for an
+explicit `agentRunner.strategy` of another type. These checks read
+`agentRunner.providers`, so the chart owns `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`
+and `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER`: the render fails when
+`agentRunner.env` or `agentRunner.extraEnv` sets either one. Set them with
+`agentRunner.providers.enabled` and `agentRunner.providers.default`.
+
+Each turn is bound to the pod that runs it, by the pod's replica id. The chart
+sets that id to the pod name, and the render fails when `agentRunner.env` or
+`agentRunner.extraEnv` sets `AGENTA_RUNNER_REPLICA_ID`: a shared id would let two
+pods take the same turn. The api sends a Stop to that pod's IP, and Services
+sends the session's follow-up messages there. A NetworkPolicy that blocks api or
+Services traffic to runner pod IPs on the runner port breaks Stop and follow-up
+routing.
+
+On SIGTERM a runner pod refuses new turns with a 503, lets its running turns
+finish for `agentRunner.shutdownWaitSeconds`, cancels the rest, and deletes its
+sandboxes. With `RollingUpdate` the default wait is the grace period minus 100
+seconds (200 of the default 300), and the render fails for a longer one. The 100
+seconds cover the preStop delay, the cancel and the teardown with the default
+`AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS`. With `Recreate` (the local provider) the
+default wait is 0, because the new pod starts only after the old pod exits. The chart owns
+`AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS`: the render fails when `agentRunner.env` or
+`agentRunner.extraEnv` sets it.
 
 ## Checking a values file before you install
 

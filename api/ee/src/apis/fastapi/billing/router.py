@@ -1,5 +1,6 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 from json import loads, decoder
+from uuid import UUID
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 
@@ -43,7 +44,21 @@ from ee.src.core.subscriptions.service import (
     SwitchException,
     EventException,
 )
+from ee.src.core.wallets.purchases import (
+    MUSD_PER_CREDIT,
+    PURCHASE_LIFETIME_DAYS,
+    TOP_UP_PACKS,
+    get_top_up_pack,
+)
+from ee.src.core.wallets.service import WalletsService
 from oss.src.models.api.organization_models import OrganizationUpdate
+from oss.src.core.rollout.switches import WalletMode, wallet_mode_for
+from ee.src.apis.fastapi.billing.models import (
+    TopUpPackResponse,
+    TopUpPacksResponse,
+    TopUpPurchaseResponse,
+    TopUpStatus,
+)
 
 
 log = get_module_logger(__name__)
@@ -91,14 +106,73 @@ def _stripe_has(
         return False
 
 
+# Only these invoices open a billing period. A plan switch's proration invoice
+# (`subscription_update`) or a manual invoice opens none, and must not grant again.
+_PERIOD_BILLING_REASONS = frozenset({"subscription_create", "subscription_cycle"})
+
+# Marks a one-time Checkout session as a credit top-up, in its metadata.
+TOP_UP_PURPOSE = "credit_top_up"
+
+
+def _is_plan_line(line: Any) -> bool:
+    """A recurring subscription line, not a proration and not a one-off invoice item.
+    Reads both webhook shapes: before 2025-03-31 (`type`, `proration`) and after
+    (`parent.subscription_item_details`)."""
+    if _stripe_get(line, "type") == "subscription":
+        return not _stripe_get(line, "proration")
+
+    parent = _stripe_get(line, "parent")
+    if _stripe_get(parent, "type") == "subscription_item_details":
+        details = _stripe_get(parent, "subscription_item_details")
+        return not _stripe_get(details, "proration")
+
+    return False
+
+
+def _invoice_lines(stripe: Any, invoice: Any) -> Any:
+    """All of the invoice's lines. The event embeds only the first page."""
+    embedded = _stripe_get(invoice, "lines")
+    if not _stripe_get(embedded, "has_more"):
+        return _stripe_get(embedded, "data") or []
+    return stripe.Invoice.list_lines(
+        _stripe_get(invoice, "id"), limit=100
+    ).auto_paging_iter()
+
+
+def _invoice_period(lines: Any) -> Optional[Tuple[datetime, datetime]]:
+    """The billing period an invoice opens: the latest-starting period among its
+    recurring subscription lines. A renewal also carries usage lines billed in arrears
+    for the period that just ended, and may carry prorations and one-off items."""
+    periods = []
+    for line in lines:
+        if not _is_plan_line(line):
+            continue
+        period = _stripe_get(line, "period")
+        start = _stripe_get(period, "start")
+        end = _stripe_get(period, "end")
+        if start and end and end > start:
+            periods.append((start, end))
+
+    if not periods:
+        return None
+
+    start, end = max(periods)
+    return (
+        datetime.fromtimestamp(start, tz=timezone.utc),
+        datetime.fromtimestamp(end, tz=timezone.utc),
+    )
+
+
 class BillingRouter:
     def __init__(
         self,
         subscription_service: SubscriptionsService,
         meters_service: MetersService,
+        wallets_service: Optional[WalletsService] = None,
     ):
         self.subscription_service = subscription_service
         self.meters_service = meters_service
+        self.wallets_service = wallets_service
 
         # ROUTER
         self.router = APIRouter()
@@ -123,6 +197,30 @@ class BillingRouter:
             self.create_checkout_user_route,
             methods=["POST"],
             operation_id="create_checkout",
+        )
+
+        self.router.add_api_route(
+            "/stripe/topups/",
+            self.create_top_up_checkout_user_route,
+            methods=["POST"],
+            operation_id="create_top_up_checkout",
+        )
+
+        self.router.add_api_route(
+            "/stripe/topups/packs",
+            self.fetch_top_up_packs_user_route,
+            methods=["GET"],
+            operation_id="fetch_top_up_packs",
+            response_model=TopUpPacksResponse,
+        )
+
+        # After `/packs`, so that path is never read as a session ID.
+        self.router.add_api_route(
+            "/stripe/topups/{checkout_session_id}",
+            self.fetch_top_up_purchase_user_route,
+            methods=["GET"],
+            operation_id="fetch_top_up_purchase",
+            response_model=TopUpPurchaseResponse,
         )
 
         self.router.add_api_route(
@@ -303,11 +401,46 @@ class BillingRouter:
             else:
                 metadata = _stripe_get(stripe_event.data.object, "metadata")
 
+        # Only a top-up Checkout carries our metadata on the session itself; a plan
+        # Checkout puts it on the subscription. Refusing the others makes Stripe retry
+        # every plan Checkout for days.
+        if stripe_event.type == "checkout.session.completed" and (
+            _stripe_get(stripe_event.data.object, "mode") != "payment"
+            or _stripe_get(metadata, "purpose") != TOP_UP_PURPOSE
+        ):
+            log.info("Skipping stripe event: %s (not a top-up)", stripe_event.type)
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"status": "skip", "message": "Not a credit top-up"},
+            )
+
         if stripe_event.type.startswith("invoice"):
+            # Top level before Stripe API version 2025-03-31, under `parent` after it.
             subscription_details = _stripe_get(
                 stripe_event.data.object,
                 "subscription_details",
+            ) or _stripe_get(
+                _stripe_get(stripe_event.data.object, "parent"),
+                "subscription_details",
             )
+
+            # A one-off invoice (a credit top-up's receipt) belongs to no subscription:
+            # its payment neither resumes nor pauses one, and the top-up is credited by
+            # `checkout.session.completed`. Acknowledged, so Stripe does not retry it.
+            # Older API versions still send an empty `subscription_details` on it, so
+            # the subscription ID decides, not the block's presence.
+            if not (
+                _stripe_get(stripe_event.data.object, "subscription")
+                or _stripe_get(subscription_details, "subscription")
+            ):
+                log.info(
+                    "Skipping stripe event: %s (not a subscription invoice)",
+                    stripe_event.type,
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "skip", "message": "Not a subscription invoice"},
+                )
 
             if not _stripe_has(subscription_details, "metadata"):
                 log.warn("Skipping stripe event: %s (no metadata)", stripe_event.type)
@@ -437,6 +570,22 @@ class BillingRouter:
             elif stripe_event.type == "invoice.payment_succeeded":
                 event = Event.SUBSCRIPTION_RESUMED
 
+                # Before the resume: when the invoice outruns the subscription-created
+                # event, the resume fails and Stripe redelivers, and the redelivered
+                # grant is a no-op.
+                await self._grant_period_credits(
+                    organization_id=organization_id,
+                    metadata=metadata,
+                    invoice=stripe_event.data.object,
+                )
+
+            elif stripe_event.type == "checkout.session.completed":
+                return await self._grant_top_up(
+                    organization_id=organization_id,
+                    metadata=metadata,
+                    session=stripe_event.data.object,
+                )
+
             elif stripe_event.type == "customer.subscription.deleted":
                 event = Event.SUBSCRIPTION_CANCELLED
 
@@ -462,6 +611,118 @@ class BillingRouter:
 
         if not subscription:
             raise HTTPException(status_code=500, detail="unexpected error")
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "success"},
+        )
+
+    async def _grant_period_credits(
+        self,
+        *,
+        organization_id: str,
+        metadata: Any,
+        invoice: Any,
+    ) -> None:
+        # With the wallet off there is nothing to grant, and its checks below must not
+        # fail the subscription resume that follows.
+        if not env.wallets.enabled:
+            return
+
+        billing_reason = _stripe_get(invoice, "billing_reason")
+        if billing_reason not in _PERIOD_BILLING_REASONS:
+            return
+
+        if not env.stripe.webhook_secret:
+            raise EventException("Monthly credits need a verified Stripe webhook")
+
+        # A trial or fully discounted period is not paid for and gets no credits.
+        if not (_stripe_get(invoice, "total") or 0) > 0:
+            return
+
+        period = _invoice_period(_invoice_lines(_load_stripe(), invoice))
+        if period is None:
+            raise EventException(
+                f"Invoice for organization ID {organization_id} carries no plan period"
+            )
+
+        # The plan the invoice was finalized under: Stripe snapshots the subscription's
+        # metadata onto the invoice, and a plan switch rewrites that metadata. A renewal
+        # delivered after a later switch still grants the plan that was paid for.
+        plan = _stripe_get(metadata, "plan")
+        if plan not in get_plans():
+            raise EventException(
+                f"Invoice for organization ID {organization_id} names no known plan"
+            )
+
+        await self.subscription_service.grant_period_credits(
+            organization_id=organization_id,
+            plan=plan,
+            period_start=period[0],
+            period_end=period[1],
+        )
+
+    async def _grant_top_up(
+        self,
+        *,
+        organization_id: str,
+        metadata: Any,
+        session: Any,
+    ) -> JSONResponse:
+        # Without a webhook secret the event is unsigned, and anyone could post one.
+        if not env.stripe.webhook_secret:
+            log.error("[billing] [wallets] top-up event unsigned; no credit")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"status": "error", "message": "Webhook not verified"},
+            )
+
+        session_id = _stripe_get(session, "id")
+
+        # Checkout takes cards only, which settle before the session completes. An
+        # unpaid session grants nothing.
+        if _stripe_get(session, "payment_status") != "paid":
+            log.warn(
+                "[billing] [wallets] top-up session %s not paid; no credit",
+                session_id,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"status": "skip", "message": "Payment not completed"},
+            )
+
+        pack = get_top_up_pack(code=_stripe_get(metadata, "pack"))
+        if (
+            not session_id
+            or pack is None
+            or _stripe_get(session, "currency") != "usd"
+            or _stripe_get(session, "amount_subtotal") != pack.price_cents
+        ):
+            log.error(
+                "[billing] [wallets] top-up session %s does not match a pack; no credit",
+                session_id,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"status": "error", "message": "Top-up does not match a pack"},
+            )
+
+        if self.wallets_service is None:
+            raise EventException("Wallets service not wired into the billing router")
+
+        credit = await self.wallets_service.grant_purchase(
+            organization_id=UUID(organization_id),
+            checkout_session_id=session_id,
+            amount_musd=pack.amount_musd,
+        )
+
+        log.info(
+            "[billing] [wallets] top-up %s | %s | %s | %s",
+            organization_id,
+            session_id,
+            pack.code,
+            credit.amount_musd,
+        )
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -620,6 +881,149 @@ class BillingRouter:
 
         return {"checkout_url": checkout.url}
 
+    async def _top_up_status(self, organization_id: str) -> Tuple[TopUpStatus, Any]:
+        """Whether the organization can buy a pack now, and its subscription once read.
+        The pack list and the checkout both answer from here, so the app never offers a
+        purchase the checkout refuses."""
+        # The purchase is credited by a signed webhook only.
+        if (
+            not env.wallets.enabled
+            or _load_stripe() is None
+            or not env.stripe.webhook_secret
+        ):
+            return "unavailable", None
+
+        # Credits stop work only where the wallet is enforced; elsewhere a pack buys
+        # nothing the organization would notice.
+        if await wallet_mode_for(UUID(organization_id)) is not WalletMode.ENFORCE:
+            return "unavailable", None
+
+        subscription = await self.subscription_service.read(
+            organization_id=organization_id,
+        )
+
+        if (
+            not subscription
+            or subscription.plan == get_free_plan()
+            or not subscription.subscription_id
+            or not subscription.customer_id
+        ):
+            return "paid_plan_required", subscription
+
+        return "available", subscription
+
+    async def fetch_top_up_packs(self, organization_id: str) -> TopUpPacksResponse:
+        top_up_status, _ = await self._top_up_status(organization_id)
+        return TopUpPacksResponse(
+            status=top_up_status,
+            packs=[
+                TopUpPackResponse(
+                    code=pack.code,
+                    credits=pack.credits,
+                    price_cents=pack.price_cents,
+                    expires_after_days=PURCHASE_LIFETIME_DAYS,
+                )
+                for pack in TOP_UP_PACKS.values()
+            ],
+        )
+
+    async def fetch_top_up_purchase(
+        self,
+        organization_id: str,
+        checkout_session_id: str,
+    ) -> TopUpPurchaseResponse:
+        """Whether a top-up's payment has been credited, so the app can confirm the
+        purchase the person just made rather than any recent one."""
+        if self.wallets_service is None:
+            return TopUpPurchaseResponse(credited=False)
+
+        credit = await self.wallets_service.read_purchase(
+            organization_id=UUID(organization_id),
+            checkout_session_id=checkout_session_id,
+        )
+        if credit is None:
+            return TopUpPurchaseResponse(credited=False)
+
+        return TopUpPurchaseResponse(
+            credited=True,
+            credits=credit.amount_musd // MUSD_PER_CREDIT,
+        )
+
+    async def create_top_up_checkout(
+        self,
+        organization_id: str,
+        pack: str,
+        success_url: str,
+        cancel_url: Optional[str] = None,
+    ):
+        top_up_status, subscription = await self._top_up_status(organization_id)
+
+        if top_up_status == "unavailable":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Credit top-ups are not available",
+            )
+
+        top_up_pack = get_top_up_pack(code=pack)
+        if top_up_pack is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid pack",
+            )
+
+        if top_up_status == "paid_plan_required":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Credit top-ups need a paid plan",
+            )
+
+        stripe = _load_stripe()
+        top_up_metadata = {
+            "organization_id": organization_id,
+            "target": env.stripe.webhook_target,
+            "purpose": TOP_UP_PURPOSE,
+            "pack": top_up_pack.code,
+        }
+
+        checkout = stripe.checkout.Session.create(
+            mode="payment",
+            payment_method_types=["card"],
+            customer_update={"address": "auto", "name": "auto"},
+            billing_address_collection="required",
+            automatic_tax={"enabled": True},
+            tax_id_collection={"enabled": True},
+            #
+            customer=subscription.customer_id,
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "unit_amount": top_up_pack.price_cents,
+                        "product_data": {
+                            "name": f"{top_up_pack.credits:,} Agenta credits",
+                        },
+                    },
+                    "quantity": 1,
+                }
+            ],
+            #
+            metadata=top_up_metadata,
+            # A paid invoice for the purchase, emailed by Stripe and listed in the
+            # billing portal. It belongs to no subscription, so its own events are
+            # acknowledged and skipped; the credit comes from the session's event.
+            invoice_creation={
+                "enabled": True,
+                "invoice_data": {"metadata": top_up_metadata},
+            },
+            #
+            ui_mode="hosted_page",
+            success_url=success_url,
+            # Without it, Checkout shows no way back to the app.
+            **({"cancel_url": cancel_url} if cancel_url else {}),
+        )
+
+        return {"checkout_url": checkout.url}
+
     async def fetch_plans(
         self,
         organization_id: str,
@@ -654,6 +1058,10 @@ class BillingRouter:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid plan",
             )
+
+        # The free plan has no Stripe prices, so leaving a paid plan for it ends the subscription.
+        if plan == get_free_plan():
+            return await self.cancel_subscription(organization_id=organization_id)
 
         try:
             subscription = await self.subscription_service.process_event(
@@ -1214,6 +1622,62 @@ class BillingRouter:
             organization_id=organization_id,
             plan=plan,
             success_url=success_url,
+        )
+
+    @intercept_exceptions()
+    async def create_top_up_checkout_user_route(
+        self,
+        request: Request,
+        pack: str = Query(...),
+        success_url: str = Query(...),
+        cancel_url: Optional[str] = Query(None),
+    ):
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
+
+        return await self.create_top_up_checkout(
+            organization_id=request.state.organization_id,
+            pack=pack,
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+
+    @intercept_exceptions()
+    async def fetch_top_up_purchase_user_route(
+        self,
+        request: Request,
+        checkout_session_id: str,
+    ):
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
+
+        return await self.fetch_top_up_purchase(
+            organization_id=request.state.organization_id,
+            checkout_session_id=checkout_session_id,
+        )
+
+    @intercept_exceptions()
+    async def fetch_top_up_packs_user_route(
+        self,
+        request: Request,
+    ):
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
+
+        return await self.fetch_top_up_packs(
+            organization_id=request.state.organization_id,
         )
 
     @intercept_exceptions()

@@ -259,6 +259,47 @@ describe("auto-advance", () => {
     })
 })
 
+describe("submits on pick", () => {
+    it("completes a one-question enum on the pick, with that pick as the content", () => {
+        const {result, onComplete} = setup(
+            formOf({colour: {type: "string", title: "Colour", enum: ["Red", "Blue"]}}),
+        )
+
+        expect(result.current.submitsOnPick).toBe(true)
+        act(() => result.current.pick("colour", "Blue", "Picked Blue", 1))
+
+        expect(onComplete).toHaveBeenCalledWith({colour: "Blue"})
+        expect(result.current.hold).toBeNull()
+    })
+
+    it("completes a one-question boolean on the pick", () => {
+        const {result, onComplete} = setup(formOf({proceed: {type: "boolean", title: "Proceed?"}}))
+
+        expect(result.current.submitsOnPick).toBe(true)
+        act(() => result.current.pick("proceed", false, "Picked No", 1))
+
+        expect(onComplete).toHaveBeenCalledWith({proceed: false})
+    })
+
+    it("is off for multi-question, multi-select and free-text forms", () => {
+        expect(setup().result.current.submitsOnPick).toBe(false)
+        expect(
+            setup(
+                formOf({
+                    colours: {
+                        type: "array",
+                        title: "Colours",
+                        items: {type: "string", enum: ["Red", "Blue"]},
+                    },
+                }),
+            ).result.current.submitsOnPick,
+        ).toBe(false)
+        expect(
+            setup(formOf({name: {type: "string", title: "Name"}})).result.current.submitsOnPick,
+        ).toBe(false)
+    })
+})
+
 describe("skip", () => {
     it("clears the value and advances", () => {
         const {result} = setup()

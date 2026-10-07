@@ -24,6 +24,7 @@ import {AnimatePresence, motion} from "motion/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {TileGridSkeleton} from "./DriveExplorerSkeleton"
+import {DriveFolderContextMenu, type DriveFolderMenuProps} from "./DriveFolderMenu"
 import {
     DriveItemContextMenu,
     type DriveItemWriteActions,
@@ -51,6 +52,7 @@ export const FolderView = ({
     sort = "name",
     selectedPath = null,
     writes,
+    folderMenu,
     editing,
     autoFocus,
     anticipateShift,
@@ -73,6 +75,8 @@ export const FolderView = ({
     selectedPath?: string | null
     /** Item context-menu writes; omit on a read-only mount. */
     writes?: DriveItemWriteActions
+    /** Row 2's folder verbs, offered again on right-click over the blank space. Omit → none. */
+    folderMenu?: DriveFolderMenuProps
     /** An entry being renamed in place. */
     editing?: DriveNameEdit | null
     /** Drag-and-drop upload behaviour (folder highlight, spring-load, drop) — absent = disabled. */
@@ -211,7 +215,8 @@ export const FolderView = ({
             {/* The content region crossfades between its states (absolute + overlapping), so a folder
                 swap or skeleton→grid never hard-cuts. The skeleton is DELAYED — a fast load skips it
                 entirely and the grid fades straight in from the previous folder. */}
-            <div
+            <DriveFolderContextMenu
+                menu={folderMenu}
                 className={`relative min-h-0 flex-1 transition-colors ${
                     drop?.hoverPath === folderPath ? "bg-[var(--ant-color-primary-bg)]" : ""
                 }`}
@@ -389,7 +394,7 @@ export const FolderView = ({
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
+            </DriveFolderContextMenu>
         </div>
     )
 }

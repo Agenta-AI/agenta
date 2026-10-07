@@ -36,18 +36,22 @@ import {
     markLocalSessionAcceptedAtom,
     registerLocalSessionAtom,
 } from "@agenta/entities/session"
-import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
+import {
+    invalidateAgentCommittedRevisionCache,
+    workflowBuildKitOverlayReadyAtomFamily,
+} from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -58,12 +62,14 @@ import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {waitForBuildKit} from "./buildKitWait"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
+import {PendingTaskError} from "./states/PendingTaskError"
 import {cancelledStopAction} from "./stopHereState"
 import {TranscriptTurns} from "./TranscriptTurns"
 import {mobileTurnRowClass} from "./turnRowClass"
@@ -131,6 +137,8 @@ export const LiveConversation = ({
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
     const composerRef = useRef<RichChatInputHandle | null>(null)
+    // Quote-to-reply anchors its pill and note box inside the transcript rail.
+    const quoteRootRef = useRef<HTMLDivElement>(null)
     // The composer's tray, owned here for the same reason: a refusal that arrives after the send
     // resolved has to put the files back from outside the composer's own submit.
     const attachments = useComposerAttachments({sessionId})
@@ -157,9 +165,11 @@ export const LiveConversation = ({
     const registerLocalSession = useSetAtom(registerLocalSessionAtom)
     const markLocalSessionAccepted = useSetAtom(markLocalSessionAcceptedAtom)
     const dropUnacceptedLocalSession = useSetAtom(dropUnacceptedLocalSessionAtom)
+    const followCommitRef = useRef<(revisionId: string) => void>(() => undefined)
     const conversation = useAgentConversation({
         entityId,
         sessionId,
+        onCommittedRevision: ({revisionId}) => followCommitRef.current(revisionId),
         sharedReaderAdvertised: sharedReader,
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
@@ -169,31 +179,36 @@ export const LiveConversation = ({
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const {adoptRevision} = conversation
     const adoptSecretRevision = useCallback(
         (next: string) => {
-            conversation.adoptRevision(next)
+            adoptRevision(next)
             pinRevision(next)
         },
-        [conversation.adoptRevision, pinRevision],
+        [adoptRevision, pinRevision],
     )
     const pendingSecret = useMemo(
         () => getPendingSecretInteractions(conversation.messages)[0],
         [conversation.messages],
     )
 
-    // The agent committing itself: the stream carries a one-way `data-committed-revision` part.
-    // Follow it — pin the workspace and retarget the next send — and drop the latest-revision
-    // caches, or the config pane and the version chip keep showing the revision it replaced.
-    // The desktop does the same in its own host hook; the shared engine leaves it to the skin.
+    // The agent committing itself: follow it — pin the workspace and retarget the next send — and
+    // drop the latest-revision caches, or the pane and the chip keep the revision it replaced. A
+    // durable send learns it from the records reader; a `useChat` stream carries a
+    // `data-committed-revision` part. One seen-set, so a commit both report acts once.
     const committedSeenRef = useRef<Set<string>>(new Set())
+    followCommitRef.current = (revisionId: string) => {
+        if (committedSeenRef.current.has(revisionId)) return
+        committedSeenRef.current.add(revisionId)
+        // Nobody is watching a hidden tab: its version pill offers the commit on return.
+        if (document.visibilityState !== "visible") return
+        invalidateAgentCommittedRevisionCache()
+        if (revisionId !== entityId) adoptSecretRevision(revisionId)
+    }
     useEffect(() => {
-        for (const revisionId of committedRevisionIds(conversation.messages)) {
-            if (committedSeenRef.current.has(revisionId)) continue
-            committedSeenRef.current.add(revisionId)
-            invalidateAgentCommittedRevisionCache()
-            if (revisionId !== entityId) adoptSecretRevision(revisionId)
-        }
-    }, [adoptSecretRevision, conversation.messages, entityId])
+        for (const revisionId of committedRevisionIds(conversation.messages))
+            followCommitRef.current(revisionId)
+    }, [conversation.messages])
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
@@ -266,8 +281,15 @@ export const LiveConversation = ({
         stop,
         voidPendingResume,
     } = conversation
+    // Subscribed here so the build-kit overlay loads while the user types the first message.
+    const buildKitReadyAtom = workflowBuildKitOverlayReadyAtomFamily(entityId)
+    useAtomValue(buildKitReadyAtom)
+    const store = useStore()
+    const firstTurn = conversation.messages.length === 0
     // A fresh session becomes real on the server only once this first message is admitted, which
     // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).
+    // Every first send (composer, Home task, retry) comes through here, so it is also where the
+    // first turn waits for the build kit.
     const send = useCallback(
         async (input: Parameters<typeof sendToConversation>[0]) => {
             if (isSessionFresh(sessionId)) {
@@ -277,6 +299,11 @@ export const LiveConversation = ({
                     agentId: agentId ?? null,
                     name: input.text,
                 })
+            }
+            if (firstTurn && !(await waitForBuildKit(store, buildKitReadyAtom))) {
+                console.warn(
+                    "[mobile chat] build-kit overlay not ready after 10s; sending without it",
+                )
             }
             try {
                 await sendToConversation(input)
@@ -288,11 +315,14 @@ export const LiveConversation = ({
         },
         [
             agentId,
+            buildKitReadyAtom,
             dropUnacceptedLocalSession,
+            firstTurn,
             projectId,
             registerLocalSession,
             sendToConversation,
             sessionId,
+            store,
         ],
     )
     // A template create asks for its accounts here, on arrival, instead of on a create surface of
@@ -359,17 +389,17 @@ export const LiveConversation = ({
     hitlPendingRef.current = conversation.hitlPending
     const [stoppingHere, setStoppingHere] = useState(false)
     const stopWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const awaitingServerStopRef = useRef(false)
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
     const retryStopRef = useRef(false)
     const stopSessionIdRef = useRef(sessionId)
     stopSessionIdRef.current = sessionId
+    const serverStopping = isSessionTurnStopping({
+        currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
+        stoppingTurnId,
+    })
     const stopping =
-        stoppingHere ||
-        isSessionTurnStopping({
-            currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
-            stoppingTurnId,
-        }) ||
-        (stopStateLoading && conversation.hitlPending)
+        stoppingHere || serverStopping || (stopStateLoading && conversation.hitlPending)
     const settleParkedStop = useCallback(() => {
         if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
         stopWatchdogTimerRef.current = null
@@ -405,12 +435,15 @@ export const LiveConversation = ({
     }, [watch.connected, running, revalidate])
     useEffect(() => {
         if (streamingHere || !stopWatchdogTimerRef.current) return
+        // A stop of a run not streamed here holds until the server marks it or the run ends.
+        if (awaitingServerStopRef.current && !serverStopping && showingTurnActivity) return
+        awaitingServerStopRef.current = false
         clearTimeout(stopWatchdogTimerRef.current)
         stopWatchdogTimerRef.current = null
         retryStopRef.current = false
         expectedStopExecutionIdRef.current = undefined
         setStoppingHere(false)
-    }, [streamingHere])
+    }, [streamingHere, serverStopping, showingTurnActivity])
     useEffect(
         () => () => {
             if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
@@ -499,9 +532,11 @@ export const LiveConversation = ({
                         expectedStopExecutionIdRef.current = undefined
                         return
                     }
+                    awaitingServerStopRef.current = action === "await-server"
                     stopWatchdogTimerRef.current = setTimeout(() => {
                         retryStopRef.current = true
                         stopWatchdogTimerRef.current = null
+                        awaitingServerStopRef.current = false
                         setStoppingHere(false)
                     }, 30_000)
                     return
@@ -559,6 +594,8 @@ export const LiveConversation = ({
             }),
         [conversation.messages, interactionAvailability.approvals],
     )
+    // The dock drops a gate as we answer it; `pendingApprovals` lags until the transcript catches up.
+    const approvalsOpen = pendingApprovals.length > 0 && conversation.approvals.open
     // Steer keeps the detached resume dispatcher; plain approve/deny go through the engine.
     const steerActions = useApprovalActions({
         sessionId,
@@ -608,15 +645,25 @@ export const LiveConversation = ({
     const elicits = useElicitationDock({
         messages: conversation.messages,
         enabled: interactionAvailability.parkedDocks,
-        approvalsPending: pendingApprovals.length > 0,
+        approvalsPending: approvalsOpen,
         onOutput: conversation.sendToolOutput,
     })
     const connects = useConnectionDock({
         messages: conversation.messages,
         enabled: interactionAvailability.parkedDocks,
-        approvalsPending: pendingApprovals.length > 0,
+        approvalsPending: approvalsOpen,
         elicitationPending: elicits.open,
+        onOutput: conversation.sendToolOutput,
     })
+    // The docks know an ask is answered before `hitlPending` does; an ask with no dock stays a wait.
+    const cardOpen = approvalsOpen || elicits.open || connects.open || Boolean(pendingSecret)
+    const answerInFlight =
+        conversation.approvals.settledIds.size > 0 ||
+        elicits.settlingIds.size > 0 ||
+        connects.settlingIds.size > 0
+    const parkedOnUser = conversation.hitlPending && (cardOpen || !answerInFlight)
+    const resumingAfterAnswer = conversation.hitlPending && !cardOpen && answerInFlight
+
     const secretDockOpen =
         !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
@@ -687,7 +734,11 @@ export const LiveConversation = ({
         body = <ChatLoading />
     } else {
         body = (
-            <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <ContentRail
+                ref={quoteRootRef}
+                className="relative flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            >
+                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={sessionId} touch />
                 {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
                     <div className={`${mobileTurnRowClass} justify-end`}>
@@ -714,7 +765,20 @@ export const LiveConversation = ({
                     // which is a different and much more alarming thing to say.
                     <div className="m-auto w-full max-w-[420px]">
                         <AgentIntroCard entityId={entityId} />
-                        {conversation.historyUnavailable ? (
+                        {conversation.historyReadFailed ? (
+                            <div className="mt-3 flex flex-col items-center gap-2">
+                                <p className="text-muted-foreground m-0 text-center text-xs">
+                                    Couldn&apos;t load this session&apos;s earlier messages.
+                                </p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={conversation.retryHistory}
+                                >
+                                    Try again
+                                </Button>
+                            </div>
+                        ) : conversation.historyUnavailable ? (
                             <p className="text-muted-foreground mt-3 text-center text-xs">
                                 This session&apos;s earlier messages are no longer stored. New
                                 messages still work.
@@ -726,7 +790,8 @@ export const LiveConversation = ({
                     turns={visibleTurns}
                     sessionId={sessionId}
                     remoteRunning={showingTurnActivity && !streamingHere}
-                    waitingOnUser={conversation.hitlPending}
+                    waitingOnUser={parkedOnUser}
+                    resuming={resumingAfterAnswer}
                     pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
                     onClientToolOutput={conversation.sendToolOutput}
                     onRewind={handleRewind}
@@ -760,6 +825,7 @@ export const LiveConversation = ({
                                         held={conversation.hitlPending}
                                         onRemove={conversation.removeQueued}
                                         onSendNow={conversation.sendQueuedNow}
+                                        sendNowBlocked={conversation.sendNowPending}
                                         onEdit={editQueued}
                                         onCancelEdit={cancelQueuedEdit}
                                         editingId={conversation.editingId}
@@ -773,7 +839,7 @@ export const LiveConversation = ({
                                 <ConnectionWarningStrip message={conversation.connectionWarning} />
                             </ContentRail>
                         ) : null}
-                        {pendingApprovals.length > 0 ? (
+                        {approvalsOpen ? (
                             <ApprovalDock
                                 approvals={pendingApprovals}
                                 actions={approvalActions}
@@ -800,7 +866,7 @@ export const LiveConversation = ({
                                 <ContentRail>
                                     <ElicitationDock
                                         elicits={elicits}
-                                        onOutput={conversation.sendToolOutput}
+                                        onOutput={elicits.settle}
                                         touch
                                     />
                                 </ContentRail>
@@ -813,7 +879,7 @@ export const LiveConversation = ({
                                 <ContentRail>
                                     <ConnectionDock
                                         connects={connects}
-                                        onOutput={conversation.sendToolOutput}
+                                        onOutput={connects.settle}
                                         touch
                                     />
                                 </ContentRail>
@@ -843,55 +909,58 @@ export const LiveConversation = ({
                         </ContentRail>
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
-                            <ContentRail>
-                                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                                    <span role="alert" className="text-destructive">
-                                        The message was not sent.
-                                        {pendingTask?.failureReason
-                                            ? ` ${pendingTask.failureReason}`
-                                            : ""}{" "}
-                                        Your text and attachments are saved.
-                                    </span>
-                                    {pendingTask?.parts?.map((part, index) => (
-                                        <span
-                                            key={`${part.url}-${index}`}
-                                            className="text-muted-foreground"
-                                        >
-                                            {part.filename || "Attachment"}
-                                        </span>
-                                    ))}
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={
-                                            isHydrating ||
-                                            modelBlocked ||
-                                            (modelKeyLoading &&
-                                                modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
-                                        }
-                                        onClick={() =>
-                                            void sendPendingTask({
-                                                sessionId,
-                                                retry: true,
-                                                send: (task) =>
-                                                    send({text: task.text, parts: task.parts}),
-                                            })
-                                        }
-                                    >
-                                        Retry message
-                                    </Button>
-                                </div>
-                            </ContentRail>
+                            <PendingTaskError
+                                failureReason={pendingTask?.failureReason}
+                                filenames={pendingTask?.parts?.map(
+                                    (part) => part.filename || "Attachment",
+                                )}
+                                retryDisabled={
+                                    isHydrating ||
+                                    modelBlocked ||
+                                    (modelKeyLoading && modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
+                                }
+                                onRetry={() =>
+                                    void sendPendingTask({
+                                        sessionId,
+                                        retry: true,
+                                        send: (task) => send({text: task.text, parts: task.parts}),
+                                    })
+                                }
+                            />
                         ) : null}
                         <Composer
                             entityId={entityId}
                             sessionId={sessionId}
                             attachments={attachments}
+                            onRefusedOverDraft={({text, parts}) =>
+                                conversation.keepRefusedSend({text, fileParts: parts})
+                            }
                             onSend={async ({text, parts, stagedFiles}) => {
                                 setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
+                                    // A message typed over a parked question or connection
+                                    // request replaces it: the cards settle exactly as their own
+                                    // ✕ / "Not now" would, then the message steers into the
+                                    // resumed run so the agent reads it next, not after. A
+                                    // dismiss that fails throws here, and the composer's catch
+                                    // puts the text back with the cards intact. `steer` rather
+                                    // than `send`: the session has already run, so there is no
+                                    // fresh-session registration to do.
+                                    //
+                                    // Settled together, not in sequence: a failure after one dock
+                                    // had already gone would hand the text back with that dock's
+                                    // request silently cancelled. Both writes go out, and the
+                                    // first rejection is what the composer reports.
+                                    if (elicits.open || connects.open) {
+                                        await Promise.all([
+                                            elicits.open ? elicits.dismiss() : null,
+                                            connects.open ? connects.dismiss() : null,
+                                        ])
+                                        await conversation.steer({text, parts, stagedFiles})
+                                        return
+                                    }
                                     await send({text, parts, stagedFiles})
                                     return
                                 }
@@ -911,15 +980,13 @@ export const LiveConversation = ({
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
                             }
-                            waitingOnUser={conversation.hitlPending}
+                            waitingOnUser={parkedOnUser}
                             streaming={shouldShowStopControl({
                                 busy: streamingHere,
                                 hitlPending: conversation.hitlPending,
                             })}
                             stopping={stopping}
                             onStop={stopHere}
-                            queueEnabled={conversation.queueEnabled}
-                            steerEnabled={conversation.steerEnabled}
                             inputBusy={conversation.inputBusy}
                             inputRef={composerRef}
                             // Same gate the rail's `+` uses: starting one needs an agent.

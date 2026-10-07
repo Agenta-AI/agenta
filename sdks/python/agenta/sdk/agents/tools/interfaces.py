@@ -58,6 +58,8 @@ class PlatformToolResolver(Protocol):
     async def resolve(
         self,
         tools: Sequence[PlatformToolConfig],
+        *,
+        permission_default: PermissionMode = "allow_reads",
     ) -> GatewayToolResolution:
         """Resolve ``type:"platform"`` declarations into callback specifications.
 

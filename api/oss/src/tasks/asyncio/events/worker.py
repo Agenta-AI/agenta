@@ -7,6 +7,7 @@ from redis.asyncio import Redis
 from oss.src.core.events.service import EventsService
 from oss.src.core.events.streaming import deserialize_event
 from oss.src.utils.common import is_ee
+from oss.src.utils import heartbeat
 from oss.src.utils.logging import get_module_logger
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
@@ -217,6 +218,11 @@ class EventsWorker(StreamConsumer):
 
         while True:
             try:
+                # This loop overrides StreamConsumer.run, so it has to report its own
+                # turn, into its own file. Leaving it out would let a wedged events
+                # worker look healthy while every other stream loop was watched.
+                heartbeat.touch(name=self.stream_name)
+
                 # 1. Read batch from stream
                 batch = await self.read_batch()
                 if not batch:

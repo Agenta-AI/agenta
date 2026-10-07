@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"agent_id":{"type":"string","format":"uuid","title":"Agent Id"},"space_id":{"type":"string","format":"uuid","title":"Space Id"}},"type":"object","required":["agent_id","space_id"],"title":"ChannelPolicyResolveRequest"}}},"required":true}}

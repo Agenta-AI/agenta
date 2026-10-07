@@ -89,9 +89,17 @@ case ",$(printf '%s' "${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" | tr '[
   *) export AGENTA_SANDBOX_LOCAL_ENABLED="false" ;;
 esac
 
-# Expose the full enabled-provider set (normalized to a lowercase, whitespace-free comma
+# Expose the effective enabled-provider set (normalized to a lowercase, whitespace-free comma
 # list) so the picker can restrict its options to exactly what this deployment enabled.
-export AGENTA_ENABLED_SANDBOX_PROVIDERS="$(printf '%s' "${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+# `inprocess` is enabled wherever `daytona` is, with no setting of its own (the runner, the SDK
+# and the API apply the same rule). It goes last, so `daytona` stays the default. Who is
+# offered it is the per-user preference's decision, not this list's.
+AGENTA_ENABLED_SANDBOX_PROVIDERS="$(printf '%s' "${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+case ",${AGENTA_ENABLED_SANDBOX_PROVIDERS}," in
+  *,inprocess,*) ;;
+  *,daytona,*) AGENTA_ENABLED_SANDBOX_PROVIDERS="${AGENTA_ENABLED_SANDBOX_PROVIDERS},inprocess" ;;
+esac
+export AGENTA_ENABLED_SANDBOX_PROVIDERS
 
 mkdir -p "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public"
 
@@ -229,11 +237,11 @@ window.__env = {
   NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: "${AGENTA_TOOLS_ENABLED}",
   NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "${AGENTA_BILLING_ENABLED}",
   NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED: "${AGENTA_MCP_GATEWAY_ENABLED}",
+  NEXT_PUBLIC_AGENTA_WALLETS_ENABLED: "${AGENTA_WALLETS_ENABLED}",
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_POLICY: "${SUPERTOKENS_PASSWORD_POLICY}",
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH: "${SUPERTOKENS_PASSWORD_MIN_LENGTH}",
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH: "${SUPERTOKENS_PASSWORD_MAX_LENGTH}",
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_REGEX: "${SUPERTOKENS_PASSWORD_REGEX}",
-  NEXT_PUBLIC_AGENTA_MOBILE_GATE: "${AGENTA_MOBILE_GATE}",
   NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: "${AGENTA_SANDBOX_LOCAL_ENABLED}",
   NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS: "${AGENTA_ENABLED_SANDBOX_PROVIDERS}",
   NEXT_PUBLIC_AGENTA_DISPLAY_FONT_URL: "${AGENTA_DISPLAY_FONT_URL}",

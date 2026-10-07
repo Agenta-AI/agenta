@@ -1,24 +1,44 @@
-import type {ReactNode} from "react"
-import {useMemo} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
+import {getSettingsSidebarIcon} from "@agenta/settings"
 import {formatDay} from "@agenta/shared/utils/dateTime"
-import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
+import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+
+import {SettingsPageActions} from "../SettingsPageShell"
+import {hoverableRow} from "../shared/hoverableRow"
+import {InlineName} from "../shared/InlineName"
+import {NameAvatar} from "../shared/NameAvatar"
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 interface MemberRow extends WorkspaceMember {
     key: string
 }
 
+const MEMBER_COLUMN: ListTableColumn = {
+    key: "member",
+    label: "Member",
+    width: "minmax(0,2fr)",
+}
+const ROLE_COLUMN: ListTableColumn = {key: "roles", label: "Role", width: "minmax(0,1fr)"}
+const TAIL_COLUMNS: ListTableColumn[] = [
+    {key: "status", label: "Status", width: "minmax(0,1fr)"},
+    {key: "created_at", label: "Added", width: "minmax(0,1fr)"},
+    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+]
+/** Role stays on a phone: its cell is where the role is changed. */
+const PHONE_KEYS = ["member", "roles", "status", "actions"]
+
 const usernameFromEmail = (email?: string | null) => (email ? email.split("@")[0] : "")
 
 export interface MembersPageProps {
-    /** The full roster — this page owns the search filter so hosts cannot drift on it. */
     members: WorkspaceMember[]
     loading?: boolean
-    searchTerm: string
-    onSearchChange: (value: string) => void
     /** Identifies "You" and hides the destructive actions on your own row. */
     signedInUser?: {id?: string | null; email?: string | null} | null
     /** The owner cannot be removed. */
@@ -34,7 +54,8 @@ export interface MembersPageProps {
     onInvite?: () => void
     onResendInvite?: (member: WorkspaceMember) => void
     onRemove?: (member: WorkspaceMember) => void
-    onRenameSelf?: (member: WorkspaceMember) => void
+    /** Save a new username for your own row, renamed in place; throw to report a failure. */
+    onRenameSelf?: (member: WorkspaceMember, name: string) => Promise<unknown>
     onResetPassword?: (member: WorkspaceMember) => void
     /** Invite / rename / invited-link dialogs — the host's. */
     children?: ReactNode
@@ -43,14 +64,12 @@ export interface MembersPageProps {
 /**
  * The organization's members: who they are, their role, and where their invitation stands.
  *
- * A view only — the list, the search term and every verb come from the host, so a surface without
+ * A view only — the list and every verb come from the host, so a surface without
  * invite dialogs still renders the roster and its empty state.
  */
 export const MembersPage = ({
     members,
     loading = false,
-    searchTerm,
-    onSearchChange,
     signedInUser,
     ownerId,
     renderRoleCell,
@@ -65,83 +84,22 @@ export const MembersPage = ({
     onResetPassword,
     children,
 }: MembersPageProps) => {
-    const rows = useMemo<MemberRow[]>(() => {
-        const term = searchTerm.trim().toLowerCase()
-        const matching = term
-            ? members.filter((member) =>
-                  [member.user?.email, member.user?.username].some((value) =>
-                      value?.toLowerCase().includes(term),
-                  ),
-              )
-            : members
-        return matching.map((member) => ({...member, key: member.user.id}))
-    }, [members, searchTerm])
+    const [renamingSelf, setRenamingSelf] = useState(false)
+    const rows = useMemo<MemberRow[]>(
+        () => members.map((member) => ({...member, key: member.user.id})),
+        [members],
+    )
 
     const isSelf = (member: WorkspaceMember) =>
         member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
+    const canRenameSelf = (member: WorkspaceMember) => Boolean(onRenameSelf) && isSelf(member)
     const isOwner = (member: WorkspaceMember) => Boolean(ownerId) && member.user?.id === ownerId
 
-    const columns = useMemo<DataTableColumn<MemberRow>[]>(
-        () => [
-            {
-                key: "member",
-                title: "Member",
-                width: 280,
-                render: (record) => {
-                    const name = record.user.username || usernameFromEmail(record.user.email)
-                    return (
-                        <div className="flex min-w-0 items-center gap-2">
-                            <InitialsAvatar size="small" name={name} />
-                            <span className="truncate font-medium" title={name}>
-                                {name}
-                            </span>
-                            {/* Tones, not bare tags: "You" is the accent the desktop app has
-                                always given your own row, and an invitation reads as a state. */}
-                            {isSelf(record) ? (
-                                <Tag size="small" tone="info" label="You" className="shrink-0" />
-                            ) : null}
-                            {/* Invitation state belongs beside the person; accepted members carry none. */}
-                            {record.user?.status === "expired" ? (
-                                <Tag
-                                    size="small"
-                                    tone="error"
-                                    label="Expired"
-                                    className="shrink-0"
-                                />
-                            ) : null}
-                            {record.user?.status === "pending" ? (
-                                <Tag
-                                    size="small"
-                                    tone="warning"
-                                    label="Pending"
-                                    className="shrink-0"
-                                />
-                            ) : null}
-                        </div>
-                    )
-                },
-            },
-            {key: "email", title: "Email", width: 290, mono: true, render: (r) => r.user?.email},
-            ...(renderRoleCell
-                ? [
-                      {
-                          key: "roles",
-                          title: "Role",
-                          width: 160,
-                          render: (record: MemberRow) => renderRoleCell(record),
-                      } satisfies DataTableColumn<MemberRow>,
-                  ]
-                : []),
-            {
-                key: "created_at",
-                title: "Added",
-                width: 160,
-                render: (record) =>
-                    record.user.created_at ? formatDay({date: record.user.created_at}) : "-",
-            },
-        ],
-        [renderRoleCell, signedInUser?.id, signedInUser?.email],
+    const allColumns = useMemo(
+        () => [MEMBER_COLUMN, ...(renderRoleCell ? [ROLE_COLUMN] : []), ...TAIL_COLUMNS],
+        [renderRoleCell],
     )
+    const {columns, shows} = usePhoneColumns(allColumns, PHONE_KEYS)
 
     const inviteButton = (variant?: "outline") =>
         canInviteMembers && onInvite ? (
@@ -152,87 +110,132 @@ export const MembersPage = ({
         ) : null
 
     return (
-        <div className="flex flex-col gap-2">
-            <DataTable<MemberRow>
+        <div className="flex flex-col">
+            <SettingsPageActions>{inviteButton()}</SettingsPageActions>
+            <ListTable<MemberRow>
                 columns={columns}
-                rows={rows}
+                groups={[{key: "all", label: null, rows}]}
+                wrapRow={hoverableRow}
                 rowKey={(record) => record.key}
-                loading={loading}
-                actions={(record) => [
-                    {
-                        key: "rename",
-                        label: "Rename",
-                        icon: <PencilSimpleLine size={16} />,
-                        hidden: !isSelf(record) || !onRenameSelf,
-                        onClick: () => onRenameSelf?.(record),
-                    },
-                    {
-                        key: "resend_invite",
-                        label: "Resend invitation",
-                        icon: <ArrowClockwise size={16} />,
-                        hidden:
-                            isSelf(record) ||
-                            record.user.status === "member" ||
-                            !canInviteMembers ||
-                            !onResendInvite,
-                        disabled: resendingEmail === record.user.email,
-                        onClick: () => onResendInvite?.(record),
-                    },
-                    {
-                        key: "reset_password",
-                        label: "Reset password",
-                        icon: <Key size={16} />,
-                        // The owner is excluded even though the backend has no such check:
-                        // resetting their password would mint a login link into that account.
-                        hidden:
-                            isSelf(record) ||
-                            isOwner(record) ||
-                            record.user.status !== "member" ||
-                            !canResetPassword ||
-                            !onResetPassword,
-                        onClick: () => onResetPassword?.(record),
-                    },
-                    {
-                        key: "remove",
-                        label: "Remove",
-                        icon: <Trash size={16} />,
-                        danger: true,
-                        hidden: isSelf(record) || isOwner(record) || !canRemoveMembers || !onRemove,
-                        onClick: () => onRemove?.(record),
-                    },
-                ]}
-                search={{
-                    placeholder: "Search members",
-                    value: searchTerm,
-                    onChange: onSearchChange,
-                    disabled: loading,
-                }}
-                primaryActions={inviteButton()}
+                minWidth={0}
+                density="compact"
+                loading={loading && rows.length === 0}
+                hideHeader={!loading && rows.length === 0}
                 empty={
-                    searchTerm.trim() ? (
-                        <EmptyState
-                            image="simple"
-                            description={`No members match “${searchTerm.trim()}”`}
-                        />
-                    ) : (
-                        <EmptyState
-                            image="simple"
-                            description={
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-xs font-medium text-colorText">
-                                        No members yet
-                                    </span>
-                                    <span>
-                                        Invite people to collaborate in this organization.
-                                        Invitations appear here until they are accepted or expire.
+                    <SettingsEmpty
+                        icon={getSettingsSidebarIcon("workspace")}
+                        title="No members yet"
+                        description="Invite people to collaborate in this organization. Invitations appear here until they are accepted or expire."
+                        action={inviteButton("outline")}
+                    />
+                }
+                renderRow={(record) => {
+                    const name = record.user.username || usernameFromEmail(record.user.email)
+                    const status = record.user?.status
+                    return (
+                        <>
+                            <div className="flex min-w-0 items-center gap-2.5">
+                                <NameAvatar name={name} />
+                                <div className="flex min-w-0 flex-col">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <InlineName
+                                            value={name}
+                                            editing={renamingSelf && canRenameSelf(record)}
+                                            ariaLabel="Username"
+                                            onStart={
+                                                canRenameSelf(record)
+                                                    ? () => setRenamingSelf(true)
+                                                    : undefined
+                                            }
+                                            onDone={() => setRenamingSelf(false)}
+                                            onSave={(next) => onRenameSelf!(record, next)}
+                                        />
+                                        {isSelf(record) ? (
+                                            <Tag
+                                                size="small"
+                                                tone="info"
+                                                label="You"
+                                                className="shrink-0"
+                                            />
+                                        ) : null}
+                                    </div>
+                                    <span className="truncate text-[12.5px] text-muted-foreground">
+                                        {record.user?.email}
                                     </span>
                                 </div>
-                            }
-                        >
-                            {inviteButton("outline")}
-                        </EmptyState>
+                            </div>
+                            {renderRoleCell ? (
+                                <div className="min-w-0 font-medium text-foreground">
+                                    {renderRoleCell(record)}
+                                </div>
+                            ) : null}
+                            {status === "expired" ? (
+                                <StatusIndicator tone="error" label="Expired" />
+                            ) : status === "pending" ? (
+                                <StatusIndicator tone="warning" label="Pending" />
+                            ) : (
+                                <StatusIndicator tone="success" label="Active" />
+                            )}
+                            {shows("created_at") ? (
+                                <span className="truncate text-muted-foreground">
+                                    {record.user.created_at
+                                        ? formatDay({date: record.user.created_at})
+                                        : "-"}
+                                </span>
+                            ) : null}
+                            <SettingsRowMenu
+                                label="Member actions"
+                                items={[
+                                    {
+                                        key: "rename",
+                                        label: "Rename",
+                                        icon: <PencilSimpleLine size={14} />,
+                                        hidden: !canRenameSelf(record),
+                                        deferred: true,
+                                        onClick: () => setRenamingSelf(true),
+                                    },
+                                    {
+                                        key: "resend_invite",
+                                        label: "Resend invitation",
+                                        icon: <ArrowClockwise size={14} />,
+                                        hidden:
+                                            isSelf(record) ||
+                                            record.user.status === "member" ||
+                                            !canInviteMembers ||
+                                            !onResendInvite,
+                                        disabled: resendingEmail === record.user.email,
+                                        onClick: () => onResendInvite?.(record),
+                                    },
+                                    {
+                                        key: "reset_password",
+                                        label: "Reset password",
+                                        icon: <Key size={14} />,
+                                        // Never mint a login link into the owner's account.
+                                        hidden:
+                                            isSelf(record) ||
+                                            isOwner(record) ||
+                                            record.user.status !== "member" ||
+                                            !canResetPassword ||
+                                            !onResetPassword,
+                                        onClick: () => onResetPassword?.(record),
+                                    },
+                                    {
+                                        key: "remove",
+                                        label: "Remove",
+                                        icon: <Trash size={14} />,
+                                        danger: true,
+                                        hidden:
+                                            isSelf(record) ||
+                                            isOwner(record) ||
+                                            !canRemoveMembers ||
+                                            !onRemove,
+                                        onClick: () => onRemove?.(record),
+                                    },
+                                ]}
+                            />
+                        </>
                     )
-                }
+                }}
             />
 
             {children}

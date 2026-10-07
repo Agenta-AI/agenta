@@ -17,7 +17,7 @@
  *
  * Design: providers-drawer-final/README.md
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     isSubscriptionConnection,
@@ -40,6 +40,7 @@ import {
 } from "./PlaygroundProviderSections"
 import ProviderCatalogList from "./ProviderCatalogList"
 import ProviderConnectionCard, {type ProviderCardSaveState} from "./ProviderConnectionCard"
+import {providerIconFor} from "./providerIcon"
 import SubscriptionConnectionCard from "./SubscriptionConnectionCard"
 import SubscriptionPairCard, {type SubscriptionPairCardSaveState} from "./SubscriptionPairCard"
 
@@ -57,6 +58,8 @@ export interface ProviderDrawerProps {
     connections: ProviderConnection[]
     /** Open straight on this saved connection's card (a Settings table row click). */
     connection?: ProviderConnection | null
+    /** Open straight on a new connection card for this kind (a Settings catalog row click). */
+    kind?: string | null
     /** Called after a connection is saved, so the host can refetch the vault. */
     onSaved?: (savedConnectionId?: string) => void
     /** Where "configured in the deployment" points. */
@@ -75,6 +78,15 @@ type DrawerView =
     | {level: "catalog"}
     | {level: "connection"; kind: string; connection: ProviderConnection | null; pushed: boolean}
     | {level: "subscription"; pair: SubscriptionPair}
+
+/** The provider's logo in the 28px tile the catalog rows use. */
+const ProviderTile = ({kind}: {kind: string}) => {
+    return (
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-background">
+            {createElement(providerIconFor(kind), {className: "size-4"})}
+        </span>
+    )
+}
 
 const DEFAULT_SUBSCRIPTION_DOCS_URL = "https://docs.agenta.ai/self-host/quick-start"
 
@@ -114,6 +126,7 @@ const ProviderDrawer = ({
     context,
     connections,
     connection,
+    kind,
     onSaved,
     subscriptionDocsUrl = DEFAULT_SUBSCRIPTION_DOCS_URL,
     showSubscriptions = true,
@@ -148,16 +161,17 @@ const ProviderDrawer = ({
         setView(next)
     }, [])
 
-    // Opening is what decides the level: with a connection the drawer goes straight to its card
-    // (and shows no back arrow, because there is no list behind it); without one, the catalog.
+    // Opens on the connection's card, else a new card for `kind`, else the catalog.
     useEffect(() => {
         if (!open) return
         showView(
             connection
                 ? {level: "connection", kind: connection.kind, connection, pushed: false}
-                : {level: "catalog"},
+                : kind
+                  ? {level: "connection", kind, connection: null, pushed: false}
+                  : {level: "catalog"},
         )
-    }, [open, connection, showView])
+    }, [open, connection, kind, showView])
 
     const onPickProvider = (entry: ProviderCatalogEntry) =>
         showView({level: "connection", kind: entry.kind, connection: null, pushed: true})
@@ -213,6 +227,7 @@ const ProviderDrawer = ({
             // A connection name is user-supplied, so it truncates rather than shoving the X out.
             <span className="flex min-w-0 items-center gap-2" style={{maxWidth: titleMaxWidth}}>
                 {view.pushed ? backButton : null}
+                <ProviderTile kind={view.kind} />
                 <span className="truncate">
                     {view.connection?.name ?? providerTitleForKind(view.kind)}
                 </span>

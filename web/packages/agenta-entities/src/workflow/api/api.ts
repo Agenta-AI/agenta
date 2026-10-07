@@ -369,6 +369,8 @@ export async function retrieveWorkflowRevision({
 
 export const AGENT_BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"
 
+const buildKitAccessSchema = z.record(z.string(), z.enum(["read", "write"]))
+
 const agentBuildKitOverlaySchema = z
     .object({
         tools: z.array(z.unknown()).optional(),
@@ -401,7 +403,23 @@ export async function fetchAgentBuildKitOverlay(
     )
     if (!validated || Object.keys(validated).length === 0) return null
 
-    return validated
+    const access = buildKitAccessSchema.safeParse(revision?.data?.parameters?.op_access)
+    return {...validated, op_access: access.success ? access.data : {}}
+}
+
+export const AGENTA_TOOLS_WORKFLOW_SLUG = "__ag__agenta_tools"
+
+/** Every Agenta tool an agent can turn on, each marked "read" or "write". */
+export async function fetchAgentaToolsAccess(
+    projectId: string,
+): Promise<Record<string, "read" | "write">> {
+    const revision = await retrieveWorkflowRevision({
+        projectId,
+        workflowRef: {slug: AGENTA_TOOLS_WORKFLOW_SLUG},
+        lowPriority: true,
+    })
+    // Unreadable data is an error, not an empty list, so the section says it failed to load.
+    return buildKitAccessSchema.parse(revision?.data?.parameters?.op_access)
 }
 
 /**
@@ -572,6 +590,7 @@ export interface SimpleApplicationFetchResponse {
     additional_context?: {
         playground_build_kit?: {
             agent_template_overlay?: Record<string, unknown> | null
+            op_access?: Record<string, "read" | "write">
         } | null
     } | null
 }
@@ -587,6 +606,7 @@ const simpleApplicationFetchResponseSchema = z.object({
             playground_build_kit: z
                 .object({
                     agent_template_overlay: z.record(z.string(), z.unknown()).nullable().optional(),
+                    op_access: buildKitAccessSchema.optional(),
                 })
                 .nullable()
                 .optional(),
@@ -626,61 +646,6 @@ export async function fetchSimpleApplication(
         "[fetchSimpleApplication]",
     )
     return (validated ?? null) as SimpleApplicationFetchResponse | null
-}
-
-// ============================================================================
-// INTERFACE SCHEMAS FETCH (for builtin workflows)
-// ============================================================================
-
-/**
- * Response shape from the interface schemas endpoint.
- * Returns schemas for a builtin workflow URI.
- */
-export interface InterfaceSchemasResponse {
-    uri?: string | null
-    schemas?: {
-        parameters?: Record<string, unknown> | null
-        inputs?: Record<string, unknown> | null
-        outputs?: Record<string, unknown> | null
-    } | null
-}
-
-/**
- * Fetch interface schemas for a builtin workflow URI.
- *
- * This endpoint returns the parameters, inputs, and outputs schemas
- * for builtin workflow URIs (e.g., "agenta:builtin:auto_ai_critique:v0").
- *
- * This is useful as a fallback when revision data doesn't contain
- * the full schemas, allowing the frontend to dynamically render
- * configuration forms and validate inputs.
- *
- * Endpoint: `POST /workflows/interfaces/schemas`
- *
- * @param uri - The workflow URI (e.g., "agenta:builtin:auto_exact_match:v0")
- * @param projectId - Project ID
- * @returns Interface schemas response with parameters, inputs, outputs
- */
-export async function fetchInterfaceSchemas(
-    uri: string,
-    projectId: string,
-): Promise<InterfaceSchemasResponse | null> {
-    if (!projectId || !uri) {
-        return null
-    }
-
-    try {
-        const response = await axios.post(
-            `${getAgentaApiUrl()}/workflows/interfaces/schemas`,
-            {uri},
-            {params: {project_id: projectId}},
-        )
-
-        return response.data ?? null
-    } catch (error) {
-        console.error("[fetchInterfaceSchemas] Failed to fetch schemas", {uri, error})
-        return null
-    }
 }
 
 // ============================================================================
@@ -1515,6 +1480,33 @@ export async function fetchHarnessCapabilities(opts?: {
         }
     }
     return byHarness
+}
+
+/**
+ * The platform-funded (`builtin`) LLM gateway endpoints this deployment serves, with their models.
+ * An organization outside the LLM gateway rollout is refused the whole listing, so it is offered
+ * none. A failure rejects rather than reading as none, so the query cache does not keep an empty
+ * list for its stale window.
+ */
+export async function fetchBuiltinModelEndpoints(
+    projectId: string,
+): Promise<{slug: string; models: string[]; deploymentKind: string | null}[]> {
+    const response = await axios.get(`${getAgentaApiUrl()}/gateways/llms/endpoints/`, {
+        params: {project_id: projectId},
+    })
+    const endpoints = (response.data?.endpoints ?? []) as {
+        namespace?: string
+        slug?: string
+        deployment_kind?: string | null
+        data?: {models?: {allowlist?: string[] | null}}
+    }[]
+    return endpoints
+        .filter((endpoint) => endpoint.namespace === "builtin" && endpoint.slug)
+        .map((endpoint) => ({
+            slug: endpoint.slug as string,
+            models: endpoint.data?.models?.allowlist ?? [],
+            deploymentKind: endpoint.deployment_kind ?? null,
+        }))
 }
 
 // ============================================================================

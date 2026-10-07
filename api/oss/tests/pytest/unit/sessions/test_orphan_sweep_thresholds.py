@@ -38,7 +38,6 @@ from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     ORPHAN_THRESHOLD_SECONDS,
     run_orphan_sweep,
 )
-from oss.src.utils.env import env
 
 _PROJECT_ID = "proj-sweep-1"
 
@@ -232,28 +231,19 @@ class _FakeRedis:
         keys = [decode(value) for value in keys_and_args[:numkeys]]
         argv = [decode(value) for value in keys_and_args[numkeys:]]
         assert "AGENTA_WATCHDOG_RELEASE_TURN" in script
-        alive, running, owner, superseded = keys
-        expected_turn, expected_owner, _ttl = argv
+        alive, running, superseded = keys
+        expected_turn, _ttl = argv
         alive_value = decode(self._store[alive]) if alive in self._store else ""
         running_value = decode(self._store[running]) if running in self._store else ""
-        owner_value = decode(self._store[owner]) if owner in self._store else ""
         released_alive = int(bool(expected_turn) and alive_value == expected_turn)
         released_running = int(bool(expected_turn) and running_value == expected_turn)
         if released_alive:
             self._store.pop(alive, None)
         if released_running:
             self._store.pop(running, None)
-        foreign_turn = (alive_value and alive_value != expected_turn) or (
-            running_value and running_value != expected_turn
-        )
-        released_owner = int(
-            bool(expected_owner) and owner_value == expected_owner and not foreign_turn
-        )
-        if released_owner:
-            self._store.pop(owner, None)
         if expected_turn:
             self._store[superseded] = b"1"
-        return [released_alive, released_running, released_owner]
+        return [released_alive, released_running]
 
 
 class _CommitObservingRedis(_FakeRedis):
@@ -263,7 +253,7 @@ class _CommitObservingRedis(_FakeRedis):
 
     async def eval(self, script, numkeys, key, expected, *args):
         normalized = key.decode() if isinstance(key, bytes) else key
-        if normalized.startswith(("alive:", "running:", "owner:")):
+        if normalized.startswith(("alive:", "running:")):
             assert self.engine.committed, (
                 "watchdog released Redis before the row commit"
             )
@@ -356,7 +346,6 @@ async def test_heartbeat_during_lost_settlement_prevents_collapse(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     row = _FakeRow(
         session_id="sess-settled-during-sweep",
         flags={"is_alive": True, "is_running": True, "is_attached": False},
@@ -386,7 +375,6 @@ async def test_redis_release_happens_only_after_stream_collapse_commits(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     row = _FakeRow(
         session_id="sess-commit-before-redis",
         flags={"is_alive": True, "is_running": True, "is_attached": False},
@@ -398,7 +386,6 @@ async def test_redis_release_happens_only_after_stream_collapse_commits(
     for prefix, value in (
         ("alive", b"turn-old"),
         ("running", b"turn-old"),
-        ("owner", b"replica-old"),
     ):
         await redis.set(f"{prefix}:{_PROJECT_ID}:session:{row.session_id}", value)
 
@@ -409,25 +396,20 @@ async def test_redis_release_happens_only_after_stream_collapse_commits(
 
 
 @pytest.mark.anyio
-async def test_durable_sweep_clears_dead_affinity_when_alive_already_expired(
+async def test_durable_sweep_collapses_a_row_whose_alive_already_expired(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     row = _FakeRow(
         session_id="sess-dead-affinity",
         flags={"is_alive": True, "is_running": True, "is_attached": False},
         age_seconds=360,
         turn_id="turn-dead",
     )
-    redis = _FakeRedis()
-    owner_key = f"owner:{_PROJECT_ID}:session:{row.session_id}"
-    await redis.set(owner_key, b"replica-dead")
 
-    await run_orphan_sweep(_FakeTransactionsEngine([row]), redis)
+    await run_orphan_sweep(_FakeTransactionsEngine([row]), _FakeRedis())
 
     assert _swept(row)
-    assert await redis.get(owner_key) is None
 
 
 @pytest.mark.anyio
@@ -435,8 +417,6 @@ async def test_persisted_done_is_terminalized_before_stale_ownership_is_cleared(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", False)
     row = _FakeRow(
         session_id="sess-completed-continuation",
         flags={"is_alive": True, "is_running": True, "is_attached": False},
@@ -461,7 +441,6 @@ async def test_completion_settlement_failure_keeps_ownership_blocking_replay(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     row = _FakeRow(
         session_id="sess-completion-race",
         flags={"is_alive": True, "is_running": True, "is_attached": False},
@@ -484,7 +463,6 @@ async def test_completion_lookup_failure_keeps_ownership_blocking_replay(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     row = _FakeRow(
         session_id="sess-completion-lookup-race",
         flags={"is_alive": True, "is_running": True, "is_attached": False},
@@ -539,8 +517,7 @@ async def test_idle_row_is_swept_at_the_long_threshold(anyio_backend):
 async def test_default_running_threshold_uses_durable_stop(anyio_backend):
     """Three missed 30-second heartbeats settle a running turn by default.
 
-    Idle sessions retain the 30-minute approval TTL. Explicit flag-off behavior
-    is covered by the session cancellation configuration tests.
+    Idle sessions retain the 30-minute approval TTL.
     """
     assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (90, 1800)
 
@@ -590,7 +567,6 @@ async def test_sweep_clears_redis_for_the_long_threshold_branch(anyio_backend):
     session_id = "sess-idle-dead-redis"
     redis = _FakeRedis()
     await redis.set(f"alive:{_PROJECT_ID}:session:{session_id}", b"turn-1", ex=3600)
-    await redis.set(f"owner:{_PROJECT_ID}:session:{session_id}", b"replica-1", ex=3600)
     row = _FakeRow(
         session_id=session_id,
         flags={"is_alive": True, "is_running": False, "is_attached": False},
@@ -601,7 +577,6 @@ async def test_sweep_clears_redis_for_the_long_threshold_branch(anyio_backend):
     await run_orphan_sweep(_FakeTransactionsEngine([row]), redis)
 
     assert await redis.get(f"alive:{_PROJECT_ID}:session:{session_id}") is None
-    assert await redis.get(f"owner:{_PROJECT_ID}:session:{session_id}") is None
 
 
 @pytest.mark.anyio
@@ -618,7 +593,6 @@ async def test_turn_advance_during_sweep_prevents_collapse_and_redis_cleanup(
     redis = _FakeRedis()
     await redis.set(f"alive:{_PROJECT_ID}:session:{session_id}", b"turn-new")
     await redis.set(f"running:{_PROJECT_ID}:session:{session_id}", b"turn-new")
-    await redis.set(f"owner:{_PROJECT_ID}:session:{session_id}", b"runner-new")
 
     def advance_row():
         row.turn_id = "turn-new"
@@ -632,7 +606,6 @@ async def test_turn_advance_during_sweep_prevents_collapse_and_redis_cleanup(
     assert row.flags["is_running"] is True
     assert await redis.get(f"alive:{_PROJECT_ID}:session:{session_id}") == b"turn-new"
     assert await redis.get(f"running:{_PROJECT_ID}:session:{session_id}") == b"turn-new"
-    assert await redis.get(f"owner:{_PROJECT_ID}:session:{session_id}") == b"runner-new"
 
 
 @pytest.mark.anyio

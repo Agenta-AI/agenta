@@ -20,6 +20,8 @@ from uuid import UUID, uuid5, NAMESPACE_DNS
 from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SKILL,
     BUILD_AN_AGENT_SLUG,
+    CREATE_TEMPLATE_SKILL,
+    CREATE_TEMPLATE_SLUG,
     GETTING_STARTED_WITH_AGENTA_SKILL,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
@@ -29,13 +31,16 @@ from agenta.sdk.agents.platform.workflow import (
     REQUEST_SECRET_TOOL_NAME,
     REQUEST_SECRET_WORKFLOW_SLUG,
 )
+from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.skills.models import SkillTemplate
+from agenta.sdk.agents.tools import AGENTA_TOOLS
 from agenta.sdk.engines.running.utils import (
     AGENTA_BUILTIN_SKILL_URI,
     infer_flags_from_data,
     normalize_snippet_data,
 )
 
+from oss.src.core.apps.assembly import AGENTA_APPS_SKILL, AGENTA_APPS_SLUG
 from oss.src.core.workflows.build_kit import (
     AGENTA_BUILTIN_AGENT_URI,
     BUILD_KIT_WORKFLOW_DESCRIPTION,
@@ -44,6 +49,7 @@ from oss.src.core.workflows.build_kit import (
     REQUEST_CONNECTION_WORKFLOW_NAME,
     REQUEST_INPUT_WORKFLOW_SLUG,
     build_agent_template_overlay,
+    build_kit_op_access,
 )
 from oss.src.core.workflows.dtos import (
     WorkflowRevision,
@@ -145,7 +151,8 @@ def _client_tool_revision() -> WorkflowRevision:
                                     "A gateway target to connect instead of an external "
                                     "integration: a model provider on the LLM plane, or a "
                                     "server on the MCP plane. Use this after a model or tool "
-                                    "call was refused for an unregistered target."
+                                    "call was refused for an unregistered target. Omit when "
+                                    "connecting an external integration (use 'integration')."
                                 ),
                                 "properties": {
                                     "plane": {
@@ -172,16 +179,11 @@ def _client_tool_revision() -> WorkflowRevision:
                             },
                         },
                         "required": [],
-                        "oneOf": [
-                            {
-                                "required": ["integration"],
-                                "not": {"required": ["target"]},
-                            },
-                            {
-                                "required": ["target"],
-                                "not": {"required": ["integration"]},
-                            },
-                        ],
+                        # "Exactly one of integration or target" lives in the descriptions, not in
+                        # a root-level oneOf. OpenAI rejects any tool whose parameter root carries
+                        # oneOf/anyOf/allOf/enum/const/not (`invalid_function_parameters`), and
+                        # xAI reads a root-level union branch as the root itself. Either refusal
+                        # fails every turn, because the build kit declares this tool on all of them.
                         "additionalProperties": False,
                     },
                     "render": {"kind": "connect"},
@@ -207,7 +209,9 @@ def _request_secret_revision() -> WorkflowRevision:
                         "available, and let the user set it up here instead of asking "
                         "for the value. Never ask the user to paste a credential into "
                         "chat, and never inspect or print the value of a configured "
-                        "credential. If the user cancels the setup, stop the affected "
+                        "credential. Choose `name` and `env_var` yourself: the user can "
+                        "change both in the setup, so do not ask for them first. If the "
+                        "user cancels the setup, stop the affected "
                         "operation and do not ask for that secret again unless the user "
                         "asks to retry."
                     ),
@@ -283,7 +287,10 @@ def _request_input_revision() -> WorkflowRevision:
                         'expression). For a form with SEVERAL questions, set "x-ag-stepper": true on '
                         "requestedSchema to present one question at a time with a final "
                         "review step. NEVER request secrets "
-                        "(passwords, API keys, tokens); use request_connection for credentials. "
+                        "(passwords, API keys, tokens), and never ask about one through a form "
+                        "(its name, env var, or purpose). For a connected account use "
+                        "request_connection; for a custom secret use request_secret when a "
+                        "custom secret is needed and the tool is available. "
                         "The result is {action: 'accept'|'decline'|'cancel', content?}: on "
                         "accept, `content` holds the user's values; respect a decline or "
                         "cancel — do not re-ask."
@@ -316,7 +323,31 @@ def _build_kit_revision() -> WorkflowRevision:
         description=BUILD_KIT_WORKFLOW_DESCRIPTION,
         data=WorkflowRevisionData(
             uri=AGENTA_BUILTIN_AGENT_URI,
-            parameters={"agent": build_agent_template_overlay()},
+            parameters={
+                "agent": build_agent_template_overlay(),
+                "op_access": build_kit_op_access(),
+            },
+        ),
+    )
+
+
+# The Agenta tools the settings UI lists, with each tool's read-only flag. The tools themselves
+# and the defaults live in the SDK and in each agent's saved `agenta_tools` entry.
+AGENTA_TOOLS_WORKFLOW_SLUG = "__ag__agenta_tools"
+
+
+def _agenta_tools_revision() -> WorkflowRevision:
+    return WorkflowRevision(
+        name="Agenta tools",
+        description="The Agenta tools an agent can turn on for every run.",
+        data=WorkflowRevisionData(
+            uri=AGENTA_BUILTIN_AGENT_URI,
+            parameters={
+                "op_access": {
+                    op: "read" if PLATFORM_OPS[op].read_only else "write"
+                    for op in AGENTA_TOOLS
+                }
+            },
         ),
     )
 
@@ -367,6 +398,28 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "latest": "v1",
         "versions": {
             "v1": _build_kit_revision,
+        },
+    },
+    AGENTA_TOOLS_WORKFLOW_SLUG: {
+        "kind": "agent_config",
+        "embeddable": False,
+        "latest": "v1",
+        "versions": {"v1": _agenta_tools_revision},
+    },
+    AGENTA_APPS_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(AGENTA_APPS_SKILL),
+        },
+    },
+    CREATE_TEMPLATE_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(CREATE_TEMPLATE_SKILL),
         },
     },
 }

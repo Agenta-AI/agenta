@@ -96,6 +96,8 @@ export interface McpConnectJourneyProps {
     } | null
     /** The connection, once it is real. Agents reference it by `slug`. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
+    /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
+    container?: HTMLElement | null
 }
 
 /** The header, which says what is being done rather than where in it we are. */
@@ -366,6 +368,7 @@ export function McpConnectSheet({
     journey,
     existingNames = [],
     reconnect = null,
+    container = null,
 }: McpConnectSheetProps) {
     const {state} = journey
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
@@ -655,13 +658,14 @@ export function McpConnectSheet({
             footer={null}
             width={480}
             destroyOnClose
+            getContainer={container ?? false}
+            contained={!!container}
         >
             <ModalContent>
                 <div className="flex flex-col gap-4" data-testid="mcp-connect-journey">
                     {screen === "url" || screen === "url_failed" ? (
                         <HintedField
                             label="Server URL"
-                            required
                             // Dropped once the check has failed: the box below says what is
                             // wrong with this address, and the line explaining what the
                             // field is for is no longer the thing to read.
@@ -724,7 +728,6 @@ export function McpConnectSheet({
                     {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
                         <HintedField
                             label="Name"
-                            required
                             tooltip={screen === "oauth" ? NAME_HELP : undefined}
                             error={nameError ?? undefined}
                             hint={
@@ -759,7 +762,7 @@ export function McpConnectSheet({
 
                     {screen === "api_key" ? (
                         <>
-                            <div className="grid grid-cols-[1fr_1.4fr] gap-3">
+                            <div className="flex flex-col gap-3">
                                 <HintedField
                                     label="Header"
                                     // Dropped once the server has refused a key: the glyph
@@ -791,7 +794,6 @@ export function McpConnectSheet({
                                 </HintedField>
                                 <Field
                                     label="Project secret"
-                                    required
                                     invalid={state.status === "verify_failed"}
                                 >
                                     <SecretSelect
@@ -978,7 +980,6 @@ const HintedField = ({
     ...field
 }: {
     label: string
-    required?: boolean
     tooltip?: string
     error?: string
     invalid?: boolean

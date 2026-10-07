@@ -1,20 +1,26 @@
-from utils.env import ag_env  # noqa: F401
-from utils.egress import secure_egress_by_default  # noqa: F401
-from utils.api import (
+import os
+
+# litellm fetches its model price map from GitHub at import time unless this is set, so a change
+# upstream (a dropped model, a new price) changes test results without any change here. Pin the
+# map bundled with the locked litellm. It must be set before anything imports litellm. Export
+# LITELLM_LOCAL_MODEL_COST_MAP=False to test against the live map on purpose.
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
+from utils.env import ag_env  # noqa: E402,F401
+from utils.egress import secure_egress_by_default  # noqa: E402,F401
+from utils.api import (  # noqa: E402
     admin_api,  # noqa: F401
     authed_api,  # noqa: F401
     unauthed_api,  # noqa: F401
 )
-from utils.accounts import (
+from utils.accounts import (  # noqa: E402
     foo_account,  # noqa: F401
     cls_account,  # noqa: F401
     mod_account,  # noqa: F401
 )
 
 
-import os
-
-from oss.tests.pytest.utils.postgres import (
+from oss.tests.pytest.utils.postgres import (  # noqa: E402
     DECLARED_ABSENCE_REASON,
     declares_no_database,
     forget_this_runs_verdicts,

@@ -1,23 +1,35 @@
 import {useMemo} from "react"
 
 import type {SettingsAccess, SettingsTabKey} from "@agenta/settings"
-import {isBillingEnabled, isEE, isMcpGatewayEnabled, isToolsEnabled} from "@agenta/shared/api"
+import {
+    isBillingEnabled,
+    isEE,
+    isMcpGatewayEnabled,
+    isToolsEnabled,
+    isWalletsEnabled,
+} from "@agenta/shared/api"
 import {useRouter} from "next/router"
+
+import {useWalletSummary} from "../wallet/useWalletSummary"
 
 /** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
 export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
-    "apiKeys",
     "llms",
-    "secrets",
-    "webhooks",
     "tools",
+    "secrets",
     "mcpEndpoints",
-    "organizationGeneral",
-    "workspace",
-    "organization",
-    "projects",
-    "auditLog",
+    "channels",
+    "apiKeys",
+    "webhooks",
+    "analytics",
     "billing",
+    "workspace",
+    "organizationGeneral",
+    "projects",
+    "organization",
+    "auditLog",
+    "credits",
+    "walletUsage",
     "account",
     "preferences",
 ]
@@ -37,6 +49,10 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     const billingEnabled = isBillingEnabled()
     const toolsEnabled = isToolsEnabled()
     const mcpGatewayEnabled = isMcpGatewayEnabled()
+    const walletsEnabled = isWalletsEnabled()
+    const router = useRouter()
+    const projectId = typeof router.query.project_id === "string" ? router.query.project_id : ""
+    const walletEnforced = useWalletSummary(projectId).data?.mode === "enforce"
 
     return useMemo(
         () => ({
@@ -51,17 +67,31 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             // Owner-gated tabs (Access & Security, Usage) list themselves optimistically like
             // every other view flag here — their pages are read-only and the API authorizes.
             isOwner: true,
+            walletsEnabled,
+            walletEnforced,
+            // The raw wallet data is for developers: it stays out of production builds.
+            walletDebug: process.env.NODE_ENV !== "production",
         }),
-        [enterprise, billingEnabled, toolsEnabled, mcpGatewayEnabled],
+        [
+            enterprise,
+            billingEnabled,
+            toolsEnabled,
+            mcpGatewayEnabled,
+            walletsEnabled,
+            walletEnforced,
+        ],
     )
 }
 
+/** Where Settings opens with no `?tab=`, and where a tab this app cannot show falls back to. */
+export const DEFAULT_MOBILE_SETTINGS_TAB: SettingsTabKey = "llms"
+
 /**
  * The open tab, from `?tab=`. Anything this app cannot render — or that this deployment gates
- * off — falls back to Preferences.
+ * off — falls back to AI providers.
  *
  * The value is read from `asPath`, not `router.query`: the Pages Router leaves `query` empty
- * until it is ready, so a deep link to a tab rendered Preferences for a frame first.
+ * until it is ready, so a deep link to a tab rendered the fallback for a frame first.
  */
 export const useActiveSettingsTab = (): SettingsTabKey => {
     const router = useRouter()
@@ -73,11 +103,21 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
         : null
     const requested = fromQuery ?? fromPath
 
-    if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)) return "preferences"
-    if (requested === "tools" && !access.canShowTools) return "preferences"
-    if (requested === "billing" && !access.billingEnabled) return "preferences"
+    if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey))
+        return DEFAULT_MOBILE_SETTINGS_TAB
+    if (requested === "tools" && !access.canShowTools) return DEFAULT_MOBILE_SETTINGS_TAB
+    if (requested === "billing" && !access.billingEnabled) return DEFAULT_MOBILE_SETTINGS_TAB
+    // The wallet routes are EE-only, whatever the mirrored wallet flag says.
+    if (
+        requested === "walletUsage" &&
+        !(access.isEE && access.walletsEnabled && access.walletDebug)
+    )
+        return DEFAULT_MOBILE_SETTINGS_TAB
+    if (requested === "credits" && !(access.isEE && access.walletsEnabled))
+        return DEFAULT_MOBILE_SETTINGS_TAB
     // A deployment serving no MCP gateway refuses every route behind this tab, so a deep
     // link to it would render a surface whose every action fails.
-    if (requested === "mcpEndpoints" && !access.canShowMcpEndpoints) return "preferences"
+    if (requested === "mcpEndpoints" && !access.canShowMcpEndpoints)
+        return DEFAULT_MOBILE_SETTINGS_TAB
     return requested as SettingsTabKey
 }

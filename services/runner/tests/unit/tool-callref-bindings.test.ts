@@ -250,4 +250,75 @@ describe("startToolRelay callRef context bindings", () => {
       target: { workflow_variant_id: "model-variant" },
     });
   });
+
+  it("binds $ctx.tool.call_id from the relayed tool call on a direct call", async () => {
+    const calls = stubFetch("sent");
+    const spec = callRefSpec({
+      name: "send_channel_message",
+      callRef: undefined,
+      contextBindings: undefined,
+      call: {
+        method: "POST",
+        path: "/api/channels/tools/messages/send",
+        context: { tool_call_id: "$ctx.tool.call_id" },
+      },
+    });
+
+    const res = await relayOnce({
+      spec,
+      args: { text: "hi" },
+      runContext: RUN_CONTEXT,
+    });
+
+    assert.equal(res?.ok, true);
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {
+      text: "hi",
+      tool_call_id: "call-1",
+    });
+  });
+
+  it("keeps the same tool.call_id when the same call is relayed twice", async () => {
+    const calls = stubFetch("sent");
+    const spec = callRefSpec({
+      callRef: undefined,
+      contextBindings: undefined,
+      call: {
+        method: "POST",
+        path: "/api/channels/tools/messages/send",
+        context: { tool_call_id: "$ctx.tool.call_id" },
+      },
+    });
+
+    await relayOnce({ spec, args: {}, runContext: RUN_CONTEXT });
+    await relayOnce({ spec, args: {}, runContext: RUN_CONTEXT });
+
+    const ids = calls.map(
+      (c) => JSON.parse(c.init.body as string).tool_call_id,
+    );
+    assert.deepEqual(ids, ["call-1", "call-1"]);
+  });
+
+  it("never lets the model choose the tool call id", async () => {
+    const calls = stubFetch("sent");
+    const spec = callRefSpec({
+      callRef: undefined,
+      contextBindings: undefined,
+      call: {
+        method: "POST",
+        path: "/api/channels/tools/messages/send",
+        context: { tool_call_id: "$ctx.tool.call_id" },
+      },
+    });
+
+    await relayOnce({
+      spec,
+      args: { tool_call_id: "chosen-by-model" },
+      runContext: RUN_CONTEXT,
+    });
+
+    assert.equal(
+      JSON.parse(calls[0].init.body as string).tool_call_id,
+      "call-1",
+    );
+  });
 });

@@ -2,9 +2,8 @@
  * Seam that lets the runner rebuild prior conversation from the durable record log instead of
  * trusting a full inbound history — the server side of "client sends only the last message".
  *
- * Flag-gated (`AGENTA_SESSIONS_RECONSTRUCT`, ON unless set to the literal "false") and a strict
- * no-op until BOTH the flag is on AND the client actually sent a minimal history
- * (`carriesMinimalHistory`). When it does not apply, the inbound history is left untouched.
+ * A strict no-op unless the client actually sent a minimal history (`carriesMinimalHistory`).
+ * When it does not apply, the inbound history is left untouched.
  *
  * When it DOES apply it is no longer best-effort, because the client kept no copy of the
  * conversation: an unreadable log, or one known to have dropped a record, fails the turn rather
@@ -40,14 +39,6 @@ function isLegacyWholeBodyTruncation(row: { attributes?: unknown }): boolean {
   );
 }
 
-// Compose passes `${AGENTA_SESSIONS_RECONSTRUCT:-}`, so an empty value must mean on just like an
-// absent value. Only the literal "false" disables reconstruction.
-function reconstructEnabled(): boolean {
-  return (
-    String(process.env.AGENTA_SESSIONS_RECONSTRUCT ?? "").trim().toLowerCase() !== "false"
-  );
-}
-
 /**
  * Returns a request whose `messages` are `[...reconstructed prior turns, ...inbound]` when
  * reconstruction applies, else `null` to keep the inbound history as-is.
@@ -75,9 +66,9 @@ export async function reconstructHistoryIfNeeded(
     );
   };
 
-  if (!reconstructEnabled() || !sessionId) {
+  if (!sessionId) {
     if (approvalReplyOnly) {
-      refuse(!sessionId ? "no session id" : "reconstruction is disabled");
+      refuse("no session id");
     }
     return null;
   }
@@ -92,18 +83,22 @@ export async function reconstructHistoryIfNeeded(
   // The client kept no copy of the conversation, so there is no history to fall back to. Answering
   // anyway would silently produce an agent that forgot everything, which reads as a correct reply.
   // Fail the turn instead: `runTurn`'s catch turns this into an error result the caller can see.
-  if (recordsIncomplete(sessionId)) {
+  const incomplete = (): never => {
     throw new Error(
       `session ${sessionId} lost a durable record; refusing to rebuild an incomplete conversation`,
     );
-  }
+  };
+  if (recordsIncomplete(sessionId)) incomplete();
 
-  const records = await fetchSessionRecords(sessionId, auth);
-  if (!records) {
+  const recordLog = await fetchSessionRecords(sessionId, auth);
+  if (!recordLog) {
     throw new Error(
       `session ${sessionId} record log is unreadable; cannot rebuild the conversation`,
     );
   }
+  // Reported by whichever runner dropped the record, so this holds on every runner.
+  if (recordLog.recordsIncomplete) incomplete();
+  const records = recordLog.records;
 
   // Drop this turn's own records: the inbound message already carries the current prompt.
   const currentTurnId = request.turnId?.trim();

@@ -85,6 +85,7 @@ Set the image tags you want to deploy. Use `latest` for the most recent stable r
 ```bash
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
+export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
 export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:latest"
 ```
@@ -102,6 +103,7 @@ You can also pin to a specific version instead of `latest`:
 ```bash
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:v0.30.0"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:v0.30.0"
+export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:v0.30.0"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:v0.30.0"
 export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:v0.30.0"
 ```
@@ -128,13 +130,14 @@ export RAILWAY_ENVIRONMENT_NAME="production"
 
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
+export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
 export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:latest"
 
 ./hosting/railway/oss/scripts/deploy-from-images.sh
 ```
 
-The script re-configures environment variables, runs any new migrations, and redeploys all services.
+The script re-configures environment variables, runs any new migrations, and redeploys all services. If it stops with `Service 'web-mobile' is missing`, the environment was bootstrapped before the mobile app became standard. Re-run `./hosting/railway/oss/scripts/bootstrap.sh`, then the deploy script.
 
 There is also a dedicated upgrade script for source-based deployments:
 

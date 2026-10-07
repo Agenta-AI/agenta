@@ -3,7 +3,8 @@
 This backend hard-codes that it is the sandbox-agent engine. It reaches the same runner the deployed
 sidecar runs (HTTP when a ``url`` is set, otherwise a subprocess CLI), and the runner starts
 the sandbox-agent daemon, the ACP adapter, and the harness. Supports Pi, Claude, and Agenta (Pi with
-an opinion, which the runner drives on the same ``pi`` ACP agent plus forced skills). The
+an opinion, which the runner drives on the same ``pi`` ACP agent plus forced skills), Codex, and
+Mock (a deterministic, LLM-free, network-free stand-in the runner drives in-process). The
 ``sandbox`` axis (``local`` / ``daytona``) is a real runtime choice, so it stays a constructor
 arg.
 
@@ -14,7 +15,6 @@ and transport helpers.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Sequence
 
 from ..dtos import (
@@ -30,6 +30,7 @@ from ..interfaces import Backend, Sandbox, Session
 from ..streaming import AgentStream
 from ..tools.models import ResolvedGatewayPolicy
 from ..utils import (
+    RUNNER_TIMEOUT_SECONDS,
     deliver_http_result,
     deliver_http_stream,
     deliver_subprocess_result,
@@ -75,6 +76,8 @@ class SandboxAgentSession(Session):
         control_command_id: Optional[str],
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> None:
         self._backend = backend
         self._sandbox = sandbox
@@ -90,6 +93,8 @@ class SandboxAgentSession(Session):
         self._control_command_id = control_command_id
         self._effective_parameters = effective_parameters
         self._gateway_policy = gateway_policy
+        self._runner_address = runner_address
+        self._runner_replica_id = runner_replica_id
 
     @property
     def id(self) -> Optional[str]:
@@ -135,18 +140,24 @@ class SandboxAgentSession(Session):
 
     def stream(self, messages: Sequence[Message]) -> AgentStream:
         """Run one turn over the streaming transport, yielding events live (see AgentStream)."""
-        records = self._backend._deliver_stream(self._wire_payload(messages))
+        records = self._backend._deliver_stream(
+            self._wire_payload(messages),
+            runner_address=self._runner_address,
+            runner_replica_id=self._runner_replica_id,
+        )
         return AgentStream(records).on_result(self._absorb_result)
 
 
 class SandboxAgentBackend(Backend):
-    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, and Codex."""
+    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, Codex,
+    and Mock (the runner drives Mock in-process, no subprocess)."""
 
     supported_harnesses = frozenset(
         {
             HarnessKind.PI,
             HarnessKind.CLAUDE,
             HarnessKind.CODEX,
+            HarnessKind.MOCK,
         }
     )
 
@@ -157,7 +168,7 @@ class SandboxAgentBackend(Backend):
         url: Optional[str] = None,
         command: Optional[Sequence[str]] = None,
         cwd: Optional[str] = None,
-        timeout: float = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180")),
+        timeout: float = RUNNER_TIMEOUT_SECONDS,
     ) -> None:
         self._sandbox = sandbox
         self._url = url
@@ -190,6 +201,8 @@ class SandboxAgentBackend(Backend):
         control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> SandboxAgentSession:
         if not isinstance(sandbox, SandboxAgentSandbox):
             raise TypeError(
@@ -210,6 +223,8 @@ class SandboxAgentBackend(Backend):
             control_command_id=control_command_id,
             effective_parameters=effective_parameters,
             gateway_policy=gateway_policy,
+            runner_address=runner_address,
+            runner_replica_id=runner_replica_id,
         )
 
     async def _deliver_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -220,10 +235,27 @@ class SandboxAgentBackend(Backend):
             self._command, payload, cwd=self._cwd, timeout=self._timeout
         )
 
-    def _deliver_stream(self, payload: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
-        """The live counterpart of ``_deliver_result``: an NDJSON record stream from the runner."""
+    def _deliver_stream(
+        self,
+        payload: Dict[str, Any],
+        *,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """The live counterpart of ``_deliver_result``: an NDJSON record stream from the runner.
+
+        ``self._url`` is the Service URL and stays fixed; ``runner_address`` is this turn's
+        preferred pod, used only when the pod there answers as ``runner_replica_id``, and which
+        the transport falls back from to the Service URL.
+        """
         if self._url:
-            return deliver_http_stream(self._url, payload, timeout=self._timeout)
+            return deliver_http_stream(
+                self._url,
+                payload,
+                timeout=self._timeout,
+                runner_address=runner_address,
+                runner_replica_id=runner_replica_id,
+            )
         return deliver_subprocess_stream(
             self._command, payload, cwd=self._cwd, timeout=self._timeout
         )

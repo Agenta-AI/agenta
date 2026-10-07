@@ -58,11 +58,12 @@ const connection = (overrides: Partial<ProviderConnection> = {}): ProviderConnec
 })
 
 describe("provider catalog", () => {
-    it("offers every provider once: 12 standard keys plus the 4 credential-set kinds", () => {
+    it("offers every provider once: 13 standard keys plus the 4 credential-set kinds", () => {
         const kinds = PROVIDER_CATALOG.map((entry) => entry.kind)
 
         expect(kinds).toContain("openai")
-        expect(kinds).toHaveLength(16)
+        expect(kinds).toContain("xai")
+        expect(kinds).toHaveLength(17)
         expect(new Set(kinds).size).toBe(kinds.length)
     })
 
@@ -388,10 +389,13 @@ describe("model list order", () => {
     // A fetch returns dozens of models with the interesting ones scattered through it.
     const available = ["gpt-4.1", "gpt-5.5", "o3", "gpt-5.4", "gpt-3.5"]
 
-    it("leads with the saved selection and Agenta's defaults, then keeps provider order", () => {
+    it("leads with the prioritized ids in their own order, then keeps provider order", () => {
+        // The leading rows follow the caller's ranking, NOT the fetch's. The card passes Agenta's
+        // defaults first, so a provider that answers oldest-first (xAI) no longer pushes its
+        // stalest model to the top of the card the moment a key is tested.
         const order = modelDisplayOrder({available, prioritized: ["gpt-5.4", "gpt-5.5"]})
 
-        expect(order).toEqual(["gpt-5.5", "gpt-5.4", "gpt-4.1", "o3", "gpt-3.5"])
+        expect(order).toEqual(["gpt-5.4", "gpt-5.5", "gpt-4.1", "o3", "gpt-3.5"])
         expect(
             buildModelOptions({
                 available,
@@ -486,7 +490,7 @@ describe("model list order", () => {
             prioritized: ["gpt-4o-retired", "gpt-5.5"],
         })
 
-        expect(order.slice(0, 2)).toEqual(["gpt-5.5", "gpt-4o-retired"])
+        expect(order.slice(0, 2)).toEqual(["gpt-4o-retired", "gpt-5.5"])
     })
 })
 

@@ -74,7 +74,7 @@ runner at it.
 3. Build it in your Daytona account:
 
    ```bash
-   DAYTONA_API_KEY=<daytona-api-key> DAYTONA_TARGET=eu uv run my_snapshot.py --force
+   DAYTONA_API_KEY=<daytona-api-key> DAYTONA_TARGET=eu uv run my_snapshot.py
    ```
 
 4. Point the runner at your snapshot and recreate it:
@@ -87,7 +87,7 @@ runner at it.
 
 A Daytona sandbox runs in the cloud and cannot mount a directory from your host. To make files
 available to Daytona runs, fetch them into the snapshot from a `RUN` step in the same
-`dockerfile_commands` list, then rebuild. For example, a repository checkout at
+`dockerfile_commands` list, then rebuild with `--force`. For example, a repository checkout at
 `/agenta/workspaces/my-service`:
 
 ```python

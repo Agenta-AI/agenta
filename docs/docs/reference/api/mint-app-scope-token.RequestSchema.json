@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"dir":{"type":"string","title":"Dir"},"level":{"type":"string","enum":["read","read-write"],"title":"Level","default":"read"}},"type":"object","required":["dir"],"title":"AppScopeRequest","description":"Ask for a folder-scoped token for one app. `dir` is mount-relative."}}}}}

@@ -1,5 +1,6 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $redisVolatile := default dict $values.redisVolatile -}}
+{{- $startupProbe := default dict $redisVolatile.startupProbe -}}
 {{- if eq (include "agenta.redisVolatile.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -13,6 +14,12 @@ spec:
   {{- with $redisVolatile.strategy }}
   strategy:
     {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Recreate: one cache, not two. A rolling update would briefly run a
+         second redis with an empty dataset, and half the clients would read
+         from it. The cost is a short gap, which a cache tolerates. */}}
+  strategy:
+    type: Recreate
   {{- end }}
   selector:
     matchLabels:
@@ -20,6 +27,19 @@ spec:
       app.kubernetes.io/component: redis-volatile
   template:
     metadata:
+      {{- /* A single-replica pod that holds state: the cluster autoscaler consolidating its node
+             takes the whole component down. On GKE it evicted redis-volatile and supertokens
+             mid-traffic and every agent turn was refused until the replacement pod was ready.
+             The annotation makes the autoscaler skip that node for scale-down. It does not
+             block an operator drain. On GKE Autopilot it also DELAYS automatic node upgrades
+             for that node, and GKE may evict the pod anyway after about seven days, so it is a
+             strong preference, not a guarantee. It is inert where no autoscaler runs. Set
+             `$redisVolatile.safeToEvict: true` to opt out, or override the key through
+             `$redisVolatile.podAnnotations`. */}}
+      {{- $annotations := dict "cluster-autoscaler.kubernetes.io/safe-to-evict" (ternary "true" "false" (default false $redisVolatile.safeToEvict)) -}}
+      {{- $annotations = merge (deepCopy (default dict $redisVolatile.podAnnotations)) $annotations }}
+      annotations:
+        {{- toYaml $annotations | nindent 8 }}
       labels:
         {{- include "agenta.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: redis-volatile
@@ -71,16 +91,35 @@ spec:
                   name: {{ include "agenta.secretName" . }}
                   key: REDIS_VOLATILE_PASSWORD
           {{- end }}
+          {{- /* A startup probe, so a restart that has to replay the
+                 append-only file is not killed by liveness while it works.
+                 Liveness and readiness only begin once this passes. */}}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - '[ "$(redis-cli -p {{ include "agenta.redisVolatile.port" . }} ping)" = "PONG" ]'
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: {{ default 60 $startupProbe.failureThreshold }}
           livenessProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisVolatile.port" . | quote }}, "ping"]
+              command:
+                - sh
+                - -c
+                - '[ "$(redis-cli -p {{ include "agenta.redisVolatile.port" . }} ping)" = "PONG" ]'
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 5
           readinessProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisVolatile.port" . | quote }}, "ping"]
+              command:
+                - sh
+                - -c
+                - '[ "$(redis-cli -p {{ include "agenta.redisVolatile.port" . }} ping)" = "PONG" ]'
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5

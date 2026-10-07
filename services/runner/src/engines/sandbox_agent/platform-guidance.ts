@@ -64,13 +64,8 @@ export function skillsReadPathAppendix(
  * run that HAS it. The SDK platform text gates its own configuration sections on the same name
  * (`platform_instructions.py`, `CONFIG_COMMIT_TOOL`), so the two layers cannot disagree.
  *
- * It is checked by name here rather than by a flag at the call site, deliberately. The natural
- * guess is the ordered-operations flag, since that is what gates the config-editing surface, but
- * the flag is the wrong axis: `commit_revision` is in `DEFAULT_BUILD_KIT_OPS` unconditionally and
- * the flag changes the commit's DELTA SHAPE rather than the tool's existence, so a flag-off agent
- * with the build kit really can do what the sentence says (its legacy description covers skills by
- * sending the whole list). Presence is the honest test, and it also catches the case a flag check
- * would miss: a flag-ON agent that simply has no config tools.
+ * It is checked by name, deliberately: presence is the honest test, and it catches an agent that
+ * simply has no config tools.
  */
 const CONFIG_COMMIT_TOOL = "commit_revision";
 

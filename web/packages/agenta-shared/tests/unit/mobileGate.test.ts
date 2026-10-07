@@ -13,7 +13,6 @@ import {
     mapDesktopToMobile,
     mapMobileToDesktop,
     mobileRouteFor,
-    resolveGateEnabled,
     type GateInput,
 } from "../../src/utils/mobileGate"
 import {SESSION_QUERY_PARAM} from "../../src/utils/sessionParam"
@@ -32,7 +31,6 @@ const input = (overrides: Partial<GateInput> & {headers?: Record<string, string>
         method: "GET",
         header: (name) => headers[name.toLowerCase()] ?? null,
         cookie: (name) => cookies[name],
-        gateEnabled: true,
         ...rest,
     }
 }
@@ -150,6 +148,18 @@ describe("mapDesktopToMobile", () => {
         expect(mapDesktopToMobile("/w/ws1/p/pr1/testsets", "")).toBe("/m/")
         expect(mobileRouteFor("/w/ws1/p/pr1/testsets", "")).toBeNull()
     })
+    it("keeps a website template link on a phone that opens the app root", () => {
+        // The website CTA links to `/?template=`; the /m root then opens that template's setup.
+        expect(
+            decideDesktopGate(
+                input({
+                    pathname: "/",
+                    search: "?template=pr-reviewer",
+                    headers: docHeaders(MOBILE_UA),
+                }),
+            ),
+        ).toEqual({kind: "redirect", location: "/m/?template=pr-reviewer"})
+    })
     it("maps context-free routes to the mobile root resolver", () => {
         expect(mapDesktopToMobile("/w", "")).toBe("/m/")
         expect(mapDesktopToMobile("/w/ws1", "")).toBe("/m/")
@@ -185,6 +195,20 @@ describe("mobileRouteFor", () => {
         ["/w/ws1/p/pr1/agents/archived", "", null],
         ["/settings", "", null],
         ["/workspaces/accept", "", null],
+        // A website template link opens that template's setup step on /m.
+        ["/w", "?template=pr-reviewer", "/m/?template=pr-reviewer"],
+        [
+            "/w/ws1/p/pr1/apps",
+            "?template=pr-reviewer",
+            "/m/w/ws1/p/pr1/agents/new?template=pr-reviewer",
+        ],
+        [
+            "/w/ws1/p/pr1/apps",
+            "?new=1&template=pr-reviewer",
+            "/m/w/ws1/p/pr1/agents/new?template=pr-reviewer",
+        ],
+        ["/w/ws1/p/pr1", "?template=a%20b", "/m/w/ws1/p/pr1/agents/new?template=a%20b"],
+        ["/w/ws1/p/pr1/apps", "?template=", "/m/w/ws1/p/pr1/apps"],
     ]
 
     it.each(cases)("maps %s → %s", (pathname, search, expected) => {
@@ -226,27 +250,6 @@ describe("mapMobileToDesktop", () => {
     it("maps mobile auth to desktop auth and unknown paths to /w", () => {
         expect(mapMobileToDesktop("/auth")).toBe("/auth")
         expect(mapMobileToDesktop("/")).toBe("/w")
-    })
-})
-
-describe("resolveGateEnabled", () => {
-    // The gate ships ON so that no deployment needs an env key to give phones /m.
-    // Only the exact string "false" opts out.
-    it("is on when the key is unset", () => {
-        expect(resolveGateEnabled(undefined)).toBe(true)
-    })
-    it('is on for "true"', () => {
-        expect(resolveGateEnabled("true")).toBe(true)
-    })
-    it('is off for "false"', () => {
-        expect(resolveGateEnabled("false")).toBe(false)
-    })
-    it("stays on for an empty or unrecognized value", () => {
-        // An empty value comes from a compose `KEY=` line; anything else is a typo.
-        // Neither may silently hide the mobile app.
-        for (const raw of ["", "0", "off", "no", "FALSE", null]) {
-            expect(resolveGateEnabled(raw)).toBe(true)
-        }
     })
 })
 
@@ -337,12 +340,6 @@ describe("decideDesktopGate — classic mode", () => {
         })
     })
 
-    it("passes when the deployment turned the gate off — the preference has nowhere to go", () => {
-        expect(
-            decideDesktopGate(classicOff({gateEnabled: false, pathname: "/w/ws1/p/pr1/agents"})),
-        ).toEqual({kind: "pass"})
-    })
-
     it("honors the opt-out cookie", () => {
         const i = classicOff({pathname: "/w/ws1/p/pr1/agents"})
         i.cookie = (name) =>
@@ -379,7 +376,6 @@ describe("decideDesktopGate — classic mode", () => {
     it("the device gate wins for a phone, mapped route or not", () => {
         // Both reasons apply; the device one is total, so an unmapped page still lands in /m.
         const i = input({
-            gateEnabled: true,
             pathname: "/w/ws1/p/pr1/testsets",
             headers: docHeaders(MOBILE_UA),
         })
@@ -389,16 +385,6 @@ describe("decideDesktopGate — classic mode", () => {
 })
 
 describe("decideDesktopGate", () => {
-    it("passes when the flag is off, whatever the device", () => {
-        expect(
-            decideDesktopGate(
-                input({
-                    gateEnabled: false,
-                    headers: docHeaders(MOBILE_UA),
-                }),
-            ),
-        ).toEqual({kind: "pass"})
-    })
     it("redirects a mobile document navigation into /m", () => {
         expect(
             decideDesktopGate(
@@ -466,16 +452,12 @@ describe("decideDesktopGate", () => {
             ),
         ).toEqual({kind: "pass"})
     })
-    // A deployment that opts out with AGENTA_MOBILE_GATE=false still runs /m, so a mobile SSO
-    // sign-in only ever completes if the handback runs regardless of the flag. It used to sit
-    // below the gate-disabled return.
-    it("hands a mobile-started callback to /m even when the gate is disabled", () => {
+    it("hands a mobile-started callback to /m", () => {
         const i = input({
             pathname: "/auth/callback/google",
             search: "?code=abc&state=xyz",
             headers: docHeaders(MOBILE_UA),
         })
-        i.gateEnabled = false
         i.cookie = (name) => (name === MOBILE_AUTH_CALLBACK_COOKIE ? "1" : undefined)
         expect(decideDesktopGate(i)).toEqual({
             kind: "redirect",
@@ -483,9 +465,8 @@ describe("decideDesktopGate", () => {
         })
     })
 
-    it("leaves an ordinary callback alone when the gate is disabled", () => {
+    it("leaves an ordinary callback alone", () => {
         const i = input({pathname: "/auth/callback/google", headers: docHeaders(MOBILE_UA)})
-        i.gateEnabled = false
         expect(decideDesktopGate(i)).toEqual({kind: "pass"})
     })
 
@@ -538,19 +519,12 @@ describe("decideDesktopGate", () => {
 })
 
 describe("decideMobileGate", () => {
-    it("passes when the flag is off", () => {
-        expect(
-            decideMobileGate(
-                input({gateEnabled: false, pathname: "/", headers: docHeaders(DESKTOP_UA)}),
-            ),
-        ).toEqual({kind: "pass"})
-    })
-    it("redirects a desktop document navigation to the desktop equivalent", () => {
+    it("lets a desktop browser stay on /m", () => {
         expect(
             decideMobileGate(
                 input({pathname: "/w/ws1/p/pr1/sessions/abc", headers: docHeaders(DESKTOP_UA)}),
             ),
-        ).toEqual({kind: "redirect", location: "/w/ws1/p/pr1/observability?session=abc"})
+        ).toEqual({kind: "pass"})
     })
     it("honors the opt-in cookie (desktop user chose mobile)", () => {
         const i = input({pathname: "/", headers: docHeaders(DESKTOP_UA)})
@@ -573,28 +547,14 @@ describe("decideMobileGate", () => {
             ),
         ).toEqual({kind: "pass"})
     })
-    it("still bounces the mobile sign-in page for desktop UAs", () => {
+    it("leaves the mobile sign-in page alone for desktop UAs", () => {
         expect(
             decideMobileGate(input({pathname: "/auth", headers: docHeaders(DESKTOP_UA)})),
-        ).toEqual({kind: "redirect", location: "/auth"})
-    })
-    it("passes desktop UAs when only the reverse gate is disabled", () => {
-        expect(
-            decideMobileGate(
-                input({
-                    reverseGateEnabled: false,
-                    pathname: "/w/ws1/p/pr1/sessions",
-                    headers: docHeaders(DESKTOP_UA),
-                }),
-            ),
         ).toEqual({kind: "pass"})
     })
     it("does not bounce a Classic-mode-off user out of /m", () => {
-        // The loop this prevents: the desktop gate sends them here for the preference, this gate
-        // sends them back for the device, and the cookie that started it never changes. Both
-        // gates on, desktop UA, so every other branch would redirect.
+        // The desktop gate sends them here for the preference; this gate must keep them.
         const i = input({
-            gateEnabled: true,
             pathname: "/w/ws1/p/pr1/sessions",
             headers: docHeaders(DESKTOP_UA),
         })
@@ -613,7 +573,6 @@ describe("decideMobileGate", () => {
         // The switch says "full desktop app", so it outranks the device heuristic here exactly
         // as `wantsClassic` does on the desktop half.
         const i = input({
-            gateEnabled: true,
             pathname: "/w/ws1/p/pr1/sessions/abc",
             headers: docHeaders(MOBILE_UA),
         })
@@ -629,21 +588,8 @@ describe("decideMobileGate", () => {
         })
     })
 
-    it("bounces a Classic-mode-ON user out of /m even where the reverse device gate is off", () => {
-        // A preview deployment turns the reverse gate off so laptops can open /m; a user who
-        // chose the full app still gets it.
-        const i = input({
-            reverseGateEnabled: false,
-            pathname: "/w/ws1/p/pr1/sessions",
-            headers: docHeaders(MOBILE_UA),
-        })
-        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
-        expect(decideMobileGate(i)).toEqual({kind: "redirect", location: "/w/ws1/p/pr1/sessions"})
-    })
-
     it("keeps a Classic-mode-ON user on /m when they opted in", () => {
         const i = input({
-            gateEnabled: true,
             pathname: "/w/ws1/p/pr1/sessions",
             headers: docHeaders(MOBILE_UA),
         })
@@ -654,7 +600,6 @@ describe("decideMobileGate", () => {
 
     it("never bounces a Classic-mode-ON user off an OAuth landing", () => {
         const i = input({
-            gateEnabled: true,
             pathname: "/auth/callback/google",
             search: "?code=abc",
             headers: docHeaders(MOBILE_UA),
@@ -663,45 +608,15 @@ describe("decideMobileGate", () => {
         expect(decideMobileGate(i)).toEqual({kind: "pass"})
     })
 
-    it("gate off means nothing leaves /m either, whatever the cookie says", () => {
-        for (const classic of ["0", "1", undefined]) {
-            const i = input({
-                gateEnabled: false,
-                pathname: "/w/ws1/p/pr1/sessions",
-                headers: docHeaders(DESKTOP_UA),
-            })
-            i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? classic : undefined)
-            expect(decideMobileGate(i)).toEqual({kind: "pass"})
-        }
-    })
-
-    it("reverse gate off does not touch the forward gate", () => {
+    it("a desktop browser allowed on /m does not change the forward gate", () => {
         expect(
             decideDesktopGate(
                 input({
-                    reverseGateEnabled: false,
                     pathname: "/w/ws1/p/pr1/observability",
                     headers: docHeaders(MOBILE_UA),
                 }),
             ),
         ).toEqual({kind: "redirect", location: "/m/w/ws1/p/pr1/observability"})
-    })
-    it("still sets the opt-in cookie with the reverse gate off", () => {
-        expect(
-            decideMobileGate(
-                input({
-                    reverseGateEnabled: false,
-                    pathname: "/",
-                    search: "?view=mobile",
-                    headers: docHeaders(DESKTOP_UA),
-                }),
-            ),
-        ).toEqual({
-            kind: "set-cookie-redirect",
-            cookie: MOBILE_OPTIN_COOKIE,
-            clearCookie: MOBILE_OPTOUT_COOKIE,
-            location: "/",
-        })
     })
     it("sets the opt-in cookie and strips the reserved param on ?view=mobile", () => {
         expect(

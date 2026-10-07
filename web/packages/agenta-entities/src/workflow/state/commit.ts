@@ -49,6 +49,8 @@ import {
     workflowDraftAtomFamily,
     updateWorkflowDraftAtom,
     consumeWorkflowDraftAtom,
+    transferBuildKitStateAtom,
+    migrateBuildKitStateAtom,
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateWorkflowRevisionsByWorkflowCache,
@@ -203,6 +205,7 @@ export const commitWorkflowRevisionAtom = atom(
     null,
     async (get, set, params: WorkflowCommitParams): Promise<WorkflowCommitOutcome> => {
         const {revisionId, commitMessage: _commitMessage} = params
+        set(migrateBuildKitStateAtom, revisionId)
 
         try {
             const projectId = get(projectIdAtom)
@@ -387,6 +390,7 @@ export const createWorkflowVariantAtom = atom(
         params: WorkflowCreateVariantParams,
     ): Promise<WorkflowCreateVariantOutcome> => {
         const {baseRevisionId, newVariantName, slug: explicitSlug, commitMessage} = params
+        set(migrateBuildKitStateAtom, baseRevisionId)
 
         try {
             const projectId = get(projectIdAtom)
@@ -570,6 +574,8 @@ export const createWorkflowFromEphemeralAtom = atom(
             })
 
             const newRevisionId = newWorkflow.id
+            if (newWorkflow.workflow_id)
+                set(transferBuildKitStateAtom, {revisionId, workflowId: newWorkflow.workflow_id})
 
             // Prime the per-revision detail cache before callbacks run —
             // see the matching comment in `commitWorkflowRevisionAtom`.

@@ -5,8 +5,15 @@ import Site from "../../layouts/Site.astro";
 import PostCard from "../../components/PostCard.astro";
 import InlineCTA from "../../components/InlineCta.astro";
 import BlogImage from "../../components/BlogImage.astro";
+import BlogImageLightbox from "../../components/BlogImageLightbox.astro";
 import { getCollection, getEntry, render } from "astro:content";
-import { authorRefs, formatDate, relatedPosts } from "../../lib/blog";
+import LegacyNotice from "../../components/LegacyNotice.astro";
+import {
+  authorRefs,
+  formatDate,
+  isLegacyPost,
+  relatedPosts,
+} from "../../lib/blog";
 
 export const getStaticPaths = (async () => {
   const posts = await getCollection("posts");
@@ -227,7 +234,7 @@ const faqJsonLd = faq?.length
           style="max-width:1016px;margin:0 auto;padding:0 24px;"
         >
           <img
-            class="ag-hero-img"
+            class="ag-hero-img ag-zoomable"
             src={heroImage}
             alt={title}
             width="968"
@@ -241,6 +248,8 @@ const faqJsonLd = faq?.length
       )
     }
 
+    {isLegacyPost(post) && <LegacyNotice />}
+
     <!-- body -->
     <div
       class="ag-prose ag-pad ag-post-body"
@@ -248,6 +257,7 @@ const faqJsonLd = faq?.length
     >
       <Content components={{ InlineCTA, img: BlogImage }} />
     </div>
+    <BlogImageLightbox />
   </Section>
 
   <!-- More from the blog -->

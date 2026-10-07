@@ -341,9 +341,19 @@ class _RecordingDelivery:
     def __init__(self, status: str = "accepted") -> None:
         self.status = status
         self.delivered: List[SessionCommand] = []
+        self.addresses: List[Optional[str]] = []
+        self.replica_ids: List[Optional[str]] = []
 
-    async def deliver(self, *, command: SessionCommand) -> DeliveryReceipt:
+    async def deliver(
+        self,
+        *,
+        command: SessionCommand,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
+    ) -> DeliveryReceipt:
         self.delivered.append(command)
+        self.addresses.append(runner_address)
+        self.replica_ids.append(runner_replica_id)
         return DeliveryReceipt(status=self.status, replica_id="runner-1")
 
     async def acknowledge(self, *, command_id, replica_id) -> None:
@@ -559,35 +569,6 @@ async def test_stale_expected_execution_id_is_refused_and_writes_nothing(lock_en
     assert excinfo.value.current == "turn-B"
     assert dao.rows == [], "a refused Stop must insert nothing"
     assert delivery.delivered == []
-
-
-@pytest.mark.asyncio
-async def test_legacy_cancel_keeps_the_expected_execution_guard(lock_engine):
-    await _run_turn(lock_engine, "turn-B")
-    svc = _service(
-        lock_engine,
-        streams=_FakeStreamsService(
-            _stream("turn-B", datetime.now(timezone.utc) - timedelta(seconds=5))
-        ),
-    )
-
-    with pytest.raises(ExecutionExpectationFailed) as excinfo:
-        await svc.request_cancel_legacy(
-            project_id=_PROJECT,
-            user_id=_USER,
-            session_id=_SESSION,
-            expected_execution_id="turn-A",
-        )
-
-    assert excinfo.value.current == "turn-B"
-    assert (
-        await get_running_owner(
-            lock_engine,
-            project_id=str(_PROJECT),
-            session_id=_SESSION,
-        )
-        == "turn-B"
-    )
 
 
 @pytest.mark.asyncio
@@ -1191,7 +1172,9 @@ async def test_an_outcome_that_beats_the_claim_still_settles(lock_engine):
             self.delivered: List[SessionCommand] = []
             self.state_at_report: Optional[SessionCommandState] = None
 
-        async def deliver(self, *, command):
+        async def deliver(
+            self, *, command, runner_address=None, runner_replica_id=None
+        ):
             self.delivered.append(command)
             # The window. Nothing has written `claimed` yet, and the runner is already done.
             self.state_at_report = dao.rows[0].state

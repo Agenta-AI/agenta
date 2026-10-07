@@ -36,6 +36,22 @@ function humanizeKey(key: string): string {
 
 /** Copy for the ops the build kit ships. A missing op falls back to a humanized `op`. */
 const BUILD_KIT_TOOL_COPY: Record<string, BuildKitCopy> = {
+    list_channel_destinations: {
+        name: "List channels",
+        description: "Lists the Slack channels and Telegram groups this agent's bots can reach.",
+    },
+    send_channel_message: {
+        name: "Post to a channel",
+        description: "Posts a message to a Slack channel or Telegram group.",
+    },
+    read_channel_messages: {
+        name: "Read a channel",
+        description: "Reads a channel's recent messages or one Slack thread.",
+    },
+    search_channel_messages: {
+        name: "Search channels",
+        description: "Searches the messages stored from this agent's channels.",
+    },
     discover_tools: {
         name: "Find tools",
         description: "Searches Agenta's catalog for apps and actions this agent could use.",

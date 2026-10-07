@@ -1,15 +1,11 @@
 {
-  // Production Cloudflare Workers Static Assets config for the marketing site.
-  // Separate from wrangler.jsonc (the preview worker `agenta-website-preview`):
-  // this deploys the real production worker `agenta-website` via `wrangler deploy`
-  // (a real deploy, not `versions upload`) from .github/workflows/16-website-production.yml
-  // on every merge to main that touches website/**.
-  //
-  // No routes / custom-domain config yet — the agenta.ai domain is attached in the
-  // Cloudflare dashboard after merge. preview_urls is off: production takes no
-  // per-version preview aliases (those live on the preview worker).
+  // Cloudflare Workers Static Assets config for the marketing site (production).
+  // Production runs under Workers Builds (git push -> build -> deploy).
+  // Domain routes (agenta.ai/*, www.agenta.ai/*) are configured on Cloudflare.
   "name": "agenta-website",
   "compatibility_date": "2026-07-01",
+  // Production worker has no preview URLs: deployments go straight to the
+  // live domains. Per-PR previews use wrangler.jsonc instead.
   "preview_urls": false,
   // Thin content-negotiation shim in front of the assets binding. The site
   // stays pure SSG; this worker only picks a prebuilt representation and sets
@@ -50,9 +46,15 @@
       "/blog/*",
       "/authors",
       "/authors/*",
+      "/marketplace",
+      "/marketplace/*",
+      "/creators/*",
       "/media/*",
       "!/blog/*/*",
       "!/authors/*.*",
+      "!/marketplace/*/*",
+      "!/marketplace/*.*",
+      "!/creators/*.*",
     ],
   },
 }

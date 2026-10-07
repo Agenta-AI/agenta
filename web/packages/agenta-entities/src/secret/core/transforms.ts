@@ -55,6 +55,7 @@ const LLM_STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, st
     [StandardProviderKind.Openrouter]: "OPENROUTER_API_KEY",
     [StandardProviderKind.Gemini]: "GEMINI_API_KEY",
     [StandardProviderKind.Minimax]: "MINIMAX_API_KEY",
+    [StandardProviderKind.Xai]: "XAI_API_KEY",
 }
 
 const MCP_STANDARD_PROVIDER_ENV_BY_KIND: Record<McpStandardProviderKind, string> = {
@@ -329,8 +330,9 @@ export const transformCustomProviderPayloadData = (values: ProviderVaultRow): Cr
  * object of primitives — so this only forwards `{format, content}` as-is.
  */
 export const transformCustomSecretPayloadData = (values: NamedSecretRow): CreateSecretDto => ({
-    // Slug is set on create only; the backend derives it from the name when
-    // omitted, and ignores it on update (slugs are immutable).
+    // Slug is set on create only; the backend derives it from the name when omitted.
+    // Slugs are immutable and the update endpoint rejects the field, so updates go
+    // through `toUpdateSecretPayload`.
     ...(values.slug ? {slug: values.slug} : {}),
     header: {
         name: values.name,
@@ -349,6 +351,19 @@ export const transformCustomSecretPayloadData = (values: NamedSecretRow): Create
             },
         } as CustomSecretDto,
     },
+})
+
+/**
+ * Narrow a create-shaped payload to the fields `PUT /secrets/{id}` accepts.
+ *
+ * The update endpoint forbids unknown fields and takes only `header` and `secret`.
+ * A create-only field such as the immutable `slug` fails the request with a 422.
+ */
+export const toUpdateSecretPayload = (
+    payload: CreateSecretDto,
+): Pick<CreateSecretDto, "header" | "secret"> => ({
+    header: payload.header,
+    secret: payload.secret,
 })
 
 /**

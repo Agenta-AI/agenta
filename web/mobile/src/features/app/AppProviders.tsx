@@ -8,6 +8,7 @@ import {Provider, getDefaultStore} from "jotai"
 import {useHydrateAtoms} from "jotai/react/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
 
+import {Analytics} from "@/features/analytics/Analytics"
 import {ensureAuthInit, tryRefreshSession} from "@/lib/auth"
 import {getApiUrl} from "@/lib/env"
 import {queryClient} from "@/lib/queryClient"
@@ -35,6 +36,7 @@ export const AppProviders = ({children}: PropsWithChildren) => (
         <Provider store={getDefaultStore()}>
             <HydrateAtoms>
                 <ContextSync />
+                <Analytics />
                 {/* The project's only live revalidation channel — without it every project list
                     here waits out its stale time and a remount. */}
                 <ProjectWatch refreshSession={tryRefreshSession} />

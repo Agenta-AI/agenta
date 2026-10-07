@@ -290,6 +290,17 @@ describe("session live preview subscription", () => {
             ).toBe(expected)
         },
     )
+
+    it("never subscribes a conversation that is not on screen", () => {
+        expect(
+            shouldSubscribeToSessionLivePreview({
+                sharedReaderAdvertised: true,
+                runningElsewhere: true,
+                sender: true,
+                visible: false,
+            }),
+        ).toBe(false)
+    })
 })
 
 describe("legacy observer liveness refresh", () => {

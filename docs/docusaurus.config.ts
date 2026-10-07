@@ -15,6 +15,9 @@ const config: Config = {
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/docs/",
+  // Emit foo.html for leaf routes, but keep the site's /docs/ directory index.
+  // Cloudflare's auto-trailing-slash mode then preserves the router's base URL.
+  trailingSlash: false,
   organizationName: "Agenta-AI",
   projectName: "agenta",
   // Preview deploys go to a public *.workers.dev URL. DOCS_NOINDEX=true (set by
@@ -440,6 +443,14 @@ const config: Config = {
       "@docusaurus/plugin-client-redirects",
       {
         redirects: [
+          {
+            from: "/guides/schedule-an-automation",
+            to: "/guides/create-an-automation",
+          },
+          {
+            from: "/guides/trigger-an-automation-from-an-app",
+            to: "/guides/create-an-automation",
+          },
           {
             from: "/changelog/main",
             to: "/changelog",

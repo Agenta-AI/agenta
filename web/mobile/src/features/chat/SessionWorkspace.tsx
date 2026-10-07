@@ -14,6 +14,7 @@ import {
     RIGHT_PANEL_MIN,
     rightPanelWidthAtom,
     useCanPanesCoexist,
+    useFilesPaneLayout,
 } from "@agenta/chat/state"
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
 import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
@@ -22,6 +23,7 @@ import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
 import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
+import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
@@ -75,6 +77,7 @@ const CatalogDrawer = dynamic(
 export const SessionWorkspace = ({
     entityId,
     agentId,
+    agentResolving = false,
     sessionId,
     workspaceId,
     projectId,
@@ -86,6 +89,8 @@ export const SessionWorkspace = ({
     /** The revision being configured. Absent = nothing to build yet (a session with no turns). */
     entityId: string | null
     agentId?: string | null
+    /** The session's agent is still being read; a null `agentId` is not yet the answer. */
+    agentResolving?: boolean
     sessionId: string
     workspaceId: string
     projectId: string
@@ -168,6 +173,12 @@ export const SessionWorkspace = ({
     useDriveDirtyGuard()
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
     const twoPane = useMediaQuery("(min-width: 768px)")
+    const filesLayout = useFilesPaneLayout(
+        `m:${workspaceId}:${projectId}:${filesScope}`,
+        sessionId,
+        filesOpen,
+    )
+    const filesExpanded = filesLayout.expanded
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
     // pane replaces the conversation, so getting it wrong puts the composer out of reach.
     const {showConfig, showPane, showFiles} = resolveSessionPanes({
@@ -176,6 +187,7 @@ export const SessionWorkspace = ({
         twoPane,
         hasEntity: Boolean(entityId),
         filesOpen,
+        filesExpanded,
     })
     // Live px during a drag, mirrored from the shared persisted width — which is written at
     // pointer-up, not per frame, so a drag does not hammer localStorage.
@@ -190,12 +202,20 @@ export const SessionWorkspace = ({
     // Both panes slide rather than snap, on the same shared mechanism the desktop uses. Without
     // it the pane's width flipped in one frame and its content unmounted before the flip, so
     // opening and hiding either panel jumped instead of moving.
-    const configSlide = usePaneSlide(showPane)
+    const configSlide = usePaneSlide(showPane || filesExpanded)
     const filesSlide = usePaneSlide(showFiles)
+
+    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+
+    // "Create with AI" in the config pane writes a prompt into the composer. On a phone the pane
+    // covers the conversation, so hand the screen back to the chat where the prompt landed.
+    const composerPrefillRequest = useAtomValue(composerPrefillRequestAtom)
+    useEffect(() => {
+        if (composerPrefillRequest && !twoPane) setConfigCollapsed(true)
+    }, [composerPrefillRequest, twoPane, setConfigCollapsed])
 
     // The desktop's coexistence rule: too narrow for both side panes, so they take turns.
     // Edge-triggered, so they cannot evict each other in a loop.
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const panesMustAlternate = twoPane && !canPanesCoexist
     const prevFilesOpenRef = useRef(filesOpen)
@@ -296,13 +316,19 @@ export const SessionWorkspace = ({
                     <ConfigPane
                         entityId={entityId}
                         sessionId={sessionId}
+                        filesScope={filesScope}
                         workspaceId={workspaceId}
                         projectId={projectId}
                     />
                 </div>
             ) : null}
             {configSlide.keepMounted && paneKind === "sessions" ? (
-                <SessionsPane agentId={agentId} base={base} activeSessionId={sessionId} />
+                <SessionsPane
+                    agentId={agentId}
+                    agentResolving={agentResolving}
+                    base={base}
+                    activeSessionId={sessionId}
+                />
             ) : null}
         </>
     )
@@ -318,6 +344,8 @@ export const SessionWorkspace = ({
                 <div className="ag-app-ground flex h-[var(--ag-viewport-height,100dvh)] min-w-0 flex-col pt-[env(safe-area-inset-top)]">
                     <SessionTopBar
                         entityId={entityId}
+                        sessionId={sessionId}
+                        onUpdate={pinRevision}
                         agentId={agentId}
                         workspaceId={workspaceId}
                         projectId={projectId}
@@ -339,18 +367,26 @@ export const SessionWorkspace = ({
                             barHidden={!twoPane || !showPane}
                             resizable={twoPane && showPane}
                             paneGrow={!twoPane && showPane}
-                            paneClassName={!twoPane && !showPane ? "hidden" : undefined}
+                            paneClassName={
+                                filesExpanded || (!twoPane && !showPane) ? "hidden" : undefined
+                            }
                             fillClassName={!twoPane && showPane ? "hidden" : undefined}
                             // Controlled width: the drag must write through per tick, or the pane only
                             // snaps at pointer-up.
                             onResize={(size) => setPaneSize(size)}
                             onResizeEnd={(size) => setStoredPaneWidth(size)}
                             className="h-full"
-                            pane={pane}
+                            pane={
+                                <div className="h-full min-h-0" inert={!showPane}>
+                                    {pane}
+                                </div>
+                            }
                             fill={
                                 <SplitPane
                                     paneSide="end"
-                                    paneSize={twoPane && filesOpen ? filesPaneSize : 0}
+                                    paneSize={
+                                        twoPane && filesOpen && !filesExpanded ? filesPaneSize : 0
+                                    }
                                     paneMin={FILES_PANE_MIN}
                                     paneMax={FILES_PANE_MAX}
                                     // Lower than the desktop's chat floor for the same reason the
@@ -359,14 +395,18 @@ export const SessionWorkspace = ({
                                     animate={filesSlide.animate}
                                     // The reveal fades the content in with the width; on a phone
                                     // the width is the screen, so there is nothing to key it on.
-                                    revealContent={twoPane}
+                                    revealContent={twoPane && !filesExpanded}
                                     // Phone: Files takes the conversation's place, as the config
                                     // pane does — no divider, no drag, full width.
-                                    barHidden={!twoPane || !filesOpen}
-                                    resizable={twoPane && filesOpen}
-                                    paneGrow={!twoPane && showFiles}
+                                    barHidden={filesExpanded || !twoPane || !filesOpen}
+                                    resizable={!filesExpanded && twoPane && filesOpen}
+                                    paneGrow={filesExpanded || (!twoPane && showFiles)}
                                     paneClassName={!twoPane && !showFiles ? "hidden" : undefined}
-                                    fillClassName={!twoPane && showFiles ? "hidden" : undefined}
+                                    fillClassName={
+                                        filesExpanded || (!twoPane && showFiles)
+                                            ? "hidden"
+                                            : undefined
+                                    }
                                     // Controlled width, so the drag must write through per tick or the
                                     // pane only moves at pointer-up.
                                     onResize={(size) => setFilesPaneSize(size)}
@@ -381,11 +421,16 @@ export const SessionWorkspace = ({
                                                 // phone that bar is off screen with it, so the
                                                 // pane's own control does.
                                                 closeControl={twoPane ? "none" : "back"}
+                                                expanded={filesExpanded}
+                                                onToggleExpand={filesLayout.toggleExpand}
                                             />
                                         ) : null
                                     }
                                     fill={
-                                        <div className="ag-canvas flex h-full min-h-0">
+                                        <div
+                                            className="ag-canvas flex h-full min-h-0"
+                                            inert={filesExpanded || (!twoPane && showFiles)}
+                                        >
                                             {/* Where the collapsed pane went, on a surface with no
                                                 tab rail to carry its reveal — the empty column
                                                 becomes the pane's own edge instead of dead canvas.
@@ -408,6 +453,7 @@ export const SessionWorkspace = ({
                                                         projectId={projectId}
                                                         workspaceId={workspaceId}
                                                         agentId={agentId}
+                                                        agentResolving={agentResolving}
                                                     />
                                                 )}
                                                 <div className="min-h-0 flex-1">{chat}</div>

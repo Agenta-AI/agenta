@@ -26,12 +26,12 @@
  */
 import {
     workflowAgentTemplateOverlayAtomFamily,
-    workflowBuildKitEnabledAtomFamily,
-    workflowBuildKitDisabledOpsAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    migrateBuildKitStateAtom,
+    resolveBuildKitPermissions,
     workflowMolecule,
     type AgentTemplate,
 } from "@agenta/entities/workflow"
-import {isSessionsLastMessageOnlyEnabled} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
@@ -55,7 +55,7 @@ export interface AgentRequest {
 export const SHARED_SESSION_RESPONSE_HEADER = "x-ag-session-response"
 
 /** Minimal store surface — the default Jotai store, or a test store. */
-type StoreLike = Pick<ReturnType<typeof getDefaultStore>, "get">
+type StoreLike = Pick<ReturnType<typeof getDefaultStore>, "get" | "set">
 
 // Backend rejects local-draft ids; only forward real UUIDs in `references`.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -329,10 +329,8 @@ export async function buildAgentRequest(
         | undefined
     // The execution sections (`harness`/`runner`/`sandbox`) are nested in the template at
     // `parameters.agent`. Default them, never overriding values the resolved config carries.
-    const buildKitEnabled = store.get(workflowBuildKitEnabledAtomFamily(entityId)) as boolean
-    const buildKitDisabledOps = store.get(
-        workflowBuildKitDisabledOpsAtomFamily(entityId),
-    ) as string[]
+    store.set(migrateBuildKitStateAtom, entityId)
+    const buildKitState = store.get(workflowBuildKitUiStateAtomFamily(entityId))
     const agentTemplateOverlay = store.get(
         workflowAgentTemplateOverlayAtomFamily(entityId),
     ) as AgentTemplate | null
@@ -340,8 +338,9 @@ export async function buildAgentRequest(
         withBuildKitOverlay(
             withAgentRunDefaults(config ?? {}) as Record<string, unknown>,
             agentTemplateOverlay,
-            buildKitEnabled,
-            buildKitDisabledOps,
+            buildKitState.enabled,
+            buildKitState.disabledOps,
+            resolveBuildKitPermissions(agentTemplateOverlay, buildKitState),
         ),
     ) as Record<string, unknown>
 
@@ -434,16 +433,13 @@ export async function buildAgentRequest(
     // Strip answer-less assistant turns so a "no response" turn can't poison the next request.
     const history = messages.filter(hasAnswer)
 
-    // Last-message-only (on by default; disable ONLY together with the backend's AGENTA_SESSIONS_RECONSTRUCT).
     // On a fresh user turn, send just the trailing user message and let the runner rebuild prior
     // turns from the durable record log — smaller request + trace payloads. A HITL resume, whose
     // trailing turn carries the settled answer (not a user turn), keeps the full history so the
     // answer still binds to its tool call.
     const lastMessage = history[history.length - 1] as {role?: unknown} | undefined
     const outboundMessages =
-        isSessionsLastMessageOnlyEnabled() && opts.sessionId && lastMessage?.role === "user"
-            ? [lastMessage]
-            : history
+        opts.sessionId && lastMessage?.role === "user" ? [lastMessage] : history
 
     return {
         invocationUrl: url,

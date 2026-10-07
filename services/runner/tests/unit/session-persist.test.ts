@@ -25,8 +25,13 @@ vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 });
 
-const { buildPersistingEmitter, drainPersist, takePersistFailures } =
-  await import("../../src/sessions/persist.ts");
+const {
+  buildPersistingEmitter,
+  drainPersist,
+  recordsIncomplete,
+  reportRecordsIncomplete,
+  takePersistFailures,
+} = await import("../../src/sessions/persist.ts");
 
 beforeEach(() => {
   postedBodies.length = 0;
@@ -35,6 +40,38 @@ beforeEach(() => {
 });
 
 describe("buildPersistingEmitter", () => {
+  it("retries an accepted-but-timed-out record with the same id and timestamp", async () => {
+    const attempts: any[] = [];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      attempts.push(JSON.parse(init!.body as string));
+      assert.ok(init!.signal instanceof AbortSignal);
+      if (attempts.length === 1) throw new DOMException("Timed out after acceptance", "TimeoutError");
+      return new Response("{}", { status: 200 });
+    });
+    try {
+      const emitter = buildPersistingEmitter("retry-timeout", () => "test");
+      emitter.persist({ type: "message", text: "hello" }, "user");
+      await emitter.flush();
+      assert.equal(attempts.length, 2);
+      assert.match(attempts[0].record_id, /^[0-9a-f-]{36}$/);
+      assert.deepEqual(attempts[0], attempts[1]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("flushes and releases unfinished text and thought prefixes exactly once", async () => {
+    const emitter = buildPersistingEmitter("unfinished-prefix", () => "test");
+    emitter.emit({ type: "message_start", id: "m" });
+    emitter.emit({ type: "message_delta", id: "m", delta: "remember this" });
+    emitter.emit({ type: "thought_start", id: "t" });
+    emitter.emit({ type: "thought_delta", id: "t", delta: "partial thought" });
+    await emitter.flush();
+    await emitter.flush();
+    const rows = postedBodies as any[];
+    assert.deepEqual(rows.map((row) => row.attributes.text), ["remember this", "partial thought"]);
+    assert.notEqual(rows[0].record_id, rows[1].record_id);
+  });
   it("persists a plain message event and forwards to the live emitter", async () => {
     const live: unknown[] = [];
     const { emit, flush } = buildPersistingEmitter(
@@ -517,20 +554,8 @@ describe("buildPersistingEmitter API contract", () => {
   });
 });
 
-describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
-  it('legacy (explicitly "false"): a permanent failure is dropped and NOT counted', async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "false");
-    fetchFailCount = 99; // never succeeds
-    const { emit, flush } = buildPersistingEmitter("sess-legacy", () => "t");
-    emit({ type: "message", text: "x" });
-    await flush();
-
-    assert.equal(postedBodies.length, 0); // dropped
-    assert.equal(takePersistFailures("sess-legacy"), 0); // counting is off
-  });
-
-  it("durable: a permanent failure is dropped AND counted for the session", async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
+describe("durable records", () => {
+  it("a permanent failure is dropped AND counted for the session", async () => {
     vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2"); // keep the test fast
     fetchFailCount = 99;
     const { emit } = buildPersistingEmitter("sess-durable", () => "t");
@@ -545,61 +570,23 @@ describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
     assert.equal(takePersistFailures("sess-durable"), 0);
   });
 
-  it("durable is the default: an absent flag counts the drop", async () => {
-    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2"); // keep the test fast
-    fetchFailCount = 99;
-    const { emit } = buildPersistingEmitter("sess-default", () => "t");
-    emit({ type: "message", text: "x" });
-    await drainPersist("sess-default");
-
-    assert.equal(postedBodies.length, 0);
-    assert.equal(takePersistFailures("sess-default"), 1);
-  });
-
-  it('an empty flag (compose "${VAR:-}" passthrough) still means durable', async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "");
+  it("the turn-end flush leaves the drop count for the caller (does not consume it)", async () => {
     vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2");
     fetchFailCount = 99;
-    const { emit } = buildPersistingEmitter("sess-empty", () => "t");
+    const { emit, flush } = buildPersistingEmitter("sess-flush", () => "t");
     emit({ type: "message", text: "x" });
-    await drainPersist("sess-empty");
+    await flush();
 
-    assert.equal(postedBodies.length, 0);
-    assert.equal(takePersistFailures("sess-empty"), 1);
-  });
-
-  it("durable: the turn-end flush consumes the drop count (warns + clears)", async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
-    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2");
-    fetchFailCount = 99;
-    const warns: string[] = [];
-    const writeSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation((chunk: string | Uint8Array) => {
-        warns.push(String(chunk));
-        return true;
-      });
-    try {
-      const { emit, flush } = buildPersistingEmitter("sess-flush", () => "t");
-      emit({ type: "message", text: "x" });
-      await flush();
-
-      // The drain surfaced the incomplete durable log at turn end...
-      assert.equal(
-        warns.some(
-          (w) => w.includes("sess-flush") && w.includes("durable log incomplete"),
-        ),
-        true,
-      );
-    } finally {
-      writeSpy.mockRestore();
-    }
-    // ...and cleared the counter, so nothing accumulates unread.
+    // flush drains but MUST NOT consume the drop count. The turn's caller (server.ts's finally)
+    // reads it once, after the drain, to decide whether to mark the session's record log
+    // incomplete. If flush consumed it here, that caller would read zero and the session with a
+    // hole in its log would never be marked — the bug this guards against.
+    assert.equal(takePersistFailures("sess-flush"), 1);
+    // The caller's single read cleared it, so nothing accumulates unread.
     assert.equal(takePersistFailures("sess-flush"), 0);
   });
 
-  it("durable: a transient failure recovers within the retry budget (no drop counted)", async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
+  it("a transient failure recovers within the retry budget (no drop counted)", async () => {
     vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "5");
     fetchFailCount = 2; // fails twice, then the 3rd attempt lands
     const { emit, flush } = buildPersistingEmitter("sess-recover", () => "t");
@@ -608,6 +595,51 @@ describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
 
     assert.equal(postedBodies.length, 1); // landed
     assert.equal(takePersistFailures("sess-recover"), 0);
+  });
+});
+
+describe("reportRecordsIncomplete", () => {
+  it("posts the session and turn to the api and marks the session here", async () => {
+    const calls: Array<{ url: string; body: unknown; auth: string | null }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (url, init) => {
+        calls.push({
+          url: String(url),
+          body: JSON.parse(init!.body as string),
+          auth: new Headers(init!.headers).get("authorization"),
+        });
+        return new Response("{}", { status: 200 });
+      });
+    try {
+      await reportRecordsIncomplete("sess-report", "turn-9", () => "ApiKey t");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/sessions\/records\/incomplete$/);
+    assert.deepEqual(calls[0].body, {
+      session_id: "sess-report",
+      turn_id: "turn-9",
+    });
+    assert.equal(calls[0].auth, "ApiKey t");
+    assert.equal(recordsIncomplete("sess-report"), true);
+  });
+
+  it("a failed report is swallowed and the local mark still holds", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        throw new Error("ECONNREFUSED");
+      });
+    try {
+      await assert.doesNotReject(() =>
+        reportRecordsIncomplete("sess-report-down", "turn-1", () => "t"),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+    assert.equal(recordsIncomplete("sess-report-down"), true);
   });
 });
 

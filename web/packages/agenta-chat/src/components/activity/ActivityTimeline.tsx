@@ -7,8 +7,10 @@ import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
 
+import {stageWords} from "../../assets/startupPhases"
 import {useHeldFor} from "../../hooks/useHeldFor"
 import {useRevealed} from "../../hooks/useRevealed"
+import {useStageWord} from "../../hooks/useStageWord"
 import {formatElapsed, useTurnClock} from "../../hooks/useTurnClock"
 import {
     activityFiles,
@@ -20,7 +22,7 @@ import {
 } from "../../model"
 import {resolveToolDisplay} from "../../skin"
 import {activityFoldKey, expandedValueAtomFamily, setExpandedAtom} from "../../state"
-import {useStartupPhase} from "../../state/turnClock"
+import {useTurnStage, useTurnStageSince} from "../../state/turnClock"
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
@@ -205,17 +207,11 @@ const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
 /** How long a settled step's verb bridges the gap before the line reads "Working". */
 const VERB_HOLD_MS = 2500
 
-/** What the collapsed line narrates for a step, or before any step. */
-const liveVerb = (
-    step: ActivityStep | null,
-    startupLabel: string | null,
-    firstTurn: boolean,
-): string => {
-    // Only the session's first turn boots anything worth narrating.
-    if (!step) return firstTurn ? startupLabel || "Waking up the agent" : "Working"
+/** What the collapsed line narrates for a step. */
+const liveVerb = (step: ActivityStep): string => {
     if (step.kind === "thought") return step.source === "text" ? "Writing" : "Thinking"
     const part = step.part
-    if ((part.state as string) === "approval-requested") return "Waiting for your approval"
+    // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
     return resolveToolDisplay(partToolName(part), (part as {input?: unknown}).input).activity
         .running
 }
@@ -229,12 +225,12 @@ export interface ActivityTimelineProps {
     streaming: boolean
     /** The answer has begun: the fold settles even though the turn is still streaming. */
     answerStarted: boolean
-    /** The session whose startup narration the line reads until the first step. */
+    /** The session whose turn stage the line narrates until the first step. */
     sessionId?: string
-    /** The session's first turn, the only one that narrates the startup phases. */
-    firstTurn?: boolean
     /** The run is parked on the reader (a question, a connect). */
     waitingOnUser?: boolean
+    /** The ask was answered here and the transcript still carries it: the line reads as work. */
+    resuming?: boolean
     /** The turn's trace: once settled, its duration outranks the local count. */
     traceId?: string | null
     /** This tab streamed the run itself, so its first step is the start. False for a run found
@@ -254,17 +250,21 @@ export const ActivityTimeline = ({
     answerStarted,
     sessionId,
     waitingOnUser = false,
+    resuming = false,
     traceId,
     streamedHere = true,
-    firstTurn = false,
     renderClientTool,
 }: ActivityTimelineProps) => {
-    const startupLabel = useStartupPhase(streaming && firstTurn && sessionId ? sessionId : "")
+    // Any turn can cold start: a parked environment outlives an idle gap by minutes at most.
+    const stage = useTurnStage(streaming && sessionId ? sessionId : "")
+    const stageSince = useTurnStageSince(streaming && sessionId ? sessionId : "")
     const current = currentStep(steps)
     const awaiting =
-        waitingOnUser ||
-        (current?.kind === "tool" && (current.part.state as string) === "approval-requested")
-    const live = streaming || hasLiveStep(steps)
+        !resuming &&
+        (waitingOnUser ||
+            (current?.kind === "tool" && (current.part.state as string) === "approval-requested"))
+    // Without `resuming` a parked client tool (never a live step) would read "Worked for …" here.
+    const live = streaming || hasLiveStep(steps) || resuming
     // A run this tab met mid-flight: it was already going when the tab opened, so there is no local
     // span to count from and the clock would report the age of the TAB, not of the run (#6934). The
     // trace's root span is when the run began — the same source the timestamp beside this line
@@ -285,8 +285,12 @@ export const ActivityTimeline = ({
           ? null
           : Math.max(traced ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
-    // Nothing in flight for a while, before the first step too; each startup phase restarts the wait.
-    const idle = useHeldFor(live && !awaiting && !current, VERB_HOLD_MS, startupLabel)
+    // A settled step's verb holds for a beat, then the line reads "Working".
+    const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
+    const verbStep = current ?? lastAgentStep(steps)
+    // Stage words belong only to the wait before the first step or answer.
+    const beforeFirstStep = live && !awaiting && steps.length === 0 && !resuming && !answerStarted
+    const stageWord = useStageWord(stageWords(stage), beforeFirstStep, stageSince)
     // The latest step reads live for as long as the run does.
     const liveTail = live && !awaiting
     // Only a step that lands on an already-mounted fold unfolds.
@@ -319,16 +323,20 @@ export const ActivityTimeline = ({
         title = (
             <>
                 <SwapLabel
-                    shimmer={!awaiting}
+                    shimmer
                     suffix={clock}
                     text={
                         awaiting
                             ? "Waiting for you"
-                            : answerStarted && !current
-                              ? "Answering"
-                              : idle
+                            : beforeFirstStep
+                              ? stageWord
+                              : resuming && !current
                                 ? "Working"
-                                : liveVerb(current ?? lastAgentStep(steps), startupLabel, firstTurn)
+                                : answerStarted && !current
+                                  ? "Answering"
+                                  : idle || !verbStep
+                                    ? "Working"
+                                    : liveVerb(verbStep)
                     }
                 />
             </>

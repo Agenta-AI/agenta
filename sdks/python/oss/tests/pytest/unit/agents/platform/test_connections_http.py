@@ -174,7 +174,117 @@ async def test_resolve_uses_the_core_gateway_resolver(fake_http, connection):
         "model": "gpt-5.5",
         "provider_key": "openai",
         "connection_slug": "openai",
+        "connection_namespace": None,
     }
+
+
+async def test_a_builtin_pick_sends_its_namespace_with_the_slug(fake_http, connection):
+    # A custom endpoint may share the builtin's slug; only the namespace says which was picked.
+    capture = fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "mock",
+                "model": "gpt-5.5",
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="gpt-5.5",
+            connection={"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+        ),
+        context=_context(),
+    )
+
+    assert capture["json"]["connection_slug"] == "agenta"
+    assert capture["json"]["connection_namespace"] == "builtin"
+    _assert_routed_through_gateway(resolved, namespace="builtin", name="agenta")
+
+
+async def test_a_builtin_gemini_pick_routes_as_an_openai_compatible_custom_route(
+    fake_http, connection
+):
+    # `builtin/agenta` serves Gemini from the platform's Vertex account. The gateway answers
+    # it as an OpenAI-compatible custom route, which is the shape a Pi harness drives with
+    # `openai-completions`; no provider secret reaches the sandbox.
+    fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "custom",
+                "model": "google/gemini-3.8-flash",
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="google/gemini-3.8-flash",
+            connection={"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+        ),
+        context=_context(),
+    )
+
+    _assert_routed_through_gateway(resolved, namespace="builtin", name="agenta")
+    assert (resolved.provider, resolved.deployment, resolved.model) == (
+        "openai",
+        "custom",
+        "google/gemini-3.8-flash",
+    )
+    assert not resolved.custom_connection
+
+
+@pytest.mark.parametrize(
+    "connection",
+    [
+        {"mode": "agenta", "namespace": "builtin"},
+        {"mode": "self_managed", "slug": "agenta", "namespace": "builtin"},
+    ],
+    ids=["no-slug", "self-managed"],
+)
+def test_a_connection_namespace_only_qualifies_an_agenta_slug(connection):
+    with pytest.raises(ValueError):
+        ModelRef(provider="openai", model="gpt-5.5", connection=connection)
+
+
+async def test_gateway_credentials_carry_the_session_and_agent_labels(
+    fake_http, connection
+):
+    # The gateway stamps a platform-funded call's measurement with the session and agent
+    # the credential names, so the exchange must carry them from the run context.
+    capture = fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "mock",
+                "model": "gpt-5.5",
+            }
+        },
+    )
+
+    await VaultConnectionResolver(connection).resolve(
+        model=_model("openai"),
+        context=RuntimeAuthContext(
+            harness="pi_core", session_id="session-1", agent_id="agent-1"
+        ),
+    )
+
+    assert [call["json"] for call in capture["gateway_credentials_requests"]] == [
+        {"plane": "llm", "session_id": "session-1", "agent_id": "agent-1"}
+    ]
 
 
 async def test_self_managed_short_circuits_without_api_base(fake_http):
@@ -950,6 +1060,7 @@ async def test_a_stale_starter_credits_model_runs_the_funded_one(fake_http, conn
     )
 
     assert resolved.model == _FUNDED_MODEL
+    assert resolved.input_modalities == ["text", "image"]
 
 
 async def test_a_stale_bare_starter_credits_model_runs_the_funded_one(
@@ -968,6 +1079,7 @@ async def test_a_stale_bare_starter_credits_model_runs_the_funded_one(
     )
 
     assert resolved.model == _FUNDED_MODEL
+    assert resolved.input_modalities == ["text", "image"]
 
 
 async def test_a_current_starter_credits_model_is_left_untouched(fake_http, connection):
@@ -983,6 +1095,7 @@ async def test_a_current_starter_credits_model_is_left_untouched(fake_http, conn
     )
 
     assert resolved.model == _FUNDED_MODEL
+    assert resolved.input_modalities == ["text", "image"]
 
 
 async def test_a_stale_deployment_prefixed_model_runs_the_funded_one(
@@ -1002,6 +1115,7 @@ async def test_a_stale_deployment_prefixed_model_runs_the_funded_one(
     )
 
     assert resolved.model == _FUNDED_MODEL
+    assert resolved.input_modalities == ["text", "image"]
 
 
 async def test_a_connection_the_user_owns_under_the_slug_is_left_untouched(
@@ -1625,3 +1739,54 @@ async def test_a_hosted_subscription_never_takes_the_gateway_route(
 
     assert capture["method"] == "GET"
     assert capture["url"] == "https://api.x/api/secrets/"
+
+
+@pytest.mark.parametrize("gateway_response", [True, False])
+@pytest.mark.parametrize("slug", ["starter-credits", "my-vision-proxy"])
+@pytest.mark.parametrize(
+    "upstream_model,expected",
+    [
+        ("vertex_ai/gemini-3.7-flash", ["text", "image"]),
+        ("vertex_ai/gemini-3.6-flash", ["text", "image"]),
+        ("anthropic/claude-sonnet-5-5", ["text", "image"]),
+        ("mistral/codestral-latest", ["text"]),
+        ("vertex_ai/unknown-model", None),
+    ],
+)
+async def test_custom_connection_preserves_catalog_capabilities(
+    fake_http, connection, gateway_response, slug, upstream_model, expected
+):
+    payload = (
+        {
+            "connection": {
+                "namespace": "custom",
+                "name": slug,
+                "provider_key": "openai",
+                "deployment_kind": "custom",
+                "model": upstream_model,
+            }
+        }
+        if gateway_response
+        else [
+            _custom_provider(
+                "Agenta",
+                "custom",
+                key="sk-proxy",
+                url=_GATEWAY_URL,
+                models=[upstream_model],
+                slug=slug,
+            )
+        ]
+    )
+    fake_http(connections, payload=payload)
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model=f"Agenta/custom/{upstream_model}",
+            connection={"mode": "agenta", "slug": slug},
+        ),
+        context=_context(),
+    )
+    assert resolved.provider == "openai"
+    assert resolved.model == upstream_model
+    assert resolved.input_modalities == expected
+    _assert_routed_through_gateway(resolved, namespace="custom", name=slug)

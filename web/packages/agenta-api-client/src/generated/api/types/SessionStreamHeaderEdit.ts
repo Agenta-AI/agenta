@@ -17,4 +17,6 @@
 export interface SessionStreamHeaderEdit {
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
+    replacing_name?: (string | null) | undefined;
+    replacing_revision?: (number | null) | undefined;
 }

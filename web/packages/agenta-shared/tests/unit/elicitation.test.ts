@@ -444,7 +444,7 @@ describe("parseElicitationPayload", () => {
         ;(byName.requestedSchema.properties as Record<string, unknown>).api_key = {type: "string"}
         expect(parseElicitationPayload(byName)).toEqual({
             ok: false,
-            reason: 'property "api_key" is secret-shaped — use a connect flow',
+            reason: 'property "api_key" is secret-shaped — do not retry the form; use request_secret or request_connection',
         })
         const byTitle = validPayload()
         ;(byTitle.requestedSchema.properties as Record<string, unknown>).value = {

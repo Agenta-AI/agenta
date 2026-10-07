@@ -97,7 +97,7 @@ class _FakeSession(Session):
 
 class _FakeBackend(Backend):
     supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.CODEX}
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.MOCK}
     )
 
     def __init__(self, *, output: str = "hi") -> None:
@@ -112,6 +112,8 @@ class _FakeBackend(Backend):
         self.created_configs: List[Any] = []
         # The service-supplied naming facts, as they reach the backend.
         self.created_turn_contexts: List[Any] = []
+        self.created_runner_addresses: List[Any] = []
+        self.created_runner_replica_ids: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -133,7 +135,11 @@ class _FakeBackend(Backend):
         control_command_id=None,
         effective_parameters=None,
         gateway_policy=None,
+        runner_address=None,
+        runner_replica_id=None,
     ) -> _FakeSession:
+        self.created_runner_addresses.append(runner_address)
+        self.created_runner_replica_ids.append(runner_replica_id)
         self.created_run_contexts.append(run_context)
         self.created_effective_parameters.append(effective_parameters)
         self.created_gateway_policies.append(gateway_policy)
@@ -825,6 +831,50 @@ async def test_no_gateway_policy_leaves_the_run_request_field_absent():
     assert "gatewayPolicy" not in payload
 
 
+# --------------------------------------------------------------------------- #
+# mock harness: selecting it must reach MockHarness end to end, and a model set on
+# the run must not be rejected by the pre/post-resolve capability gate.
+# --------------------------------------------------------------------------- #
+async def test_mock_harness_reaches_mock_agent_template_through_the_handler():
+    backend = _FakeBackend()
+
+    async def _resolve(*, model, context):
+        return ResolvedConnection(
+            provider="mock",
+            model="mock-1",
+            deployment="direct",
+            credential_mode="runtime_provided",
+        )
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_resolve,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={
+            "agent": {
+                "harness": {
+                    "kind": "mock",
+                    "extras": {"behavior": "echo", "kwargs": {"text": "hi"}},
+                },
+                "llm": "mock-1",
+            }
+        },
+    )
+
+    from agenta.sdk.agents.dtos import MockAgentTemplate
+
+    config = backend.created_configs[0]
+    assert isinstance(config, MockAgentTemplate)
+    assert config.behavior == "echo"
+    assert config.behavior_kwargs == {"text": "hi"}
+    assert config.wire_tools() == {}
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-q"])
 
@@ -1008,6 +1058,73 @@ async def test_a_client_supplied_session_context_cannot_survive_a_failed_resolve
     )
 
     assert backend.created_turn_contexts == [None]
+
+
+_FORGED_ROUTING_META = {
+    "runner_address": "http://attacker.example:8765",
+    "runner_replica_id": "attacker",
+    "runner_url": "http://attacker.example:8765",
+    "session_context": {
+        "runner_address": "http://attacker.example:8765",
+        "runner_replica_id": "attacker",
+    },
+}
+
+
+async def test_the_resolved_runner_address_reaches_the_backend_and_never_the_prompt():
+    """The `/run` body carries credentials, so its target comes only from the api read."""
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=_session_context(
+                session_name="Sapphire Ledger",
+                first_turn=False,
+                runner_address="http://10.8.2.17:8765",
+                runner_replica_id="agenta-runner-6f9c7d5b8-aaaaa",
+            ),
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1", meta=_FORGED_ROUTING_META
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_runner_addresses == ["http://10.8.2.17:8765"]
+    assert backend.created_runner_replica_ids == ["agenta-runner-6f9c7d5b8-aaaaa"]
+    assert "10.8.2.17" not in backend.created_turn_contexts[0]
+    assert "agenta-runner-6f9c7d5b8-aaaaa" not in backend.created_turn_contexts[0]
+
+
+async def test_a_client_cannot_route_a_turn_when_the_read_names_no_pod():
+    backend = _FakeBackend()
+
+    async def resolve(*, session_id, workflow_id):
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1", meta=_FORGED_ROUTING_META
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_runner_addresses == [None]
+    assert backend.created_runner_replica_ids == [None]
 
 
 async def test_competing_artifact_families_report_no_agent_name():
@@ -1276,4 +1393,5 @@ async def test_only_one_deadline_owns_a_turn(monkeypatch):
         parameters=_params(),
     )
 
-    assert owners == ["session context resolver"]
+    # One owner per optional read, never two around the same read.
+    assert owners == ["channel tools resolver", "session context resolver"]

@@ -1,7 +1,21 @@
-export type {ConfirmDestructive, DestructiveConfirmProps} from "./confirm"
-export {default as SettingsPageShell, type SettingsPageShellProps} from "./SettingsPageShell"
+export type {ConfirmDestructive} from "./confirm"
+export {
+    default as SettingsPageShell,
+    SettingsPageActions,
+    type SettingsPageShellProps,
+} from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"
-export {PreferencesPage, type PreferencesPageProps, type PreferenceFlag} from "./PreferencesPage"
+export {
+    PreferencesPage,
+    PREFERENCE_SECTIONS,
+    usePreferenceBindings,
+    type PreferencesPageProps,
+    type PreferenceBinding,
+    type PreferenceBindings,
+    type PreferenceItem,
+    type PreferenceKey,
+    type PreferenceSection,
+} from "./PreferencesPage"
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
@@ -37,6 +51,22 @@ export {
     checkoutBillingSubscription,
     openBillingPortal,
 } from "./billing/api"
+export {
+    BuyCreditsDialog,
+    CreditTopUpsSection,
+    readTopUpReturn,
+    topUpEntry,
+    useTopUpOffer,
+    withoutTopUpQuery,
+    TOP_UP_QUERY,
+    type BuyCreditsDialogProps,
+    type CreditTopUpsSectionProps,
+    type TopUpEntry,
+    type TopUpOffer,
+    type TopUpPack,
+    type TopUpReturn,
+    type TopUpStatus,
+} from "./billing/topups"
 export {
     useBillingCatalog,
     type BillingCatalog,
@@ -85,10 +115,76 @@ export {
     type GatewayToolsSectionCopy,
     type GatewayToolsSectionProps,
 } from "./tools/GatewayToolsSection"
-export {default as IntegrationGrid} from "./tools/IntegrationGrid"
-export {default as IntegrationDetail} from "./tools/IntegrationDetail"
 // Re-exported, not owned: the hook moved down to the entity layer so the client-tool connect flow
 // in @agenta/entity-ui can run it without depending on this package (that direction is a cycle —
 // see `web/packages/agenta-shared/tests/unit/workspaceGraph.test.ts`). Kept here so this package's
 // public API is unchanged for existing importers.
 export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/gatewayTool"
+
+// Channels connect screen (agent page). The shared UI plus the actions builder the
+// hosts (web/oss, /m) wire to the generated channels client.
+export {
+    ChannelsPage,
+    ChannelsPanelSheet,
+    useChannelPanel,
+    ChannelsHubView,
+    ChannelsSettingsPage,
+    CHANNEL_PLATFORMS,
+    agentConnectionsOf,
+    connectionRowText,
+    platformLogo,
+    isLiveForAgent,
+    ChannelConnectFlow,
+    ChannelManagePanel,
+    EMPTY_CONNECTIONS,
+    NOOP_ACTIONS,
+    buildAgentChannelsActions,
+    channelKey,
+    clientErrorMessage,
+    connectionScope,
+    mapConnectionRow,
+    slackInviteHandle,
+    summarizeConnection,
+    QrCode,
+    encodeQr,
+    type AgentChannelsActionsOptions,
+    type ChannelsClientLike,
+    type ChannelsPageProps,
+    type ChannelsPanelRenderProps,
+    type ChannelsPanelSheetProps,
+    type UseChannelPanelOptions,
+    type ChannelsRoute,
+    type ChannelsHubViewProps,
+    type ChannelsSettingsPageProps,
+    type ChannelConnectFlowProps,
+    type ChannelManagePanelProps,
+    type ChannelRowSummary,
+} from "./channels"
+export type {
+    ChannelConnection,
+    ChannelConnections,
+    ChannelPlatform,
+    ChannelInstallMode,
+    ChannelStatus,
+    ChannelAnsweringAgent,
+    ChannelScope,
+    ChannelSetupField,
+    ChannelSetupInfo,
+    ChannelsActions,
+    ChannelsPanelAgent,
+    HostedTelegramLink,
+} from "./channels"
+
+// The agent header's Publish button and the panel it opens: Slack, Telegram and API.
+export {
+    PublishButton,
+    AgentPublish,
+    AgentApiPanel,
+    AGENT_INVOKE_DOCS_URL,
+    agentHostFromApiUrl,
+    buildAgentSnippets,
+    type AgentApiPanelProps,
+    type AgentPublishProps,
+    type AgentSnippetLang,
+    type PublishButtonProps,
+} from "./publish"

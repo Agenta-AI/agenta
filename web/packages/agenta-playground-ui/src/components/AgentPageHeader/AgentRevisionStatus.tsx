@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
@@ -6,13 +6,18 @@ import {
     agentAutoCommitScheduledAtomFamily,
     agentAutoCommitStatusAtomFamily,
     flushAgentAutoCommitAtom,
+    watchLatestVersion,
+    type LatestVersion,
 } from "@agenta/playground/state"
+import {projectIdAtom} from "@agenta/shared/state"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {openAgentVersionHistoryAtom, versionHistoryOpenAtomFamily} from "../AgentVersionHistory"
+
+const SAVED_FLASH_MS = 2000
 
 // Mounted only once opened: the drawer pulls the whole revision list and diff machinery.
 const AgentVersionHistoryDrawer = dynamic(
@@ -32,6 +37,13 @@ export interface AgentRevisionStatusProps {
      * surface has no workflow handle (the chip then just states the version).
      */
     historyWorkflowId?: string | null
+    /**
+     * Switch this view to the agent's latest version. With it (and `historyWorkflowId`), a newer
+     * version shows as a "vN available · Update" pill; nothing is ever adopted without the click.
+     */
+    onUpdate?: (revisionId: string) => void
+    /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
+    checkKey?: string | null
     className?: string
 }
 
@@ -48,6 +60,8 @@ export interface AgentRevisionStatusProps {
 export const AgentRevisionStatus = ({
     revisionId,
     historyWorkflowId,
+    onUpdate,
+    checkKey,
     className,
 }: AgentRevisionStatusProps) => {
     // A commit can land while this surface is closed — the agent commits itself mid-session, or
@@ -73,17 +87,55 @@ export const AgentRevisionStatus = ({
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     // Latched, not unmounted on close: tearing the drawer out mid-close skips its slide-out.
     const [historyMounted, setHistoryMounted] = useState(false)
+    const [historyOpens, setHistoryOpens] = useState(0)
     useEffect(() => {
-        if (historyOpen) setHistoryMounted(true)
+        if (!historyOpen) return
+        setHistoryMounted(true)
+        setHistoryOpens((n) => n + 1)
     }, [historyOpen])
+
+    // The only moments a newer version is looked for: the page becoming visible, a session
+    // switch (`checkKey`), and the drawer opening.
+    const projectId = useAtomValue(projectIdAtom)
+    const [latest, setLatest] = useState<LatestVersion | null>(null)
+    const offersUpdate = Boolean(onUpdate)
+    useEffect(() => {
+        if (!offersUpdate || !historyWorkflowId || !projectId) return
+        return watchLatestVersion({workflowId: historyWorkflowId, projectId, onLatest: setLatest})
+        // `checkKey` and `historyOpens` are triggers: each change is one more check.
+    }, [offersUpdate, historyWorkflowId, projectId, checkKey, historyOpens])
 
     const version = (data?.version as number | null | undefined) ?? null
     const commitMessage = data?.message?.trim() || null
+    const newer =
+        onUpdate &&
+        latest &&
+        latest.workflowId === historyWorkflowId &&
+        version !== null &&
+        latest.version > Number(version)
+            ? latest
+            : null
 
     const failed = autoCommitStatus === "error"
     // "Saving…" must mean a save is armed or in flight. Off `isDirty` it also caught every
     // revision auto-commit skips, which sat on "Saving…" forever; those read Draft.
     const saving = isAgent && !failed && (autoCommitScheduled || autoCommitStatus === "saving")
+    const settled = !failed && !saving && !isDirty
+
+    // "Saved" shows for a moment after a save lands, then only the dot says it.
+    const [justSaved, setJustSaved] = useState(false)
+    const wasSaving = useRef(false)
+    const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    useEffect(() => {
+        const landed = wasSaving.current && settled
+        wasSaving.current = saving
+        if (!landed) return
+        setJustSaved(true)
+        clearTimeout(savedTimer.current)
+        savedTimer.current = setTimeout(() => setJustSaved(false), SAVED_FLASH_MS)
+    }, [saving, settled])
+    useEffect(() => () => clearTimeout(savedTimer.current), [])
+    const showLabel = !settled || justSaved
 
     const dot = failed
         ? {
@@ -109,30 +161,34 @@ export const AgentRevisionStatus = ({
             ) : (
                 <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
             )}
-            {/* The word is the first thing to go on a narrow bar — the dot and its tooltip
-                already say it, and the identity beside it needs the room. */}
-            <span className="hidden sm:inline">{dot.label}</span>
+            {/* Words only for states that need attention; hidden on a narrow bar. */}
+            {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
         </>
     )
 
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
             {merged ? (
-                <SimpleTooltip title="Version history">
+                <SimpleTooltip title={`${dot.label} · Version history`}>
                     <button
                         type="button"
                         aria-label={`Version ${version}, ${dot.label}. Open version history`}
                         onClick={() => openHistory(historyWorkflowId)}
-                        className="group flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-colorTextTertiary"
+                        className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
                     >
-                        {/* Only the version wears the chip — the save state is a fact about it,
-                            not a second control, so it reads as a label beside it. */}
-                        <span className="flex items-center gap-1 rounded bg-colorFillSecondary px-1.5 py-0.5 text-colorTextSecondary group-hover:bg-colorFillTertiary group-hover:text-colorText">
+                        {/* One chip: the save state is a fact about this version. */}
+                        <span className="flex items-center gap-1">
                             {/* A caret would promise a menu; this opens a drawer of history. */}
-                            <ClockCounterClockwise size={11} className="shrink-0" />v{version}
+                            <span className="relative flex shrink-0">
+                                <ClockCounterClockwise size={11} />
+                                {/* Save state as a badge on the icon, so it never trails the text. */}
+                                <span
+                                    className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
+                                />
+                            </span>
+                            v{version}
                         </span>
-                        <span className="text-colorTextQuaternary">·</span>
-                        {statusBody}
+                        {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
                     </button>
                 </SimpleTooltip>
             ) : null}
@@ -174,8 +230,23 @@ export const AgentRevisionStatus = ({
                 )
             ) : null}
 
+            {newer ? (
+                <button
+                    type="button"
+                    onClick={() => onUpdate?.(newer.id)}
+                    className="flex cursor-pointer items-center gap-1 rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
+                >
+                    v{newer.version} available · <span className="font-medium">Update</span>
+                </button>
+            ) : null}
+
             {historyWorkflowId && historyMounted ? (
-                <AgentVersionHistoryDrawer workflowId={historyWorkflowId} revisionId={revisionId} />
+                <AgentVersionHistoryDrawer
+                    workflowId={historyWorkflowId}
+                    revisionId={revisionId}
+                    currentVersion={version}
+                    onUpdate={onUpdate}
+                />
             ) : null}
 
             {/* Tooltip only on failure: there it carries the error and the retry hint. */}

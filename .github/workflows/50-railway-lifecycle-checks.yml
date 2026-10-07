@@ -1,0 +1,28 @@
+name: "50 - railway lifecycle checks"
+
+on:
+  pull_request:
+    paths:
+      - "hosting/railway/**"
+      - ".github/workflows/14-check-pr-preview.yml"
+      - ".github/workflows/4*-railway*.yml"
+      - ".github/workflows/50-railway-lifecycle-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Test lifecycle, authorization and cleanup without cloud resources
+        run: python3 -m unittest discover -s hosting/railway/oss/scripts -p 'test_preview*.py' -v
+      - name: Check Python syntax and patch whitespace
+        run: |
+          python3 -m py_compile hosting/railway/oss/scripts/preview_lifecycle.py
+          git diff --check

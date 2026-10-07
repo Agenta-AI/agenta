@@ -3,7 +3,7 @@
  *
  * Shared presentational primitives for the agent config panel's grouped sections — the triggers
  * section and the tools section render the same shapes, so they share these:
- *  - {@link SubSectionHeader}: an uppercase label + count tag ("App triggers · 3", "Connected apps · 5").
+ *  - {@link SubSectionHeader}: a quiet label + plain count ("Connected 5", "All apps 120").
  *  - {@link ProviderLogo}: a connected-app logo (falls back to a plug glyph).
  *  - {@link CollapsibleProviderGroup}: a collapsible provider card — caret + logo + name + a count
  *    line + an optional per-group "add" button, with a `HeightCollapse` body of child rows.
@@ -14,14 +14,7 @@
 import type {ReactNode} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
-import {
-    Badge,
-    Button,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plugs, Plus} from "@phosphor-icons/react"
 import Image from "next/image"
 
@@ -55,22 +48,50 @@ export function ProviderLogo({
     )
 }
 
-/** A sub-section label above a group of rows: uppercase text + a bordered count tag, and an
- *  optional right-aligned action (the integrations header carries its own add button). */
+/** A sub-section label above a group of rows: label + plain count, an optional right-aligned
+ *  action, and, with `onToggle`, a caret that collapses the rows below it. */
 export function SubSectionHeader({
     label,
     count,
     action,
+    collapsed,
+    onToggle,
 }: {
     label: string
-    count: number
+    /** Omitted while the rows load, so the header never claims a count it does not have. */
+    count?: number
     action?: ReactNode
+    collapsed?: boolean
+    onToggle?: () => void
 }) {
-    return (
-        <div className="flex items-center gap-1.5 px-0.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+    const text = (
+        <>
             <span>{label}</span>
-            {/* antd v6 `bordered` (truthy) is a no-op; colourless Tag == Badge `default`. */}
-            <Badge className="m-0 px-1.5 text-[12px] font-normal leading-4">{count}</Badge>
+            {count === undefined ? null : <span className="tabular-nums">{count}</span>}
+        </>
+    )
+    return (
+        <div className="flex items-center gap-1.5 px-0.5 text-[12px] text-[var(--ag-colorTextTertiary)]">
+            {onToggle ? (
+                <button
+                    type="button"
+                    onClick={onToggle}
+                    aria-expanded={!collapsed}
+                    className="-mx-1 flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-0.5 text-inherit [font:inherit] hover:text-[var(--ag-colorText)]"
+                >
+                    {text}
+                    {/* A caret that turns shows where the rows went. */}
+                    <CaretRight
+                        size={11}
+                        weight="bold"
+                        className={`shrink-0 transition-transform duration-200 ease-out ${
+                            collapsed ? "" : "rotate-90"
+                        }`}
+                    />
+                </button>
+            ) : (
+                text
+            )}
             {action ? <span className="ml-auto flex items-center">{action}</span> : null}
         </div>
     )

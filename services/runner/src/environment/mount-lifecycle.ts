@@ -211,7 +211,7 @@ export async function mountLocalDurableCwd(
 ): Promise<boolean> {
   const plan = ctx.plan;
   const creds = ctx.env.mountCreds;
-  if (!creds || plan.isDaytona) return false;
+  if (!creds || !plan.driveOnRunner) return false;
   ctx.log(
     `local durable cwd mount (${reason}) session=${ctx.sessionForMount} cwd=${plan.workspace.cwd}`,
   );
@@ -265,7 +265,7 @@ export async function mountLocalAgentCwd(
 ): Promise<boolean> {
   const plan = ctx.plan;
   const creds = ctx.env.agentMountCreds;
-  if (!creds || plan.isDaytona) return false;
+  if (!creds || !plan.driveOnRunner) return false;
   const mountPath = agentMountPath(plan.workspace.cwd);
   // A warm reuse never re-acquires, so this is NOT where a lost `agent-files` link is repaired.
   // `runTurn` does that, once per turn, on every turn. See its call to `linkAgentFiles`.
@@ -313,7 +313,7 @@ export async function reSignAndRemountLocalAgentMount(
   deps: MountDeps,
 ): Promise<boolean> {
   const plan = ctx.plan;
-  if (!ctx.artifactId || !ctx.runCred || plan.isDaytona) return false;
+  if (!ctx.artifactId || !ctx.runCred || !plan.driveOnRunner) return false;
   if (!ctx.takeRemountBudget("agent")) {
     ctx.log(
       `local agent mount ENOTCONN remount limit reached artifact=${ctx.artifactId} path=${agentMountPath(plan.workspace.cwd)}`,
@@ -354,7 +354,7 @@ export async function reSignAndRemountLocalCwd(
   deps: MountDeps,
 ): Promise<boolean> {
   const plan = ctx.plan;
-  if (!ctx.sessionForMount || !ctx.runCred || plan.isDaytona) return false;
+  if (!ctx.sessionForMount || !ctx.runCred || !plan.driveOnRunner) return false;
   if (!ctx.takeRemountBudget("cwd")) {
     ctx.log(
       `local durable cwd ENOTCONN remount limit reached session=${ctx.sessionForMount} cwd=${plan.workspace.cwd}`,
@@ -392,7 +392,8 @@ export function remountLocalCwdAfterRuntimeEnotconn(
   event: unknown,
 ): void {
   const plan = ctx.plan;
-  if (plan.isDaytona) return;
+  // Only runner-host mounts are remounted here; a sandbox's own mounts are its provider's.
+  if (!plan.driveOnRunner) return;
   // The event cannot say which mount broke; remount every eligible one (alive mounts no-op).
   const cwdEligible = !!ctx.env.mountCreds && !!ctx.env.mountedCwd;
   const agentEligible = !!ctx.env.agentMountCreds && !!ctx.env.agentMountedPath;

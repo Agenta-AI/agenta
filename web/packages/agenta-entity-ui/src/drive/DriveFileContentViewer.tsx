@@ -23,13 +23,16 @@ export const DriveFileContentViewer = ({
     size,
     displayPath,
     onNavigate,
+    linkExists,
 }: {
     mount: Mount | null
     path: string
     size?: number | null
-    /** Presented path + navigate callback — used by the HTML preview to route internal links. */
+    /** Presented path + navigate callback — used by the markdown and HTML previews to route
+     * internal links. */
     displayPath?: string
     onNavigate?: (path: string) => void
+    linkExists?: (path: string) => boolean
 }) => {
     const kind = resolveDriveFileKind(path)
     return (
@@ -48,6 +51,7 @@ export const DriveFileContentViewer = ({
                     size={size}
                     displayPath={displayPath}
                     onNavigate={onNavigate}
+                    linkExists={linkExists}
                 />
             </motion.div>
         </AnimatePresence>

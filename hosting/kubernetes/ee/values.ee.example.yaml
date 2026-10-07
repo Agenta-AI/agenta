@@ -302,6 +302,7 @@ global:
 #   openrouter:
 #   perplexityai:
 #   togetherai:
+#   xai:
 
 # ================================================================== #
 # === loops ===

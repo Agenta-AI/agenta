@@ -33,6 +33,7 @@ export function pinnedSessionListArgs(
     agentId: string | undefined,
     pinnedIds: string[],
     enabled: boolean,
+    lowPriority = false,
 ): SessionListOptions {
     return {
         originPolicy: "all",
@@ -40,6 +41,7 @@ export function pinnedSessionListArgs(
         agentId,
         sessionIds: pinnedIds,
         enabled,
+        lowPriority,
     }
 }
 
@@ -58,6 +60,8 @@ export interface UseSessionCardListArgs {
     limit?: number
     /** Pinned sessions lead the list, and are excluded from the recent rows below them. */
     withPinned?: boolean
+    /** The card sits beside the screen's content (the chat pane, the tab rail), not as it. */
+    lowPriority?: boolean
 }
 
 /**
@@ -79,6 +83,7 @@ export const useSessionCardList = ({
     agentId,
     limit = 7,
     withPinned = false,
+    lowPriority = false,
 }: UseSessionCardListArgs) => {
     const [extraRows, setExtraRows] = useState(0)
     const projectId = useAtomValue(projectIdAtom) ?? ""
@@ -101,14 +106,18 @@ export const useSessionCardList = ({
         agentId,
         sessionIds: waitingIds,
         enabled: useWaiting,
+        lowPriority,
     })
     const usePins = withPinned && pinnedIds.length > 0
-    const pinnedQuery = useSessionList(pinnedSessionListArgs(policy, agentId, pinnedIds, usePins))
+    const pinnedQuery = useSessionList(
+        pinnedSessionListArgs(policy, agentId, pinnedIds, usePins, lowPriority),
+    )
     const listQuery = useSessionList({
         originPolicy: policy.origin,
         expansions: policy.expansions,
         agentId,
         excludeSessionIds: withPinned ? [...pinnedIds, ...waitingIds] : waitingIds,
+        lowPriority,
     })
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])

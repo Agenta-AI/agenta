@@ -41,7 +41,9 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
 import {Badge} from "@agenta/ui/ui"
 import {registerCodeHighlighting} from "@lexical/code"
-import {$getRoot} from "lexical"
+import {$isLinkNode} from "@lexical/link"
+import {$findMatchingParent} from "@lexical/utils"
+import {$getNearestNodeFromDOMNode, $getRoot} from "lexical"
 import {createPortal} from "react-dom"
 
 import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
@@ -94,6 +96,10 @@ export interface MarkdownEditorProps {
     /** Cap the editor height (px or CSS length): content-sized up to the cap, then the toolbar pins
      * and the content scrolls inside. For an editor that's one field among others. */
     maxHeight?: number | string
+    /** A click on a link in the rich view, with the URL AS WRITTEN (Lexical's anchor carries a
+     * normalised one: `notes.md` renders as `https://notes.md`). Return true to take the click;
+     * otherwise Lexical opens the link in a new tab. */
+    onLinkClick?: (url: string, event: globalThis.MouseEvent) => boolean
 }
 
 /**
@@ -116,6 +122,43 @@ function MarkdownViewSync({enabled, onApplied}: {enabled: boolean; onApplied?: (
         return () => cancelAnimationFrame(frame)
     }, [editor, enabled, onApplied])
 
+    return null
+}
+
+/**
+ * Hands a link click to the host with the link node's own URL. Capture phase on the editor root, so
+ * it runs before the clickable-link plugin's bubble listener there and can stop it.
+ */
+function LinkClickSync({
+    onLinkClick,
+}: {
+    onLinkClick: NonNullable<MarkdownEditorProps["onLinkClick"]>
+}) {
+    const [editor] = useLexicalComposerContext()
+    useEffect(() => {
+        const onClick = (event: globalThis.MouseEvent) => {
+            const target = event.target
+            if (!(target instanceof Node)) return
+            const url = editor.read(() => {
+                const node = $getNearestNodeFromDOMNode(target)
+                const link = node ? $findMatchingParent(node, $isLinkNode) : null
+                return link ? link.getURL() : null
+            })
+            if (url == null || !onLinkClick(url, event)) return
+            event.preventDefault()
+            event.stopImmediatePropagation()
+        }
+        let current: HTMLElement | null = null
+        const unregister = editor.registerRootListener((root) => {
+            current?.removeEventListener("click", onClick, true)
+            current = root
+            root?.addEventListener("click", onClick, true)
+        })
+        return () => {
+            unregister()
+            current?.removeEventListener("click", onClick, true)
+        }
+    }, [editor, onLinkClick])
     return null
 }
 
@@ -189,6 +232,7 @@ export function MarkdownEditor({
     fill = false,
     grow = false,
     maxHeight,
+    onLinkClick,
 }: MarkdownEditorProps) {
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
@@ -442,6 +486,7 @@ export function MarkdownEditor({
             )}
             <MarkdownViewSync enabled={markdownView} onApplied={onViewApplied} />
             <CodeHighlightSync />
+            {onLinkClick ? <LinkClickSync onLinkClick={onLinkClick} /> : null}
             {autoFocus && !editorDisabled ? (
                 <FocusStartOnMount hasContent={Boolean(value)} scrollRef={scrollRef} />
             ) : null}

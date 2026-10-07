@@ -16,8 +16,12 @@ import {
     McpServerNoticeCard,
     TurnFooter,
 } from "@agenta/chat/components"
-import {useHeldFor} from "@agenta/chat/hooks"
-import {endsOnClosedText, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
+import {
+    endsOnClosedText,
+    readableTraceError,
+    splitTurnActivity,
+    type TurnViewModel,
+} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
@@ -38,10 +42,11 @@ import {cn} from "@/lib/utils"
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
-import {useProviderRecovery} from "./providerRecovery"
+import {useBillingRoute, useBuyCreditsRoute, useProviderRecovery} from "./providerRecovery"
 import {RunErrorCallout} from "./RunErrorCallout"
 import {runRetryAction} from "./runRetry"
 import {mobileTurnRowClass} from "./turnRowClass"
+import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
 /** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
 const downloadAttachment = (url: string, name: string) => {
@@ -55,8 +60,6 @@ const downloadAttachment = (url: string, name: string) => {
 }
 
 /** One transcript turn: a user bubble, or an assistant fold, answer, meta line and any run error. */
-/** How long a closed text waits for a following call; it only ever delays while the run is open. */
-const ANSWER_HOLD_MS = 1200
 const ASSISTANT_META: ("tokens" | "cost")[] = ["tokens", "cost"]
 
 const TurnRowInner = ({
@@ -66,8 +69,8 @@ const TurnRowInner = ({
     sessionId,
     remoteRunning = false,
     waitingOnUser = false,
+    resuming = false,
     runId,
-    firstTurn = false,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -82,10 +85,10 @@ const TurnRowInner = ({
     remoteRunning?: boolean
     /** The run is parked on the reader: the last turn's fold line says so. */
     waitingOnUser?: boolean
+    /** The reader answered and the transcript still shows the ask — the fold reads as work. */
+    resuming?: boolean
     /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
-    /** The session's first response: the one that narrates the agent's startup. */
-    firstTurn?: boolean
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -101,6 +104,8 @@ const TurnRowInner = ({
     )
     const usage = getMessageUsage(turn.message)
     const openProviders = useProviderRecovery()
+    const openBilling = useBillingRoute()
+    const openBuyCredits = useBuyCreditsRoute(turn.status.errorCode)
 
     /**
      * Notices about a server that did not join the run, above the timeline rather than in it.
@@ -121,6 +126,16 @@ const TurnRowInner = ({
         .map((part) => (part as {text?: string}).text ?? "")
         .join("\n")
         .trim()
+
+    // Quoting is offered on settled answers only; mid-stream the text is still being written.
+    const quoteProps =
+        !turn.isUser && !turn.isStreamingTurn
+            ? ({
+                  "data-quotable": "true",
+                  "data-quote-kind": "message",
+                  "data-quote-message-id": turn.message.id,
+              } as const)
+            : undefined
 
     const footer = {
         messageId: turn.message.id,
@@ -143,25 +158,40 @@ const TurnRowInner = ({
     const traceSummary = useAtomValue(
         traceDataSummaryAtomFamily(answerless && traceId ? traceId : ""),
     )
-    const traceError = answerless ? (traceSummary.error ?? null) : null
+    // A trace keeps the provider's failure as it came back, which can be a raw JSON body with
+    // account ids; only its sanitized sentence may reach the screen, as on the desktop.
+    const traceError = answerless ? readableTraceError(traceSummary.error) : null
     const errorText = turn.status.showError
         ? (turn.status.errorText ?? "Something went wrong.")
         : traceError
-    // A just-closed text becomes the answer after a beat: a following call lands a commit later.
+    // A closed text is only the answer once the run is over: until then a call can still follow it,
+    // and the model may take many seconds to start that call. A timed hold promoted such asides to
+    // the answer and pulled them back into the fold when the call landed.
     const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
-    // Hold while the run is open anywhere. A turn this client streamed is over the moment its
-    // stream closes, so it never waits on the liveness poll that still says "running".
     const streamedHereRef = useRef(false)
     if (turn.isStreamingTurn) streamedHereRef.current = true
-    const runOpen = turn.isStreamingTurn || (live && !streamedHereRef.current)
-    const closedLongEnough = useHeldFor(trailingClosed && runOpen, ANSWER_HOLD_MS)
+    // `live`, as the fold's header reads it: a send can flip the local stream on and off and then
+    // run on the shared reader, so a closed local stream is not a finished run.
+    const runOpen = live
     const activity = useMemo(
         () =>
             splitTurnActivity(turn.items, {
-                holdClosedText: runOpen && trailingClosed && !closedLongEnough,
+                holdClosedText: runOpen && trailingClosed,
             }),
-        [turn.items, runOpen, trailingClosed, closedLongEnough],
+        [turn.items, runOpen, trailingClosed],
     )
+    // An answer present at mount is history (reload, session open); a later one arrived live.
+    // By message id alone: adoption can shift the answer's index without it being a new answer.
+    const answerKey = activity.answer ? turn.message.id : null
+    const mountAnswerKeyRef = useRef(answerKey)
+    const rowMarkers = turn.isLast
+        ? {
+              [LAST_TURN_ATTR]: turn.isUser ? "user" : "assistant",
+              ...(answerKey !== null && answerKey !== mountAnswerKeyRef.current
+                  ? {[ARRIVED_ANSWER_ATTR]: answerKey}
+                  : {}),
+          }
+        : undefined
     // Browser-fulfilled tools keep their place on the timeline, widget and all.
     const renderClientTool = useCallback(
         (part: ToolUIPart) =>
@@ -199,18 +229,20 @@ const TurnRowInner = ({
                 streaming={live}
                 answerStarted={activity.answer !== null}
                 waitingOnUser={turn.isLast && waitingOnUser}
+                resuming={turn.isLast && resuming}
                 traceId={traceId}
                 streamedHere={streamedHereRef.current}
-                firstTurn={firstTurn}
                 renderClientTool={renderClientTool}
             />
             {activity.answer ? (
-                <AnswerReveal animate={live}>
-                    <AssistantMarkdown
-                        streaming={isLiveTextItem(turn, activity.answerIndex)}
-                        text={activity.answer.text}
-                    />
-                </AnswerReveal>
+                <div {...quoteProps}>
+                    <AnswerReveal animate={live}>
+                        <AssistantMarkdown
+                            streaming={isLiveTextItem(turn, activity.answerIndex)}
+                            text={activity.answer.text}
+                        />
+                    </AnswerReveal>
+                </div>
             ) : null}
             {errorText ? (
                 <RunErrorCallout
@@ -224,16 +256,22 @@ const TurnRowInner = ({
                     // as they do on the desktop.
                     onAddKey={openProviders}
                     onSignIn={openProviders}
+                    onOpenBilling={openBilling}
+                    onBuyCredits={openBuyCredits}
                 />
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
                 </span>
+            ) : turn.status.stopped && !activity.answer && !live ? (
+                // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
+                // running call, the fold hides that failed call, and the turn would read empty.
+                <span className="text-xs italic text-colorTextSecondary">Stopped</span>
             ) : null}
             {/* The turn's meta line sits under the answer, revealed on hover or focus like the
                 desktop's; the row keeps its height so nothing shifts when it appears. Not while
                 the run is parked on the reader: the turn is not over, only waiting. */}
-            {!live && !(turn.isLast && waitingOnUser) ? (
+            {!live && !(turn.isLast && (waitingOnUser || resuming)) ? (
                 <div
                     className={`flex min-h-6 items-center gap-1 ${
                         inspectorEnabled ? "" : turnToolbarRevealClass
@@ -317,7 +355,10 @@ const TurnRowInner = ({
     if (turn.hidden) return null
 
     return (
-        <div className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
+        <div
+            className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}
+            {...rowMarkers}
+        >
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}

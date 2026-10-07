@@ -1,5 +1,5 @@
 from typing import Optional
-from uuid import getnode
+from uuid import UUID, getnode
 from datetime import datetime, timezone, timedelta
 
 from oss.src.utils.logging import get_module_logger
@@ -21,6 +21,7 @@ from ee.src.core.subscriptions.settings import (
     trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
+from ee.src.core.wallets.service import WalletsService
 
 log = get_module_logger(__name__)
 
@@ -39,8 +40,41 @@ class SubscriptionsService:
     def __init__(
         self,
         subscriptions_dao: SubscriptionsDAOInterface,
+        wallets_service: Optional[WalletsService] = None,
     ):
         self.subscriptions_dao = subscriptions_dao
+        # Wired only into the billing router's instance, which handles the Stripe
+        # webhook. A plan change writes nothing to the wallet: it changes which plan
+        # allowance the next billing period grants (open-designs items 22 and 23).
+        self.wallets_service = wallets_service
+
+    async def grant_period_credits(
+        self,
+        *,
+        organization_id: str,
+        plan: str,
+        period_start: datetime,
+        period_end: datetime,
+    ) -> None:
+        """Grant the monthly credits of a paid billing period. Idempotent per
+        organization and period (see `WalletsService.grant_period_allowance`)."""
+        if not env.wallets.enabled or self.wallets_service is None:
+            return
+
+        credit = await self.wallets_service.grant_period_allowance(
+            organization_id=UUID(organization_id),
+            plan=plan,
+            period_start=period_start,
+            period_end=period_end,
+        )
+
+        log.info(
+            "[billing] [wallets] period credits %s | %s | %s | %s",
+            organization_id,
+            plan,
+            period_start.isoformat(),
+            credit.amount_musd if credit else 0,
+        )
 
     async def create(
         self,
@@ -337,14 +371,30 @@ class SubscriptionsService:
                     f"Cannot switch plans without an existing subscription for organization ID: {organization_id}"
                 )
 
+            line_items = get_stripe_line_items(plan)
+
+            # Stripe rejects a subscription left with no items.
+            if not line_items:
+                raise SwitchException(
+                    f"Plan [{plan}] has no Stripe prices and cannot be switched to. Please contact support."
+                )
+
             try:
-                _subscription = stripe.Subscription.retrieve(
-                    id=subscription.subscription_id,
+                stripe.Subscription.modify(
+                    subscription.subscription_id,
+                    items=[
+                        {"id": item.id, "deleted": True}
+                        for item in stripe.SubscriptionItem.list(
+                            subscription=subscription.subscription_id,
+                        ).data
+                    ]
+                    + line_items,
+                    # Invoices snapshot this metadata, and the renewal's monthly credits
+                    # follow the plan it names (see BillingRouter._grant_period_credits).
+                    metadata={"plan": plan},
                 )
             except Exception as e:  # pylint: disable=too-broad-exception
-                log.warn(
-                    "Failed to retrieve subscription from Stripe: %s", subscription
-                )
+                log.warn("Failed to switch subscription in Stripe: %s", subscription)
 
                 raise EventException(
                     "Could not switch plans. Please try again or contact support.",
@@ -352,17 +402,6 @@ class SubscriptionsService:
 
             subscription.active = True
             subscription.plan = plan
-
-            stripe.Subscription.modify(
-                subscription.subscription_id,
-                items=[
-                    {"id": item.id, "deleted": True}
-                    for item in stripe.SubscriptionItem.list(
-                        subscription=subscription.subscription_id,
-                    ).data
-                ]
-                + get_stripe_line_items(plan),
-            )
 
             subscription = await self.update(subscription=subscription)
 

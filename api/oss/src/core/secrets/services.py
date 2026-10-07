@@ -22,6 +22,7 @@ from oss.src.core.secrets.context import set_data_encryption_key
 from oss.src.core.secrets.redaction import (
     CREDENTIAL_EXTRAS_KEYS,
     PRIMARY_CREDENTIAL_FIELDS,
+    SECONDARY_CREDENTIAL_FIELDS,
 )
 from oss.src.core.secrets.types import (
     ServerOwnedFieldNotWritable,
@@ -157,6 +158,33 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
                 stored_value = getattr(stored_container, field, None)
                 if stored_value is not None:
                     setattr(update_container, field, stored_value)
+
+    # Secondary secrets sit beside the primary in the same container (Slack's
+    # signing_secret, Telegram's server-minted webhook_secret). They are neither
+    # the primary nor extras, so without this a token-only rotation would drop
+    # them and break inbound verification. Keep an omitted one from the stored
+    # record, the same rule as the primary.
+    secondary_container_name, secondary_fields = SECONDARY_CREDENTIAL_FIELDS.get(
+        kind, (None, ())
+    )
+    if secondary_container_name is not None:
+        update_container = getattr(update_data, secondary_container_name, None)
+        stored_container = getattr(stored_data, secondary_container_name, None)
+        if update_container is not None and stored_container is not None:
+            for secondary in secondary_fields:
+                if not hasattr(update_container, secondary):
+                    continue
+                current_value = getattr(update_container, secondary)
+                # A blank secondary is invalid, the same rule as the primary:
+                # an empty webhook_secret would break inbound verification.
+                if current_value == "":
+                    raise SecretValueRequiredError(
+                        message=_BLANK_CREDENTIAL_VALUE_MESSAGE
+                    )
+                if current_value is None:
+                    stored_value = getattr(stored_container, secondary, None)
+                    if stored_value is not None:
+                        setattr(update_container, secondary, stored_value)
 
     _carry_over_saved_server_state(
         kind=kind,
@@ -369,10 +397,11 @@ def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
 
     The two fields are policy edited on their own surface (the connection drawer), so an update
     from another surface — renaming the connection, rotating its key — omits them and must not
-    wipe them. An explicit empty list is a choice ("offer nothing") and is left alone.
+    wipe them. A field the payload set is a choice and is left alone: an empty list ("offer
+    nothing"), and a subscription list normalized to None ("follow the defaults").
     """
     for field in ("models", "harnesses"):
-        if not hasattr(update_data, field) or getattr(update_data, field) is not None:
+        if not hasattr(update_data, field) or field in update_data.model_fields_set:
             continue
 
         stored_value = getattr(stored_data, field, None)
@@ -835,7 +864,53 @@ class VaultService:
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
+
+        # Keep the gateway endpoint in step, as `update_secret` does: a model the manager
+        # re-pointed must reach the endpoint's allowlist too.
+        await self._register_llm_endpoint(
+            project_id=project_id,
+            user_id=None,
+            secret_dto=secret_dto,
+        )
         return secret_dto
+
+    async def delete_managed_secret(
+        self,
+        *,
+        secret_id: UUID,
+        manager: SecretManager,
+        project_id: UUID | None = None,
+        organization_id: UUID | None = None,
+    ) -> None:
+        """Delete a managed row on behalf of the manager that owns it, for a manager that
+        retires what it seeded. Refuses any row another manager owns, and any unmanaged
+        row."""
+        deleted: list[SecretResponseDTO] = []
+
+        def authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
+            management = stored_secret_dto.management
+            if management is None or management.manager != manager:
+                raise ManagedSecretReadOnlyError()
+            deleted.append(stored_secret_dto)
+
+        with set_data_encryption_key(
+            data_encryption_key=self._data_encryption_key,
+        ):
+            await self.secrets_dao.delete(
+                secret_id=secret_id,
+                project_id=project_id,
+                organization_id=organization_id,
+                authorize_delete=authorize_delete,
+            )
+
+        if project_id is not None:
+            await invalidate_cache(project_id=str(project_id))
+
+        for stored_secret_dto in deleted:
+            await self._deregister_llm_endpoint(
+                project_id=project_id,
+                secret_dto=stored_secret_dto,
+            )
 
     async def invalidate_secrets_cache(self, project_id: UUID) -> None:
         """Drop this project's cached secrets list.

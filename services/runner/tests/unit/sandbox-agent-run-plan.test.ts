@@ -1557,6 +1557,31 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
     });
   });
 
+  it("accepts a local mock runtime_provided run with no subscription mount", () => {
+    withEnv(
+      {
+        PI_CODING_AGENT_DIR: undefined,
+        CLAUDE_CONFIG_DIR: undefined,
+        CODEX_HOME: undefined,
+      },
+      () => {
+        const result = buildRunPlan({
+          harness: "mock",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          modelConnection: {
+            provider: "mock",
+            deployment: "direct",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
+        });
+
+        assert.equal(result.ok, true, result.ok ? "" : result.error);
+      },
+    );
+  });
+
   it("accepts a local Codex runtime_provided run when CODEX_HOME names a mount", () => {
     withEnv({ CODEX_HOME: "/agenta/harness/codex" }, () => {
       const result = buildRunPlan({

@@ -1,54 +1,25 @@
-/**
- * useBuildKit — the playground-only "build kit" overlay shown in the Advanced section.
- *
- * The default agent config carries a server-side overlay of playground-only tools, skills, and
- * sandbox permissions that help the assistant build and revise the agent. None of it is part of the
- * published agent (the backend strips it on commit). This hook reads that overlay (keyed by the open
- * revision) plus the user's build-kit state — the master on/off and the platform ops switched off
- * individually — and returns:
- *   - `hasBuildKitOverlay`: whether to render the build-kit block / extend the Advanced section,
- *   - `buildKitEnabled`: the master on/off, for callers that flag the panel while it is live,
- *   - `buildKitSection`: the drawer block (one tool list — platform tools with a switch each, the
- *     Agenta-owned embeds locked on) under the master enable switch.
- *
- * Kept beside useModelHarness (which owns the Advanced section) so the overlay and the user's own
- * sandbox/permission controls render together.
- */
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
 import {
     workflowAgentTemplateOverlayAtomFamily,
-    workflowBuildKitDisabledOpsAtomFamily,
-    workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    workflowBuildKitScopeAtomFamily,
+    migrateBuildKitStateAtom,
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {describeBuildKitEmbed, describeBuildKitPlatformTool} from "./buildKitDescriptors"
 import {BuildKitSection, type BuildKitTool} from "./BuildKitSection"
 import {asObj, staticEmbedSlug} from "./itemDescriptors"
 
-/** Display name for an `@ag.embed` row: the overlay's sibling `name`, else the referenced
- * workflow's `name`, else undefined (callers fall back to the slug). */
-function embedDisplayName(entry: Record<string, unknown>): string | undefined {
-    if (typeof entry.name === "string" && entry.name) return entry.name
-    const refs = asObj(asObj(entry["@ag.embed"])?.["@ag.references"])
-    const wfName = asObj(refs?.workflow)?.name ?? asObj(refs?.workflow_revision)?.name
-    return typeof wfName === "string" && wfName ? wfName : undefined
-}
-
-function isEmbedRefEntry(entry: unknown): entry is Record<string, unknown> {
-    return Boolean(
-        entry && typeof entry === "object" && "@ag.embed" in (entry as Record<string, unknown>),
-    )
-}
-
-/** One always-on row for an `@ag.embed` overlay entry. */
 function embedRow(entry: Record<string, unknown>, fallbackKey: string): BuildKitTool {
     const slug = staticEmbedSlug(entry)
+    const refs = asObj(asObj(entry["@ag.embed"])?.["@ag.references"])
+    const name = entry.name ?? asObj(refs?.workflow)?.name ?? asObj(refs?.workflow_revision)?.name
     return {
         key: slug ?? fallbackKey,
-        descriptor: describeBuildKitEmbed(slug, embedDisplayName(entry)),
+        descriptor: describeBuildKitEmbed(slug, typeof name === "string" ? name : undefined),
     }
 }
 
@@ -59,100 +30,59 @@ export function useBuildKit({
 }: {
     revisionId: string | null
     disabled?: boolean
-    /** When set, the switches read/write this draft buffer instead of the persisted atoms. */
     stateOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
 }) {
-    const agentTemplateOverlay = useAtomValue(
+    const overlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
     )
-    const [atomBuildKitEnabled, setAtomBuildKitEnabled] = useAtom(
-        useMemo(() => workflowBuildKitEnabledAtomFamily(revisionId ?? ""), [revisionId]),
+    const [state, setState] = useAtom(
+        useMemo(() => workflowBuildKitUiStateAtomFamily(revisionId ?? ""), [revisionId]),
     )
-    const [atomDisabledOps, setAtomDisabledOps] = useAtom(
-        useMemo(() => workflowBuildKitDisabledOpsAtomFamily(revisionId ?? ""), [revisionId]),
+    const scope = useAtomValue(
+        useMemo(() => workflowBuildKitScopeAtomFamily(revisionId ?? ""), [revisionId]),
     )
-    const buildKitEnabled = stateOverride ? stateOverride.value.enabled : atomBuildKitEnabled
-    const disabledOps = stateOverride ? stateOverride.value.disabledOps : atomDisabledOps
-    const write = (next: BuildKitUiState) => {
-        if (stateOverride) stateOverride.onChange(next)
-        else {
-            setAtomBuildKitEnabled(next.enabled)
-            setAtomDisabledOps(next.disabledOps)
+    const migrate = useSetAtom(migrateBuildKitStateAtom)
+    useEffect(() => {
+        if (revisionId && scope) migrate(revisionId)
+    }, [revisionId, scope, migrate])
+    const value = stateOverride?.value ?? state
+    const onChange = stateOverride?.onChange ?? setState
+    const tools = useMemo(() => {
+        const access = asObj(overlay?.op_access) ?? {}
+        const rows: BuildKitTool[] = []
+        for (const section of ["tools", "skills"]) {
+            const entries = overlay?.[section]
+            if (!Array.isArray(entries)) continue
+            entries.forEach((entry, index) => {
+                const tool = asObj(entry)
+                if (!tool) return
+                if (
+                    section === "tools" &&
+                    tool.type === "platform" &&
+                    typeof tool.op === "string"
+                ) {
+                    rows.push({
+                        key: tool.op,
+                        op: tool.op,
+                        readOnly: access[tool.op] === "read",
+                        descriptor: describeBuildKitPlatformTool(tool.op),
+                    })
+                } else if ("@ag.embed" in tool) rows.push(embedRow(tool, `${section}-${index}`))
+            })
         }
-    }
-    const setDisabledOps = (next: string[]) => write({enabled: buildKitEnabled, disabledOps: next})
-
-    const overlayTools = useMemo(
-        () => (Array.isArray(agentTemplateOverlay?.tools) ? agentTemplateOverlay.tools : []),
-        [agentTemplateOverlay],
-    )
-    const overlaySkills = useMemo(
-        () => (Array.isArray(agentTemplateOverlay?.skills) ? agentTemplateOverlay.skills : []),
-        [agentTemplateOverlay],
-    )
-    const overlaySandbox = useMemo(
-        () => asObj(agentTemplateOverlay?.sandbox),
-        [agentTemplateOverlay],
-    )
-    const overlayPermissions = useMemo(() => asObj(overlaySandbox?.permissions), [overlaySandbox])
-    const platformOverlayTools = useMemo(
-        () =>
-            overlayTools.filter((tool): tool is Record<string, unknown> =>
-                Boolean(asObj(tool)?.type === "platform"),
-            ),
-        [overlayTools],
-    )
-    const embeddedOverlayTools = useMemo(() => overlayTools.filter(isEmbedRefEntry), [overlayTools])
-    const embeddedOverlaySkills = useMemo(
-        () => overlaySkills.filter(isEmbedRefEntry),
-        [overlaySkills],
-    )
-    const hasBuildKitOverlay = Boolean(
-        agentTemplateOverlay &&
-        (platformOverlayTools.length > 0 ||
-            embeddedOverlayTools.length > 0 ||
-            embeddedOverlaySkills.length > 0 ||
-            Object.keys(overlayPermissions ?? {}).length > 0),
-    )
-
-    // Platform tools first, then the Agenta-owned embeds — one list, no category headings (#6025).
-    const toolRows = useMemo<BuildKitTool[]>(
-        () => [
-            ...platformOverlayTools.map((tool) => {
-                const op = typeof tool.op === "string" ? tool.op : "platform tool"
-                return {
-                    key: op,
-                    descriptor: describeBuildKitPlatformTool(op),
-                    toggle: {op, enabled: !disabledOps.includes(op)},
-                }
-            }),
-            ...embeddedOverlayTools.map((tool, index) => embedRow(tool, `embed-tool-${index}`)),
-            ...embeddedOverlaySkills.map((skill, index) => embedRow(skill, `embed-skill-${index}`)),
-        ],
-        [platformOverlayTools, disabledOps, embeddedOverlayTools, embeddedOverlaySkills],
-    )
-    const toggleTool = (op: string, next: boolean) =>
-        setDisabledOps(next ? disabledOps.filter((entry) => entry !== op) : [...disabledOps, op])
-    const setAllTools = (next: boolean) =>
-        setDisabledOps(
-            next ? [] : toolRows.flatMap((tool) => (tool.toggle ? [tool.toggle.op] : [])),
-        )
-
-    const buildKitSection = hasBuildKitOverlay ? (
-        <BuildKitSection
-            enabled={buildKitEnabled}
-            onEnabledChange={(next) => write({enabled: next, disabledOps})}
-            disabled={disabled}
-            tools={toolRows}
-            onToggleTool={toggleTool}
-            onSetAllTools={setAllTools}
-        />
-    ) : null
-
+        return rows
+    }, [overlay])
+    const hasBuildKitOverlay = Boolean(overlay && (tools.length || overlay.sandbox))
     return {
         hasBuildKitOverlay,
-        // The master on/off, so the Advanced rail can flag the panel while the overlay is live.
-        buildKitEnabled,
-        buildKitSection,
+        buildKitEnabled: value.enabled,
+        buildKitSection: hasBuildKitOverlay ? (
+            <BuildKitSection
+                state={value}
+                onChange={onChange}
+                disabled={disabled || !scope}
+                tools={tools}
+            />
+        ) : null,
     }
 }

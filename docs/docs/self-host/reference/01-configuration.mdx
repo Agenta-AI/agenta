@@ -128,6 +128,17 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_API_CACHING_ENABLED` | `agenta.api.caching.enabled` | `agenta.api.caching.enabled` |
+| `AGENTA_API_THROTTLING_BOOKKEEPING_CAPACITY` | `agenta.api.throttling.bookkeeping_capacity` | Not mapped; set it in the API's environment |
+| `AGENTA_API_THROTTLING_BOOKKEEPING_RATE` | `agenta.api.throttling.bookkeeping_rate` | Not mapped; set it in the API's environment |
+
+The two throttling variables apply to Enterprise Edition deployments, which throttle API requests
+per organization and plan. They size a separate budget for the agent runtime's own calls: the
+runner's heartbeats, turn and record reads, approvals, mount signing and credential refresh, sent
+with a run's credential. These calls do not spend the plan's budget. The value is in requests per
+minute per organization, and the default for both is `60000`. When an organization's plan allows
+more for these requests, the plan's larger budget applies. The routes that count as these calls are listed in `api/ee/src/middlewares/throttling.py`
+(`_BOOKKEEPING_ROUTES`). Every other request, including tool calls the model makes, spends the
+plan's budget.
 
 ## Agenta extras
 
@@ -214,6 +225,13 @@ people can reach.
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
 | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
+| `AGENTA_SERVICES_PATH_PREFIX` | n/a (read by the services entrypoint) | `services.env.AGENTA_SERVICES_PATH_PREFIX` |
+
+`AGENTA_SERVICES_PATH_PREFIX` is the public path prefix the services backend strips from an inbound
+request. The default is `/services`. The backend strips it in a loop, so a request arrives correctly
+whether your proxy forwards the prefix or strips it first. Set the variable to an empty string to
+turn the strip off. The platform API strips a leading `/api` the same way, and that prefix is not
+configurable.
 
 :::warning Custom-code evaluator runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/1.0/evaluation/configure-evaluators/custom-evaluator) execute:
@@ -256,7 +274,9 @@ Set on the `runner` service.
 | `AGENTA_RUNNER_PORT` | Bind port | `8765` | no | Chart-managed (`8765`) |
 | `AGENTA_RUNNER_CONCURRENCY_LIMIT` | Maximum concurrent runs | `1000` | no | `agentRunner.env.AGENTA_RUNNER_CONCURRENCY_LIMIT` |
 | `AGENTA_RUNNER_LOG_LEVEL` | Log verbosity | `silent` | no | `agentRunner.logLevel` |
-| `AGENTA_RUNNER_REPLICA_ID` | Runner identity for local-sandbox session ownership | Random per process when unset | no | `agentRunner.env.AGENTA_RUNNER_REPLICA_ID` |
+| `AGENTA_RUNNER_REPLICA_ID` | Runner identity: the platform binds each turn to one runner by this id | Random per process when unset | no | Chart-managed (the pod name) |
+| `AGENTA_RUNNER_REPLICA_ADDRESS` | URL that reaches this runner directly, where the platform sends Stop for its turns | Empty (use `AGENTA_RUNNER_INTERNAL_URL`) | no | Chart-managed (`http://<pod IP>:<port>`) |
+| `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS` | Seconds a stopping runner lets its running turns finish before it cancels them | `0` | no | `agentRunner.shutdownWaitSeconds` (default: the grace period minus 100 with `RollingUpdate`, `0` with `Recreate`) |
 
 Every variable on this page treats an empty value as unset, so leaving a line blank selects the
 default rather than an empty string.
@@ -265,13 +285,66 @@ The code default host is `127.0.0.1`. The bundled Compose files set `AGENTA_RUNN
 so the Services container can reach the runner across the Compose network. `AGENTA_RUNNER_PORT` and
 `AGENTA_RUNNER_CONCURRENCY_LIMIT` must be positive integers.
 
-`AGENTA_RUNNER_REPLICA_ID` is not a log label. A local-sandbox session is owned by the runner that
-created it, and the runner refuses to resume one on a different runner. When this value is unset the
-runner generates a fresh id on each start, so a restart orphans its local sessions until the previous
-owner record expires (the owner TTL, 120 seconds by default). The bundled Compose files set a stable
-value so a restart keeps ownership. The local sandbox is single-runner only: running more than one
-runner with the local provider is not supported, because there is no session-to-runner routing. To
-run multiple runners, use the Daytona provider, whose sessions any runner can resume.
+`AGENTA_RUNNER_REPLICA_ID` is not only a log label. The platform binds each turn to the first runner
+that reports it, and refuses the same turn from a runner with a different id. Every runner must
+therefore have its own id. When the value is unset the runner generates a fresh id on each start.
+The bundled `gh` Compose files set `local-runner-1`, which is safe because Compose runs one runner.
+The bundled `dev` Compose files leave it unset, so the runner generates an id on each start. The Helm
+chart sets the pod name, and the render fails when `agentRunner.env` or `agentRunner.extraEnv`
+sets this variable.
+
+`AGENTA_RUNNER_REPLICA_ADDRESS` is where the platform API sends Stop for a turn that this runner
+runs, and where Services sends the session's follow-up messages. Leave it empty when one runner
+sits behind `AGENTA_RUNNER_INTERNAL_URL`, as in Compose. The Helm chart sets it to the pod IP and
+the runner port, so the API and Services must be able to reach runner pods directly: a
+NetworkPolicy that blocks API or Services traffic to runner pod IPs breaks Stop and follow-up
+routing. The platform stores the
+address only when the runner presents its runner token.
+
+When a runner gets SIGTERM, it refuses new turns with a 503 and keeps Stop and Kill open. It lets
+its running turns finish for `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS`, cancels the turns that still
+run, and deletes its sandboxes. The default `0` cancels at once, because Docker Compose stops a
+container 10 seconds after SIGTERM. The Helm chart sets the wait from the pod's grace period when the runner rolls out with
+`RollingUpdate`, to `0` when it uses `Recreate` (the local sandbox), or from
+`agentRunner.shutdownWaitSeconds`, and the render fails when `agentRunner.env` or
+`agentRunner.extraEnv` sets this variable.
+
+:::warning Helm upgrade: remove chart-owned runner variables
+The Helm chart sets these four variables itself:
+
+- `AGENTA_RUNNER_REPLICA_ID`
+- `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS`
+- `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`
+- `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER`
+
+If your values file sets any of them under `agentRunner.env` or `agentRunner.extraEnv`, remove those
+lines before you upgrade. Otherwise `helm upgrade` fails with `CONFIGURATION ERROR`, and the error
+names the variable and the key to remove from. Earlier docs told Helm users to set
+`agentRunner.env.AGENTA_RUNNER_REPLICA_ID`. That setting is no longer allowed.
+
+Use the chart values instead:
+
+```yaml
+agentRunner:
+  shutdownWaitSeconds: 30
+  providers:
+    enabled: [daytona]
+    default: daytona
+    daytona:
+      apiKeySecretRef:
+        name: agenta-runner-daytona
+        key: api-key
+```
+
+The Secret named in `apiKeySecretRef` holds your Daytona API key. The chart injects it as
+`AGENTA_RUNNER_DAYTONA_API_KEY`. The runner needs it when Daytona is enabled.
+
+`agentRunner.providers.enabled` and `agentRunner.providers.default` accept `local`, `daytona` and
+`inprocess`. The chart sets the replica id to the pod name; there is no value to set.
+:::
+
+The local sandbox is single-runner only: its sessions live on one runner's disk. To run multiple
+runners, use the Daytona provider.
 
 ### Routing and authentication
 
@@ -285,7 +358,7 @@ same runner HTTP surface, not routed through Services, so both containers need b
 |---|---|---|---|---|---|
 | `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API and the platform API (both caller-side) | Compose: `http://runner:8765` on both callers (the `gh.local` and `gh.ssl` files set it on `api` from v0.115.3) | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
 | `AGENTA_RUNNER_TOKEN` | Shared request credential | Services and the platform API send it; runner verifies it | **Required — no default** | yes | `agenta.runnerToken`, or `agentRunner.auth.tokenSecretRef` to source it from your own Secret |
-| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `360` | no | n/a |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `480` | no | n/a |
 
 `AGENTA_RUNNER_TOKEN` is **required**, like `AGENTA_AUTH_KEY`. The runner refuses to start without
 it and rejects an un-tokened request with `401`, so there is no unauthenticated mode. It carries a
@@ -324,12 +397,22 @@ templates apply it to both.
 | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` | Providers this deployment can use | `local` | `agentRunner.providers.enabled` (list, rendered comma-joined) |
 | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` | Provider used when a run does not choose | `local` | `agentRunner.providers.default` |
 
+The Helm chart checks `agentRunner.providers` before it allows more than one runner pod or a
+rolling update, and the render fails when `agentRunner.env` or `agentRunner.extraEnv` sets either
+variable. Set them with `agentRunner.providers.enabled` and `agentRunner.providers.default`.
+
 Rules:
 
-- Values are lowercase provider ids separated by commas. The known ids are `local` and `daytona`.
+- Values are lowercase provider ids separated by commas. The known ids are `local`, `daytona` and
+  `inprocess` (see [In-process](#in-process)).
 - Unset enabled providers means exactly `local`.
 - An explicitly empty list is invalid, and so is an empty entry inside the list.
 - Unknown ids and duplicate ids are invalid.
+- `inprocess` is enabled wherever `daytona` is enabled. You do not add it to the list. The runner
+  adds it after the listed providers, so `daytona` stays the default. A list without `daytona`
+  (for example `local`) does not enable `inprocess`. You cannot turn `inprocess` off while `daytona`
+  is enabled. The web app does not offer `inprocess` as a choice: an agent chooses `daytona`, and
+  the runner picks the provider by harness (see [In-process](#in-process)).
 - The default must be one of the enabled providers.
 - A run may select any enabled provider. A run that selects a known but disabled provider fails
   before any working directory, mount, secret, or sandbox is created. There is no fallback to
@@ -348,14 +431,14 @@ Read by the `runner` service. Required only when `daytona` is enabled.
 | `AGENTA_RUNNER_DAYTONA_API_KEY` | Provisioning credential | Unset | yes | `agentRunner.providers.daytona.apiKeySecretRef` |
 | `AGENTA_RUNNER_DAYTONA_API_URL` | Daytona API locator | Unset | no | `...daytona.apiUrl` |
 | `AGENTA_RUNNER_DAYTONA_TARGET` | Region or target | Unset | no | `...daytona.target` |
-| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v1` | no | `...daytona.snapshot` |
+| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v2` | no | `...daytona.snapshot` |
 | `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
 | `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
 | `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
 | `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS` | Set to `off` to stop hiding API keys from the sandbox | Unset (hiding is on) | no | `...daytona.opaqueSecrets` |
 
 When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
-starts from its pinned default snapshot `agenta-agent-sandbox-v1`. The two variables are mutually
+starts from its pinned default snapshot `agenta-agent-sandbox-v2`. The two variables are mutually
 exclusive. The autostop and autodelete values must be positive integers. See
 [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow,
 and [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) for the
@@ -427,6 +510,54 @@ same values. The snapshot may not: the evaluator's snapshot (for example `dayton
 agent harness installed, so an agent booted into it cannot run.
 :::
 
+### In-process
+
+Read by the `runner` service, and only when `inprocess` is enabled: when `daytona` or `inprocess` is
+in `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`. With `inprocess`, the Pi harness runs inside the runner
+process, and a Daytona sandbox, one per conversation, runs the agent's file tools and commands. The
+sandbox starts on the first tool call. `inprocess` runs only the `pi_core` harness, and it needs
+the durable store (see [Store](#store-durable-object-store)).
+
+Enabling `inprocess` makes `AGENTA_RUNNER_DAYTONA_API_KEY` required. The command sandboxes use the
+Daytona connection above (key, URL, target) and, unless you set a snapshot below, its snapshot or
+image. A model provider key (for example `OPENAI_API_KEY`) or a cloud credential (for example
+`AWS_ACCESS_KEY_ID`) in the runner's own environment is not allowed with `inprocess`, because every
+in-process session would use it. What the runner does at start:
+
+- Without `local` in the list, no enabled provider reads these variables from the runner
+  environment. The runner removes them from its own environment and logs a warning that names
+  them (never their values). `inprocess` stays on.
+- With `local` in the list, the local harness processes inherit the runner environment, so the
+  variables stay. If `inprocess` is only enabled through `daytona`, the runner starts without
+  `inprocess` and logs a warning. If you listed `inprocess` or made it the default, the runner does
+  not start.
+
+Set `AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS=true` only on a deployment that must keep such a key.
+
+`daytona` and `inprocess` are one choice, and the harness picks the provider. When both are enabled,
+a Pi (`pi_core`) run in a session runs `inprocess`, and a Claude Code or Codex run runs on `daytona`.
+This applies to an agent saved with either value; the saved agent does not change. A Pi run without
+a session runs on `daytona`, because `inprocess` keeps its files on the session's drive. The runner
+logs each routed run as `[sandbox-routing] harness=<harness> chosen=<saved> runs=<provider>`, and the
+trace's workflow span records the provider that ran as `ag.meta.agent.sandbox`. Set
+`AGENTA_RUNNER_INPROCESS_FOR_PI=false` to run each agent on the provider it names, for example on a
+deployment without the durable store.
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_INPROCESS_SANDBOX_SNAPSHOT` | Snapshot for the command sandboxes | The `daytona` provider's snapshot or image | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_SANDBOX_SNAPSHOT` |
+| `AGENTA_RUNNER_INPROCESS_SANDBOX_LABELS` | Labels added to every command sandbox, as `key=value,key=value` | Unset | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_SANDBOX_LABELS` |
+| `AGENTA_RUNNER_INPROCESS_IDLE_STOP_MS` | Stop a command sandbox after this long without a tool call | `300000` (5 minutes) | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_IDLE_STOP_MS` |
+| `AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES` | Command sandboxes this runner keeps running at once | `40` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES` |
+| `AGENTA_RUNNER_INPROCESS_MAX_SESSIONS` | In-process sessions this runner hosts at once | `200` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_MAX_SESSIONS` |
+| `AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS` | Start even when a model provider key is in the runner's environment | `false` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS` |
+| `AGENTA_RUNNER_INPROCESS_FOR_PI` | Run Pi `inprocess` and Claude Code and Codex on `daytona` for an agent that chose `daytona` or `inprocess`. `true` or `false` | `true` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_FOR_PI` |
+
+The command sandboxes take the `daytona` provider's `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` and
+`AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`. A command sandbox holds nothing durable (the session and
+agent folders are in the store), so a sandbox left by a runner that stopped is removed by Daytona on
+those intervals.
+
 ### Warm sessions and scale
 
 A session stays warm between turns so a follow-up turn skips a cold start. Both providers pool
@@ -488,9 +619,9 @@ provider.
 | `AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` | Hard deadline for one run, measured from the first message | `2700000` (45 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` |
 | `AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` | Longest gap between two progress events before the run is abandoned | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` |
 | `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
-| `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
+| `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take. Also the longest a shell command may run | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
 
-Three rules govern how they interact:
+Four rules govern how they interact:
 
 - A run paused for a human approval is exempt from all four. The pause freezes every timer.
 - The idle timeout must stay below the total deadline, or it could never fire first. A value at or
@@ -498,6 +629,16 @@ Three rules govern how they interact:
   start.
 - The TTFB timer only covers the wait for the first response. The first progress event of any kind
   cancels it and arms the idle timer instead.
+- A shell command that runs longer than `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` is stopped, and the
+  agent receives a "command timed out" result and continues the turn. This applies to Pi on every
+  provider. Claude Code gets the same limit as its command timeout; it stops the command or moves
+  it to the background, and the turn continues. The run is aborted only when a tool call returns no result two minutes
+  after the limit, for example a Codex command or a tool that did not stop. The idle timeout does
+  not apply while a tool call runs.
+
+`AGENTA_RUNNER_RUN_TTFB_RETRIES` sets how many times the runner runs a turn again when the model
+sends nothing before the TTFB timeout. The default is `1` and the range is `0` to `3`. Set it to `0`
+to turn the retry off. In Helm, set `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_RETRIES`.
 
 An invalid value (not a number, or negative) falls back to the default for that variable. These are
 the runner's own deadlines and are unrelated to `AGENTA_RUNNER_TIMEOUT_SECONDS`, which is the
@@ -553,28 +694,39 @@ The runner fails to start when configuration is invalid, before it listens. The 
 | Token not set | `AGENTA_RUNNER_TOKEN is required. Generate a secret (e.g. \`openssl rand -hex 32\`) and set the SAME value on the runner and on the service that calls it.` |
 | Enabled list is set but empty | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS is set but empty; unset it for the default 'local', or list at least one provider.` |
 | Empty entry in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS has an empty entry in '<list>'.` |
-| Unknown provider id in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists unknown provider '<id>'; known providers: local, daytona.` |
+| Unknown provider id in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists unknown provider '<id>'; known providers: local, daytona, inprocess.` |
 | Duplicate provider id | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists provider '<id>' more than once.` |
-| Default is an unknown provider | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER is unknown provider '<id>'; known providers: local, daytona.` |
+| Default is an unknown provider | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER is unknown provider '<id>'; known providers: local, daytona, inprocess.` |
 | Default not in the enabled set | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER '<id>' is not in the enabled set [<list>]. Add it to AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS or change the default.` |
 | Daytona enabled without a key | `AGENTA_RUNNER_DAYTONA_API_KEY is required when 'daytona' is in AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS.` |
+| `inprocess` enabled without a Daytona key | `AGENTA_RUNNER_DAYTONA_API_KEY is required when 'inprocess' is in AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: its tool calls run in a Daytona sandbox.` |
+| `inprocess` listed (or the default) together with `local`, and a model provider key in the runner environment | `The 'inprocess' provider is enabled but the runner environment holds credential variable(s) <names>; Pi would use them for every in-process session. Remove them, or set AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS=true.` |
+| A label entry without `=` | `AGENTA_RUNNER_INPROCESS_SANDBOX_LABELS entry '<entry>' is not in the form key=value.` |
+| `AGENTA_RUNNER_INPROCESS_FOR_PI` other than `true` or `false` | `AGENTA_RUNNER_INPROCESS_FOR_PI must be 'true' or 'false', got '<value>'.` |
 | Snapshot and image both set | `AGENTA_RUNNER_DAYTONA_SNAPSHOT and AGENTA_RUNNER_DAYTONA_IMAGE are mutually exclusive; set only one.` |
 | Non-integer positive value | `<variable> must be a positive integer, got '<value>'.` |
+| Shutdown wait that is negative or not an integer | `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS must be a non-negative integer, got '<value>'.` |
 
 The last message covers `AGENTA_RUNNER_PORT`, `AGENTA_RUNNER_CONCURRENCY_LIMIT`,
-`AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`, and `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`.
+`AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`, `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`,
+`AGENTA_RUNNER_INPROCESS_IDLE_STOP_MS`, `AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES`, and
+`AGENTA_RUNNER_INPROCESS_MAX_SESSIONS`. The `inprocess` checks run only when `inprocess` is enabled
+(which includes every list with `daytona`).
 
 On a valid start, the runner logs one redacted summary. No credential value or source path is
 logged.
 
 ```text
-runner providers enabled=[local,daytona] default=local
-runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v1
+runner providers enabled=[local,daytona,inprocess] default=local
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v2
+runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v2 max_running_sandboxes=40 max_sessions=200
 ```
 
-The first line always prints. The second line appears only when `daytona` is enabled. `target`
+The first line always prints and shows the effective list: `local,daytona` in the variable prints as
+`local,daytona,inprocess`. The second line appears only when `daytona` is enabled. The third
+line appears only when `inprocess` is enabled. `target`
 reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
-`snapshot:agenta-agent-sandbox-v1` (the pinned default), `snapshot:<name>`, or `image:<name>`
+`snapshot:agenta-agent-sandbox-v2` (the pinned default), `snapshot:<name>`, or `image:<name>`
 depending on what is set.
 
 ### Troubleshooting
@@ -584,7 +736,9 @@ depending on what is set.
 **Cause:** The run requested a provider that is not in `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`.
 
 **Solution:** Add the provider and recreate the runner, or change the run to use an enabled
-provider.
+provider. For `inprocess`, add `daytona`: `inprocess` is enabled with it. If the runner log shows
+a warning that `inprocess` is off because of credential variables (a deployment that also enables
+`local`), remove those variables from the runner environment.
 
 #### A run fails with `could not find runner CLI at /app/runner/src/cli.ts`
 
@@ -841,6 +995,8 @@ it calls the server. In 0.119.0 only, that save-time check read
 | `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `gateway_egress.insecure_allowed` (api) | `gatewayEgress.insecureAllowed` |
 | `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | n/a (read by the services and runner containers, not by the api) | `gatewayEgress.insecureHttpAllowed` |
 | `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `gateway_credentials.ttl_seconds` (api) | `gatewayCredentials.ttlSeconds` |
+| `AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64` | `llm_gateway.vertex_sa_json_b64` (api) | not rendered by the chart |
+| `AGENTA_LLM_GATEWAY_VERTEX_PROJECT` | `llm_gateway.vertex_project` (api) | not rendered by the chart |
 
 Two of these ship a value in the Docker Compose env templates that differs from the default
 the code applies when the variable is absent. An upgraded deployment keeps its existing env
@@ -886,6 +1042,29 @@ Both are read by the API, which is the authority. The agent SDK carries no switc
 it asks the API and takes the older path when the API says that gateway is not serving. The
 web container reads `AGENTA_MCP_GATEWAY_ENABLED` from the same env file to decide whether to
 show the MCP settings tab, so set these in the file every container loads and recreate them.
+:::
+
+:::note Models your deployment pays for
+The LLM gateway can serve models from a Google Cloud Vertex AI account that your deployment
+owns, instead of from a key in the project's vault. An agent then picks them from the
+**Built-in: agenta** group in the model picker, and the call is made with your account's
+credential. Today these are Gemini 3.7 Flash and Gemini 3.8 Flash.
+
+To turn this on, set both of these on the API container:
+
+- `AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64`: the service account's JSON key, base64-encoded
+  (`base64 -w0 key.json`). The service account needs the Vertex AI User role on the project.
+- `AGENTA_LLM_GATEWAY_VERTEX_PROJECT`: the Google Cloud project id.
+
+The models are called on the Vertex AI `global` location, where both are available. If
+either variable is not set, the models are not offered. The LLM gateway must also be on
+(`AGENTA_LLM_GATEWAY_ENABLED=true`).
+
+Only function tools are available on these models. A request that asks for a provider-side
+tool, such as Google Search grounding (`web_search_options`), is refused with
+`capability_not_allowed`, because the provider bills it apart from the tokens.
+
+In Agenta Cloud with the wallet on, each call is charged to the organization's credits.
 :::
 
 :::note How long a run may keep reaching a gateway
@@ -957,6 +1136,35 @@ over plain HTTP to a non-loopback host, and a remote sandbox still requires an H
 with a public DNS name, because a cloud sandbox dials your deployment across the internet.
 The variable is read by the services and runner containers. The api container does not read
 it, so set it in the env file the services and runner containers load, and recreate those two.
+:::
+
+## Channels
+
+Channels connect an agent to Slack, Telegram, or WhatsApp. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
+
+Set them on the `api`, `worker-queues` and `worker-streams` containers. The Helm chart has no keys for them; add them with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
+
+| Env var                          | env.py path                        | values.yaml path |
+| -------------------------------- | ---------------------------------- | ---------------- |
+| `SLACK_CLIENT_ID`                | `channels.slack.client_id`         | _(not mapped)_   |
+| `SLACK_CLIENT_SECRET`            | `channels.slack.client_secret`     | _(not mapped)_   |
+| `SLACK_SIGNING_SECRET`           | `channels.slack.signing_secret`    | _(not mapped)_   |
+| `TELEGRAM_HOSTED_BOT_TOKEN`      | `channels.telegram.bot_token`      | _(not mapped)_   |
+| `TELEGRAM_HOSTED_BOT_USERNAME`   | `channels.telegram.bot_username`   | _(not mapped)_   |
+| `TELEGRAM_HOSTED_WEBHOOK_SECRET` | `channels.telegram.webhook_secret` | _(not mapped)_   |
+
+For the Telegram setup, see [Set up the hosted Telegram bot](/self-host/channels/telegram-hosted-bot).
+
+WhatsApp has no hosted integration. Each connection brings its own Meta app, so WhatsApp needs no variable. One optional variable changes where the WhatsApp channel sends its Meta Graph API calls:
+
+| Env var                  | env.py path                       | values.yaml path | Default                            |
+| ------------------------ | --------------------------------- | ---------------- | ---------------------------------- |
+| `WHATSAPP_GRAPH_API_URL` | `channels.whatsapp.graph_api_url` | _(not mapped)_   | `https://graph.facebook.com/v24.0` |
+
+Change it only to route the calls through a proxy or to a test double. For the setup, see [Connect a WhatsApp number to an agent](/guides/connect-whatsapp).
+
+:::warning One replica for channel replies
+The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly one replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. With the default `AGENTA_WORKER_STREAMS` (empty, which runs every loop), that means one `worker-streams` replica. On Helm, a rolling update briefly runs two pods; set `workerStreams.strategy.type: Recreate` to avoid the overlap.
 :::
 
 ## alembic
@@ -1067,6 +1275,7 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 | `OPENROUTER_API_KEY` | `llm.openrouter` | `llm.openrouter` |
 | `PERPLEXITYAI_API_KEY` | `llm.perplexityai` | `llm.perplexityai` |
 | `TOGETHERAI_API_KEY` | `llm.togetherai` | `llm.togetherai` |
+| `XAI_API_KEY` | `llm.xai` | `llm.xai` |
 
 ## loops
 
@@ -1204,3 +1413,7 @@ future major release.
 | `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
 | `STRIPE_TARGET` | `STRIPE_WEBHOOK_TARGET` |
 | `SUPERTOKENS_CONNECTION_URI` | `SUPERTOKENS_URI_CORE` |
+
+## Removed environment variables
+
+Some variables were removed without a replacement. Agenta ignores them, and the behavior they used to switch is always on. For the list removed in 0.121.0 and what each one did, see [Upgrading to 0.121.0](/self-host/upgrading#upgrading-to-01210).

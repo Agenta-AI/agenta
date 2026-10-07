@@ -18,13 +18,18 @@ import {canonicalToolName, resolveClientToolWidget, resolveToolDisplay} from "..
 import {clientToolMeta} from "./meta"
 import UnhandledClientTool from "./UnhandledClientTool"
 
-/** Settle a parked client tool; await durable submission when the host owns it. */
+/**
+ * Settle a parked client tool; await durable submission when the host owns it. Resolves `false`
+ * when the write did not land and the gate is still open — the host reports the failure itself,
+ * so the promise does not reject, but a caller that must know (the card's spinner, a message
+ * steering in behind the settle) reads it here.
+ */
 export type ClientToolOutputHandler = (args: {
     toolName: string
     toolCallId: string
     output?: Record<string, unknown>
     errorText?: string
-}) => void | Promise<void>
+}) => void | boolean | Promise<void | boolean>
 
 const ClientToolPart = ({
     part,

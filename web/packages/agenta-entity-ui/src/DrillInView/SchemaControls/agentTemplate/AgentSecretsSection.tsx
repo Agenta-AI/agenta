@@ -18,7 +18,8 @@ import {Key, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import {createPortal} from "react-dom"
 
-import {AgentSecretAttachmentDrawer} from "../../../secret"
+import {AgentSecretAttachmentModal} from "../../../secret"
+import {useSectionDrawerPanel} from "../sectionDrawerPanel"
 
 export interface AgentSecretsSectionProps {
     revisionId?: string | null
@@ -41,11 +42,13 @@ export function AgentSecretsSection({
     attachContainer,
 }: AgentSecretsSectionProps) {
     const {namedSecrets, loading} = useVaultSecret()
+    // Inside the Advanced drawer, its dialogs stay within the drawer.
+    const panel = useSectionDrawerPanel()
     const commitCredentials = useSetAtom(commitAgentCredentialsAtom)
     const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(revisionId ?? ""))
     const workflowDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId ?? ""))
     const dirty = workflowDirty || localDraftDirty
-    const [drawerOpen, setDrawerOpen] = useState(false)
+    const [modalOpen, setModalOpen] = useState(false)
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
     const [removeIndex, setRemoveIndex] = useState<number | null>(null)
     const [removing, setRemoving] = useState(false)
@@ -76,7 +79,7 @@ export function AgentSecretsSection({
     }
 
     const commitBinding: React.ComponentProps<
-        typeof AgentSecretAttachmentDrawer
+        typeof AgentSecretAttachmentModal
     >["commitBinding"] = async ({secretSlug, envVar, editIndex}) => {
         const next = [...bindings]
         const value: AgentSecretBinding = {
@@ -111,7 +114,7 @@ export function AgentSecretsSection({
             disabled={!canAttach}
             onClick={() => {
                 setEditingIndex(null)
-                setDrawerOpen(true)
+                setModalOpen(true)
             }}
         >
             <Plus size={13} /> Attach
@@ -149,24 +152,23 @@ export function AgentSecretsSection({
                     No custom secrets attached.
                 </div>
             ) : (
-                // The subagent drawer's rows: a 34px tile, the name over its secret, the actions
-                // trailing. No bordered box around the list.
-                <div className="-ml-2 flex flex-col gap-0.5">
+                // -mx/px: the hover fill bleeds 4px, within the panel's scroll clip.
+                <div className="-mx-1 flex flex-col gap-0.5">
                     {bindings.map((binding, index) => {
                         const secretName = namesBySlug.get(binding.secret.slug)
                         return (
                             <div
                                 key={`${binding.secret.slug}-${binding.binding.name}`}
-                                className="flex items-center gap-3.5 rounded-[10px] py-2 pl-2"
+                                className="flex items-center gap-2.5 rounded-md px-1 py-1.5 transition-colors hover:bg-accent"
                             >
-                                <span className="flex size-[34px] shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
-                                    <Key aria-hidden size={16} />
+                                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-muted-foreground">
+                                    <Key aria-hidden size={15} />
                                 </span>
-                                <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                    <span className="truncate text-sm leading-[1.45] text-foreground">
+                                <span className="flex min-w-0 flex-1 flex-col">
+                                    <span className="truncate text-[13px] font-medium leading-5 text-foreground">
                                         {binding.binding.name}
                                     </span>
-                                    <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
+                                    <span className="truncate text-xs leading-4 text-muted-foreground">
                                         {secretName ?? `${binding.secret.slug} (unavailable)`}
                                     </span>
                                 </span>
@@ -174,11 +176,13 @@ export function AgentSecretsSection({
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
+                                        // The row already hovers to accent; the button's own is a foreground wash.
+                                        className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                                         aria-label={`Edit ${binding.binding.name}`}
                                         disabled={disabled || !canEditSecrets || dirty}
                                         onClick={() => {
                                             setEditingIndex(index)
-                                            setDrawerOpen(true)
+                                            setModalOpen(true)
                                         }}
                                     >
                                         <PencilSimple size={14} />
@@ -204,9 +208,9 @@ export function AgentSecretsSection({
             )}
 
             {revisionId ? (
-                <AgentSecretAttachmentDrawer
-                    open={drawerOpen}
-                    onClose={() => setDrawerOpen(false)}
+                <AgentSecretAttachmentModal
+                    open={modalOpen}
+                    onClose={() => setModalOpen(false)}
                     target={{revisionId, label: targetLabel}}
                     bindings={bindings}
                     baseRevisionId={revisionId}
@@ -219,6 +223,7 @@ export function AgentSecretsSection({
                     disabled={disabled || !canEditSecrets || dirty}
                     canCreateSecret={canEditSecrets}
                     commitBinding={commitBinding}
+                    container={panel}
                 />
             ) : null}
 
@@ -231,7 +236,7 @@ export function AgentSecretsSection({
                     }
                 }}
             >
-                <AlertDialogContent>
+                <AlertDialogContent container={panel}>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Remove this secret attachment?</AlertDialogTitle>
                         <AlertDialogDescription>

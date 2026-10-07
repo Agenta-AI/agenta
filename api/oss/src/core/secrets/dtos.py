@@ -17,10 +17,12 @@ from oss.src.core.secrets.enums import (
     MCPStandardProviderKind,
     LLMCustomProviderKind,
     CustomSecretFormat,
+    ChannelSecretKind,
     SubscriptionLoginState,
     SubscriptionProviderKind,
     SUBSCRIPTION_PROVIDER_HARNESSES,
     SUBSCRIPTION_PROVIDER_MODELS,
+    SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS,
 )
 from oss.src.core.shared.dtos import (
     Identifier,
@@ -150,13 +152,29 @@ class SubscriptionLoginDTO(BaseModel):
 
 
 class SubscriptionLoginAttemptDTO(BaseModel):
-    """The in-flight device login, kept on the row so any API replica can poll it."""
+    """The device login this connection waits on, kept on the row.
+
+    The runner pod that runs the provider poll reports the outcome here, and every poll
+    answers from this record, so neither the browser's poll nor the outcome depends on
+    reaching that same pod again.
+    """
 
     id: str
     expires_at: Optional[str] = None
     user_code: Optional[str] = None
     verification_uri: Optional[str] = None
     poll_after_ms: Optional[int] = None
+    # `pending` until the runner reports `succeeded`, `failed`, or `expired`. A finished
+    # state stays until the browser's next poll has read it.
+    state: str = "pending"
+    # The runner's short reason word for a failed or expired attempt.
+    error: Optional[str] = None
+    # The URL of the runner pod that runs the provider poll, so a cancel reaches it. None
+    # when the runner reports no address of its own, and the cancel uses the Service URL.
+    runner_address: Optional[str] = None
+    # That pod's replica id. The cancel goes to `runner_address` only when the pod there
+    # answers with this id, since a dead pod's IP can pass to another pod.
+    runner_replica_id: Optional[str] = None
 
 
 class SubscriptionProviderDTO(BaseModel):
@@ -226,6 +244,31 @@ class CustomSecretDTO(BaseModel):
     secret: CustomSecretSettingsDTO
 
 
+class ChannelSecretSettingsDTO(BaseModel):
+    """Vault-stored credential fields only -- things a platform issued and we
+    verify. A bridge's `delivery_url` is not a credential (it is our own
+    address to call, not who is calling us) and does not belong here: it
+    lives on `ChannelConnectionCreate.data`. Unknown keys passed here are
+    silently dropped, so routing a non-credential field through this shape
+    would vanish with no error."""
+
+    bot_token: Optional[str] = None
+    signing_secret: Optional[str] = None
+    # Telegram sets this on the webhook and echoes it back on every update; the
+    # ingress verifies against the hydrated value, so it must survive the vault
+    # round trip rather than being dropped as an unknown key.
+    webhook_secret: Optional[str] = None
+    # WhatsApp: the system-user token that calls the Graph API, and the Meta
+    # app secret every webhook is signed with (X-Hub-Signature-256).
+    access_token: Optional[str] = None
+    app_secret: Optional[str] = None
+
+
+class ChannelSecretDTO(BaseModel):
+    kind: ChannelSecretKind
+    channel: ChannelSecretSettingsDTO
+
+
 class OAuthProviderSettingsDTO(BaseModel):
     # A validation error on a credential field renders the rejected input by default, so
     # the value would travel on to whatever logs or reports the error. The rejection has
@@ -293,6 +336,7 @@ SecretDataDTO = Union[
     SSOProviderDTO,
     WebhookProviderDTO,
     CustomSecretDTO,
+    ChannelSecretDTO,
     OAuthProviderDTO,
     OAuthGrantDTO,
     # Last on purpose: every field has a default, so this member would swallow another
@@ -437,6 +481,21 @@ def _validate_secret_data_based_on_kind(
                     )
         else:
             raise ValueError("A custom_secret format must be 'text' or 'json'")
+    elif kind == SecretKind.CHANNEL_SECRET.value:
+        if not isinstance(data, dict):
+            raise ValueError(
+                "The provided request secret dto is not a valid type for ChannelSecretDTO"
+            )
+        channel_secret_kinds = {member.value for member in ChannelSecretKind}
+        if data.get("kind") not in channel_secret_kinds:
+            raise ValueError(
+                "The provided kind in data is not a valid ChannelSecretKind enum"
+            )
+        channel = data.get("channel")
+        if not isinstance(channel, dict):
+            raise ValueError(
+                "The provided request secret dto is missing required fields for ChannelSecretSettingsDTO"
+            )
     elif kind == SecretKind.SUBSCRIPTION_PROVIDER.value:
         if not isinstance(data, dict):
             raise ValueError(
@@ -455,12 +514,28 @@ def _validate_secret_data_based_on_kind(
         provider_kind = SubscriptionProviderKind(provider)
         # A subscription carries no value on create: the login arrives later through the
         # device login routes, so `value_required` adds nothing to check here.
-        if data.get("harnesses") is None:
-            data["harnesses"] = list(SUBSCRIPTION_PROVIDER_HARNESSES[provider_kind])
-        if data.get("models") is None:
-            data["models"] = list(SUBSCRIPTION_PROVIDER_MODELS[provider_kind])
+        #
+        # Defaults are NOT written into the row. A None list means "follow the current
+        # provider defaults" and is resolved on the response DTO, so a catalog update
+        # reaches every connection that never narrowed its list. A list that matches a
+        # default snapshot — this release's, an older one, or a default-filled read
+        # written back — is normalized to None for the same reason: rows created while
+        # the create path snapshotted the defaults would otherwise stay pinned to the
+        # lineup of their creation day. An explicit empty list stays an explicit "none".
+        # Validate first, so a malformed list is refused as a validation error.
+        subscription = SubscriptionProviderDTO.model_validate(data)
+        if (
+            subscription.models is not None
+            and set(subscription.models)
+            in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS[provider_kind]
+        ):
+            subscription.models = None
+        if subscription.harnesses is not None and set(subscription.harnesses) == set(
+            SUBSCRIPTION_PROVIDER_HARNESSES[provider_kind]
+        ):
+            subscription.harnesses = None
 
-        values["data"] = SubscriptionProviderDTO.model_validate(data)
+        values["data"] = subscription
     elif kind == SecretKind.OAUTH_PROVIDER.value:
         if not isinstance(data, dict):
             raise ValueError(
@@ -656,6 +731,19 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
     @model_validator(mode="after")
     def build_up_model_keys(self):
         if self.kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            provider_kind = SubscriptionProviderKind(self.data.provider)  # type: ignore[union-attr]
+            # Resolved here rather than persisted: a row that never narrowed its lists
+            # (stored None) follows whatever the current defaults are, so every reader —
+            # the picker, the SDK, the registrar — sees today's lineup without a data
+            # migration. The write path normalizes default snapshots back to None.
+            if self.data.models is None:  # type: ignore[union-attr]
+                self.data.models = list(  # type: ignore[union-attr]
+                    SUBSCRIPTION_PROVIDER_MODELS[provider_kind]
+                )
+            if self.data.harnesses is None:  # type: ignore[union-attr]
+                self.data.harnesses = list(  # type: ignore[union-attr]
+                    SUBSCRIPTION_PROVIDER_HARNESSES[provider_kind]
+                )
             provider_slug = self.data.provider_slug or self.data.provider.value  # type: ignore[union-attr]
             self.data.provider_slug = provider_slug  # type: ignore[union-attr]
             self.data.model_keys = [  # type: ignore[union-attr]

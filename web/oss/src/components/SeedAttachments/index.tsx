@@ -4,8 +4,6 @@ import {AttachmentCard, AttachmentCardGrid} from "@agenta/chat/components"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
-import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
-
 /**
  * Attach files from a composer that has no session yet (Home, an agent's overview).
  *
@@ -17,7 +15,7 @@ import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/
 export const useSeedAttachments = () => {
     const [files, setFiles] = useState<File[]>([])
     const clear = useCallback(() => setFiles([]), [])
-    return {files, setFiles, clear, enabled: isAgentFileUploadsEnabled()}
+    return {files, setFiles, clear}
 }
 
 export const SeedAttachButton = ({

@@ -1,7 +1,75 @@
 diff --git a/dist/index.js b/dist/index.js
+index 2e731a0eccb370a29e4a8328e87dd661115d2649..f6329aae80651e0102ade2d3738112d70487364c 100755
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -133,6 +133,10 @@
+@@ -2,54 +2,26 @@
+ 
+ // src/index.ts
+ import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
++import {
++  getAuthMethods,
++  maybeAuthRequiredError,
++  parseCommandArgs,
++  expandSlashCommand,
++  toolResultToText,
++  normalizePiMessageText,
++  normalizePiAssistantText,
++  promptToPiMessage,
++  replayPiMessages,
++  PiAcpSession
++} from "./session.js";
+ 
+ // src/acp/agent.ts
+ import {
+   RequestError as RequestError3
+ } from "@agentclientprotocol/sdk";
+ 
+-// src/acp/auth.ts
+-var PI_SETUP_METHOD_ID = "pi_terminal_login";
+-function getAuthMethods(opts) {
+-  const supportsTerminalAuthMeta = opts?.supportsTerminalAuthMeta ?? true;
+-  const method = {
+-    id: PI_SETUP_METHOD_ID,
+-    name: "Launch pi in the terminal",
+-    description: "Start pi in an interactive terminal to configure API keys or login",
+-    // Registry-required fields
+-    type: "terminal",
+-    args: ["--terminal-login"],
+-    env: {}
+-  };
+-  if (supportsTerminalAuthMeta) {
+-    const launch = terminalAuthLaunchSpec();
+-    method._meta = {
+-      ...method._meta ?? {},
+-      "terminal-auth": {
+-        ...launch,
+-        label: "Launch pi"
+-      }
+-    };
+-  }
+-  return [method];
+-}
+-function terminalAuthLaunchSpec() {
+-  const argv0 = process.argv[0] || "node";
+-  const argv1 = process.argv[1];
+-  if (argv1 && argv0) {
+-    const isNode = argv0.includes("node");
+-    const isJs = argv1.endsWith(".js");
+-    if (isNode && isJs) {
+-      return { command: argv0, args: [argv1, "--terminal-login"] };
+-    }
+-  }
+-  return { command: "pi-acp", args: ["--terminal-login"] };
+-}
+-
+ // src/acp/session.ts
+ import { RequestError as RequestError2 } from "@agentclientprotocol/sdk";
+-import { readFileSync as readFileSync3 } from "fs";
+-import { isAbsolute, resolve as resolvePath } from "path";
+ 
+ // src/pi-rpc/process.ts
+ import { spawn } from "child_process";
+@@ -133,6 +105,10 @@ var PiRpcProcess = class _PiRpcProcess {
    static async spawn(params) {
      const cmd = getPiCommand(params.piCommand);
      const args = ["--mode", "rpc", "--no-themes"];
@@ -12,78 +80,667 @@ diff --git a/dist/index.js b/dist/index.js
      if (params.sessionPath) args.push("--session", params.sessionPath);
      const child = spawn(cmd, args, {
        cwd: params.cwd,
-@@ -686,13 +690,14 @@
-   cancelRequested = false;
-   // Current in-flight turn (if any). Additional prompts are queued.
-   pendingTurn = null;
-+  lastAssistantError = null;
-   turnQueue = [];
-   // Track tool call statuses and ensure they are monotonic (pending -> in_progress -> completed).
-   // Some pi events can arrive out of order (e.g. late toolcall_* deltas after execution starts),
-   // and clients may hide progress if we ever downgrade back to `pending`.
-   currentToolCalls = /* @__PURE__ */ new Map();
-   // pi can emit multiple `turn_end` events for a single user prompt (e.g. after tool_use).
--  // The overall agent loop completes when `agent_end` is emitted.
-+  // Pi 0.85.1 emits agent_end per attempt; only agent_settled ends the prompt.
-   inAgentLoop = false;
-   // For ACP diff support: capture file contents before edits, then emit ToolCallContent {type:"diff"}.
-   // This is due to pi sending diff as a string as opposed to ACP expected diff format.
-@@ -783,6 +788,7 @@
+@@ -313,34 +289,6 @@ var PiRpcProcess = class _PiRpcProcess {
    }
-   startTurn(t) {
-     this.cancelRequested = false;
-+    this.lastAssistantError = null;
-     this.inAgentLoop = false;
-     this.pendingTurn = { resolve: t.resolve, reject: t.reject };
-     this.emit({
-@@ -980,18 +986,17 @@
-         });
-         break;
-       }
+ };
+ 
+-// src/acp/auth-required.ts
+-import { RequestError } from "@agentclientprotocol/sdk";
+-function maybeAuthRequiredError(err) {
+-  const msg = String(err?.message ?? err ?? "");
+-  const s = msg.toLowerCase();
+-  const patterns = [
+-    "api key",
+-    "apikey",
+-    "missing key",
+-    "no key",
+-    "not configured",
+-    "unauthorized",
+-    "authentication",
+-    "permission denied",
+-    "forbidden",
+-    "401",
+-    "403"
+-  ];
+-  const hit = patterns.some((p) => s.includes(p));
+-  if (!hit) return null;
+-  return RequestError.authRequired(
+-    {
+-      authMethods: getAuthMethods()
+-    },
+-    "Configure an API key or log in with an OAuth provider."
+-  );
+-}
+-
+ // src/acp/session-store.ts
+ import { mkdirSync, readFileSync, writeFileSync } from "fs";
+ import { dirname } from "path";
+@@ -481,107 +429,6 @@ function toAvailableCommands(fileCommands) {
+   }
+   return out;
+ }
+-function parseCommandArgs(argsString) {
+-  const args = [];
+-  let current = "";
+-  let inQuote = null;
+-  for (let i = 0; i < argsString.length; i++) {
+-    const ch = argsString[i];
+-    if (inQuote) {
+-      if (ch === inQuote) inQuote = null;
+-      else current += ch;
+-      continue;
+-    }
+-    if (ch === '"' || ch === "'") {
+-      inQuote = ch;
+-    } else if (ch === " " || ch === "	") {
+-      if (current) {
+-        args.push(current);
+-        current = "";
+-      }
+-    } else {
+-      current += ch;
+-    }
+-  }
+-  if (current) args.push(current);
+-  return args;
+-}
+-function substituteArgs(content, args) {
+-  let result = content;
+-  result = result.replace(/\$@/g, args.join(" "));
+-  result = result.replace(/\$(\d+)/g, (_m, num) => {
+-    const idx = Number.parseInt(String(num), 10) - 1;
+-    return args[idx] ?? "";
+-  });
+-  return result;
+-}
+-function expandSlashCommand(text, fileCommands) {
+-  if (!text.startsWith("/")) return text;
+-  const spaceIndex = text.indexOf(" ");
+-  const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
+-  const argsString = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1);
+-  const cmd = fileCommands.find((c) => c.name === commandName);
+-  if (!cmd) return text;
+-  const args = parseCommandArgs(argsString);
+-  return substituteArgs(cmd.content, args);
+-}
+-
+-// src/acp/translate/pi-tools.ts
+-function toolResultToText(result) {
+-  if (!result) return "";
+-  const content = result.content;
+-  if (Array.isArray(content)) {
+-    const texts = content.map((c) => c?.type === "text" && typeof c.text === "string" ? c.text : "").filter(Boolean);
+-    if (texts.length) return texts.join("");
+-  }
+-  const details = result?.details;
+-  const diff = details?.diff;
+-  if (typeof diff === "string" && diff.trim()) {
+-    return diff;
+-  }
+-  const stdout = (typeof details?.stdout === "string" ? details.stdout : void 0) ?? (typeof result?.stdout === "string" ? result.stdout : void 0) ?? (typeof details?.output === "string" ? details.output : void 0) ?? (typeof result?.output === "string" ? result.output : void 0);
+-  const stderr = (typeof details?.stderr === "string" ? details.stderr : void 0) ?? (typeof result?.stderr === "string" ? result.stderr : void 0);
+-  const exitCode = (typeof details?.exitCode === "number" ? details.exitCode : void 0) ?? (typeof result?.exitCode === "number" ? result.exitCode : void 0) ?? (typeof details?.code === "number" ? details.code : void 0) ?? (typeof result?.code === "number" ? result.code : void 0);
+-  if (typeof stdout === "string" && stdout.trim() || typeof stderr === "string" && stderr.trim()) {
+-    const parts = [];
+-    if (typeof stdout === "string" && stdout.trim()) parts.push(stdout);
+-    if (typeof stderr === "string" && stderr.trim()) parts.push(`stderr:
+-${stderr}`);
+-    if (typeof exitCode === "number") parts.push(`exit code: ${exitCode}`);
+-    return parts.join("\n\n").trimEnd();
+-  }
+-  try {
+-    return JSON.stringify(result, null, 2);
+-  } catch {
+-    return String(result);
+-  }
+-}
+-
+-// src/acp/session.ts
+-var CONFIRM_PERMISSION_OPTIONS = [
+-  { optionId: "yes", name: "Yes", kind: "allow_once" },
+-  { optionId: "no", name: "No", kind: "reject_once" }
+-];
+-var EXTENSION_UI_RAW_INPUT_KEYS = ["title", "message", "options", "placeholder", "prefill"];
+-var CHOICE_OPTION_PREFIX = "choice-";
+-function findUniqueLineNumber(text, needle) {
+-  if (!needle) return void 0;
+-  const first = text.indexOf(needle);
+-  if (first < 0) return void 0;
+-  const second = text.indexOf(needle, first + needle.length);
+-  if (second >= 0) return void 0;
+-  let line = 1;
+-  for (let i = 0; i < first; i += 1) {
+-    if (text.charCodeAt(i) === 10) line += 1;
+-  }
+-  return line;
+-}
+-function toToolCallLocations(args, cwd, line) {
+-  const path = typeof args?.path === "string" ? args.path : void 0;
+-  if (!path) return void 0;
+-  const resolvedPath = isAbsolute(path) ? path : resolvePath(cwd, path);
+-  return [{ path: resolvedPath, ...typeof line === "number" ? { line } : {} }];
+-}
+ var SessionManager = class {
+   sessions = /* @__PURE__ */ new Map();
+   store = new SessionStore();
+@@ -672,516 +519,6 @@ var SessionManager = class {
+     return session;
+   }
+ };
+-var PiAcpSession = class {
+-  sessionId;
+-  cwd;
+-  mcpServers;
+-  startupInfo = null;
+-  startupInfoSent = false;
+-  proc;
+-  conn;
+-  fileCommands;
+-  // Used to map abort semantics to ACP stopReason.
+-  // Applies to the currently running turn.
+-  cancelRequested = false;
+-  // Current in-flight turn (if any). Additional prompts are queued.
+-  pendingTurn = null;
+-  turnQueue = [];
+-  // Track tool call statuses and ensure they are monotonic (pending -> in_progress -> completed).
+-  // Some pi events can arrive out of order (e.g. late toolcall_* deltas after execution starts),
+-  // and clients may hide progress if we ever downgrade back to `pending`.
+-  currentToolCalls = /* @__PURE__ */ new Map();
+-  // pi can emit multiple `turn_end` events for a single user prompt (e.g. after tool_use).
+-  // The overall agent loop completes when `agent_end` is emitted.
+-  inAgentLoop = false;
+-  // For ACP diff support: capture file contents before edits, then emit ToolCallContent {type:"diff"}.
+-  // This is due to pi sending diff as a string as opposed to ACP expected diff format.
+-  // Compatible format may need to be implemented in pi in the future.
+-  editSnapshots = /* @__PURE__ */ new Map();
+-  // Ensure `session/update` notifications are sent in order and can be awaited
+-  // before completing a `session/prompt` request.
+-  lastEmit = Promise.resolve();
+-  constructor(opts) {
+-    this.sessionId = opts.sessionId;
+-    this.cwd = opts.cwd;
+-    this.mcpServers = opts.mcpServers;
+-    this.proc = opts.proc;
+-    this.conn = opts.conn;
+-    this.fileCommands = opts.fileCommands ?? [];
+-    this.proc.onEvent((ev) => this.handlePiEvent(ev));
+-  }
+-  setStartupInfo(text) {
+-    this.startupInfo = text;
+-    this.startupInfoSent = false;
+-  }
+-  /**
+-   * Best-effort attempt to send startup info outside of a prompt turn.
+-   * Some clients (e.g. Zed) may only render agent messages once the UI is ready;
+-   * callers can invoke this shortly after session/new returns.
+-   */
+-  sendStartupInfoIfPending() {
+-    if (this.startupInfoSent || !this.startupInfo) return;
+-    this.startupInfoSent = true;
+-    this.emit({
+-      sessionUpdate: "agent_message_chunk",
+-      content: { type: "text", text: this.startupInfo }
+-    });
+-  }
+-  async prompt(message, images = []) {
+-    const expandedMessage = expandSlashCommand(message, this.fileCommands);
+-    const turnPromise = new Promise((resolve4, reject) => {
+-      const queued = { message: expandedMessage, images, resolve: resolve4, reject };
+-      if (this.pendingTurn) {
+-        this.turnQueue.push(queued);
+-        this.emit({
+-          sessionUpdate: "agent_message_chunk",
+-          content: {
+-            type: "text",
+-            text: `Queued message (position ${this.turnQueue.length}).`
+-          }
+-        });
+-        this.emit({
+-          sessionUpdate: "session_info_update",
+-          _meta: { piAcp: { queueDepth: this.turnQueue.length, running: true } }
+-        });
+-        return;
+-      }
+-      this.startTurn(queued);
+-    });
+-    return turnPromise;
+-  }
+-  async cancel() {
+-    this.cancelRequested = true;
+-    if (this.turnQueue.length) {
+-      const queued = this.turnQueue.splice(0, this.turnQueue.length);
+-      for (const t of queued) t.resolve("cancelled");
+-      this.emit({
+-        sessionUpdate: "agent_message_chunk",
+-        content: { type: "text", text: "Cleared queued prompts." }
+-      });
+-      this.emit({
+-        sessionUpdate: "session_info_update",
+-        _meta: { piAcp: { queueDepth: 0, running: Boolean(this.pendingTurn) } }
+-      });
+-    }
+-    await this.proc.abort();
+-  }
+-  wasCancelRequested() {
+-    return this.cancelRequested;
+-  }
+-  emit(update) {
+-    this.lastEmit = this.lastEmit.then(
+-      () => this.conn.sessionUpdate({
+-        sessionId: this.sessionId,
+-        update
+-      })
+-    ).catch(() => {
+-    });
+-  }
+-  async flushEmits() {
+-    await this.lastEmit;
+-  }
+-  startTurn(t) {
+-    this.cancelRequested = false;
+-    this.inAgentLoop = false;
+-    this.pendingTurn = { resolve: t.resolve, reject: t.reject };
+-    this.emit({
+-      sessionUpdate: "session_info_update",
+-      _meta: { piAcp: { queueDepth: this.turnQueue.length, running: true } }
+-    });
+-    this.proc.prompt(t.message, t.images).catch((err) => {
+-      void this.flushEmits().finally(() => {
+-        const authErr = maybeAuthRequiredError(err);
+-        if (authErr) {
+-          this.pendingTurn?.reject(authErr);
+-        } else {
+-          const reason = this.cancelRequested ? "cancelled" : "error";
+-          this.pendingTurn?.resolve(reason);
+-        }
+-        this.pendingTurn = null;
+-        this.inAgentLoop = false;
+-        this.emit({
+-          sessionUpdate: "session_info_update",
+-          _meta: { piAcp: { queueDepth: this.turnQueue.length, running: false } }
+-        });
+-      });
+-      void err;
+-    });
+-  }
+-  handlePiEvent(ev) {
+-    const type = String(ev.type ?? "");
+-    switch (type) {
+-      case "message_update": {
+-        const ame = ev.assistantMessageEvent;
+-        if (ame?.type === "text_delta" && typeof ame.delta === "string") {
+-          this.emit({
+-            sessionUpdate: "agent_message_chunk",
+-            content: { type: "text", text: ame.delta }
+-          });
+-          break;
+-        }
+-        if (ame?.type === "thinking_delta" && typeof ame.delta === "string") {
+-          this.emit({
+-            sessionUpdate: "agent_thought_chunk",
+-            content: { type: "text", text: ame.delta }
+-          });
+-          break;
+-        }
+-        if (ame?.type === "toolcall_start" || ame?.type === "toolcall_delta" || ame?.type === "toolcall_end") {
+-          const toolCall = (
+-            // pi sometimes includes the tool call directly on the event
+-            ame?.toolCall ?? // ...and always includes it in the partial assistant message at contentIndex
+-            ame?.partial?.content?.[ame?.contentIndex ?? 0]
+-          );
+-          const toolCallId = String(toolCall?.id ?? "");
+-          const toolName = String(toolCall?.name ?? "tool");
+-          if (toolCallId) {
+-            const rawInput = toolCall?.arguments && typeof toolCall.arguments === "object" ? toolCall.arguments : (() => {
+-              const s = String(toolCall?.partialArgs ?? "");
+-              if (!s) return void 0;
+-              try {
+-                return JSON.parse(s);
+-              } catch {
+-                return { partialArgs: s };
+-              }
+-            })();
+-            const locations = toToolCallLocations(rawInput, this.cwd);
+-            const existingStatus = this.currentToolCalls.get(toolCallId);
+-            const status = existingStatus ?? "pending";
+-            if (!existingStatus) {
+-              this.currentToolCalls.set(toolCallId, "pending");
+-              this.emit({
+-                sessionUpdate: "tool_call",
+-                toolCallId,
+-                title: toolName,
+-                kind: toToolKind(toolName),
+-                status,
+-                locations,
+-                rawInput
+-              });
+-            } else {
+-              this.emit({
+-                sessionUpdate: "tool_call_update",
+-                toolCallId,
+-                status,
+-                locations,
+-                rawInput
+-              });
+-            }
+-          }
+-          break;
+-        }
+-        break;
+-      }
+-      case "tool_execution_start": {
+-        const toolCallId = String(ev.toolCallId ?? crypto.randomUUID());
+-        const toolName = String(ev.toolName ?? "tool");
+-        const args = ev.args;
+-        let line;
+-        if (toolName === "edit") {
+-          const p = typeof args?.path === "string" ? args.path : void 0;
+-          if (p) {
+-            try {
+-              const abs = isAbsolute(p) ? p : resolvePath(this.cwd, p);
+-              const oldText = readFileSync3(abs, "utf8");
+-              this.editSnapshots.set(toolCallId, { path: p, oldText });
+-              const needle = typeof args?.oldText === "string" ? args.oldText : "";
+-              line = findUniqueLineNumber(oldText, needle);
+-            } catch {
+-            }
+-          }
+-        }
+-        const locations = toToolCallLocations(args, this.cwd, line);
+-        if (!this.currentToolCalls.has(toolCallId)) {
+-          this.currentToolCalls.set(toolCallId, "in_progress");
+-          this.emit({
+-            sessionUpdate: "tool_call",
+-            toolCallId,
+-            title: toolName,
+-            kind: toToolKind(toolName),
+-            status: "in_progress",
+-            locations,
+-            rawInput: args
+-          });
+-        } else {
+-          this.currentToolCalls.set(toolCallId, "in_progress");
+-          this.emit({
+-            sessionUpdate: "tool_call_update",
+-            toolCallId,
+-            status: "in_progress",
+-            locations,
+-            rawInput: args
+-          });
+-        }
+-        break;
+-      }
+-      case "tool_execution_update": {
+-        const toolCallId = String(ev.toolCallId ?? "");
+-        if (!toolCallId) break;
+-        const partial = ev.partialResult;
+-        const text = toolResultToText(partial);
+-        this.emit({
+-          sessionUpdate: "tool_call_update",
+-          toolCallId,
+-          status: "in_progress",
+-          content: text ? [{ type: "content", content: { type: "text", text } }] : void 0,
+-          rawOutput: partial
+-        });
+-        break;
+-      }
+-      case "tool_execution_end": {
+-        const toolCallId = String(ev.toolCallId ?? "");
+-        if (!toolCallId) break;
+-        const result = ev.result;
+-        const isError = Boolean(ev.isError);
+-        const text = toolResultToText(result);
+-        const snapshot = this.editSnapshots.get(toolCallId);
+-        let content;
+-        if (!isError && snapshot) {
+-          try {
+-            const abs = isAbsolute(snapshot.path) ? snapshot.path : resolvePath(this.cwd, snapshot.path);
+-            const newText = readFileSync3(abs, "utf8");
+-            if (newText !== snapshot.oldText) {
+-              content = [
+-                {
+-                  type: "diff",
+-                  path: snapshot.path,
+-                  oldText: snapshot.oldText,
+-                  newText
+-                },
+-                ...text ? [{ type: "content", content: { type: "text", text } }] : []
+-              ];
+-            }
+-          } catch {
+-          }
+-        }
+-        if (!content && text) {
+-          content = [{ type: "content", content: { type: "text", text } }];
+-        }
+-        this.emit({
+-          sessionUpdate: "tool_call_update",
+-          toolCallId,
+-          status: isError ? "failed" : "completed",
+-          content,
+-          rawOutput: result
+-        });
+-        this.currentToolCalls.delete(toolCallId);
+-        this.editSnapshots.delete(toolCallId);
+-        break;
+-      }
+-      case "extension_ui_request": {
+-        void this.handleExtensionUiRequest(ev).catch(() => {
+-          const id = stringProp(ev, "id");
+-          if (!id) {
+-            return;
+-          }
+-          void this.proc.sendExtensionUiResponse({ id, cancelled: true }).catch(() => {
+-          });
+-        });
+-        break;
+-      }
 -      case "auto_retry_start": {
 -        this.emit({
 -          sessionUpdate: "agent_message_chunk",
 -          content: { type: "text", text: formatAutoRetryMessage(ev) }
 -        });
-+      // Recovery is operational state, never assistant conversation text.
-+      case "auto_retry_start":
-+      case "auto_retry_end": {
-         break;
-       }
+-        break;
+-      }
 -      case "auto_retry_end": {
 -        this.emit({
 -          sessionUpdate: "agent_message_chunk",
 -          content: { type: "text", text: "Retry finished, resuming." }
 -        });
-+      case "message_end": {
-+        if (ev.message?.role === "assistant") {
-+          this.lastAssistantError = ev.message.stopReason === "error"
-+            ? String(ev.message.errorMessage || "Model request failed")
-+            : null;
-+        }
-         break;
-       }
-       case "auto_compaction_start": {
-@@ -1022,9 +1027,17 @@
-         break;
-       }
-       case "agent_end": {
-+        // Retries and compaction may still continue this prompt.
-+        break;
-+      }
-+      case "agent_settled": {
-         void this.flushEmits().finally(() => {
-           const reason = this.cancelRequested ? "cancelled" : "end_turn";
+-        break;
+-      }
+-      case "auto_compaction_start": {
+-        this.emit({
+-          sessionUpdate: "agent_message_chunk",
+-          content: {
+-            type: "text",
+-            text: "Context nearing limit, running automatic compaction..."
+-          }
+-        });
+-        break;
+-      }
+-      case "auto_compaction_end": {
+-        this.emit({
+-          sessionUpdate: "agent_message_chunk",
+-          content: {
+-            type: "text",
+-            text: "Automatic compaction finished; context was summarized to continue the session."
+-          }
+-        });
+-        break;
+-      }
+-      case "agent_start": {
+-        this.inAgentLoop = true;
+-        break;
+-      }
+-      case "turn_end": {
+-        break;
+-      }
+-      case "agent_end": {
+-        void this.flushEmits().finally(() => {
+-          const reason = this.cancelRequested ? "cancelled" : "end_turn";
 -          this.pendingTurn?.resolve(reason);
-+          if (this.lastAssistantError && !this.cancelRequested) {
-+            this.pendingTurn?.reject(RequestError.internalError(undefined, this.lastAssistantError));
-+          } else {
-+            this.pendingTurn?.resolve(reason);
-+          }
-           this.pendingTurn = null;
-           this.inAgentLoop = false;
-           const next = this.turnQueue.shift();
-@@ -1206,6 +1219,10 @@
+-          this.pendingTurn = null;
+-          this.inAgentLoop = false;
+-          const next = this.turnQueue.shift();
+-          if (next) {
+-            this.emit({
+-              sessionUpdate: "agent_message_chunk",
+-              content: { type: "text", text: `Starting queued message. (${this.turnQueue.length} remaining)` }
+-            });
+-            this.startTurn(next);
+-          } else {
+-            this.emit({
+-              sessionUpdate: "session_info_update",
+-              _meta: { piAcp: { queueDepth: 0, running: false } }
+-            });
+-          }
+-        });
+-        break;
+-      }
+-      default:
+-        break;
+-    }
+-  }
+-  async handleExtensionUiRequest(ev) {
+-    const id = stringProp(ev, "id");
+-    const method = stringProp(ev, "method");
+-    if (!id) {
+-      return;
+-    }
+-    if (method === "select") {
+-      await this.handleExtensionSelect(ev, id);
+-      return;
+-    }
+-    if (method === "confirm") {
+-      await this.handleExtensionConfirm(ev, id);
+-      return;
+-    }
+-    if (method === "input" || method === "editor") {
+-      this.emit({
+-        sessionUpdate: "agent_message_chunk",
+-        content: {
+-          type: "text",
+-          text: `Pi ${method} UI request is not supported in ACP yet; cancelling it.`
+-        }
+-      });
+-      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
+-      return;
+-    }
+-    if (method === "notify") {
+-      this.emit({
+-        sessionUpdate: "agent_message_chunk",
+-        content: { type: "text", text: stringProp(ev, "message") ?? "Pi notification" }
+-      });
+-      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
+-      return;
+-    }
+-    await this.proc.sendExtensionUiResponse({ id, cancelled: true });
+-  }
+-  async handleExtensionSelect(ev, id) {
+-    const rawOptions = ev.options;
+-    const options = Array.isArray(rawOptions) ? rawOptions.map((option) => String(option)) : [];
+-    if (!options.length) {
+-      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
+-      return;
+-    }
+-    const permissionOptions = options.map((name, index2) => ({
+-      optionId: `${CHOICE_OPTION_PREFIX}${index2}`,
+-      name,
+-      kind: "allow_once"
+-    }));
+-    const selected = await this.requestExtensionPermission(id, ev, permissionOptions);
+-    if (selected === null) {
+-      return;
+-    }
+-    const selectedOptionId = selected.outcome.outcome === "selected" ? selected.outcome.optionId : null;
+-    const index = selectedOptionId === null ? null : optionIndex(selectedOptionId);
+-    const value = index === null ? null : options.at(index) ?? null;
+-    await this.proc.sendExtensionUiResponse(value === null ? { id, cancelled: true } : { id, value });
+-  }
+-  async handleExtensionConfirm(ev, id) {
+-    const selected = await this.requestExtensionPermission(id, ev, CONFIRM_PERMISSION_OPTIONS);
+-    if (selected === null) {
+-      return;
+-    }
+-    if (selected.outcome.outcome === "cancelled") {
+-      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
+-      return;
+-    }
+-    await this.proc.sendExtensionUiResponse({ id, confirmed: selected.outcome.optionId === "yes" });
+-  }
+-  async requestExtensionPermission(id, ev, options) {
+-    try {
+-      return await this.conn.requestPermission({
+-        sessionId: this.sessionId,
+-        toolCall: extensionUiToolCall(id, ev),
+-        options
+-      });
+-    } catch {
+-      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
+-      return null;
+-    }
+-  }
+-};
+-function extensionUiToolCall(id, ev) {
+-  const method = stringProp(ev, "method") ?? "ui";
+-  const title = stringProp(ev, "title") ?? `Pi ${method}`;
+-  const rawInput = { method };
+-  for (const key of EXTENSION_UI_RAW_INPUT_KEYS) {
+-    if (Object.hasOwn(ev, key)) rawInput[key] = ev[key];
+-  }
+-  return {
+-    toolCallId: `pi-ui-${id}`,
+-    title,
+-    kind: "other",
+-    status: "pending",
+-    rawInput
+-  };
+-}
+-function stringProp(source, key) {
+-  const value = source[key];
+-  return typeof value === "string" ? value : null;
+-}
+-function optionIndex(optionId) {
+-  if (!optionId.startsWith(CHOICE_OPTION_PREFIX)) {
+-    return null;
+-  }
+-  const rawIndex = optionId.slice(CHOICE_OPTION_PREFIX.length);
+-  if (!rawIndex) {
+-    return null;
+-  }
+-  const index = Number(rawIndex);
+-  return Number.isSafeInteger(index) && index >= 0 && String(index) === rawIndex ? index : null;
+-}
+-function formatAutoRetryMessage(ev) {
+-  const attempt = Number(ev.attempt);
+-  const maxAttempts = Number(ev.maxAttempts);
+-  const delayMs = Number(ev.delayMs);
+-  if (!Number.isFinite(attempt) || !Number.isFinite(maxAttempts) || !Number.isFinite(delayMs)) {
+-    return "Retrying...";
+-  }
+-  let delaySeconds = Math.round(delayMs / 1e3);
+-  if (delayMs > 0 && delaySeconds === 0) delaySeconds = 1;
+-  return `Retrying (attempt ${attempt}/${maxAttempts}, waiting ${delaySeconds}s)...`;
+-}
+-function toToolKind(toolName) {
+-  switch (toolName) {
+-    case "read":
+-      return "read";
+-    case "write":
+-    case "edit":
+-      return "edit";
+-    case "bash":
+-      return "other";
+-    default:
+-      return "other";
+-  }
+-}
+-
+ // src/acp/pi-sessions.ts
+ import { readdirSync as readdirSync2, readFileSync as readFileSync4, statSync, openSync, readSync, closeSync, existsSync as existsSync2 } from "fs";
+ import { homedir as homedir3 } from "os";
+@@ -1206,6 +543,10 @@ function readSessionDirFromSettings(agentDir) {
    }
  }
  function getPiSessionsDir() {
@@ -93,4 +750,1104 @@ diff --git a/dist/index.js b/dist/index.js
 +  }
    const agentDir = getPiAgentDir();
    return readSessionDirFromSettings(agentDir) ?? join3(agentDir, "sessions");
+ }
+@@ -1436,70 +777,6 @@ function findPiSessionFile(sessionId) {
+   return found?.sessionFile ?? null;
+ }
+ 
+-// src/acp/translate/pi-messages.ts
+-function normalizePiMessageText(content) {
+-  if (typeof content === "string") return content;
+-  if (!Array.isArray(content)) return "";
+-  return content.map((c) => c?.type === "text" && typeof c.text === "string" ? c.text : "").filter(Boolean).join("");
+-}
+-function normalizePiAssistantText(content) {
+-  if (!Array.isArray(content)) return "";
+-  return content.map((c) => c?.type === "text" && typeof c.text === "string" ? c.text : "").filter(Boolean).join("");
+-}
+-
+-// src/acp/translate/prompt.ts
+-function promptToPiMessage(blocks) {
+-  let message = "";
+-  const images = [];
+-  for (const b of blocks) {
+-    switch (b.type) {
+-      case "text":
+-        message += b.text;
+-        break;
+-      case "resource_link":
+-        message += `
+-[Context] ${b.uri}`;
+-        break;
+-      case "image": {
+-        images.push({
+-          type: "image",
+-          mimeType: b.mimeType,
+-          data: b.data
+-        });
+-        break;
+-      }
+-      case "resource": {
+-        const r = b.resource;
+-        const uri = typeof r?.uri === "string" ? r.uri : "(unknown)";
+-        if (typeof r?.text === "string") {
+-          const mime = typeof r?.mimeType === "string" ? r.mimeType : "text/plain";
+-          message += `
+-[Embedded Context] ${uri} (${mime})
+-${r.text}`;
+-        } else if (typeof r?.blob === "string") {
+-          const mime = typeof r?.mimeType === "string" ? r.mimeType : "application/octet-stream";
+-          const bytes = Buffer.byteLength(r.blob, "base64");
+-          message += `
+-[Embedded Context] ${uri} (${mime}, ${bytes} bytes)`;
+-        } else {
+-          message += `
+-[Embedded Context] ${uri}`;
+-        }
+-        break;
+-      }
+-      case "audio": {
+-        const bytes = Buffer.byteLength(b.data, "base64");
+-        message += `
+-[Audio] (${b.mimeType}, ${bytes} bytes) not supported by pi-acp`;
+-        break;
+-      }
+-      default:
+-        break;
+-    }
+-  }
+-  return { message, images };
+-}
+-
+ // src/acp/pi-settings.ts
+ import { existsSync as existsSync3, readFileSync as readFileSync5 } from "fs";
+ import { homedir as homedir4 } from "os";
+@@ -2247,61 +1524,7 @@ ${JSON.stringify(stats, null, 2)}`;
+     });
+     const data = await proc.getMessages();
+     const messages = Array.isArray(data?.messages) ? data.messages : [];
+-    for (const m of messages) {
+-      const role = String(m?.role ?? "");
+-      if (role === "user") {
+-        const text = normalizePiMessageText(m?.content);
+-        if (text) {
+-          await this.conn.sessionUpdate({
+-            sessionId: session.sessionId,
+-            update: {
+-              sessionUpdate: "user_message_chunk",
+-              content: { type: "text", text }
+-            }
+-          });
+-        }
+-      }
+-      if (role === "assistant") {
+-        const text = normalizePiAssistantText(m?.content);
+-        if (text) {
+-          await this.conn.sessionUpdate({
+-            sessionId: session.sessionId,
+-            update: {
+-              sessionUpdate: "agent_message_chunk",
+-              content: { type: "text", text }
+-            }
+-          });
+-        }
+-      }
+-      if (role === "toolResult") {
+-        const toolName = String(m?.toolName ?? "tool");
+-        const toolCallId = String(m?.toolCallId ?? crypto.randomUUID());
+-        const isError = Boolean(m?.isError);
+-        await this.conn.sessionUpdate({
+-          sessionId: session.sessionId,
+-          update: {
+-            sessionUpdate: "tool_call",
+-            toolCallId,
+-            title: toolName,
+-            kind: toolName === "read" ? "read" : toolName === "write" || toolName === "edit" ? "edit" : "other",
+-            status: "completed",
+-            rawInput: null,
+-            rawOutput: m
+-          }
+-        });
+-        const text = toolResultToText(m);
+-        await this.conn.sessionUpdate({
+-          sessionId: session.sessionId,
+-          update: {
+-            sessionUpdate: "tool_call_update",
+-            toolCallId,
+-            status: isError ? "failed" : "completed",
+-            content: text ? [{ type: "content", content: { type: "text", text } }] : null,
+-            rawOutput: m
+-          }
+-        });
+-      }
+-    }
++    await replayPiMessages(messages, (update) => this.conn.sessionUpdate({ sessionId: session.sessionId, update }));
+     const { configOptions, models, modes } = await getSessionConfiguration(proc);
+     const response = {
+       configOptions,
+diff --git a/dist/session.d.ts b/dist/session.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..fa30e59696b3524fc28c0b2e1c3d28b548f282df
+--- /dev/null
++++ b/dist/session.d.ts
+@@ -0,0 +1,90 @@
++// Types for the embeddable ACP session module (added by the Agenta runner's pi-acp patch).
++
++/** The Pi RPC surface a session drives: a subprocess in the CLI, or an in-process adapter. */
++export interface PiProcess {
++  onEvent(handler: (event: Record<string, unknown>) => void): () => void;
++  prompt(message: string, images?: PiImage[]): Promise<void>;
++  abort(): Promise<void>;
++  sendExtensionUiResponse(response: ExtensionUiResponse): Promise<void>;
++}
++
++export type ExtensionUiResponse =
++  | { id: string; cancelled: true }
++  | { id: string; value: string }
++  | { id: string; confirmed: boolean };
++
++export interface PiImage {
++  type: "image";
++  mimeType: string;
++  data: string;
++}
++
++export type PermissionOptionKind = "allow_once" | "allow_always" | "reject_once" | "reject_always";
++
++export interface PermissionOption {
++  optionId: string;
++  name: string;
++  kind: PermissionOptionKind;
++}
++
++/** The tool call a session puts on the permission request it raises for an extension dialog. */
++export interface DialogToolCall {
++  toolCallId: string;
++  title: string;
++  kind: "other";
++  status: "pending";
++  rawInput: Record<string, unknown>;
++}
++
++export interface PermissionOutcome {
++  outcome: { outcome: "cancelled" } | { outcome: "selected"; optionId: string };
++}
++
++/** The ACP client side a session talks to. */
++export interface AcpClientConnection {
++  sessionUpdate(params: { sessionId: string; update: Record<string, unknown> }): Promise<void>;
++  requestPermission(params: {
++    sessionId: string;
++    toolCall: DialogToolCall;
++    options: PermissionOption[];
++  }): Promise<PermissionOutcome>;
++}
++
++/** One edit's content before and after, captured by the host inside the edit itself. */
++export interface EditDiff {
++  path: string;
++  oldText: string;
++  newText: string;
++}
++
++export interface PiAcpSessionOptions {
++  sessionId: string;
++  cwd: string;
++  mcpServers?: unknown[];
++  proc: PiProcess;
++  conn: AcpClientConnection;
++  fileCommands?: unknown[];
++  /** Supplies edit diffs so the session never reads files while mapping events. */
++  editDiffs?: { take(toolCallId: string): EditDiff | undefined };
++  /** Reject a failed prompt with its message and continue with queued prompts. */
++  rejectPromptFailures?: boolean;
++}
++
++export declare class PiAcpSession {
++  readonly sessionId: string;
++  constructor(opts: PiAcpSessionOptions);
++  /** Resolves with the ACP stop reason: "end_turn", "cancelled" or "error". */
++  prompt(message: string, images?: PiImage[]): Promise<string>;
++  cancel(): Promise<void>;
++  wasCancelRequested(): boolean;
++  flushEmits(): Promise<void>;
++}
++
++export declare function promptToPiMessage(blocks: unknown[]): { message: string; images: PiImage[] };
++
++export declare function replayPiMessages(
++  messages: unknown[],
++  sessionUpdate: (update: Record<string, unknown>) => Promise<void>,
++): Promise<void>;
++
++export declare function toolResultToText(result: unknown): string;
+diff --git a/dist/session.js b/dist/session.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..757e135f49d3ea22f47477d65663f0b05529ab1f
+--- /dev/null
++++ b/dist/session.js
+@@ -0,0 +1,846 @@
++// src/acp/session-module.ts: the ACP session and its translation helpers, importable without
++// starting the stdio agent in index.js. Moved verbatim; index.js imports them from here.
++import { RequestError } from "@agentclientprotocol/sdk";
++import { readFileSync as readFileSync3 } from "fs";
++import { isAbsolute, resolve as resolvePath } from "path";
++
++// src/acp/auth.ts
++var PI_SETUP_METHOD_ID = "pi_terminal_login";
++function getAuthMethods(opts) {
++  const supportsTerminalAuthMeta = opts?.supportsTerminalAuthMeta ?? true;
++  const method = {
++    id: PI_SETUP_METHOD_ID,
++    name: "Launch pi in the terminal",
++    description: "Start pi in an interactive terminal to configure API keys or login",
++    // Registry-required fields
++    type: "terminal",
++    args: ["--terminal-login"],
++    env: {}
++  };
++  if (supportsTerminalAuthMeta) {
++    const launch = terminalAuthLaunchSpec();
++    method._meta = {
++      ...method._meta ?? {},
++      "terminal-auth": {
++        ...launch,
++        label: "Launch pi"
++      }
++    };
++  }
++  return [method];
++}
++function terminalAuthLaunchSpec() {
++  const argv0 = process.argv[0] || "node";
++  const argv1 = process.argv[1];
++  if (argv1 && argv0) {
++    const isNode = argv0.includes("node");
++    const isJs = argv1.endsWith(".js");
++    if (isNode && isJs) {
++      return { command: argv0, args: [argv1, "--terminal-login"] };
++    }
++  }
++  return { command: "pi-acp", args: ["--terminal-login"] };
++}
++
++
++function maybeAuthRequiredError(err) {
++  const msg = String(err?.message ?? err ?? "");
++  const s = msg.toLowerCase();
++  const patterns = [
++    "api key",
++    "apikey",
++    "missing key",
++    "no key",
++    "not configured",
++    "unauthorized",
++    "authentication",
++    "permission denied",
++    "forbidden",
++    "401",
++    "403"
++  ];
++  const hit = patterns.some((p) => s.includes(p));
++  if (!hit) return null;
++  return RequestError.authRequired(
++    {
++      authMethods: getAuthMethods()
++    },
++    "Configure an API key or log in with an OAuth provider."
++  );
++}
++
++
++function parseCommandArgs(argsString) {
++  const args = [];
++  let current = "";
++  let inQuote = null;
++  for (let i = 0; i < argsString.length; i++) {
++    const ch = argsString[i];
++    if (inQuote) {
++      if (ch === inQuote) inQuote = null;
++      else current += ch;
++      continue;
++    }
++    if (ch === '"' || ch === "'") {
++      inQuote = ch;
++    } else if (ch === " " || ch === "	") {
++      if (current) {
++        args.push(current);
++        current = "";
++      }
++    } else {
++      current += ch;
++    }
++  }
++  if (current) args.push(current);
++  return args;
++}
++function substituteArgs(content, args) {
++  let result = content;
++  result = result.replace(/\$@/g, args.join(" "));
++  result = result.replace(/\$(\d+)/g, (_m, num) => {
++    const idx = Number.parseInt(String(num), 10) - 1;
++    return args[idx] ?? "";
++  });
++  return result;
++}
++function expandSlashCommand(text, fileCommands) {
++  if (!text.startsWith("/")) return text;
++  const spaceIndex = text.indexOf(" ");
++  const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
++  const argsString = spaceIndex === -1 ? "" : text.slice(spaceIndex + 1);
++  const cmd = fileCommands.find((c) => c.name === commandName);
++  if (!cmd) return text;
++  const args = parseCommandArgs(argsString);
++  return substituteArgs(cmd.content, args);
++}
++
++// src/acp/translate/pi-tools.ts
++function toolResultToText(result) {
++  if (!result) return "";
++  const content = result.content;
++  if (Array.isArray(content)) {
++    const texts = content.map((c) => c?.type === "text" && typeof c.text === "string" ? c.text : "").filter(Boolean);
++    if (texts.length) return texts.join("");
++  }
++  const details = result?.details;
++  const diff = details?.diff;
++  if (typeof diff === "string" && diff.trim()) {
++    return diff;
++  }
++  const stdout = (typeof details?.stdout === "string" ? details.stdout : void 0) ?? (typeof result?.stdout === "string" ? result.stdout : void 0) ?? (typeof details?.output === "string" ? details.output : void 0) ?? (typeof result?.output === "string" ? result.output : void 0);
++  const stderr = (typeof details?.stderr === "string" ? details.stderr : void 0) ?? (typeof result?.stderr === "string" ? result.stderr : void 0);
++  const exitCode = (typeof details?.exitCode === "number" ? details.exitCode : void 0) ?? (typeof result?.exitCode === "number" ? result.exitCode : void 0) ?? (typeof details?.code === "number" ? details.code : void 0) ?? (typeof result?.code === "number" ? result.code : void 0);
++  if (typeof stdout === "string" && stdout.trim() || typeof stderr === "string" && stderr.trim()) {
++    const parts = [];
++    if (typeof stdout === "string" && stdout.trim()) parts.push(stdout);
++    if (typeof stderr === "string" && stderr.trim()) parts.push(`stderr:
++${stderr}`);
++    if (typeof exitCode === "number") parts.push(`exit code: ${exitCode}`);
++    return parts.join("\n\n").trimEnd();
++  }
++  try {
++    return JSON.stringify(result, null, 2);
++  } catch {
++    return String(result);
++  }
++}
++
++// src/acp/session.ts
++var CONFIRM_PERMISSION_OPTIONS = [
++  { optionId: "yes", name: "Yes", kind: "allow_once" },
++  { optionId: "no", name: "No", kind: "reject_once" }
++];
++var EXTENSION_UI_RAW_INPUT_KEYS = ["title", "message", "options", "placeholder", "prefill"];
++var CHOICE_OPTION_PREFIX = "choice-";
++function findUniqueLineNumber(text, needle) {
++  if (!needle) return void 0;
++  const first = text.indexOf(needle);
++  if (first < 0) return void 0;
++  const second = text.indexOf(needle, first + needle.length);
++  if (second >= 0) return void 0;
++  let line = 1;
++  for (let i = 0; i < first; i += 1) {
++    if (text.charCodeAt(i) === 10) line += 1;
++  }
++  return line;
++}
++function toToolCallLocations(args, cwd, line) {
++  const path = typeof args?.path === "string" ? args.path : void 0;
++  if (!path) return void 0;
++  const resolvedPath = isAbsolute(path) ? path : resolvePath(cwd, path);
++  return [{ path: resolvedPath, ...typeof line === "number" ? { line } : {} }];
++}
++var PiAcpSession = class {
++  sessionId;
++  cwd;
++  mcpServers;
++  startupInfo = null;
++  startupInfoSent = false;
++  proc;
++  conn;
++  fileCommands;
++  // Used to map abort semantics to ACP stopReason.
++  // Applies to the currently running turn.
++  cancelRequested = false;
++  // Current in-flight turn (if any). Additional prompts are queued.
++  pendingTurn = null;
++  lastAssistantError = null;
++  turnQueue = [];
++  // Track tool call statuses and ensure they are monotonic (pending -> in_progress -> completed).
++  // Some pi events can arrive out of order (e.g. late toolcall_* deltas after execution starts),
++  // and clients may hide progress if we ever downgrade back to `pending`.
++  currentToolCalls = /* @__PURE__ */ new Map();
++  // pi can emit multiple `turn_end` events for a single user prompt (e.g. after tool_use).
++  // Pi 0.85.1 emits agent_end per attempt; only agent_settled ends the prompt.
++  inAgentLoop = false;
++  // For ACP diff support: capture file contents before edits, then emit ToolCallContent {type:"diff"}.
++  // This is due to pi sending diff as a string as opposed to ACP expected diff format.
++  // Compatible format may need to be implemented in pi in the future.
++  editSnapshots = /* @__PURE__ */ new Map();
++  // Ensure `session/update` notifications are sent in order and can be awaited
++  // before completing a `session/prompt` request.
++  lastEmit = Promise.resolve();
++  constructor(opts) {
++    this.sessionId = opts.sessionId;
++    this.cwd = opts.cwd;
++    this.mcpServers = opts.mcpServers;
++    this.proc = opts.proc;
++    this.conn = opts.conn;
++    this.fileCommands = opts.fileCommands ?? [];
++    // An embedding host that already captured each edit's before/after text (inside the approved,
++    // confined edit) supplies it here, so event mapping never reads the file system itself.
++    this.editDiffs = opts.editDiffs;
++    // An embedding host that reports prompt failures as errors (not a silent "error" stop) and
++    // keeps serving queued prompts after one fails.
++    this.rejectPromptFailures = opts.rejectPromptFailures === true;
++    this.proc.onEvent((ev) => this.handlePiEvent(ev));
++  }
++  setStartupInfo(text) {
++    this.startupInfo = text;
++    this.startupInfoSent = false;
++  }
++  /**
++   * Best-effort attempt to send startup info outside of a prompt turn.
++   * Some clients (e.g. Zed) may only render agent messages once the UI is ready;
++   * callers can invoke this shortly after session/new returns.
++   */
++  sendStartupInfoIfPending() {
++    if (this.startupInfoSent || !this.startupInfo) return;
++    this.startupInfoSent = true;
++    this.emit({
++      sessionUpdate: "agent_message_chunk",
++      content: { type: "text", text: this.startupInfo }
++    });
++  }
++  async prompt(message, images = []) {
++    const expandedMessage = expandSlashCommand(message, this.fileCommands);
++    const turnPromise = new Promise((resolve4, reject) => {
++      const queued = { message: expandedMessage, images, resolve: resolve4, reject };
++      if (this.pendingTurn) {
++        this.turnQueue.push(queued);
++        this.emit({
++          sessionUpdate: "agent_message_chunk",
++          content: {
++            type: "text",
++            text: `Queued message (position ${this.turnQueue.length}).`
++          }
++        });
++        this.emit({
++          sessionUpdate: "session_info_update",
++          _meta: { piAcp: { queueDepth: this.turnQueue.length, running: true } }
++        });
++        return;
++      }
++      this.startTurn(queued);
++    });
++    return turnPromise;
++  }
++  async cancel() {
++    this.cancelRequested = true;
++    if (this.turnQueue.length) {
++      const queued = this.turnQueue.splice(0, this.turnQueue.length);
++      for (const t of queued) t.resolve("cancelled");
++      this.emit({
++        sessionUpdate: "agent_message_chunk",
++        content: { type: "text", text: "Cleared queued prompts." }
++      });
++      this.emit({
++        sessionUpdate: "session_info_update",
++        _meta: { piAcp: { queueDepth: 0, running: Boolean(this.pendingTurn) } }
++      });
++    }
++    await this.proc.abort();
++  }
++  wasCancelRequested() {
++    return this.cancelRequested;
++  }
++  emit(update) {
++    this.lastEmit = this.lastEmit.then(
++      () => this.conn.sessionUpdate({
++        sessionId: this.sessionId,
++        update
++      })
++    ).catch(() => {
++    });
++  }
++  async flushEmits() {
++    await this.lastEmit;
++  }
++  startTurn(t) {
++    this.cancelRequested = false;
++    this.lastAssistantError = null;
++    this.inAgentLoop = false;
++    this.pendingTurn = { resolve: t.resolve, reject: t.reject };
++    this.emit({
++      sessionUpdate: "session_info_update",
++      _meta: { piAcp: { queueDepth: this.turnQueue.length, running: true } }
++    });
++    this.proc.prompt(t.message, t.images).catch((err) => {
++      void this.flushEmits().finally(() => {
++        const authErr = maybeAuthRequiredError(err);
++        if (authErr) {
++          this.pendingTurn?.reject(authErr);
++        } else if (this.rejectPromptFailures && !this.cancelRequested) {
++          this.pendingTurn?.reject(RequestError.internalError(void 0, String(err?.message ?? err)));
++        } else {
++          const reason = this.cancelRequested ? "cancelled" : "error";
++          this.pendingTurn?.resolve(reason);
++        }
++        this.pendingTurn = null;
++        this.inAgentLoop = false;
++        const next = this.rejectPromptFailures ? this.turnQueue.shift() : void 0;
++        if (next) {
++          this.emit({
++            sessionUpdate: "agent_message_chunk",
++            content: { type: "text", text: `Starting queued message. (${this.turnQueue.length} remaining)` }
++          });
++          this.startTurn(next);
++          return;
++        }
++        this.emit({
++          sessionUpdate: "session_info_update",
++          _meta: { piAcp: { queueDepth: this.turnQueue.length, running: false } }
++        });
++      });
++      void err;
++    });
++  }
++  handlePiEvent(ev) {
++    const type = String(ev.type ?? "");
++    switch (type) {
++      case "message_update": {
++        const ame = ev.assistantMessageEvent;
++        if (ame?.type === "text_delta" && typeof ame.delta === "string") {
++          this.emit({
++            sessionUpdate: "agent_message_chunk",
++            content: { type: "text", text: ame.delta }
++          });
++          break;
++        }
++        if (ame?.type === "thinking_delta" && typeof ame.delta === "string") {
++          this.emit({
++            sessionUpdate: "agent_thought_chunk",
++            content: { type: "text", text: ame.delta }
++          });
++          break;
++        }
++        if (ame?.type === "toolcall_start" || ame?.type === "toolcall_delta" || ame?.type === "toolcall_end") {
++          const toolCall = (
++            // pi sometimes includes the tool call directly on the event
++            ame?.toolCall ?? // ...and always includes it in the partial assistant message at contentIndex
++            ame?.partial?.content?.[ame?.contentIndex ?? 0]
++          );
++          const toolCallId = String(toolCall?.id ?? "");
++          const toolName = String(toolCall?.name ?? "tool");
++          if (toolCallId) {
++            const rawInput = toolCall?.arguments && typeof toolCall.arguments === "object" ? toolCall.arguments : (() => {
++              const s = String(toolCall?.partialArgs ?? "");
++              if (!s) return void 0;
++              try {
++                return JSON.parse(s);
++              } catch {
++                return { partialArgs: s };
++              }
++            })();
++            const locations = toToolCallLocations(rawInput, this.cwd);
++            const existingStatus = this.currentToolCalls.get(toolCallId);
++            const status = existingStatus ?? "pending";
++            if (!existingStatus) {
++              this.currentToolCalls.set(toolCallId, "pending");
++              this.emit({
++                sessionUpdate: "tool_call",
++                toolCallId,
++                title: toolName,
++                kind: toToolKind(toolName),
++                status,
++                locations,
++                rawInput
++              });
++            } else {
++              this.emit({
++                sessionUpdate: "tool_call_update",
++                toolCallId,
++                status,
++                locations,
++                rawInput
++              });
++            }
++          }
++          break;
++        }
++        break;
++      }
++      case "tool_execution_start": {
++        const toolCallId = String(ev.toolCallId ?? crypto.randomUUID());
++        const toolName = String(ev.toolName ?? "tool");
++        const args = ev.args;
++        let line;
++        if (toolName === "edit" && !this.editDiffs) {
++          const p = typeof args?.path === "string" ? args.path : void 0;
++          if (p) {
++            try {
++              const abs = isAbsolute(p) ? p : resolvePath(this.cwd, p);
++              const oldText = readFileSync3(abs, "utf8");
++              this.editSnapshots.set(toolCallId, { path: p, oldText });
++              const needle = typeof args?.oldText === "string" ? args.oldText : "";
++              line = findUniqueLineNumber(oldText, needle);
++            } catch {
++            }
++          }
++        }
++        const locations = toToolCallLocations(args, this.cwd, line);
++        if (!this.currentToolCalls.has(toolCallId)) {
++          this.currentToolCalls.set(toolCallId, "in_progress");
++          this.emit({
++            sessionUpdate: "tool_call",
++            toolCallId,
++            title: toolName,
++            kind: toToolKind(toolName),
++            status: "in_progress",
++            locations,
++            rawInput: args
++          });
++        } else {
++          this.currentToolCalls.set(toolCallId, "in_progress");
++          this.emit({
++            sessionUpdate: "tool_call_update",
++            toolCallId,
++            status: "in_progress",
++            locations,
++            rawInput: args
++          });
++        }
++        break;
++      }
++      case "tool_execution_update": {
++        const toolCallId = String(ev.toolCallId ?? "");
++        if (!toolCallId) break;
++        const partial = ev.partialResult;
++        const text = toolResultToText(partial);
++        this.emit({
++          sessionUpdate: "tool_call_update",
++          toolCallId,
++          status: "in_progress",
++          content: text ? [{ type: "content", content: { type: "text", text } }] : void 0,
++          rawOutput: partial
++        });
++        break;
++      }
++      case "tool_execution_end": {
++        const toolCallId = String(ev.toolCallId ?? "");
++        if (!toolCallId) break;
++        const result = ev.result;
++        const isError = Boolean(ev.isError);
++        const text = toolResultToText(result);
++        const snapshot = this.editSnapshots.get(toolCallId);
++        const injectedDiff = this.editDiffs?.take(toolCallId);
++        let content;
++        if (!isError && injectedDiff && injectedDiff.newText !== injectedDiff.oldText) {
++          content = [
++            {
++              type: "diff",
++              path: injectedDiff.path,
++              oldText: injectedDiff.oldText,
++              newText: injectedDiff.newText
++            },
++            ...text ? [{ type: "content", content: { type: "text", text } }] : []
++          ];
++        }
++        if (!isError && snapshot) {
++          try {
++            const abs = isAbsolute(snapshot.path) ? snapshot.path : resolvePath(this.cwd, snapshot.path);
++            const newText = readFileSync3(abs, "utf8");
++            if (newText !== snapshot.oldText) {
++              content = [
++                {
++                  type: "diff",
++                  path: snapshot.path,
++                  oldText: snapshot.oldText,
++                  newText
++                },
++                ...text ? [{ type: "content", content: { type: "text", text } }] : []
++              ];
++            }
++          } catch {
++          }
++        }
++        if (!content && text) {
++          content = [{ type: "content", content: { type: "text", text } }];
++        }
++        this.emit({
++          sessionUpdate: "tool_call_update",
++          toolCallId,
++          status: isError ? "failed" : "completed",
++          content,
++          rawOutput: result
++        });
++        this.currentToolCalls.delete(toolCallId);
++        this.editSnapshots.delete(toolCallId);
++        break;
++      }
++      case "extension_ui_request": {
++        void this.handleExtensionUiRequest(ev).catch(() => {
++          const id = stringProp(ev, "id");
++          if (!id) {
++            return;
++          }
++          void this.proc.sendExtensionUiResponse({ id, cancelled: true }).catch(() => {
++          });
++        });
++        break;
++      }
++      // Recovery is operational state, never assistant conversation text.
++      case "auto_retry_start":
++      case "auto_retry_end": {
++        break;
++      }
++      case "message_end": {
++        if (ev.message?.role === "assistant") {
++          this.lastAssistantError = ev.message.stopReason === "error"
++            ? String(ev.message.errorMessage || "Model request failed")
++            : null;
++        }
++        break;
++      }
++      case "auto_compaction_start": {
++        this.emit({
++          sessionUpdate: "agent_message_chunk",
++          content: {
++            type: "text",
++            text: "Context nearing limit, running automatic compaction..."
++          }
++        });
++        break;
++      }
++      case "auto_compaction_end": {
++        this.emit({
++          sessionUpdate: "agent_message_chunk",
++          content: {
++            type: "text",
++            text: "Automatic compaction finished; context was summarized to continue the session."
++          }
++        });
++        break;
++      }
++      case "agent_start": {
++        this.inAgentLoop = true;
++        break;
++      }
++      case "turn_end": {
++        break;
++      }
++      case "agent_end": {
++        // Retries and compaction may still continue this prompt.
++        break;
++      }
++      case "agent_settled": {
++        void this.flushEmits().finally(() => {
++          const reason = this.cancelRequested ? "cancelled" : "end_turn";
++          if (this.lastAssistantError && !this.cancelRequested) {
++            this.pendingTurn?.reject(RequestError.internalError(undefined, this.lastAssistantError));
++          } else {
++            this.pendingTurn?.resolve(reason);
++          }
++          this.pendingTurn = null;
++          this.inAgentLoop = false;
++          const next = this.turnQueue.shift();
++          if (next) {
++            this.emit({
++              sessionUpdate: "agent_message_chunk",
++              content: { type: "text", text: `Starting queued message. (${this.turnQueue.length} remaining)` }
++            });
++            this.startTurn(next);
++          } else {
++            this.emit({
++              sessionUpdate: "session_info_update",
++              _meta: { piAcp: { queueDepth: 0, running: false } }
++            });
++          }
++        });
++        break;
++      }
++      default:
++        break;
++    }
++  }
++  async handleExtensionUiRequest(ev) {
++    const id = stringProp(ev, "id");
++    const method = stringProp(ev, "method");
++    if (!id) {
++      return;
++    }
++    if (method === "select") {
++      await this.handleExtensionSelect(ev, id);
++      return;
++    }
++    if (method === "confirm") {
++      await this.handleExtensionConfirm(ev, id);
++      return;
++    }
++    if (method === "input" || method === "editor") {
++      this.emit({
++        sessionUpdate: "agent_message_chunk",
++        content: {
++          type: "text",
++          text: `Pi ${method} UI request is not supported in ACP yet; cancelling it.`
++        }
++      });
++      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
++      return;
++    }
++    if (method === "notify") {
++      this.emit({
++        sessionUpdate: "agent_message_chunk",
++        content: { type: "text", text: stringProp(ev, "message") ?? "Pi notification" }
++      });
++      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
++      return;
++    }
++    await this.proc.sendExtensionUiResponse({ id, cancelled: true });
++  }
++  async handleExtensionSelect(ev, id) {
++    const rawOptions = ev.options;
++    const options = Array.isArray(rawOptions) ? rawOptions.map((option) => String(option)) : [];
++    if (!options.length) {
++      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
++      return;
++    }
++    const permissionOptions = options.map((name, index2) => ({
++      optionId: `${CHOICE_OPTION_PREFIX}${index2}`,
++      name,
++      kind: "allow_once"
++    }));
++    const selected = await this.requestExtensionPermission(id, ev, permissionOptions);
++    if (selected === null) {
++      return;
++    }
++    const selectedOptionId = selected.outcome.outcome === "selected" ? selected.outcome.optionId : null;
++    const index = selectedOptionId === null ? null : optionIndex(selectedOptionId);
++    const value = index === null ? null : options.at(index) ?? null;
++    await this.proc.sendExtensionUiResponse(value === null ? { id, cancelled: true } : { id, value });
++  }
++  async handleExtensionConfirm(ev, id) {
++    const selected = await this.requestExtensionPermission(id, ev, CONFIRM_PERMISSION_OPTIONS);
++    if (selected === null) {
++      return;
++    }
++    if (selected.outcome.outcome === "cancelled") {
++      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
++      return;
++    }
++    await this.proc.sendExtensionUiResponse({ id, confirmed: selected.outcome.optionId === "yes" });
++  }
++  async requestExtensionPermission(id, ev, options) {
++    try {
++      return await this.conn.requestPermission({
++        sessionId: this.sessionId,
++        toolCall: extensionUiToolCall(id, ev),
++        options
++      });
++    } catch {
++      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
++      return null;
++    }
++  }
++};
++function extensionUiToolCall(id, ev) {
++  const method = stringProp(ev, "method") ?? "ui";
++  const title = stringProp(ev, "title") ?? `Pi ${method}`;
++  const rawInput = { method };
++  for (const key of EXTENSION_UI_RAW_INPUT_KEYS) {
++    if (Object.hasOwn(ev, key)) rawInput[key] = ev[key];
++  }
++  return {
++    toolCallId: `pi-ui-${id}`,
++    title,
++    kind: "other",
++    status: "pending",
++    rawInput
++  };
++}
++function stringProp(source, key) {
++  const value = source[key];
++  return typeof value === "string" ? value : null;
++}
++function optionIndex(optionId) {
++  if (!optionId.startsWith(CHOICE_OPTION_PREFIX)) {
++    return null;
++  }
++  const rawIndex = optionId.slice(CHOICE_OPTION_PREFIX.length);
++  if (!rawIndex) {
++    return null;
++  }
++  const index = Number(rawIndex);
++  return Number.isSafeInteger(index) && index >= 0 && String(index) === rawIndex ? index : null;
++}
++function formatAutoRetryMessage(ev) {
++  const attempt = Number(ev.attempt);
++  const maxAttempts = Number(ev.maxAttempts);
++  const delayMs = Number(ev.delayMs);
++  if (!Number.isFinite(attempt) || !Number.isFinite(maxAttempts) || !Number.isFinite(delayMs)) {
++    return "Retrying...";
++  }
++  let delaySeconds = Math.round(delayMs / 1e3);
++  if (delayMs > 0 && delaySeconds === 0) delaySeconds = 1;
++  return `Retrying (attempt ${attempt}/${maxAttempts}, waiting ${delaySeconds}s)...`;
++}
++function toToolKind(toolName) {
++  switch (toolName) {
++    case "read":
++      return "read";
++    case "write":
++    case "edit":
++      return "edit";
++    case "bash":
++      return "other";
++    default:
++      return "other";
++  }
++}
++
++// src/acp/translate/pi-messages.ts
++function normalizePiMessageText(content) {
++  if (typeof content === "string") return content;
++  if (!Array.isArray(content)) return "";
++  return content.map((c) => c?.type === "text" && typeof c.text === "string" ? c.text : "").filter(Boolean).join("");
++}
++function normalizePiAssistantText(content) {
++  if (!Array.isArray(content)) return "";
++  return content.map((c) => c?.type === "text" && typeof c.text === "string" ? c.text : "").filter(Boolean).join("");
++}
++
++// src/acp/translate/prompt.ts
++function promptToPiMessage(blocks) {
++  let message = "";
++  const images = [];
++  for (const b of blocks) {
++    switch (b.type) {
++      case "text":
++        message += b.text;
++        break;
++      case "resource_link":
++        message += `
++[Context] ${b.uri}`;
++        break;
++      case "image": {
++        images.push({
++          type: "image",
++          mimeType: b.mimeType,
++          data: b.data
++        });
++        break;
++      }
++      case "resource": {
++        const r = b.resource;
++        const uri = typeof r?.uri === "string" ? r.uri : "(unknown)";
++        if (typeof r?.text === "string") {
++          const mime = typeof r?.mimeType === "string" ? r.mimeType : "text/plain";
++          message += `
++[Embedded Context] ${uri} (${mime})
++${r.text}`;
++        } else if (typeof r?.blob === "string") {
++          const mime = typeof r?.mimeType === "string" ? r.mimeType : "application/octet-stream";
++          const bytes = Buffer.byteLength(r.blob, "base64");
++          message += `
++[Embedded Context] ${uri} (${mime}, ${bytes} bytes)`;
++        } else {
++          message += `
++[Embedded Context] ${uri}`;
++        }
++        break;
++      }
++      case "audio": {
++        const bytes = Buffer.byteLength(b.data, "base64");
++        message += `
++[Audio] (${b.mimeType}, ${bytes} bytes) not supported by pi-acp`;
++        break;
++      }
++      default:
++        break;
++    }
++  }
++  return { message, images };
++}
++
++/** Replay a saved Pi conversation as ACP updates, as `session/load` does. */
++async function replayPiMessages(messages, sessionUpdate) {
++  for (const m of messages) {
++    const role = String(m?.role ?? "");
++    if (role === "user") {
++      const text = normalizePiMessageText(m?.content);
++      if (text) {
++        await sessionUpdate({
++          sessionUpdate: "user_message_chunk",
++          content: { type: "text", text }
++        });
++      }
++    }
++    if (role === "assistant") {
++      const text = normalizePiAssistantText(m?.content);
++      if (text) {
++        await sessionUpdate({
++          sessionUpdate: "agent_message_chunk",
++          content: { type: "text", text }
++        });
++      }
++    }
++    if (role === "toolResult") {
++      const toolName = String(m?.toolName ?? "tool");
++      const toolCallId = String(m?.toolCallId ?? crypto.randomUUID());
++      const isError = Boolean(m?.isError);
++      await sessionUpdate({
++        sessionUpdate: "tool_call",
++        toolCallId,
++        title: toolName,
++        kind: toolName === "read" ? "read" : toolName === "write" || toolName === "edit" ? "edit" : "other",
++        status: "completed",
++        rawInput: null,
++        rawOutput: m
++      });
++      const text = toolResultToText(m);
++      await sessionUpdate({
++        sessionUpdate: "tool_call_update",
++        toolCallId,
++        status: isError ? "failed" : "completed",
++        content: text ? [{ type: "content", content: { type: "text", text } }] : null,
++        rawOutput: m
++      });
++    }
++  }
++}
++
++export {
++  PI_SETUP_METHOD_ID,
++  getAuthMethods,
++  maybeAuthRequiredError,
++  parseCommandArgs,
++  expandSlashCommand,
++  toolResultToText,
++  toToolKind,
++  normalizePiMessageText,
++  normalizePiAssistantText,
++  promptToPiMessage,
++  replayPiMessages,
++  PiAcpSession
++};
+diff --git a/package.json b/package.json
+index a6080a436590cfad3c051a2138fde330e2f84028..4e5f4f3f2a343dcc5a24256ee7d5fe6af6397de3 100644
+--- a/package.json
++++ b/package.json
+@@ -59,5 +59,13 @@
+     "tsx": "^4.0.0",
+     "typescript": "^5.6.0",
+     "typescript-eslint": "^8.18.0"
++  },
++  "exports": {
++    ".": "./dist/index.js",
++    "./session": {
++      "types": "./dist/session.d.ts",
++      "default": "./dist/session.js"
++    },
++    "./package.json": "./package.json"
+   }
  }

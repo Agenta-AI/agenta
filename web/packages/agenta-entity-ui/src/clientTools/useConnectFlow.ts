@@ -35,7 +35,13 @@ import {
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {getAgentaApiUrl} from "@agenta/shared/api"
-import type {ClientToolMeta, SettleClientTool} from "@agenta/shared/clientTools"
+import {
+    connectRequestRefs,
+    declinedConnectOutput,
+    type ClientToolMeta,
+    type ConnectOutput,
+    type SettleClientTool,
+} from "@agenta/shared/clientTools"
 
 import {prettyIntegration} from "./useIntegrationIdentity"
 
@@ -55,18 +61,7 @@ const DEFAULT_PROVIDER = "composio"
  * stuck lookup doesn't read as a dead button. */
 const MODE_RESOLVE_TIMEOUT_MS = 8_000
 
-/** The settled call's reference shape (what the runner re-resolves against). */
-export interface ConnectOutput {
-    connected?: boolean
-    integration?: string
-    slug?: string
-    /**
-     * `"declined" | "cancelled" | "timeout"` for the three expected non-error terminal
-     * states, or the actual failure message when the create call itself errored (see
-     * `KNOWN_CONNECT_REASONS` in ConnectToolWidget, which renders the latter verbatim).
-     */
-    reason?: string
-}
+export type {ConnectOutput}
 
 export type ConnectPhase = "idle" | "connecting" | "error"
 
@@ -170,11 +165,8 @@ export const isConnectModeResolving = ({
 
 export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, active = true) => {
     const input = (meta.input ?? {}) as Record<string, unknown>
-    const integration = typeof input.integration === "string" ? input.integration : ""
-    // Connection slug: the call may pin one; default to the integration key. The output carries it
-    // back as the reference the runner re-resolves.
-    const slug =
-        typeof input.slug === "string" && input.slug ? input.slug : integration || "default"
+    // The output carries these back as the reference the runner re-resolves.
+    const {integration, slug} = connectRequestRefs(input)
     const hintedMode = input.mode === "api_key" ? "api_key" : "oauth"
     // The toolkit's real supported schemes override a hint the toolkit doesn't actually
     // support (see `resolveConnectMode`). While the catalog lookup is still in flight,
@@ -275,7 +267,14 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
                         ? {connected: false, reason: result.errorText}
                         : {connected: result.connected === true, reason: result.reason},
                 )
-                void Promise.resolve(submission).then(() => {
+                void Promise.resolve(submission).then((landed) => {
+                    // A host that reports the failure itself still RESOLVES, with `false` — read
+                    // as success, the card paints a settled outcome over a gate that is still
+                    // open and disarms the retry (see `SettleClientTool`).
+                    if (landed === false) {
+                        onSubmissionError(new Error("Could not save the answer. Try again."))
+                        return
+                    }
                     pendingAnswerRef.current = null
                 }, onSubmissionError)
             } catch (error) {
@@ -478,13 +477,11 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
         else setPhase("idle")
     }, [finish, teardown, integration, slug, meta.settled])
 
-    // The user's "Not now": a structured refusal (NOT an error), so the run resumes and the agent
-    // can respond gracefully / offer an alternative. Distinct from "cancelled" (abandoned popup) so
-    // the agent can tell an explicit decline from a mishap.
+    // The user's "Not now" — see `declinedConnectOutput`.
     const decline = useCallback(() => {
         if (settledRef.current || meta.settled || pendingAnswerRef.current) return
-        finish({connected: false, integration, slug, reason: "declined"})
-    }, [finish, integration, slug, meta.settled])
+        finish(declinedConnectOutput(meta.input))
+    }, [finish, meta.input, meta.settled])
 
     return {
         integration,

@@ -559,17 +559,35 @@ export const modelDisplayOrder = ({
     manual = [],
 }: {
     available: string[]
-    /** The ids that lead the list — the saved model list plus the provider's defaults. */
+    /**
+     * The ids that lead the list — Agenta's defaults followed by the saved model list — and, among
+     * themselves, IN THIS ARRAY'S OWN ORDER rather than the provider's.
+     *
+     * A live fetch replaces `available` with whatever the provider's `/models` returned, and
+     * providers do not agree on an order: OpenRouter answers most-popular first, xAI answers
+     * oldest first. Ranking the leading rows by provider order therefore put Grok 4.3 above 4.7
+     * the moment a key was tested. These rows are the ones Agenta curates, so they follow the
+     * curated ranking; everything below them still keeps provider order, which is the only
+     * ordering that exists for a model Agenta says nothing about.
+     */
     prioritized?: string[]
     manual?: string[]
 }): string[] => {
     const ids = [...new Set([...available, ...prioritized, ...manual])]
     const added = new Set(manual)
-    const first = new Set(prioritized)
+    // First occurrence wins: the card passes its defaults and then the saved list, which repeat
+    // the same ids. `new Map(pairs)` keeps the LAST pair, which would rank every default by its
+    // position in the saved list and invert the curated order it was given.
+    const rank = new Map<string, number>()
+    prioritized.forEach((id, index) => {
+        if (!rank.has(id)) rank.set(id, index)
+    })
     return [
         ...ids.filter((id) => added.has(id)),
-        ...ids.filter((id) => !added.has(id) && first.has(id)),
-        ...ids.filter((id) => !added.has(id) && !first.has(id)),
+        ...ids
+            .filter((id) => !added.has(id) && rank.has(id))
+            .sort((a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0)),
+        ...ids.filter((id) => !added.has(id) && !rank.has(id)),
     ]
 }
 

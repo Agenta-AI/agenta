@@ -23,6 +23,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import factory, {
+  createAgentaExtension,
   readPiTurnTraceControl,
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
@@ -835,5 +836,39 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       ),
       "also guides the new gateway-target call shape",
     );
+  });
+});
+
+describe("agenta extension: Pi's own shell commands stop at the tool-call limit (EU 2026-10-06)", () => {
+  // Pi's shell tool runs in the sandbox, where the runner cannot stop a command. Without a timeout
+  // a slow command ran until the run-wide watchdog ended the whole turn; with one, Pi stops it and
+  // the model reads "Command timed out", so the turn goes on.
+  const event = (toolName: string, input: Record<string, unknown>) => ({ type: "tool_call", toolName, toolCallId: "tc-t", input });
+
+  async function capped(input: Record<string, unknown>, toolName = "bash") {
+    const pi = fakePi();
+    createAgentaExtension({ AGENTA_AGENT_COMMAND_TIMEOUT_SECONDS: "300" })(pi as any);
+    const e = event(toolName, input);
+    for (const hook of pi.handlers.tool_call ?? []) assert.equal(await hook(e, undefined), undefined);
+    return e.input;
+  }
+
+  it("gives a command with no timeout the limit, and lowers a longer one to it", async () => {
+    assert.deepEqual(await capped({ command: "find /" }), { command: "find /", timeout: 300 });
+    assert.deepEqual(await capped({ command: "find /", timeout: 3600 }), { command: "find /", timeout: 300 });
+  });
+
+  it("keeps a shorter timeout the model asked for, and leaves other tools alone", async () => {
+    assert.deepEqual(await capped({ command: "sleep 1", timeout: 20 }), { command: "sleep 1", timeout: 20 });
+    assert.deepEqual(await capped({ path: "a.txt" }, "read"), { path: "a.txt" });
+  });
+
+  it("sets the timeout before the approval gate, so the person approves the command that will run", async () => {
+    const pi = fakePi();
+    createAgentaExtension({ AGENTA_AGENT_COMMAND_TIMEOUT_SECONDS: "300", AGENTA_AGENT_BUILTIN_GATING: "1" })(pi as any);
+    const { calls, ctx } = fakeDialogCtx(true);
+    const e = event("bash", { command: "ls" });
+    for (const hook of pi.handlers.tool_call!) await hook(e, ctx);
+    assert.deepEqual(JSON.parse(calls[0]!.message).input, { command: "ls", timeout: 300 });
   });
 });

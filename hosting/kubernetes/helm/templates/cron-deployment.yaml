@@ -13,6 +13,15 @@ spec:
   {{- with $cron.strategy }}
   strategy:
     {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Recreate, not RollingUpdate: supercronic does not coordinate across
+         pods, so two of them fire every schedule twice. A rolling update
+         overlaps old and new for a few seconds, which is enough to double a
+         job that happens to be due. The cost is a scheduling gap of one pod
+         start, which a cron job tolerates and a duplicate side effect does
+         not. */}}
+  strategy:
+    type: Recreate
   {{- end }}
   selector:
     matchLabels:
@@ -58,13 +67,20 @@ spec:
           envFrom:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- /* Liveness from the heartbeat file: this workload proves that supercronic fires its schedules.
+                 See agenta.heartbeatProbe in _helpers.tpl for what each workload's
+                 signal does and does not cover. Setting cron.livenessProbe
+                 replaces it; heartbeat.enabled false removes it. */}}
+          {{- if $cron.livenessProbe }}
           livenessProbe:
-            exec:
-              command: ["pgrep", "supercronic"]
-            initialDelaySeconds: 10
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 3
+            {{- toYaml $cron.livenessProbe | nindent 12 }}
+          {{- else }}
+          {{- $probe := include "agenta.heartbeatProbe" . }}
+          {{- if $probe }}
+          livenessProbe:
+            {{- $probe | nindent 12 }}
+          {{- end }}
+          {{- end }}
           {{- with $cron.lifecycle }}
           lifecycle:
             {{- toYaml . | nindent 12 }}
@@ -73,6 +89,16 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- $redisCaMount := include "agenta.redisDurableCaVolumeMount" . }}
+          {{- if $redisCaMount }}
+          volumeMounts:
+            {{- $redisCaMount | nindent 12 }}
+          {{- end }}
+      {{- $redisCaVolume := include "agenta.redisDurableCaVolume" . }}
+      {{- if $redisCaVolume }}
+      volumes:
+        {{- $redisCaVolume | nindent 8 }}
+      {{- end }}
       {{- with $cron.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -84,5 +110,10 @@ spec:
       {{- with $cron.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $spread := include "agenta.topologySpreadConstraints" (dict "root" $ "component" "cron" "key" "cron" "replicas" (include "agenta.cron.replicas" .)) }}
+      {{- if $spread }}
+      topologySpreadConstraints:
+        {{- $spread | nindent 8 }}
       {{- end }}
 {{- end }}

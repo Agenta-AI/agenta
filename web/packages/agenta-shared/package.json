@@ -18,6 +18,7 @@
     },
     "exports": {
         ".": "./src/index.ts",
+        "./analytics": "./src/analytics/index.ts",
         "./api": "./src/api/index.ts",
         "./api/env": "./src/api/env.ts",
         "./api/hostQueryClient": "./src/api/hostQueryClient.ts",
@@ -27,16 +28,14 @@
         "./utils": "./src/utils/index.ts",
         "./utils/mobileGate": "./src/utils/mobileGate/index.ts",
         "./hooks": "./src/hooks/index.ts",
+        "./quotes": "./src/quotes.ts",
         "./schemas": "./src/schemas/index.ts",
-        "./state": "./src/state/index.ts",
         "./types": "./src/types/index.ts",
-        "./utils": "./src/utils/index.ts",
-        "./utils/dateTime": "./src/utils/dateTime/index.ts",
-        "./utils/mobileGate": "./src/utils/mobileGate/index.ts"
+        "./utils/dateTime": "./src/utils/dateTime/index.ts"
     },
     "dependencies": {
         "@tanstack/query-persist-client-core": "5.100.9",
-        "axios": "1.18.0",
+        "axios": "1.20.0",
         "dayjs": "^1.11.20",
         "idb-keyval": "^6.3.0",
         "json5": "^2.2.3",

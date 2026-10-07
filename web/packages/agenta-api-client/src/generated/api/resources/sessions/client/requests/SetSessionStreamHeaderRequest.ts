@@ -11,5 +11,6 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SetSessionStreamHeaderRequest {
     session_id: string;
+    name_source?: AgentaApi.SessionNameSource | null;
     body: AgentaApi.SessionStreamHeaderEdit;
 }

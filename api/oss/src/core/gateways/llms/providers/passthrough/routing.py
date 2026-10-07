@@ -36,6 +36,7 @@ DIRECT_BASE_URLS: Dict[str, str] = {
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
     "cohere": "https://api.cohere.ai/compatibility/v1",
     "anthropic": "https://api.anthropic.com/v1",
+    "xai": "https://api.x.ai/v1",
 }
 
 
@@ -123,10 +124,13 @@ def _vertex_base_prefix(route: LLMResolvedRoute) -> str:
             provider_key=route.provider_key,
             detail="vertex endpoint needs region and extras.vertex_project (or a base_url)",
         )
-    return (
-        f"https://{route.region}-aiplatform.googleapis.com/v1/projects/{project}"
-        f"/locations/{route.region}"
+    # The `global` location has no regional host.
+    host = (
+        "aiplatform.googleapis.com"
+        if route.region == "global"
+        else f"{route.region}-aiplatform.googleapis.com"
     )
+    return f"https://{host}/v1/projects/{project}/locations/{route.region}"
 
 
 def _vertex_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:

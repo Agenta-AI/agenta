@@ -159,6 +159,17 @@ describe("gateRulePattern", () => {
         expect(gateRulePattern("test_run")).toBeNull()
     })
 
+    it("treats the channel tools as platform ops, never auto-allowable from the card", () => {
+        for (const op of [
+            "list_channel_destinations",
+            "send_channel_message",
+            "read_channel_messages",
+            "search_channel_messages",
+        ]) {
+            expect(gateRulePattern(op)).toBeNull()
+        }
+    })
+
     it("refuses client tools and MCP tools (mcp__ rules are dropped from the runner plan)", () => {
         expect(gateRulePattern("request_connection")).toBeNull()
         expect(gateRulePattern("request_input")).toBeNull()

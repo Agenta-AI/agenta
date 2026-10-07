@@ -4,7 +4,9 @@ import type * as AgentaApi from "../../../../index.js";
 
 /**
  * @example
- *     {}
+ *     {
+ *         body: {}
+ *     }
  */
 export interface QueryWorkflowRevisionsRequest {
     workflow_id?: string | null;
@@ -32,4 +34,5 @@ export interface QueryWorkflowRevisionsRequest {
     oldest?: string | null;
     limit?: number | null;
     order?: AgentaApi.QueryWorkflowRevisionsRequestOrder | null;
+    body: AgentaApi.WorkflowRevisionQueryRequest | null;
 }

@@ -18,4 +18,5 @@ export interface GetMountFilesRequest {
     with_counts?: boolean;
     git_aware?: boolean;
     include_gitignored?: boolean;
+    "x-agenta-app-scope"?: string | null;
 }

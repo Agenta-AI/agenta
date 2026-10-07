@@ -237,7 +237,51 @@ A turn that stops for an approval ends with `stop_reason: "paused"`. Two ways to
 POST /api/sessions/interactions/{interaction_id}/respond
 ```
 
-with a body of `{"answer": {...}}`. Related endpoints:
+The request needs an `Idempotency-Key` header. A request without one returns `422`.
+
+```bash
+IDEMPOTENCY_KEY=$(uuidgen)  # reuse the same value when you retry
+
+curl -X POST \
+  "https://eu.cloud.agenta.ai/api/sessions/interactions/019d952f-0000-0000-0000-000000000002/respond" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
+  -d '{"answer": {"approved": true}}'
+```
+
+| Body field              | Type   | Required                   | Description                                                                                                                |
+| ----------------------- | ------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `answer`                | object | One of `answer`, `answers` | The answer for the interaction in the path. For a `user_approval`, `{"approved": <bool>}`, with an optional `message`.     |
+| `answers`               | array  | One of `answer`, `answers` | Up to 100 `{"interaction_id", "answer"}` items for the same paused execution. It must include the interaction in the path. |
+| `expected_execution_id` | string | No                         | The execution you expect the interaction to belong to. A mismatch returns `409`.                                           |
+
+The `Idempotency-Key` header is a string of at most 255 characters. A retry with the same key and the same answer does not answer twice and returns `202`, so a client can retry safely after a network error. The retry reports the current state, which can differ from the first response: for example, `execution.state` is `terminal` once another answer has already continued the run. Reusing a key for a different answer returns `409` with the code `idempotency_key_reused`.
+
+A successful response is `202 Accepted`. Once every pending interaction of the paused execution has an answer, the run continues in the background, in a new execution of the same session. The response below is trimmed; `interaction` carries the full interaction record.
+
+```json
+{
+  "interaction": {
+    "id": "019d952f-0000-0000-0000-000000000002",
+    "session_id": "019d952f-0000-0000-0000-000000000001",
+    "kind": "user_approval",
+    "status": "responded"
+  },
+  "command": {
+    "id": "019d952f-0000-0000-0000-000000000003",
+    "state": "pending"
+  },
+  "execution": {
+    "id": "019d952f-0000-0000-0000-000000000004",
+    "state": "pending_delivery"
+  }
+}
+```
+
+When the paused execution still has other pending interactions, `execution.state` is `awaiting_interactions`, `command` is `null`, and no new execution starts. Answer the remaining interactions to continue the run.
+
+Related endpoints:
 
 | Method and path                                            | Purpose                                |
 | ---------------------------------------------------------- | -------------------------------------- |
@@ -246,14 +290,15 @@ with a body of `{"answer": {...}}`. Related endpoints:
 | `POST /api/sessions/interactions/{interaction_id}/respond` | Answer a pending interaction.          |
 | `POST /api/sessions/interactions/transition`               | Move an interaction to another status. |
 
-An interaction has a `kind` of `user_approval`, `user_input`, or `client_tool`, and a `status` of `pending`, `responded`, `resolved`, or `cancelled`. Responding to an interaction that is not `pending` returns `409`.
+An interaction has a `kind` of `user_approval`, `user_input`, or `client_tool`, and a `status` of `pending`, `responded`, `resolved`, or `cancelled`. To retry a request, reuse its `Idempotency-Key`. Sending the same answer to an interaction that is already `responded` is accepted. A different answer to a `responded` interaction returns `409`, and so does any answer to a `resolved` or `cancelled` one.
 
 ## Errors
 
-| Status                         | Cause                                                                                                                                                                                                                                                                                           |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `400`                          | The agent template uses a pre-migration flat key, or an unknown key inside `harness`, `runner`, or `sandbox`. The `runner.permissions.default` value is not one of the four modes. The `session_id` does not match the allowed pattern. Two execution reference families are populated at once. |
-| `401`                          | Missing or invalid credential.                                                                                                                                                                                                                                                                  |
-| `403`                          | The credential may not run services in that project.                                                                                                                                                                                                                                            |
-| `406`                          | `Accept` asked for a stream but the handler produced a batch response, or the reverse.                                                                                                                                                                                                          |
-| `4xx` / `5xx` in `status.code` | A run that fails returns a JSON body with the real status, even when a stream was requested.                                                                                                                                                                                                    |
+| Status                         | Cause                                                                                                                                                                                                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`                          | The agent template uses a pre-migration flat key, or an unknown key inside `harness`, `runner`, or `sandbox`. The `runner.permissions.default` value is not one of the four modes. The `session_id` does not match the allowed pattern. Two execution reference families are populated at once.         |
+| `401`                          | Missing or invalid credential.                                                                                                                                                                                                                                                                          |
+| `403`                          | The credential may not run services in that project.                                                                                                                                                                                                                                                    |
+| `406`                          | `Accept` asked for a stream but the handler produced a batch response, or the reverse.                                                                                                                                                                                                                  |
+| `410`                          | The request names an archived application by its id alone, with no variant or revision reference and no inline configuration. `status.type` ends in `#v0:references:archived`. Other request shapes still run on an archived application; see [#7110](https://github.com/Agenta-AI/agenta/issues/7110). |
+| `4xx` / `5xx` in `status.code` | A run that fails returns a JSON body with the real status, even when a stream was requested.                                                                                                                                                                                                            |

@@ -1,117 +1,160 @@
-/**
- * Regression guard for #6493: an individually switched-off build-kit tool (and the master off)
- * must survive a page reload. The UI state is persisted to localStorage; a page reload re-evaluates
- * the store module, whose `getOnInit` storage read seeds the atom from what the previous load wrote.
- * Here `vi.resetModules()` + a fresh import stands in for that reload.
- */
 import {createStore} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-// Node test env has no localStorage; a minimal Storage stub lets atomWithStorage persist.
-// jotai's default storage reads `window.localStorage`, so the stub is hung off a stub window.
-// The backing map outlives module resets so a re-import (the "reload") sees prior writes.
 class MemoryStorage {
-    constructor(private store: Map<string, string>) {}
-    get length() {
-        return this.store.size
-    }
-    clear() {
-        this.store.clear()
-    }
+    constructor(private backing: Map<string, string>) {}
     getItem(key: string) {
-        return this.store.get(key) ?? null
-    }
-    key(index: number) {
-        return [...this.store.keys()][index] ?? null
-    }
-    removeItem(key: string) {
-        this.store.delete(key)
+        return this.backing.get(key) ?? null
     }
     setItem(key: string, value: string) {
-        this.store.set(key, value)
+        this.backing.set(key, value)
+    }
+    removeItem(key: string) {
+        this.backing.delete(key)
     }
 }
 
-const REVISION = "rev-agent-1"
-
-// The store's module graph costs seconds of Vite transform the first time it is evaluated. Left to
-// the first case, that cost is charged to a 5-second case timeout the loaded machine blew through.
-// Vitest's transform cache survives `vi.resetModules()`, so paying it here, at module scope where
-// nothing is on the clock, leaves every case only the re-evaluation: about a tenth of a second.
 await import("../../src/workflow/state/store")
-
 type StoreModule = typeof import("../../src/workflow/state/store")
-
-/** Fresh module evaluation against the shared storage — a stand-in for a page load/reload. */
-async function loadStore(backing: Map<string, string>): Promise<StoreModule> {
+async function load(backing: Map<string, string>) {
     vi.stubGlobal("window", {localStorage: new MemoryStorage(backing)})
     vi.resetModules()
-    return import("../../src/workflow/state/store")
+    const mod = await import("../../src/workflow/state/store")
+    const store = createStore()
+    store.set(mod.workflowProjectIdAtom, "project")
+    return {mod, store}
+}
+function seed(
+    mod: StoreModule,
+    store: ReturnType<typeof createStore>,
+    revision: string,
+    agent: string,
+) {
+    store.set(mod.workflowLocalServerDataAtomFamily(revision), {
+        id: revision,
+        workflow_id: agent,
+        data: {},
+        flags: {is_agent: true},
+    } as never)
 }
 
-describe("build-kit UI state persistence", () => {
+describe("agent build kit policy", () => {
     let backing: Map<string, string>
-
     beforeEach(() => {
         backing = new Map()
     })
+    afterEach(() => vi.unstubAllGlobals())
 
-    afterEach(() => {
-        vi.unstubAllGlobals()
+    it("defaults to allow all", async () => {
+        const {mod, store} = await load(backing)
+        expect(store.get(mod.workflowBuildKitUiStateAtomFamily("rev"))).toEqual({
+            enabled: true,
+            disabledOps: [],
+        })
     })
 
-    it("defaults to enabled with no disabled ops", async () => {
-        const mod = await loadStore(backing)
-        const store = createStore()
-        expect(store.get(mod.workflowBuildKitEnabledAtomFamily(REVISION))).toBe(true)
-        expect(store.get(mod.workflowBuildKitDisabledOpsAtomFamily(REVISION))).toEqual([])
+    it("keeps choices across manual and assistant revisions, older revisions and reload", async () => {
+        const {mod, store} = await load(backing)
+        for (const rev of ["old", "manual", "assistant"]) seed(mod, store, rev, "agent-a")
+        const state = {
+            enabled: true,
+            disabledOps: ["remove_schedule"],
+            permissionOverrides: {create_schedule: "ask" as const},
+        }
+        store.set(mod.workflowBuildKitUiStateAtomFamily("old"), state)
+        expect(store.get(mod.workflowBuildKitUiStateAtomFamily("manual"))).toEqual(state)
+        expect(store.get(mod.workflowBuildKitUiStateAtomFamily("assistant"))).toEqual(state)
+        const reloaded = await load(backing)
+        seed(reloaded.mod, reloaded.store, "another-revision", "agent-a")
+        expect(
+            reloaded.store.get(reloaded.mod.workflowBuildKitUiStateAtomFamily("another-revision")),
+        ).toEqual(state)
     })
 
-    it("persists a switched-off tool across a reload", async () => {
-        const first = await loadStore(backing)
-        createStore().set(first.workflowBuildKitDisabledOpsAtomFamily(REVISION), ["read_file"])
-
-        const reloaded = await loadStore(backing)
-        const store = createStore()
-        expect(store.get(reloaded.workflowBuildKitDisabledOpsAtomFamily(REVISION))).toEqual([
-            "read_file",
-        ])
-        // The master flag is untouched by a tool toggle.
-        expect(store.get(reloaded.workflowBuildKitEnabledAtomFamily(REVISION))).toBe(true)
+    it("keeps agents and projects independent", async () => {
+        const {mod, store} = await load(backing)
+        seed(mod, store, "a", "agent-a")
+        seed(mod, store, "b", "agent-b")
+        store.set(mod.workflowBuildKitEnabledAtomFamily("a"), false)
+        expect(store.get(mod.workflowBuildKitEnabledAtomFamily("b"))).toBe(true)
+        store.set(mod.workflowProjectIdAtom, "another-project")
+        expect(store.get(mod.workflowBuildKitEnabledAtomFamily("a"))).toBe(true)
     })
 
-    it("persists the master off across a reload", async () => {
-        const first = await loadStore(backing)
-        createStore().set(first.workflowBuildKitEnabledAtomFamily(REVISION), false)
-
-        const reloaded = await loadStore(backing)
-        expect(createStore().get(reloaded.workflowBuildKitEnabledAtomFamily(REVISION))).toBe(false)
-    })
-
-    it("falls back to defaults when the persisted record is the wrong shape", async () => {
+    it("migrates legacy state once, without letting old revisions overwrite agent policy", async () => {
         backing.set(
             "agenta:playground:build-kit",
-            JSON.stringify({[REVISION]: {enabled: "yes", disabledOps: "read_file"}}),
+            JSON.stringify({
+                old: {enabled: false, disabledOps: ["remove_schedule"]},
+                older: {enabled: true, disabledOps: []},
+            }),
         )
-        const mod = await loadStore(backing)
-        const store = createStore()
-        expect(store.get(mod.workflowBuildKitEnabledAtomFamily(REVISION))).toBe(true)
-        expect(store.get(mod.workflowBuildKitDisabledOpsAtomFamily(REVISION))).toEqual([])
+        const {mod, store} = await load(backing)
+        seed(mod, store, "old", "agent")
+        seed(mod, store, "older", "agent")
+        seed(mod, store, "new", "agent")
+        store.set(mod.migrateBuildKitStateAtom, "old")
+        store.set(mod.migrateBuildKitStateAtom, "older")
+        expect(store.get(mod.workflowBuildKitUiStateAtomFamily("new"))).toEqual({
+            enabled: false,
+            disabledOps: ["remove_schedule"],
+        })
     })
 
-    it("keeps each revision's state independent", async () => {
-        const first = await loadStore(backing)
-        const writeStore = createStore()
-        writeStore.set(first.workflowBuildKitDisabledOpsAtomFamily("rev-a"), ["read_file"])
-        writeStore.set(first.workflowBuildKitDisabledOpsAtomFamily("rev-b"), ["write_file"])
+    it("does not reserve the agent scope before there is a policy to migrate", async () => {
+        backing.set(
+            "agenta:playground:build-kit",
+            JSON.stringify({old: {enabled: true, disabledOps: ["remove_schedule"]}}),
+        )
+        const {mod, store} = await load(backing)
+        seed(mod, store, "new", "agent")
+        seed(mod, store, "old", "agent")
+        store.set(mod.migrateBuildKitStateAtom, "new")
+        expect(backing.has("agenta:playground:build-kit:agents")).toBe(false)
+        store.set(mod.migrateBuildKitStateAtom, "old")
+        expect(store.get(mod.workflowBuildKitDisabledOpsAtomFamily("new"))).toEqual([
+            "remove_schedule",
+        ])
+    })
 
-        const reloaded = await loadStore(backing)
-        const store = createStore()
-        expect(store.get(reloaded.workflowBuildKitDisabledOpsAtomFamily("rev-a"))).toEqual([
-            "read_file",
-        ])
-        expect(store.get(reloaded.workflowBuildKitDisabledOpsAtomFamily("rev-b"))).toEqual([
-            "write_file",
-        ])
+    it("transfers staging choices once to a newly created agent", async () => {
+        const {mod, store} = await load(backing)
+        store.set(mod.workflowBuildKitUiStateAtomFamily("local-new"), {
+            enabled: false,
+            disabledOps: [],
+            permissionDefault: "ask",
+        })
+        store.set(mod.transferBuildKitStateAtom, {revisionId: "local-new", workflowId: "agent"})
+        seed(mod, store, "committed", "agent")
+        expect(store.get(mod.workflowBuildKitUiStateAtomFamily("committed"))).toEqual({
+            enabled: false,
+            disabledOps: [],
+            permissionDefault: "ask",
+        })
+        store.set(mod.transferBuildKitStateAtom, {revisionId: "another", workflowId: "agent"})
+        expect(store.get(mod.workflowBuildKitEnabledAtomFamily("committed"))).toBe(false)
+    })
+
+    it("does not write without project or identity", async () => {
+        const {mod, store} = await load(backing)
+        store.set(mod.workflowBuildKitEnabledAtomFamily(""), false)
+        store.set(mod.workflowProjectIdAtom, null)
+        store.set(mod.workflowBuildKitEnabledAtomFamily("a"), false)
+        expect(backing.size).toBe(0)
+    })
+
+    it("normalizes malformed storage without throwing", async () => {
+        backing.set("agenta:playground:build-kit:agents", "null")
+        backing.set(
+            "agenta:playground:build-kit",
+            JSON.stringify({
+                rev: {enabled: "yes", disabledOps: "bad", permissionOverrides: ["bad"]},
+            }),
+        )
+        const {mod, store} = await load(backing)
+        expect(store.get(mod.workflowBuildKitUiStateAtomFamily("rev"))).toEqual({
+            enabled: true,
+            disabledOps: [],
+        })
     })
 })

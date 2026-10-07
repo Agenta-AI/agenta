@@ -8,7 +8,6 @@
  * folder is a subfolder of this working folder, so it needs no separate drive here. Lives in the
  * app layer because it reads the chat slice's session state.
  */
-import {isAgentFileUploadsEnabled} from "@agenta/entities/drive"
 import {useConfigDrive} from "@agenta/entities/drive"
 import {listArrowKeyDown} from "@agenta/entities/drive"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
@@ -110,9 +109,7 @@ export default function StorageSection({
     // Drop-to-stage: a file drag over the Files peek opens the pane with the files staged, so the
     // destination folder is chosen there (this flat peek has no folder of its own).
     const {dropActive, dropProps: stageDropProps} = useStageDrop(
-        isAgentFileUploadsEnabled() && drive.mount && sessionId
-            ? (files) => setPaneStaged(files)
-            : undefined,
+        drive.mount && sessionId ? (files) => setPaneStaged(files) : undefined,
     )
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)

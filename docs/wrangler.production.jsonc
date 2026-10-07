@@ -17,7 +17,8 @@
   ],
   "assets": {
     "directory": "./dist",
-    "html_handling": "drop-trailing-slash",
+    // Match the preview config: keep /docs/ for the Docusaurus parent route.
+    "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page"
   }
 }

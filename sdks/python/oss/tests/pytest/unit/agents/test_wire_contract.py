@@ -606,14 +606,19 @@ async def test_default_template_carries_no_tool_entries_and_still_names_every_bu
 ):
     """Two guarantees at once, both of which a future edit could silently break.
 
-    The shipped default template carries NO tool entries: built-ins are activated by the
+    The shipped default template carries no built-in tool entries, only the Agenta tools: built-ins are activated by the
     runner, never configured. And the wire's deprecated ``tools`` field still names every
     built-in, so an older runner that reads it as a grant list activates the same set instead
     of the empty list that caused issue #5590. This starts from the SHIPPED default rather than
     a hand-written template, and it runs the real chain (template parse, tool resolution, the Pi
     harness adapter, the wire serializer).
     """
-    assert build_agent_v0_default()["tools"] == []
+    assert build_agent_v0_default()["tools"] == [
+        {
+            "type": "agenta_tools",
+            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+        }
+    ]
 
     template = AgentTemplate.from_params({"agent": build_agent_v0_default()})
     resolved = await ToolResolver().resolve(template.tools)
@@ -1416,6 +1421,8 @@ def test_result_from_wire_parses_ok(golden):
     assert result.session_id == "sess-42"
     assert result.model == "gpt-5.5"
     assert result.trace_id == "trace-abc"
+    # The provider that ran, after the runner's harness routing.
+    assert result.sandbox == "inprocess"
     # Capabilities come back camelCase and map onto snake_case flags.
     assert result.capabilities is not None
     assert result.capabilities.mcp_tools is True

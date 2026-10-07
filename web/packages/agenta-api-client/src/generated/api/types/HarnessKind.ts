@@ -4,10 +4,13 @@
  * The coding agent program a run drives. A backend declares which it supports.
  *
  * ``pi_core`` is Pi; ``claude`` drives Claude Code; ``codex`` drives Codex.
+ * ``mock`` drives no real coding agent at all: it is a deterministic, LLM-free, network-free
+ * stand-in for testing, selecting a named behavior the runner resolves in-process.
  */
 export const HarnessKind = {
     PiCore: "pi_core",
     Claude: "claude",
     Codex: "codex",
+    Mock: "mock",
 } as const;
 export type HarnessKind = (typeof HarnessKind)[keyof typeof HarnessKind];

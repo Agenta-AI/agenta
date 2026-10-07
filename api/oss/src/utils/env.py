@@ -254,26 +254,6 @@ class ApiCachingConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class WorkflowsConfig(BaseModel):
-    """Workflow-revision behavior toggles."""
-
-    # The ordered-operations change set (agent-config-editing). ON is the default: the
-    # request model carries the ordered arm and the catalog advertises it. The variable
-    # is an escape hatch — set it falsy and the deployment falls back to the legacy
-    # surface, where only `set`/`remove` exist and a delta carrying `operations` is
-    # refused as an unknown field.
-    # The SDK reads this SAME variable in `agenta/sdk/agents/flags.py` to decide what to
-    # advertise to the model and what the build-an-agent skill teaches, and cannot import
-    # this parser. Its default and its accepted spellings must match this one in both
-    # directions, or the model is shown one payload shape while the server accepts
-    # another. Pinned by `oss/tests/pytest/unit/workflows/test_ordered_operations_flag.py`.
-    ordered_operations_enabled: bool = _parse_bool_env(
-        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", True
-    )
-
-    model_config = ConfigDict(extra="ignore")
-
-
 class SkillsImportConfig(BaseModel):
     """Skill-registry import (repo/marketplace fetch) limits."""
 
@@ -288,12 +268,34 @@ class SkillsImportConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class ApiThrottlingConfig(BaseModel):
+    """Throttling budgets that do not come from an organization's plan."""
+
+    # The platform's own turn bookkeeping (heartbeats, record reads, turn rows, interactions,
+    # mounts, credential refresh), sent with a run credential. Its volume follows the
+    # platform's design, not the user's intent, so it has its own per-organization budget
+    # instead of spending the plan's; requests per minute. The middleware uses the larger of
+    # this and the plan's own bucket, so no organization gets less than its plan gave it before.
+    # Model-driven platform calls with the same credential are NOT bookkeeping and stay on the
+    # plan budget. The routes: `_BOOKKEEPING_ROUTES` in `ee/src/middlewares/throttling.py`.
+    bookkeeping_capacity: int = (
+        _parse_optional_positive_int_env("AGENTA_API_THROTTLING_BOOKKEEPING_CAPACITY")
+        or 60000
+    )
+    bookkeeping_rate: int = (
+        _parse_optional_positive_int_env("AGENTA_API_THROTTLING_BOOKKEEPING_RATE")
+        or 60000
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
-    workflows: WorkflowsConfig = WorkflowsConfig()
     skills_import: SkillsImportConfig = SkillsImportConfig()
+    throttling: ApiThrottlingConfig = ApiThrottlingConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -372,6 +374,15 @@ class OTLPConfig(BaseModel):
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
 
+    # Traces with more spans than this keep their per-request totals.
+    totals_max_spans: int = Field(
+        default_factory=lambda: int(
+            os.getenv("AGENTA_OTLP_TOTALS_MAX_SPANS") or 10_000
+        ),
+        ge=1,
+        validate_default=True,
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -443,6 +454,17 @@ class WorkersConfig(BaseModel):
 
     streams: list[str] = _load_csv_env_list("AGENTA_WORKER_STREAMS")
     queues: list[str] = _load_csv_env_list("AGENTA_WORKER_QUEUES")
+
+    # Where a long-running loop records that it is still turning. A liveness probe
+    # then fails when the file goes stale, which is the only way to notice a worker
+    # that is alive and no longer working: its process is PID 1 in its container, so
+    # the container lifecycle already covers a process that exits, and nothing covers
+    # one that stops making progress.
+    #
+    # Empty means write nothing, which is the default. A deployment that wants the
+    # probe sets this and points the probe at the same path, so the writer and the
+    # reader can never disagree. The Helm chart does both from one value.
+    heartbeat_file: str = os.getenv("AGENTA_HEARTBEAT_FILE") or ""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -539,29 +561,17 @@ def _parse_sessions_late_output() -> Literal["quarantine", "reject"]:
     return "quarantine"
 
 
-def _sessions_durable_stop_enabled() -> bool:
-    return (os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "true").lower() in _TRUTHY
-
-
 def _parse_sessions_watchdog_stale_heartbeat_seconds() -> int:
     configured = _parse_optional_positive_int_env(
         "AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS"
     )
     if configured is not None:
         return configured
-    return 90 if _sessions_durable_stop_enabled() else 300
+    return 90
 
 
 class SessionsRecordsConfig(BaseModel):
     """Durable session-record ingest tuning (server-side history reconstruction)."""
-
-    # When a record body exceeds the cap, preserve its structure + partial content (trim only
-    # the large field values) instead of replacing the whole body with {"_truncated": True}.
-    # Off = legacy whole-body drop, which loses the record's type and id and leaves the
-    # replayed tool card unable to settle. Default ON since 2026-08-11.
-    smart_truncation: bool = (
-        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "true"
-    ).lower() in _TRUTHY
 
     # How long a record message the worker failed to write sits unacknowledged before the
     # worker claims it back and tries again.
@@ -628,8 +638,8 @@ class SessionWatchdogConfig(BaseModel):
     onto `session_streams.updated_at`, so the age of that column is the real liveness signal.
 
     A turn is declared lost when its stream row still claims `is_running` and its last
-    heartbeat is older than `stale_heartbeat_seconds`. Durable Stop uses 90 seconds (three
-    missed beats); flag-off deployments retain the pre-milestone 300-second default.
+    heartbeat is older than `stale_heartbeat_seconds`, 90 seconds by default (three missed
+    beats).
 
     Only a turn that still claims `is_running` is eligible. A turn parked for a human sends a
     final beat with `is_running: false` and then stops beating on purpose; that state is
@@ -717,12 +727,6 @@ class SessionsCommandsConfig(BaseModel):
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
-    durable_stop: bool = _sessions_durable_stop_enabled()
-    durable_approvals: bool = (
-        os.getenv("AGENTA_SESSIONS_DURABLE_APPROVALS") or "true"
-    ).lower() in _TRUTHY
-    queue: bool = (os.getenv("AGENTA_SESSIONS_QUEUE") or "true").lower() in _TRUTHY
-    steer: bool = (os.getenv("AGENTA_SESSIONS_STEER") or "true").lower() in _TRUTHY
     late_output: Literal["quarantine", "reject"] = _parse_sessions_late_output()
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
@@ -815,6 +819,74 @@ class AlembicConfig(BaseModel):
     cfg_path_tracing: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or (
         f"/app/{_LICENSE}/databases/postgres/migrations/tracing/alembic.ini"
     )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# channels.slack — the Agenta-owned Slack app (hosted install), one
+# deployment's credentials, never a project's. See channels/adapters/slack.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsSlackConfig(BaseModel):
+    client_id: str | None = os.getenv("SLACK_CLIENT_ID")
+    client_secret: str | None = os.getenv("SLACK_CLIENT_SECRET")
+    signing_secret: str | None = os.getenv("SLACK_SIGNING_SECRET")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_id and self.client_secret and self.signing_secret)
+
+
+# ---------------------------------------------------------------------------
+# channels.telegram — the Agenta-owned Telegram bot (hosted bind), one
+# deployment's bot, shared by every project. A custom bot uses a per-project
+# token in the vault instead; these are only for the hosted bot.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsTelegramConfig(BaseModel):
+    # One shared bot token for the whole deployment, never a project's.
+    bot_token: str | None = os.getenv("TELEGRAM_HOSTED_BOT_TOKEN")
+    # The @username of the hosted bot, for the deep link t.me/<username>.
+    bot_username: str | None = os.getenv("TELEGRAM_HOSTED_BOT_USERNAME")
+    # The secret token Telegram echoes on every hosted webhook call, set once
+    # per deployment at setWebhook time; the ingress verifies it before it
+    # consumes a bind token or writes anything.
+    webhook_secret: str | None = os.getenv("TELEGRAM_HOSTED_WEBHOOK_SECRET")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        # A username is required too: without it the deep link degrades to
+        # https://t.me/?start=... , which connects nothing.
+        return bool(self.bot_token and self.webhook_secret and self.bot_username)
+
+
+# ---------------------------------------------------------------------------
+# channels.whatsapp — Meta's WhatsApp Cloud API. Each connection brings its own
+# number, token and app secret; the deployment only chooses the Graph API base.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsWhatsAppConfig(BaseModel):
+    # The versioned Graph API base. Overridable so a local stack can point the
+    # adapter at a fake Graph API instead of Meta.
+    graph_api_url: str = (
+        os.getenv("WHATSAPP_GRAPH_API_URL") or "https://graph.facebook.com/v24.0"
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class ChannelsConfig(BaseModel):
+    slack: ChannelsSlackConfig = ChannelsSlackConfig()
+    telegram: ChannelsTelegramConfig = ChannelsTelegramConfig()
+    whatsapp: ChannelsWhatsAppConfig = ChannelsWhatsAppConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1036,11 +1108,27 @@ class LLMGatewayConfig(BaseModel):
     The API is the authority. The SDK carries no matching flag of its own: it learns the
     plane is off from the refusal this flag produces (`llm_gateway_disabled`), so one
     deployment cannot end up with a runtime routing through a gateway the API has closed.
+
+    With it and `AGENTA_ROLLOUT_FLAGS_ENABLED` on, the `llm-gateway-rollout` PostHog flag
+    narrows it to listed organizations (`core/rollout/switches.py`).
     """
 
     enabled: bool = _parse_bool_env("AGENTA_LLM_GATEWAY_ENABLED", default=False)
 
+    # The platform's own Vertex AI account, which the `builtin/agenta` endpoint serves its
+    # models from. The endpoint exists only when the service-account document and the project
+    # are both set. Gateway names rather than the starter-credits proxy's `LITELLM_VERTEX_*`
+    # inputs: the API does not run LiteLLM's proxy, and the cloud sets both from one secret.
+    vertex_sa_json_b64: str | None = (
+        os.getenv("AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64") or None
+    )
+    vertex_project: str | None = os.getenv("AGENTA_LLM_GATEWAY_VERTEX_PROJECT") or None
+
     model_config = ConfigDict(extra="ignore")
+
+    @property
+    def vertex_configured(self) -> bool:
+        return bool(self.vertex_sa_json_b64 and self.vertex_project)
 
 
 class MCPGatewayConfig(BaseModel):
@@ -1336,6 +1424,7 @@ class LLMConfig(BaseModel):
     perplexityai: str = os.getenv("PERPLEXITYAI_API_KEY", "")
     togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
     minimax: str = os.getenv("MINIMAX_API_KEY", "")
+    xai: str = os.getenv("XAI_API_KEY", "")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1358,6 +1447,7 @@ class LLMConfig(BaseModel):
                 "perplexityai",
                 "togetherai",
                 "minimax",
+                "xai",
             ]
             if getattr(self, name)
         ]
@@ -1392,7 +1482,7 @@ _SANDBOX_LOCAL_WARNED = False
 
 # Sandbox providers this runner can provision. Kept in lockstep with the runner's
 # KNOWN_SANDBOX_PROVIDER_IDS and the SDK's KNOWN_SANDBOX_PROVIDERS so all three readers agree.
-_KNOWN_SANDBOX_PROVIDERS = ("local", "daytona")
+_KNOWN_SANDBOX_PROVIDERS = ("local", "daytona", "inprocess")
 
 
 def _parse_enabled_sandbox_providers(raw: Optional[str]) -> List[str]:
@@ -1448,9 +1538,18 @@ def _parse_default_sandbox_provider(raw: Optional[str], enabled: List[str]) -> s
     return value
 
 
+def _with_implied_sandbox_providers(ids: List[str]) -> List[str]:
+    """``inprocess`` is enabled wherever ``daytona`` is (the runner's withImpliedProviders)."""
+    if "daytona" in ids and "inprocess" not in ids:
+        return [*ids, "inprocess"]
+    return list(ids)
+
+
 def _enabled_sandbox_providers_default() -> List[str]:
-    return _parse_enabled_sandbox_providers(
-        os.getenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+    return _with_implied_sandbox_providers(
+        _parse_enabled_sandbox_providers(
+            os.getenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+        )
     )
 
 
@@ -1628,6 +1727,9 @@ class PostgresConfig(BaseModel):
 
     user: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
+    # Compose service name in-network; set POSTGRES_HOST=localhost to reach the
+    # published port from the host (tests run outside the network).
+    host: str = os.getenv("POSTGRES_HOST") or "postgres"
     # The bundled Postgres always listens on 5432 inside the Docker network.
     # POSTGRES_PORT only remaps the host-published port (compose
     # "${POSTGRES_PORT:-5432}:5432") and must NOT feed the in-network URIs below.
@@ -1645,13 +1747,13 @@ class PostgresConfig(BaseModel):
     )
 
     uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
-        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_core"
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_core"
     )
     uri_tracing: str = os.getenv("POSTGRES_URI_TRACING") or (
-        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_tracing"
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_tracing"
     )
     uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or (
-        f"postgresql://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_supertokens"
+        f"postgresql://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_supertokens"
     )
 
     # Stable signed-64-bit advisory-lock key for this deployment. We mix
@@ -1773,10 +1875,6 @@ class SessionsRedisConfig(BaseModel):
     attached_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ATTACHED_TTL_SECONDS")
         or 60
-    )
-    owner_ttl_seconds: int = (
-        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS")
-        or 120
     )
     heartbeat_interval_seconds: int = (
         _parse_optional_positive_int_env(
@@ -2068,6 +2166,46 @@ class TriggersConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Wallets
+# ---------------------------------------------------------------------------
+
+
+class WalletsConfig(BaseModel):
+    """Master switch for the credit wallet (EE only).
+
+    Off until the ledger works end to end. While off, an organization gets no
+    balance row and no signup grant, and the `measurements`/`debits` stream consumers are not started — so no
+    row is written that a later, corrected implementation would have to undo.
+    Organizations created while it was off get their balance row lazily on
+    first use; their missed signup grant comes only from the one-off
+    `entrypoints.backfill_wallet_signup_grants` job, run before turning it on.
+
+    With it and `AGENTA_ROLLOUT_FLAGS_ENABLED` on, the `wallets-rollout` PostHog flag sets
+    each organization's mode: `off`, `shadow` or `enforce` (`core/rollout/switches.py`).
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_WALLETS_ENABLED", default=False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class RolloutConfig(BaseModel):
+    """Whether this deployment narrows the gateway and wallet switches per organization.
+
+    On, the `llm-gateway-rollout` and `wallets-rollout` PostHog flags decide which
+    organizations get the LLM gateway and which wallet mode each one runs in
+    (`core/rollout/switches.py`). Off, the default, the master switches apply to every
+    organization. An explicit switch rather than "a PostHog key is set": the example env
+    files ship a shared PostHog key, so a self-hosted deployment would otherwise read Agenta's
+    own payload and lose the gateway for every organization.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_ROLLOUT_FLAGS_ENABLED", default=False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # Auth — derived flags. Kept as a convenience facade reading from
 # identity.* (OIDC) and agenta.access.email_disabled (email).
 # ---------------------------------------------------------------------------
@@ -2133,6 +2271,7 @@ class EnvironSettings(BaseModel):
     agenta: AgentaConfig = AgentaConfig()
     alembic: AlembicConfig = AlembicConfig()
     auth: AuthFacade = AuthFacade()
+    channels: ChannelsConfig = ChannelsConfig()
     cloudflare: CloudflareConfig = CloudflareConfig()
     composio: ComposioConfig = ComposioConfig()
     crisp: CrispConfig = CrispConfig()
@@ -2160,6 +2299,8 @@ class EnvironSettings(BaseModel):
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
     triggers: TriggersConfig = TriggersConfig()
+    wallets: WalletsConfig = WalletsConfig()
+    rollout: RolloutConfig = RolloutConfig()
 
     model_config = ConfigDict(extra="ignore")
 

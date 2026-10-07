@@ -83,24 +83,31 @@ account:
 
 ```bash
 cd services/runner/images/sandbox/daytona
-DAYTONA_API_KEY=<daytona-api-key> DAYTONA_TARGET=eu uv run build_snapshot.py --force
+DAYTONA_API_KEY=<daytona-api-key> DAYTONA_TARGET=eu uv run build_snapshot.py
 ```
 
 The recipe starts from the sandbox base image, which already contains Claude Code, Codex, and
 OpenCode. It adds the Pi harness at the version the runner expects, the FUSE tooling that
 mounts durable working directories inside the sandbox, and the everyday shell tools agents reach
 for on their own: `python3` (also available as `python`), `unzip`, `zip`, `rg` (ripgrep), `fd`,
-`jq`, `ps`, `file`, and `tree`. It builds a snapshot named `agenta-agent-sandbox-v1` and sets each
+`jq`, `ps`, `file`, and `tree`. It builds a snapshot named `agenta-agent-sandbox-v2` and sets each
 sandbox to 2 vCPU, 4 GB of memory, and 5 GB of disk.
 
-If you already built `agenta-agent-sandbox-v1` from an earlier release, rebuild it with `--force`
-after upgrading. Daytona keeps the snapshot you built, so a snapshot built from an older recipe
-keeps its older toolset until you rebuild it.
+The number at the end of the name is the recipe version. A release that changes the recipe
+raises it, and the runner then asks for the new name. After you upgrade, run the recipe again to
+build the snapshot under the new name before you deploy the new runner.
+
+To refresh a snapshot under the same name, for example after you edit the recipe yourself,
+rebuild it with `--force`. Daytona keeps the snapshot you built, so a snapshot built from an older recipe
+keeps its older toolset until you rebuild it. `--force` first builds a trial copy under a
+temporary name, so a recipe that fails its checks leaves your working snapshot untouched. New
+sandboxes cannot start while the real snapshot is rebuilt, so run it in a quiet window. If that
+last step fails, the script prints the setting that points the runner at the trial copy.
 
 Point the runner at it:
 
 ```bash
-AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1
+AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v2
 ```
 
 For Helm:
@@ -109,7 +116,7 @@ For Helm:
 agentRunner:
   providers:
     daytona:
-      snapshot: agenta-agent-sandbox-v1
+      snapshot: agenta-agent-sandbox-v2
 ```
 
 To give agents extra tools (a browser, the `gh` CLI, a language runtime) or different sandbox
@@ -118,7 +125,7 @@ resources, add them to the recipe. See
 
 :::info
 `AGENTA_RUNNER_DAYTONA_SNAPSHOT` and `AGENTA_RUNNER_DAYTONA_IMAGE` are mutually exclusive. Set one
-or the other. If you set neither, the runner starts sandboxes from `agenta-agent-sandbox-v1`.
+or the other. If you set neither, the runner starts sandboxes from `agenta-agent-sandbox-v2`.
 :::
 
 ## 4. Make the store reachable from the sandbox
@@ -193,7 +200,7 @@ resolved configuration on startup:
 
 ```text
 runner providers enabled=[local,daytona] default=daytona
-runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v1
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v2
 ```
 
 The first run creates a sandbox in your Daytona account. Later turns reuse a warm sandbox until it

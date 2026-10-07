@@ -30,11 +30,11 @@ import {
     Plus,
     SlidersHorizontal,
 } from "@phosphor-icons/react"
-// DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
+// DELIBERATE RESIDUE — rc-form stays as the state engine (registration, rules,
 // validateFields, useWatch). The `form: FormInstance` prop is cross-package public API:
-// web/oss ElicitationWidget drives it with `useWatch`/`validateFields`/`setFieldsValue`,
-// and gatewayTrigger's SubscriptionForm prefills it via `setFieldsValue`. Removing the engine
-// here would break those hosts; it needs its own coordinated chunk that owns them.
+// hosts create it via gatewayTrigger's `useSchemaFormInstance` (automation-ui's
+// EventPickerPanel). Removing the engine here would break those hosts; it needs its own
+// coordinated chunk that owns them.
 import Form, {List, useForm, useWatch} from "@rc-component/form"
 import type {FormInstance} from "@rc-component/form"
 
@@ -84,8 +84,6 @@ export interface StepInfo {
 
 export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>
-    /** Current values, raw and unvalidated (e.g. for copy-to-clipboard). */
-    getRawValues: () => Record<string, unknown>
     /** Stepper mode: jump to the step holding this field (e.g. after a validation failure). */
     goToField?: (name: string | (string | number)[]) => void
     /** Stepper mode: advance one step (into review at the end); no-op otherwise. */
@@ -235,7 +233,6 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         return cleanFormValues(values)
                     }
                 },
-                getRawValues: () => form.getFieldsValue(true) as Record<string, unknown>,
                 goToField: (name) => {
                     const flatName = Array.isArray(name) ? name.join(".") : name
                     const i = fields.findIndex((f) => f.name === flatName)

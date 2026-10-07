@@ -23,6 +23,59 @@ export interface LastContext {
 export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
 
+/** A website template link lands on that template's create step instead of the project home. */
+export const projectTemplateUrl = ({workspaceId, projectId}: LastContext, templateKey: string) =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/agents/new?template=${encodeURIComponent(templateKey)}`
+
+const PENDING_TEMPLATE_KEY = "agenta:mobile:pending-template"
+/** Long enough to sign up and verify an email; the desktop capture uses the same window. */
+const PENDING_TEMPLATE_TTL_MS = 30 * 60 * 1000
+
+/**
+ * Keep a website template key across sign-in. The trip through `/auth` (and an OAuth provider)
+ * drops the URL's query, so the `/m` root would otherwise land on the project home.
+ */
+export function rememberTemplateKey(key: string, now = Date.now()): void {
+    try {
+        localStorage.setItem(PENDING_TEMPLATE_KEY, JSON.stringify({key, capturedAt: now}))
+    } catch {
+        // storage unavailable (private mode / quota) — continuity is best-effort
+    }
+}
+
+/**
+ * The remembered template key, or "" when none is kept or it has expired. Reading does not
+ * forget it: the `/m` root can resolve more than once while it settles (a remembered project,
+ * then the fetched tree; React's development double run), and every run must still see the
+ * key. The template screen forgets it once it has the key on its URL.
+ */
+export function peekTemplateKey(now = Date.now()): string {
+    try {
+        const raw = localStorage.getItem(PENDING_TEMPLATE_KEY)
+        const parsed = raw ? (JSON.parse(raw) as {key?: unknown; capturedAt?: unknown}) : null
+        if (
+            parsed &&
+            typeof parsed.key === "string" &&
+            typeof parsed.capturedAt === "number" &&
+            now - parsed.capturedAt <= PENDING_TEMPLATE_TTL_MS
+        ) {
+            return parsed.key.trim()
+        }
+        return ""
+    } catch {
+        return ""
+    }
+}
+
+/** Forget the remembered template key; the template screen calls this once it has arrived. */
+export function forgetTemplateKey(): void {
+    try {
+        localStorage.removeItem(PENDING_TEMPLATE_KEY)
+    } catch {
+        // storage unavailable — nothing was kept
+    }
+}
+
 /**
  * Settings -> LLM providers, which renders the same shared AI-providers page the desktop's
  * provider drawer opens. It is where a project's own provider key is added and where a dead
@@ -31,6 +84,13 @@ export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
  */
 export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=llms`
+
+export const billingUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=billing`
+
+/** Settings -> Credits with the pack picker open: where "Buy credits" goes from anywhere. */
+export const buyCreditsUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=credits&buy_credits=1`
 
 export function writeLastContext(context: LastContext): void {
     try {

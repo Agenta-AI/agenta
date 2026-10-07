@@ -81,6 +81,13 @@ const clearDraft = (toolCallId: string): void => {
     }
 }
 
+/**
+ * Drop a parked form's saved answers from outside the card — the dock's host-driven dismiss must
+ * leave no more behind than the card's own ✕. Call it AFTER the settle write lands: the card
+ * unmounts as soon as the dock closes, and its unmount flush would write the draft straight back.
+ */
+export const discardElicitationDraft = clearDraft
+
 interface State {
     index: number
     values: Record<string, unknown>
@@ -212,6 +219,12 @@ export interface ElicitationStepperState {
      * card drops the counter, the nav arrows, the progress rail and the question number.
      */
     isMultiStep: boolean
+    /**
+     * Whether `pick` settles the form on the spot. True only for a one-question form whose answer
+     * is one row: there is nothing after the pick to step to, so a Send press would only restate
+     * it. Multi-selects, free text and every multi-question form keep explicit submission.
+     */
+    submitsOnPick: boolean
     values: Record<string, unknown>
     error: string | null
     hold: string | null
@@ -232,7 +245,8 @@ export interface ElicitationStepperState {
     /**
      * Set a value and move on. `immediate` advances now (a digit or Enter — the user meant it and a
      * pause fights fast entry); otherwise the card holds ~900ms showing what it recorded, which is
-     * the affordance a misclick needs.
+     * the affordance a misclick needs. On a `submitsOnPick` form the pick completes at once
+     * instead, whatever `immediate` says.
      */
     pick: (name: string, value: unknown, label: string, cursor: number, immediate?: boolean) => void
     /** Add or remove one option on a multi-select. Never advances. */
@@ -285,6 +299,9 @@ export const useElicitationStepper = ({
     // A review screen is worth a step of its own only when there is something to compare.
     const hasReview = isMultiStep
     const lastIndex = hasReview ? total : Math.max(total - 1, 0)
+    // One question, one row as the answer: the pick IS the submission.
+    const submitsOnPick =
+        !isMultiStep && (steps[0]?.kind === "enum" || steps[0]?.kind === "boolean")
 
     // Read by the `pick` callback, which must stay identity-stable across steps: closing over
     // `lastIndex` directly would clamp an immediate advance against a stale end-of-form.
@@ -425,6 +442,7 @@ export const useElicitationStepper = ({
         isReview,
         hasReview,
         isMultiStep,
+        submitsOnPick,
         values: state.values,
         error: state.error,
         hold: state.hold?.label ?? null,
@@ -450,17 +468,21 @@ export const useElicitationStepper = ({
             [state.cursor],
         ),
         pick: useCallback(
-            (name: string, value: unknown, label: string, cursor: number, immediate = false) =>
+            (name: string, value: unknown, label: string, cursor: number, immediate = false) => {
                 dispatch({
                     type: "pick",
                     name,
                     value,
                     label,
                     cursor,
-                    immediate,
+                    immediate: immediate || submitsOnPick,
                     lastIndex: lastIndexRef.current,
-                }),
-            [],
+                })
+                // Built from the pick itself, not from `content`: that memo still holds the value
+                // from before this dispatch. A one-step form has no other answers to carry.
+                if (submitsOnPick) onComplete(collectStepContent(steps, {[name]: value}))
+            },
+            [submitsOnPick, steps, onComplete],
         ),
         toggle: useCallback(
             (name: string, option: string) => dispatch({type: "toggle", name, option}),

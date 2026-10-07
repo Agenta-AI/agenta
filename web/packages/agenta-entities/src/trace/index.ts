@@ -60,7 +60,6 @@ export {
     SpanCategoryEnum,
     type SpanCategory,
     SpanKindEnum,
-    type SpanKind,
     StatusCodeEnum,
     type StatusCode,
     // Sub-entity schemas
@@ -77,14 +76,12 @@ export {
     // Main schemas
     traceSpanSchema,
     type TraceSpan,
-    traceSpanNodeSchema,
     type TraceSpanNode,
     // Response wrappers
     tracesResponseSchema,
     type TracesResponse,
     spansResponseSchema,
     type SpansResponse,
-    type TraceListResponse,
     // Analytics (AGE-3788 Phase 6)
     metricsBucketSchema,
     type MetricsBucket,
@@ -116,6 +113,7 @@ export {
     type TraceQueryParams,
     type SessionQueryParams,
     type SpansAnalyticsParams,
+    type AnalyticsMetricSpec,
     type PreviewTracesRateLimit,
     type PreviewTracesWithMetaResult,
 } from "./api"
@@ -143,18 +141,12 @@ export {
     // Span data extraction
     extractInputs,
     extractOutputs,
-    extractInternals,
     extractAgData,
-    spanToTraceData,
-    extractTestsetData,
     // Batch operations
     collectPathsFromSpans,
-    collectDataPathsFromSpans,
-    pathsToSelectOptions,
     // Auto-mapping
     COLUMN_NAME_MAPPINGS,
     getSuggestedColumnName,
-    generateMappingSuggestions,
     matchColumnsWithSuggestions,
     // Span-tree traversal
     getNodeById,

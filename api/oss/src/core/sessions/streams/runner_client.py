@@ -66,6 +66,47 @@ async def kill_runner_sandbox(*, project_id: str, session_id: str) -> bool:
 
 _CANCEL_TIMEOUT_SECONDS = 5.0
 
+# A dead pod's IP can drop packets rather than refuse them, and a pod in the cluster connects in
+# milliseconds, so the health check and the connect to a pod address give up after this.
+RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS = 2.0
+
+
+async def runner_address_is_replica(
+    client: httpx.AsyncClient,
+    *,
+    address: str,
+    replica_id: Optional[str],
+) -> bool:
+    """True when the pod at `address` answers `GET /health` with `replica_id`.
+
+    Kubernetes can give a dead runner pod's IP to another pod, so a stored pod address is
+    checked before the runner token goes there. The check sends no token: `/health` is the
+    runner's one unauthenticated route. Any failure, a missing id, or another id is False, and
+    the caller then does not use the address. Never raises.
+
+    `client` is the caller's, so the call the caller then sends to the same pod reuses the
+    check's connection.
+    """
+    if not replica_id:
+        return False
+    url = address.rstrip("/") + "/health"
+    try:
+        response = await client.get(url, timeout=RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS)
+        payload = response.json() if response.status_code == 200 else None
+    except (httpx.HTTPError, httpx.InvalidURL, ValueError) as e:
+        log.warning("runner address %s did not answer its health check: %s", url, e)
+        return False
+    answered = payload.get("replicaId") if isinstance(payload, dict) else None
+    if answered != replica_id:
+        log.warning(
+            "runner address %s answers as replica %r, not the bound %r",
+            address,
+            answered,
+            replica_id,
+        )
+        return False
+    return True
+
 
 class RunnerCancelResult:
     """What the direct hop learned, as three named cases.
@@ -103,26 +144,43 @@ async def cancel_runner_execution(
     target_turn_id: Optional[str],
     created_at: str,
     timeout_seconds: float = _CANCEL_TIMEOUT_SECONDS,
+    base_url: Optional[str] = None,
+    runner_replica_id: Optional[str] = None,
 ) -> RunnerCancelResponse:
     """POST the runner's `/cancel`. Returns the acknowledgement and the answering replica.
 
     Never raises. The command row is already committed when this runs, so a failure here costs
     promptness, not the Stop: a later claim or the settlement sweep still reaches it.
 
+    `base_url` is the address of the pod that holds the target turn, and `runner_replica_id` is
+    the replica the turn is bound to. The call goes to the address only when the pod there
+    answers as that replica; otherwise it is `unreachable`, never a post to whatever pod now
+    has that IP. Without an address the call goes to the Service URL, which picks any pod.
+
     The body is camelCase because the runner's own HTTP surface is (see its `/kill`).
     """
-    base_url = env.runner.internal_url
+    target = base_url or env.runner.internal_url
     token = env.runner.token
-    if not base_url or not token:
+    if not target or not token:
         log.warning(
             "cancel: no runner internal_url/token configured; command %s cannot be delivered",
             command_id,
         )
         return RunnerCancelResponse(RunnerCancelResult.unreachable)
 
-    url = base_url.rstrip("/") + "/cancel"
+    timeout = httpx.Timeout(timeout_seconds)
+    if base_url:
+        timeout = httpx.Timeout(
+            timeout_seconds, connect=RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS
+        )
+
+    url = target.rstrip("/") + "/cancel"
     try:
-        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            if base_url and not await runner_address_is_replica(
+                client, address=base_url, replica_id=runner_replica_id
+            ):
+                return RunnerCancelResponse(RunnerCancelResult.unreachable)
             response = await client.post(
                 url,
                 json={

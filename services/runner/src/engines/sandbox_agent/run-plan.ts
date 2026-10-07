@@ -35,7 +35,9 @@ import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText } from "./transcript.ts";
 import {
   KNOWN_SANDBOX_PROVIDER_IDS,
+  sandboxProviderTraits,
   loadRunnerConfig,
+  providerNotEnabledMessage,
   type SandboxProviderId,
 } from "../../config/runner-config.ts";
 import {
@@ -313,6 +315,15 @@ export interface RunPlan {
   sandboxId: string;
   isPi: boolean;
   isDaytona: boolean;
+  /** The runner host mounts the drive (`local`); see `SandboxProviderTraits`. */
+  driveOnRunner: boolean;
+  /** The harness runs inside this runner process (`inprocess`): no daemon, no ACP transport. */
+  harnessInRunner: boolean;
+  /**
+   * What an error no rule recognizes shows: `inprocess` hides it behind a reference (its text can
+   * carry the runner's own internals), the others show its redacted first line.
+   */
+  unknownErrorText: "sanitized" | "hidden";
   credentials: RunPlanCredentials;
   workspace: RunPlanWorkspace;
   tools: RunPlanTools;
@@ -446,7 +457,7 @@ export function resolveSandboxProviderId(
   );
 }
 
-function defaultLocalCwd(durableCwd?: string): string {
+export function defaultLocalCwd(durableCwd?: string): string {
   // When the caller pre-computed a durable cwd from the sign prefix, use it — same prefix means
   // same mountpoint across turns, so checkMounted short-circuits and no geesefs leak accrues.
   if (durableCwd) {
@@ -741,9 +752,7 @@ export function buildRunPlan(
   ) {
     return {
       ok: false,
-      error:
-        `Sandbox provider '${sandboxId}' is not enabled on this deployment ` +
-        `(enabled: ${enabled.join(", ")}).`,
+      error: providerNotEnabledMessage(sandboxId, enabled),
     };
   }
 
@@ -800,11 +809,20 @@ export function buildRunPlan(
 
   const isPi = acpAgent === "pi";
   const isDaytona = sandboxId === "daytona";
-  // Any non-local sandbox counts as remote for the F1 tools gate below. An unknown provider id
-  // currently falls through to the LOCAL cwd/provider path further down, but for tool delivery
-  // it must fail CLOSED: a future provider (E2B et al.) has no proven delivery path until it
-  // ships one, and "unknown" must not silently behave like "reachable loopback".
-  const isRemoteSandbox = sandboxId !== "local";
+  const traits = sandboxProviderTraits(sandboxId);
+  // Any provider whose files are not on the runner counts as remote for the F1 tools gate below.
+  // An unknown provider id currently falls through to the LOCAL cwd/provider path further down,
+  // but for tool delivery it must fail CLOSED: a future provider (E2B et al.) has no proven
+  // delivery path until it ships one, and "unknown" must not silently behave like "reachable
+  // loopback". `inprocess` delivers tools exactly like `local`: the extension and the relay live
+  // in this runner process.
+  const isRemoteSandbox = !traits.filesOnRunner;
+  if (traits.harnesses && !traits.harnesses.includes(harness)) {
+    return {
+      ok: false,
+      error: `The ${sandboxId} sandbox runs only these harnesses: ${traits.harnesses.join(", ")}. Pick one of them or another sandbox.`,
+    };
+  }
 
   // TWO SHAPES OF `runtime_provided`, told apart by `modelConnection.subscription`.
   //
@@ -849,7 +867,9 @@ export function buildRunPlan(
         : acpAgent === "codex"
           ? "CODEX_HOME"
           : "PI_CODING_AGENT_DIR";
-    if (!process.env[subscriptionEnvVar]) {
+    // The mock harness answers from a scripted behaviour and never authenticates, so it has
+    // no login to read and the mount is not a precondition for it.
+    if (acpAgent !== "mock" && !process.env[subscriptionEnvVar]) {
       return { ok: false, error: LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE };
     }
   }
@@ -917,7 +937,8 @@ export function buildRunPlan(
   // Daytona the policy IS applied (`provider.ts` `daytonaNetworkFields`).
   const network = request.sandboxPermission?.network;
   const networkRestricted = !!network && (network.mode ?? "on") !== "on";
-  if (networkRestricted && !isDaytona) {
+  // `inprocess` applies the policy to its command sandbox, the only place its commands run.
+  if (networkRestricted && !traits.commandsInRemoteSandbox) {
     return { ok: false, error: LOCAL_NETWORK_UNSUPPORTED_MESSAGE };
   }
 
@@ -977,7 +998,7 @@ export function buildRunPlan(
   // "strict", so the live path is unchanged; this aligns a DIRECT runner caller (and the
   // omit-when-default goldens) so only an explicit "best_effort" opts out of the hard guarantee.
   const strict = request.sandboxPermission?.enforcement !== "best_effort";
-  if (networkRestricted && isDaytona && strict) {
+  if (networkRestricted && traits.commandsInRemoteSandbox && strict) {
     const mode = network?.mode ?? "on";
     if (executableToolSpecsForRun.length > 0) {
       return {
@@ -1087,6 +1108,9 @@ export function buildRunPlan(
       sandboxId,
       isPi,
       isDaytona,
+      driveOnRunner: traits.driveOnRunner,
+      harnessInRunner: traits.harnessInRunner,
+      unknownErrorText: traits.harnessInRunner ? "hidden" : "sanitized",
       credentials: {
         modelEnvironment,
         sandboxEnvironment: materializedSandbox.environment,

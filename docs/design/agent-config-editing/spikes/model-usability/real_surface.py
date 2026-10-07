@@ -21,16 +21,12 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
-import os
 import pathlib
 import sys
 from typing import Any, Dict, List
 
 REPO = pathlib.Path(__file__).resolve().parents[5]
 ENGINE_PATH = REPO / "api" / "oss" / "src" / "core" / "workflows" / "change_set.py"
-
-# The catalog reads this at import time, and the arm under test is the shipped one.
-os.environ.setdefault("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", "true")
 
 
 def _load_engine():

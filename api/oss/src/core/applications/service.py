@@ -33,7 +33,10 @@ from oss.src.core.git.types import (
     validate_variant_refs_sufficient,
     validate_retrieve_refs_consistent,
 )
-from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.service import (
+    WorkflowsService,
+    _reject_unreadable_agent_instructions,
+)
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import ResolutionInfo, ErrorPolicy
@@ -610,6 +613,8 @@ class ApplicationsService:
         application_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
+        #
+        include_archived: Optional[bool] = True,
     ) -> tuple[
         Optional[ApplicationRevision],
         Optional[ResolutionInfo],
@@ -678,6 +683,8 @@ class ApplicationsService:
                 application_ref=application_ref,
                 application_variant_ref=application_variant_ref,
                 application_revision_ref=application_revision_ref,
+                #
+                include_archived=include_archived,
             )
             application_revision, resolution_info = result if result else (None, None)
         else:
@@ -687,6 +694,8 @@ class ApplicationsService:
                 application_ref=application_ref,
                 application_variant_ref=application_variant_ref,
                 application_revision_ref=application_revision_ref,
+                #
+                include_archived=include_archived,
             )
             resolution_info = None
 
@@ -1065,6 +1074,10 @@ class SimpleApplicationsService:
         #
         application_id: Optional[UUID] = None,
     ) -> Optional[SimpleApplication]:
+        # Before the artifact exists: refusing only at the final commit would leave the
+        # artifact, variant, and blank revision behind.
+        _reject_unreadable_agent_instructions(simple_application_create.data)
+
         simple_application_flags = (
             SimpleApplicationFlags(**_dump_flags(simple_application_create.flags))
             if simple_application_create.flags
@@ -1299,6 +1312,9 @@ class SimpleApplicationsService:
         #
         simple_application_edit: SimpleApplicationEdit,
     ) -> Optional[SimpleApplication]:
+        # Before any write: a refusal at the final commit would leave earlier writes behind.
+        _reject_unreadable_agent_instructions(simple_application_edit.data)
+
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             #

@@ -10,7 +10,7 @@ import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { beforeEach } from "vitest";
+import { beforeEach, vi } from "vitest";
 
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
@@ -52,15 +52,35 @@ const SCRUBBED = [
   // The per-run export credential the trace exporter falls back to. Present in a dev shell, it
   // flips the credential-less export paths (skip vs send) that otel export tests assert on.
   "AGENTA_CREDENTIALS",
+  // The wallet switch: on, a Daytona run with a credential would ask the network for admission.
+  "AGENTA_WALLETS_ENABLED",
 ];
 
 for (const name of SCRUBBED) delete process.env[name];
 
-// Server-side history reconstruction defaults ON, so any single-user-message turn with a
+// Server-side history reconstruction is always on, so any single-user-message turn with a
 // session id would reach for a live records endpoint mid-test. Engine suites are not
-// reconstruction tests: pin it off here. session-reconstruct-history.test.ts deletes the pin
-// in its own beforeEach to exercise the real default.
-process.env.AGENTA_SESSIONS_RECONSTRUCT = "false";
+// reconstruction tests: answer the records query with an empty log, which leaves the inbound
+// history untouched. The suites that test the query itself call `vi.unmock` on this module.
+vi.mock("../../src/sessions/records-query.ts", () => ({
+  fetchSessionRecords: async () => ({ records: [], recordsIncomplete: false }),
+}));
+
+// A Daytona run with a run credential meters its sandbox and asks the wallet before the turn,
+// both over the network. Engine suites are not metering tests: admit every turn and meter
+// nothing. The meter's own suite calls `vi.unmock` on this module.
+vi.mock("../../src/metering/sandbox-usage.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/metering/sandbox-usage.ts")>()),
+  admitSandboxTurn: async () => ({ admitted: true }),
+  startSandboxMeter: () => ({ stop: async () => {} }),
+}));
+
+// A cold pause waits for the harness to answer the cancelled prompt with its usage. Test fakes
+// never answer, so the default wait would only add seconds to every cold-paused turn. A test that
+// answers the prompt sets a longer wait with vi.stubEnv.
+const COLD_PAUSE_USAGE_SETTLE_MS = "20";
+process.env.AGENTA_RUNNER_COLD_PAUSE_USAGE_SETTLE_MS =
+  COLD_PAUSE_USAGE_SETTLE_MS;
 
 // Re-scrub per test: a prior test may have set one and not restored it. Also drop the memoized
 // runner config so the next `loadRunnerConfig()` re-parses the scrubbed environment.
@@ -68,6 +88,7 @@ beforeEach(() => {
   for (const name of SCRUBBED) delete process.env[name];
   // Restore the stub bundle so a prior test's override (to force a failed install) cannot leak.
   process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = STUB_EXTENSION_BUNDLE;
-  process.env.AGENTA_SESSIONS_RECONSTRUCT = "false";
+  process.env.AGENTA_RUNNER_COLD_PAUSE_USAGE_SETTLE_MS =
+    COLD_PAUSE_USAGE_SETTLE_MS;
   resetRunnerConfigCache();
 });

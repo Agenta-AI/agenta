@@ -90,7 +90,7 @@ const twMerge = extendTailwindMerge({
             "min-h": [{"min-h": CONTROL_DIMS}],
             w: [{w: CONTROL_DIMS}],
             size: [{size: CONTROL_DIMS}],
-            rounded: [{rounded: [...CONTROL_BOX, "control-round"]}],
+            rounded: [{rounded: [...CONTROL_BOX, "control-round", "control-check"]}],
         },
     },
 })

@@ -35,11 +35,11 @@ beforeEach(() => {
 })
 
 describe("fetchAgentBuildKitOverlay", () => {
-    it("retrieves the reserved build-kit workflow by slug and returns parameters.agent", async () => {
+    it("retrieves the reserved build-kit workflow and attaches access metadata", async () => {
         fernRetrieve.mockResolvedValueOnce({
             workflow_revision: {
                 id: "kit-rev-1",
-                data: {parameters: {agent: OVERLAY}},
+                data: {parameters: {agent: OVERLAY, op_access: {read_file: "read"}}},
             },
         })
 
@@ -49,7 +49,7 @@ describe("fetchAgentBuildKitOverlay", () => {
         const [body, opts] = fernRetrieve.mock.calls[0]
         expect(body).toEqual({workflow_ref: {slug: AGENT_BUILD_KIT_WORKFLOW_SLUG}})
         expect(opts).toEqual({queryParams: {project_id: "proj-42"}})
-        expect(result).toEqual(OVERLAY)
+        expect(result).toEqual({...OVERLAY, op_access: {read_file: "read"}})
     })
 
     it("short-circuits without a project id", async () => {

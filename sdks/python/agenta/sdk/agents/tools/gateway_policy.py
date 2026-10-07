@@ -51,7 +51,9 @@ def compile_gateway_permissions(
 
     For each catalog tool: take the exact entry in ``policy.tools`` when the key is there,
     otherwise ``policy.default``. An ``inherit`` result defers to the agent-wide ``mode``,
-    which under ``allow_reads`` allows a read and asks for everything else.
+    which under ``allow_reads`` allows a read and asks for everything else. An
+    ``allow_reads`` result applies that same rule directly, whatever ``mode`` is, so a
+    connection saved as "ask for write and delete" never runs a write unasked.
 
     Pure: it performs no input and output, and it never reads the catalog for policy. A
     provider ``read_only`` hint cannot loosen an authored ``allow``, ``ask``, or ``deny``.
@@ -59,15 +61,14 @@ def compile_gateway_permissions(
     tools: Dict[str, CompiledTool] = {}
     for tool in catalog:
         value = policy.tools.get(tool.key, policy.default)
-        permission = (
-            effective_permission(
+        if value == "inherit" or value == "allow_reads":
+            permission = effective_permission(
                 spec_permission=None,
                 read_only=tool.read_only,
-                mode=mode,
+                mode=mode if value == "inherit" else "allow_reads",
             )
-            if value == "inherit"
-            else value
-        )
+        else:
+            permission = value
         tools[tool.key] = CompiledTool(permission=permission, read_only=tool.read_only)
 
     stale_keys = [key for key in policy.tools if key not in tools]

@@ -20,8 +20,10 @@ from agenta.sdk.utils.types import build_agent_v0_default
 
 _SCENARIO_FILE = (
     Path(__file__).resolve().parents[7]
-    / "benchmarks"
+    / "docs"
+    / "design"
     / "agent-config-editing"
+    / "benchmark"
     / "scenarios"
     / "09-self-naming.json"
 )
@@ -47,7 +49,7 @@ def test_default_persona_carries_the_self_naming_guidance():
 
 @pytest.mark.skipif(
     not _SCENARIO_FILE.exists(),
-    reason="benchmarks/ not present in this checkout",
+    reason="docs/design/agent-config-editing/benchmark/ not present in this checkout",
 )
 @pytest.mark.parametrize(
     "scenario_id",

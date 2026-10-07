@@ -20,6 +20,7 @@ from agenta.sdk.agents.capabilities import (
     harness_allows_provider,
     harness_capabilities_document,
 )
+from agenta.sdk.agents.model_catalog import model_catalog_entries
 from agenta.sdk.utils.assets import supported_llm_models
 
 
@@ -117,7 +118,7 @@ def test_claude_consumes_custom_gateway_bedrock_and_vertex():
 
 def test_capabilities_document_shape():
     doc = harness_capabilities_document()
-    assert set(doc) == {"pi_core", "claude", "codex"}
+    assert set(doc) == {"pi_core", "claude", "codex", "mock"}
     assert doc["claude"]["providers"] == ["anthropic"]
     assert doc["claude"]["model_selection"] == "alias"
     assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS) + list(
@@ -152,15 +153,17 @@ def test_capabilities_document_shape():
     }
 
 
-def test_every_harness_publishes_user_mcp_servers():
+def test_real_harnesses_publish_user_mcp_servers():
     """Pi drives gateway MCP servers through its extension, so it must publish the capability.
 
     The frontend hides the whole "MCP servers" section when the selected harness does not
     publish ``mcp.user_servers``; Pi omitting it hid servers that in fact run.
     """
     doc = harness_capabilities_document()
-    for harness in doc:
+    for harness in ("pi_core", "claude", "codex"):
         assert doc[harness]["mcp"]["user_servers"]["connection_types"] == ["http"]
+    # The offline QA harness never connects to external MCP servers.
+    assert "mcp" not in doc["mock"]
 
 
 def test_every_harness_publishes_a_models_map():
@@ -170,18 +173,27 @@ def test_every_harness_publishes_a_models_map():
         assert doc[harness]["models"], f"{harness} has an empty models map"
 
 
-def test_pi_models_are_a_subset_of_the_shared_catalog():
-    # Each Pi harness publishes, per vault provider, exactly that provider's catalog ids, plus the
-    # subscription/OAuth providers' explicit ids (which the shared catalog does not list).
+def _pi_catalog_id(provider: str, model_id: str) -> str:
+    return model_id if model_id.startswith(f"{provider}/") else f"{provider}/{model_id}"
+
+
+def test_pi_models_are_the_shared_catalog_ids_pi_can_run():
+    # Each Pi harness publishes, per vault provider, the shared catalog's ids that Pi's own model
+    # catalog carries, plus the subscription/OAuth providers' explicit ids (which the shared
+    # catalog does not list).
+    pi_ids = {entry["id"] for entry in model_catalog_entries("pi_core")}
     for harness in ("pi_core",):
         models = HARNESS_CONNECTION_CAPABILITIES[harness].models
         # The published providers are the vault-mapped ones plus the subscription providers.
         assert set(models) == set(PI_VAULT_PROVIDERS) | set(PI_SUBSCRIPTION_PROVIDERS)
         for provider in PI_VAULT_PROVIDERS:
-            # The published ids are exactly the shared catalog's ids for that provider
-            # (verbatim — most are provider-prefixed like ``anthropic/...``, but some
-            # providers, e.g. openai, list bare ids like ``gpt-5.5``).
-            assert models[provider] == list(supported_llm_models[provider])
+            # Shared catalog order and spelling (most are provider-prefixed like
+            # ``anthropic/...``, but some providers, e.g. openai, list bare ids like ``gpt-5.5``).
+            assert models[provider] == [
+                model_id
+                for model_id in supported_llm_models[provider]
+                if _pi_catalog_id(provider, model_id) in pi_ids
+            ]
         for provider, ids in PI_SUBSCRIPTION_MODELS.items():
             # The subscription providers carry their explicit ids and are NOT in the shared
             # catalog (they authenticate via OAuth, not a vault provider_key).
@@ -189,13 +201,35 @@ def test_pi_models_are_a_subset_of_the_shared_catalog():
             assert provider not in supported_llm_models
 
 
+def test_every_published_pi_model_is_one_pi_accepts():
+    # Pi selects only models its pinned pi-ai catalog carries; anything else fails at run time.
+    pi_ids = {entry["id"] for entry in model_catalog_entries("pi_core")}
+    caps = HARNESS_CONNECTION_CAPABILITIES["pi_core"]
+    for field in (caps.models, caps.default_models):
+        for provider, ids in field.items():
+            for model_id in ids:
+                assert _pi_catalog_id(provider, model_id) in pi_ids, (
+                    provider,
+                    model_id,
+                )
+
+
 def test_pi_publishes_current_models_for_both_openai_providers():
-    expected = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
+    gpt_6 = ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"]
+    gpt_5_6 = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
 
     for harness in ("pi_core",):
         models = HARNESS_CONNECTION_CAPABILITIES[harness].models
+        assert models["openai"][:7] == gpt_6 + gpt_5_6
+        # The ChatGPT subscription set mirrors the pinned Pi catalog (pi-ai 0.99.1 adds
+        # GPT-6.1 Sol to `openai-codex` and makes it the Codex default).
+        codex = models["openai-codex"]
+        assert codex[:4] == ["gpt-6.1-sol", "gpt-6-sol", "gpt-6-astra", "gpt-6-luna"]
+        assert codex[4:7] == gpt_5_6
+        assert "openrouter/openai/gpt-6-sol" in models["openrouter"]
+        assert "openrouter/openai/gpt-6-luna" in models["openrouter"]
+        assert "gpt-5.4" not in codex and "gpt-5.4-mini" not in codex
         for provider in ("openai", "openai-codex"):
-            assert models[provider][:4] == expected
             assert "gpt-5.6" not in models[provider]
 
 
@@ -205,7 +239,9 @@ def test_claude_models_are_the_alias_set_under_anthropic():
     assert models["anthropic"] == list(CLAUDE_MODEL_ALIASES)
     # Exact harness config values, not provider-prefixed ids or friendly aliases.
     assert "opus[1m]" in models["anthropic"]
-    assert "claude-fable-5" in models["anthropic"]
+    assert "claude-fable-5-1" in models["anthropic"]
+    # The pinned Claude Code build no longer offers Fable 5 as a selectable model.
+    assert "claude-fable-5" not in models["anthropic"]
     assert "fable" not in models["anthropic"]
     assert all("/" not in alias for alias in models["anthropic"])
 

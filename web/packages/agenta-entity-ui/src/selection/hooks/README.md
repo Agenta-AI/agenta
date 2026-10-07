@@ -26,7 +26,7 @@ Powers the cascading dropdown variant. Manages multiple levels with auto-selecti
 ### Usage
 
 ```typescript
-import { useCascadingMode, type AppRevisionSelectionResult } from '@agenta/entity-ui'
+import { useCascadingMode, type WorkflowRevisionSelectionResult } from '@agenta/entity-ui'
 
 function CascadingSelector() {
   const {
@@ -39,8 +39,8 @@ function CascadingSelector() {
 
     // Config
     adapter,             // Resolved adapter
-  } = useCascadingMode<AppRevisionSelectionResult>({
-    adapter: 'appRevision',
+  } = useCascadingMode<WorkflowRevisionSelectionResult>({
+    adapter: 'workflowRevision',
     instanceId: 'my-cascading',
     onSelect: (selection) => console.log('Selected:', selection),
     autoSelectByLevel: [true, true, false],  // Auto-select first 2 levels
@@ -108,7 +108,7 @@ Powers the breadcrumb navigation variant. Shows one level at a time with path na
 ### Usage
 
 ```typescript
-import { useBreadcrumbMode, type AppRevisionSelectionResult } from '@agenta/entity-ui'
+import { useBreadcrumbMode, type WorkflowRevisionSelectionResult } from '@agenta/entity-ui'
 
 function BreadcrumbSelector() {
   const {
@@ -147,8 +147,8 @@ function BreadcrumbSelector() {
 
     // Config
     adapter,             // Resolved adapter
-  } = useBreadcrumbMode<AppRevisionSelectionResult>({
-    adapter: 'appRevision',
+  } = useBreadcrumbMode<WorkflowRevisionSelectionResult>({
+    adapter: 'workflowRevision',
     instanceId: 'my-breadcrumb',
     onSelect: (selection) => console.log('Selected:', selection),
     autoSelectSingle: true,
@@ -384,7 +384,7 @@ import {useEntitySelection} from "@agenta/entity-ui"
 
 // Auto-detects mode based on options
 const result = useEntitySelection({
-    adapter: "appRevision",
+    adapter: "workflowRevision",
     instanceId: "my-selector",
     onSelect: handleSelect,
 
@@ -404,24 +404,24 @@ Fetches children data for a parent entity.
 ```typescript
 import {useChildrenData} from "@agenta/entity-ui"
 
-const {children, isLoading, error} = useChildrenData({
-    parentId: "parent-123",
-    childLevelConfig: childLevel,
-})
+const {items, query} = useChildrenData(childLevel, "parent-123")
 ```
 
 ### useAutoSelectLatestChild
 
-Handles auto-selection of the latest child when a parent is clicked.
+Selects the latest child once a clicked parent's children load, then calls `onComplete`.
 
 ```typescript
 import {useAutoSelectLatestChild} from "@agenta/entity-ui"
 
-const {isAutoSelecting, autoSelectLatest} = useAutoSelectLatestChild({
+useAutoSelectLatestChild({
     parentId: "parent-123",
+    parentLabel: "My testset",
+    parentLevelConfig: parentLevel,
     childLevelConfig: childLevel,
+    createSelection: adapter.toSelection,
     onSelect: handleChildSelect,
-    selectLatest: true,
+    onComplete: () => setAutoSelectingParent(null),
 })
 ```
 
@@ -445,12 +445,12 @@ All hooks use `instanceId` to isolate state between multiple instances:
 ```typescript
 // These two instances have completely separate state
 const picker1 = useBreadcrumbMode({
-    adapter: "appRevision",
+    adapter: "workflowRevision",
     instanceId: "picker-1",
 })
 
 const picker2 = useBreadcrumbMode({
-    adapter: "appRevision",
+    adapter: "workflowRevision",
     instanceId: "picker-2",
 })
 ```

@@ -9,7 +9,7 @@ every method (tenant scope is structural); `user_id` on writes only.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import AsyncIterator, Dict, List, Optional
+from typing import AsyncIterator, Dict, List, Optional, Protocol
 from uuid import UUID
 
 from oss.src.core.gateways.llms.dtos import (
@@ -141,3 +141,11 @@ class LLMUpstreamInterface(ABC):
         `secret` is None only for targets whose auth scheme is NONE (the
         mocks). Raises LLMUpstreamError on upstream failure."""
         raise NotImplementedError
+
+
+class MissingEndpointRepair(Protocol):
+    """Registers the endpoint of a vault connection whose row is missing, when the caller
+    owns that kind of connection. Returns whether it registered something worth reading
+    again. Injected by the composition root; the gateway knows nothing of who repairs."""
+
+    async def __call__(self, *, project_id: UUID, slug: str) -> bool: ...

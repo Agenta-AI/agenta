@@ -93,15 +93,12 @@ afterEach(async () => {
 })
 
 describe("McpAddServerDrawer, a project with servers", () => {
-    it("names the drawer, the section and the one connect action", async () => {
+    it("names the drawer and the one connect action", async () => {
         await render()
 
         expect(text()).toContain("Add MCP server")
-        expect(text()).toContain("Connected in this project · 3")
         expect(buttonReading("Connect server")).toBeDefined()
-        expect(text()).toContain(
-            "Add opens the permission drawer for this agent. Connect server adds the new server once it's connected.",
-        )
+        expect(text()).toContain("Pick a connected server, or connect a new one.")
     })
 
     it("draws the three row states, and only those", async () => {
@@ -281,7 +278,8 @@ describe("the connection row's actions on a phone", () => {
         for (const label of ["Add Axiom to this agent", "Reconnect Octolens"]) {
             const action = buttonNamed(label)
             expect(action, label).toBeDefined()
-            expect(action!.className, label).toContain("h-control-sm")
+            // Add is icon-only (`size-control-sm`), Reconnect keeps its label (`h-control-sm`).
+            expect(action!.className, label).toMatch(/(?:^|\s)(?:h|size)-control-sm(?:\s|$)/)
             expect(touchTargetHeight(action!.className), label).toBe(TOUCH_TARGET_MINIMUM_PX)
         }
     })
@@ -313,16 +311,12 @@ describe("the connection row's actions on a phone", () => {
 })
 
 describe("McpAddServerDrawer on a phone", () => {
-    it("is a bottom sheet below the breakpoint and a right-edge drawer above it", async () => {
-        // The one prop that makes a configuration panel correct in both apps, and the reason
-        // the mobile app needs no drawer of its own. The geometry itself is measured in a
-        // browser; what this pins is that the drawer asks for the responsive side at all, the
-        // way the permission drawer beside it does.
+    it("opens from the right edge on every screen, as every playground drawer does", async () => {
         await render()
 
         const panel = document.querySelector('[role="dialog"]')
         expect(panel, "no drawer panel").not.toBeNull()
-        expect(panel!.className).toContain("bottom-0")
-        expect(panel!.className).toContain("lg:right-0")
+        expect(panel!.className).toContain("right-2")
+        expect(panel!.className).not.toContain("bottom-0")
     })
 })

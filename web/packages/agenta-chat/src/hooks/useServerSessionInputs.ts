@@ -1,28 +1,34 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
-    fetchSessionCapabilitiesAtom,
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
     sendPendingSessionInputNowAtom,
     updatePendingSessionInputAtom,
+    type PendingInputWriteOutcome,
 } from "@agenta/entities/session"
 import {buildAgentRequest} from "@agenta/playground/agent-chat"
 import {projectIdAtom} from "@agenta/shared/state"
 import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {buildRequestWithinDeadline, PREPARE_NOT_READY_MESSAGE} from "../assets/boundedRequest"
 import {outboundUserParts} from "../assets/displayContent"
 import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
-import {startupLabelFromDataPart} from "../assets/startupPhases"
+import {startupPhaseFromDataPart, type StartupPhase, type TurnStage} from "../assets/startupPhases"
 import {readSendRefusal} from "../model/error"
 
-import type {QueuedMessage} from "./useAgentChatQueue"
+import type {QueuedMessage, ServerQueueWriteResult} from "./useAgentChatQueue"
 import {useMountGeneration} from "./useMountGeneration"
 
 /** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
+
+/** Snapshot poll cadence while a turn runs or an input is parked. */
+const ACTIVE_SNAPSHOT_POLL_MS = 2_000
+/** Idle with an empty queue: only a send changes it, and the transcript watch reports that. */
+const IDLE_SNAPSHOT_POLL_MS = 15_000
 
 /** Reports what became of ONE send, so its echo can retire on evidence about itself. */
 export interface ServerInputWatcher {
@@ -39,12 +45,15 @@ export interface ServerInputWatcher {
      * and the liveness poll re-reads the records when it ends.
      */
     onSettled?: () => void
-    /** The runner narrated a startup phase (#6047); the run stream is their only source. */
-    onStartupPhase?: (label: string) => void
+    /** The run stream named the turn (`started`) or a startup phase (#6047), its only source. */
+    onTurnStage?: (stage: TurnStage) => void
+    /** The send will likely start a turn rather than park, so its stage is narrated. */
+    opensTurn?: boolean
+    /** The runner admitted this send's turn, or its run stream ended: a later send may go now. */
+    onTurnNamed?: () => void
 }
 
 export interface ServerSessionInputs {
-    capabilities: SessionPendingInputView["capabilities"]
     executionState: SessionPendingInputView["executionState"]
     busy: boolean
     queued: QueuedMessage[]
@@ -53,11 +62,17 @@ export interface ServerSessionInputs {
         policy: "queue" | "steer",
         watcher?: ServerInputWatcher,
     ) => Promise<ServerInputAdmission>
-    remove: (id: string) => Promise<void>
-    sendNow: (id: string) => Promise<void>
-    edit: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
-    refresh: () => Promise<void>
-    resolveCapabilities: () => Promise<SessionPendingInputView["capabilities"]>
+    /** Sequence of the read `queued` came from; each read this browser starts gets a higher one. */
+    viewSeq: number
+    remove: (id: string) => Promise<ServerQueueWriteResult>
+    /** `executionId` is the new turn when the server promoted the input on the spot. */
+    sendNow: (id: string) => Promise<ServerQueueWriteResult & {executionId: string | null}>
+    edit: (
+        id: string,
+        item: {text: string; fileParts?: FileUIPart[]},
+    ) => Promise<ServerQueueWriteResult>
+    /** Resolves with the sequence of the read it made, or null when that read failed. */
+    refresh: (options?: {fresh?: boolean}) => Promise<number | null>
 }
 
 const emptyView = reduceSessionPendingInputs(null)
@@ -68,7 +83,7 @@ type RunFrame =
     | {kind: "accepted"; executionId: string}
     | {kind: "error"}
     | {kind: "started"}
-    | {kind: "status"; label: string}
+    | {kind: "status"; phase: StartupPhase}
     | null
 
 /**
@@ -92,8 +107,8 @@ const runFrameFromLine = (line: string): RunFrame => {
         }
         if (typeof frame.type !== "string") return null
         if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
-        const label = startupLabelFromDataPart(frame)
-        if (label) return {kind: "status", label}
+        const phase = startupPhaseFromDataPart(frame)
+        if (phase) return {kind: "status", phase}
         // The runner emits its `turn` event only after it admits the request, and the Vercel
         // adapter forwards that id as message metadata. It is the only thing in an ordinary
         // request's stream that proves a turn exists.
@@ -153,10 +168,11 @@ export const readRunAdmission = async (
             // Scanning continues past the turn-id frame, because a detached run names its turn in
             // a frame of its own, and that id is what retires the echo on identity.
             if (frame.kind === "status") {
-                watcher?.onStartupPhase?.(frame.label)
+                watcher?.onTurnStage?.(frame.phase)
                 continue
             }
             if (frame.kind === "started") {
+                if (!started && !accepted) watcher?.onTurnStage?.("started")
                 started = true
                 continue
             }
@@ -165,6 +181,7 @@ export const readRunAdmission = async (
                 return "error"
             }
             if (accepted) continue
+            if (!started) watcher?.onTurnStage?.("started")
             accepted = true
             watcher?.onAccepted?.(frame.executionId)
             // The chunk may carry a status frame right behind the acceptance; keep going.
@@ -204,19 +221,30 @@ export const parkedInputIdFromBody = (body: unknown): string | null => {
     return typeof id === "string" && id ? id : null
 }
 
+interface SnapshotRead {
+    view: SessionPendingInputView
+    seq: number
+}
+
 export const useServerSessionInputs = ({
     entityId,
     sessionId,
     messages,
     locallyBusy,
+    remotelyBusy = false,
+    active = true,
     isSharedReaderReady,
     onExecuted,
-    onStartupPhase,
+    onTurnStage,
 }: {
     entityId: string
     sessionId: string
     messages: UIMessage[]
     locallyBusy: boolean
+    /** Another browser is running this session (the host's project liveness poll). */
+    remotelyBusy?: boolean
+    /** False for a conversation kept mounted off screen: it stops polling the queue. */
+    active?: boolean
     /** Read current transport readiness when admitting input, including after reconnect. */
     isSharedReaderReady?: () => boolean
     /**
@@ -225,31 +253,36 @@ export const useServerSessionInputs = ({
      * reach the log; settlement waits on it and draws no conclusion from a failed read.
      */
     onExecuted?: () => void | boolean | Promise<void | boolean>
-    /** A startup phase the run stream narrated for a send this hook admitted. */
-    onStartupPhase?: (label: string) => void
+    /** The stage of a turn a send of this hook opened; `null` when that send will not run one. */
+    onTurnStage?: (stage: TurnStage | null) => void
 }): ServerSessionInputs => {
     const projectId = useAtomValue(projectIdAtom)
     const scope = JSON.stringify([projectId, sessionId])
     const scopeRef = useRef(scope)
     scopeRef.current = scope
     const fetchSnapshot = useSetAtom(fetchSessionSnapshotAtom)
-    const fetchCapabilities = useSetAtom(fetchSessionCapabilitiesAtom)
     const removeInput = useSetAtom(removePendingSessionInputAtom)
     const sendInputNow = useSetAtom(sendPendingSessionInputNowAtom)
     const updateInput = useSetAtom(updatePendingSessionInputAtom)
-    const [viewState, setViewState] = useState<{scope: string; view: SessionPendingInputView}>(
-        () => ({scope, view: emptyView}),
-    )
-    const view = viewState.scope === scope ? viewState.view : emptyView
+    const [viewState, setViewState] = useState<{
+        scope: string
+        view: SessionPendingInputView
+        seq: number
+    }>(() => ({scope, view: emptyView, seq: 0}))
+    const current = viewState.scope === scope
+    const view = current ? viewState.view : emptyView
+    const viewSeq = current ? viewState.seq : 0
     const messagesRef = useRef(messages)
     const entityIdRef = useRef(entityId)
     const onExecutedRef = useRef(onExecuted)
-    const onStartupPhaseRef = useRef(onStartupPhase)
-    onStartupPhaseRef.current = onStartupPhase
+    const onTurnStageRef = useRef(onTurnStage)
+    onTurnStageRef.current = onTurnStage
     const isSharedReaderReadyRef = useRef(isSharedReaderReady)
+    // Monotonic across scopes: a read's number says whether it began after a given write.
+    const requestSeqRef = useRef(0)
     const loadInFlightRef = useRef<{
         scope: string
-        promise: Promise<SessionPendingInputView | null>
+        promise: Promise<SnapshotRead | null>
     } | null>(null)
     messagesRef.current = messages
     entityIdRef.current = entityId
@@ -264,58 +297,75 @@ export const useServerSessionInputs = ({
     // generation of its own.
     const mount = useMountGeneration()
 
-    const load = useCallback((): Promise<SessionPendingInputView | null> => {
-        if (loadInFlightRef.current?.scope === scope) {
-            return loadInFlightRef.current.promise
-        }
-        const promise = (async () => {
-            const capabilities = await fetchCapabilities(sessionId)
-            if (!capabilities) return null
-            if (!capabilities.queue) return emptyView
-            const snapshot = await fetchSnapshot(sessionId)
-            return snapshot ? reduceSessionPendingInputs(snapshot) : null
-        })()
-        const entry = {scope, promise}
-        loadInFlightRef.current = entry
-        const clear = () => {
-            if (loadInFlightRef.current === entry) loadInFlightRef.current = null
-        }
-        void promise.then(clear, clear)
-        return promise
-    }, [fetchCapabilities, fetchSnapshot, sessionId, scope])
+    // `fresh` skips the in-flight read: one that began before a write cannot show that write.
+    const load = useCallback(
+        ({fresh = false}: {fresh?: boolean} = {}): Promise<SnapshotRead | null> => {
+            if (!fresh && loadInFlightRef.current?.scope === scope) {
+                return loadInFlightRef.current.promise
+            }
+            const seq = ++requestSeqRef.current
+            const promise = (async () => {
+                const snapshot = await fetchSnapshot(sessionId)
+                return snapshot ? {view: reduceSessionPendingInputs(snapshot), seq} : null
+            })()
+            const entry = {scope, promise}
+            loadInFlightRef.current = entry
+            const clear = () => {
+                if (loadInFlightRef.current === entry) loadInFlightRef.current = null
+            }
+            void promise.then(clear, clear)
+            return promise
+        },
+        [fetchSnapshot, sessionId, scope],
+    )
 
-    const refresh = useCallback(async () => {
-        const next = await load()
-        if (next && scopeRef.current === scope) setViewState({scope, view: next})
-    }, [load, scope])
+    // Reads can land out of order once a fresh one overtakes a poll; the older never wins.
+    const apply = useCallback(
+        (next: SnapshotRead | null) => {
+            if (!next || scopeRef.current !== scope) return
+            setViewState((previous) =>
+                previous.scope === scope && previous.seq >= next.seq
+                    ? previous
+                    : {scope, view: next.view, seq: next.seq},
+            )
+        },
+        [scope],
+    )
+
+    const refresh = useCallback(
+        async (options?: {fresh?: boolean}) => {
+            const next = await load(options)
+            apply(next)
+            return next?.seq ?? null
+        },
+        [apply, load],
+    )
 
     useEffect(() => {
         let cancelled = false
         void load().then((next) => {
-            if (!cancelled && next) {
-                setViewState({scope, view: next})
-            }
+            if (!cancelled) apply(next)
         })
         return () => {
             cancelled = true
         }
-    }, [load, scope])
+    }, [apply, load])
 
-    // Pending-input events arrive in a later increment. Until then, a small capability-gated
-    // snapshot poll gives every mounted browser the same durable order.
+    // A snapshot poll gives every browser the same durable order; tight only while there is work.
+    // Only the conversation on screen polls: over HTTP/1.1 each hidden pane's poll queued for the
+    // same six connections a send needs.
+    const tracking =
+        locallyBusy || remotelyBusy || view.executionState !== "idle" || view.queued.length > 0
     useEffect(() => {
-        if (!view.capabilities.queue) return
-        const timer = setInterval(() => void refresh(), 2_000)
+        if (!active) return
+        const timer = setInterval(
+            () => {
+                if (document.visibilityState === "visible") void refresh()
+            },
+            tracking ? ACTIVE_SNAPSHOT_POLL_MS : IDLE_SNAPSHOT_POLL_MS,
+        )
         return () => clearInterval(timer)
-    }, [refresh, view.capabilities.queue])
-
-    const resolveCapabilities = useCallback(async () => {
-        const capabilities = await fetchCapabilities(sessionId)
-        if (!capabilities || scopeRef.current !== scope) {
-            throw new Error("Session capabilities are unavailable. Please try again.")
-        }
-        return {queue: capabilities.queue, steer: capabilities.steer}
-    }, [fetchCapabilities, sessionId, scope])
+    }, [active, refresh, tracking])
 
     const submit = useCallback(
         async (
@@ -326,6 +376,11 @@ export const useServerSessionInputs = ({
             // Captured before the first await, so every continuation below is checked against the
             // mount that actually started this send.
             const generation = mount.capture()
+            const opensTurn = !!watcher?.opensTurn
+            const narrate = (stage: TurnStage | null) => {
+                if (opensTurn && mount.isCurrent(generation)) onTurnStageRef.current?.(stage)
+            }
+            narrate("sending")
             const outbound: UIMessage = {
                 id: message.id,
                 role: "user",
@@ -334,43 +389,61 @@ export const useServerSessionInputs = ({
                     : {}),
                 parts: outboundUserParts(message),
             }
-            const request = await buildAgentRequest(
-                entityIdRef.current,
-                [...messagesRef.current, outbound],
-                {
-                    sessionId,
-                    ...(isSharedReaderReadyRef.current?.() ? {sharedResponse: true} : {}),
-                },
-            )
-            if (!request) throw new Error("The agent is not ready to accept input.")
+            let response: Response
+            try {
+                // Bounded, not instant: a null build means the workflow has not loaded its
+                // invocation URL yet, which the first send to a new agent races (#6042).
+                const request = await buildRequestWithinDeadline(() =>
+                    buildAgentRequest(entityIdRef.current, [...messagesRef.current, outbound], {
+                        sessionId,
+                        ...(isSharedReaderReadyRef.current?.() ? {sharedResponse: true} : {}),
+                        // Same host as the resume path: the dock can answer a secret ask (#7001).
+                        secretSetup: true,
+                    }),
+                ).catch((error: unknown) => {
+                    if (error instanceof Error && error.message === PREPARE_NOT_READY_MESSAGE) {
+                        throw new Error("The agent is not ready to accept input.")
+                    }
+                    throw error
+                })
+                // The build can wait for the invocation URL. A session switched meanwhile would get
+                // a request mixing the new scope's entity and messages with this send's session
+                // id. Only the scope is checked, not the mount: admission may outlive a remount.
+                if (scopeRef.current !== scope) {
+                    throw new Error("The session changed before the message was sent.")
+                }
 
-            const response = await fetch(request.invocationUrl, {
-                method: "POST",
-                headers: {
-                    ...request.headers,
-                    "Content-Type": "application/json",
-                    "Idempotency-Key": message.id,
-                },
-                body: JSON.stringify({...request.requestBody, on_busy: policy}),
-            })
-            if (!response.ok) {
-                // Read the body rather than cancelling it: a typed refusal states its reason
-                // there, and discarding it left the composer able to say only that the message
-                // had not gone — never why, and never what would fix it.
-                const body = await response.text().catch(() => "")
-                throw readSendRefusal(response.status, body)
+                response = await fetch(request.invocationUrl, {
+                    method: "POST",
+                    headers: {
+                        ...request.headers,
+                        "Content-Type": "application/json",
+                        "Idempotency-Key": message.id,
+                    },
+                    body: JSON.stringify({...request.requestBody, on_busy: policy}),
+                })
+                if (!response.ok) {
+                    // Read the body rather than cancelling it: a typed refusal states its reason
+                    // there, and discarding it left the composer able to say only that the message
+                    // had not gone — never why, and never what would fix it.
+                    const body = await response.text().catch(() => "")
+                    throw readSendRefusal(response.status, body)
+                }
+            } catch (error) {
+                narrate(null)
+                throw error
             }
 
             if (response.status === 202) {
-                // The body names the durable input this became. The echo retires when the dock is
-                // OBSERVED to list that id, not merely because this refresh returned.
+                narrate(null)
+                // The echo retires once the dock lists the input this body names; no need to wait.
                 const parkedId = await response
                     .json()
                     .then(parkedInputIdFromBody)
                     .catch(() => null)
                 if (parkedId) watcher?.onParked?.(parkedId)
                 else watcher?.onFailed?.()
-                await refresh()
+                void refresh({fresh: true})
                 return "queued"
             }
 
@@ -380,13 +453,19 @@ export const useServerSessionInputs = ({
             // first frame names it, and a stream that ends without one never started a turn.
             void readRunAdmission(response, {
                 ...watcher,
-                onStartupPhase: (label) => {
-                    if (mount.isCurrent(generation)) onStartupPhaseRef.current?.(label)
+                onFailed: () => {
+                    narrate(null)
+                    watcher?.onFailed?.()
+                },
+                onTurnStage: (stage) => {
+                    if (stage === "started") watcher?.onTurnNamed?.()
+                    if (mount.isCurrent(generation)) onTurnStageRef.current?.(stage)
                 },
             })
                 .then(async ({accepted, ended}) => {
+                    watcher?.onTurnNamed?.()
                     if (!mount.isCurrent(generation)) return
-                    await refresh()
+                    await refresh({fresh: true})
                     if (!mount.isCurrent(generation)) return
                     // Settlement WAITS for the re-read it starts. The saved row that retires this
                     // send's echo arrives in that read; reporting before it landed flagged a
@@ -404,65 +483,67 @@ export const useServerSessionInputs = ({
                     // Settling on any of them would put "wasn't sent" under a message that was.
                     if (accepted && ended && reconciled !== false) watcher?.onSettled?.()
                 })
-                .catch(() => undefined)
+                .catch(() => watcher?.onTurnNamed?.())
             return "running"
         },
-        [mount, refresh, sessionId],
+        [mount, refresh, scope, sessionId],
+    )
+
+    // Every write re-reads past itself. `settledSeq` lets an optimistic overlay wait for that read.
+    const settle = useCallback(
+        (outcome: PendingInputWriteOutcome): ServerQueueWriteResult => {
+            const settledSeq = requestSeqRef.current
+            void refresh({fresh: true})
+            return {outcome, settledSeq}
+        },
+        [refresh],
     )
 
     const remove = useCallback(
-        async (id: string) => {
-            if (!(await removeInput({sessionId, inputId: id}))) {
-                throw new Error("The pending input could not be removed.")
-            }
-            await refresh()
-        },
-        [refresh, removeInput, sessionId],
+        async (id: string) => settle(await removeInput({sessionId, inputId: id})),
+        [removeInput, sessionId, settle],
     )
 
     const edit = useCallback(
-        async (id: string, item: {text: string; fileParts?: FileUIPart[]}) => {
-            if (!view.capabilities.queue) throw new Error("Queue editing is not available.")
-            const updated = await updateInput({
-                sessionId,
-                inputId: id,
-                text: item.text,
-                attachments: item.fileParts?.map((part) => ({
-                    uri: part.url,
-                    mime_type: part.mediaType,
-                    attachment_id: attachmentIdForPart(part) ?? undefined,
-                    ...(part.filename ? {filename: part.filename} : {}),
-                })),
-            })
-            if (!updated) throw new Error("The queued message could not be updated. Try again.")
-            await refresh()
-        },
-        [refresh, sessionId, updateInput, view.capabilities.queue],
+        async (id: string, item: {text: string; fileParts?: FileUIPart[]}) =>
+            settle(
+                await updateInput({
+                    sessionId,
+                    inputId: id,
+                    text: item.text,
+                    attachments: item.fileParts?.map((part) => ({
+                        uri: part.url,
+                        mime_type: part.mediaType,
+                        attachment_id: attachmentIdForPart(part) ?? undefined,
+                        ...(part.filename ? {filename: part.filename} : {}),
+                    })),
+                }),
+            ),
+        [sessionId, settle, updateInput],
     )
 
     const sendNow = useCallback(
         async (id: string) => {
-            if (!view.capabilities.queue || !view.capabilities.steer) {
-                throw new Error("Send Now is not available for this session.")
-            }
-            if (!(await sendInputNow({sessionId, inputId: id}))) {
-                throw new Error("The queued message could not be sent. Try again.")
-            }
-            await refresh()
+            const {outcome, admission} = await sendInputNow({sessionId, inputId: id})
+            // Over a running turn the id is the turn being stopped, not the one this input starts.
+            const input = admission?.input
+            const executionId =
+                input?.state === "promoted" ? (input.promoted_execution_id ?? null) : null
+            return {...settle(outcome), executionId}
         },
-        [refresh, sendInputNow, sessionId, view.capabilities.queue, view.capabilities.steer],
+        [sendInputNow, sessionId, settle],
     )
 
     return {
-        capabilities: view.capabilities,
         executionState: view.executionState,
-        busy: locallyBusy || view.executionState !== "idle",
+        // `remotelyBusy` too: `executionState` learns of another browser's run only on the next poll.
+        busy: locallyBusy || remotelyBusy || view.executionState !== "idle",
         queued: view.queued,
+        viewSeq,
         submit,
         remove,
         sendNow,
         edit,
         refresh,
-        resolveCapabilities,
     }
 }

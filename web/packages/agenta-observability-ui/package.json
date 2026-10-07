@@ -15,7 +15,8 @@
     "exports": {
         ".": "./src/index.ts",
         "./traceDrawer": "./src/traceDrawer/index.ts",
-        "./drillIn": "./src/drillIn/index.ts"
+        "./drillIn": "./src/drillIn/index.ts",
+        "./analytics": "./src/analytics/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
@@ -24,13 +25,13 @@
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
         "clsx": "^2.1.1",
-        "motion": "^12.0.0",
         "papaparse": "^5.5.3",
         "@agenta/annotation-ui": "workspace:../agenta-annotation-ui",
         "lucide-react": "^0.479.0",
         "usehooks-ts": "^3.1.1",
         "json5": "^2.2.3",
-        "js-yaml": "^4.3.1"
+        "js-yaml": "^4.3.1",
+        "recharts": "2.15.4"
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",

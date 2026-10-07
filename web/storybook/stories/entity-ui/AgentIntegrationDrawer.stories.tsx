@@ -136,9 +136,9 @@ export const InvalidConnection: Story = {
 }
 
 /**
- * The categories as the provider actually sends them: lowercase, and more of them than the rail can
- * show at once. They must read as names, and the list must scroll on its own without carrying the
- * "Categories" heading and "All apps" off the top.
+ * The categories as the provider actually sends them: lowercase, and many of them. The category
+ * dropdown beside the search must show them in sentence case with their acronyms ("AI web
+ * scraping", "CRM"), and its list must scroll inside the drawer.
  *
  * GitHub and Slack are connected AND still listed under "All apps" — connecting again is the only
  * way to add a second account, so the catalog never subtracts what is already connected.

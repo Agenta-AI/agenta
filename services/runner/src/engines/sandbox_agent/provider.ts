@@ -7,6 +7,7 @@ import {
   DEFAULT_DAYTONA_SNAPSHOT,
   KNOWN_SANDBOX_PROVIDER_IDS,
   loadRunnerConfig,
+  providerNotEnabledMessage,
   type RunnerConfig,
   type RunnerDaytonaConfig,
   type SandboxProviderId,
@@ -97,6 +98,7 @@ export function buildDaytonaCreate(
   environment: Record<string, string>,
   sandboxPermission: SandboxPermission | undefined,
   secretAttachments: Record<string, string> = {},
+  labels: Record<string, string> = {},
 ): Record<string, unknown> {
   const snapshot = daytona.image
     ? undefined
@@ -110,6 +112,7 @@ export function buildDaytonaCreate(
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
     envVars: daytonaEnvVars(piExtEnv, environment),
+    ...(Object.keys(labels).length > 0 ? { labels } : {}),
     ...(Object.keys(secretAttachments).length > 0
       ? { secrets: secretAttachments }
       : {}),
@@ -158,7 +161,12 @@ export function daytonaCreateFingerprint(input: {
   image?: string;
   create: Record<string, unknown>;
 }): string {
-  return createHash("sha256").update(canonicalJson(input)).digest("hex");
+  // Labels name the session, they do not shape the sandbox: the same topology for two sessions
+  // must hash the same, and a label added later must not read as a different sandbox.
+  const { labels: _labels, ...create } = input.create;
+  return createHash("sha256")
+    .update(canonicalJson({ ...input, create }))
+    .digest("hex");
 }
 
 /** Recognized ids that are planned but not yet provisionable (fail with a specific message). */
@@ -181,6 +189,8 @@ export const PLANNED_SANDBOX_IDS = ["e2b"] as const;
 export interface BuildSandboxProviderOptions {
   /** A detached lease from a sandbox this run already convicted. See `acquireEnvironment`. */
   inheritedLease?: DaytonaSecretLease;
+  /** The session inventory labels written on a Daytona create. See `sandbox-labels.ts`. */
+  sessionLabels?: Record<string, string>;
   config?: RunnerConfig;
 }
 
@@ -199,10 +209,7 @@ export function buildSandboxProvider(
     (KNOWN_SANDBOX_PROVIDER_IDS as readonly string[]).includes(sandboxId) &&
     !config.providers.enabled.includes(sandboxId as SandboxProviderId)
   ) {
-    throw new Error(
-      `Sandbox provider '${sandboxId}' is not enabled on this deployment ` +
-        `(enabled: ${config.providers.enabled.join(", ")}).`,
-    );
+    throw new Error(providerNotEnabledMessage(sandboxId, config.providers.enabled));
   }
 
   if (sandboxId === "daytona") {
@@ -215,6 +222,8 @@ export function buildSandboxProvider(
       piExtEnv,
       modelEnvironment,
       sandboxPermission,
+      {},
+      options.sessionLabels,
     );
     const buildDaytona = (secretAttachments: Record<string, string>) =>
       daytonaWithLifecycle(
@@ -228,7 +237,10 @@ export function buildSandboxProvider(
               : {}),
           } as any,
         },
-        { client: buildDaytonaClient(config.daytona) },
+        {
+          client: buildDaytonaClient(config.daytona),
+          target: config.daytona.target,
+        },
       );
     // The process-local Secret wrapper applies to EVERY plan-bearing Daytona run
     // (`buildRunPlan` builds a plan unless AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS switched hiding

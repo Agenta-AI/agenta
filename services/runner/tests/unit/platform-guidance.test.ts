@@ -241,10 +241,8 @@ describe("the codex bundled-skills rebuttal", () => {
     assert.ok(guidance?.includes(fileCitationAppendix().text));
   });
 
-  it("keys on the tool name rather than on the ordered-operations flag", () => {
-    // THE AXIS IS DELIBERATE. `commit_revision` is in the default build kit unconditionally and
-    // the flag changes the commit's DELTA SHAPE, not the tool's existence. Presence also catches
-    // what a flag check cannot: a flag-ON agent that simply has no config tools.
+  it("keys on the tool name", () => {
+    // Presence is the test: it catches an agent that simply has no config tools.
     assert.ok(
       platformGuidanceAppendix(
         run({ acpAgent: "codex", toolNames: ["commit_revision"] }),

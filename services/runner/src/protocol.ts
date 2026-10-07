@@ -231,6 +231,15 @@ export interface RunContext {
   session?: {
     id?: string;
   };
+  /**
+   * The tool call being dispatched, filled by the relay for each direct call and never by the
+   * service. Its id stays the same when the same call is relayed again (a resumed approval
+   * reuses it), so an endpoint can key a side effect on it and answer a retry without repeating
+   * the effect.
+   */
+  tool?: {
+    call_id?: string;
+  };
   workflow?: {
     artifact?: RunContextReference;
     variant?: RunContextReference;
@@ -548,7 +557,24 @@ export interface AgentUsage {
   input: number;
   output: number;
   total: number;
-  cost: number;
+  /**
+   * INVARIANT: absent means the cost is UNKNOWN (the harness reported none); a present `0` is a
+   * measured zero — a free model or a fully cached turn. Consumers read presence as evidence of
+   * a measurement, so a producer must never substitute a zero for an absence: doing so records
+   * an unpriced run as a free one, which every downstream aggregate then believes.
+   */
+  cost?: number;
+}
+
+/**
+ * Token counts of a turn, as the tracer stamps them on its model span. Input is EXCLUSIVE of
+ * cache: reads and writes are separate counts. Runner-internal, never on the wire.
+ */
+export interface ModelTokenUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
 }
 
 /**
@@ -636,8 +662,11 @@ export interface GatewayCredentials {
  * - `deployment` is HOW that provider is reached: `direct` (the provider's own API), `custom`
  *   (an OpenAI-compatible third party such as OpenRouter or a self-hosted gateway), or `bedrock`
  *   / `vertex` (a cloud reseller with its own auth scheme).
- * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is what an
- *   OpenAI-compatible deployment needs; `apiVersion` is what Azure needs; `region` is what AWS
+ * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is the
+ *   provider's API base, the prefix a client puts before an operation path, so its shape is the
+ *   provider's own (`https://api.openai.com/v1`, `https://api.anthropic.com`,
+ *   `https://generativelanguage.googleapis.com/v1beta`); the runner hands it to the harness as
+ *   written. `apiVersion` is what Azure needs; `region` is what AWS
  *   and Vertex need; `headers` carries non-secret routing headers some gateways require. A
  *   given deployment fills in the subset that applies to it and leaves the rest unset. AWS and
  *   the other cloud resellers are covered by exactly this: `deployment: "bedrock"` plus
@@ -716,6 +745,12 @@ export interface ModelConnection {
   /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the
    * provider's secret. Omitted when the model is not reached through a gateway. */
   gatewayCredentials?: GatewayCredentials;
+  /**
+   * True when the route serves the user's own custom-provider record, false when it serves a
+   * provider key. The SDK resolver knows the record kind and states it; omitted by older SDKs,
+   * in which case only a `custom` deployment counts (`servedByCustomConnection`).
+   */
+  customConnection?: boolean;
 }
 
 /**
@@ -752,7 +787,10 @@ export interface AgentRunRequest {
    * the ACP agent "claude". Selected by the request; there is no engine selector.
    */
   harness?: string;
-  /** Sandbox: "local" | "daytona". */
+  /**
+   * Sandbox: "local" | "daytona" | "inprocess". `daytona` and `inprocess` are one choice that the
+   * runner routes by harness at its ingress (`sandbox-routing.ts`).
+   */
   sandbox?: string;
   /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;
@@ -970,6 +1008,11 @@ export interface AgentRunResult {
   model?: string;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
   traceId?: string;
+  /**
+   * The sandbox provider the run executed on, after harness routing (`sandbox-routing.ts`). It
+   * can differ from the requested `sandbox`: Pi chosen on `daytona` runs `inprocess`.
+   */
+  sandbox?: string;
   /** Human-facing summary; unchanged shape. Every failure keeps this even when `errorDetail` is
    * also present, so a caller reading only this field never regresses. */
   error?: string;
@@ -979,6 +1022,14 @@ export interface AgentRunResult {
    * `parseGatewayErrorDetail` in `gateway-error.ts`). Never present without `error`.
    */
   errorDetail?: AgentErrorDetail;
+  /**
+   * Set only when the turn was ended by the TTFB run-limit on a FRESH prompt, which means it
+   * produced no token, no tool call and no side effect before it was cut. Nothing ran, so the
+   * dispatch may re-prompt it once (`runAgent` in `server.ts`); the flag is cleared before the
+   * result leaves the runner, so no caller can loop on it. Never set for a resume or a
+   * continuation, where earlier work exists that a replay could repeat.
+   */
+  stalledBeforeFirstResponse?: boolean;
 }
 
 /**

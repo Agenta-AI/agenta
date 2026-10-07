@@ -10,7 +10,7 @@ Quick reference for new contributors working with `@agenta/entities`.
 | Run app revisions | `workflowMolecule` | Access revision data, input/output ports, configuration directly. |
 | Render testcase tables | `testcaseDataController` | Abstracts local vs server data sources. |
 | Get effective testcases for a revision | `revision.atoms.effectiveTestcases(id)` | Server rows + local pending rows merged. |
-| Edit entity metadata | `testsetMolecule`, `revisionMolecule`, `appRevisionMolecule` | Draft state is merged into `data`. |
+| Edit entity metadata | `testsetMolecule`, `revisionMolecule`, `workflowMolecule` | Draft state is merged into `data`. |
 | Commit testset changes | `revisionMolecule.actions.commit` | Commit creates a new revision. |
 
 ## Local vs backend mental model

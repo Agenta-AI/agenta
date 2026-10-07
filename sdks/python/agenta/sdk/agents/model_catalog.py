@@ -116,22 +116,27 @@ def load_pi_model_catalog() -> ModelCatalog:
     overlay = curated_file.get("overlay", {})
     additions = curated_file.get("additions", [])
 
-    entries: List[ModelCatalogEntry] = []
-    generated_ids = set()
-    for raw in generated.get("models", []):
+    def with_overlay(raw: dict) -> dict:
         merged = dict(raw)
-        generated_ids.add(raw.get("id"))
         curated = overlay.get(raw.get("id"))
         if curated:
             for field in _OVERLAY_FIELDS:
                 if field in curated:
                     merged[field] = curated[field]
-        entries.append(ModelCatalogEntry.model_validate(merged))
+        return merged
 
+    entries: List[ModelCatalogEntry] = []
+    generated_ids = set()
+    for raw in generated.get("models", []):
+        generated_ids.add(raw.get("id"))
+        entries.append(ModelCatalogEntry.model_validate(with_overlay(raw)))
+
+    # The overlay decorates an addition too, so its judgments survive the regeneration that
+    # retires the addition.
     for raw in additions:
         if raw.get("id") in generated_ids:
             continue
-        entries.append(ModelCatalogEntry.model_validate(raw))
+        entries.append(ModelCatalogEntry.model_validate(with_overlay(raw)))
 
     return ModelCatalog(schema_version="1", models=entries)
 
@@ -197,6 +202,32 @@ def _catalog_id(provider: Optional[str], model_id: str) -> str:
     return f"{provider.lower()}/{model_id}"
 
 
+def _custom_catalog_id(provider: Optional[str], model_id: str) -> Optional[str]:
+    """Join a self-describing OpenAI-compatible custom model to catalog facts.
+
+    The transport provider is not necessarily the model provider. Strip only the
+    explicit ``<connection>/custom/`` envelope, never arbitrary path segments.
+    Bare custom names remain unknown. This changes no connection routing.
+    """
+    parts = model_id.split("/", 2)
+    namespace = None
+    if len(parts) == 3 and parts[1] == "custom":
+        namespace, _, model_id = parts
+    head, separator, tail = model_id.partition("/")
+    if head.lower() == "openai" and "/" in tail:
+        head, separator, tail = tail.partition("/")
+    if not separator or not tail:
+        return None
+    allowed_providers = {"openai", head.lower()}
+    if namespace:
+        allowed_providers.add(namespace.lower())
+    if provider and provider.lower() not in allowed_providers:
+        return None
+    # Vertex serves the Gemini family; the exact model must still exist in the catalog.
+    family = {"vertex": "gemini", "vertex_ai": "gemini"}.get(head.lower(), head.lower())
+    return f"{family}/{tail}"
+
+
 def model_input_modalities(
     harness: Optional[str], model_id: str, *, provider: Optional[str] = None
 ) -> Optional[List[str]]:
@@ -216,6 +247,9 @@ def model_input_modalities(
         return None
 
     entry = next((item for item in catalog.models if item.id == catalog_id), None)
+    if harness == "pi_core" and entry is None:
+        alias = _custom_catalog_id(provider, model_id)
+        entry = next((item for item in catalog.models if item.id == alias), None)
     if harness == "claude" and entry is None:
         # Reuse the same sourced Anthropic fact from Pi's generated catalog; do not guess.
         pi_catalog_id = _catalog_id("anthropic", model_id)

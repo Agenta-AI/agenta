@@ -18,6 +18,8 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {TurnRow} from "@/features/chat/TurnRow"
 
+import {WithQueryClient} from "../support/queryClient"
+
 vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -53,9 +55,11 @@ const renderTurn = (parts: unknown[], metadata?: Record<string, unknown>): strin
     root = createRoot(host)
     act(() => {
         root!.render(
-            <Provider store={createStore()}>
-                <TurnRow turn={turn} sessionId="session-1" />
-            </Provider>,
+            <WithQueryClient>
+                <Provider store={createStore()}>
+                    <TurnRow turn={turn} sessionId="session-1" />
+                </Provider>
+            </WithQueryClient>,
         )
     })
     return host.innerHTML

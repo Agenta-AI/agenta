@@ -18,6 +18,7 @@ from agenta.sdk.engines.running.utils import (
 )
 from agenta.sdk.engines.running.handlers import remote_forward_v0
 from agenta.sdk.engines.running.errors import (
+    ArchivedReferenceV0Error,
     InvalidInterfaceURIV0Error,
     MissingConfigurationParameterV0Error,
 )
@@ -272,7 +273,8 @@ async def resolve_references_with_info(
         if request.selector and request.selector.key:
             key = request.selector.key
 
-        body: Dict[str, Any] = {"resolve": True}
+        # Never resolve an archived workflow, variant, or revision into a live invoke.
+        body: Dict[str, Any] = {"resolve": True, "include_archived": False}
 
         application_mapping = [
             ("application_ref", "application"),
@@ -346,6 +348,24 @@ async def resolve_references_with_info(
                 retrieval_selector,
             )
 
+        async def _raise_if_archived(
+            *,
+            url: str,
+            req_body: Dict[str, Any],
+            resp_key: str,
+        ) -> None:
+            """On a total miss, probe with archived entities included: distinguishes
+            an archived target from a genuinely nonexistent one."""
+            probe_response = await client.post(
+                url,
+                headers=headers,
+                json={**req_body, "include_archived": True},
+                timeout=30.0,
+            )
+            probe_response.raise_for_status()
+            if probe_response.json().get(resp_key):
+                raise ArchivedReferenceV0Error(refs=_request_retrieval_references())
+
         environment_backed_application_lookup = (
             has_application_refs
             and has_environment_refs
@@ -402,7 +422,10 @@ async def resolve_references_with_info(
             if has_application_refs:
                 # Compatibility fallback for deployments where application retrieve
                 # does not resolve but equivalent workflow retrieve does.
-                fallback_body: Dict[str, Any] = {"resolve": True}
+                fallback_body: Dict[str, Any] = {
+                    "resolve": True,
+                    "include_archived": False,
+                }
                 application_to_workflow_mapping = [
                     ("workflow_ref", "application"),
                     ("workflow_variant_ref", "application_variant"),
@@ -434,7 +457,7 @@ async def resolve_references_with_info(
             if has_evaluator_refs:
                 # Compatibility fallback for deployments where evaluator retrieve
                 # does not resolve but equivalent workflow retrieve does.
-                fallback_body = {"resolve": True}
+                fallback_body = {"resolve": True, "include_archived": False}
                 evaluator_to_workflow_mapping = [
                     ("workflow_ref", "evaluator"),
                     ("workflow_variant_ref", "evaluator_variant"),
@@ -463,6 +486,12 @@ async def resolve_references_with_info(
                 )
                 if revision:
                     return revision, retrieval_references, retrieval_selector
+
+            await _raise_if_archived(
+                url=retrieve_url,
+                req_body=body,
+                resp_key=response_key,
+            )
 
         return None, None, None
 

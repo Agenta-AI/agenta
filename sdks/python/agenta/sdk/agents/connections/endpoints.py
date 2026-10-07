@@ -19,16 +19,19 @@ from .models import (
     is_effective_https_endpoint,
 )
 
+# Each value is the provider's API base: the prefix a client puts before an operation path. For
+# Gemini that prefix carries the API version (`{base}/models/...`), the way Pi and LiteLLM read it.
 _DIRECT_ENDPOINTS: Dict[str, str] = {
     "openai": "https://api.openai.com/v1",
     "anthropic": "https://api.anthropic.com",
-    "gemini": "https://generativelanguage.googleapis.com",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta",
     "mistral": "https://api.mistral.ai/v1",
     "mistralai": "https://api.mistral.ai/v1",
     "minimax": "https://api.minimax.io/v1",
     "groq": "https://api.groq.com/openai/v1",
     "together_ai": "https://api.together.xyz/v1",
     "openrouter": "https://openrouter.ai/api/v1",
+    "xai": "https://api.x.ai/v1",
 }
 _NON_SECRET_ENV = {
     "AWS_REGION",
@@ -134,6 +137,7 @@ def build_resolved_connection(
     endpoint: Optional[Endpoint] = None,
     input_modalities: Optional[List[str]] = None,
     subscription: Optional[ResolvedSubscription] = None,
+    custom_connection: Optional[bool] = None,
 ) -> ResolvedConnection:
     """Build a classified connection and attach the resolver-owned effective route.
 
@@ -178,6 +182,7 @@ def build_resolved_connection(
         endpoint=route,
         input_modalities=input_modalities,
         subscription=subscription,
+        custom_connection=custom_connection,
     )
 
 
@@ -194,17 +199,22 @@ def gateway_target(*, kind: str, provider: str, slug: str) -> Tuple[str, str]:
     return "custom", slug
 
 
+# Providers whose harness SDK adds the `/v1` segment to the base URL itself.
+_SDK_VERSIONED_PROVIDERS = frozenset({"anthropic", "mistral"})
+
+
 def gateway_route(
     *, namespace: str, name: str, provider: str, gateway_base_url: str
 ) -> str:
     """Return the provider-correct base for a gateway LLM route.
 
     OpenAI-compatible harnesses append operations such as ``/responses`` to a ``/v1`` base.
-    Anthropic's SDK, like its direct endpoint, owns the version segment itself and appends
-    ``/v1/messages``. Giving it an already-versioned base produces ``/v1/v1/messages``.
+    The Anthropic and Mistral SDKs, like their direct endpoints, own the version segment
+    themselves and append ``/v1/messages`` and ``/v1/chat/completions``. Giving them an
+    already-versioned base produces ``/v1/v1/...``, which the gateway does not route.
     """
     route = f"{gateway_base_url.rstrip('/')}/gateways/llms/{namespace}/{name}"
-    return route if provider.lower() == "anthropic" else f"{route}/v1"
+    return route if provider.lower() in _SDK_VERSIONED_PROVIDERS else f"{route}/v1"
 
 
 def build_gateway_resolved_connection(
@@ -217,6 +227,7 @@ def build_gateway_resolved_connection(
     gateway_base_url: str,
     gateway_credentials_value: str,
     input_modalities: Optional[List[str]] = None,
+    custom_connection: Optional[bool] = None,
 ) -> ResolvedConnection:
     """Build a resolved connection that routes through the gateway (D36/D30/D31).
 
@@ -251,4 +262,5 @@ def build_gateway_resolved_connection(
         endpoint=Endpoint(base_url=route),
         gateway_credentials=GatewayCredentials(value=gateway_credentials_value),
         input_modalities=input_modalities,
+        custom_connection=custom_connection,
     )

@@ -56,7 +56,6 @@ export {
     extractTextFromContent,
     extractDisplayTextFromMessage,
     hasAttachments,
-    getAttachmentInfo,
     updateTextInContent,
     addImageToContent,
     addFileToContent,

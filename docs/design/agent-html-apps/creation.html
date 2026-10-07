@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Agent App Creation</title>
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F4F5F7; --surface:#FFFFFF; --sunken:#ECEEF2; --ink:#16181D; --muted:#5B6270; --line:#D9DCE3; --line-strong:#B8BEC9;
+  --accent:#0F766E; --accent-soft:#D9F0EC; --accent-ink:#0B5A54;
+  --warn:#B45309; --warn-soft:#FBEBD5; --crit:#B91C1C; --crit-soft:#F8DEDE; --ok:#15803D; --ok-soft:#DCF1E3;
+  --code-bg:#EEF0F4;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+}}
+:root[data-theme="dark"]{
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55;padding-inline:20px;padding-block:0 96px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,pre{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+code{font-size:.88em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+pre{background:var(--code-bg);padding:12px 14px;border-radius:6px;overflow-x:auto;font-size:12px;line-height:1.5;margin:0}
+pre code{background:none;padding:0;font-size:inherit}
+h1,h2,h3,h4{font-family:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,4.2vw,44px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:26px;font-weight:700;margin-top:64px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:18px;font-weight:600;margin-top:28px}
+h4{font-size:14px;font-weight:600;margin-top:18px}
+p{margin:12px 0;max-width:72ch}
+ul,ol{max-width:72ch;padding-left:22px;margin:10px 0}
+li{margin:5px 0}
+.wrap{max-width:1080px;margin:0 auto}
+.layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+.toc{position:sticky;top:24px;font-size:13px;padding-top:88px}
+.toc a{display:block;border:0;color:var(--muted);padding:4px 0}
+.toc a:hover{color:var(--ink)}
+.toc .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+header.hero{padding-block:56px 12px}
+.eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:14px}
+.lede{font-size:18px;color:var(--muted);max-width:64ch;margin-top:14px}
+figure{margin:20px 0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 14px 10px}
+figure svg{display:block;max-width:100%;height:auto;color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;max-width:80ch}
+.tbl{overflow-x:auto;margin:16px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--sunken)}
+tr:last-child td{border-bottom:0}
+td.mono{font-family:"IBM Plex Mono",monospace;font-size:12px}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:14px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.box .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:6px}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;max-width:80ch;font-size:14px}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.callout p{margin:4px 0}
+.tier{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:16px}
+.tier .t{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;border-top:3px solid var(--line-strong)}
+.tier .t.first{border-top-color:var(--accent)}
+.tier .t h3{margin:0 0 6px;font-size:17px}
+.tier .t .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.tier .t ul{padding-left:18px;font-size:14px;margin:8px 0}
+.dec{background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-top:16px}
+.dec .row{display:grid;grid-template-columns:minmax(180px,.9fr) minmax(0,1.6fr);gap:16px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:14px}
+.dec .row:last-child{border-bottom:0}
+.dec .q{font-weight:500}.dec .a{color:var(--muted)}.dec .a b{color:var(--ink);font-weight:600}
+@media (max-width:560px){.dec .row{grid-template-columns:minmax(0,1fr)}}
+.check{list-style:none;padding:0;margin:10px 0;max-width:80ch;display:grid;gap:6px}
+.check li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;font-size:14px;padding:8px 10px;background:var(--sunken);border-radius:6px}
+.check .b{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--accent);margin-top:3px}
+.small{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="wrap"><div class="layout">
+<nav class="toc" aria-label="Sections">
+  <div class="lbl">Contents</div>
+  <a href="#one-way">One way in</a>
+  <a href="#drift">The drift problem</a>
+  <a href="#tiers">Starter or custom</a>
+  <a href="#folder">The app folder</a>
+  <a href="#skill">How the agent learns</a>
+  <a href="#kit">The design kit</a>
+  <a href="#loop">The creation loop</a>
+  <a href="#grants">Grants while building</a>
+  <a href="#rules">What the skill enforces</a>
+  <a href="#agent-layout">Agent-level layout</a>
+  <a href="#learn">Exploration: the agent keeps its own starters</a>
+  <a href="#work">Work packages</a>
+  <a href="#decisions">Decisions</a>
+</nav>
+<main>
+<header class="hero">
+  <div class="eyebrow">Agenta · agent HTML apps · creation</div>
+  <h1>How apps get made, and made the same way twice</h1>
+  <p class="lede">The bridge decides what a running app can do. This page is about the step before that: how an agent turns "make me a board" into a folder of files, how two sessions asking for the same thing end up with the same app, and how a user tells an app from a file. Companion to the <a href="plan.html">plan</a>, the <a href="walkthrough.html">walkthrough</a> and the <a href="six-apps.html">field test</a>.</p>
+</header>
+
+<section id="one-way">
+  <h2 style="margin-top:36px">One way in</h2>
+  <p>An app is created by an agent, during a turn, using its file tools, the same way it writes any other file into the session's drive. There is no app builder, no upload path, and no separate "create app" screen. The user asks for something in the conversation; the agent decides it is an app; a folder appears.</p>
+  <p>PR #6529 says exactly this much: "an agent writes a small application as HTML, CSS, and JavaScript", with "starter templates" deferred to a later slice. It does not say how the agent knows the bridge exists, what a well-formed app looks like, how a user recognizes one, or how the agent fixes one it cannot see running. Those are the four things below, and one of them, consistency, is the one that decides whether the feature feels like a product or like a lottery.</p>
+</section>
+
+<section id="drift">
+  <h2>The drift problem</h2>
+  <p>Take one agent and two sessions. In both, the user asks for a task board. Without anything constraining it, the agent writes two boards from scratch, and they will not match. Different columns, different colours, different keyboard behaviour, one with drag and one with buttons, one that saves on every change and one that has a Save button. The user's mental model is "my agent has a board". The reality is two unrelated programs that happen to share a name.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-label="Left, today: two sessions of the same agent each ask for a board; the agent writes from scratch both times and produces two visibly different boards. Right, proposed: both requests go through the agenta-apps skill, which resolves to the board starter; a platform operation copies the same bytes into each session's folder, so both boards are identical.">
+      <defs><marker id="d1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <text x="20" y="22" font-size="12" font-weight="600" letter-spacing=".06em" opacity=".6">TODAY · WRITTEN FROM SCRATCH</text>
+        <rect x="20" y="40" width="120" height="40" rx="5" fill="none" stroke="currentColor"/><text x="80" y="64" text-anchor="middle">Session 1: "a board"</text>
+        <rect x="20" y="200" width="120" height="40" rx="5" fill="none" stroke="currentColor"/><text x="80" y="224" text-anchor="middle">Session 2: "a board"</text>
+        <rect x="190" y="110" width="90" height="60" rx="5" fill="none" stroke="currentColor"/><text x="235" y="136" text-anchor="middle" font-weight="600">Agent</text><text x="235" y="152" text-anchor="middle" opacity=".7">improvises</text>
+        <!-- board A -->
+        <rect x="330" y="30" width="130" height="90" rx="5" fill="var(--surface)" stroke="currentColor"/>
+        <rect x="338" y="40" width="36" height="72" rx="3" fill="currentColor" opacity=".08"/><rect x="378" y="40" width="36" height="72" rx="3" fill="currentColor" opacity=".08"/><rect x="418" y="40" width="34" height="72" rx="3" fill="currentColor" opacity=".08"/>
+        <rect x="342" y="46" width="28" height="10" rx="2" fill="var(--accent)" opacity=".5"/><rect x="342" y="60" width="28" height="10" rx="2" fill="var(--accent)" opacity=".5"/><rect x="382" y="46" width="28" height="10" rx="2" fill="var(--accent)" opacity=".5"/>
+        <text x="395" y="134" text-anchor="middle" opacity=".7">three columns, drag, autosave</text>
+        <!-- board B -->
+        <rect x="330" y="180" width="130" height="90" rx="5" fill="var(--surface)" stroke="currentColor"/>
+        <rect x="338" y="190" width="114" height="14" rx="2" fill="var(--warn)" opacity=".35"/><rect x="338" y="208" width="114" height="14" rx="2" fill="var(--warn)" opacity=".35"/><rect x="338" y="226" width="114" height="14" rx="2" fill="var(--warn)" opacity=".35"/>
+        <rect x="338" y="248" width="50" height="14" rx="3" fill="currentColor" opacity=".25"/><text x="363" y="258" text-anchor="middle" font-size="9">Save</text>
+        <text x="395" y="288" text-anchor="middle" opacity=".7">a list with a status dropdown, Save button</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <path d="M140 60 C 170 60, 170 130, 190 130" marker-end="url(#d1)"/><path d="M140 220 C 170 220, 170 150, 190 150" marker-end="url(#d1)"/>
+        <path d="M280 130 C 300 130, 300 75, 330 75" marker-end="url(#d1)"/><path d="M280 150 C 300 150, 300 225, 330 225" marker-end="url(#d1)"/>
+      </g>
+      <line x1="490" y1="20" x2="490" y2="290" stroke="currentColor" opacity=".2"/>
+      <g font-size="11" fill="currentColor">
+        <text x="510" y="22" font-size="12" font-weight="600" letter-spacing=".06em" fill="var(--accent-ink)">PROPOSED · STARTER FIRST</text>
+        <rect x="510" y="40" width="120" height="40" rx="5" fill="none" stroke="currentColor"/><text x="570" y="64" text-anchor="middle">Session 1: "a board"</text>
+        <rect x="510" y="200" width="120" height="40" rx="5" fill="none" stroke="currentColor"/><text x="570" y="224" text-anchor="middle">Session 2: "a board"</text>
+        <rect x="670" y="100" width="110" height="80" rx="5" fill="var(--accent)" opacity=".15"/><rect x="670" y="100" width="110" height="80" rx="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="725" y="124" text-anchor="middle" font-weight="600">agenta-apps</text><text x="725" y="140" text-anchor="middle" opacity=".8">skill matches</text><text x="725" y="156" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">create_app("board")</text>
+        <rect x="820" y="30" width="120" height="90" rx="5" fill="var(--surface)" stroke="var(--accent)"/>
+        <rect x="828" y="40" width="33" height="72" rx="3" fill="currentColor" opacity=".08"/><rect x="865" y="40" width="33" height="72" rx="3" fill="currentColor" opacity=".08"/><rect x="902" y="40" width="31" height="72" rx="3" fill="currentColor" opacity=".08"/>
+        <rect x="832" y="46" width="25" height="10" rx="2" fill="var(--accent)" opacity=".5"/><rect x="832" y="60" width="25" height="10" rx="2" fill="var(--accent)" opacity=".5"/><rect x="869" y="46" width="25" height="10" rx="2" fill="var(--accent)" opacity=".5"/>
+        <rect x="820" y="180" width="120" height="90" rx="5" fill="var(--surface)" stroke="var(--accent)"/>
+        <rect x="828" y="190" width="33" height="72" rx="3" fill="currentColor" opacity=".08"/><rect x="865" y="190" width="33" height="72" rx="3" fill="currentColor" opacity=".08"/><rect x="902" y="190" width="31" height="72" rx="3" fill="currentColor" opacity=".08"/>
+        <rect x="832" y="196" width="25" height="10" rx="2" fill="var(--accent)" opacity=".5"/><rect x="832" y="210" width="25" height="10" rx="2" fill="var(--accent)" opacity=".5"/><rect x="869" y="196" width="25" height="10" rx="2" fill="var(--accent)" opacity=".5"/>
+        <text x="880" y="140" text-anchor="middle" fill="var(--accent-ink)" font-weight="500">board@1 · same bytes</text>
+        <text x="880" y="288" text-anchor="middle" fill="var(--accent-ink)" font-weight="500">board@1 · same bytes</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <path d="M630 60 C 655 60, 655 130, 670 130" marker-end="url(#d1)"/><path d="M630 220 C 655 220, 655 150, 670 150" marker-end="url(#d1)"/>
+        <path d="M780 130 C 800 130, 800 75, 820 75" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#d1)"/><path d="M780 150 C 800 150, 800 225, 820 225" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#d1)"/>
+      </g>
+    </svg>
+    <figcaption>Consistency cannot come from asking the model to be consistent. It comes from not generating the UI at all when a starter exists, and from a shared design kit when one does not.</figcaption>
+  </figure>
+
+  <p>Two mechanisms, in order of strength:</p>
+  <ol>
+    <li><b>Starters are copied, not generated.</b> For the common shapes, the agent never writes the HTML. A platform operation copies a versioned starter, byte for byte, into the session folder. The agent's only creative act is writing the data and a small config file. Two sessions get identical apps because the bytes came from the same place.</li>
+    <li><b>Custom apps are built on the design kit.</b> When no starter fits, the agent writes HTML, but the page's look comes from a stylesheet Agenta injects, with the host's theme tokens. Two custom apps will differ in structure and still read as siblings, in the same way two Agenta pages do.</li>
+  </ol>
+</section>
+
+<section id="tiers">
+  <h2>Starter or custom</h2>
+  <div class="tier">
+    <div class="t first">
+      <div class="k">Tier 1 · preferred</div>
+      <h3>Starter app</h3>
+      <ul>
+        <li>Agent calls <code>create_app(starter, dir)</code>, a platform operation. The API copies the starter's files into the folder</li>
+        <li>Agent then writes only the data files and <code>config.json</code> (title, columns, fields)</li>
+        <li><code>app.json</code> records <code>"template": "board@1"</code>, so the app is recognizable and upgradable</li>
+        <li>Identical across sessions, agents and projects</li>
+      </ul>
+    </div>
+    <div class="t">
+      <div class="k">Tier 2 · when nothing fits</div>
+      <h3>Custom app</h3>
+      <ul>
+        <li>Agent writes <code>index.html</code> itself, following the skill's rules</li>
+        <li>Uses the design kit classes and tokens; no external scripts; data in sibling files</li>
+        <li><code>app.json</code> has no <code>template</code>; the kit still applies</li>
+        <li>Coherent with starters in colour, type and controls; structure is the agent's</li>
+      </ul>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 240" role="img" aria-label="Decision flow the skill encodes. Start from the user's ask. Is there already an app.json in the target folder? Yes: update its data or config, never recreate. No: does a starter match the ask? Yes: call create_app with the starter and folder, then write data and config. No: write a custom index.html on the design kit. All paths end with a file card the user opens as an app.">
+      <defs><marker id="d2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="20" y="90" width="110" height="44" rx="5" fill="none" stroke="currentColor"/><text x="75" y="116" text-anchor="middle" font-size="12">the ask</text>
+        <polygon points="270,112 200,72 130,112 200,152" fill="none" stroke="currentColor"/>
+        <text x="200" y="108" text-anchor="middle">app.json already</text><text x="200" y="122" text-anchor="middle">in the folder?</text>
+        <rect x="300" y="20" width="200" height="44" rx="5" fill="var(--accent)" opacity=".12"/><rect x="300" y="20" width="200" height="44" rx="5" fill="none" stroke="var(--accent)"/>
+        <text x="400" y="38" text-anchor="middle" font-weight="600">update data or config</text><text x="400" y="54" text-anchor="middle" opacity=".8">never create a second copy</text>
+        <polygon points="460,150 380,110 300,150 380,190" fill="none" stroke="currentColor"/>
+        <text x="380" y="146" text-anchor="middle">a starter</text><text x="380" y="160" text-anchor="middle">matches?</text>
+        <rect x="520" y="90" width="200" height="56" rx="5" fill="var(--accent)" opacity=".12"/><rect x="520" y="90" width="200" height="56" rx="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="620" y="110" text-anchor="middle" font-weight="600" font-family="IBM Plex Mono, monospace">create_app("board", dir)</text><text x="620" y="128" text-anchor="middle" opacity=".8">then write data + config.json</text>
+        <rect x="520" y="170" width="200" height="56" rx="5" fill="none" stroke="currentColor"/>
+        <text x="620" y="190" text-anchor="middle" font-weight="600">write index.html on the kit</text><text x="620" y="208" text-anchor="middle" opacity=".8">plus app.json, data files</text>
+        <rect x="780" y="120" width="160" height="56" rx="5" fill="var(--surface)" stroke="var(--line-strong)"/>
+        <rect x="790" y="130" width="24" height="24" rx="4" fill="var(--accent)" opacity=".25"/><text x="822" y="141" font-weight="500">Launch board</text><text x="822" y="156" opacity=".6" font-size="10">App · Open</text>
+      </g>
+      <g stroke="currentColor" fill="none" >
+        <path d="M200 72 C 200 42, 260 42, 300 42" marker-end="url(#d2)"/>
+        <path d="M270 112 C 285 112, 290 150, 300 150" marker-end="url(#d2)"/>
+        <path d="M380 110 C 380 118, 500 118, 520 118" marker-end="url(#d2)"/>
+        <path d="M380 190 C 380 198, 500 198, 520 198" marker-end="url(#d2)"/>
+        <path d="M500 42 C 760 42, 760 148, 780 148" marker-end="url(#d2)" opacity=".5"/>
+        <path d="M720 118 C 750 118, 760 148, 780 148" marker-end="url(#d2)"/>
+        <path d="M720 198 C 750 198, 760 148, 780 148" marker-end="url(#d2)"/>
+      </g>
+      <g font-size="10" fill="currentColor">
+        <text x="222" y="52">yes</text><text x="288" y="140">no</text><text x="440" y="106">yes</text><text x="440" y="212">no</text>
+      </g>
+    </svg>
+    <figcaption>The first question is idempotency: an agent that already made a board in this folder updates it rather than creating "board 2". The second is the starter catalogue. Custom is the fallback, not the default.</figcaption>
+  </figure>
+</section>
+
+<section id="folder">
+  <h2>The app folder</h2>
+  <p>An app is a folder, and what makes a folder an app is a manifest file in it. Not a file extension, not a heuristic on the HTML source. The explorer, the file cards, the Run tab and the agent all read the same small file.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Layout · one folder per app</div>
+<pre><code>apps/
+  launch-board/
+    app.json          ← the manifest: this folder is an app
+    index.html        ← entry (starter copy or custom)
+    config.json       ← title, columns, options; agent writes
+    board.json        ← data; app writes, agent reads
+  changelog-review/
+    app.json
+    index.html
+    review.json
+    drafts/…</code></pre>
+    <p class="small" style="margin:8px 0 0">The walkthrough's <code>launch/board.html</code> predates this convention. Same app, now at <code>apps/launch-board/</code> with a manifest.</p>
+    </div>
+    <div class="box"><div class="lbl">app.json</div>
+<pre><code>{
+  "agenta_app": 1,
+  "name": "Launch board",
+  "icon": "kanban",
+  "entry": "index.html",
+  "template": "board@1",
+  "access": "read-write",
+  "data": ["board.json"],
+  "config": "config.json",
+  "kit": true,
+  "refresh": { "prompt": "Regenerate board.json from the plan" },
+  "tools": []
+}</code></pre>
+    <p class="small" style="margin:8px 0 0"><code>refresh</code> feeds the Run tab's "Ask agent to refresh data" from v1.1. <code>tools</code> is parsed and ignored until tier 2 exists; only read-only actions will ever be accepted in it.</p>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-label="The manifest in the centre, with each field connected to who consumes it. The explorer and file cards read name and icon to show an app tile with an Open action. The Run tab reads entry and access to know what to load and which grant to request by default. The assembler reads kit to inject tokens and the base stylesheet. The agent reads template and data to recognize the app on later turns and to know which files are state.">
+      <defs><marker id="d3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="380" y="40" width="200" height="170" rx="6" fill="var(--accent)" opacity=".1"/><rect x="380" y="40" width="200" height="170" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="480" y="62" text-anchor="middle" font-weight="600" font-family="IBM Plex Mono, monospace">app.json</text>
+        <text x="396" y="86" font-family="IBM Plex Mono, monospace">name · icon</text>
+        <text x="396" y="110" font-family="IBM Plex Mono, monospace">entry · access</text>
+        <text x="396" y="134" font-family="IBM Plex Mono, monospace">kit</text>
+        <text x="396" y="158" font-family="IBM Plex Mono, monospace">template · data · config</text>
+        <text x="396" y="190" opacity=".7">agenta_app: 1 · versioned</text>
+
+        <rect x="20" y="40" width="240" height="56" rx="5" fill="none" stroke="currentColor"/>
+        <text x="140" y="60" text-anchor="middle" font-weight="600">Explorer · file cards</text><text x="140" y="78" text-anchor="middle" opacity=".8">show an App tile, "Open", not the file list</text>
+        <rect x="20" y="120" width="240" height="56" rx="5" fill="none" stroke="currentColor"/>
+        <text x="140" y="140" text-anchor="middle" font-weight="600">Run tab</text><text x="140" y="158" text-anchor="middle" opacity=".8">load entry; ask for access as the default</text>
+        <rect x="700" y="40" width="240" height="56" rx="5" fill="none" stroke="currentColor"/>
+        <text x="820" y="60" text-anchor="middle" font-weight="600">Assembler</text><text x="820" y="78" text-anchor="middle" opacity=".8">kit: inject tokens + agenta-app.css</text>
+        <rect x="700" y="120" width="240" height="56" rx="5" fill="none" stroke="currentColor"/>
+        <text x="820" y="140" text-anchor="middle" font-weight="600">Agent, next turn</text><text x="820" y="158" text-anchor="middle" opacity=".8">"there is a board@1 here; its state is board.json"</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <path d="M380 82 C 330 82, 300 68, 260 68" marker-end="url(#d3)"/>
+        <path d="M380 106 C 330 106, 300 148, 260 148" marker-end="url(#d3)"/>
+        <path d="M580 130 C 630 130, 660 68, 700 68" marker-end="url(#d3)"/>
+        <path d="M580 154 C 630 154, 660 148, 700 148" marker-end="url(#d3)"/>
+      </g>
+      <text x="480" y="238" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">A folder without app.json is a folder. Its HTML files still Preview and Run as plain files; they are not called apps.</text>
+    </svg>
+    <figcaption>One file, four readers. The manifest is also what lets the platform tell a starter copy from a custom app, and later offer "update to board@2".</figcaption>
+  </figure>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Field</th><th>Meaning</th><th>Who writes it</th><th>Who reads it</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">agenta_app</td><td>Manifest version. Lets the format change later</td><td>Starter copy, or the agent</td><td>Everyone, first</td></tr>
+      <tr><td class="mono">name · icon</td><td>What the tile and the tab show</td><td>Agent, from the ask</td><td>Explorer, file cards, tab strip</td></tr>
+      <tr><td class="mono">entry</td><td>The HTML file Run loads. Always <code>index.html</code> by convention</td><td>Starter copy, or the agent</td><td>Run tab, assembler</td></tr>
+      <tr><td class="mono">template</td><td>Which starter and version this is a copy of. Absent for custom apps</td><td><code>create_app</code></td><td>Agent (recognize, don't recreate); platform (offer updates)</td></tr>
+      <tr><td class="mono">access</td><td>The grant the app needs: <code>read</code> or <code>read-write</code>. The prompt preselects it; the user still decides</td><td>Starter copy, or the agent</td><td>Grant prompt</td></tr>
+      <tr><td class="mono">data · config</td><td>Which sibling files are state and settings. Documentation for the agent, not enforcement</td><td>Agent</td><td>Agent on later turns; skill checks</td></tr>
+      <tr><td class="mono">kit</td><td>Inject the design tokens and base stylesheet before the app's own CSS</td><td>Starter copy (<code>true</code>), agent (should be <code>true</code>)</td><td>Assembler</td></tr>
+      <tr><td class="mono">refresh</td><td>The sentence the Run tab drafts into the composer when the user asks the agent to refresh the app's data. Optional</td><td>Agent, from the ask</td><td>Run tab, v1.1</td></tr>
+      <tr><td class="mono">tools</td><td>Read-only tool actions the app may call through the parent. Reserved; parsed and ignored in v1</td><td>Agent, only when tier 2 exists</td><td>Grant prompt and parent host, tier 2</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">Recognition is by manifest only. The explorer never guesses from an HTML file's contents, so an ordinary HTML document the agent wrote for reading is never mislabelled as an app.</p>
+</section>
+
+<section id="skill">
+  <h2>How the agent learns</h2>
+  <p>Nothing in the bridge is discoverable by an agent. It has to be told that apps exist, when to make one, how the folder is shaped, and which starters it can copy. The mechanism for teaching an agent a procedure already exists in Agenta: a skill in the skill registry. The proposal is one platform skill, <b>agenta-apps</b>, attached by default to any agent that has a drive.</p>
+
+  <div class="grid2">
+    <div class="box"><div class="lbl">agenta-apps · SKILL.md, the shape of it</div>
+<pre><code># Build an app in the session drive
+
+## When
+The user wants something to look at or interact
+with beside the chat that is more than a document:
+a board, a checklist, a review queue, a form,
+a table, a dashboard.
+
+## First
+1. Check `apps/*/app.json`. If one matches, update
+   its data or config. Do not create a second app.
+2. Pick a starter from the catalogue below if the
+   ask fits. Call `create_app(starter, "apps/&lt;slug&gt;")`.
+3. Only if nothing fits, write `index.html` yourself,
+   following the custom rules.
+
+## Folder
+`apps/&lt;slug&gt;/` with `app.json`, `index.html`, data
+files beside them. One folder per app. Data in
+small JSON files, each with one primary writer.
+
+## Bridge contract v1
+`agenta.ready`, `agenta.canWrite`, `agenta.visible`,
+`agenta.fs.*` (eight methods incl. stat, paths
+relative to index.html, folder-scoped). Events:
+visibilitychange, changed. Error codes: scope,
+read_only, not_found, conflict, too_large,
+unavailable. Writes carry If-Match automatically;
+handle conflict by re-reading and reapplying.
+
+## Custom rules
+Use the kit classes; no `&lt;script src&gt;` to the
+internet; wait for ready; respect canWrite; save
+whole files, debounced; render "data as of".
+
+## Starters
+board · checklist · review-queue · form · sheet ·
+dashboard. Each: what it is for, its config keys,
+its data files.
+
+## After creating
+Reply with the app's file card. Tell the user to
+open it and choose Run. Say what access it needs.</code></pre>
+    </div>
+    <div class="box"><div class="lbl">Starter catalogue · v1</div>
+      <div class="tbl" style="margin:0"><table>
+        <thead><tr><th>Starter</th><th>Config</th><th>Data</th><th>Access</th></tr></thead>
+        <tbody>
+          <tr><td>board</td><td>title, columns</td><td class="mono">board.json</td><td>read-write</td></tr>
+          <tr><td>checklist</td><td>title, groups</td><td class="mono">items.json</td><td>read-write</td></tr>
+          <tr><td>review-queue</td><td>title, folder, decisions</td><td class="mono">review.json</td><td>read-write</td></tr>
+          <tr><td>form</td><td>title, steps, fields</td><td class="mono">answers.json</td><td>read-write</td></tr>
+          <tr><td>sheet</td><td>title, columns, types</td><td class="mono">rows.json</td><td>read-write</td></tr>
+          <tr><td>dashboard</td><td>title, series, chart</td><td class="mono">data.csv</td><td>read</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small" style="margin:8px 0 0">Six covers the field test and the walkthrough. Each starter is a real HTML file in the API's starter bundle, versioned as <code>name@N</code>, and copied verbatim by <code>create_app</code>. Canvas starters, whiteboard, chart and diagram, are specified in <a href="canvas.html">Canvas Apps</a> and join the catalogue in phase 3.</p>
+    </div>
+  </div>
+
+  <h3>Why a platform operation, not a reference file</h3>
+  <p>The skill could carry the starters as reference files and let the agent read and re-type them. That costs tokens per creation and, worse, invites drift: a model retyping 300 lines will "improve" a few. <code>create_app</code> is a platform op like the existing <code>search_skills</code>: the API copies the starter's files into the mount and returns the paths. No tokens, no drift, and the manifest's <code>template</code> field is stamped by the platform, not by the model.</p>
+
+  <div class="callout">
+    <p><strong>Delivery.</strong> agenta-apps is a first-party skill in the registry, auto-attached to agents that have a drive, visible in the agent's Skills section like any other, and updated through the registry's refresh flow. Users who do not want their agent making apps can detach it. That is the entire configuration surface.</p>
+  </div>
+</section>
+
+<section id="kit">
+  <h2>The design kit</h2>
+  <p>Starters give identical apps. The kit is what makes custom apps, and starters, look like they belong to the same product and to the host they run in. It has two parts, both injected by the assembler when <code>app.json</code> says <code>"kit": true</code>: the host's theme tokens, and a small base stylesheet.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-label="The order of the assembled Run document, top to bottom: the CSP meta; a style block with theme tokens resolved from the host, including light or dark; the agenta-app.css base stylesheet; the app's own styles; the bridge stub script; then the app's own scripts and markup. Beside it, a note that the host re-sends tokens when the user switches theme.">
+      <g font-size="11" fill="currentColor">
+        <text x="20" y="22" font-size="12" font-weight="600" letter-spacing=".06em" opacity=".6">ASSEMBLED srcdoc · in order</text>
+        <rect x="20" y="34" width="440" height="26" rx="4" fill="currentColor" opacity=".06"/><text x="32" y="51" font-family="IBM Plex Mono, monospace">1  &lt;meta http-equiv="Content-Security-Policy"&gt;</text>
+        <rect x="20" y="66" width="440" height="26" rx="4" fill="var(--accent)" opacity=".18"/><text x="32" y="83" font-family="IBM Plex Mono, monospace">2  &lt;style&gt; :root { --ag-bg … --ag-accent } ← host theme</text>
+        <rect x="20" y="98" width="440" height="26" rx="4" fill="var(--accent)" opacity=".18"/><text x="32" y="115" font-family="IBM Plex Mono, monospace">3  &lt;style&gt; agenta-app.css · .ag-btn .ag-card …</text>
+        <rect x="20" y="130" width="440" height="26" rx="4" fill="currentColor" opacity=".06"/><text x="32" y="147" font-family="IBM Plex Mono, monospace">4  &lt;style&gt; the app's own CSS (inlined from files)</text>
+        <rect x="20" y="162" width="440" height="26" rx="4" fill="currentColor" opacity=".06"/><text x="32" y="179" font-family="IBM Plex Mono, monospace">5  &lt;script&gt; bridge stub · window.agenta</text>
+        <rect x="20" y="194" width="440" height="26" rx="4" fill="currentColor" opacity=".06"/><text x="32" y="211" font-family="IBM Plex Mono, monospace">6  &lt;script&gt; app.js (inlined) · then &lt;body&gt;</text>
+
+        <rect x="510" y="34" width="430" height="186" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="526" y="58" font-weight="600" font-size="12">What the tokens carry</text>
+        <text x="526" y="80">--ag-bg · --ag-fg · --ag-muted · --ag-line · --ag-accent</text>
+        <text x="526" y="96">--ag-ok · --ag-warn · --ag-crit · --ag-font · --ag-radius</text>
+        <text x="526" y="112" opacity=".8">resolved from the host's palette for the current theme,</text>
+        <text x="526" y="128" opacity=".8">plus color-scheme, so native controls match too</text>
+        <text x="526" y="156" font-weight="600" font-size="12">On theme switch</text>
+        <text x="526" y="176" opacity=".8">host posts {type: "theme", tokens} over the port;</text>
+        <text x="526" y="192" opacity=".8">the stub rewrites the :root block. No reload.</text>
+        <text x="526" y="212" opacity=".8">The app never chooses colours; it uses the names.</text>
+      </g>
+    </svg>
+    <figcaption>Order matters: tokens before the kit, kit before the app's CSS, so an app can override a class but starts from the house style. Light and dark are the host's decision.</figcaption>
+  </figure>
+
+  <div class="grid2">
+    <div class="box"><div class="lbl">agenta-app.css · scope</div>
+      <ul style="margin:0;font-size:14px">
+        <li>Reset and type: 12 px base, the host's font stack, tabular numerals for tables</li>
+        <li>Layout: <code>.ag-app</code>, <code>.ag-toolbar</code>, <code>.ag-columns</code>, <code>.ag-column</code>, <code>.ag-list</code>, <code>.ag-grid</code></li>
+        <li>Controls: <code>.ag-btn</code>, <code>.ag-btn-primary</code>, <code>.ag-input</code>, <code>.ag-select</code>, <code>.ag-check</code></li>
+        <li>Surfaces: <code>.ag-card</code>, <code>.ag-badge</code>, <code>.ag-empty</code>, <code>.ag-toast</code></li>
+        <li>States: <code>[data-dragging]</code>, <code>[aria-busy]</code>, focus rings that match the host</li>
+        <li>Under 6 KB. Not a component library; a house style</li>
+      </ul>
+    </div>
+    <div class="box"><div class="lbl">What it buys</div>
+      <ul style="margin:0;font-size:14px">
+        <li>A custom review queue and a starter board share buttons, cards, spacing and colour, so they read as one product</li>
+        <li>Dark mode for free: the app never hard-codes a colour</li>
+        <li>The skill can say "use <code>.ag-btn-primary</code> for the main action" instead of describing a button</li>
+        <li>Starters are written on the same kit, so a custom app made next to one does not look foreign</li>
+      </ul>
+    </div>
+  </div>
+  <p class="small">The kit ships with the assembler, in <code>@agenta/entity-ui</code>, versioned with the bridge. An app that sets <code>"kit": false</code> gets tokens only, for the rare case where the agent has a reason to own the whole look.</p>
+</section>
+
+<section id="loop">
+  <h2>The creation loop</h2>
+  <p>The agent cannot run the app. It has no browser. Everything it learns about whether the app works comes from the user, and today that means the user describing a broken page in words. The loop below closes that gap by letting the Run tab relay what went wrong.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 440" role="img" aria-label="Sequence across five lifelines: user, agent, drive, Run tab in the Agenta frontend, and the app in the iframe. The user asks for a review queue; the agent matches the skill and calls create_app, then writes config and data; the drive gains the folder; the agent replies with a file card. The user opens it and grants read-write; the app loads and calls readJSON on drafts, which fails with not_found because the agent wrote the folder as draft, singular. The stub reports the bridge error to the Run tab, which shows an error strip with a Send to agent button. The user clicks it, the composer is prefilled, the user sends. The agent renames the folder and replies; the user hits Refresh and the app works.">
+      <defs><marker id="d5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="12" fill="currentColor" font-weight="600">
+        <rect x="20" y="14" width="110" height="30" rx="4" fill="none" stroke="currentColor"/><text x="75" y="34" text-anchor="middle">User</text>
+        <rect x="200" y="14" width="110" height="30" rx="4" fill="none" stroke="currentColor"/><text x="255" y="34" text-anchor="middle">Agent</text>
+        <rect x="400" y="14" width="110" height="30" rx="4" fill="none" stroke="currentColor"/><text x="455" y="34" text-anchor="middle">Drive</text>
+        <rect x="600" y="14" width="130" height="30" rx="4" fill="var(--accent)" opacity=".15"/><rect x="600" y="14" width="130" height="30" rx="4" fill="none" stroke="var(--accent)"/><text x="665" y="34" text-anchor="middle">Run tab (frontend)</text>
+        <rect x="820" y="14" width="120" height="30" rx="4" fill="none" stroke="currentColor"/><text x="880" y="34" text-anchor="middle">App (iframe)</text>
+      </g>
+      <g stroke="currentColor" stroke-dasharray="3 4" opacity=".45">
+        <line x1="75" y1="44" x2="75" y2="425"/><line x1="255" y1="44" x2="255" y2="425"/><line x1="455" y1="44" x2="455" y2="425"/><line x1="665" y1="44" x2="665" y2="425"/><line x1="880" y1="44" x2="880" y2="425"/>
+      </g>
+      <g font-size="11" fill="currentColor">
+        <line x1="75" y1="70" x2="255" y2="70" stroke="currentColor" marker-end="url(#d5)"/><text x="165" y="63" text-anchor="middle">"review the changelog drafts"</text>
+        <line x1="255" y1="98" x2="455" y2="98" stroke="currentColor" marker-end="url(#d5)"/><text x="355" y="91" text-anchor="middle" font-family="IBM Plex Mono, monospace">create_app("review-queue", "apps/changelog-review")</text>
+        <line x1="255" y1="124" x2="455" y2="124" stroke="currentColor" marker-end="url(#d5)"/><text x="355" y="117" text-anchor="middle">write config.json · draft/*.md</text>
+        <line x1="255" y1="152" x2="75" y2="152" stroke="currentColor" marker-end="url(#d5)"/><text x="165" y="145" text-anchor="middle">file card: Changelog review · App</text>
+        <line x1="75" y1="182" x2="665" y2="182" stroke="currentColor" marker-end="url(#d5)"/><text x="370" y="175" text-anchor="middle">open · Run · grant read-write on apps/changelog-review/</text>
+        <line x1="665" y1="208" x2="880" y2="208" stroke="currentColor" marker-end="url(#d5)"/><text x="772" y="201" text-anchor="middle">assemble with kit + stub</text>
+        <line x1="880" y1="236" x2="665" y2="236" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#d5)"/><text x="772" y="229" text-anchor="middle" font-family="IBM Plex Mono, monospace">list("drafts")</text>
+        <line x1="665" y1="262" x2="880" y2="262" stroke="var(--crit)" stroke-width="1.5" marker-end="url(#d5)"/><text x="772" y="255" text-anchor="middle" fill="var(--crit)" font-family="IBM Plex Mono, monospace">{ok:false, error:{code:"not_found"}}</text>
+        <rect x="590" y="276" width="150" height="40" rx="4" fill="var(--crit)" opacity=".12"/>
+        <text x="665" y="292" text-anchor="middle" fill="var(--crit)">error strip: 1 error</text><text x="665" y="308" text-anchor="middle" fill="var(--crit)">[Send to agent]</text>
+        <line x1="665" y1="336" x2="75" y2="336" stroke="currentColor" marker-end="url(#d5)"/><text x="370" y="329" text-anchor="middle">composer prefilled: "list('drafts') → not_found; folder is draft/"</text>
+        <line x1="75" y1="362" x2="255" y2="362" stroke="currentColor" marker-end="url(#d5)"/><text x="165" y="355" text-anchor="middle">user presses Send</text>
+        <line x1="255" y1="388" x2="455" y2="388" stroke="currentColor" marker-end="url(#d5)"/><text x="355" y="381" text-anchor="middle">rename draft/ → drafts/</text>
+        <line x1="75" y1="414" x2="665" y2="414" stroke="currentColor" marker-end="url(#d5)"/><text x="370" y="407" text-anchor="middle">Refresh · app loads three drafts</text>
+      </g>
+    </svg>
+    <figcaption>The agent's mistake was a folder name. Without the relay, the user sees an empty list and has to guess what to tell the agent. With it, the error text travels back in one click and the user still sends the message.</figcaption>
+  </figure>
+
+  <h3>What the relay carries</h3>
+  <ul>
+    <li><b>Bridge rejections</b> the app did not catch: <code>not_found</code>, <code>scope</code>, <code>read_only</code>, with the method and path. These are the common creation mistakes.</li>
+    <li><b>Script errors</b>: the stub listens for <code>window.error</code> and <code>unhandledrejection</code> and posts message, file and line over the port. A typo in <code>index.html</code> shows up as a line number instead of a blank page.</li>
+    <li><b>Nothing else.</b> No console log stream, no DOM, no screenshots. Errors only, and only to the user's own screen. Sending them to the agent is the user's click, through the composer draft.</li>
+  </ul>
+  <p>Before the composer prefill exists, the strip has a copy button. The relay is useful on day one; the one-click send is what makes it feel finished.</p>
+</section>
+
+<section id="grants">
+  <h2>Grants while building</h2>
+  <p>During creation the agent rewrites <code>index.html</code> on most turns. A grant tied to the file's contents would ask the user to approve every edit, which is friction that trains people to click through. The grant is therefore tied to what it actually protects: the folder and the access level. It survives edits to any file in the folder. Run asks again only when the entry moves to another folder, when the app requests more access than it was given, or when the browser session ends. The <a href="plan.html#run">plan's grant lifecycle</a> is updated to say this.</p>
+  <p>The grant prompt is built with a third section from the start, hidden until tier 2: per-connection, read-only tool access. Nothing in v1 or v1.1 shows it; reserving the layout means the prompt does not get redesigned later.</p>
+  <p>One consequence for the manifest: <code>access</code> is a request, not a grant. The prompt preselects it, and the user can still choose read-only. An app that then tries to write gets <code>read_only</code>, shows it, and the relay carries it if the user wants the agent to know.</p>
+</section>
+
+<section id="rules">
+  <h2>What the skill enforces</h2>
+  <p>The rules a custom app must follow, and that every starter already follows. They exist so that an app made in any session by any agent behaves like every other one.</p>
+  <ul class="check">
+    <li><span class="b"></span><span>One folder per app under <code>apps/&lt;slug&gt;/</code>, with <code>app.json</code> and <code>index.html</code>. Data and config as sibling files.</span></li>
+    <li><span class="b"></span><span>Check for an existing <code>app.json</code> before creating. Update, never duplicate.</span></li>
+    <li><span class="b"></span><span>Prefer a starter. Custom only when the catalogue has nothing close.</span></li>
+    <li><span class="b"></span><span><code>"kit": true</code>. Use kit classes and tokens; no hard-coded colours or fonts.</span></li>
+    <li><span class="b"></span><span>No <code>&lt;script src&gt;</code> or <code>&lt;link&gt;</code> to the internet. Libraries are inlined or avoided; charts are SVG.</span></li>
+    <li><span class="b"></span><span>Wait for <code>agenta.ready</code>. Respect <code>agenta.canWrite</code>; disable or label write actions when false.</span></li>
+    <li><span class="b"></span><span>Small JSON data files, each with one <em>primary</em> writer: the app, while it is open. The agent may write the same file, and for several starters it is meant to. What keeps that safe is reconciliation, not exclusivity. Whole-file writes, debounced. The app handles <code>conflict</code> by re-reading and reapplying, once, on an <code>If-Match</code> the stub sends for it. The agent reads a data file immediately before writing it, because its own writes are unconditional and it has no ETag to carry.</span></li>
+    <li><span class="b"></span><span>Show "data as of" for anything the agent produces on a schedule. Handle <code>not_found</code> as empty state, not as a crash.</span></li>
+    <li><span class="b"></span><span>After creating, reply with the file card, say what access the app needs, and tell the user to choose Run.</span></li>
+  </ul>
+</section>
+
+
+<section id="agent-layout">
+  <h2>Agent-level layout</h2>
+  <p>Everything so far lives in a session. Some things have to live with the agent, so that every session, and every scheduled run, sees the same setup. There are two kinds: files in the agent's durable folder, and configuration on the agent entity that is not a file at all. Both are listed here so nothing is discovered halfway through phase 3.</p>
+
+  <h3>The durable folder</h3>
+  <p>The platform already teaches agents that <code>agent-files/</code> survives across sessions and that <code>agent-files/.tools/</code> is a hidden folder for the agent's own infrastructure, copied into place before each session. Apps follow the same shape: a hidden <code>.apps/</code> for infrastructure, a visible <code>apps/</code> only for apps that are meant to outlive a session.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">agent-files/ · what apps add</div>
+<pre><code>agent-files/
+  .tools/                    ← exists today; the precedent
+  .apps/                     ← hidden, agent's app infrastructure
+    registry/&lt;session&gt;.json  ← every app this agent built: one file
+                               per session, so no two sessions collide
+    notes/&lt;date&gt;-&lt;slug&gt;.md   ← lessons across sessions, add-only
+    starters/                ← agent-owned starters, if not skill-backed
+      retro-board@1/
+        index.html · app.json · config.defaults.json
+        SKILL.md · NOTES.md
+    kit/
+      overrides.css          ← optional additions to agenta-app.css
+      brand.json             ← optional: accent, display name
+  apps/                      ← visible; cross-session apps only
+    standup/                 ← the team tools from the field test
+      app.json · index.html · people/…</code></pre>
+    </div>
+    <div class="box"><div class="lbl">Who writes what</div>
+      <div class="tbl" style="margin:0"><table>
+        <thead><tr><th>Path</th><th>Created by</th><th>Read by</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">.apps/registry/*</td><td>Agent, after each <code>create_app</code>, its own session's file</td><td>Agent: "have I built this before?"; promotion evidence</td></tr>
+          <tr><td class="mono">.apps/notes/*</td><td>Agent, on repeated feedback, one file per note</td><td>Agent, before instantiating a starter</td></tr>
+          <tr><td class="mono">.apps/starters/*</td><td><code>promote_app</code></td><td><code>create_app</code>, the skill's match step</td></tr>
+          <tr><td class="mono">.apps/kit/*</td><td>Agent, on explicit user request</td><td>Assembler, after the platform kit</td></tr>
+          <tr><td class="mono">apps/*</td><td>Agent, only when the skill's cross-session rule says so</td><td>Any session of this agent; cron runs</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small" style="margin:8px 0 0">Nothing here is provisioned by the platform. The skill tells the agent to create <code>.apps/</code> on first use. Dot folders are dimmed in the Files pane, as <code>.tools/</code> is today.</p>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <p><strong>On kit overrides.</strong> The whole point of the kit is that apps look the same everywhere. A per-agent <code>overrides.css</code> pulls against that. It exists for one case, a customer-facing agent that must carry a brand accent, and the skill should say "do not touch this unless the user asks for branding". Tokens only, no layout changes.</p>
+  </div>
+
+  <h3>Configuration on the agent, outside any folder</h3>
+  <p>Files are half of it. The other half is agent configuration that already has a home in the Build panel and only needs to be pointed at.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Element</th><th>Where it lives today</th><th>Apps need it for</th><th>New work</th></tr></thead>
+    <tbody>
+      <tr><td><b>agenta-apps skill</b></td><td>Agent → Skills</td><td>Knowing apps exist, the folder shape, the bridge, the catalogue</td><td>Auto-attach when the agent has a drive; detachable</td></tr>
+      <tr><td><b>Starter skills</b> (option B)</td><td>Agent → Skills</td><td>Agent-owned and forked starters</td><td>Skill kind <code>app-starter</code>; preview in the Skills UI</td></tr>
+      <tr><td><b>Triggers</b> (cron)</td><td>Agent → Triggers</td><td>Any app whose data the agent produces on a schedule: dashboard, standup archive, weekly review sweep</td><td>None. The trigger's run writes files like any turn. The skill says to render "data as of"</td></tr>
+      <tr><td><b>Tool connections</b></td><td>Agent → Tools</td><td>Feeding apps from outside: analytics, Linear, Slack. The app never calls them; the agent does</td><td>None</td></tr>
+      <tr><td><b>Drive</b></td><td>Implicit: session mount + agent mount</td><td>Everything</td><td>None. Prefix-scoped credentials already exist</td></tr>
+      <tr><td><b>User permissions</b></td><td>Project roles</td><td>Granting read-write needs <code>EDIT_MOUNTS</code>; a viewer gets read only</td><td>The grant prompt hides the write option when the user lacks it</td></tr>
+      <tr><td><b>Apps section in the Build panel</b></td><td>Does not exist</td><td>Seeing what this agent has built, its starters, toggling the skill, archiving a starter</td><td>Phase 3 or later; v1 is the Skills page plus the Files pane</td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-label="Two columns. Left, the agent level: configuration entities, skills including agenta-apps and starter skills, triggers, and tool connections, plus the durable agent folder with .apps and apps. Right, three sessions, each with its own apps folder holding instances. Arrows: skills and .apps/starters feed create_app in each session; triggers and connections feed data files; instances report back to their own session's registry file; the visible agent apps folder is reachable from every session.">
+      <defs><marker id="al" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <text x="20" y="22" font-size="12" font-weight="600" letter-spacing=".06em" opacity=".6">AGENT LEVEL · once per agent</text>
+        <rect x="20" y="34" width="200" height="110" rx="6" fill="none" stroke="currentColor"/>
+        <text x="36" y="54" font-weight="600">Configuration</text>
+        <text x="36" y="74">Skills: agenta-apps, starters</text>
+        <text x="36" y="92">Triggers: cron runs</text>
+        <text x="36" y="110">Tools: Slack, Linear, analytics</text>
+        <text x="36" y="128" opacity=".7">exists in the Build panel today</text>
+        <rect x="20" y="164" width="200" height="116" rx="6" fill="currentColor" opacity=".05"/><rect x="20" y="164" width="200" height="116" rx="6" fill="none" stroke="currentColor"/>
+        <text x="36" y="184" font-weight="600">agent-files/</text>
+        <text x="36" y="204" font-family="IBM Plex Mono, monospace">.apps/registry/&lt;session-id&gt;.json</text>
+        <text x="36" y="220" font-family="IBM Plex Mono, monospace">.apps/starters/*</text>
+        <text x="36" y="236" font-family="IBM Plex Mono, monospace">.apps/kit/*</text>
+        <text x="36" y="256" font-family="IBM Plex Mono, monospace">apps/standup/  ← visible</text>
+
+        <text x="420" y="22" font-size="12" font-weight="600" letter-spacing=".06em" opacity=".6">SESSION LEVEL · one per conversation</text>
+        <rect x="420" y="34" width="160" height="70" rx="6" fill="var(--accent)" opacity=".1"/><rect x="420" y="34" width="160" height="70" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="500" y="54" text-anchor="middle" font-weight="600">Session A</text><text x="500" y="72" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">apps/launch-board/</text><text x="500" y="88" text-anchor="middle" opacity=".7" font-size="10">board@1</text>
+        <rect x="420" y="120" width="160" height="70" rx="6" fill="var(--accent)" opacity=".1"/><rect x="420" y="120" width="160" height="70" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="500" y="140" text-anchor="middle" font-weight="600">Session B</text><text x="500" y="158" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">apps/retro/</text><text x="500" y="174" text-anchor="middle" opacity=".7" font-size="10">agent:retro-board@2</text>
+        <rect x="420" y="206" width="160" height="70" rx="6" fill="var(--accent)" opacity=".1"/><rect x="420" y="206" width="160" height="70" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="500" y="226" text-anchor="middle" font-weight="600">Cron run · Monday</text><text x="500" y="244" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">writes metrics/weekly.csv</text><text x="500" y="260" text-anchor="middle" opacity=".7" font-size="10">no browser, no app open</text>
+
+        <rect x="700" y="90" width="240" height="120" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="820" y="112" text-anchor="middle" font-weight="600">What the user sees</text>
+        <text x="820" y="134" text-anchor="middle" opacity=".8">Files pane: apps/ in the session</text>
+        <text x="820" y="150" text-anchor="middle" opacity=".8">Skills page: agenta-apps, starters</text>
+        <text x="820" y="166" text-anchor="middle" opacity=".8">Triggers page: the Monday run</text>
+        <text x="820" y="190" text-anchor="middle" opacity=".6" font-size="10">Build panel "Apps" section: later</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <path d="M220 80 C 320 80, 340 69, 420 69" marker-end="url(#al)"/>
+        <path d="M220 220 C 320 220, 340 155, 420 155" marker-end="url(#al)"/>
+        <path d="M220 100 C 320 100, 340 241, 420 241" marker-end="url(#al)"/>
+        <path d="M420 84 C 340 84, 330 204, 220 204" stroke-dasharray="4 3" marker-end="url(#al)"/>
+      </g>
+      <g font-size="10" fill="currentColor">
+        <text x="300" y="66">skill + create_app</text>
+        <text x="300" y="150">agent starter</text>
+        <text x="300" y="248">trigger + tools</text>
+        <text x="300" y="196" opacity=".7">registry/&lt;session&gt;.json ←</text>
+      </g>
+    </svg>
+    <figcaption>Agent-level things are set once and feed every session. Session-level things are the instances. The registry is the one arrow pointing back, and it is what lets the agent notice a pattern across sessions.</figcaption>
+  </figure>
+
+  <h3>By app type: what each needs at the agent level</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>App type</th><th>Lives in</th><th>Agent-level elements</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>board · checklist · sheet · form</td><td>Session</td><td>agenta-apps skill; the platform starter; optionally an agent fork</td><td>Nothing else. The common case needs no setup beyond the skill being attached</td></tr>
+      <tr><td>review-queue</td><td>Session</td><td>Skill; starter; a convention for the source folder; often a trigger that sweeps PRs into drafts weekly</td><td>The trigger is agent config, not a file. The starter's config names the folder</td></tr>
+      <tr><td>dashboard</td><td>Session, or agent for a standing one</td><td>Skill; starter; a cron trigger; the tool connection that produces the data</td><td>The app is read-only. Everything that makes it live is agent-level</td></tr>
+      <tr><td>wizard / brief</td><td>Session</td><td>Skill; starter; the agent's own instructions on what it needs to know</td><td>The schema comes from the agent's job, so it is naturally agent-level knowledge already</td></tr>
+      <tr><td>team tools (standup)</td><td>Agent, <code>apps/</code></td><td>Skill rule allowing cross-session placement; cron trigger; Slack connection; <code>agenta.user</code> in the bridge</td><td>The only type that writes to the visible agent folder. Off by default in v1</td></tr>
+      <tr><td>custom</td><td>Session</td><td>Skill; the kit; optionally promoted to <code>.apps/starters/</code> or a starter skill afterwards</td><td>Custom is where the registry and NOTES.md earn their keep</td></tr>
+    </tbody>
+  </table></div>
+
+  <p class="small">Convention check: <code>.apps/</code> follows <code>.tools/</code>, dimmed in the Files pane and durable, so the platform instructions gain one paragraph rather than a new concept. The visible <code>apps/</code> under <code>agent-files/</code> mirrors the session's <code>apps/</code>, so a user reading either sees the same shape. The full specification, file by file, with schemas, permissions, lifecycle and per-type setup recipes, is in <a href="layout.html">Agent App Layout</a>.</p>
+</section>
+
+<section id="learn">
+  <h2>Exploration: the agent keeps its own starters</h2>
+  <p class="small">Not a commitment. This section asks whether an agent can turn a custom app it built once into a starter it reuses, and whether user feedback on a starter can improve the next copy. Short answer: yes, with two existing mechanisms and one new operation.</p>
+
+  <p>The catalogue above is Agenta's. The gap it leaves is obvious the first time an agent builds something custom that the user likes: the next session starts from zero again. What the user means by "the agent learned to build X" is that the second session gets the same X, improved by whatever they said about the first.</p>
+
+  <h3>Two facts that make it cheap</h3>
+  <ul>
+    <li><b>Every agent already has a cross-session folder.</b> The runner mounts the agent's own drive into the sandbox as <code>agent-files/</code>, beside the session's files. Anything the agent writes there is visible to all of its later sessions and to its cron runs. It is exactly "the agent layout folder".</li>
+    <li><b>Skills carry files.</b> A skill in the registry is a SKILL.md plus reference files, versioned as revisions, attachable to agents, with provenance and an update flow. A starter is a SKILL.md that says when to use it plus the app's files. The registry was built for "the agent learns a procedure"; an app starter is a procedure with files attached.</li>
+  </ul>
+
+  <figure>
+    <svg viewBox="0 0 960 330" role="img" aria-label="Loop across sessions. Session 1: the agent builds a custom app, the user iterates on it, then asks to save it as a template. A promote_app operation copies the app folder minus its data into a starter, stored as an agent-owned skill or a folder under agent-files. Session 2: the skill's starter step now lists the agent's own starters first; create_app copies the same bytes. The user asks for a change; the agent applies it to the instance and, on request, promotes again as version 2. Session 3 gets version 2.">
+      <defs><marker id="d7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <text x="20" y="22" font-size="12" font-weight="600" letter-spacing=".06em" opacity=".6">SESSION 1</text>
+        <rect x="20" y="34" width="200" height="50" rx="5" fill="none" stroke="currentColor"/><text x="120" y="54" text-anchor="middle" font-weight="600">custom app built</text><text x="120" y="70" text-anchor="middle" opacity=".8">"a retro board with votes"</text>
+        <rect x="20" y="104" width="200" height="50" rx="5" fill="none" stroke="currentColor"/><text x="120" y="124" text-anchor="middle" font-weight="600">user iterates</text><text x="120" y="140" text-anchor="middle" opacity=".8">"bigger cards", "votes per person"</text>
+        <rect x="20" y="174" width="200" height="50" rx="5" fill="var(--accent)" opacity=".12"/><rect x="20" y="174" width="200" height="50" rx="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="120" y="194" text-anchor="middle" font-weight="600">"save this as a template"</text><text x="120" y="210" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">promote_app(dir, "retro-board")</text>
+
+        <rect x="330" y="100" width="300" height="130" rx="8" fill="currentColor" opacity=".05"/><rect x="330" y="100" width="300" height="130" rx="8" fill="none" stroke="currentColor"/>
+        <text x="480" y="124" text-anchor="middle" font-weight="600">Agent-owned starter · retro-board@1</text>
+        <text x="480" y="146" text-anchor="middle" opacity=".8">SKILL.md: when to use it, config keys</text>
+        <text x="480" y="162" text-anchor="middle" opacity=".8">index.html · app.json · config.json (defaults)</text>
+        <text x="480" y="178" text-anchor="middle" fill="var(--crit)">data files stripped: retro.json is not copied</text>
+        <text x="480" y="204" text-anchor="middle" opacity=".7">stored as a skill revision, or under agent-files/.apps/starters/</text>
+
+        <text x="740" y="22" font-size="12" font-weight="600" letter-spacing=".06em" opacity=".6">SESSION 2 · same agent</text>
+        <rect x="740" y="34" width="200" height="50" rx="5" fill="none" stroke="currentColor"/><text x="840" y="54" text-anchor="middle" font-weight="600">"a retro board"</text><text x="840" y="70" text-anchor="middle" opacity=".8">skill lists agent starters first</text>
+        <rect x="740" y="104" width="200" height="50" rx="5" fill="var(--accent)" opacity=".12"/><rect x="740" y="104" width="200" height="50" rx="5" fill="none" stroke="var(--accent)"/>
+        <text x="840" y="124" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">create_app("agent:retro-board@1")</text><text x="840" y="140" text-anchor="middle" opacity=".8">same bytes as session 1's final app</text>
+        <rect x="740" y="174" width="200" height="50" rx="5" fill="none" stroke="currentColor"/><text x="840" y="194" text-anchor="middle" font-weight="600">"add a timer"</text><text x="840" y="210" text-anchor="middle" opacity=".8">applied to this instance</text>
+        <rect x="740" y="244" width="200" height="50" rx="5" fill="var(--accent)" opacity=".12"/><rect x="740" y="244" width="200" height="50" rx="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="840" y="264" text-anchor="middle" font-weight="600">"make that the default"</text><text x="840" y="280" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">promote_app → retro-board@2</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <line x1="120" y1="84" x2="120" y2="104" marker-end="url(#d7)"/><line x1="120" y1="154" x2="120" y2="174" marker-end="url(#d7)"/>
+        <path d="M220 199 C 280 199, 290 165, 330 165" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#d7)"/>
+        <path d="M630 165 C 690 165, 700 129, 740 129" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#d7)"/>
+        <line x1="840" y1="84" x2="840" y2="104" marker-end="url(#d7)"/><line x1="840" y1="154" x2="840" y2="174" marker-end="url(#d7)"/><line x1="840" y1="224" x2="840" y2="244" marker-end="url(#d7)"/>
+        <path d="M740 269 C 660 269, 640 260, 630 220" stroke="var(--accent)" stroke-dasharray="5 4" marker-end="url(#d7)"/>
+      </g>
+      <text x="480" y="316" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">Session 3 asks for a retro board and gets version 2, timer included, without anyone describing it again.</text>
+    </svg>
+    <figcaption>Promotion is the learning step, and it is a user's sentence, not an automatic side effect. The agent proposes it when a custom app has settled; the user says yes.</figcaption>
+  </figure>
+
+  <h3>What promotion does</h3>
+  <ol>
+    <li>Reads the instance's <code>app.json</code> to know which files are data and which are the app.</li>
+    <li>Copies the app files, <code>index.html</code>, <code>app.json</code>, any inlined assets, and <code>config.json</code> as defaults, into the starter. Files listed under <code>data</code> are not copied. Session 1's retro items never appear in session 2.</li>
+    <li>Writes the starter's SKILL.md: one paragraph on when to use it, taken from the conversation, plus the config keys. This is what lets the next session's "starter matches?" step find it.</li>
+    <li>Versions it. A second promotion of the same slug becomes <code>@2</code>; instances record which version they came from, so "update this board to the latest" is a re-copy of non-data files.</li>
+  </ol>
+  <p>Forking a platform starter is the same operation. "Our boards always need WIP limits" becomes an instance edit followed by promote, producing <code>agent:board@1</code>, which the skill prefers over <code>platform:board@1</code> for this agent from then on.</p>
+
+  <h3>Where the starter lives: two options</h3>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>A · folder in the agent drive</th><th>B · skill in the registry</th></tr></thead>
+    <tbody>
+      <tr><td>Storage</td><td><code>agent-files/.apps/starters/&lt;slug&gt;@N/</code> with a <code>SKILL.md</code></td><td>A skill revision with reference files; the SKILL.md is the "when"</td></tr>
+      <tr><td>Discovery by the agent</td><td>Skill rule: list <code>agent-files/.apps/starters/*/SKILL.md</code> first</td><td>Already attached to the agent; the registry's <code>search_skills</code> finds it</td></tr>
+      <tr><td>Versioning</td><td>By convention, <code>@N</code> in the folder name</td><td>Revisions, for free</td></tr>
+      <tr><td>Visible to the user where</td><td>Files pane, agent drive section. No dedicated UI</td><td>Skills UI: list, detail, used-by, archive. Exists</td></tr>
+      <tr><td>Sharing across agents or projects</td><td>Copy files by hand</td><td>Import and attach, like any skill</td></tr>
+      <tr><td>Who can promote</td><td>Anyone with write on the agent drive</td><td>Same permission the skill create drawer uses</td></tr>
+      <tr><td>New work</td><td><code>promote_app</code> op, <code>create_app</code> reads a second source</td><td><code>promote_app</code> op that creates or revises a skill; <code>create_app</code> copies a skill's files; a skill kind <code>app-starter</code> so the Skills UI can show a preview</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Recommendation if this is pursued: B.</b> "The agent learns how to build things" is the sentence the skill registry was built to make true. Versioning, provenance, attach, detach, used-by, sharing and the UI already exist there; option A rebuilds a thin copy of each. The only thing B needs that A does not is a skill kind so the Skills page can render a starter as an app rather than as prose. Option A remains a reasonable stepping stone if the registry cannot hold files in the runner's reach on day one.</p>
+
+  <h3>What could go wrong, and the guard for each</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Risk</th><th>Guard</th></tr></thead>
+    <tbody>
+      <tr><td>A half-baked app gets promoted and every later session inherits its bugs</td><td>Promotion is explicit and user-initiated. The agent proposes it only after an app has survived a few turns without errors in the relay. Starters can be archived from the Skills page</td></tr>
+      <tr><td>Instance data leaks into the template</td><td>Only files not listed under <code>data</code> are copied. <code>config.json</code> is copied as defaults and the agent is told to strip anything session-specific from it</td></tr>
+      <tr><td>Promotion publishes to the whole project</td><td>That is the intent, and the prompt says so: "Save as a template for this agent. Everyone using this agent will get it." The skill's permission model applies</td></tr>
+      <tr><td>Starter sprawl: ten near-identical boards</td><td>Skill rule: when an agent starter is close, revise it rather than create another; the promote op refuses a slug that differs from an existing one only by a suffix unless told otherwise</td></tr>
+      <tr><td>A promoted starter drifts from the design kit</td><td>Promote runs the same checks the skill enforces for custom apps: kit on, no external scripts, manifest complete. Fails loudly otherwise</td></tr>
+      <tr><td>Security</td><td>Unchanged. A starter is code that will run under a folder grant in another session; it can touch nothing outside that folder, same as any app</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Feedback as the learning signal</h3>
+  <p>Two loops, both already visible in the figure. The instance loop: a user's change request lands in the instance and nowhere else, which is the safe default. The template loop: "make that the default" promotes the instance to the next version. The agent can also keep a <code>NOTES.md</code> in the starter and append a line when a user asks for the same change twice across sessions, so the next revision starts from evidence rather than memory. The registry's "used-by" list shows which apps came from which version, and the existing "update available" affordance is the natural way to offer <code>@2</code> to an app still on <code>@1</code>.</p>
+
+  <div class="callout">
+    <p><strong>If it is pursued, the cost is small.</strong> One platform operation, <code>promote_app</code>. A second source for <code>create_app</code>. One skill kind. Three lines in the agenta-apps skill: list agent starters first, propose promotion when an app settles, prefer revising over creating. It sits entirely on top of the phase 1 and 3 work above and changes nothing in the bridge.</p>
+  </div>
+</section>
+
+<section id="work">
+  <h2>Work packages</h2>
+  <p>These slot into the plan's phases. C1 to C3 belong in phase 1 because a Run mode without a skill produces apps that do not use it; C4 to C6 are the phase 3 layer that makes creation feel finished.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Package</th><th>Lands in</th><th>Done when</th><th>Phase</th><th>Size</th></tr></thead>
+    <tbody>
+      <tr><td class="num">C1</td><td>agenta-apps skill</td><td>Skill registry, first-party</td><td>SKILL.md as sketched; auto-attached to agents with a drive; an agent asked for a board produces <code>apps/&lt;slug&gt;/</code> with a manifest and uses the bridge</td><td>1</td><td class="num">2 d</td></tr>
+      <tr><td class="num">C2</td><td><code>create_app</code> platform op + starter bundle</td><td>API, beside <code>search_skills</code></td><td>Copies a versioned starter into a mount folder, stamps <code>template</code>; the board starter exists and passes the walkthrough end to end</td><td>1</td><td class="num">2 d</td></tr>
+      <tr><td class="num">C3</td><td>Kit: tokens + <code>agenta-app.css</code> in the assembler</td><td><code>@agenta/entity-ui/drive</code>, with WP 1.4</td><td>Injected when <code>kit: true</code>; theme switch re-sends tokens; a starter renders correctly in light and dark on both hosts</td><td>1</td><td class="num">2 d</td></tr>
+      <tr><td class="num">C4</td><td>Manifest-aware drive UI</td><td><code>@agenta/entity-ui/drive</code></td><td>A folder with <code>app.json</code> shows as an App tile with Open; file cards for the entry say App; Run preselects <code>access</code>; stories for the App tile, the App file card, a shared (agent-drive) tile, and a folder with a malformed manifest</td><td>3</td><td class="num">2 d</td></tr>
+      <tr><td class="num">C5</td><td>Error relay + Send to agent</td><td>stub, <code>HtmlBody</code>, composer draft</td><td>Bridge rejections and script errors appear in the Run tab strip; copy in v1, one-click draft once <code>chat.draft</code> lands; stories: one error, many errors collapsed, the send-to-agent state with and without a session</td><td>3</td><td class="num">2 d</td></tr>
+      <tr><td class="num">C7</td><td>Agent-level layout in the platform instructions + skill</td><td><code>platform_instructions.py</code>, agenta-apps skill</td><td>One paragraph introducing <code>agent-files/.apps/</code> beside <code>.tools/</code>; the skill creates <code>agent-files/.apps/layout.json</code> on the first <code>create_app</code>, then writes only <b>this session's</b> <code>.apps/registry/&lt;session-id&gt;.json</code> and never another session's, and before creating reads every file under <code>.apps/registry/</code> and merges them by slug; hidden from the Files pane like <code>.tools/</code></td><td>1</td><td class="num">0.5 d</td></tr>
+      <tr><td class="num">C6</td><td>Remaining five starters</td><td>Starter bundle</td><td>checklist, review-queue, form, sheet, dashboard; each passes its field-test case on the kit</td><td>3</td><td class="num">4 d</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout warn">
+    <p><strong>Order dependency.</strong> C1 without C2 makes the agent write starters by hand, which is the drift problem again. Ship them together, with only the board starter, and let C6 fill the catalogue after the first apps are seen in the wild.</p>
+  </div>
+</section>
+
+<section id="decisions">
+  <h2>Decisions</h2>
+  <div class="dec">
+    <div class="row"><div class="q">Is agenta-apps attached to every agent with a drive by default?</div><div class="a"><b>Yes, recommended.</b> Detachable. Without it the feature is invisible to agents.</div></div>
+    <div class="row"><div class="q">Starters as a platform op or as skill reference files?</div><div class="a"><b>Platform op.</b> Deterministic bytes, no tokens, platform-stamped provenance.</div></div>
+    <div class="row"><div class="q">Which starters ship first?</div><div class="a"><b>board only in phase 1.</b> The other five after the first real apps, adjusted to what people actually ask for.</div></div>
+    <div class="row"><div class="q">Manifest required for Run?</div><div class="a"><b>No.</b> Any HTML file still runs. The manifest is what makes a folder an app in the UI and to the agent, not what unlocks execution.</div></div>
+    <div class="row"><div class="q">Kit scope?</div><div class="a"><b>House style, under 6 KB.</b> Tokens plus a dozen classes. Not a component library.</div></div>
+    <div class="row"><div class="q">Starter updates?</div><div class="a"><b>Manual, later.</b> The manifest records <code>board@1</code>; an "update available" affordance is a v2 that the field is ready for.</div></div>
+    <div class="row"><div class="q">Should an agent be able to promote a custom app into its own starter?</div><div class="a"><b>Explore after phase 3.</b> Skill-backed, user-initiated, data stripped. See the exploration section.</div></div>
+    <div class="row"><div class="q">Can an agent put an app in the agent drive?</div><div class="a"><b>Not from the skill in v1.</b> Session drive only. Cross-session apps are a later decision that carries the multi-user questions from the field test.</div></div>
+  </div>
+</section>
+</main>
+</div></div>
+
+</body>
+</html>

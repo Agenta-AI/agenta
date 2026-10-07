@@ -15,6 +15,8 @@ import {
     isPendingSendFailed,
     isViewable,
     PENDING_SEND_FAILED_NOTE,
+    stageWordAt,
+    stageWords,
 } from "@agenta/chat/assets"
 import {
     ClientToolPart,
@@ -26,15 +28,13 @@ import {
     AttachmentCardGrid,
     CollapsibleMessageBody,
     McpServerNoticeCard,
-    RunFailureCallout,
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
 import {
     buildTurnRenderItems,
+    deriveTurnStatus,
     executedToolIdentities,
-    isReadableMcpServerNoticePart,
-    isToolPart,
     toolPartsSignature,
 } from "@agenta/chat/model"
 import {
@@ -43,7 +43,7 @@ import {
     messageBodyKey,
     reasoningKey,
     setExpandedAtom,
-    useStartupPhase,
+    useTurnStage,
 } from "@agenta/chat/state"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
@@ -68,6 +68,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 
+import AgentRunFailure from "./AgentRunFailure"
 import {viewingMessageAttachmentAtom} from "./MessageAttachmentViewer"
 import StreamingMarkdown from "./StreamingMarkdown"
 import ToolActivity from "./ToolActivity"
@@ -174,13 +175,13 @@ const MessageAvatar = ({isUser = false}: {isUser?: boolean}) => {
 /** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
  * turn, not once per message in the transcript. */
 const PendingTurn = ({sessionId}: {sessionId: string}) => {
-    const startupPhase = useStartupPhase(sessionId)
-    return startupPhase ? (
+    const stage = useTurnStage(sessionId)
+    return stage ? (
         <ChatBubble
             placement="start"
             variant="borderless"
             avatar={<MessageAvatar />}
-            content={<StartupActivity label={startupPhase} />}
+            content={<StartupActivity label={stageWordAt(stageWords(stage), 0)} />}
         />
     ) : (
         <ChatBubble placement="start" variant="borderless" avatar={<MessageAvatar />} loading />
@@ -306,41 +307,16 @@ const AgentMessage = ({
         title?: string
     }[]
 
-    // "Answer" = anything the user is meant to read as a reply (text / tool / file / source, and
-    // the notice for a server that did not join). Reasoning alone is NOT an answer — a turn that
-    // only thought hasn't responded.
-    const hasAnswer = message.parts.some(
-        (p) =>
-            (p.type === "text" && (p as {text?: string}).text) ||
-            isToolPart(p.type) ||
-            p.type === "file" ||
-            p.type === "source-url" ||
-            isReadableMcpServerNoticePart(p),
-    )
-    const hasReasoning = message.parts.some(
-        (p) => p.type === "reasoning" && (p as {text?: string}).text,
-    )
-    const hasContent = hasAnswer || hasReasoning
-
-    // A settled assistant turn (NOT the one being generated) with no answer — only a thought,
-    // or nothing — means the model ended without responding. Surface it so the bubble doesn't
-    // read as frozen/broken. Keyed on `isStreaming`, not the conversation-level `busy`, so
-    // earlier answer-less turns don't all light up while a later turn streams.
-    const noResponse = !isUser && !isStreaming && !hasAnswer
-
-    // A trace-leaf error means a model/tool call failed. When the turn still produced an answer,
-    // the agent recovered from it — that failure belongs inline in ToolActivity ("· N failed"),
-    // NOT as a run failure. So trust `traceError` only on an answer-less turn (the swallowed
-    // quota/model error it was written for). A stream death (`runError`) is a real run failure
-    // even with partial output, so it always counts.
-    const errorText = noResponse ? traceError || runError : runError
-    // Surface a settled-turn error even when the model emitted partial output before the stream
-    // died. (`isError` stays answer-less-only so the *whole* bubble only turns red when there's
-    // nothing else to show.)
-    const showError = !isStreaming && !!errorText
-    // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
-    // failure (red), with the message inline — not a nested alert box.
-    const isError = noResponse && showError
+    // The answer / no-response / error-surfacing rules, shared with every other chat surface.
+    // `errorText` is sanitized there, whichever source it came from; the failure class decides
+    // whether a trace's text may take the run error's place.
+    const {hasContent, noResponse, errorText, showError, isError} = deriveTurnStatus(message, {
+        isUser,
+        isStreaming,
+        traceError,
+        runError,
+        errorCode: runErrorCode,
+    })
 
     // Copy the answer; append the error on a failed turn (and copy it alone on an answer-less
     // failure) so the button isn't a no-op when the agent only returned an error.
@@ -490,7 +466,7 @@ const AgentMessage = ({
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
     // The callout shows an everyday reason in full; only a big one collapses behind "Show more".
     const errorBody = (
-        <RunFailureCallout
+        <AgentRunFailure
             text={errorText || "The agent run failed."}
             stateKey={errorKey(message.id)}
             code={runErrorCode}

@@ -194,15 +194,12 @@ describe("D1 — the drawer at its default", () => {
         expect(tile?.querySelector("svg")).not.toBeNull()
     })
 
-    it("is a bottom sheet on a phone and a right-edge drawer above the breakpoint", async () => {
-        // The one prop that makes a configuration panel correct in both apps. A desktop drawer
-        // squeezed onto a phone is the failure this replaces; the geometry itself is measured in a
-        // browser, so what this pins is that the drawer asks for the responsive side at all.
+    it("opens from the right edge on every screen, as every playground drawer does", async () => {
         await render()
 
         const panel = document.querySelector('[role="dialog"]')
-        expect(panel?.className).toContain("bottom-0")
-        expect(panel?.className).toContain("lg:right-0")
+        expect(panel?.className).toContain("right-2")
+        expect(panel?.className).not.toContain("bottom-0")
     })
 
     it("names the default permission and reads the saved one back as its preset", async () => {

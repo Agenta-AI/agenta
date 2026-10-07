@@ -45,7 +45,11 @@ function SheetOverlay({className, ...props}: React.ComponentProps<typeof SheetPr
 }
 
 // `side` drives the edge, its hairline, the default size and the slide.
-// border-0 first: preflight is off, so a bare `border-l` would paint every side.
+// border-0 first: preflight is off, so a bare `border-t` would paint every side.
+// The left and right panels float: inset 8px from the viewport, rounded, and borderless (the
+// mask and shadow separate them). The keyframes travel an extra 1rem so the panel clears that
+// inset before it unmounts.
+
 const sheetVariants = cva(
     [
         // No panel gap: the header and footer rules meet the body, which pads itself.
@@ -58,11 +62,11 @@ const sheetVariants = cva(
         variants: {
             side: {
                 right: [
-                    "inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
+                    "inset-y-2 right-2 h-auto w-3/4 rounded-xl sm:max-w-sm",
                     "data-[state=open]:animate-sheet-in-right data-[state=closed]:animate-sheet-out-right",
                 ],
                 left: [
-                    "inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
+                    "inset-y-2 left-2 h-auto w-3/4 rounded-xl sm:max-w-sm",
                     "data-[state=open]:animate-sheet-in-left data-[state=closed]:animate-sheet-out-left",
                 ],
                 top: [
@@ -73,17 +77,17 @@ const sheetVariants = cva(
                     "inset-x-0 bottom-0 h-auto w-full border-t",
                     "data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
                 ],
-                // The app's form-panel idiom, promoted from web/mobile's local sheet: a bottom
-                // sheet on a phone, the right-edge drawer from `lg` up. The literal edges stay
-                // literal. A panel this wide would otherwise stretch a two-field form across a
-                // tablet, so the sheet half caps and centres and rounds its top.
+                // The app's form-panel idiom, promoted from web/mobile's local sheet: a full-width
+                // bottom sheet below `lg`, the floating right-edge drawer from `lg` up. The literal
+                // edges stay literal.
                 responsive: [
-                    "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] rounded-t-2xl border-t max-lg:shadow-drawer-bottom",
+                    "inset-x-0 bottom-0 h-auto max-h-[85vh] w-full rounded-t-2xl border-t max-lg:shadow-drawer-bottom",
                     "data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom",
                     // Every bottom-sheet property is unset explicitly: Tailwind would otherwise
                     // keep the narrower rule. The width reads a variable so a caller's `width`
                     // applies at `lg` only, where there is room for it.
-                    "lg:inset-x-auto lg:inset-y-0 lg:right-0 lg:mx-0 lg:h-full lg:max-h-none lg:w-[var(--ag-sheet-responsive-width,480px)] lg:max-w-[90vw] lg:rounded-none lg:border-l lg:border-t-0",
+                    "lg:inset-x-auto lg:max-h-none lg:w-[var(--ag-sheet-responsive-width,480px)] lg:max-w-[90vw]",
+                    "lg:inset-y-2 lg:right-2 lg:rounded-xl lg:border-0",
                     "lg:data-[state=open]:animate-sheet-in-right lg:data-[state=closed]:animate-sheet-out-right",
                 ],
             },
@@ -124,28 +128,36 @@ function SheetHeader({
     showCloseButton = true,
     ...props
 }: React.ComponentProps<"div"> & {
-    /** Renders the close button before the title. */
+    /** Renders the close button after the title, at the right edge. */
     showCloseButton?: boolean
 }) {
     return (
         <div
             data-slot="sheet-header"
-            // Close first, then a column for title and description.
-            // border-0 first: preflight is off, so `border-b` alone would paint every side.
+            // A column for title and description, then the close button.
+            // No rule under it: the title's spacing separates it from the body.
+            // One line: the close button centres on it. More than one (a description, a meta
+            // row): it stays level with the title rather than floating between the lines.
             className={cn(
-                "box-border flex items-start gap-2 p-4 border-0 border-b border-solid border-border",
+                "box-border flex items-center gap-2 p-4",
+                "[&:has(>[data-slot=sheet-header-content]>:nth-child(2))]:items-start",
                 className,
             )}
             {...props}
         >
+            <div data-slot="sheet-header-content" className="flex min-w-0 flex-1 flex-col gap-0.5">
+                {children}
+            </div>
             {showCloseButton && (
                 <SheetPrimitive.Close data-slot="sheet-close" asChild>
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        // -my-0.5 centres the 28px button on the 24px title line. The invisible
+                        // Centred on a one-line header, level with the title's 24px line on a
+                        // taller one. -my-0.5 keeps the 28px button from growing a one-line
+                        // (24px) header, and centres it on that line when top-aligned. The invisible
                         // expansion takes the 28px square to the 44px touch minimum; its 8px
-                        // reach to the right stops at the header's own 8px gap, so it covers no
+                        // reach to the left stops at the header's own 8px gap, so it covers no
                         // part of the title.
                         className={cn(
                             "-my-0.5 shrink-0",
@@ -157,9 +169,6 @@ function SheetHeader({
                     </Button>
                 </SheetPrimitive.Close>
             )}
-            <div data-slot="sheet-header-content" className="flex min-w-0 flex-1 flex-col gap-0.5">
-                {children}
-            </div>
         </div>
     )
 }
@@ -168,10 +177,12 @@ function SheetFooter({className, ...props}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="sheet-footer"
-            // Pinned to the bottom; stacked on a phone, a right-aligned row from sm.
+            // Pinned to the bottom; stacked on a phone, a right-aligned row from sm. Dialog's
+            // muted band instead of a rule; rounded-b-[inherit] follows the panel's own corners
+            // (rounded when it floats, square on a bottom sheet).
             className={cn(
                 "mt-auto box-border flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-end",
-                "border-0 border-t border-solid border-border",
+                "rounded-b-[inherit] bg-[color:color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)]",
                 className,
             )}
             {...props}

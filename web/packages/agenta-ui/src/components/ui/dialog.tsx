@@ -27,6 +27,10 @@ function DialogClose(props: React.ComponentProps<typeof DialogPrimitive.Close>) 
     return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
+// 10% black mask with a light blur where supported.
+const OVERLAY_CLASS =
+    "fixed inset-0 isolate z-50 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[4px]"
+
 function DialogOverlay({
     className,
     ...props
@@ -35,8 +39,7 @@ function DialogOverlay({
         <DialogPrimitive.Overlay
             data-slot="dialog-overlay"
             className={cn(
-                // 10% black mask with a light blur where supported.
-                "fixed inset-0 isolate z-50 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[4px]",
+                OVERLAY_CLASS,
                 "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
                 className,
             )}
@@ -49,28 +52,62 @@ function DialogContent({
     className,
     children,
     container,
+    contained = false,
+    onInteractOutside,
+    onEscapeKeyDown,
     showCloseButton = true,
     closeIcon,
+    overlayClassName,
     ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
     /** Portal target; defaults to document.body. */
     container?: HTMLElement | null
+    /** Mask and centre inside `container` (positioned), not the page; use with a non-modal Dialog. */
+    contained?: boolean
     /** Renders the top-right close X. */
     showCloseButton?: boolean
     /** Replaces the default X icon. */
     closeIcon?: React.ReactNode
+    /** Extra backdrop classes, e.g. a darker mask for a media lightbox. */
+    overlayClassName?: string
 }) {
     return (
         <DialogPortal container={container}>
-            <DialogOverlay />
+            <DialogOverlay className={overlayClassName} />
             {/* Flex-centred, not transform-centred: the zoom keyframes would overwrite a translate. */}
             <div
                 data-slot="dialog-positioner"
                 // p-4 keeps a phone-width modal off the viewport edges.
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+                className={cn(
+                    "fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none",
+                    // Contained: follow the container's corners, so the mask never squares them.
+                    contained && "absolute rounded-[inherit]",
+                )}
             >
+                {/* A non-modal Root renders no Radix overlay, so the contained mask is a plain layer. */}
+                {contained && (
+                    <div
+                        data-slot="dialog-overlay"
+                        className={cn(
+                            OVERLAY_CLASS,
+                            "absolute z-0 pointer-events-auto animate-overlay-in rounded-[inherit]",
+                        )}
+                    />
+                )}
                 <DialogPrimitive.Content
                     data-slot="dialog-content"
+                    onInteractOutside={(event) => {
+                        onInteractOutside?.(event)
+                        // Contained: the rest of the page stays live and never answers the dialog.
+                        if (contained) event.preventDefault()
+                    }}
+                    onEscapeKeyDown={(event) => {
+                        onEscapeKeyDown?.(event)
+                        // Contained: Esc closes only from inside the container.
+                        if (contained && !container?.contains(event.target as Node | null)) {
+                            event.preventDefault()
+                        }
+                    }}
                     className={cn(
                         // font-portal: portalled to <body>, outside the app font scope (preflight off).
                         "relative pointer-events-auto font-portal",

@@ -16,7 +16,7 @@ import ...``) avoids re-entering ``agenta``'s own import.
 from .connection import PlatformConnection, default_timeout
 from .connections import VaultConnectionResolver
 from .gateway import AgentaGatewayToolResolver
-from .op_catalog import PLATFORM_OPS, PlatformOp, get_platform_op
+from .op_catalog import CHANNEL_TOOL_OPS, PLATFORM_OPS, PlatformOp, get_platform_op
 from .platform_tools import AgentaPlatformToolResolver
 from .resolve import resolve_connection, resolve_mcp, resolve_secrets, resolve_tools
 from .secrets import (
@@ -24,6 +24,7 @@ from .secrets import (
     resolve_named_secrets,
     resolve_provider_keys,
 )
+from .channel_tools import read_channel_tools
 from .session_context import (
     read_session_context,
     resolve_session_context,
@@ -33,6 +34,8 @@ from .session_context import (
 from .workflow import AgentaWorkflowToolResolver
 
 __all__ = [
+    "read_channel_tools",
+    "CHANNEL_TOOL_OPS",
     "PLATFORM_OPS",
     "AgentaGatewayToolResolver",
     "AgentaNamedSecretProvider",

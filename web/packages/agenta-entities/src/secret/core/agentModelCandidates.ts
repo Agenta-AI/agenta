@@ -20,11 +20,22 @@ import {LlmEndpointProtocol, SecretKind, SecretManagementPolicy} from "./types"
 
 export type AgentConnectionMode = "agenta" | "self_managed"
 
+/**
+ * The gateway namespace an `agenta` slug was picked from. Unset, the gateway infers it from the
+ * slug, which is ambiguous where a custom endpoint shares a built-in endpoint's name.
+ */
+export type AgentConnectionNamespace = "standard" | "custom" | "builtin"
+
+/** A stored gateway namespace, or null when it names none this build knows. */
+export const connectionNamespaceFrom = (value: unknown): AgentConnectionNamespace | null =>
+    value === "standard" || value === "custom" || value === "builtin" ? value : null
+
 export interface AgentModelSelection {
     modelId: string
     provider: string | null
     mode: AgentConnectionMode
     slug: string | null
+    namespace?: AgentConnectionNamespace | null
     harness: string
 }
 
@@ -32,6 +43,22 @@ export interface AgentModelCandidate extends AgentModelSelection {
     source: "connection" | "subscription"
     connectionKey: string
     managed: boolean
+    /** The row name for a candidate with no stored connection behind it (a built-in model). */
+    connectionName?: string
+}
+
+/**
+ * A platform-funded (`builtin`) gateway endpoint and the models it serves. The API lists one only
+ * where the deployment serves it and only to an organization the gateway serves.
+ *
+ * `deploymentKind` "mock" is the development stand-in, which answers in each model's own vendor
+ * protocol. Every other built-in endpoint (`agenta`, Gemini on Agenta's Vertex account) answers on
+ * one OpenAI-compatible chat-completions surface.
+ */
+export interface BuiltinModelEndpoint {
+    slug: string
+    models: string[]
+    deploymentKind?: string | null
 }
 
 export interface BuildAgentModelCandidatesArgs {
@@ -41,11 +68,18 @@ export interface BuildAgentModelCandidatesArgs {
     showSubscriptions?: boolean
     subscriptionPairs?: SubscriptionPair[]
     pairModelSelection?: Record<string, string[] | undefined> | null
+    builtinEndpoints?: BuiltinModelEndpoint[]
 }
 
-// "pi_agenta" is a removed experiment; filter it defensively in case an older API still lists it.
+/**
+ * Harnesses no picker offers. `pi_agenta` is a removed experiment, kept so a web build in front of
+ * an older API that still lists it never shows it. `mock` is the LLM-free test harness, which an
+ * older API still lists; tests select it by id, never from a picker.
+ */
+export const HIDDEN_AGENT_HARNESSES: ReadonlySet<string> = new Set(["pi_agenta", "mock"])
+
 export const selectableAgentHarnesses = (harnessIds: string[]): string[] =>
-    harnessIds.filter((id) => id !== "pi_agenta")
+    harnessIds.filter((id) => !HIDDEN_AGENT_HARNESSES.has(id))
 
 /**
  * A model key with its storage namespace removed.
@@ -399,10 +433,73 @@ const liveSubscriptionCandidates = ({
     return candidates
 }
 
+/**
+ * The routes a built-in endpoint offers.
+ *
+ * The mock answers a `claude-` id in Anthropic's protocol and any other in OpenAI's, so that is
+ * the family the harness must drive, and only harnesses that name models by id and whose catalog
+ * knows the model are offered it: an alias harness would send a model the allowlist refuses.
+ *
+ * A real built-in endpoint answers every model on one OpenAI-compatible chat-completions route.
+ * It is offered only to the harnesses in `BUILTIN_CHAT_COMPLETIONS_HARNESSES`: Codex drives an
+ * OpenAI-compatible route with the Responses API, which the Vertex endpoint behind it does not
+ * serve. The starter-credits connection pins the same harness for the same reason.
+ */
+const BUILTIN_CHAT_COMPLETIONS_HARNESSES: ReadonlySet<string> = new Set(["pi_core"])
+
+const builtinCandidates = ({
+    builtinEndpoints,
+    capabilities,
+    harnessIds,
+}: BuildAgentModelCandidatesArgs): AgentModelCandidate[] => {
+    const candidates: AgentModelCandidate[] = []
+    for (const endpoint of builtinEndpoints ?? []) {
+        const mock = endpoint.deploymentKind === "mock"
+        for (const harness of harnessIds) {
+            if (mock && agentModelSelectionMode(capabilities, harness) !== "provider/id") continue
+            if (
+                !mock &&
+                (!BUILTIN_CHAT_COMPLETIONS_HARNESSES.has(harness) ||
+                    !harnessSupportsProviderKind(
+                        capabilities,
+                        harness,
+                        CUSTOM_KIND,
+                        LlmEndpointProtocol.Openai,
+                    ))
+            ) {
+                continue
+            }
+            for (const modelId of endpoint.models) {
+                const family = mock && modelId.startsWith("claude-") ? "anthropic" : "openai"
+                if (
+                    mock &&
+                    !harnessSpellings(capabilities, harness, family).has(modelId.toLowerCase())
+                ) {
+                    continue
+                }
+                candidates.push({
+                    modelId,
+                    provider: family,
+                    mode: "agenta",
+                    slug: endpoint.slug,
+                    // Platform-funded: without it a custom endpoint of the same name takes the call.
+                    namespace: "builtin",
+                    harness,
+                    source: "connection",
+                    connectionKey: `builtin:${endpoint.slug}`,
+                    connectionName: `Built-in: ${endpoint.slug}`,
+                    managed: false,
+                })
+            }
+        }
+    }
+    return candidates
+}
+
 export const buildAgentModelCandidates = (
     args: BuildAgentModelCandidatesArgs,
 ): AgentModelCandidate[] => {
-    const connections = connectionCandidates(args)
+    const connections = [...connectionCandidates(args), ...builtinCandidates(args)]
     if (args.showSubscriptions === false) return connections
     return [...connections, ...liveSubscriptionCandidates(args)]
 }
@@ -418,6 +515,7 @@ const findRunnableAgentModel = <T extends AgentModelSelection>(
                   candidate.provider === selection.provider &&
                   candidate.mode === selection.mode &&
                   candidate.slug === selection.slug &&
+                  (candidate.namespace ?? null) === (selection.namespace ?? null) &&
                   candidate.harness === selection.harness,
           ) ?? null)
         : null

@@ -4,15 +4,18 @@ import {
   type EmitEvent,
 } from "../../protocol.ts";
 import { parseGatewayErrorDetail } from "../../gateway-error.ts";
-import { isUserStopAbort } from "../../sessions/stop-signal.ts";
+import { isCooperativeCancelAbort } from "../../sessions/stop-signal.ts";
 import { acquireEnvironment } from "./environment.ts";
 import { runCredential } from "./runtime-policy.ts";
 import { loadDurableDecisions } from "../../sessions/interactions.ts";
 import { runTurn } from "./run-turn.ts";
+import { normalizeRequestModel } from "./model.ts";
+import { TURN_INDEX_TAKEN_CODE } from "./errors.ts";
 import {
   type RunTurnOptions,
   type SandboxAgentDeps,
 } from "./runtime-contracts.ts";
+import type { TeardownReason } from "./teardown.ts";
 
 /** Every `AgentRunResult` this engine returns passes through here: the one choke point where a
  * gateway refusal recoverable from the harness's error text (`gateway-error.ts`) gets attached,
@@ -21,6 +24,15 @@ export function withGatewayErrorDetail(result: AgentRunResult): AgentRunResult {
   if (result.ok || result.errorDetail || !result.error) return result;
   const errorDetail = parseGatewayErrorDetail(result.error);
   return errorDetail ? { ...result, errorDetail } : result;
+}
+
+/**
+ * The turn-start write found the turn's index already written by another runner, so the turn
+ * ended before its prompt. The conversation is stale, not the environment: tear it down as
+ * `continuity-invalid`, which parks, and never retry it cold.
+ */
+export function isTurnIndexTaken(result: AgentRunResult): boolean {
+  return result.errorDetail?.code === TURN_INDEX_TAKEN_CODE;
 }
 
 /**
@@ -33,10 +45,12 @@ export function withGatewayErrorDetail(result: AgentRunResult): AgentRunResult {
  * keeps the session, the sandbox, and the harness session resumable. Three things must all be
  * true, and each answers a different question:
  *
- *  - `isUserStopAbort(signal)` — WAS this abort a cooperative Stop? The signal is labelled at
- *    the one call site that means it (`server.ts`, the heartbeat interrupt). Reading
+ *  - `isCooperativeCancelAbort(signal)` — WAS this abort a cooperative Stop? The signal is
+ *    labelled at the one call site that means it (`server.ts`, the heartbeat interrupt). Reading
  *    `signal.aborted` alone cannot answer this, and inferring it from the stop reason would let
  *    any future `controller.abort()` park a sandbox nobody checked. See `sessions/stop-signal.ts`.
+ *    A shutdown cancel carries its own label and parks the same way; the shutdown's teardown
+ *    step then deletes the parked sandbox.
  *  - `result.stopReason === "cancelled"` — did the TURN actually end as a cancel?
  *  - `result.cancelSettled` — did the HARNESS confirm it stopped? See `cancel-turn.ts`.
  *
@@ -64,7 +78,7 @@ export function shouldPark(
 ): boolean {
   // The harness is idle and the sandbox is worth keeping warm, whatever the stream did.
   const settledUserStop =
-    isUserStopAbort(signal) &&
+    isCooperativeCancelAbort(signal) &&
     result.ok === true &&
     result.stopReason === "cancelled" &&
     result.cancelSettled === true;
@@ -74,6 +88,25 @@ export function shouldPark(
   if (!result.ok) return false; // failed turn: teardown as today
   if (result.stopReason === "paused") return false; // a plain pause never parks
   return true;
+}
+
+/**
+ * Why an environment is torn down once its turn ends: the one-turn paths always tear down, the
+ * warm path only when the turn does not park. `result` is undefined when `runTurn` threw, which
+ * is a failed turn: destroy. A resumable sandbox parks on the `shouldPark` policy.
+ */
+export function turnTeardownReason(
+  result: AgentRunResult | undefined,
+  resumable: boolean,
+  signal: AbortSignal | undefined,
+  clientGone: (() => boolean) | undefined,
+): TeardownReason {
+  if (resumable && result !== undefined && shouldPark(result, signal, clientGone)) {
+    return "clean-resumable";
+  }
+  if (signal?.aborted || clientGone?.()) return "aborted";
+  if (result && isTurnIndexTaken(result)) return "continuity-invalid";
+  return "failed-turn";
 }
 
 /**
@@ -88,6 +121,7 @@ export async function runSandboxAgent(
   deps: SandboxAgentDeps = {},
   turnOptions: Pick<RunTurnOptions, "credential" | "seededDecisions"> = {},
 ): Promise<AgentRunResult> {
+  normalizeRequestModel(request);
   const acquired = await acquireEnvironment(
     request,
     deps,
@@ -118,20 +152,13 @@ export async function runSandboxAgent(
     result = withGatewayErrorDetail(result);
     return result;
   } finally {
-    // `result` is undefined when runTurn threw: a failed turn, so destroy.
-    const cleanResumable =
-      env.resumable &&
-      result !== undefined &&
-      shouldPark(result, signal, undefined);
+    const reason = turnTeardownReason(result, env.resumable, signal, undefined);
     await env.destroy({
-      reason: cleanResumable
-        ? // A settled Stop parks under its own reason, so the log says WHY the sandbox survived.
-          result?.stopReason === "cancelled"
+      // A settled Stop parks under its own reason, so the log says WHY the sandbox survived.
+      reason:
+        reason === "clean-resumable" && result?.stopReason === "cancelled"
           ? "cancelled"
-          : "clean-resumable"
-        : signal?.aborted
-          ? "aborted"
-          : "failed-turn",
+          : reason,
     });
   }
 }

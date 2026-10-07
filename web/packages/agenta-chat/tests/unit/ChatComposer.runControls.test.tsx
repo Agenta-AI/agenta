@@ -29,13 +29,11 @@ const attachments = {
 const renderComposer = async ({
     localStreaming,
     serverBusy = false,
-    serverControlEnabled = false,
     queued = false,
     busyActions,
 }: {
     localStreaming: boolean
     serverBusy?: boolean
-    serverControlEnabled?: boolean
     queued?: boolean
     busyActions?: {label: string; onSubmit: (text: string) => void}[]
 }) => {
@@ -43,7 +41,6 @@ const renderComposer = async ({
     const streaming = isComposerRunStoppable({
         localStreaming,
         serverBusy,
-        serverControlEnabled,
         waitingOnUser: false,
     })
     render(
@@ -90,7 +87,6 @@ describe("ChatComposer running controls", () => {
         const onStop = await renderComposer({
             localStreaming: false,
             serverBusy: true,
-            serverControlEnabled: true,
             queued: true,
             busyActions: [
                 {label: "Queue", onSubmit: vi.fn()},
@@ -105,36 +101,13 @@ describe("ChatComposer running controls", () => {
         fireEvent.keyDown(document, {key: "Escape"})
         expect(onStop).toHaveBeenCalledOnce()
     })
-
-    it("keeps a flag-off remote run out of the desktop composer controls", () => {
-        const onStop = vi.fn()
-        const streaming = isComposerRunStoppable({
-            localStreaming: false,
-            serverBusy: true,
-            serverControlEnabled: false,
-            waitingOnUser: false,
-        })
-
-        render(
-            <ChatComposer
-                onSubmit={vi.fn()}
-                attachments={attachments}
-                streaming={streaming}
-                onStop={onStop}
-            />,
-        )
-
-        expect(screen.queryByRole("button", {name: "Stop"})).toBeNull()
-        fireEvent.keyDown(document, {key: "Escape"})
-        expect(onStop).not.toHaveBeenCalled()
-    })
 })
 
 describe("queued row Send Now", () => {
-    it("targets the chosen row and retains every row when admission fails", async () => {
-        const sendNow = vi.fn().mockRejectedValue(new Error("unavailable"))
+    it("targets the chosen row and shows the error its host puts on it", () => {
+        const sendNow = vi.fn()
         const remove = vi.fn()
-        render(
+        const {rerender} = render(
             <QueuedMessagesDock
                 queued={[
                     {id: "older", text: "older message", source: "server"},
@@ -146,12 +119,28 @@ describe("queued row Send Now", () => {
             />,
         )
         fireEvent.click(screen.getAllByRole("button", {name: "Send Now"})[1])
-        expect(await screen.findByRole("alert")).toBeTruthy()
         expect(sendNow).toHaveBeenCalledWith("selected")
         expect(remove).not.toHaveBeenCalled()
+        rerender(
+            <QueuedMessagesDock
+                queued={[
+                    {id: "older", text: "older message", source: "server"},
+                    {
+                        id: "selected",
+                        text: "chosen message",
+                        source: "server",
+                        error: "Couldn't send this message now. Try again.",
+                    },
+                ]}
+                onSendNow={sendNow}
+                onRemove={remove}
+                touch
+            />,
+        )
+        expect(screen.getByRole("alert").textContent).toBe(
+            "Couldn't send this message now. Try again.",
+        )
         expect(screen.getByText("older message")).toBeTruthy()
-        expect(screen.getByText("chosen message")).toBeTruthy()
-        sendNow.mockResolvedValueOnce(undefined)
         fireEvent.click(screen.getAllByRole("button", {name: "Send Now"})[1])
         expect(sendNow).toHaveBeenCalledTimes(2)
     })

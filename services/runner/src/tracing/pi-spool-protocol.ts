@@ -5,7 +5,10 @@ export const PI_TRACE_CONTROL_FILE = "current.control.json";
 export const PI_TRACE_CONTROL_ENV = "AGENTA_AGENT_TELEMETRY_CONTROL_PATH";
 export const PI_TRACE_MAX_CONTROL_BYTES = 256 * 1024;
 export const PI_TRACE_MAX_BATCH_BYTES = 8 * 1024 * 1024;
-export const PI_TRACE_MAX_FILES = 4;
+/** Pi splits a turn's trace into requests within `OTLP_MAX_REQUEST_BYTES` (5 MB), one file each.
+ *  The runner that reads the spool uploads this same Pi extension, so both sides share this cap.
+ *  Normal chunks hold about 80 MB per turn; the reader may keep up to 16 x 8 MB in memory. */
+export const PI_TRACE_MAX_FILES = 16;
 export const PI_TRACE_FILE_SUFFIX = ".otlp.pb";
 
 const CHANNEL_ID_RE = /^[0-9a-f]{32}$/;
@@ -28,6 +31,8 @@ export interface PiTurnTraceControl {
   redaction: {
     knownValues: string[];
   };
+  /** True when a custom model connection serves the turn; Pi marks its model spans. */
+  customConnection?: boolean;
 }
 
 export function isPiTraceChannelId(value: unknown): value is string {
@@ -103,5 +108,6 @@ export function parsePiTurnTraceControl(value: unknown): PiTurnTraceControl {
     skills,
     skillsDropped,
     redaction: { knownValues },
+    ...(raw.customConnection === true ? { customConnection: true } : {}),
   };
 }

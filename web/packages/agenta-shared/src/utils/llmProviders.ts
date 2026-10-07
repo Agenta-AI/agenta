@@ -42,4 +42,5 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "Groq", key: "", name: "GROQ_API_KEY"},
     {title: "Google Gemini", key: "", name: "GEMINI_API_KEY"},
     {title: "MiniMax", key: "", name: "MINIMAX_API_KEY"},
+    {title: "xAI", key: "", name: "XAI_API_KEY"},
 ]

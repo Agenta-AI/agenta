@@ -19,6 +19,7 @@
  */
 
 import type { AgentEvent, ChatMessage, ContentBlock } from "../protocol.ts";
+import { APPROVED_EXECUTION_RESULT_UNKNOWN } from "../tracing/otel.ts";
 
 /** One durable record row as `POST /sessions/records/query` returns it. `attributes` is the
  * coalesced `AgentEvent`; `record_source` is the author ("user" | "agent"). */
@@ -57,6 +58,10 @@ function eventToBlock(
         input: event.input,
       };
     }
+    case "error":
+      return event.code === "execution_lost"
+        ? { type: "text", text: "The previous turn was interrupted. A tool call without a recorded result has an unknown outcome. Verify its effects before repeating it." }
+        : null;
     case "tool_result":
       return {
         type: "tool_result",
@@ -65,8 +70,6 @@ function eventToBlock(
         output: event.output ?? event.data,
         isError: event.isError,
       };
-    case "error":
-      return { type: "text", text: `[error: ${event.message}]` };
     default:
       return null;
   }
@@ -89,6 +92,63 @@ function finalizeAssistant(blocks: ContentBlock[]): ChatMessage {
 export function reconstructMessages(
   records: readonly SessionRecordRow[],
 ): ChatMessage[] {
+  return foldMessages(withoutFailedTurns(records));
+}
+
+function isErrorRecord(row: SessionRecordRow): boolean {
+  const event = eventOf(row);
+  // Infrastructure loss is not a provider refusal. Keep already persisted work so the
+  // next turn can see completed tool actions instead of unknowingly repeating them.
+  return row.record_source !== "user" && event?.type === "error" && event.code !== "execution_lost";
+}
+
+/** What a failed turn leaves out: everything but the person's message. */
+function isDroppedOnFailure(row: SessionRecordRow): boolean {
+  return row.record_source !== "user";
+}
+
+/**
+ * From a turn that ended in an error, keep the person's message and drop what the agent did (its
+ * text, tool calls, tool results and the error). Replaying a failed turn whole made one refusal
+ * permanent: the content the provider refused (usually a tool result) went out again on every
+ * later turn, together with the refusal text, and was refused again. The question stays, so a
+ * "continue" after a timeout or a lost turn still has something to continue. An in-process Pi
+ * session applies the same rule to its own transcript (`InProcessAcpSession.rollbackFailedTurn`),
+ * where a tool call cannot stay without its result.
+ *
+ * A turn is its records' shared `turn_id`. Rows without one (older logs) fall back to the span
+ * from a user message to the next one.
+ */
+function withoutFailedTurns(
+  records: readonly SessionRecordRow[],
+): readonly SessionRecordRow[] {
+  const failedTurnIds = new Set<string>();
+  for (const row of records) {
+    if (row.turn_id && isErrorRecord(row)) failedTurnIds.add(row.turn_id);
+  }
+  const out: SessionRecordRow[] = [];
+  let span: SessionRecordRow[] = [];
+  let spanFailed = false;
+  const flush = (): void => {
+    out.push(...(spanFailed ? span.filter((row) => !isDroppedOnFailure(row)) : span));
+    span = [];
+    spanFailed = false;
+  };
+  for (const row of records) {
+    if (row.turn_id) {
+      flush();
+      if (!(failedTurnIds.has(row.turn_id) && isDroppedOnFailure(row))) out.push(row);
+      continue;
+    }
+    if (row.record_source === "user") flush();
+    span.push(row);
+    if (isErrorRecord(row)) spanFailed = true;
+  }
+  flush();
+  return out;
+}
+
+function foldMessages(records: readonly SessionRecordRow[]): ChatMessage[] {
   const messages: ChatMessage[] = [];
   const callNames = new Map<string, string>();
   let assistant: ContentBlock[] | null = null;
@@ -129,6 +189,17 @@ export function reconstructMessages(
       continue;
     }
 
+    if (event.type === "error" && event.code === "execution_lost" && assistant) {
+      // A call without a result may already have changed external state. Close it with
+      // the existing unknown-outcome marker, never the approval replay's retry nudge.
+      const completed = new Set(assistant.filter((block) => block.type === "tool_result").map((block) => block.toolCallId));
+      for (const call of [...assistant]) {
+        if (call.type === "tool_call" && call.toolCallId && !completed.has(call.toolCallId)) {
+          assistant.push({ type: "tool_result", toolCallId: call.toolCallId, toolName: call.toolName, output: APPROVED_EXECUTION_RESULT_UNKNOWN });
+          completed.add(call.toolCallId);
+        }
+      }
+    }
     const block = eventToBlock(event, callNames);
     if (block) (assistant ??= []).push(block);
   }

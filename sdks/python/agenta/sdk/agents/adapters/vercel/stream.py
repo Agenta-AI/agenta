@@ -416,7 +416,13 @@ async def _agent_run_to_vercel_parts_impl(
                 trace_id = result.trace_id
 
         yield {"type": "finish-step"}
-        if content_parts_emitted == 0 and not error_emitted:
+        # A Stop is not a failure: a turn the user cancelled before any output ends as
+        # stopped, never as "The agent produced no output."
+        if (
+            content_parts_emitted == 0
+            and not error_emitted
+            and stop_reason != "cancelled"
+        ):
             # An ok:true run with zero content parts would otherwise render as a blank bubble.
             # Skip this when a real error already went out above -- appending a second, useless
             # "no output" frame on top of it would bury the actionable message (the swallowed-
@@ -710,7 +716,13 @@ async def _agent_stream_to_vercel_stream_impl(
         # Every exit path — including the raw exception above — must still drain to a
         # finish frame, or a consumer waiting on it hangs.
         yield {"type": "finish-step"}
-        if content_parts_emitted == 0 and not error_emitted:
+        # A Stop is not a failure: a turn the user cancelled before any output ends as
+        # stopped, never as "The agent produced no output."
+        if (
+            content_parts_emitted == 0
+            and not error_emitted
+            and stop_reason != "cancelled"
+        ):
             # An ok:true run with zero content parts would otherwise render as a blank bubble.
             # Skip this when a real error already went out above (see the dev-twin's matching
             # note) -- a swallowed-provider-error turn both streams a live error event and fails

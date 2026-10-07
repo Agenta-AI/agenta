@@ -81,7 +81,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -156,7 +156,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -229,7 +229,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -300,7 +300,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -369,7 +369,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -442,7 +442,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -511,7 +511,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -575,7 +575,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -644,7 +644,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -713,7 +713,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -726,6 +726,91 @@ export class MountsClient {
         }
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/mounts/{mount_id}/unarchive");
+    }
+
+    /**
+     * Issue a folder-scoped token for a running HTML app.
+     *
+     * The browser asks for one when the person grants an app access, then attaches it to every
+     * bridge call so the server can refuse a path outside the folder. It only ever narrows what
+     * the caller already has, so minting is gated on the level being asked for: read-write needs
+     * EDIT_MOUNTS, exactly as the write itself does.
+     *
+     * @param {AgentaApi.AppScopeRequest} request
+     * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.mounts.mintAppScopeToken({
+     *         mount_id: "mount_id",
+     *         dir: "dir"
+     *     })
+     */
+    public mintAppScopeToken(
+        request: AgentaApi.AppScopeRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.AppScopeResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__mintAppScopeToken(request, requestOptions));
+    }
+
+    private async __mintAppScopeToken(
+        request: AgentaApi.AppScopeRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.AppScopeResponse>> {
+        const { mount_id: mountId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `mounts/${core.url.encodePathParam(mountId)}/apps/scope`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.AppScopeResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/mounts/{mount_id}/apps/scope",
+        );
     }
 
     /**
@@ -786,7 +871,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -871,7 +956,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -941,7 +1026,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -993,6 +1078,7 @@ export class MountsClient {
             with_counts: withCounts,
             git_aware: gitAware,
             include_gitignored: includeGitignored,
+            "x-agenta-app-scope": agentaAppScope,
         } = request;
         const _queryParams: Record<string, unknown> = {
             path,
@@ -1008,6 +1094,7 @@ export class MountsClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "x-agenta-app-scope": agentaAppScope ?? undefined }),
             requestOptions?.headers,
         );
         const _response = await core.fetcher({
@@ -1035,7 +1122,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1051,36 +1138,39 @@ export class MountsClient {
     }
 
     /**
+     * @param {core.file.Uploadable} uploadable
+     * @param {string} mount_id
      * @param {AgentaApi.WriteMountFileRequest} request
      * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.mounts.writeMountFile({
-     *         mount_id: "mount_id",
-     *         path: "path"
-     *     })
      */
     public writeMountFile(
+        uploadable: core.file.Uploadable,
+        mount_id: string,
         request: AgentaApi.WriteMountFileRequest,
         requestOptions?: MountsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.MountFileWrittenResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__writeMountFile(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(
+            this.__writeMountFile(uploadable, mount_id, request, requestOptions),
+        );
     }
 
     private async __writeMountFile(
+        uploadable: core.file.Uploadable,
+        mount_id: string,
         request: AgentaApi.WriteMountFileRequest,
         requestOptions?: MountsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.MountFileWrittenResponse>> {
-        const { mount_id: mountId, path } = request;
         const _queryParams: Record<string, unknown> = {
-            path,
+            path: request.path,
         };
+        const _binaryUploadRequest = await core.file.toBinaryUploadRequest(uploadable);
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            _binaryUploadRequest.headers,
             requestOptions?.headers,
         );
         const _response = await core.fetcher({
@@ -1088,11 +1178,15 @@ export class MountsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `mounts/${core.url.encodePathParam(mountId)}/files`,
+                `mounts/${core.url.encodePathParam(mount_id)}/files`,
             ),
             method: "PUT",
             headers: _headers,
+            contentType: "application/octet-stream",
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "bytes",
+            duplex: "half",
+            body: _binaryUploadRequest.body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -1108,7 +1202,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1146,7 +1240,7 @@ export class MountsClient {
         request: AgentaApi.DeleteMountFileRequest,
         requestOptions?: MountsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.MountFileDeletedResponse>> {
-        const { mount_id: mountId, path } = request;
+        const { mount_id: mountId, path, "if-match": ifMatch, "x-agenta-app-scope": agentaAppScope } = request;
         const _queryParams: Record<string, unknown> = {
             path,
         };
@@ -1154,6 +1248,10 @@ export class MountsClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({
+                "if-match": ifMatch ?? undefined,
+                "x-agenta-app-scope": agentaAppScope ?? undefined,
+            }),
             requestOptions?.headers,
         );
         const _response = await core.fetcher({
@@ -1181,7 +1279,7 @@ export class MountsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:

@@ -20,6 +20,7 @@ export interface SkillRegistryItem {
     message?: (string | null) | undefined;
     created_at?: (string | null) | undefined;
     updated_at?: (string | null) | undefined;
+    created_by_id?: (string | null) | undefined;
     is_static?: boolean | undefined;
     archived?: boolean | undefined;
     skill_name?: (string | null) | undefined;

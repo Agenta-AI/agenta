@@ -1,0 +1,69 @@
+name: "46 - railway preview comment"
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  authorize:
+    if: >-
+      github.event.issue.pull_request && github.event.comment.user.type == 'User' &&
+      contains(github.event.comment.body, '/preview')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      authorized: ${{ steps.check.outputs.authorized }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: python3 hosting/railway/oss/scripts/preview_lifecycle.py authorize
+
+  request:
+    needs: authorize
+    # Reject strangers before they can occupy/displace the cleanup mutex.
+    if: needs.authorize.outputs.authorized == 'true'
+    uses: ./.github/workflows/49-railway-lifecycle.yml
+    with:
+      operation: request
+      pr_number: ${{ format('{0}', github.event.issue.number) }}
+    secrets: inherit
+
+  build:
+    needs: request
+    if: needs.request.outputs.sha != ''
+    uses: ./.github/workflows/42-railway-build.yml
+    with:
+      pr_number: ${{ format('{0}', github.event.issue.number) }}
+      source_sha: ${{ needs.request.outputs.sha }}
+
+  deploy:
+    needs: [request, build]
+    uses: ./.github/workflows/49-railway-lifecycle.yml
+    with:
+      operation: deploy-manual
+      pr_number: ${{ format('{0}', github.event.issue.number) }}
+      source_sha: ${{ needs.request.outputs.sha }}
+      image_tag: ${{ needs.build.outputs.image_tag }}
+    secrets: inherit
+
+  cleanup-failed:
+    needs: [request, build, deploy]
+    if: always() && needs.request.outputs.sha != '' && needs.deploy.result != 'success'
+    uses: ./.github/workflows/49-railway-lifecycle.yml
+    with:
+      operation: finish
+      pr_number: ${{ format('{0}', github.event.issue.number) }}
+    secrets: inherit

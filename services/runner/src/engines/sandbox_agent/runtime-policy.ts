@@ -12,8 +12,8 @@ export {
   type McpPermissionTable,
   type McpServerPermissions,
 } from "../../mcp-permission.ts";
-import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
 import { materializeGatewayHeaders } from "./run-plan.ts";
+import { commandTimeoutSeconds } from "./run-limits.ts";
 import {
   configuredIngestBases,
   isAgentaIngest,
@@ -257,8 +257,17 @@ export function applyClaudeConnectionEnv(
   // Our tool count is small, so deferral buys nothing and only strips the schema. The SDK
   // treats only `false`/`0`/`no`/`off` as off, so the string must be "false" (not "0"/"100").
   // This is applied after `buildDaemonEnv`'s clear and is not in `KNOWN_PROVIDER_ENV_VARS`,
-  // so it is never stripped, and it reaches the Daytona sandbox like `ANTHROPIC_BASE_URL`.
+  // so it is never stripped. `buildRuntimeEnvironment` writes it to the Daytona env on Daytona.
   env.ENABLE_TOOL_SEARCH = "false";
+
+  // Claude Code runs its own Bash tool, so the runner cannot stop a command; it can only bound the
+  // timeout Claude Code allows. At that timeout Claude Code stops the command or moves it to the
+  // background; either way the tool call returns and the turn continues. A timeout allowed past the
+  // per-tool-call limit would trip the run-wide watchdog and end the turn instead. Claude Code's own
+  // defaults are 2 and 10 minutes.
+  const commandMs = commandTimeoutSeconds(undefined) * 1000;
+  env.BASH_MAX_TIMEOUT_MS = String(commandMs);
+  env.BASH_DEFAULT_TIMEOUT_MS = String(Math.min(120_000, commandMs));
 
   const deployment = request.modelConnection?.deployment;
   const selectedModel = request.model;
@@ -284,7 +293,15 @@ export function applyClaudeConnectionEnv(
     );
   }
 
-  if (deployment === "bedrock") {
+  if (deployment === "bedrock" && headerLines) {
+    // Bedrock through the gateway: Claude Code speaks Anthropic Messages to the gateway base
+    // URL, and the gateway relays to Bedrock's Messages endpoint. CLAUDE_CODE_USE_BEDROCK
+    // would make it ignore that URL and call Bedrock itself. Bedrock refuses the newest
+    // `anthropic-beta` values Claude Code sends, so its own switch drops them. "0", not
+    // absent: a local run inherits the runner's own environment, which may set it.
+    env.CLAUDE_CODE_USE_BEDROCK = "0";
+    env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = "1";
+  } else if (deployment === "bedrock") {
     env.CLAUDE_CODE_USE_BEDROCK = "1";
     const region = request.modelConnection?.endpoint?.region;
     if (region) {
@@ -316,17 +333,6 @@ export function applyClaudeConnectionEnv(
  */
 export function modelResolutionStrict(): boolean {
   return process.env.AGENTA_AGENT_MODEL_STRICT !== "false";
-}
-
-export async function defaultResolveLocalRunnerOwner(
-  sessionId: string,
-  authorization: string,
-): Promise<{ replicaId: string; ownerReplicaId: string | undefined }> {
-  // No credential ⇒ the claim would 401; treat as "no known owner" (pass), never worse than today.
-  if (!authorization) {
-    return { replicaId: REPLICA_ID, ownerReplicaId: undefined };
-  }
-  return claimSessionOwnership(sessionId, authorization);
 }
 
 export function isTransportEndpointDisconnected(err: unknown): boolean {

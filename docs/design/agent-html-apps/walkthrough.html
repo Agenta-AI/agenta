@@ -1,0 +1,939 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Launch Board Walkthrough</title>
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F4F5F7; --surface:#FFFFFF; --sunken:#ECEEF2; --ink:#16181D; --muted:#5B6270; --line:#D9DCE3; --line-strong:#B8BEC9;
+  --accent:#0F766E; --accent-soft:#D9F0EC; --accent-ink:#0B5A54;
+  --warn:#B45309; --warn-soft:#FBEBD5; --crit:#B91C1C; --crit-soft:#F8DEDE; --ok:#15803D; --ok-soft:#DCF1E3;
+  --code-bg:#EEF0F4; --shadow:0 1px 2px rgba(22,24,29,.06),0 8px 24px -12px rgba(22,24,29,.12);
+  --diff-add:#DCF1E3; --diff-del:#F8DEDE;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  --diff-add:#173523; --diff-del:#3C1C1C;
+}}
+:root[data-theme="dark"]{
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  --diff-add:#173523; --diff-del:#3C1C1C;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55;padding-inline:20px;padding-block:0 96px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,pre{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+code{font-size:.88em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+pre{background:var(--code-bg);padding:14px 16px;border-radius:6px;overflow-x:auto;font-size:12.5px;line-height:1.5;margin:0}
+pre code{background:none;padding:0;font-size:inherit}
+h1,h2,h3{font-family:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,4.2vw,44px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:26px;font-weight:700;margin-top:64px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:18px;font-weight:600;margin-top:32px}
+p{margin:12px 0;max-width:72ch}
+ul,ol{max-width:72ch;padding-left:22px;margin:10px 0}
+li{margin:5px 0}
+.wrap{max-width:1080px;margin:0 auto}
+.layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+.toc{position:sticky;top:24px;font-size:13px;padding-top:88px}
+.toc a{display:block;border:0;color:var(--muted);padding:4px 0}
+.toc a:hover{color:var(--ink)}
+.toc .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+header.hero{padding-block:56px 12px}
+.eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:14px}
+.lede{font-size:18px;color:var(--muted);max-width:64ch;margin-top:14px}
+figure{margin:24px 0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 14px 10px}
+figure svg{display:block;max-width:100%;height:auto;color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;max-width:80ch}
+.step{display:grid;grid-template-columns:44px minmax(0,1fr);gap:16px;margin-top:48px}
+.step .n{width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:17px}
+.step h3{margin-top:5px}
+.step .who{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-top:4px}
+.ops{margin:14px 0 0;padding:0;list-style:none;max-width:80ch;display:grid;gap:6px}
+.ops li{display:grid;grid-template-columns:22px 92px minmax(0,1fr);gap:10px;align-items:baseline;font-size:14px;padding:8px 10px;background:var(--sunken);border-radius:6px}
+.ops .k{width:18px;height:18px;border-radius:50%;font-size:11px;font-weight:600;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink)}
+.ops .op{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500}
+.ops .op.r{color:var(--accent-ink)}.ops .op.w{color:var(--warn)}.ops .op.n{color:var(--muted)}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 6px 6px 0;margin:18px 0;max-width:80ch;font-size:14px}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.callout p{margin:4px 0}
+.tbl{overflow-x:auto;margin:18px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--sunken)}
+tr:last-child td{border-bottom:0}
+td.mono{font-family:"IBM Plex Mono",monospace;font-size:12px}
+.tag{display:inline-block;font-size:11px;font-weight:500;padding:1px 7px;border-radius:999px}
+.tag.agent{background:var(--sunken);color:var(--ink);border:1px solid var(--line)}
+.tag.app{background:var(--accent-soft);color:var(--accent-ink)}
+.tag.user{background:var(--warn-soft);color:var(--warn)}
+.diff{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:14px 0}
+.diff pre{font-size:12px}
+.diff .lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;font-weight:500}
+.del{background:var(--diff-del);display:block}.add{background:var(--diff-add);display:block}
+.terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:20px}
+.term{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.term b{display:block;font-size:15px;margin-bottom:4px}
+.term p{font-size:14px;margin:0;color:var(--muted)}
+.small{font-size:13px;color:var(--muted)}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}
+.case{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.case h4{margin:0;font-family:"Bricolage Grotesque",sans-serif;font-size:16px;font-weight:600}
+.case .row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px;font-size:13px;align-items:baseline}
+.case .row .l{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.case pre{font-size:11.5px;padding:10px 12px}
+.case .same{border-left:3px solid var(--accent);padding-left:8px}
+</style>
+</head>
+<body>
+
+<div class="wrap"><div class="layout">
+<nav class="toc" aria-label="Sections">
+  <div class="lbl">Contents</div>
+  <a href="#idea">The idea in one screen</a>
+  <a href="#s1">1 · Agent builds it</a>
+  <a href="#s2">2 · Preview</a>
+  <a href="#s3">3 · Run and grant</a>
+  <a href="#s4">4 · The first write</a>
+  <a href="#s5">5 · Agent sees it</a>
+  <a href="#s6">6 · Agent edits, app refreshes</a>
+  <a href="#s7">7 · Tomorrow</a>
+  <a href="#ledger">The file ledger</a>
+  <a href="#write">What a write is</a>
+  <a href="#events">Three interactions, one event</a>
+  <a href="#who">Who defines what</a>
+  <a href="#code">The app's code</a>
+</nav>
+<main>
+<header class="hero">
+  <div class="eyebrow">Agenta · agent HTML apps · worked example</div>
+  <h1>One launch, one board, three hands on the same file</h1>
+  <p class="lede">A single session with a launch-planning agent, frame by frame. What the user clicks, what the agent does, and every time a file is read or written along the way. Companion to the <a href="plan.html">review and plan</a>; the same bridge is stress-tested against five other app shapes in <a href="six-apps.html">Six Apps, One Bridge</a>.</p>
+</header>
+
+<section id="idea">
+  <h2 style="margin-top:36px">The idea in one screen</h2>
+  <p>There is no database behind an App. The session's drive is a folder of files, and the App, the agent and the user all read and write those same files. A <b>read</b> fetches one file's text. A <b>write</b> replaces one file's contents. That is the entire vocabulary.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-label="Three parties reach the same file. The agent, running in its sandbox, has the session drive mounted as a filesystem and uses ordinary file tools. The App, running in a sandboxed iframe, goes through the bridge to the parent page, which calls the mounts API. The user goes through the Files pane. All three end at launch/board.json in the mount store.">
+      <defs><marker id="a0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="12" fill="currentColor">
+        <rect x="20" y="30" width="200" height="66" rx="6" fill="none" stroke="currentColor"/>
+        <text x="120" y="54" text-anchor="middle" font-weight="600">Agent</text>
+        <text x="120" y="72" text-anchor="middle" opacity=".7">runner sandbox · drive mounted</text>
+        <text x="120" y="88" text-anchor="middle" opacity=".7" font-family="IBM Plex Mono, monospace" font-size="11">write_file / read_file tools</text>
+
+        <rect x="20" y="118" width="200" height="66" rx="6" fill="var(--accent)" opacity=".15"/><rect x="20" y="118" width="200" height="66" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="120" y="142" text-anchor="middle" font-weight="600">App · board.html</text>
+        <text x="120" y="160" text-anchor="middle" opacity=".7">sandboxed iframe in the playground</text>
+        <text x="120" y="176" text-anchor="middle" opacity=".7" font-family="IBM Plex Mono, monospace" font-size="11">agenta.fs.readJSON / writeJSON</text>
+
+        <rect x="20" y="206" width="200" height="66" rx="6" fill="none" stroke="currentColor"/>
+        <text x="120" y="230" text-anchor="middle" font-weight="600">User</text>
+        <text x="120" y="248" text-anchor="middle" opacity=".7">Files pane · upload · delete</text>
+
+        <rect x="330" y="118" width="170" height="66" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="415" y="142" text-anchor="middle" font-weight="600">Bridge + parent</text>
+        <text x="415" y="160" text-anchor="middle" opacity=".7">checks grant and path,</text>
+        <text x="415" y="176" text-anchor="middle" opacity=".7">calls the API for the App</text>
+
+        <rect x="600" y="100" width="150" height="100" rx="6" fill="none" stroke="currentColor"/>
+        <text x="675" y="130" text-anchor="middle" font-weight="600">Mounts API</text>
+        <text x="675" y="150" text-anchor="middle" opacity=".7" font-family="IBM Plex Mono, monospace" font-size="11">GET files?read=</text>
+        <text x="675" y="166" text-anchor="middle" opacity=".7" font-family="IBM Plex Mono, monospace" font-size="11">PUT files?path=</text>
+        <text x="675" y="182" text-anchor="middle" opacity=".7" font-family="IBM Plex Mono, monospace" font-size="11">DELETE files?path=</text>
+
+        <rect x="800" y="60" width="140" height="180" rx="6" fill="currentColor" opacity=".06"/>
+        <rect x="800" y="60" width="140" height="180" rx="6" fill="none" stroke="currentColor"/>
+        <text x="870" y="84" text-anchor="middle" font-weight="600">Session drive</text>
+        <text x="870" y="102" text-anchor="middle" opacity=".6" font-size="11">launch/</text>
+        <rect x="814" y="114" width="112" height="28" rx="4" fill="currentColor" opacity=".08"/>
+        <text x="870" y="132" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">board.html</text>
+        <rect x="814" y="150" width="112" height="28" rx="4" fill="var(--accent)" opacity=".25"/>
+        <text x="870" y="168" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">board.json</text>
+        <rect x="814" y="186" width="112" height="28" rx="4" fill="currentColor" opacity=".08"/>
+        <text x="870" y="204" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">notes.md</text>
+      </g>
+      <g font-size="11" fill="currentColor">
+        <path d="M220 63 C 500 63, 640 60, 800 110" fill="none" stroke="currentColor" marker-end="url(#a0)"/>
+        <text x="480" y="52" text-anchor="middle">mounted as a filesystem, no HTTP from the agent's side</text>
+        <line x1="220" y1="151" x2="330" y2="151" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a0)"/>
+        <text x="275" y="143" text-anchor="middle" fill="var(--accent)">postMessage</text>
+        <line x1="500" y1="151" x2="600" y2="151" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a0)"/>
+        <text x="550" y="143" text-anchor="middle" fill="var(--accent)">Fern client</text>
+        <line x1="750" y1="151" x2="800" y2="151" stroke="currentColor" marker-end="url(#a0)"/>
+        <path d="M220 239 C 400 239, 560 230, 620 200" fill="none" stroke="currentColor" marker-end="url(#a0)"/>
+        <text x="420" y="248" text-anchor="middle">same API, from the Files pane</text>
+      </g>
+      <text x="480" y="290" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">Three paths in, one file. Whoever wrote last is what everyone reads next.</text>
+    </svg>
+    <figcaption>The App is not special. It is a third client of the same drive, with a narrower door than the other two.</figcaption>
+  </figure>
+
+  <div class="terms">
+    <div class="term"><b>read</b><p>Fetch one file's text. <code>readJSON</code> is read plus <code>JSON.parse</code>. The App reads on load and whenever the user hits Refresh.</p></div>
+    <div class="term"><b>write</b><p>Replace one file's whole contents. <code>writeJSON</code> is <code>JSON.stringify</code> plus write. There is no patch or append; the App sends the full new file.</p></div>
+    <div class="term"><b>list / exists / remove</b><p>Directory listing, existence check, delete. The board uses none of them; a notes app or an attachments picker would.</p></div>
+  </div>
+</section>
+
+<!-- ============ STEP 1 ============ -->
+<section id="s1" class="step">
+  <div class="n">1</div>
+  <div>
+    <h3>The agent builds the board</h3>
+    <div class="who">Turn 1 · user asks, agent writes two files</div>
+    <p>Arda opens a session with the Launch assistant. The request is ordinary; the agent decides on its own that "a board I can move cards on" means an HTML file plus a data file, because the agent's system prompt (or a skill) tells it Apps exist and how the bridge works.</p>
+    <figure>
+      <svg viewBox="0 0 960 400" role="img" aria-label="Playground wireframe. Pane A holds the chat: the user asks for a v0.119 launch board they can move cards on; the agent replies that it created a launch board with 5 tasks and shows two file cards, board.html and board.json, after a tool step that wrote 2 files. Pane B is the Files explorer showing launch/ with board.html and board.json.">
+        <rect x="0" y="0" width="960" height="400" rx="8" fill="var(--sunken)"/>
+        <rect x="0" y="0" width="960" height="36" rx="8" fill="currentColor" opacity=".05"/>
+        <g font-size="12" fill="currentColor">
+          <text x="16" y="23" font-weight="600">Launch assistant</text>
+          <rect x="150" y="8" width="130" height="22" rx="4" fill="var(--accent)" opacity=".2"/><text x="215" y="23" text-anchor="middle">v0.119 launch</text>
+          <text x="292" y="23" opacity=".6">+</text>
+          <text x="930" y="23" text-anchor="end" opacity=".6">Build · Chat</text>
+        </g>
+        <!-- pane A -->
+        <rect x="12" y="48" width="450" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="12" fill="currentColor">
+          <rect x="150" y="62" width="300" height="46" rx="8" fill="var(--accent)" opacity=".14"/>
+          <text x="164" y="80">Help me plan the v0.119 launch. I want a</text>
+          <text x="164" y="97">board I can move cards on.</text>
+          <text x="24" y="132" opacity=".6" font-size="11">⚙ wrote 2 files · launch/</text>
+          <text x="24" y="158">Created a launch board with 5 tasks in</text>
+          <text x="24" y="175">three columns. Open it beside the chat</text>
+          <text x="24" y="192">and drag cards; I'll see the changes.</text>
+          <rect x="24" y="206" width="200" height="40" rx="6" fill="none" stroke="var(--line-strong)"/>
+          <rect x="32" y="214" width="24" height="24" rx="4" fill="var(--accent)" opacity=".25"/>
+          <text x="64" y="224" font-weight="500" font-family="IBM Plex Mono, monospace" font-size="11">board.html</text>
+          <text x="64" y="239" opacity=".6" font-size="10">3.1 KB · HTML · Open</text>
+          <rect x="236" y="206" width="200" height="40" rx="6" fill="none" stroke="var(--line-strong)"/>
+          <rect x="244" y="214" width="24" height="24" rx="4" fill="currentColor" opacity=".1"/>
+          <text x="276" y="224" font-weight="500" font-family="IBM Plex Mono, monospace" font-size="11">board.json</text>
+          <text x="276" y="239" opacity=".6" font-size="10">412 B · JSON · Open</text>
+          <rect x="24" y="346" width="426" height="32" rx="6" fill="none" stroke="var(--line)"/>
+          <text x="36" y="366" opacity=".5">Message Launch assistant…</text>
+        </g>
+        <!-- pane B -->
+        <rect x="474" y="48" width="474" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="12" fill="currentColor">
+          <rect x="474" y="48" width="474" height="28" fill="currentColor" opacity=".04"/>
+          <rect x="482" y="52" width="60" height="20" rx="4" fill="currentColor" opacity=".1"/><text x="512" y="66" text-anchor="middle" font-size="11">Files</text>
+          <text x="490" y="100" font-weight="600">v0.119 launch · drive</text>
+          <text x="490" y="128" opacity=".8">▾ launch/</text>
+          <rect x="506" y="138" width="24" height="18" rx="3" fill="var(--accent)" opacity=".25"/>
+          <text x="538" y="151" font-family="IBM Plex Mono, monospace" font-size="11">board.html</text><text x="930" y="151" text-anchor="end" opacity=".6" font-size="11">3.1 KB · just now</text>
+          <rect x="506" y="164" width="24" height="18" rx="3" fill="currentColor" opacity=".1"/>
+          <text x="538" y="177" font-family="IBM Plex Mono, monospace" font-size="11">board.json</text><text x="930" y="177" text-anchor="end" opacity=".6" font-size="11">412 B · just now</text>
+        </g>
+        <!-- callouts -->
+        <g font-size="11">
+          <circle cx="24" cy="126" r="9" fill="var(--accent)"/><text x="24" y="130" text-anchor="middle" fill="#fff" font-weight="600">a</text>
+          <circle cx="238" cy="206" r="9" fill="var(--accent)"/><text x="238" y="210" text-anchor="middle" fill="#fff" font-weight="600">b</text>
+          <circle cx="930" cy="128" r="9" fill="var(--accent)"/><text x="930" y="132" text-anchor="middle" fill="#fff" font-weight="600">c</text>
+        </g>
+      </svg>
+      <figcaption>a · The agent's tool step: two ordinary file writes through its own mount, no bridge involved. b · File cards link to the drive; clicking one opens it in pane B. c · The Files explorer already shows both, because the drive refreshes after the turn.</figcaption>
+    </figure>
+    <ul class="ops">
+      <li><span class="k">1</span><span class="op w">write</span><span><span class="tag agent">agent</span> <code>launch/board.html</code> · the app: markup, styles, and the script that talks to <code>agenta.fs</code></span></li>
+      <li><span class="k">2</span><span class="op w">write</span><span><span class="tag agent">agent</span> <code>launch/board.json</code> · the data: three columns, five cards</span></li>
+    </ul>
+    <div class="diff" style="margin-top:14px">
+      <div><div class="lbl">launch/board.json as written by the agent</div>
+<pre><code>{
+  "columns": [
+    { "id": "todo",  "title": "To do",
+      "cards": ["Write changelog", "Record demo",
+                "Draft announcement", "Update docs"] },
+    { "id": "doing", "title": "Doing",
+      "cards": ["Cut release branch"] },
+    { "id": "done",  "title": "Done", "cards": [] }
+  ]
+}</code></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STEP 2 ============ -->
+<section id="s2" class="step">
+  <div class="n">2</div>
+  <div>
+    <h3>Preview: the app is there, but inert</h3>
+    <div class="who">User clicks the board.html card</div>
+    <p>The file opens as a tab in pane B in <b>Preview</b>, exactly as HTML previews work today. Every script is stripped before the iframe loads. The board's columns are empty because the code that would read <code>board.json</code> never ran. This is the safe default and it is deliberately a little disappointing.</p>
+    <figure>
+      <svg viewBox="0 0 960 400" role="img" aria-label="Pane B now shows a board.html tab with a segmented control Preview, Source, Run, Preview selected. A banner says scripts are off in Preview. The three columns To do, Doing, Done are empty with the text Loading board…">
+        <rect x="0" y="0" width="960" height="400" rx="8" fill="var(--sunken)"/>
+        <rect x="0" y="0" width="960" height="36" rx="8" fill="currentColor" opacity=".05"/>
+        <g font-size="12" fill="currentColor">
+          <text x="16" y="23" font-weight="600">Launch assistant</text>
+          <rect x="150" y="8" width="130" height="22" rx="4" fill="var(--accent)" opacity=".2"/><text x="215" y="23" text-anchor="middle">v0.119 launch</text>
+        </g>
+        <rect x="12" y="48" width="450" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="12" fill="currentColor" opacity=".45">
+          <rect x="150" y="62" width="300" height="46" rx="8" fill="var(--accent)" opacity=".3"/>
+          <text x="164" y="80">Help me plan the v0.119 launch. I want a</text>
+          <text x="164" y="97">board I can move cards on.</text>
+          <text x="24" y="158">Created a launch board with 5 tasks in</text>
+          <text x="24" y="175">three columns…</text>
+          <rect x="24" y="206" width="200" height="40" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="1"/>
+          <text x="64" y="224" font-weight="500" font-family="IBM Plex Mono, monospace" font-size="11">board.html</text>
+          <rect x="236" y="206" width="200" height="40" rx="6" fill="none" stroke="var(--line-strong)"/>
+          <text x="276" y="224" font-weight="500" font-family="IBM Plex Mono, monospace" font-size="11">board.json</text>
+          <rect x="24" y="346" width="426" height="32" rx="6" fill="none" stroke="var(--line)"/>
+        </g>
+        <rect x="474" y="48" width="474" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="12" fill="currentColor">
+          <rect x="474" y="48" width="474" height="28" fill="currentColor" opacity=".04"/>
+          <rect x="482" y="52" width="90" height="20" rx="4" fill="currentColor" opacity=".1"/><text x="527" y="66" text-anchor="middle" font-size="11">board.html</text>
+          <rect x="578" y="52" width="50" height="20" rx="4" fill="none" stroke="var(--line)"/><text x="603" y="66" text-anchor="middle" font-size="11" opacity=".7">Files</text>
+          <!-- segmented -->
+          <rect x="486" y="86" width="190" height="24" rx="5" fill="none" stroke="var(--line)"/>
+          <rect x="488" y="88" width="62" height="20" rx="4" fill="currentColor" opacity=".12"/>
+          <text x="519" y="102" text-anchor="middle" font-size="11" font-weight="500">Preview</text>
+          <text x="581" y="102" text-anchor="middle" font-size="11" opacity=".7">Source</text>
+          <text x="644" y="102" text-anchor="middle" font-size="11" opacity=".7">Run</text>
+          <!-- banner -->
+          <rect x="486" y="120" width="450" height="26" rx="4" fill="var(--warn)" opacity=".14"/>
+          <text x="496" y="137" font-size="11">Preview keeps scripts off. To use this app, choose Run.</text>
+          <!-- columns -->
+          <rect x="486" y="158" width="142" height="212" rx="6" fill="currentColor" opacity=".05"/>
+          <rect x="640" y="158" width="142" height="212" rx="6" fill="currentColor" opacity=".05"/>
+          <rect x="794" y="158" width="142" height="212" rx="6" fill="currentColor" opacity=".05"/>
+          <text x="557" y="178" text-anchor="middle" font-weight="600" font-size="11">To do</text>
+          <text x="711" y="178" text-anchor="middle" font-weight="600" font-size="11">Doing</text>
+          <text x="865" y="178" text-anchor="middle" font-weight="600" font-size="11">Done</text>
+          <text x="711" y="270" text-anchor="middle" opacity=".5" font-size="11">Loading board…</text>
+        </g>
+        <g font-size="11">
+          <circle cx="644" cy="86" r="9" fill="var(--accent)"/><text x="644" y="90" text-anchor="middle" fill="#fff" font-weight="600">a</text>
+          <circle cx="711" cy="284" r="9" fill="var(--accent)"/><text x="711" y="288" text-anchor="middle" fill="#fff" font-weight="600">b</text>
+        </g>
+      </svg>
+      <figcaption>a · The new third segment. b · "Loading board…" is the HTML's own placeholder text; the script that would replace it was removed. Preview is the HTML file as a document, not as a program.</figcaption>
+    </figure>
+    <ul class="ops">
+      <li><span class="k">3</span><span class="op r">read</span><span><span class="tag user">user</span> <code>launch/board.html</code> · the parent fetches the source to build the preview. No bridge, no grant; this is today's code path</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ STEP 3 ============ -->
+<section id="s3" class="step">
+  <div class="n">3</div>
+  <div>
+    <h3>Run: the grant is the moment of consent</h3>
+    <div class="who">User picks Run, chooses what the app may touch</div>
+    <p>Choosing Run does not execute anything yet. It asks one question, in the file's folder terms. "Read" means the app can load files in <code>launch/</code>. "Read and write" means it can also save changes there. Nothing about the parent page, the login, or other folders is on offer, because the bridge cannot do those things.</p>
+    <figure>
+      <svg viewBox="0 0 960 400" role="img" aria-label="A grant dialog over pane B. Title: Run board.html? Body: this app can use files in launch/. Two radio options: Read files, the app can load board.json; Read and write files, selected, the app can also save changes to board.json. A note says the app never receives your login; Agenta makes the file calls for it. Buttons Cancel and Run.">
+        <rect x="0" y="0" width="960" height="400" rx="8" fill="var(--sunken)"/>
+        <rect x="0" y="0" width="960" height="36" rx="8" fill="currentColor" opacity=".05"/>
+        <g font-size="12" fill="currentColor"><text x="16" y="23" font-weight="600">Launch assistant</text>
+          <rect x="150" y="8" width="130" height="22" rx="4" fill="var(--accent)" opacity=".2"/><text x="215" y="23" text-anchor="middle">v0.119 launch</text></g>
+        <rect x="12" y="48" width="450" height="340" rx="6" fill="var(--surface)" stroke="var(--line)" opacity=".6"/>
+        <rect x="474" y="48" width="474" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="12" fill="currentColor" opacity=".35">
+          <rect x="474" y="48" width="474" height="28" fill="currentColor" opacity=".1"/>
+          <rect x="482" y="52" width="90" height="20" rx="4" fill="currentColor" opacity=".2"/><text x="527" y="66" text-anchor="middle" font-size="11">board.html</text>
+          <rect x="486" y="86" width="190" height="24" rx="5" fill="none" stroke="currentColor"/>
+          <rect x="613" y="88" width="61" height="20" rx="4" fill="currentColor" opacity=".3"/>
+          <text x="519" y="102" text-anchor="middle" font-size="11">Preview</text><text x="581" y="102" text-anchor="middle" font-size="11">Source</text><text x="644" y="102" text-anchor="middle" font-size="11" font-weight="600">Run</text>
+        </g>
+        <!-- dialog -->
+        <rect x="540" y="128" width="340" height="232" rx="8" fill="var(--surface)" stroke="var(--line-strong)"/>
+        <g font-size="12" fill="currentColor">
+          <text x="560" y="154" font-weight="600" font-size="14">Run board.html?</text>
+          <text x="560" y="174" opacity=".75">This app can use files in</text>
+          <text x="708" y="174" font-family="IBM Plex Mono, monospace" font-size="11">launch/</text>
+          <circle cx="570" cy="204" r="6" fill="none" stroke="currentColor"/>
+          <text x="586" y="200" font-weight="500">Read files</text>
+          <text x="586" y="215" opacity=".7" font-size="11">The app can load board.json.</text>
+          <circle cx="570" cy="246" r="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/><circle cx="570" cy="246" r="3" fill="var(--accent)"/>
+          <text x="586" y="242" font-weight="500">Read and write files</text>
+          <text x="586" y="257" opacity=".7" font-size="11">The app can also save changes to board.json.</text>
+          <line x1="560" y1="276" x2="860" y2="276" stroke="var(--line)"/>
+          <text x="560" y="296" opacity=".7" font-size="11">The app never receives your login. Agenta makes</text>
+          <text x="560" y="310" opacity=".7" font-size="11">the file calls for it, only inside this folder.</text>
+          <rect x="716" y="326" width="66" height="24" rx="5" fill="none" stroke="var(--line-strong)"/><text x="749" y="342" text-anchor="middle" font-size="11">Cancel</text>
+          <rect x="792" y="326" width="68" height="24" rx="5" fill="var(--accent)"/><text x="826" y="342" text-anchor="middle" font-size="11" fill="#fff" font-weight="500">Run</text>
+        </g>
+        <g font-size="11">
+          <circle cx="716" cy="174" r="9" fill="var(--accent)"/><text x="716" y="178" text-anchor="middle" fill="#fff" font-weight="600">a</text>
+          <circle cx="540" cy="246" r="9" fill="var(--accent)"/><text x="540" y="250" text-anchor="middle" fill="#fff" font-weight="600">b</text>
+        </g>
+      </svg>
+      <figcaption>a · Scope is the HTML file's own folder, never chosen by the app. b · The grant is stored for this mount, this folder and this level, so a later reload in the same browser session does not ask again, and neither does an edit to the app.</figcaption>
+    </figure>
+    <ul class="ops">
+      <li><span class="k">·</span><span class="op n">none</span><span>No file operation. The grant is written to memory and <code>sessionStorage</code> under <code>mount 9c… / launch/ → read+write</code>.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ STEP 4 ============ -->
+<section id="s4" class="step">
+  <div class="n">4</div>
+  <div>
+    <h3>Running: the app reads, the user drags, the app writes</h3>
+    <div class="who">Same tab, now executing</div>
+    <p>The parent rebuilds the iframe from the same HTML, this time keeping the agent's script and injecting the bridge stub ahead of it. The app's first act is to read <code>board.json</code>; the columns fill. Arda drags "Write changelog" from To do to Doing. On drop, the app sends the whole updated board back as one write.</p>
+    <figure>
+      <svg viewBox="0 0 960 400" role="img" aria-label="Pane B shows the running board. A status strip reads Running, read and write, launch/, with a Refresh button. Columns are filled: To do has Record demo, Draft announcement, Update docs; Doing has Cut release branch and a card Write changelog being dropped in with a drag arrow from To do; Done is empty. A toast at the bottom says Saved board.json.">
+        <rect x="0" y="0" width="960" height="400" rx="8" fill="var(--sunken)"/>
+        <rect x="0" y="0" width="960" height="36" rx="8" fill="currentColor" opacity=".05"/>
+        <g font-size="12" fill="currentColor"><text x="16" y="23" font-weight="600">Launch assistant</text>
+          <rect x="150" y="8" width="130" height="22" rx="4" fill="var(--accent)" opacity=".2"/><text x="215" y="23" text-anchor="middle">v0.119 launch</text></g>
+        <rect x="12" y="48" width="450" height="340" rx="6" fill="var(--surface)" stroke="var(--line)" opacity=".6"/>
+        <rect x="474" y="48" width="474" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="12" fill="currentColor">
+          <rect x="474" y="48" width="474" height="28" fill="currentColor" opacity=".04"/>
+          <rect x="482" y="52" width="90" height="20" rx="4" fill="currentColor" opacity=".1"/><text x="527" y="66" text-anchor="middle" font-size="11">board.html</text>
+          <rect x="486" y="86" width="190" height="24" rx="5" fill="none" stroke="var(--line)"/>
+          <rect x="613" y="88" width="61" height="20" rx="4" fill="var(--accent)" opacity=".25"/>
+          <text x="519" y="102" text-anchor="middle" font-size="11" opacity=".7">Preview</text><text x="581" y="102" text-anchor="middle" font-size="11" opacity=".7">Source</text><text x="644" y="102" text-anchor="middle" font-size="11" font-weight="600">Run</text>
+          <!-- status strip -->
+          <circle cx="700" cy="98" r="4" fill="var(--ok)"/>
+          <text x="710" y="102" font-size="11">Running · read + write · launch/</text>
+          <rect x="866" y="87" width="70" height="22" rx="5" fill="none" stroke="var(--line-strong)"/><text x="901" y="102" text-anchor="middle" font-size="11">↻ Refresh</text>
+          <!-- columns -->
+          <rect x="486" y="120" width="142" height="230" rx="6" fill="currentColor" opacity=".05"/>
+          <rect x="640" y="120" width="142" height="230" rx="6" fill="currentColor" opacity=".05"/>
+          <rect x="794" y="120" width="142" height="230" rx="6" fill="currentColor" opacity=".05"/>
+          <text x="557" y="140" text-anchor="middle" font-weight="600" font-size="11">To do · 3</text>
+          <text x="711" y="140" text-anchor="middle" font-weight="600" font-size="11">Doing · 2</text>
+          <text x="865" y="140" text-anchor="middle" font-weight="600" font-size="11">Done · 0</text>
+          <g font-size="11">
+            <rect x="494" y="150" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="502" y="169">Record demo</text>
+            <rect x="494" y="186" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="502" y="205">Draft announcement</text>
+            <rect x="494" y="222" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="502" y="241">Update docs</text>
+            <rect x="494" y="258" width="126" height="30" rx="4" fill="none" stroke="var(--line)" stroke-dasharray="3 3"/>
+            <rect x="648" y="150" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="656" y="169">Cut release branch</text>
+            <rect x="648" y="186" width="126" height="30" rx="4" fill="var(--accent)" opacity=".2"/>
+            <rect x="648" y="186" width="126" height="30" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="656" y="205" font-weight="500">Write changelog</text>
+          </g>
+          <path d="M560 273 C 600 273, 620 201, 646 201" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <!-- toast -->
+          <rect x="794" y="356" width="142" height="24" rx="5" fill="var(--ok)" opacity=".15"/>
+          <text x="865" y="372" text-anchor="middle" font-size="11">Saved board.json</text>
+        </g>
+        <!-- callouts -->
+        <g font-size="11">
+          <circle cx="700" cy="84" r="9" fill="var(--accent)"/><text x="700" y="88" text-anchor="middle" fill="#fff" font-weight="600">a</text>
+          <circle cx="600" cy="262" r="9" fill="var(--accent)"/><text x="600" y="266" text-anchor="middle" fill="#fff" font-weight="600">b</text>
+          <circle cx="794" cy="356" r="9" fill="var(--accent)"/><text x="794" y="360" text-anchor="middle" fill="#fff" font-weight="600">c</text>
+        </g>
+      </svg>
+      <figcaption>a · The access badge is the parent's, not the app's; the app cannot fake it. b · The drag is ordinary DOM code inside the iframe. c · The toast fires when the write promise resolves, meaning the file is on the server.</figcaption>
+    </figure>
+    <ul class="ops">
+      <li><span class="k">4</span><span class="op r">read</span><span><span class="tag app">app</span> <code>board.json</code> on load · <code>agenta.fs.readJSON("board.json")</code> → parent → <code>GET /mounts/9c…/files?read=launch/board.json</code></span></li>
+      <li><span class="k">5</span><span class="op w">write</span><span><span class="tag app">app</span> <code>board.json</code> on drop · <code>agenta.fs.writeJSON("board.json", board)</code> → parent → <code>PUT /mounts/9c…/files?path=launch/board.json</code> with the full JSON as the body</span></li>
+    </ul>
+
+    <h3 style="margin-top:28px">Anatomy of that one write</h3>
+    <figure>
+      <svg viewBox="0 0 960 250" role="img" aria-label="Five stages of one write, left to right: the app's call with a relative path board.json; the stub's port message with id 12, method write, path board.json, body; the parent resolving the path to launch/board.json, checking the grant and the size; the HTTP PUT to the mounts API with the path query; the mount store replacing the object's bytes and the parent bumping the drive generation.">
+        <defs><marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <g font-size="11" fill="currentColor">
+          <rect x="16" y="40" width="168" height="120" rx="6" fill="var(--accent)" opacity=".12"/><rect x="16" y="40" width="168" height="120" rx="6" fill="none" stroke="var(--accent)"/>
+          <text x="100" y="62" text-anchor="middle" font-weight="600" font-size="12">App code</text>
+          <text x="100" y="86" text-anchor="middle" font-family="IBM Plex Mono, monospace">await agenta.fs</text>
+          <text x="100" y="100" text-anchor="middle" font-family="IBM Plex Mono, monospace">.writeJSON(</text>
+          <text x="100" y="114" text-anchor="middle" font-family="IBM Plex Mono, monospace">"board.json", board)</text>
+          <text x="100" y="146" text-anchor="middle" opacity=".7">relative to the HTML file</text>
+
+          <rect x="212" y="40" width="168" height="120" rx="6" fill="none" stroke="currentColor"/>
+          <text x="296" y="62" text-anchor="middle" font-weight="600" font-size="12">Stub → port</text>
+          <text x="296" y="86" text-anchor="middle" font-family="IBM Plex Mono, monospace">{ id: 12,</text>
+          <text x="296" y="100" text-anchor="middle" font-family="IBM Plex Mono, monospace">method: "write",</text>
+          <text x="296" y="114" text-anchor="middle" font-family="IBM Plex Mono, monospace">path: "board.json",</text>
+          <text x="296" y="128" text-anchor="middle" font-family="IBM Plex Mono, monospace">body: "{…}" }</text>
+          <text x="296" y="146" text-anchor="middle" opacity=".7">promise parked under id 12</text>
+
+          <rect x="408" y="40" width="168" height="120" rx="6" fill="none" stroke="currentColor"/>
+          <text x="492" y="62" text-anchor="middle" font-weight="600" font-size="12">Parent host</text>
+          <text x="492" y="84" text-anchor="middle">resolve → launch/board.json</text>
+          <text x="492" y="100" text-anchor="middle">inside launch/ ✓</text>
+          <text x="492" y="116" text-anchor="middle">grant = read+write ✓</text>
+          <text x="492" y="132" text-anchor="middle">412 B under cap ✓</text>
+          <text x="492" y="148" text-anchor="middle" opacity=".7">EDIT_MOUNTS is the user's</text>
+
+          <rect x="604" y="40" width="168" height="120" rx="6" fill="none" stroke="currentColor"/>
+          <text x="688" y="62" text-anchor="middle" font-weight="600" font-size="12">HTTP</text>
+          <text x="688" y="86" text-anchor="middle" font-family="IBM Plex Mono, monospace">PUT /mounts/9c…/files</text>
+          <text x="688" y="100" text-anchor="middle" font-family="IBM Plex Mono, monospace">?path=launch/board.json</text>
+          <text x="688" y="120" text-anchor="middle" font-family="IBM Plex Mono, monospace">body: raw JSON text</text>
+          <text x="688" y="146" text-anchor="middle" opacity=".7">user's cookie, sent by the parent</text>
+
+          <rect x="800" y="40" width="144" height="120" rx="6" fill="currentColor" opacity=".06"/><rect x="800" y="40" width="144" height="120" rx="6" fill="none" stroke="currentColor"/>
+          <text x="872" y="62" text-anchor="middle" font-weight="600" font-size="12">Mount store</text>
+          <text x="872" y="86" text-anchor="middle">object replaced</text>
+          <text x="872" y="102" text-anchor="middle" font-family="IBM Plex Mono, monospace">{path, size: 438}</text>
+          <text x="872" y="130" text-anchor="middle" opacity=".7">then: drive generation +1,</text>
+          <text x="872" y="146" text-anchor="middle" opacity=".7">Files pane re-lists</text>
+        </g>
+        <g stroke="currentColor">
+          <line x1="184" y1="100" x2="212" y2="100" marker-end="url(#a4)"/>
+          <line x1="380" y1="100" x2="408" y2="100" marker-end="url(#a4)"/>
+          <line x1="576" y1="100" x2="604" y2="100" marker-end="url(#a4)"/>
+          <line x1="772" y1="100" x2="800" y2="100" marker-end="url(#a4)"/>
+        </g>
+        <path d="M872 160 C 872 210, 100 210, 100 160" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a4)"/>
+        <text x="480" y="228" font-size="11" text-anchor="middle" fill="var(--accent)">reply {id: 12, ok: true, result: {path, size}} travels back over the port; the parked promise resolves</text>
+      </svg>
+      <figcaption>A write is a whole-file replace. The app sends the complete new board; the server does not merge or patch. That is why the data lives in a small file of its own.</figcaption>
+    </figure>
+    <div class="diff">
+      <div><div class="lbl">board.json · before the drop</div>
+<pre><code>"cards": [<span class="del">"Write changelog",</span>
+          "Record demo",
+          "Draft announcement",
+          "Update docs"] },
+{ "id": "doing", "title": "Doing",
+  "cards": ["Cut release branch"] },</code></pre></div>
+      <div><div class="lbl">board.json · after the drop (what the PUT carried)</div>
+<pre><code>"cards": ["Record demo",
+          "Draft announcement",
+          "Update docs"] },
+{ "id": "doing", "title": "Doing",
+  "cards": ["Cut release branch",
+<span class="add">            "Write changelog"] },</span></code></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STEP 5 ============ -->
+<section id="s5" class="step">
+  <div class="n">5</div>
+  <div>
+    <h3>The agent sees what the user did</h3>
+    <div class="who">Turn 2 · the user never typed the change</div>
+    <p>Arda asks a question in the chat. The agent reads <code>board.json</code> with its own file tool, the same way it wrote it, and answers from the file's current contents. The board move became agent context without a message describing it.</p>
+    <figure>
+      <svg viewBox="0 0 960 400" role="img" aria-label="Pane A: the user asks what's in progress; a tool step reads launch/board.json; the agent replies that Cut release branch and Write changelog are in Doing, with three items left in To do, and offers to draft the changelog. Pane B still shows the running board.">
+        <rect x="0" y="0" width="960" height="400" rx="8" fill="var(--sunken)"/>
+        <rect x="0" y="0" width="960" height="36" rx="8" fill="currentColor" opacity=".05"/>
+        <g font-size="12" fill="currentColor"><text x="16" y="23" font-weight="600">Launch assistant</text>
+          <rect x="150" y="8" width="130" height="22" rx="4" fill="var(--accent)" opacity=".2"/><text x="215" y="23" text-anchor="middle">v0.119 launch</text></g>
+        <rect x="12" y="48" width="450" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="12" fill="currentColor">
+          <text x="24" y="70" opacity=".4">… Created a launch board with 5 tasks …</text>
+          <rect x="250" y="88" width="200" height="30" rx="8" fill="var(--accent)" opacity=".14"/>
+          <text x="264" y="107">What's in progress right now?</text>
+          <text x="24" y="142" opacity=".6" font-size="11">⚙ read launch/board.json</text>
+          <text x="24" y="168">Two cards are in Doing: Cut release</text>
+          <text x="24" y="185">branch and Write changelog. To do still</text>
+          <text x="24" y="202">has Record demo, Draft announcement,</text>
+          <text x="24" y="219">and Update docs.</text>
+          <text x="24" y="246">Want me to draft the changelog while</text>
+          <text x="24" y="263">you're on it?</text>
+          <rect x="24" y="346" width="426" height="32" rx="6" fill="none" stroke="var(--line)"/>
+          <text x="36" y="366" opacity=".5">Message Launch assistant…</text>
+        </g>
+        <rect x="474" y="48" width="474" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="11" fill="currentColor" opacity=".55">
+          <rect x="474" y="48" width="474" height="28" fill="currentColor" opacity=".08"/>
+          <rect x="482" y="52" width="90" height="20" rx="4" fill="currentColor" opacity=".2"/><text x="527" y="66" text-anchor="middle">board.html</text>
+          <circle cx="700" cy="98" r="4" fill="var(--ok)"/><text x="710" y="102">Running · read + write · launch/</text>
+          <rect x="486" y="120" width="142" height="230" rx="6" fill="currentColor" opacity=".08"/><rect x="640" y="120" width="142" height="230" rx="6" fill="currentColor" opacity=".08"/><rect x="794" y="120" width="142" height="230" rx="6" fill="currentColor" opacity=".08"/>
+          <text x="557" y="140" text-anchor="middle" font-weight="600">To do · 3</text><text x="711" y="140" text-anchor="middle" font-weight="600">Doing · 2</text><text x="865" y="140" text-anchor="middle" font-weight="600">Done · 0</text>
+          <rect x="494" y="150" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="502" y="169">Record demo</text>
+          <rect x="494" y="186" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="502" y="205">Draft announcement</text>
+          <rect x="494" y="222" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="502" y="241">Update docs</text>
+          <rect x="648" y="150" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="656" y="169">Cut release branch</text>
+          <rect x="648" y="186" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="656" y="205">Write changelog</text>
+        </g>
+        <g font-size="11">
+          <circle cx="24" cy="136" r="9" fill="var(--accent)"/><text x="24" y="140" text-anchor="middle" fill="#fff" font-weight="600">a</text>
+        </g>
+      </svg>
+      <figcaption>a · The agent's read goes through its sandbox mount, not through the App or the bridge. It sees the bytes the App wrote in step 4 because they are the same object in the same store.</figcaption>
+    </figure>
+    <ul class="ops">
+      <li><span class="k">6</span><span class="op r">read</span><span><span class="tag agent">agent</span> <code>launch/board.json</code> · returns the post-drop version, size 438 B</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ STEP 6 ============ -->
+<section id="s6" class="step">
+  <div class="n">6</div>
+  <div>
+    <h3>The agent edits, the app refreshes</h3>
+    <div class="who">Turn 3 · the file changes under the running app</div>
+    <p>Arda says yes to the changelog draft and asks for a new card. The agent writes <code>notes/changelog.md</code> and rewrites <code>board.json</code> with a sixth card. There is no file watching inside the iframe, but the parent saw the drive generation change and posts a <code>changed</code> message naming <code>board.json</code>. The starter re-reads on its own when nothing is pending locally. If Arda is mid-drag, it marks the Refresh button instead and applies the change on the next quiet moment or on click.</p>
+    <figure>
+      <svg viewBox="0 0 960 400" role="img" aria-label="Pane A: the user says yes, draft it, and add a card for the blog post; a tool step wrote 2 files; the agent replies it drafted the changelog and added the card. Pane B: the Refresh button carries a dot and a hint that board.json changed outside the app; after clicking, To do shows four cards including Blog post.">
+        <rect x="0" y="0" width="960" height="400" rx="8" fill="var(--sunken)"/>
+        <rect x="0" y="0" width="960" height="36" rx="8" fill="currentColor" opacity=".05"/>
+        <g font-size="12" fill="currentColor"><text x="16" y="23" font-weight="600">Launch assistant</text>
+          <rect x="150" y="8" width="130" height="22" rx="4" fill="var(--accent)" opacity=".2"/><text x="215" y="23" text-anchor="middle">v0.119 launch</text></g>
+        <rect x="12" y="48" width="450" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="12" fill="currentColor">
+          <text x="24" y="70" opacity=".4">… Want me to draft the changelog …</text>
+          <rect x="190" y="88" width="260" height="46" rx="8" fill="var(--accent)" opacity=".14"/>
+          <text x="204" y="106">Yes, draft it. Also add a card for the</text>
+          <text x="204" y="123">blog post, in To do.</text>
+          <text x="24" y="158" opacity=".6" font-size="11">⚙ wrote 2 files · notes/changelog.md, launch/board.json</text>
+          <text x="24" y="184">Drafted the changelog in</text>
+          <rect x="24" y="196" width="200" height="40" rx="6" fill="none" stroke="var(--line-strong)"/>
+          <rect x="32" y="204" width="24" height="24" rx="4" fill="currentColor" opacity=".1"/>
+          <text x="64" y="214" font-weight="500" font-family="IBM Plex Mono, monospace" font-size="11">changelog.md</text>
+          <text x="64" y="229" opacity=".6" font-size="10">notes/ · 1.9 KB</text>
+          <text x="24" y="262">and added "Blog post" to To do. Refresh</text>
+          <text x="24" y="279">the board to see it.</text>
+          <rect x="24" y="346" width="426" height="32" rx="6" fill="none" stroke="var(--line)"/>
+          <text x="36" y="366" opacity=".5">Message Launch assistant…</text>
+        </g>
+        <rect x="474" y="48" width="474" height="340" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <g font-size="11" fill="currentColor">
+          <rect x="474" y="48" width="474" height="28" fill="currentColor" opacity=".04"/>
+          <rect x="482" y="52" width="90" height="20" rx="4" fill="currentColor" opacity=".1"/><text x="527" y="66" text-anchor="middle">board.html</text>
+          <circle cx="700" cy="98" r="4" fill="var(--ok)"/><text x="710" y="102">Running · read + write · launch/</text>
+          <rect x="866" y="87" width="70" height="22" rx="5" fill="var(--warn)" opacity=".18"/><rect x="866" y="87" width="70" height="22" rx="5" fill="none" stroke="var(--warn)"/>
+          <text x="901" y="102" text-anchor="middle" font-weight="500">↻ Refresh</text>
+          <circle cx="934" cy="88" r="4" fill="var(--warn)"/>
+          <text x="936" y="122" text-anchor="end" opacity=".75">board.json changed outside the app</text>
+          <rect x="486" y="132" width="142" height="230" rx="6" fill="currentColor" opacity=".05"/><rect x="640" y="132" width="142" height="230" rx="6" fill="currentColor" opacity=".05"/><rect x="794" y="132" width="142" height="230" rx="6" fill="currentColor" opacity=".05"/>
+          <text x="557" y="152" text-anchor="middle" font-weight="600">To do · 4</text><text x="711" y="152" text-anchor="middle" font-weight="600">Doing · 2</text><text x="865" y="152" text-anchor="middle" font-weight="600">Done · 0</text>
+          <rect x="494" y="162" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="502" y="181">Record demo</text>
+          <rect x="494" y="198" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="502" y="217">Draft announcement</text>
+          <rect x="494" y="234" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="502" y="253">Update docs</text>
+          <rect x="494" y="270" width="126" height="30" rx="4" fill="var(--accent)" opacity=".2"/><rect x="494" y="270" width="126" height="30" rx="4" fill="none" stroke="var(--accent)"/><text x="502" y="289" font-weight="500">Blog post</text>
+          <rect x="648" y="162" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="656" y="181">Cut release branch</text>
+          <rect x="648" y="198" width="126" height="30" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="656" y="217">Write changelog</text>
+        </g>
+        <g font-size="11">
+          <circle cx="866" cy="87" r="9" fill="var(--accent)"/><text x="866" y="91" text-anchor="middle" fill="#fff" font-weight="600">a</text>
+          <circle cx="494" cy="270" r="9" fill="var(--accent)"/><text x="494" y="274" text-anchor="middle" fill="#fff" font-weight="600">b</text>
+        </g>
+      </svg>
+      <figcaption>a · The hint arrives as a <code>changed</code> message over the port; the parent already tracks drive generation for the Files pane. The button state shown here is the mid-edit case. b · The app re-ran its load path and read the file the agent wrote.</figcaption>
+    </figure>
+    <ul class="ops">
+      <li><span class="k">7</span><span class="op w">write</span><span><span class="tag agent">agent</span> <code>notes/changelog.md</code> · outside <code>launch/</code>; the App could not have touched this file and never needs to</span></li>
+      <li><span class="k">8</span><span class="op w">write</span><span><span class="tag agent">agent</span> <code>launch/board.json</code> · read, add "Blog post" to To do, write back</span></li>
+      <li><span class="k">9</span><span class="op r">read</span><span><span class="tag app">app</span> <code>board.json</code> on the <code>changed</code> hint · the app's own load path runs again under the same grant, no prompt, no click</span></li>
+    </ul>
+    <div class="callout warn">
+      <p><strong>What if Arda had dragged a card between steps 8 and 9?</strong> The App's write would carry the pre-agent board. Without protection it would erase "Blog post". With the plan's conflict detection it cannot: the App's read in step 4 came back with an ETag, the stub sends it as <code>If-Match</code> on every write, and the API answers 412 because the agent's write changed the ETag. The App sees <code>{code: "conflict"}</code>, re-reads, reapplies the drag on top of the agent's version, and writes again. The template ships that retry. The one direction still unprotected in v1 is the agent overwriting the App, because the agent's tools write through its mounted filesystem, not the API; the skill tells it to read right before it writes.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STEP 7 ============ -->
+<section id="s7" class="step">
+  <div class="n">7</div>
+  <div>
+    <h3>Tomorrow: the layout comes back, execution does not</h3>
+    <div class="who">New browser session · same workspace</div>
+    <p>Arda reopens the agent the next morning. The workspace restores pane B with the <code>board.html</code> tab exactly where it was, but in Preview, with the same banner as step 2. The grant lived in <code>sessionStorage</code>, which a closed browser forgets. Restoring a layout must never start running someone's code; one click on Run, one confirmation, and the board is back with whatever the file says now.</p>
+    <ul class="ops">
+      <li><span class="k">10</span><span class="op r">read</span><span><span class="tag user">user</span> <code>launch/board.html</code> · preview assembled from the current source</span></li>
+      <li><span class="k">11</span><span class="op r">read</span><span><span class="tag app">app</span> <code>board.json</code> · after Run is confirmed again</span></li>
+    </ul>
+  </div>
+</section>
+
+<section id="ledger">
+  <h2>The file ledger</h2>
+  <p>Every file operation in the session above, in order. Three actors, two files that matter, one path each into the store.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Step</th><th>Actor</th><th>Op</th><th>Path</th><th>Route to the store</th><th>Guarded by</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>1</td><td><span class="tag agent">agent</span></td><td class="mono">write</td><td class="mono">launch/board.html</td><td>Runner sandbox → mounted drive</td><td>Agent's own tool permissions</td></tr>
+      <tr><td>2</td><td>1</td><td><span class="tag agent">agent</span></td><td class="mono">write</td><td class="mono">launch/board.json</td><td>Runner sandbox → mounted drive</td><td>Agent's own tool permissions</td></tr>
+      <tr><td>3</td><td>2</td><td><span class="tag user">user</span></td><td class="mono">read</td><td class="mono">launch/board.html</td><td>Parent page → Fern → API</td><td>VIEW_MOUNTS</td></tr>
+      <tr><td>4</td><td>4</td><td><span class="tag app">app</span></td><td class="mono">read</td><td class="mono">board.json → launch/board.json</td><td>Bridge → parent → Fern → API</td><td>Grant ≥ read · folder · VIEW_MOUNTS</td></tr>
+      <tr><td>5</td><td>4</td><td><span class="tag app">app</span></td><td class="mono">write</td><td class="mono">board.json → launch/board.json</td><td>Bridge → parent → Fern → API</td><td>Grant = read+write · folder · size · EDIT_MOUNTS</td></tr>
+      <tr><td>6</td><td>5</td><td><span class="tag agent">agent</span></td><td class="mono">read</td><td class="mono">launch/board.json</td><td>Runner sandbox → mounted drive</td><td>Agent's own tool permissions</td></tr>
+      <tr><td>7</td><td>6</td><td><span class="tag agent">agent</span></td><td class="mono">write</td><td class="mono">notes/changelog.md</td><td>Runner sandbox → mounted drive</td><td>Outside launch/: unreachable from the App</td></tr>
+      <tr><td>8</td><td>6</td><td><span class="tag agent">agent</span></td><td class="mono">write</td><td class="mono">launch/board.json</td><td>Runner sandbox → mounted drive</td><td>Agent's own tool permissions</td></tr>
+      <tr><td>9</td><td>6</td><td><span class="tag app">app</span></td><td class="mono">read</td><td class="mono">board.json → launch/board.json</td><td>Bridge → parent → Fern → API</td><td>Same grant, no prompt</td></tr>
+      <tr><td>10</td><td>7</td><td><span class="tag user">user</span></td><td class="mono">read</td><td class="mono">launch/board.html</td><td>Parent page → Fern → API</td><td>VIEW_MOUNTS</td></tr>
+      <tr><td>11</td><td>7</td><td><span class="tag app">app</span></td><td class="mono">read</td><td class="mono">board.json → launch/board.json</td><td>Bridge → parent → Fern → API</td><td>New grant after re-confirming Run</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">The App never issued an HTTP request, never held a credential, and never saw a path outside <code>launch/</code>. Every one of its five operations was a message to the parent, which did the real call as Arda.</p>
+</section>
+
+<section id="write">
+  <h2>What a write is, precisely</h2>
+  <ul>
+    <li><b>Whole file, one call.</b> <code>write(path, text)</code> sends the complete new contents. The server replaces the object. No append, no patch, no partial update.</li>
+    <li><b>Text only in v1.</b> UTF-8 strings. <code>writeJSON</code> is a convenience that stringifies for you. Binary uploads stay with the Files pane.</li>
+    <li><b>Relative to the HTML file.</b> <code>"board.json"</code> from <code>launch/board.html</code> means <code>launch/board.json</code>. <code>"../notes/x.md"</code> is rejected before any request with <code>{code: "scope"}</code>.</li>
+    <li><b>Resolved means stored.</b> The promise resolves after the API returns, so a "Saved" toast is true. A rejection carries a code the app can branch on: <code>read_only</code>, <code>scope</code>, <code>not_found</code>, <code>conflict</code>, <code>too_large</code>, <code>unavailable</code>.</li>
+    <li><b>Conditional by default.</b> Every read hands the stub an ETag for that path. Every write sends it as <code>If-Match</code>. If anyone changed the file since you read it, the write fails with <code>conflict</code> instead of erasing their change. Pass <code>{force: true}</code> to overwrite anyway.</li>
+    <li><b>Visible to everyone at once.</b> The Files pane re-lists on the next drive generation; the agent's next read sees the bytes. There is no cache between writers, only the running App's in-memory copy, which Refresh replaces.</li>
+    <li><b>Same permission as the user.</b> If Arda cannot edit this drive, "Read and write" is not offered, and a write would fail at the server anyway.</li>
+  </ul>
+</section>
+
+
+<section id="events">
+  <h2>Three interactions, one event</h2>
+  <p>Moving a card, adding a card, and adding a column all produce the same single event across the boundary: one <code>write</code> of <code>board.json</code>. The bridge has no vocabulary for cards or columns. The only thing that differs between the three is the text inside the body.</p>
+  <p>Each interaction has two halves. The first half stays inside the iframe: a browser event, the app's own handler, a change to the in-memory <code>board</code> object, a re-render. The second half is what crosses to Agenta, and that half is identical every time.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-label="Three user actions inside the iframe, drop a card, submit the add-card form, click add column, each handled by the app's own code and each mutating the in-memory board object. All three funnel into a single call, writeJSON of board.json, which becomes one port message of method write, one PUT to the mounts API, and one replaced object. The parent sees a path, a size and a time; it does not know which of the three happened.">
+      <defs><marker id="ae" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <rect x="12" y="14" width="470" height="272" rx="6" fill="none" stroke="var(--crit)" stroke-dasharray="6 4"/>
+      <text x="24" y="34" font-size="11" fill="var(--crit)" font-weight="600" letter-spacing=".06em">INSIDE THE IFRAME · never leaves</text>
+      <g font-size="11" fill="currentColor">
+        <rect x="24" y="50" width="150" height="56" rx="5" fill="currentColor" opacity=".06"/>
+        <text x="99" y="70" text-anchor="middle" font-weight="600" font-size="12">1 · move a card</text>
+        <text x="99" y="86" text-anchor="middle" font-family="IBM Plex Mono, monospace">drop → moveCard()</text>
+        <text x="99" y="100" text-anchor="middle" opacity=".7">DOM DragEvent</text>
+        <rect x="24" y="122" width="150" height="56" rx="5" fill="currentColor" opacity=".06"/>
+        <text x="99" y="142" text-anchor="middle" font-weight="600" font-size="12">2 · add a card</text>
+        <text x="99" y="158" text-anchor="middle" font-family="IBM Plex Mono, monospace">submit → addCard()</text>
+        <text x="99" y="172" text-anchor="middle" opacity=".7">DOM SubmitEvent</text>
+        <rect x="24" y="194" width="150" height="56" rx="5" fill="currentColor" opacity=".06"/>
+        <text x="99" y="214" text-anchor="middle" font-weight="600" font-size="12">3 · add a column</text>
+        <text x="99" y="230" text-anchor="middle" font-family="IBM Plex Mono, monospace">click → addColumn()</text>
+        <text x="99" y="244" text-anchor="middle" opacity=".7">DOM MouseEvent</text>
+
+        <rect x="230" y="110" width="120" height="80" rx="5" fill="none" stroke="currentColor"/>
+        <text x="290" y="136" text-anchor="middle" font-weight="600" font-size="12">board</text>
+        <text x="290" y="152" text-anchor="middle" opacity=".7">in-memory object</text>
+        <text x="290" y="168" text-anchor="middle" opacity=".7">mutated, then render()</text>
+
+        <rect x="376" y="120" width="94" height="60" rx="5" fill="var(--accent)" opacity=".18"/>
+        <rect x="376" y="120" width="94" height="60" rx="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="423" y="145" text-anchor="middle" font-weight="600" font-size="12">save()</text>
+        <text x="423" y="162" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">writeJSON(FILE,</text>
+        <text x="423" y="174" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">board)</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <path d="M174 78 C 200 78, 210 130, 230 136" marker-end="url(#ae)"/>
+        <line x1="174" y1="150" x2="230" y2="150" marker-end="url(#ae)"/>
+        <path d="M174 222 C 200 222, 210 170, 230 164" marker-end="url(#ae)"/>
+        <line x1="350" y1="150" x2="376" y2="150" marker-end="url(#ae)"/>
+      </g>
+      <line x1="470" y1="150" x2="530" y2="150" stroke="var(--accent)" stroke-width="2" marker-end="url(#ae)"/>
+      <text x="500" y="140" font-size="10" text-anchor="middle" fill="var(--accent)">port</text>
+      <g font-size="11" fill="currentColor">
+        <rect x="530" y="96" width="180" height="108" rx="6" fill="var(--accent)" opacity=".12"/>
+        <rect x="530" y="96" width="180" height="108" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="620" y="118" text-anchor="middle" font-weight="600" font-size="12">the one event</text>
+        <text x="620" y="140" text-anchor="middle" font-family="IBM Plex Mono, monospace">{ id, method: "write",</text>
+        <text x="620" y="154" text-anchor="middle" font-family="IBM Plex Mono, monospace">  path: "board.json",</text>
+        <text x="620" y="168" text-anchor="middle" font-family="IBM Plex Mono, monospace">  body: "…whole file…" }</text>
+        <text x="620" y="192" text-anchor="middle" opacity=".7">same shape all three times</text>
+
+        <rect x="760" y="96" width="184" height="108" rx="6" fill="none" stroke="currentColor"/>
+        <text x="852" y="118" text-anchor="middle" font-weight="600" font-size="12">what Agenta sees</text>
+        <text x="852" y="140" text-anchor="middle">path · size · time · who</text>
+        <text x="852" y="160" text-anchor="middle" fill="var(--warn)">not: moved / added / new column</text>
+        <text x="852" y="182" text-anchor="middle" opacity=".7">the agent infers that later</text>
+        <text x="852" y="196" text-anchor="middle" opacity=".7">by reading the file</text>
+      </g>
+      <line x1="710" y1="150" x2="760" y2="150" stroke="currentColor" marker-end="url(#ae)"/>
+      <text x="480" y="288" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">The browser events on the left are the app's business. The message on the right is the only thing the bridge defines.</text>
+    </svg>
+    <figcaption>Three actions, one funnel. The bridge is a file API, so "what the user did" is not a concept it carries; the file format the agent chose carries it instead.</figcaption>
+  </figure>
+
+  <p>The three cases below start from the board as it stands after step 6: four cards in To do, two in Doing, none in Done. Each shows the in-iframe event, the message the stub sends, and only the part of the body that differs. The full body is always the entire file.</p>
+
+  <div class="three">
+    <div class="case">
+      <h4>1 · Move "Record demo" to Doing</h4>
+      <div class="row"><span class="l">In iframe</span><span><code>drop</code> on the Doing column → <code>moveCard("Record demo", "todo", "doing")</code></span></div>
+      <div class="row"><span class="l">Mutation</span><span>remove from <code>todo.cards</code>, push to <code>doing.cards</code></span></div>
+      <div class="row"><span class="l">Bridge event</span><span class="same"><code>write</code> · <code>board.json</code> · body = whole file</span></div>
+      <div class="row"><span class="l">Body diff</span><span></span></div>
+<pre><code>"todo":  [<span class="del">"Record demo",</span>
+          "Draft announcement",
+          "Update docs", "Blog post"]
+"doing": ["Cut release branch",
+          "Write changelog"<span class="add">,
+          "Record demo"</span>]</code></pre>
+      <div class="row"><span class="l">HTTP</span><span><code>PUT …/files?path=launch/board.json</code> · ~470 B</span></div>
+      <div class="row"><span class="l">Reply</span><span><code>{id, ok:true, result:{path, size:470}}</code></span></div>
+    </div>
+
+    <div class="case">
+      <h4>2 · Add "Book webinar" to To do</h4>
+      <div class="row"><span class="l">In iframe</span><span><code>submit</code> on the column's add form → <code>addCard("todo", "Book webinar")</code></span></div>
+      <div class="row"><span class="l">Mutation</span><span>push to <code>todo.cards</code></span></div>
+      <div class="row"><span class="l">Bridge event</span><span class="same"><code>write</code> · <code>board.json</code> · body = whole file</span></div>
+      <div class="row"><span class="l">Body diff</span><span></span></div>
+<pre><code>"todo":  ["Record demo",
+          "Draft announcement",
+          "Update docs", "Blog post"<span class="add">,
+          "Book webinar"</span>]
+"doing": ["Cut release branch",
+          "Write changelog"]</code></pre>
+      <div class="row"><span class="l">HTTP</span><span><code>PUT …/files?path=launch/board.json</code> · ~490 B</span></div>
+      <div class="row"><span class="l">Reply</span><span><code>{id, ok:true, result:{path, size:490}}</code></span></div>
+    </div>
+
+    <div class="case">
+      <h4>3 · Add a "Review" column</h4>
+      <div class="row"><span class="l">In iframe</span><span><code>click</code> on "+ Column", a prompt for the title → <code>addColumn("Review")</code></span></div>
+      <div class="row"><span class="l">Mutation</span><span>push <code>{id:"review", title:"Review", cards:[]}</code> to <code>columns</code></span></div>
+      <div class="row"><span class="l">Bridge event</span><span class="same"><code>write</code> · <code>board.json</code> · body = whole file</span></div>
+      <div class="row"><span class="l">Body diff</span><span></span></div>
+<pre><code>{ "id": "doing", "title": "Doing",
+  "cards": [ … ] },
+<span class="add">{ "id": "review", "title": "Review",
+  "cards": [] },</span>
+{ "id": "done", "title": "Done",
+  "cards": [] }</code></pre>
+      <div class="row"><span class="l">HTTP</span><span><code>PUT …/files?path=launch/board.json</code> · ~530 B</span></div>
+      <div class="row"><span class="l">Reply</span><span><code>{id, ok:true, result:{path, size:530}}</code></span></div>
+    </div>
+  </div>
+
+  <h3>The exact message, once</h3>
+  <p>This is what the stub puts on the port for case 2. Cases 1 and 3 differ only in the characters inside <code>body</code>. <code>writeJSON</code> has already stringified the object, so <code>body</code> is one string, not nested JSON.</p>
+  <div class="tbl"><pre><code>// iframe → parent, over the MessageChannel port
+{
+  "v": 1,
+  "id": 14,
+  "method": "write",
+  "path": "board.json",
+  "body": "{\"columns\":[{\"id\":\"todo\",\"title\":\"To do\",\"cards\":[\"Record demo\",\"Draft announcement\",\"Update docs\",\"Blog post\",\"Book webinar\"]},{\"id\":\"doing\",\"title\":\"Doing\",\"cards\":[\"Cut release branch\",\"Write changelog\"]},{\"id\":\"done\",\"title\":\"Done\",\"cards\":[]}]}"
+}
+
+// parent → iframe, same port, same id
+{ "v": 1, "id": 14, "ok": true, "result": { "path": "launch/board.json", "size": 490 } }
+
+// or, had the grant been read-only
+{ "v": 1, "id": 14, "ok": false, "error": { "code": "read_only", "message": "This app was granted read access only." } }</code></pre></div>
+
+  <h3>What follows from "one event"</h3>
+  <ul>
+    <li><b>No per-action audit at the platform level.</b> Agenta can log "board.json written by app at 22:41, 490 B". It cannot log "card added". If that matters, the app writes its own <code>board.log.json</code>, or the format carries a history array.</li>
+    <li><b>No per-action permission.</b> The grant is read or read+write for the folder. "May move cards but not add columns" is not expressible, and should not be in v1; that is the app's job, driven by its own data.</li>
+    <li><b>Undo is the app's, not the bridge's.</b> The app keeps previous states in memory if it wants undo. The bridge only ever sees the latest whole file.</li>
+    <li><b>The agent reads meaning from structure.</b> When the agent later reads <code>board.json</code>, "Record demo is in Doing" is a fact about the file, not an event it received. This is why the data file should be plain and stable: the agent's understanding depends on it.</li>
+    <li><b>Payload grows with the board.</b> A hundred cards is still a few kilobytes and one PUT. A board that outgrows a single file is a sign to split the data, not to invent a patch protocol.</li>
+  </ul>
+  <div class="callout">
+    <p><strong>Could there be semantic events?</strong> A future <code>agenta.events.emit("card.moved", {…})</code> is possible and is not in PR #6529. It would need a consumer (the agent, a log, a trigger) and a schema per app type, which is exactly the "broad application platform" the proposal says to avoid until we know which apps people build. Files first; events only when a real consumer appears.</p>
+  </div>
+</section>
+
+
+<section id="who">
+  <h2>Who defines what, and who calls the API</h2>
+  <p>Two questions come up every time someone reads the code above. Are <code>moveCard</code> and friends part of Agenta? And if the app has no API access, who makes the HTTP call? The answers are "no" and "the Agenta frontend".</p>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Name</th><th>Defined by</th><th>Lives in</th><th>Agenta knows it exists?</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">moveCard · addCard · addColumn · render · save · board</td><td><span class="tag agent">agent</span> when it writes the app; different per app</td><td>Inside <code>board.html</code>, in the iframe</td><td>No. They are ordinary page JavaScript</td></tr>
+      <tr><td class="mono">agenta.ready · agenta.canWrite · agenta.version · agenta.visible</td><td>Agenta, bridge contract v1</td><td>The stub script injected first in the iframe</td><td>Yes, this is the contract</td></tr>
+      <tr><td class="mono">agenta.fs.read · readJSON · write · writeJSON · list · exists · stat · remove</td><td>Agenta, bridge contract v1</td><td>The same stub; each is a message to the parent</td><td>Yes, the only eight methods</td></tr>
+      <tr><td class="mono">events: visibilitychange · changed</td><td>Agenta, bridge contract v1</td><td>Posted by the parent over the port; the stub dispatches them</td><td>Yes. The app may ignore both</td></tr>
+      <tr><td class="mono">port handler · grant store · path scope · size cap</td><td>Agenta frontend</td><td><code>@agenta/entities/drive</code>, hosted by <code>HtmlBody</code></td><td>Yes, this is where the checks run</td></tr>
+      <tr><td class="mono">getMountFiles · writeMountFile · deleteMountFile</td><td>Fern client, generated from the API</td><td><code>@agenta/api-client</code>, called by the frontend as the user</td><td>Yes, the same calls the Files pane makes</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The frontend is the caller</h3>
+  <p>"Apps have no API access" means the iframe holds no cookie, no token, and no HTTP client, so it cannot reach the server on its own. It can do one thing: send a message to the page that contains it. The Agenta frontend receives that message, decides whether it is allowed, and makes the real API call using the user's own session. Read top to bottom, one <code>addCard</code> goes like this:</p>
+  <ol>
+    <li>The agent's <code>addCard</code> runs inside the iframe and calls <code>agenta.fs.writeJSON("board.json", board)</code>.</li>
+    <li>That function is the stub. It does no HTTP. It posts <code>{id, method: "write", path, body}</code> over the MessageChannel port and parks a promise under the id.</li>
+    <li>The Agenta frontend, the <code>HtmlBody</code> component that owns the iframe, receives the message and checks: the port is its own, the grant allows writes, the path resolves inside <code>launch/</code>, the body is under the size cap.</li>
+    <li>If all pass, the frontend calls <code>writeMountFile</code> on the Fern client with the user's session cookie. To the server this is indistinguishable from the user uploading the file from the Files pane.</li>
+    <li>The response returns to the frontend, which posts <code>{id, ok, result}</code> back over the port. The stub resolves the parked promise, and the agent's <code>await</code> completes.</li>
+  </ol>
+  <p>So the frontend is a proxy that forwards a fixed list of eight file operations and nothing else. That is why the grant checks live in the frontend, why the folder scope is a frontend guardrail, and why the server cannot tell an app write from a user write.</p>
+
+  <h3>Where this comes from</h3>
+  <div class="callout">
+    <p><strong>This flow is PR #6529's proposal, not an invention of this walkthrough.</strong> Mahmoud's design says each bridge method "sends a request to the parent window through postMessage. The parent validates the message source, resolves the path, checks the grant, calls the workspace file API, and sends back a result or a structured error", and that "the parent performs approved operations on the application's behalf." The board example, <code>readJSON</code> then <code>writeJSON</code>, is his too.</p>
+    <p><strong>Added by the review</strong>, on top of that contract: a MessageChannel port instead of <code>postMessage("*")</code> with a source check; the name <code>window.agenta</code> instead of <code>window.arg</code>; a CSP meta and tighter sandbox flags; shipping read and write together behind one grant; the grant kept in memory and <code>sessionStorage</code>; the drive-generation bump after a write; the frozen error-code list; and the module placement in <code>@agenta/entities</code> and <code>@agenta/entity-ui</code>. The "one event" framing and the <code>moveCard</code> handlers are exposition of his contract, not changes to it.</p>
+  </div>
+</section>
+
+<section id="code">
+  <h2>The app's code, the parts that matter</h2>
+  <p>This is roughly what the agent wrote in step 1, minus styling and the drag handlers. Everything the app knows about Agenta is the <code>agenta</code> global. It could be developed against a stub that reads and writes <code>localStorage</code>, which is how templates should be tested.</p>
+  <div class="tbl"><pre><code>&lt;!-- launch/board.html --&gt;
+&lt;div id="board"&gt;Loading board…&lt;/div&gt;
+&lt;script&gt;
+  const FILE = "board.json"
+  let board
+
+  async function load() {
+    await agenta.ready                      // handshake done, grant known
+    board = await agenta.fs.readJSON(FILE)  // 1 read
+    render()
+  }
+
+  function render() {
+    // draw board.columns[*].cards as three lists with draggable items;
+    // on drop, call moveCard(text, fromId, toId)
+  }
+
+  // every interaction ends here: one whole-file write
+  async function save(label) {
+    if (!agenta.canWrite) return toast("Read-only: change not saved")
+    try {
+      await agenta.fs.writeJSON(FILE, board)   // the one event; If-Match sent by the stub
+      toast(label + " · saved board.json")
+    } catch (e) {
+      if (e.code === "conflict") {             // someone wrote since we read
+        const theirs = await agenta.fs.readJSON(FILE)
+        board = mergeCards(theirs, board)      // reapply our move on their version
+        render()
+        return save(label)                     // one retry, now with the new ETag
+      }
+      toast(e.code === "read_only" ? "Read-only" : "Couldn't save")
+    }
+  }
+
+  async function moveCard(text, fromId, toId) {      // drop
+    const from = board.columns.find(c =&gt; c.id === fromId)
+    const to   = board.columns.find(c =&gt; c.id === toId)
+    from.cards = from.cards.filter(t =&gt; t !== text)
+    to.cards.push(text)
+    render(); await save("Moved")
+  }
+
+  async function addCard(colId, text) {              // submit
+    board.columns.find(c =&gt; c.id === colId).cards.push(text)
+    render(); await save("Added")
+  }
+
+  async function addColumn(title) {                  // click
+    const id = title.toLowerCase().replace(/\W+/g, "-")
+    board.columns.push({ id, title, cards: [] })
+    render(); await save("New column")
+  }
+
+  load()
+&lt;/script&gt;</code></pre></div>
+  <div class="callout">
+    <p><strong>What the agent needs to know to write this.</strong> Four facts, which belong in a skill or the system prompt: apps are HTML files in the drive; data goes in a sibling JSON file; the API is <code>agenta.fs</code> with <code>readJSON</code> and <code>writeJSON</code> relative to the HTML file; wait for <code>agenta.ready</code> and respect <code>agenta.canWrite</code>. That is the entire onboarding surface for the agent.</p>
+  </div>
+</section>
+</main>
+</div></div>
+
+</body>
+</html>

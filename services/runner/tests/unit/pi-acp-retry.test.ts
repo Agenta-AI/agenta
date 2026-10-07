@@ -1,28 +1,12 @@
-import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { PiAcpSession } from "pi-acp/session";
 import { describe, expect, it, vi } from "vitest";
 
-// Exercise the installed, pnpm-patched adapter rather than a copy of its event handler.
-// The package is a CLI with no class export; isolate its session class from the entrypoint.
+// Exercise the installed, pnpm-patched adapter's own session class (the patch exports it), in
+// the shape the `local` provider runs it: no embedding options.
 const require = createRequire(import.meta.url);
 const adapterRequire = createRequire(require.resolve("pi-acp"));
-const { RequestError, AgentSideConnection, ClientSideConnection } =
-  adapterRequire("@agentclientprotocol/sdk");
-const source = readFileSync(require.resolve("pi-acp"), "utf8");
-const start = source.indexOf("var PiAcpSession = class {");
-const end = source.indexOf("\nfunction extensionUiToolCall", start);
-if (start < 0 || end < 0)
-  throw new Error("Recheck Pi adapter test seam after upgrading pi-acp");
-const Session = new Function(
-  "expandSlashCommand",
-  "maybeAuthRequiredError",
-  "RequestError",
-  `${source.slice(start, end)}; return PiAcpSession;`,
-)(
-  (message: string) => message,
-  () => undefined,
-  RequestError,
-);
+const { AgentSideConnection, ClientSideConnection } = adapterRequire("@agentclientprotocol/sdk");
 
 function fixture() {
   let dispatch: (event: any) => void = () => {};
@@ -30,11 +14,13 @@ function fixture() {
   const proc = {
     onEvent: (handler: typeof dispatch) => {
       dispatch = handler;
+      return () => {};
     },
     prompt: vi.fn(async () => {}),
     abort: vi.fn(async () => {}),
+    sendExtensionUiResponse: vi.fn(async () => {}),
   };
-  const session = new Session({
+  const session = new PiAcpSession({
     sessionId: "test",
     cwd: "/tmp",
     mcpServers: [],
@@ -43,6 +29,7 @@ function fixture() {
       sessionUpdate: async ({ update }: any) => {
         updates.push(update);
       },
+      requestPermission: async () => ({ outcome: { outcome: "cancelled" } }),
     },
   });
   const emit = (event: any) => dispatch(event);

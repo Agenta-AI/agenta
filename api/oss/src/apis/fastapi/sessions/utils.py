@@ -1,10 +1,15 @@
 from json import dumps
 from typing import Any, Callable, Optional, TypeVar
+from urllib.parse import quote, urlencode, urlsplit
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel, ConfigDict
 
-from oss.src.apis.fastapi.sessions.models import SessionQueryRequest
+from oss.src.apis.fastapi.sessions.models import (
+    CurrentSessionResponse,
+    SessionQueryRequest,
+)
 from oss.src.core.sessions.dtos import (
     SessionQuery,
     SessionQueryLifecycle,
@@ -18,6 +23,57 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
 from oss.src.utils.env import env
 
 SessionStreamT = TypeVar("SessionStreamT", bound=SessionStream)
+
+
+def current_session_response(
+    *, stream: SessionStream, workspace_id: UUID | None, web_url: str
+) -> CurrentSessionResponse:
+    result = CurrentSessionResponse(session_id=stream.session_id, name=stream.name)
+    workflow_id = next(
+        (ref.id for ref in stream.references or [] if ref.key == "workflow" and ref.id),
+        None,
+    )
+    if workflow_id is None:
+        result.url_unavailable_reason = "agent_reference_missing"
+    elif workspace_id is None:
+        result.url_unavailable_reason = "workspace_missing"
+    else:
+        try:
+            parsed = urlsplit(web_url)
+            _ = (
+                parsed.port
+            )  # Parsing alone does not validate malformed or out-of-range ports.
+            valid_url = (
+                parsed.scheme in {"http", "https"}
+                and parsed.hostname
+                and not parsed.username
+                and not parsed.password
+                and not parsed.query
+                and not parsed.fragment
+            )
+        except ValueError:
+            valid_url = False
+        if not valid_url:
+            result.url_unavailable_reason = "web_url_unavailable"
+        else:
+            # Match the desktop playground link; the mobile gate maps it to its session page.
+            path = "/".join(
+                quote(str(part), safe="")
+                for part in (
+                    "w",
+                    workspace_id,
+                    "p",
+                    stream.project_id,
+                    "apps",
+                    workflow_id,
+                    "playground",
+                )
+            )
+            result.url = (
+                f"{web_url.rstrip('/')}/{path}?"
+                f"{urlencode({'session_id': stream.session_id})}"
+            )
+    return result
 
 
 class NormalizedSessionQuery(BaseModel):

@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
     buildTurnViewModels,
@@ -6,7 +6,9 @@ import {
     createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
-import {useAtomValue} from "jotai"
+import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -22,6 +24,7 @@ import {LiveConversation} from "./LiveConversation"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {SessionWorkspace} from "./SessionWorkspace"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
+import {ChatUnreachable} from "./states/ChatUnreachable"
 import {TranscriptTurns} from "./TranscriptTurns"
 import {mergeAssistantRuns} from "./turnRuns"
 import {useAgentEntity} from "./useAgentEntity"
@@ -57,15 +60,41 @@ export const ChatScreen = ({
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
+    // Warm the transcript as soon as the route names the session, so it races the agent chain.
+    const boundProjectId = useAtomValue(projectIdAtom)
+    const prefetchRecords = useSetAtom(fetchSessionRecordsAtom)
+    useEffect(() => {
+        if (!sessionId || boundProjectId !== projectId) return
+        // A session minted here a moment ago has no records to read.
+        if (isSessionFresh(sessionId)) return
+        void prefetchRecords(sessionId).catch(() => undefined)
+    }, [boundProjectId, prefetchRecords, projectId, sessionId])
     const {
         entityId: latestEntityId,
         agentId: resolvedAgentId,
         resolving,
+        refetchLatest,
+        unreachable,
+        retry,
+        retrying,
     } = useAgentEntity(sessionId, projectId, agentId)
     // A revision picked in the top bar pins the workspace to it — config AND the conversation's
-    // invocation target, as on the desktop. Unpinned, the agent's latest is what runs.
-    const pinnedRevisionId = useAtomValue(selectedRevisionAtomFamily(sessionId))
+    // invocation target, as on the desktop.
+    const [pinnedRevisionId, pinRevision] = useAtom(selectedRevisionAtomFamily(sessionId))
     const entityId = pinnedRevisionId ?? latestEntityId
+    // An open session never moves to a newer version by itself (the top bar offers it instead),
+    // so a session starts pinned to the server's latest at the moment it opens.
+    const hasAgent = Boolean(latestEntityId)
+    useEffect(() => {
+        if (pinnedRevisionId || !hasAgent) return
+        let live = true
+        void refetchLatest().then(({data, status}) => {
+            if (live && status === "success" && data?.revisionId) pinRevision(data.revisionId)
+        })
+        return () => {
+            live = false
+        }
+    }, [sessionId, pinnedRevisionId, hasAgent, refetchLatest, pinRevision])
     // Switching sessions re-runs the agent query, and for the moment it is pending `entityId` is
     // null and `resolving` is true. Blanking on that turned every switch into a teardown: the
     // config pane unmounted, the chat became a spinner, and the workspace visibly rebuilt to
@@ -73,10 +102,13 @@ export const ChatScreen = ({
     // frame stays put; the transcript itself is keyed by sessionId and swaps immediately.
     const lastEntityIdRef = useRef<string | null>(null)
     if (entityId) lastEntityIdRef.current = entityId
+    // Held only across a pending switch: a session that failed to load must not borrow the last one.
+    if (unreachable) lastEntityIdRef.current = null
     const heldEntityId = entityId ?? lastEntityIdRef.current
     // Held for the same gap: a blink to null re-scopes the files pane and the tab rail (#6542, #6544).
     const lastAgentIdRef = useRef<string | null>(null)
     if (resolvedAgentId) lastAgentIdRef.current = resolvedAgentId
+    if (unreachable) lastAgentIdRef.current = null
     const heldAgentId = resolvedAgentId ?? lastAgentIdRef.current
     useReferenceToolDisplays(heldEntityId)
     // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
@@ -93,6 +125,8 @@ export const ChatScreen = ({
     // is not. `resolving` is query-PENDING, not fetching: a cached answer renders immediately.
     const chat = showLoading ? (
         <ChatLoading />
+    ) : unreachable ? (
+        <ChatUnreachable onRetry={retry} retrying={retrying} />
     ) : heldEntityId ? (
         <LiveConversation
             // Per SESSION only — see `conversationKey`. Keying it here and not the page keeps the
@@ -127,6 +161,7 @@ export const ChatScreen = ({
             // is what unmounted the pane.
             entityId={heldEntityId}
             agentId={heldAgentId}
+            agentResolving={resolving}
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
@@ -156,7 +191,10 @@ const ReplayScreen = ({
     // Tightened records cadence only while this foregrounded screen shows a running or pending
     // turn; derived from the previous render's messages, so it settles one render behind.
     const [pollMs, setPollMs] = useState(0)
-    const {messages, state, refresh, interactionChanged} = useSessionTranscript(sessionId, pollMs)
+    const {messages, state, refresh, retry, interactionChanged} = useSessionTranscript(
+        sessionId,
+        pollMs,
+    )
     // Live relay (M3): push-invalidate through the same tick body; while it is open the
     // poll below is only a safety net.
     const watch = useSessionWatch({
@@ -196,13 +234,15 @@ const ReplayScreen = ({
         [turns],
     )
     // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
-    const autoScroll = useTranscriptAutoScroll(turns)
+    const autoScroll = useTranscriptAutoScroll(turns, sessionId)
 
     let body
     if (state === "loading") {
         body = <ChatLoading />
     } else if (state === "empty") {
         body = <ChatEmpty />
+    } else if (state === "failed") {
+        body = <ChatUnreachable onRetry={retry} retrying={false} />
     } else {
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">

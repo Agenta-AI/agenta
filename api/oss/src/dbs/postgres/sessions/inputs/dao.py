@@ -170,6 +170,21 @@ class SessionInputsDAO(SessionInputsDAOInterface):
         async with self.engine.session() as session:
             return await execute(session)
 
+    async def fetch_by_execution_id(
+        self, *, project_id: UUID, session_id: str, execution_id: str
+    ) -> Optional[PendingInput]:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    select(SessionInputDBE).where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                        SessionInputDBE.promoted_execution_id == execution_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            return to_pending_input(row) if row else None
+
     async def list_pending(
         self,
         *,

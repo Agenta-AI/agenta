@@ -23,16 +23,22 @@ export const shouldRefreshLegacyObserverLiveness = ({
     now: number
 }): boolean => !sharedReaderAdvertised && now - lastRefreshAt >= LEGACY_LIVENESS_REFRESH_MS
 
-/** A sender subscribes eagerly; a secondary reader waits for a remote run. */
+/**
+ * A sender subscribes eagerly; a secondary reader waits for a remote run. Neither subscribes while
+ * its conversation is off screen: over HTTP/1.1 every open stream holds one of the browser's six
+ * connections per origin, and a mounted-but-hidden pane has nothing to show.
+ */
 export const shouldSubscribeToSessionLivePreview = ({
     sharedReaderAdvertised,
     runningElsewhere,
     sender = false,
+    visible = true,
 }: {
     sharedReaderAdvertised: boolean
     runningElsewhere: boolean
     sender?: boolean
-}): boolean => sharedReaderAdvertised && (sender || runningElsewhere)
+    visible?: boolean
+}): boolean => visible && sharedReaderAdvertised && (sender || runningElsewhere)
 
 /** Run activity follows execution state, not whether its reader is connected. */
 export const deriveRemoteTurnPresentation = ({

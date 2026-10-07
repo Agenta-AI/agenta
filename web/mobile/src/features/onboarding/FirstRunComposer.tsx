@@ -8,8 +8,6 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {ArrowRight, RotateCcw} from "lucide-react"
 
-import {CONNECT_STEP_MODE} from "@/lib/connectStep"
-
 import {FIRST_RUN_COPY} from "./copy"
 
 /**
@@ -68,17 +66,15 @@ export const FirstRunComposer = ({
             if (stepReady && !creating) onStepCreate?.()
             return
         }
-        // Connect step on (#6043): submitting opens the step rather than creating. The accounts
+        // Connect step (#6043): submitting opens the step rather than creating. The accounts
         // this agent will need get connected while it is still a draft.
-        if (CONNECT_STEP_MODE) {
-            const typed = text.trim()
-            if (!typed) return
-            // Only stop for the step when it has an account to ask about — and put the cleared
-            // text straight back: the editor stays on screen under the card.
-            if (step.open({seedMessage: typed})) {
-                onParkText(typed)
-                return
-            }
+        const typed = text.trim()
+        if (!typed) return
+        // Only stop for the step when it has an account to ask about — and put the cleared
+        // text straight back: the editor stays on screen under the card.
+        if (step.open({seedMessage: typed})) {
+            onParkText(typed)
+            return
         }
         await onCreate(text)
     }

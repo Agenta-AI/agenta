@@ -2,12 +2,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {
-    fetchSessionDurableApprovalsCapability,
-    respondInteraction,
-    resumeSessionContinuation,
-    transitionInteraction,
-} from "../api/api"
+import {respondInteraction, resumeSessionContinuation} from "../api/api"
 
 import {
     fetchSessionInteractionStatesAtom,
@@ -39,17 +34,6 @@ export const isApprovalNotPendingError = (error: unknown): boolean =>
     error !== null &&
     (error as {code?: unknown}).code === APPROVAL_NOT_PENDING
 
-/** New rows join through the stamped tool-call id; legacy rows join through token equality. */
-const tokenForToolCall = (
-    states: SessionInteractionRowStates,
-    toolCallId: string,
-): string | null => {
-    for (const state of states.values()) {
-        if (state.toolCallId === toolCallId) return state.token
-    }
-    return states.has(toolCallId) ? toolCallId : null
-}
-
 const rowForToolCall = (states: SessionInteractionRowStates, toolCallId: string) => {
     for (const state of states.values()) {
         if (state.toolCallId === toolCallId) return state
@@ -60,24 +44,13 @@ const rowForToolCall = (states: SessionInteractionRowStates, toolCallId: string)
 /**
  * The final admission check before a chat transport invokes the runner directly. `true` means a
  * saved approval continuation owns the session and was redelivered, so the caller must abort its
- * competing fresh turn. In flag-off mode the API returns false and this is a no-op.
+ * competing fresh turn.
  */
 export const resumeSessionContinuationAtom = atom(
     null,
     async (get, _set, sessionId: string): Promise<boolean> => {
         const projectId = get(projectIdAtom) ?? ""
-        if (!(await fetchSessionDurableApprovalsCapability({projectId, sessionId}))) {
-            return false
-        }
         return resumeSessionContinuation({projectId, sessionId})
-    },
-)
-
-export const sessionDurableApprovalsCapabilityAtom = atom(
-    null,
-    async (get, _set, sessionId: string): Promise<boolean> => {
-        const projectId = get(projectIdAtom) ?? ""
-        return fetchSessionDurableApprovalsCapability({projectId, sessionId})
     },
 )
 
@@ -126,7 +99,8 @@ export const respondInteractionAnswerAtom = atom(
                     : `approval:${row.id}:${params.approved ? "approve" : "deny"}`,
         })
         if (!result) throw new Error("Approval could not be submitted.")
-        await queryClient.invalidateQueries({queryKey: rowsQueryKey})
+        // Not awaited: it resolves only after the refetch, and a stale row is guarded by the 409.
+        void queryClient.invalidateQueries({queryKey: rowsQueryKey})
         return {
             durable: result.accepted,
             recoverable: result.execution?.state === "recoverable",
@@ -183,59 +157,12 @@ export const respondInteractionAnswersAtom = atom(
             idempotencyKey: `approval-batch:${sortedIds[0]}:${sortedIds.length}:${decision}`,
         })
         if (!result) throw new Error("Approvals could not be submitted.")
-        await queryClient.invalidateQueries({queryKey: rowsQueryKey})
+        // Not awaited — see the single-answer atom above.
+        void queryClient.invalidateQueries({queryKey: rowsQueryKey})
         return {
             durable: result.accepted,
             recoverable: result.execution?.state === "recoverable",
             ...(result.execution?.id ? {executionId: result.execution.id} : {}),
-        }
-    },
-)
-
-/**
- * Best-effort by design: failures preserve today's in-band resume behavior.
- * It never blocks or rejects the client-tool resume path.
- * Callers fire it without awaiting the result.
- */
-export const recordInteractionAnswerAtom = atom(
-    null,
-    async (
-        get,
-        set,
-        params: {
-            sessionId: string
-            toolCallId: string
-            resolution: Record<string, unknown>
-        },
-    ): Promise<void> => {
-        const {sessionId, toolCallId, resolution} = params
-        const projectId = get(projectIdAtom) ?? ""
-        if (!projectId || !sessionId) return
-
-        const queryClient = get(queryClientAtom)
-        const rowsQueryKey = sessionInteractionRowsQueryKey(projectId, sessionId)
-        try {
-            let states = await set(fetchSessionInteractionStatesAtom, sessionId)
-            let token = tokenForToolCall(states, toolCallId)
-            if (!token) {
-                // The card can be newer than the cached rows, so refetch once before giving up.
-                await queryClient.invalidateQueries({queryKey: rowsQueryKey})
-                states = await set(fetchSessionInteractionStatesAtom, sessionId)
-                token = tokenForToolCall(states, toolCallId)
-            }
-            if (!token) return
-
-            await transitionInteraction({
-                sessionId,
-                token,
-                status: "responded",
-                resolution,
-                projectId,
-            })
-
-            await queryClient.invalidateQueries({queryKey: rowsQueryKey})
-        } catch (err) {
-            console.warn("[recordInteractionAnswerAtom] write failed:", err)
         }
     },
 )

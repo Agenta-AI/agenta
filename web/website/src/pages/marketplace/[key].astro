@@ -1,0 +1,905 @@
+---
+// One template page; catalog fields it lacks (use counts) are left out, not invented.
+import type { GetStaticPaths } from "astro";
+import Section from "../../components/Section.astro";
+import "../../styles/marketplace.css";
+import Site from "../../layouts/Site.astro";
+import Badge from "../../components/Badge.astro";
+import FaqItem from "../../components/FaqItem.astro";
+import SectionTitle from "../../components/SectionTitle.astro";
+import Button from "../../components/Button.astro";
+import CtaBand from "../../components/CtaBand.astro";
+import AppMark from "../../components/AppMark.astro";
+import AuthorMark from "../../components/AuthorMark.astro";
+import ExampleOutput from "../../components/ExampleOutput.astro";
+import TemplateMedia from "../../components/TemplateMedia.astro";
+import TemplateCard from "../../components/TemplateCard.astro";
+import {
+  USE_IT_FOR_FREE_LABEL,
+  templates,
+  templatesByAuthor,
+  useItForFreeUrl,
+  type WebsiteTemplate,
+} from "../../lib/templates";
+import {
+  MARKETPLACE_NAME,
+  MARKETPLACE_PATH,
+  appsOf,
+  authorPath,
+  categoryPath,
+  ctaHeadlineOf,
+  faqJsonLd,
+  howItWorksOf,
+  relatedTemplatesOf,
+  renderableMedia,
+  requirementsOf,
+  setupStepsOf,
+  templateFaqOf,
+  toolsOf,
+} from "../../lib/marketplace";
+
+export const getStaticPaths = (() =>
+  templates.map((template) => ({
+    params: { key: template.key },
+    props: { template },
+  }))) satisfies GetStaticPaths;
+
+const { template } = Astro.props as { template: WebsiteTemplate };
+const cta = useItForFreeUrl(template.key);
+const apps = appsOf(template);
+const media = renderableMedia(template.media, template.name);
+const [heroMedia, ...moreMedia] = media;
+const example = template.example ?? null;
+const steps = howItWorksOf(template);
+const tools = toolsOf(template);
+const setup = setupStepsOf(template);
+const requirements = requirementsOf(template);
+const related = relatedTemplatesOf(template, templates);
+const faq = templateFaqOf(template);
+const authorTemplates = templatesByAuthor(template.author.id).length;
+
+// With hero media, the example run moves to its own numbered section.
+const sections = [
+  "overview",
+  steps.length > 0 && "how",
+  heroMedia && example && "example",
+  tools.length > 0 && "tools",
+  "setup",
+].filter((id): id is string => Boolean(id));
+const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
+---
+
+<Site
+  title={`${template.name} — ${MARKETPLACE_NAME}`}
+  description={template.summary}
+  showCta={false}
+>
+  <Fragment slot="head">
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(faqJsonLd(faq))} />
+  </Fragment>
+  <Section class="ag-tpl-hero ag-mkt-herobg ag-pad" data-screen-label="Hero">
+    <div class="ag-tpl-hero__bar">
+      <nav class="ag-mkt-crumb" aria-label="Breadcrumb">
+        <a href={MARKETPLACE_PATH}>{MARKETPLACE_NAME}</a>
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+          ><path d="M4 2.5 8 6l-4 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+          ></path></svg
+        >
+        <a href={categoryPath(template.category)}>{template.category}</a>
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+          ><path d="M4 2.5 8 6l-4 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+          ></path></svg
+        >
+        <span aria-current="page">{template.name}</span>
+      </nav>
+      <button
+        type="button"
+        class="ag-btn ag-btn--outline ag-btn--sm ag-tpl-copy"
+        data-copy-link
+        hidden
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"
+          ><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.3-2.3a3 3 0 0 0-4.2-4.2l-.6.6M9.5 6.5a3 3 0 0 0-4.2 0L3 8.8A3 3 0 0 0 7.2 13l.6-.6"
+          ></path></svg
+        >
+        <span data-copy-label>Copy link</span>
+      </button>
+    </div>
+
+    <div class="ag-tpl-hero__center">
+      <div class="ag-tpl-connect">
+        {
+          apps.length > 0 && (
+            <>
+              <div class="ag-appstack ag-tpl-connect__apps">
+                {apps.map((app) => <AppMark app={app} />)}
+              </div>
+              <span class="ag-tpl-connect__line" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            </>
+          )
+        }
+        <span class="ag-tpl-connect__agenta" aria-hidden="true"><img src="/logos/Agenta-symbol-light.svg" alt="" /></span>
+      </div>
+      <div class="ag-tpl-hero__chips">
+        <Badge>{template.category}</Badge>
+      </div>
+      <h1 class="ag-tpl-hero__title">{template.name}</h1>
+      <p class="ag-tpl-hero__summary">{template.summary}</p>
+      <div class="ag-tpl-hero__actions">
+        <Button variant="contrast" href={cta}>{USE_IT_FOR_FREE_LABEL}</Button>
+        <a
+          class="ag-btn ag-btn--outline ag-tpl-hero__author"
+          href={authorPath(template.author.id)}
+          aria-label={template.author.name}
+          title={template.author.name}
+        >
+          <AuthorMark author={template.author} size={24} />
+        </a>
+      </div>
+
+      {heroMedia && <TemplateMedia item={heroMedia} class="ag-tpl-hero__stage" />}
+      {
+        !heroMedia && example && (
+          <ExampleOutput
+            class="ag-tpl-hero__stage ag-tpl-hero__run"
+            name={template.name}
+            example={example}
+          />
+        )
+      }
+    </div>
+  </Section>
+
+  <Section class="ag-tpl-body ag-pad" data-screen-label="Body">
+    <div class="ag-tpl-body__grid">
+      <div class="ag-tpl-main">
+        <section class="ag-tpl-block">
+          <h2 class="ag-tpl-rail"><span aria-hidden="true">{num("overview")}</span>Overview</h2>
+          <div class="ag-tpl-block__body">
+            <p class="ag-tpl-overview">{template.description}</p>
+            {moreMedia.map((item) => <TemplateMedia item={item} class="ag-tpl-media--inline" lazy />)}
+          </div>
+        </section>
+
+        {
+          steps.length > 0 && (
+            <section class="ag-tpl-block">
+              <h2 class="ag-tpl-rail"><span aria-hidden="true">{num("how")}</span>How it works</h2>
+              <ol class="ag-tpl-block__body ag-tpl-flow">
+                {steps.map((step) => (
+                  <li class="ag-tpl-flow__row">
+                    <div class="ag-tpl-flow__track">
+                      {step.kind === "trigger" ? (
+                        <span class="ag-tpl-flow__trigger" aria-hidden="true">
+                          <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                            ><path d="M9 1.5 3 9h5l-1 5.5L13 7H8l1-5.5Z" /></svg>
+                        </span>
+                      ) : step.app ? (
+                        <AppMark app={step.app} size={44} />
+                      ) : (
+                        <span class="ag-tpl-flow__num">{step.number}</span>
+                      )}
+                      <span class="ag-tpl-flow__line" aria-hidden="true" />
+                    </div>
+                    <div class="ag-tpl-flow__text">
+                      <span class="ag-tpl-flow__kicker">
+                        {step.kind === "trigger"
+                          ? "When"
+                          : [
+                              `Step ${step.number}`,
+                              step.app?.name,
+                              step.optional && "Optional",
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                      </span>
+                      <span class="ag-tpl-flow__what">
+                        {step.kind === "trigger" ? step.text : `${step.role}.`}
+                      </span>
+                      {step.kind === "connection" && step.scope && (
+                        <code class="ag-tpl-chip">{step.scope}</code>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )
+        }
+
+        {
+          heroMedia && example && (
+            <section class="ag-tpl-block">
+              <h2 class="ag-tpl-rail"><span aria-hidden="true">{num("example")}</span>Example run</h2>
+              <div class="ag-tpl-block__body">
+                <ExampleOutput name={template.name} example={example} />
+              </div>
+            </section>
+          )
+        }
+
+        {
+          tools.length > 0 && (
+            <section class="ag-tpl-block">
+              <h2 class="ag-tpl-rail"><span aria-hidden="true">{num("tools")}</span>Tools it can use</h2>
+              <ul class="ag-tpl-block__body ag-tpl-tools">
+                {tools.map((tool) => (
+                  <li class="ag-tpl-tool">
+                    {tool.app && <AppMark app={tool.app} size={32} />}
+                    <span class="ag-tpl-tool__text">
+                      <code class="ag-tpl-tool__name">{tool.name}</code>
+                      <span class="ag-tpl-tool__desc">{tool.description}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )
+        }
+
+        <section class="ag-tpl-block">
+          <h2 class="ag-tpl-rail"><span aria-hidden="true">{num("setup")}</span>Set it up</h2>
+          <ol class="ag-tpl-block__body ag-tpl-setup">
+            {
+              setup.map((step, i) => (
+                <li>
+                  <span class="ag-tpl-setup__num">{i + 1}</span>
+                  <span class="ag-tpl-setup__title">{step.title}</span>
+                  <span class="ag-tpl-setup__text">{step.text}</span>
+                </li>
+              ))
+            }
+          </ol>
+        </section>
+      </div>
+
+      <aside class="ag-tpl-side" aria-label="Template summary">
+        <div class="ag-tpl-side__group ag-tpl-side__cta">
+          <span class="ag-tpl-side__name">{template.name}</span>
+          <Button variant="contrast" href={cta} block>{USE_IT_FOR_FREE_LABEL}</Button>
+          <span class="ag-tpl-side__note">Free to start</span>
+        </div>
+        {
+          requirements.length > 0 && (
+            <div class="ag-tpl-side__group">
+              <h2 class="ag-tpl-side__label">What it needs</h2>
+              <ul class="ag-tpl-reqs">
+                {requirements.map((req) => (
+                  <li>
+                    <AppMark app={req.app} size={26} />
+                    <span>{req.label}</span>
+                    {req.note && <span class="ag-tpl-reqs__note">{req.note}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+        <a class="ag-tpl-side__group ag-tpl-side__author" href={authorPath(template.author.id)}>
+          <AuthorMark author={template.author} size={32} />
+          <span class="ag-tpl-side__who">
+            <span class="ag-tpl-side__authorname">{template.author.name}</span>
+            <span class="ag-tpl-side__meta">
+              {authorTemplates} {authorTemplates === 1 ? "template" : "templates"}
+            </span>
+          </span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+            ><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+            ></path></svg
+          >
+        </a>
+      </aside>
+    </div>
+  </Section>
+
+  {
+    related.length > 0 && (
+      <Section class="ag-tpl-related ag-pad" data-screen-label="Suggested templates">
+        <div class="ag-tpl-related__head">
+          <h2 class="ag-tpl-related__title">Suggested templates</h2>
+          <a class="ag-tpl-related__all" href={categoryPath(template.category)}>
+            More in {template.category} →
+          </a>
+        </div>
+        <div class="ag-tplgrid">
+          {related.map((other) => (
+            <TemplateCard template={other} />
+          ))}
+        </div>
+      </Section>
+    )
+  }
+
+  <Section class="ag-mkt-faq ag-pad" data-screen-label="FAQ">
+    <SectionTitle badge="FAQ" title={`${template.name} FAQ`} />
+    <div class="ag-mkt-faq__list">
+      {
+        faq.map((item, i) => (
+          <FaqItem question={item.question} open={i === 0}>
+            {item.answer}
+          </FaqItem>
+        ))
+      }
+    </div>
+  </Section>
+
+  <CtaBand
+    title={ctaHeadlineOf(template)}
+    body=""
+    primaryLabel={USE_IT_FOR_FREE_LABEL}
+    primaryHref={cta}
+    secondaryLabel=""
+  />
+
+
+  <script>
+    const button = document.querySelector<HTMLButtonElement>("[data-copy-link]");
+    const label = button?.querySelector("[data-copy-label]");
+    if (button && label && navigator.clipboard) {
+      button.hidden = false;
+      let reset: number | undefined;
+      button.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(location.href.split(/[?#]/)[0]!);
+          label.textContent = "Link copied";
+        } catch {
+          label.textContent = "Copy failed";
+        }
+        clearTimeout(reset);
+        reset = window.setTimeout(() => (label.textContent = "Copy link"), 1600);
+      });
+    }
+  </script>
+
+  <style is:global>
+    .ag-tpl-hero {
+      padding: 28px 64px 0;
+      overflow: hidden;
+    }
+    .ag-tpl-hero__bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 36px;
+    }
+    .ag-tpl-copy[hidden] {
+      display: none;
+    }
+    .ag-tpl-hero__center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding-top: 64px;
+    }
+    .ag-tpl-connect {
+      display: flex;
+      align-items: center;
+      --appmark: 56px;
+      --stack-ring: var(--th-bg-2);
+    }
+    .ag-tpl-connect__apps .ag-appmark {
+      box-shadow:
+        0 0 0 3px var(--stack-ring),
+        inset 0 0 0 1px var(--th-ctl-ring),
+        var(--th-menu-shadow);
+    }
+    .ag-tpl-connect__line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 14px;
+    }
+    .ag-tpl-connect__line span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--th-text-dim);
+    }
+    .ag-tpl-connect__line span:nth-child(2) {
+      width: 48px;
+      height: 0;
+      border-radius: 0;
+      background: none;
+      border-top: 1.5px dashed var(--th-text-dim);
+    }
+    .ag-tpl-connect__agenta {
+      width: 56px;
+      height: 56px;
+      border-radius: 15px;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--yellow-400);
+      box-shadow:
+        0 0 0 3px var(--stack-ring),
+        inset 0 0 0 1px color-mix(in srgb, var(--ink-900) 12%, transparent),
+        var(--th-menu-shadow);
+    }
+    /* The dark-ink symbol in both themes: the tile stays yellow. */
+    .ag-tpl-connect__agenta img {
+      width: 50%;
+      height: auto;
+    }
+    .ag-tpl-hero__chips {
+      margin-top: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .ag-tpl-hero__title {
+      margin: 22px 0 0;
+      max-width: 960px;
+      font: var(--text-display-xl);
+      color: var(--th-text-hi);
+      text-wrap: balance;
+    }
+    .ag-tpl-hero__summary {
+      margin: 18px 0 0;
+      max-width: 620px;
+      font: var(--text-body-md);
+      color: var(--th-text-body);
+      text-wrap: pretty;
+    }
+    .ag-tpl-hero__actions {
+      margin-top: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+    /* No run or media below: the hero closes after the actions. */
+    .ag-tpl-hero__actions:last-child {
+      margin-bottom: 88px;
+    }
+    .ag-tpl-hero__actions .ag-btn {
+      height: 40px;
+      padding: 0 18px;
+    }
+    /* Icon only: a square the height of the Use button, the bare symbol inside it. */
+    .ag-tpl-hero__actions .ag-tpl-hero__author {
+      padding: 0;
+      aspect-ratio: 1;
+    }
+    .ag-tpl-hero__author .ag-authormark {
+      background: none;
+      box-shadow: none;
+    }
+    .ag-tpl-hero__author .ag-authormark img {
+      width: 75%;
+    }
+    /* The run (or the media) sits on the hero's bottom edge. */
+    .ag-tpl-hero__stage {
+      margin-top: 64px;
+      width: 100%;
+      max-width: 860px;
+    }
+    .ag-tpl-hero__run {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+    .ag-tpl-hero__run .ag-tpl-output__body {
+      min-height: 200px;
+      box-sizing: border-box;
+    }
+    .ag-tpl-hero figure.ag-tpl-hero__stage {
+      margin-bottom: 64px;
+    }
+
+    .ag-tpl-media {
+      margin: 0;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: var(--th-bg-2);
+      box-shadow: 0 0 0 1px var(--th-border-subtle);
+    }
+    .ag-tpl-media img,
+    .ag-tpl-media video,
+    .ag-tpl-media iframe {
+      display: block;
+      width: 100%;
+      border: 0;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      height: auto;
+    }
+    .ag-tpl-media figcaption {
+      padding: 10px 14px;
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-media--inline {
+      margin-top: 24px;
+    }
+
+    .ag-tpl-body {
+      --tpl-body-bg: var(--th-bg-1);
+      background: var(--tpl-body-bg);
+      padding: 88px 64px 96px;
+    }
+    [data-theme="dark"] .ag-tpl-body {
+      --tpl-body-bg: var(--th-bg-0);
+    }
+    .ag-tpl-body__grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 72px;
+      align-items: start;
+    }
+    .ag-tpl-main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    /* Each section: a numbered rail on the left, the content on the right. */
+    .ag-tpl-block {
+      display: grid;
+      grid-template-columns: 168px minmax(0, 1fr);
+      gap: 32px;
+      padding: 48px 0;
+      border-bottom: 1px solid var(--th-border-subtle);
+    }
+    .ag-tpl-block:first-child {
+      padding-top: 0;
+    }
+    .ag-tpl-block:last-child {
+      border-bottom: 0;
+    }
+    .ag-tpl-rail {
+      margin: 0;
+      padding-top: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font: var(--text-label);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-rail span {
+      font: 500 12px/1 var(--font-mono);
+      letter-spacing: 0;
+      color: var(--th-text-dim);
+    }
+    .ag-tpl-block__body {
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+    }
+    .ag-tpl-overview {
+      margin: 0;
+      font: var(--text-display-md);
+      color: var(--th-text-hi);
+      text-wrap: pretty;
+    }
+
+    .ag-tpl-flow {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+    }
+    .ag-tpl-flow__row {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: 18px;
+    }
+    .ag-tpl-flow__track {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .ag-tpl-flow__trigger,
+    .ag-tpl-flow__num {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ag-tpl-flow__trigger {
+      background: var(--yellow-400);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-900) 12%, transparent);
+      color: var(--ink-900);
+    }
+    .ag-tpl-flow__num {
+      background: var(--th-ctl-bg);
+      box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
+      font: var(--text-label);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-flow__line {
+      flex: 1;
+      min-height: 16px;
+      margin: 6px 0;
+      border-left: 1.5px dashed var(--th-border);
+    }
+    .ag-tpl-flow__row:last-child .ag-tpl-flow__line {
+      border-color: transparent;
+    }
+    .ag-tpl-flow__text {
+      padding: 2px 0 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .ag-tpl-flow__kicker {
+      font: var(--text-caption);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-flow__what {
+      font: var(--text-body-md);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-chip {
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--th-code-bg);
+      box-shadow: inset 0 0 0 1px var(--th-code-border);
+      font: 500 12px/18px var(--font-mono);
+      color: var(--th-text-body);
+    }
+
+    .ag-tpl-tools {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .ag-tpl-tool {
+      display: flex;
+      gap: 14px;
+      padding: 18px;
+      border-radius: var(--radius-lg);
+      background: var(--th-bg-1);
+      box-shadow: 0 0 0 1px var(--th-border);
+    }
+    .ag-tpl-tool__text {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .ag-tpl-tool__name {
+      font: 500 13px/18px var(--font-mono);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-tool__desc {
+      font: var(--text-body-sm);
+      color: var(--th-text-body);
+    }
+
+    .ag-tpl-setup {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+      grid-auto-flow: column;
+      border-radius: var(--radius-lg);
+      background: var(--th-bg-1);
+      box-shadow: 0 0 0 1px var(--th-border);
+      overflow: hidden;
+    }
+    .ag-tpl-setup li {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 24px;
+      box-shadow: inset -1px 0 0 var(--th-border-subtle);
+    }
+    .ag-tpl-setup li:last-child {
+      box-shadow: none;
+    }
+    .ag-tpl-setup__num {
+      font: 300 40px/1 var(--font-display);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-setup__title {
+      margin-top: 8px;
+      font: var(--text-label);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-setup__text {
+      font: var(--text-body-sm);
+      color: var(--th-text-body);
+    }
+
+    .ag-tpl-side {
+      position: sticky;
+      top: 24px;
+      min-width: 0;
+      border-radius: var(--radius-xl);
+      background: var(--th-bg-2);
+      box-shadow:
+        0 0 0 1px var(--th-border),
+        var(--th-menu-shadow);
+      overflow: hidden;
+    }
+    .ag-tpl-side__group {
+      margin: 0;
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-bottom: 1px solid var(--th-border-subtle);
+    }
+    .ag-tpl-side__group:last-child {
+      border-bottom: 0;
+    }
+    .ag-tpl-side__cta {
+      padding-top: 22px;
+      gap: 14px;
+    }
+    .ag-tpl-side__name {
+      font: var(--text-title);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-side__note {
+      font: var(--text-caption);
+      font-weight: 400;
+      color: var(--th-text-mut);
+      text-align: center;
+    }
+    .ag-tpl-side__label {
+      margin: 0;
+      font: var(--text-caption);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-reqs {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ag-tpl-reqs li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font: var(--text-label);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-reqs__note {
+      margin-left: auto;
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-side__author {
+      flex-direction: row;
+      align-items: center;
+      text-decoration: none;
+      color: var(--th-text-dim);
+    }
+    .ag-tpl-side__author:hover {
+      background: var(--th-hover);
+    }
+    .ag-tpl-side__author:focus-visible {
+      outline: 2px solid var(--th-text-hi);
+      outline-offset: -2px;
+    }
+    .ag-tpl-side__who {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .ag-tpl-side__authorname {
+      font: var(--text-label);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-side__meta {
+      font: var(--text-caption);
+      font-weight: 400;
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-related {
+      background: var(--th-bg-1);
+      padding: 72px 64px 96px;
+    }
+    .ag-tpl-related__head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .ag-tpl-related__title {
+      margin: 0;
+      font: var(--text-display-md);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-related__all {
+      font: var(--text-label);
+      color: var(--th-text-body);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .ag-tpl-related__all:hover {
+      color: var(--th-text-hi);
+    }
+
+    @media (max-width: 1199px) {
+      .ag-tpl-hero__center {
+        padding-top: 48px;
+      }
+      .ag-tpl-body {
+        padding-top: 64px;
+        padding-bottom: 72px;
+      }
+      .ag-tpl-body__grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 48px;
+      }
+      /* The summary card moves above the sections. */
+      .ag-tpl-side {
+        position: static;
+        order: -1;
+      }
+      .ag-tpl-block {
+        grid-template-columns: 120px minmax(0, 1fr);
+        gap: 24px;
+      }
+    }
+    @media (max-width: 767px) {
+      .ag-tpl-hero {
+        padding-top: 20px;
+      }
+      .ag-tpl-hero__center {
+        padding-top: 40px;
+      }
+      .ag-tpl-connect {
+        --appmark: 44px;
+      }
+      .ag-tpl-connect__agenta {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+      }
+      .ag-tpl-connect__line span:nth-child(2) {
+        width: 24px;
+      }
+      .ag-tpl-hero__title {
+        font: 300 36px/40px var(--font-display);
+      }
+      .ag-tpl-hero__stage {
+        margin-top: 40px;
+      }
+      .ag-tpl-block {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+        padding: 36px 0;
+      }
+      .ag-tpl-rail {
+        flex-direction: row;
+        align-items: baseline;
+        gap: 10px;
+      }
+      .ag-tpl-overview {
+        font: 300 24px/32px var(--font-display);
+      }
+      .ag-tpl-tools {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .ag-tpl-setup {
+        grid-auto-flow: row;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .ag-tpl-setup li {
+        box-shadow: inset 0 -1px 0 var(--th-border-subtle);
+      }
+    }
+  </style>
+</Site>

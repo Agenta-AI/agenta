@@ -43,7 +43,6 @@ const state = vi.hoisted(() => ({
     switchEntity: vi.fn(),
     respondAnswer: vi.fn(),
     addToolOutput: vi.fn(),
-    durableCapability: false,
     setCommitSignal: vi.fn(),
     invalidateCommit: vi.fn(),
 }))
@@ -60,30 +59,19 @@ vi.mock("@agenta/chat/assets", () => ({
         build: () => Promise<unknown>,
     ) => build(),
     resolveStopExecution: state.resolveStopExecution,
-    startupLabelFromDataPart: () => undefined,
-    submitApprovalForCapability: async ({
-        durableApprovals,
-        submitDurable,
-        retireDurable,
-        recordLegacy,
-        releaseLegacy,
+    startupPhaseFromDataPart: () => undefined,
+    submitServerOwnedApproval: async ({
+        submit,
+        retire,
     }: {
-        durableApprovals: boolean
-        submitDurable: () => Promise<unknown>
-        retireDurable: () => void
-        recordLegacy: () => Promise<void>
-        releaseLegacy: () => void
+        submit: () => Promise<unknown>
+        retire: () => void
     }) => {
-        if (durableApprovals) {
-            try {
-                return await submitDurable()
-            } finally {
-                retireDurable()
-            }
+        try {
+            return await submit()
+        } finally {
+            retire()
         }
-        await recordLegacy()
-        releaseLegacy()
-        return {durable: false, recoverable: false}
     },
 }))
 
@@ -141,11 +129,9 @@ vi.mock("@agenta/entities/session", () => ({
     cancelSessionExecution: state.cancelSessionExecution,
     invalidateSessionListQueries: vi.fn(),
     killSession: vi.fn(),
-    recordInteractionAnswerAtom: "record-interaction-answer",
     respondInteractionAnswerAtom: "respond-interaction-answer",
     respondInteractionAnswersAtom: "respond-interaction-answers",
     resumeSessionContinuationAtom: "resume-session-continuation",
-    sessionDurableApprovalsCapabilityAtom: "session-durable-approvals-capability",
     revalidateSessionMountsAtom: "revalidate-mounts",
     revalidateSessionRecordsAtom: "revalidate-records",
 }))
@@ -171,7 +157,6 @@ vi.mock("@agenta/playground", () => ({
     isHitlPending: () => state.hitlPending,
     isResumeSend: () => false,
     playgroundController: {actions: {switchEntity: "switch-entity"}},
-    recordAnswerThenRelease: vi.fn(),
 }))
 
 vi.mock("@agenta/shared/state", () => ({
@@ -201,13 +186,11 @@ vi.mock("jotai", () => ({
     useSetAtom: (atom: string) =>
         atom === "respond-interaction-answer"
             ? state.respondAnswer
-            : atom === "session-durable-approvals-capability"
-              ? () => Promise.resolve(state.durableCapability)
-              : atom === "switch-entity"
-                ? state.switchEntity
-                : atom === "commit-signal"
-                  ? state.setCommitSignal
-                  : vi.fn(),
+            : atom === "switch-entity"
+              ? state.switchEntity
+              : atom === "commit-signal"
+                ? state.setCommitSignal
+                : vi.fn(),
     useStore: () => ({
         get: (atom: string) => {
             if (atom === "record-counts" || atom === "session-messages") return {}
@@ -261,7 +244,6 @@ describe("useAgentChatSession execution guard", () => {
             executionId: "questionnaire-child",
         })
         state.addToolOutput.mockReset().mockResolvedValue(undefined)
-        state.durableCapability = false
         state.sendMessage.mockClear()
         state.regenerate.mockClear()
         state.cancelSessionExecution.mockReset()
@@ -285,7 +267,6 @@ describe("useAgentChatSession execution guard", () => {
     })
 
     it("answers a queued questionnaire through server ownership without SDK auto-resume", async () => {
-        state.durableCapability = true
         let result: ReturnType<typeof useAgentChatSession> | undefined
         const root = createRoot(document.createElement("div"))
         const Probe = () => {
@@ -364,6 +345,32 @@ describe("useAgentChatSession execution guard", () => {
             prevParameters: null,
             at: expect.any(Number),
         })
+        act(() => root.unmount())
+    })
+
+    it("leaves a commit made while the tab is hidden to the version pill", () => {
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const root = createRoot(document.createElement("div"))
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        Object.defineProperty(document, "visibilityState", {configurable: true, value: "hidden"})
+        try {
+            act(() => result!.onCommittedRevision({revisionId: "revision-2", version: "2"}))
+        } finally {
+            Object.defineProperty(document, "visibilityState", {
+                configurable: true,
+                value: "visible",
+            })
+        }
+        expect(state.switchEntity).not.toHaveBeenCalled()
         act(() => root.unmount())
     })
 

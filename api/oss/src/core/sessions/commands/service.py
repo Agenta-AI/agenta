@@ -72,21 +72,19 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputNotFound,
     SessionInputRemoved,
 )
-from oss.src.core.sessions.streams.dtos import (
-    SessionStreamCommandRequest,
-    SessionStreamCommandResponse,
-)
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.core.sessions.streams.types import SessionIdInvalid, SessionTurnMismatch
+from oss.src.core.sessions.streams.types import SessionIdInvalid
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     HEARTBEAT_INTERVAL_SECONDS,
+    TurnBinding,
     validate_session_id,
 )
 from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
-    get_owner,
     get_running_owner,
+    get_routable_turn_binding,
+    get_turn_binding,
     reconcile_stopped_turn,
 )
 from oss.src.utils.env import env
@@ -191,8 +189,6 @@ class SessionCommandsService:
     ) -> PendingInputAdmission:
         if not validate_session_id(session_id):
             raise SessionIdInvalid(session_id)
-        if not (env.agenta.sessions.queue and env.agenta.sessions.steer):
-            raise SessionInputBusy()
         if self._inputs is None or self._executions is None:
             raise SessionInputBusy()
         received_at = datetime.now(timezone.utc)
@@ -337,30 +333,6 @@ class SessionCommandsService:
             input=item,
             execution_id=continuation.execution_id if continuation else target_id,
         )
-
-    async def request_cancel_legacy(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        session_id: str,
-        expected_execution_id: Optional[str] = None,
-    ) -> SessionStreamCommandResponse:
-        """Use the heartbeat-carried Stop path kept for rollout rollback."""
-        try:
-            return await self._streams.command(
-                project_id=project_id,
-                user_id=user_id,
-                request=SessionStreamCommandRequest(
-                    session_id=session_id,
-                    expected_execution_id=expected_execution_id,
-                ),
-            )
-        except SessionTurnMismatch as error:
-            raise ExecutionExpectationFailed(
-                expected=error.expected_turn_id,
-                current=error.actual_turn_id,
-            ) from error
 
     async def request_cancel(
         self,
@@ -981,21 +953,11 @@ class SessionCommandsService:
     async def resume_recoverable_continuation(
         self, *, project_id: UUID, session_id: str
     ) -> Optional[str]:
-        if not (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue):
-            return None
         command = await self._dao.fetch_resumable_continuation(
             project_id=project_id,
             session_id=session_id,
         )
         if command is None:
-            return None
-        if (
-            command.kind == SessionCommandKind.continue_interaction
-            and not env.agenta.sessions.durable_approvals
-        ) or (
-            command.kind == SessionCommandKind.continue_input
-            and not env.agenta.sessions.queue
-        ):
             return None
         execution_id = command.target_turn_id
         if execution_id is None or self._executions is None:
@@ -1297,8 +1259,13 @@ class SessionCommandsService:
             )
             return DeliveryReceipt(status="unreachable", detail=str(error))
 
+        binding = await self._runner_binding_for(command)
         try:
-            receipt = await self._delivery.deliver(command=command)
+            receipt = await self._delivery.deliver(
+                command=command,
+                runner_address=binding.replica_address if binding else None,
+                runner_replica_id=binding.replica_id if binding else None,
+            )
         except Exception as e:  # noqa: BLE001 — transport failure is never a request failure
             log.warning(
                 "control delivery raised for command=%s session=%s: %s",
@@ -1342,6 +1309,27 @@ class SessionCommandsService:
             receipt.detail or "no detail",
         )
         return receipt
+
+    async def _runner_binding_for(
+        self, command: SessionCommand
+    ) -> Optional[TurnBinding]:
+        """The pod bound to a Stop's target turn, or None for the Service URL.
+
+        The binding's replica id lets the transport check that the pod at the address is still
+        that replica before it sends the token there.
+
+        Read on every attempt, first delivery and sweep redelivery alike, so a redelivery cannot
+        drift back to a random pod. A failed read falls back to the Service URL: on one pod that
+        is still the right pod, and the delivery outcome stays honest either way.
+        """
+        if command.kind != SessionCommandKind.cancel or not command.target_turn_id:
+            return None
+        return await get_routable_turn_binding(
+            self._lock,
+            project_id=str(command.project_id),
+            session_id=command.session_id,
+            turn_id=command.target_turn_id,
+        )
 
     async def _interactions_for_command(
         self, command: SessionCommand
@@ -1421,25 +1409,26 @@ class SessionCommandsService:
             project_id=command.project_id, session_id=command.session_id
         ):
             outcome = SessionCommandOutcome.lost
-            # Name the process that DOES hold the session, so the log says where the Stop
-            # should have gone rather than only that it did not arrive.
-            owner = await get_owner(
+            # Name the pod the running turn is bound to, so the log says where the Stop should
+            # have gone rather than only that it did not arrive.
+            binding = await get_turn_binding(
                 self._lock,
                 project_id=str(command.project_id),
                 session_id=command.session_id,
+                turn_id=running_owner,
             )
             log.error(
                 "control delivery: the runner answered not_held for session=%s while "
                 "execution %s holds `running` and the row is beating. A process is executing "
-                "that session and it is not the one we called, so this deployment has more "
-                "than one runner replica and the direct adapter cannot route to it. Settling "
-                "the command lost, so the user is told the Stop failed rather than that the "
-                "work had already finished. command=%s target_turn=%s owner_replica=%s",
+                "that session and it is not the one we called: the turn has no routable "
+                "binding, or its pod lost it. Settling the command lost, so the user is told "
+                "the Stop failed rather than that the work had already finished. command=%s "
+                "target_turn=%s bound_replica=%s",
                 command.session_id,
                 running_owner,
                 command.id,
                 command.target_turn_id,
-                owner or "unknown",
+                binding.replica_id if binding else "unknown",
             )
         await self.settle(
             command_id=command.id,
@@ -1480,13 +1469,6 @@ class SessionCommandsService:
                 SessionCommandKind.continue_interaction,
                 SessionCommandKind.continue_input,
             ):
-                capability_enabled = (
-                    env.agenta.sessions.durable_approvals
-                    if command.kind == SessionCommandKind.continue_interaction
-                    else env.agenta.sessions.queue
-                )
-                if not capability_enabled:
-                    continue
                 if command.claim_count < max_deliveries:
                     await self._deliver(command)
                     continue
@@ -1628,14 +1610,10 @@ class SessionCommandsService:
         if (
             execution is not None
             and (
-                (
-                    execution.source_interaction_id is not None
-                    and env.agenta.sessions.durable_approvals
-                )
+                execution.source_interaction_id is not None
                 or (
                     execution.source_interaction_id is None
                     and execution.parent_execution_id is not None
-                    and env.agenta.sessions.queue
                 )
             )
             and execution.terminal_outcome is None
@@ -1696,7 +1674,7 @@ class SessionCommandsService:
                 settled_by="runner",
                 transaction=transaction,
             )
-            if result.won and env.agenta.sessions.queue:
+            if result.won:
                 admission = await self._promote_next_input(
                     project_id=project_id,
                     session_id=session_id,
@@ -2037,8 +2015,6 @@ class SessionCommandsService:
                                 SessionCommandOutcome.stopped,
                                 SessionCommandOutcome.not_running,
                             )
-                            and env.agenta.sessions.queue
-                            and env.agenta.sessions.steer
                             and isinstance(steer_input_id, str)
                         ):
                             input_admission = await self._promote_next_input(

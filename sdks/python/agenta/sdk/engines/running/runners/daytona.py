@@ -167,6 +167,7 @@ class DaytonaRunner(CodeRunner):
             "together_ai": "TOGETHERAI_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
             "gemini": "GEMINI_API_KEY",
+            "xai": "XAI_API_KEY",
         }
 
         # Extract provider keys from secrets

@@ -1,21 +1,31 @@
 /**
  * Unit tests for the reconstruction seam (reconstruct-history.ts).
  *
- * The safety contract: the flag is ON by default (only the literal "false" disables it), and
- * reconstruction is a strict no-op until BOTH the flag is on AND the client sent a minimal
+ * The safety contract: reconstruction is a strict no-op unless the client sent a minimal
  * history. Anything else leaves the inbound history untouched (returns null).
  */
 import { describe, it, beforeEach, vi } from "vitest";
 import assert from "node:assert/strict";
+import { buildTurnText } from "../../src/engines/sandbox_agent/transcript.ts";
+
+// The hermetic setup stubs the records query for the engine suites; this file tests the real one.
+vi.unmock("../../src/sessions/records-query.ts");
 
 let fetchCalls = 0;
 let recordsToReturn: unknown[] = [];
 let fetchShouldFail = false;
+let recordsIncompleteFlag = false;
 
 vi.stubGlobal("fetch", async () => {
   fetchCalls++;
   if (fetchShouldFail) return new Response("err", { status: 500 });
-  return new Response(JSON.stringify({ records: recordsToReturn }), { status: 200 });
+  return new Response(
+    JSON.stringify({
+      records: recordsToReturn,
+      records_incomplete: recordsIncompleteFlag,
+    }),
+    { status: 200 },
+  );
 });
 
 const { reconstructHistoryIfNeeded } = await import(
@@ -43,34 +53,31 @@ beforeEach(() => {
   fetchCalls = 0;
   recordsToReturn = [];
   fetchShouldFail = false;
+  recordsIncompleteFlag = false;
   vi.unstubAllEnvs();
-  // The hermetic setup pins the flag off for the engine suites; this file tests the real
-  // default, so drop the pin (absent = on).
-  delete process.env.AGENTA_SESSIONS_RECONSTRUCT;
 });
 
 describe("reconstructHistoryIfNeeded", () => {
-  it('no-op when the flag is explicitly "false" (never even queries)', async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "false");
-    const req = { messages: [userTurn] } as never;
-    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
-    assert.equal(out, null);
-    assert.equal(fetchCalls, 0);
-  });
-
-  it("on by default: an absent flag reconstructs a minimal history", async () => {
+  it("renders a fresh post-crash prompt with known work, unknown outcomes and the current message once", async () => {
     recordsToReturn = [
-      { record_source: "user", attributes: { type: "message", text: "q1" } },
-      { record_source: "agent", attributes: { type: "message", text: "a1" } },
+      { record_source: "user", turn_id: "old", attributes: { type: "message", text: "create my document" } },
+      { record_source: "agent", turn_id: "old", attributes: { type: "tool_call", id: "c1", name: "create_document", input: {} } },
+      { record_source: "agent", turn_id: "old", attributes: { type: "tool_result", id: "c1", output: "created doc-123" } },
+      { record_source: "agent", turn_id: "old", attributes: { type: "tool_call", id: "c2", name: "send_document", input: {} } },
+      { record_source: "agent", turn_id: "old", attributes: { type: "error", code: "execution_lost", message: "Runner disconnected" } },
+      { record_source: "user", turn_id: "current", attributes: { type: "message", text: "continue carefully" } },
     ];
-    const req = { messages: [userTurn], harness: "pi" } as never;
-    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
-    assert.notEqual(out, null);
-    assert.equal(fetchCalls, 1);
+    const request = { harness: "pi_core", turnId: "current", messages: [{ role: "user", content: "continue carefully" }] } as const;
+    const rebuilt = await reconstructHistoryIfNeeded({ ...request, messages: [...request.messages] }, "fresh-process-crash", auth);
+    assert.ok(rebuilt);
+    const prompt = buildTurnText(rebuilt);
+    assert.match(prompt, /created doc-123/);
+    assert.match(prompt, /send_document may have already run/);
+    assert.match(prompt, /do NOT retry a side-effecting call/);
+    assert.doesNotMatch(prompt, /has NOT run yet/);
+    assert.equal(prompt.split("continue carefully").length - 1, 1);
   });
-
-  it('an empty flag (compose "${VAR:-}" passthrough) still means on', async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "");
+  it("reconstructs a minimal history", async () => {
     recordsToReturn = [
       { record_source: "user", attributes: { type: "message", text: "q1" } },
       { record_source: "agent", attributes: { type: "message", text: "a1" } },
@@ -82,7 +89,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("no-op when the client already sent a full history", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     const req = { messages: [userTurn, userTurn] } as never; // length > 1
     const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
     assert.equal(out, null);
@@ -90,7 +96,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("no-op when there is no session id", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     const req = { messages: [userTurn] } as never;
     const out = await reconstructHistoryIfNeeded(req, undefined, auth);
     assert.equal(out, null);
@@ -98,7 +103,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("no-op when the record log is empty", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     recordsToReturn = [];
     const req = { messages: [userTurn] } as never;
     const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
@@ -106,7 +110,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("fails the turn when the records fetch fails (the client kept no history to fall back to)", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     fetchShouldFail = true;
     const req = { messages: [userTurn] } as never;
     await assert.rejects(
@@ -116,7 +119,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("fails the turn when the session is known to have dropped a record", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     noteRecordsIncomplete("sess-dropped");
     const req = { messages: [userTurn] } as never;
     await assert.rejects(
@@ -124,6 +126,21 @@ describe("reconstructHistoryIfNeeded", () => {
       /incomplete conversation/,
     );
     assert.equal(fetchCalls, 0, "no query when the log is already known bad");
+  });
+
+  it("fails the turn when another runner flagged the log incomplete (no local mark here)", async () => {
+    // This process never dropped a record for the session; the api says another runner did.
+    recordsIncompleteFlag = true;
+    recordsToReturn = [
+      { record_source: "user", attributes: { type: "message", text: "q1" } },
+      { record_source: "agent", attributes: { type: "message", text: "a1" } },
+    ];
+    const req = { messages: [userTurn] } as never;
+    await assert.rejects(
+      () => reconstructHistoryIfNeeded(req, "sess-flagged-elsewhere", auth),
+      /incomplete conversation/,
+    );
+    assert.equal(fetchCalls, 1);
   });
 
   it("replays a smart-truncated tool result", async () => {
@@ -184,7 +201,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("prepends reconstructed prior turns to the inbound message when enabled", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     recordsToReturn = [
       { record_source: "user", attributes: { type: "message", text: "q1" } },
       { record_source: "agent", attributes: { type: "message", text: "a1" } },
@@ -202,7 +218,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("no-op when the request carries no messages at all", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     const req = { messages: [] } as never;
     const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
     assert.equal(out, null);
@@ -210,7 +225,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("no-op when the single inbound message is not a fresh user turn", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     const req = { messages: [{ role: "assistant", content: "a1" }] } as never;
     const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
     assert.equal(out, null);
@@ -218,7 +232,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("drops the current turn's own records so the prompt is not replayed twice", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     // The runner persists the inbound prompt BEFORE the engine starts, so by the time this
     // runs the log already holds turn-2's own user record.
     recordsToReturn = [
@@ -237,7 +250,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("rebuilds the conversation for an out-of-band approval reply (no user text at all)", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     // A caller answering from the durable interaction row sends only the parked call and its
     // {approved} envelope. It asserts no conversation, so the prior turns must come from the log
     // or the agent answers as though the task had just started.
@@ -282,7 +294,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("no-op for a tool result that is not an approval envelope", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     const req = {
       messages: [
         {
@@ -299,7 +310,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("refuses an approval reply whose prior turns were all dropped as the current turn", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     // Reachable: a caller building its answer from the durable interaction row echoes the row's
     // stored `turn_id`, which is the turn that PARKED — so the filter drops every prior record.
     // Returning null here would run the approval-resume frame alone: no task, no context, ok:true.
@@ -318,20 +328,9 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("refuses an approval reply when the session id is missing", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     const req = { messages: [approvalReplyMessage] } as never;
     await assert.rejects(
       () => reconstructHistoryIfNeeded(req, undefined, auth),
-      /cannot resume an approval reply/,
-    );
-    assert.equal(fetchCalls, 0);
-  });
-
-  it("refuses an approval reply when reconstruction is switched off", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "false");
-    const req = { messages: [approvalReplyMessage] } as never;
-    await assert.rejects(
-      () => reconstructHistoryIfNeeded(req, "sess-1", auth),
       /cannot resume an approval reply/,
     );
     assert.equal(fetchCalls, 0);
@@ -341,9 +340,6 @@ describe("reconstructHistoryIfNeeded", () => {
     // The loud guards above are for the approval shape ONLY: a fresh user turn asserts its own
     // task, so "nothing to rebuild" is a legitimate first turn, not an anomaly.
     const minimal = { messages: [userTurn] } as never;
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "false");
-    assert.equal(await reconstructHistoryIfNeeded(minimal, "sess-1", auth), null);
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     assert.equal(await reconstructHistoryIfNeeded(minimal, undefined, auth), null);
     recordsToReturn = [
       {
@@ -357,7 +353,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("no-op when the only records belong to the current turn (first turn of a session)", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     recordsToReturn = [
       { turn_id: "turn-1", record_source: "user", attributes: { type: "message", text: "hi again" } },
     ];
@@ -367,7 +362,6 @@ describe("reconstructHistoryIfNeeded", () => {
   });
 
   it("restores reconstructed attachment working copies before returning history", async () => {
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     const attachmentId = "11111111-1111-4111-8111-111111111111";
     recordsToReturn = [
       {

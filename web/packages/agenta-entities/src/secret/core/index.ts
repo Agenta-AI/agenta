@@ -1,8 +1,10 @@
 export type {
     AgentConnectionMode,
+    AgentConnectionNamespace,
     AgentModelCandidate,
     AgentModelSelection,
     BuildAgentModelCandidatesArgs,
+    BuiltinModelEndpoint,
 } from "./agentModelCandidates"
 export {
     agentFamilyFromModelId,
@@ -15,7 +17,9 @@ export {
     firstAgentModelForConnection,
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
+    connectionNamespaceFrom,
     selectableAgentHarnesses,
+    HIDDEN_AGENT_HARNESSES,
     subscriptionConnectionCandidates,
 } from "./agentModelCandidates"
 
@@ -60,6 +64,7 @@ export {
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformStandardProviderPayloadData,
+    toUpdateSecretPayload,
     getEnvNameMap,
 } from "./transforms"
 

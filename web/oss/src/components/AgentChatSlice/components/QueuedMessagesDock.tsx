@@ -18,7 +18,7 @@ interface AgentQueuedMessagesDockProps {
     /** The run is parked on the user, so the queue is held rather than merely waiting. */
     held: boolean
     onRemove: (id: string) => void
-    onSendNow?: (id: string) => Promise<void>
+    onSendNow?: (id: string) => void
     onEdit: (message: QueuedMessage) => void
     onCancelEdit: () => void
     editingId: string | null

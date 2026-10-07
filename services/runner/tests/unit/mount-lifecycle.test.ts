@@ -35,7 +35,9 @@ const contextFor = (cwd: string, commits: string[]): AcquireContext =>
   ({
     plan: {
       acpAgent: "pi",
+      sandboxId: "local",
       isDaytona: false,
+      driveOnRunner: true,
       workspace: { cwd },
     },
     env: {

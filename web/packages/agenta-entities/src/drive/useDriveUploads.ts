@@ -13,7 +13,6 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {type MountFile} from "@agenta/entities/session"
 
-import {isAgentFileUploadsEnabled} from "./driveFlags"
 import {type StagedTileItem} from "./driveTypes"
 import {type DroppedFile} from "./dropEntries"
 import {useDriveDrop} from "./useDriveDrop"
@@ -72,7 +71,7 @@ export function useDriveUploads({
     // The single switch for every upload affordance here: header button, drop-to-upload on folders
     // and panes, and the staged-files inbox.
     const uploadInputRef = useRef<HTMLInputElement>(null)
-    const canUpload = isAgentFileUploadsEnabled() && !explicitFiles && !!drive.mount
+    const canUpload = !explicitFiles && !!drive.mount
     const uploadIntoFolder = useCallback(
         (picked: DroppedFile[], folder: string) => {
             const resolved = drive.resolveMount(folder)

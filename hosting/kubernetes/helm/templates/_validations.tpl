@@ -294,6 +294,143 @@ Allowed values:
 {{- end }}
 
 {{/* ================================================================
+   A local sandbox is a process inside the runner pod that started
+   it. A second runner pod cannot reach it, so the local provider
+   runs exactly one runner pod.
+   ================================================================ */}}
+{{- define "agenta.validateRunnerReplicas" -}}
+{{- $replicas := int (include "agenta.agentRunner.replicas" .) -}}
+{{- if and (eq (include "agenta.agentRunner.enabled" .) "true") (eq (include "agenta.agentRunner.localProviderEnabled" .) "true") (gt $replicas 1) -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: agentRunner.replicas=%d, but agentRunner.providers.enabled lists "local".
+
+A local sandbox runs inside the runner pod that started it, and no other runner pod can reach
+it. With the local provider, keep one runner:
+
+  agentRunner.replicas: 1
+
+To run more than one runner, enable only remote sandbox providers:
+
+  agentRunner.providers.enabled: [daytona]
+  agentRunner.providers.default: daytona
+` $replicas) -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
+   The same reason forbids a rolling update with the local provider:
+   the surge pod would run beside the old one. A strategy without a
+   type is a RollingUpdate to Kubernetes.
+   ================================================================ */}}
+{{- define "agenta.validateRunnerStrategy" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- $type := default "RollingUpdate" (default dict $runner.strategy).type -}}
+{{- if and (eq (include "agenta.agentRunner.enabled" .) "true") (eq (include "agenta.agentRunner.localProviderEnabled" .) "true") $runner.strategy (ne $type "Recreate") -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: agentRunner.strategy is %q, but agentRunner.providers.enabled lists "local".
+
+A rolling update starts the new runner pod beside the old one, and a local sandbox runs inside
+the pod that started it. With the local provider, remove agentRunner.strategy (the chart then
+uses Recreate) or set:
+
+  agentRunner.strategy:
+    type: Recreate
+` $type) -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
+   The chart owns four runner variables, and an entry in agentRunner.env
+   or agentRunner.extraEnv (which comes last and wins in the kubelet)
+   would replace any of them, so refuse them there.
+   AGENTA_RUNNER_REPLICA_ID: the api binds each turn to one replica id
+   and refuses beats from any other id. A fixed value gives every pod
+   one id, the surge pod of a rolling update too, and pods that share
+   an id can take the same turn. The pod name is the only id.
+   AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: the wait must end inside the
+   grace period, which agenta.validateRunnerShutdownWait checks on
+   agentRunner.shutdownWaitSeconds.
+   AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS and
+   AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: agenta.validateRunnerReplicas
+   and agenta.validateRunnerStrategy read agentRunner.providers to keep
+   the local provider on one pod. An override would run local sandboxes
+   on pods those checks allowed for remote providers only.
+   ================================================================ */}}
+{{- define "agenta.validateRunnerChartOwnedEnv" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- $env := default dict $runner.env -}}
+{{- $fixes := dict -}}
+{{- $_ := set $fixes "AGENTA_RUNNER_REPLICA_ID" `The api binds each turn to the runner pod that runs it, by replica id, so every pod needs its own
+id. A fixed value gives every pod the same id, including the new pod that a rolling update starts
+beside the old one. The chart always sets the id to the pod name.` -}}
+{{- $_ = set $fixes "AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS" `The wait must end inside the runner's grace period. The chart checks agentRunner.shutdownWaitSeconds
+against that limit, so set the wait there:
+
+  agentRunner.shutdownWaitSeconds: <seconds>` -}}
+{{- $providersFix := `The chart allows more than one runner pod, or a rolling update, only when the runner has no local
+sandbox provider, and it checks agentRunner.providers to decide. Set the providers there, so the
+check, the runner, Services and the web all use the same value:
+
+  agentRunner.providers.enabled: [<provider>, ...]
+  agentRunner.providers.default: <provider>` -}}
+{{- $_ = set $fixes "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS" $providersFix -}}
+{{- $_ = set $fixes "AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER" $providersFix -}}
+{{- if eq (include "agenta.agentRunner.enabled" .) "true" -}}
+{{- range $name := list "AGENTA_RUNNER_REPLICA_ID" "AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS" "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS" "AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER" -}}
+{{- $source := "" -}}
+{{- if hasKey $env $name -}}
+{{- $source = "agentRunner.env" -}}
+{{- end -}}
+{{- range $entry := (default list $runner.extraEnv) -}}
+{{- if and (kindIs "map" $entry) (eq (toString $entry.name) $name) -}}
+{{- $source = "agentRunner.extraEnv" -}}
+{{- end -}}
+{{- end -}}
+{{- if $source -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: %s sets %s, which the chart owns. Remove it from %s.
+
+%s
+` $source $name $source (get $fixes $name)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
+   The runner's shutdown runs inside the grace period: the preStop
+   delay, the wait, then the cancel and the teardown, which take up to
+   80 s with the default AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS. A wait
+   past grace - 100 lets the KILL signal land before the sandboxes are
+   deleted, so refuse it. The default wait is grace - 100, so only an
+   explicit value can pass the limit.
+   ================================================================ */}}
+{{- define "agenta.validateRunnerShutdownWait" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if and (eq (include "agenta.agentRunner.enabled" .) "true") (not (kindIs "invalid" $runner.shutdownWaitSeconds)) -}}
+{{- $wait := int $runner.shutdownWaitSeconds -}}
+{{- $grace := int (include "agenta.agentRunner.terminationGracePeriodSeconds" .) -}}
+{{- $limit := max 0 (sub $grace 100) -}}
+{{- if gt $wait $limit -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: agentRunner.shutdownWaitSeconds=%d is more than
+agentRunner.terminationGracePeriodSeconds (%d) minus 100.
+
+After the wait the runner cancels the turns that still run and deletes its sandboxes, which
+takes up to 80 seconds, after a 10-second preStop delay. Lower the wait to %d or less, or raise
+the grace period:
+
+  agentRunner.terminationGracePeriodSeconds: %d
+` $wait $grace $limit (add $wait 100)) -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
    Validate license value is in the allowed set. Catches typos like
    `agenta.license: enterprise` that would otherwise fall through to
    the OSS code paths and silently disable EE features.
@@ -308,4 +445,79 @@ CONFIGURATION ERROR: agenta.license=%q is not a valid edition.
 Allowed values: "oss", "ee".
 ` $license) -}}
 {{- end -}}
+{{- end }}
+
+{{/* ================================================================
+   redisVolatile.external.caCert is accepted by the schema, because the
+   schema shares one definition between the two Redis blocks, but only
+   redisDurable mounts a CA today. Fail loudly rather than ignore it.
+   ================================================================ */}}
+{{- define "agenta.validateRedisVolatileCaCert" -}}
+{{- $rv := default dict .Values.redisVolatile -}}
+{{- $ext := default dict $rv.external -}}
+{{- if $ext.caCert }}
+{{- fail "redisVolatile.external.caCert is not implemented: the chart mounts a CA for redisDurable only. Put the authority in the cluster trust store, or open an issue if you need it for the cache." }}
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
+   The durable-Redis CA volume projects the key REDIS_DURABLE_CA_CERT
+   explicitly, and Kubernetes refuses to mount a Secret volume whose
+   named key is absent: every affected pod then fails to start. Two
+   combinations produce exactly that, so refuse them at render time
+   with the fix in the message.
+   ================================================================ */}}
+{{- define "agenta.validateRedisDurableCaCert" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $secrets := default dict .Values.secrets -}}
+{{- $rd := default dict $values.redisDurable -}}
+{{- $ext := default dict $rd.external -}}
+{{- $ca := $ext.caCert -}}
+{{- if $ca }}
+{{- $isPlaceholder := eq ($ca | toString) "from-existing-secret" -}}
+{{- if and $isPlaceholder (not $secrets.existingSecret) }}
+{{- fail `
+
+CONFIGURATION ERROR: redisDurable.external.caCert is "from-existing-secret" but
+secrets.existingSecret is not set.
+
+That placeholder means "the Secret I supply already holds REDIS_DURABLE_CA_CERT".
+Without secrets.existingSecret the chart creates the Secret itself and writes no
+such key, so the CA volume would reference a key that does not exist and every
+pod that talks to the durable Redis would fail to start.
+
+Pick one:
+
+  # the chart owns the Secret: give it the PEM
+  redisDurable:
+    external:
+      caCert: |
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+
+  # you own the Secret: put REDIS_DURABLE_CA_CERT in it and keep the placeholder
+  secrets:
+    existingSecret: my-agenta-secret
+`}}
+{{- end }}
+{{- if and (not $isPlaceholder) $secrets.existingSecret }}
+{{- fail `
+
+CONFIGURATION ERROR: redisDurable.external.caCert holds a certificate, but
+secrets.existingSecret is set.
+
+With secrets.existingSecret the chart creates no Secret, so a PEM given here is
+never written anywhere. The CA volume reads REDIS_DURABLE_CA_CERT from your
+Secret, and if your Secret does not hold it, every pod that talks to the durable
+Redis fails to start.
+
+Put the PEM in your own Secret under the key REDIS_DURABLE_CA_CERT, then set:
+
+  redisDurable:
+    external:
+      caCert: from-existing-secret
+`}}
+{{- end }}
+{{- end }}
 {{- end }}

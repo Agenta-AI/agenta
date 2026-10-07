@@ -25,9 +25,9 @@ import {nestEvaluatorConfiguration, nestEvaluatorSchema} from "../../runnable/ev
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
+import {withAgentaToolsEntry} from "../agentaTools"
 import type {
     InspectWorkflowResponse,
-    InterfaceSchemasResponse,
     AppOpenApiSchemas,
     SimpleApplicationFetchResponse,
     AgentBuildKitOverlay,
@@ -38,6 +38,7 @@ import {
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
     fetchAgentBuildKitOverlay,
+    fetchAgentaToolsAccess,
     fetchSimpleApplication,
     fetchWorkflowAppOpenApiSchema,
     fetchAgTypeSchema,
@@ -47,6 +48,7 @@ import {
     queryWorkflowRevisionsByWorkflow,
     queryWorkflowRevisions,
 } from "../api"
+import {normalizeBuildKitState, type BuildKitUiState} from "../buildKitPolicy"
 import type {
     Workflow,
     WorkflowVariant,
@@ -1331,6 +1333,8 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
             },
             initialData: detailCached ?? undefined,
+            // Every result of this query, cache hits and initialData included, passes through here.
+            select: withAgentaToolsEntry,
             // detailCached/enabled evaluate synchronously; the persister restores only inside a fetch they allowed, so no race.
             persister: immutablePersister.persisterFn,
             enabled:
@@ -1487,6 +1491,18 @@ export const agentBuildKitOverlayAtom = atomWithQuery<AgentBuildKitOverlay | nul
     }
 })
 
+export const agentaToolsAccessAtom = atomWithQuery<Record<string, "read" | "write">>((get) => {
+    const projectId = get(workflowProjectIdAtom)
+    return {
+        queryKey: ["agentaToolsAccess", projectId],
+        queryFn: async () => (projectId ? fetchAgentaToolsAccess(projectId) : {}),
+        enabled: get(sessionAtom) && !!projectId,
+        staleTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        persister: catalogPersister.persisterFn,
+    }
+})
+
 export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: string) =>
     atom<AgentTemplate | null>((get) => {
         const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
@@ -1510,82 +1526,121 @@ export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: st
         const appData = get(simpleApplicationQueryAtomFamily(applicationId)).data ?? null
         const overlay =
             appData?.additional_context?.playground_build_kit?.agent_template_overlay ?? null
-        return isAgentTemplateOverlay(overlay) ? overlay : null
+        return isAgentTemplateOverlay(overlay)
+            ? {
+                  ...overlay,
+                  op_access: appData?.additional_context?.playground_build_kit?.op_access ?? {},
+              }
+            : null
     }),
 )
 
-/** The build kit's UI state: the master on/off plus the platform ops the user switched off. */
-export interface BuildKitUiState {
-    enabled: boolean
-    disabledOps: string[]
-}
+export type {BuildKitUiState} from "../buildKitPolicy"
 
-const DEFAULT_BUILD_KIT_UI_STATE: BuildKitUiState = {enabled: true, disabledOps: []}
-
-/**
- * The build-kit UI state per revision, persisted so an individually switched-off tool (or the
- * master off) survives a page reload (#6493). One localStorage record keyed by revision id, the
- * scoped-persistence pattern; the two atom families below expose per-revision read/write access.
- */
-const buildKitUiStateByRevisionAtom = atomWithStorage<Record<string, BuildKitUiState>>(
+const legacyBuildKitStateAtom = atomWithStorage<Record<string, BuildKitUiState>>(
     "agenta:playground:build-kit",
     {},
     undefined,
     {getOnInit: true},
 )
+const buildKitStateByAgentAtom = atomWithStorage<Record<string, BuildKitUiState>>(
+    "agenta:playground:build-kit:agents",
+    {},
+    undefined,
+    {getOnInit: true},
+)
 
-/**
- * Read one revision's UI state, normalizing whatever localStorage held. jotai already falls back to
- * the default record on invalid JSON, but valid-JSON-of-the-wrong-shape (tampering, a future shape
- * change) still passes through, so guard each field: a non-array `disabledOps` would otherwise throw
- * in the switches' `.filter`.
- */
-const readBuildKitUiState = (get: Getter, revisionId: string): BuildKitUiState => {
-    const entry: unknown = get(buildKitUiStateByRevisionAtom)[revisionId]
-    if (!entry || typeof entry !== "object") return DEFAULT_BUILD_KIT_UI_STATE
-    const {enabled, disabledOps} = entry as Partial<BuildKitUiState>
-    return {
-        enabled: typeof enabled === "boolean" ? enabled : true,
-        disabledOps: Array.isArray(disabledOps)
-            ? disabledOps.filter((op): op is string => typeof op === "string")
-            : [],
-    }
-}
+export const workflowBuildKitScopeAtomFamily = atomFamily((revisionId: string) =>
+    atom((get) => {
+        const project = get(workflowProjectIdAtom)
+        if (!revisionId || !project) return null
+        const entity =
+            get(workflowQueryAtomFamily(revisionId)).data ??
+            get(workflowBaseEntityAtomFamily(revisionId))
+        return `${project}:${entity?.workflow_id ? `agent:${entity.workflow_id}` : `staging:${revisionId}`}`
+    }),
+)
 
-const writeBuildKitUiState = (
-    get: Getter,
-    set: (next: Record<string, BuildKitUiState>) => void,
-    revisionId: string,
-    patch: Partial<BuildKitUiState>,
-) => {
-    const all = get(buildKitUiStateByRevisionAtom)
-    set({...all, [revisionId]: {...readBuildKitUiState(get, revisionId), ...patch}})
-}
-
-export const workflowBuildKitEnabledAtomFamily = atomFamily((revisionId: string) =>
+export const workflowBuildKitUiStateAtomFamily = atomFamily((revisionId: string) =>
     atom(
-        (get) => readBuildKitUiState(get, revisionId).enabled,
-        (get, set, next: boolean) =>
-            writeBuildKitUiState(
-                get,
-                (value) => set(buildKitUiStateByRevisionAtom, value),
-                revisionId,
-                {enabled: next},
-            ),
+        (get): BuildKitUiState => {
+            const scope = get(workflowBuildKitScopeAtomFamily(revisionId))
+            const all = get(buildKitStateByAgentAtom)
+            const staged = `${get(workflowProjectIdAtom)}:staging:${revisionId}`
+            return normalizeBuildKitState(
+                (scope ? all?.[scope] : undefined) ??
+                    all?.[staged] ??
+                    get(legacyBuildKitStateAtom)?.[revisionId],
+            )
+        },
+        (get, set, next: BuildKitUiState) => {
+            const scope = get(workflowBuildKitScopeAtomFamily(revisionId))
+            if (!scope) return
+            set(buildKitStateByAgentAtom, {
+                ...get(buildKitStateByAgentAtom),
+                [scope]: normalizeBuildKitState(next),
+            })
+        },
     ),
 )
 
-/** Platform ops switched off individually, by `op`. Empty = all on. Persisted like the master flag. */
+// Promote legacy/staged choices before a run or commit can move to another revision.
+export const migrateBuildKitStateAtom = atom(null, (get, set, revisionId: string) => {
+    const scope = get(workflowBuildKitScopeAtomFamily(revisionId))
+    const all = get(buildKitStateByAgentAtom)
+    if (!scope || all?.[scope]) return
+    const staged = `${get(workflowProjectIdAtom)}:staging:${revisionId}`
+    const saved = all?.[staged] ?? get(legacyBuildKitStateAtom)?.[revisionId]
+    if (saved == null) return
+    set(workflowBuildKitUiStateAtomFamily(revisionId), normalizeBuildKitState(saved))
+})
+
+export const transferBuildKitStateAtom = atom(
+    null,
+    (
+        get,
+        set,
+        {
+            revisionId,
+            workflowId,
+            state,
+        }: {
+            revisionId: string
+            workflowId: string
+            state?: BuildKitUiState
+        },
+    ) => {
+        const project = get(workflowProjectIdAtom)
+        if (!project || !workflowId) return
+        const scope = `${project}:agent:${workflowId}`
+        const all = get(buildKitStateByAgentAtom)
+        if (all?.[scope]) return
+        set(buildKitStateByAgentAtom, {
+            ...all,
+            [scope]: state ?? get(workflowBuildKitUiStateAtomFamily(revisionId)),
+        })
+    },
+)
+
+export const workflowBuildKitEnabledAtomFamily = atomFamily((revisionId: string) =>
+    atom(
+        (get) => get(workflowBuildKitUiStateAtomFamily(revisionId)).enabled,
+        (get, set, enabled: boolean) =>
+            set(workflowBuildKitUiStateAtomFamily(revisionId), {
+                ...get(workflowBuildKitUiStateAtomFamily(revisionId)),
+                enabled,
+            }),
+    ),
+)
+
 export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: string) =>
     atom(
-        (get) => readBuildKitUiState(get, revisionId).disabledOps,
-        (get, set, next: string[]) =>
-            writeBuildKitUiState(
-                get,
-                (value) => set(buildKitUiStateByRevisionAtom, value),
-                revisionId,
-                {disabledOps: next},
-            ),
+        (get) => get(workflowBuildKitUiStateAtomFamily(revisionId)).disabledOps,
+        (get, set, disabledOps: string[]) =>
+            set(workflowBuildKitUiStateAtomFamily(revisionId), {
+                ...get(workflowBuildKitUiStateAtomFamily(revisionId)),
+                disabledOps,
+            }),
     ),
 )
 
@@ -1597,8 +1652,11 @@ export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: str
  */
 export const workflowBuildKitOverlayReadyAtomFamily = atomFamily((revisionId: string) =>
     atom<boolean>((get) => {
-        const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
+        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
+        const revisionData = revisionQuery.data ?? null
         const baseEntity = get(workflowBaseEntityAtomFamily(revisionId))
+        // Agent-ness is unknown until the revision loads; without a local entity, keep waiting.
+        if (!baseEntity && revisionQuery.isLoading) return false
         const explicitIsAgent = revisionData?.flags?.is_agent ?? baseEntity?.flags?.is_agent
         const targetUri = revisionData?.data?.uri ?? baseEntity?.data?.uri
         const isAgent = explicitIsAgent ?? isAgentBuiltinUri(targetUri)
@@ -1702,40 +1760,6 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
             },
             enabled,
             staleTime: 60_000,
-        }
-    }),
-)
-
-// ============================================================================
-// INTERFACE SCHEMAS QUERY (builtin workflow fallback)
-// ============================================================================
-
-// NOTE: Disabled — re-enable when `/workflows/interfaces/schemas` is available.
-// function isBuiltinUri(uri: string | null | undefined): boolean {
-//     if (!uri) return false
-//     return uri.startsWith("agenta:builtin:")
-// }
-
-/**
- * Interface schemas query atom family.
- * For builtin workflows, fetches the interface schemas from the
- * `/workflows/interfaces/schemas` endpoint.
- *
- * This is a lightweight fallback that returns static schema definitions
- * for builtin evaluators without requiring the handler to be running.
- *
- * **Only fires for builtin workflows** (URI starts with "agenta:builtin:").
- *
- * NOTE: Currently disabled — the backend endpoint is not yet implemented.
- * Re-enable `enabled` when `/workflows/interfaces/schemas` is available.
- */
-export const workflowInterfaceSchemasAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery((_get) => {
-        return {
-            queryKey: ["workflows", "interfaceSchemas", revisionId],
-            queryFn: async (): Promise<InterfaceSchemasResponse | null> => null,
-            enabled: false,
-            staleTime: Infinity,
         }
     }),
 )

@@ -160,6 +160,45 @@ name the k. A commit-lock race test skipping for want of a reachable Postgres is
 one-line syntax error (`SET LOCAL lock_timeout` with a bind parameter, which Postgres rejects
 outright) survived 1911 green tests before a human hit it as his first live action.
 
+**The two journeys that run many things at once: `burst` and `crosstalk`.** Every other journey
+drives one run at a time, so the gate only ever saw faults that reproduce on a quiet deployment.
+The credential-delivery fault of AGE-4249 does not: about one production first message in five
+failed because some fresh Daytona sandboxes start without their Secret substitution wiring, and
+per cold sandbox that is roughly an 8 percent fault. `burst` sends 16 first messages at the same
+time on 16 brand new sessions, so the run buys 16 cold starts instead of one. `crosstalk` runs 3
+two-turn conversations with long output beside 2 approval flows, and checks that no stream carries
+another session's nonce, except on the codex harness, where the gate rides a platform tool with
+empty arguments, so the approval command carries no nonce and isolation is not checked there
+(`nonce_checked=false`). Both are Daytona-only by default and skip elsewhere; both report the
+runner's stable error code per run, so a `credential_delivery_failed` names itself.
+
+```bash
+uv run resources/qa_product.py --cell C4 --only burst --only crosstalk
+uv run resources/qa_product.py --cell C4 --only burst --burst-size 24         # more cold starts
+uv run resources/qa_product.py --cell C3 --only crosstalk --concurrency-everywhere  # local too
+uv run resources/test_qa_product_concurrency.py                               # offline tests
+```
+
+**Read a green burst honestly.** At an 8 percent per-cold-start fault rate, 8 runs miss the fault
+51 percent of the time, 16 miss it 26 percent, and two Daytona cells at 16 miss it about 7 percent.
+A PASS is a sample, not an all-clear, and the result says so in its own reason line. A FAIL is
+proof.
+
+Each concurrent run holds its own Daytona sandbox, about 5 GiB of the organization's disk, and a
+parked sandbox keeps counting until its auto-delete window closes, so a burst of 16 is about 80
+GiB in flight. The counts are `--burst-size` (default 16), `--crosstalk-conversations` (default 3)
+and `--crosstalk-approvals` (default 2). The cap is 32 concurrent runs: 32 for the burst size, and
+32 for the two crosstalk counts TOGETHER, because what costs disk is what runs at once. When the
+provider refuses on capacity the journey reports SKIP with a loud reason, never a PASS or a FAIL,
+because nothing about the product was measured. `--concurrency-timeout` (default 300s) bounds one
+TURN and rides into the stream as an absolute deadline, so a two-turn crosstalk run gets twice
+that and a stream that never ends is abandoned rather than followed.
+
+A release that changes `services/runner/src/engines/sandbox_agent/**` or
+`services/runner/src/providers/daytona*` makes the Daytona cells C2, C4 and X2 mandatory through
+`path_triggers.py`, and forces `burst` and `crosstalk` into the run even when `--only` named
+something else. That is how these journeys reach a release that needs them.
+
 **Before a human gets a deployment URL, run `resources/qa_commit_approval.py` too.** It is not
 part of `qa_product.py`'s cell × journey matrix — none of that matrix's journeys drive a live turn
 against a REAL, saved workflow revision (the `commit` journey only exercises the REST API; `chat`,
@@ -199,9 +238,9 @@ mechanism-blind cell from scratch, to avoid duplicating scaffolding.
 ## Session control cells
 
 `resources/session_control.py` is a second, standalone driver: sixteen cells that cover Stop,
-durable commands, and the runner's recovery paths (owner release, park/resume, watchdog
-quarantine). It drives the same product endpoint and asserts on the same wire, but it needs its
-own account bootstrap, so it runs as a separate process rather than as `qa_product.py` cells. See
+durable commands, and the runner's recovery paths (park/resume, watchdog quarantine). It drives
+the same product endpoint and asserts on the same wire, but it needs its own account bootstrap,
+so it runs as a separate process rather than as `qa_product.py` cells. See
 `resources/path_triggers.py` for the exact mandatory-cell mechanism.
 
 **These cells are MANDATORY** — run them, not just the standing gate — whenever the release diff
@@ -247,6 +286,33 @@ fallback:
   have a provider key. Lives in `~/.agenta-qa-openai.env`.
 - `ANTHROPIC_API_KEY` — only required for `--harness claude`, stocked into the same vault the
   same way. Lives in `~/.agenta-qa-secrets.env`. A pi_core- or codex-only run does not need it.
+
+**Run `--harness claude` on a custom connection** (for example when the Anthropic key has no
+credit). Set these, and `ANTHROPIC_API_KEY` is no longer needed:
+
+- `AGENTA_QA_CLAUDE_MODEL` — the model key, `<connection name>/custom/<model slug>`, e.g.
+  `orclaude/custom/anthropic/claude-haiku-4.5`.
+- `AGENTA_QA_CLAUDE_PROVIDER` — the protocol the connection speaks; default `anthropic`.
+- `AGENTA_QA_CLAUDE_CONNECTION_SLUG` — the vault slug the agent config names.
+- `AGENTA_QA_CLAUDE_CUSTOM_URL` and `AGENTA_QA_CLAUDE_CUSTOM_KEY` — the connection's base URL
+  and key (for OpenRouter: `https://openrouter.ai/api` and `OPENROUTER_API_KEY` from
+  `~/.agenta-qa-secrets.env`).
+
+The driver mints a fresh account on every run, so a slug copied from another project's vault does
+not exist there. Bootstrap creates the custom connection in the minted vault under the slug you
+give, from the model key, URL and key. `AGENTA_QA_CLAUDE_MODEL` and `AGENTA_QA_CLAUDE_PROVIDER`
+also work alone, to change the model on the vault Anthropic key. `results.json` records the model
+the run used.
+
+**The long-turn prompt is not a bare `sleep N`.** Claude Code refuses a standalone long sleep
+(`Blocked: standalone sleep 45 ... use run_in_background`), the turn ends in seconds, and a later
+Stop gets 409 `current: none`. The cells ask for `timeout N tail -f /dev/null; echo <codeword>`,
+which runs in the foreground for N seconds.
+
+**`stop-approval` asks for a mutating command.** Claude Code auto-approves a read-only command such
+as a bare `echo` whatever the permission policy says, so no approval parks and the cell fails with
+`no pending approval was seen before the Stop`. `runner.kind` is not the cause: the SDK reads only
+`runner.permissions.default`.
 
 A Daytona run additionally needs a Secrets-capable Daytona key on the runner; the key in most
 session env files returns 403 on the Secrets endpoint, so check that before trusting a Daytona
@@ -330,8 +396,8 @@ own `/run`, and that contract moved in v0.117.0:
   conversation from the durable record log and fails with "record log is unreadable". Send a short
   multi-turn history instead. This bites direct callers only; the product endpoint carries the
   transcript itself.
-- `gpt-5.4-mini` is refused by ChatGPT accounts ("not supported when using Codex with a ChatGPT
-  account"). Use `gpt-5.5` or `gpt-5.3-codex-spark` for subscription cells.
+- `gpt-5.4-mini` and `gpt-5.3-codex-spark` are refused by ChatGPT accounts ("not supported when
+  using Codex with a ChatGPT account"). Use `gpt-5.5` for subscription cells.
 - The runner's health endpoint advertises `pi_core` and `claude` only. `codex` dispatches and
   answers normally; the list is a stale hardcoded constant. No cell should gate on it.
 
@@ -654,6 +720,44 @@ environment is destroyed with the approval still pending — "gate pending → e
 without any intervening user turn and without touching the message history. Answering afterwards
 lands on a pool miss and takes the cold decision-map path, which is exactly the state
 `shouldRegateStaleApproval` guards. Worth a spike before concluding this needs a runner-side hook.
+- `resources/matrix_r1_two_replicas.py` — **[coached] runner replicas.** Needs a stack with TWO
+  runner containers and `--project <compose project>` plus `--stack-env <env file>` (runner token,
+  Daytona key). It decides which container served each turn from the containers' own logs
+  (`heartbeat OK session=<s> turn=<t>`, `hit-continue`), the turn ledger, the runner-token
+  streams read (`runner_replica_id`) and `session_commands.claimed_by`, never from the stream.
+  Phase 1 cells (`--cells phase1`): `warm-holder`, `approval-warm` (answered through the respond
+  route like `web/mobile`), `queued-input`, `stop-on-b`, `kill-from-non-holder`,
+  `duplicate-turn-id` (direct `/run` on both container addresses, mock harness) and
+  `inprocess-warm`. Phase 2 cells kill, stop or recreate a runner and SKIP without
+  `--allow-destructive`; `identity-mismatch` also needs `--worktree`, `--recreate-license`,
+  `--recreate-stage` and `--recreate-env-file` (no stack-specific defaults). **A release record
+  needs BOTH phases: `--cells all --allow-destructive`.** A phase-1-only run is partial
+  coverage, and a run where every selected cell SKIPs exits 2, never 0. Two traps it encodes:
+  Claude Code refuses a standalone `sleep N`, so its
+  long turns run `timeout N tail -f /dev/null`; and a queued input must carry only the trailing
+  user message, as the browser sends it, or the runner sees a history mismatch and goes cold.
+  `--subscription hosted` (plus `--subscription-slug`, `--subscription-sandbox daytona|inprocess`,
+  `--pi-model`) runs the six routing cells on Pi with the project's hosted ChatGPT connection
+  and SKIPs them all when that connection is not `ready`; `--subscription mounted` is the
+  operator's Pi login mounted into the runners, `inprocess` only. The other cells SKIP under a
+  subscription shape. Under
+  `hosted`, `hosted-both-pods` (phase 1), `hosted-refresh-across-pods` and
+  `hosted-restart-reconnect` (phase 2) check the hosted login itself on both pods from the pods'
+  `event=subscription.materialize|publish` lines and the row's `login_version` /
+  `login_generation`: both pods run on the login the request delivers, one refresh is pushed
+  back once and reused by the other pod, and a restarted pod needs no device login.
+  `--daytona-harness pi_core` runs the Daytona cells on Pi with the `--custom-name` /
+  `--custom-model` connection instead of Claude Code. `--kube-namespace <ns>` (with
+  `--kube-context`, `--kubeconfig`, `--kube-release`, optional `--kube-secret`) runs against a
+  Helm release with two runner pods: logs are followed per pod from the run start, Postgres is
+  read with `psql` inside an api pod, posts to a pod go through `kubectl port-forward`. There,
+  kill is a force pod delete (the Deployment starts a new pod, so the follow-up may run on B or
+  A's replacement), the drain is a graceful pod delete, `identity-mismatch` SKIPs, and two
+  kube-only phase 2 cells run: `rollout-during-turn` (`rollout restart` under a long turn) and
+  `drain-node-parked-approval` (cordon and drain A's node with a runner-only pod selector, through
+  the PodDisruptionBudget; always uncordoned).
+  Mandatory (via `path_triggers.py`) when the turn binding, Stop routing, follow-up routing, Kill
+  by label, or the drain changes.
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.

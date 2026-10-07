@@ -12,7 +12,8 @@
         "check": "pnpm run types:check && pnpm run lint",
         "test": "vitest run",
         "test:unit": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "test:unit:coverage": "vitest run --coverage"
     },
     "exports": {
         ".": "./src/index.ts"
@@ -27,14 +28,15 @@
         "clsx": "^2.1.1",
         "jotai": "^2.16.1",
         "jotai-family": "^1.0.1",
-        "jotai-tanstack-query": "^0.11.0"
+        "jotai-tanstack-query": "^0.11.0",
+        "motion": "^12.38.0"
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",
         "jotai": ">=2.9.0",
         "jotai-family": ">=0.1.0",
-        "next": ">=14.0.0",
-        "react": ">=18.0.0"
+        "react": ">=18.0.0",
+        "react-dom": ">=18.0.0"
     },
     "devDependencies": {
         "@tanstack/react-query": "5.100.9",
@@ -46,10 +48,11 @@
         "jotai": "^2.15.0",
         "jotai-family": "^1.0.1",
         "jsdom": "^26.1.0",
-        "next": "15.5.24",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "typescript": "^5.9.3",
-        "vitest": "^4.1.4"
+        "vitest": "^4.1.4",
+        "@vitest/coverage-v8": "^4.1.4",
+        "@types/react-dom": "^19.0.4"
     }
 }

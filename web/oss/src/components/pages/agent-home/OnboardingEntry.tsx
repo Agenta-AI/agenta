@@ -13,8 +13,8 @@ import OnboardingLoader from "./PlaygroundOnboarding/OnboardingLoader"
 import AgentHome from "./index"
 
 /**
- * Entry gate for playground-native onboarding (`NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`). Decides
- * BEFORE painting anything so we never flash the wrong surface:
+ * Entry gate for playground-native onboarding. Decides BEFORE painting anything so we never flash
+ * the wrong surface:
  *  - first-run (no agents yet) → the agent-home create surface (`?new=1`);
  *  - returning (has agents)    → the agent-home list, as before;
  *  - `?new=1` (either case)    → the same create surface, which the user asked for by name.

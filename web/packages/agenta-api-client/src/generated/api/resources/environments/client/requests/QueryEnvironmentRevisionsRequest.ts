@@ -4,7 +4,9 @@ import type * as AgentaApi from "../../../../index.js";
 
 /**
  * @example
- *     {}
+ *     {
+ *         body: {}
+ *     }
  */
 export interface QueryEnvironmentRevisionsRequest {
     environment_id?: string | null;
@@ -31,4 +33,5 @@ export interface QueryEnvironmentRevisionsRequest {
     oldest?: string | null;
     limit?: number | null;
     order?: AgentaApi.QueryEnvironmentRevisionsRequestOrder | null;
+    body: AgentaApi.EnvironmentRevisionQueryRequest | null;
 }

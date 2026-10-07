@@ -6,17 +6,23 @@ import {
     compactPendingSendCoverage,
     countUserMessages,
     durableUserTurnIds,
+    echoedDockInputIds,
     nextPendingSendCoverage,
     pendingSendEchoMessages,
     pendingSendsInFlight,
     retirePendingSendEchoes,
+    showsInDock,
     type PendingSendEcho,
 } from "../assets/pendingSendEchoes"
+
+import type {QueuedMessage} from "./useAgentChatQueue"
 
 export interface PendingSendEchoInput {
     id: string
     text: string
     fileParts?: PendingSendEcho["fileParts"]
+    policy?: PendingSendEcho["policy"]
+    docked?: boolean
 }
 
 export interface PendingSendEchoes {
@@ -24,10 +30,19 @@ export interface PendingSendEchoes {
     rows: UIMessage[]
     /** A send left the composer and the runner has neither named its turn's row nor refused it. */
     inFlight: boolean
+    /** Durable input ids a live echo already shows — the dock leaves these out (see
+     *  `echoedDockInputIds`). */
+    dockCoveredIds: ReadonlySet<string>
+    /** Docked echoes, as rows for the queue dock until the server lists them. */
+    dockRows: QueuedMessage[]
+    /** Inputs whose echo just retired into the transcript; the dock's snapshot may lag them. */
+    retiredParkedIds: ReadonlySet<string>
     /** Show a send immediately, before its request leaves. */
     add: (input: PendingSendEchoInput) => void
     /** The server named the turn this send started; from here it retires on that id alone. */
     markAccepted: (id: string, executionId: string) => void
+    /** The server started a turn with this send, so it leaves the dock for the transcript. */
+    markStarted: (id: string) => void
     /** The server parked it; from here it retires when the dock is OBSERVED to list that input. */
     markParked: (id: string, inputId: string) => void
     /**
@@ -93,6 +108,8 @@ export const usePendingSendEchoes = ({
                 id: input.id,
                 text: input.text,
                 fileParts: input.fileParts,
+                policy: input.policy,
+                docked: input.docked,
                 coveredAtUserCount: nextPendingSendCoverage(at, current),
                 createdAtUserCount: at,
             },
@@ -124,6 +141,7 @@ export const usePendingSendEchoes = ({
         (id: string, executionId: string) => mark(id, {executionId}),
         [mark],
     )
+    const markStarted = useCallback((id: string) => mark(id, {docked: false}), [mark])
     const markParked = useCallback(
         (id: string, inputId: string) => mark(id, {parkedInputId: inputId}),
         [mark],
@@ -154,8 +172,49 @@ export const usePendingSendEchoes = ({
         })
     }, [])
 
-    const rows = useMemo(() => pendingSendEchoMessages(visible), [visible])
+    const rows = useMemo(
+        () => pendingSendEchoMessages(visible.filter((item) => !showsInDock(item))),
+        [visible],
+    )
+    const dockRows = useMemo(
+        () =>
+            visible.filter(showsInDock).map(
+                (item): QueuedMessage => ({
+                    id: item.id,
+                    text: item.text,
+                    fileParts: item.fileParts,
+                    source: "local",
+                    editable: false,
+                }),
+            ),
+        [visible],
+    )
     const inFlight = useMemo(() => pendingSendsInFlight(visible), [visible])
+    const retiredParkedIds = useMemo(() => {
+        const ids = new Set<string>()
+        const live = new Set(visible.map((item) => item.id))
+        for (const item of echoes) {
+            const parked = item.parkedInputId
+            if (!parked || item.failed || live.has(item.id)) continue
+            // A queued echo that retired because the dock lists it was handed to the dock.
+            if (item.policy !== "steer" && dockedInputIds.has(parked)) continue
+            ids.add(parked)
+        }
+        return ids
+    }, [echoes, visible, dockedInputIds])
+    const dockCoveredIds = useMemo(() => echoedDockInputIds(visible), [visible])
 
-    return {rows, inFlight, add, markAccepted, markParked, markFailed, drop}
+    return {
+        rows,
+        inFlight,
+        dockCoveredIds,
+        dockRows,
+        retiredParkedIds,
+        add,
+        markAccepted,
+        markStarted,
+        markParked,
+        markFailed,
+        drop,
+    }
 }

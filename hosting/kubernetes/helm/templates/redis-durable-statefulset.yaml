@@ -1,5 +1,6 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $redisDurable := default dict $values.redisDurable -}}
+{{- $startupProbe := default dict $redisDurable.startupProbe -}}
 {{- $persistence := default dict $redisDurable.persistence -}}
 {{- $persistenceEnabled := true -}}
 {{- if hasKey $persistence "enabled" -}}
@@ -22,6 +23,19 @@ spec:
       app.kubernetes.io/component: redis-durable
   template:
     metadata:
+      {{- /* A single-replica pod that holds state: the cluster autoscaler consolidating its node
+             takes the whole component down. On GKE it evicted redis-volatile and supertokens
+             mid-traffic and every agent turn was refused until the replacement pod was ready.
+             The annotation makes the autoscaler skip that node for scale-down. It does not
+             block an operator drain. On GKE Autopilot it also DELAYS automatic node upgrades
+             for that node, and GKE may evict the pod anyway after about seven days, so it is a
+             strong preference, not a guarantee. It is inert where no autoscaler runs. Set
+             `$redisDurable.safeToEvict: true` to opt out, or override the key through
+             `$redisDurable.podAnnotations`. */}}
+      {{- $annotations := dict "cluster-autoscaler.kubernetes.io/safe-to-evict" (ternary "true" "false" (default false $redisDurable.safeToEvict)) -}}
+      {{- $annotations = merge (deepCopy (default dict $redisDurable.podAnnotations)) $annotations }}
+      annotations:
+        {{- toYaml $annotations | nindent 8 }}
       labels:
         {{- include "agenta.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: redis-durable
@@ -80,16 +94,41 @@ spec:
                   name: {{ include "agenta.secretName" . }}
                   key: REDIS_DURABLE_PASSWORD
           {{- end }}
+          {{- /* Liveness and readiness wait for startup to pass. A startup failure
+                 still restarts Redis after 60 attempts, about five minutes by default.
+                 Set redisDurable.startupProbe.failureThreshold higher when replaying the
+                 append-only file can take longer; otherwise restarts repeat the replay. */}}
+          {{- /* The probe passes only when the reply is exactly PONG. redis-cli exits 0
+                 on an error REPLY and fails only on a connection failure, so a bare `ping`
+                 passed while the server answered LOADING during an AOF replay. redis-cli
+                 -e would fix that, but Redis 6.0 and older reject -e, and a pinned old
+                 image then fails every probe. Comparing the reply works on every version. */}}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - '[ "$(redis-cli -p {{ include "agenta.redisDurable.port" . }} ping)" = "PONG" ]'
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: {{ default 60 $startupProbe.failureThreshold }}
           livenessProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
+              command:
+                - sh
+                - -c
+                - '[ "$(redis-cli -p {{ include "agenta.redisDurable.port" . }} ping)" = "PONG" ]'
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 5
           readinessProbe:
             exec:
-              command: ["redis-cli", "-p", {{ include "agenta.redisDurable.port" . | quote }}, "ping"]
+              command:
+                - sh
+                - -c
+                - '[ "$(redis-cli -p {{ include "agenta.redisDurable.port" . }} ping)" = "PONG" ]'
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5

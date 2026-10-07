@@ -1,5 +1,5 @@
 import type {SessionRowVm} from "@agenta/sessions/row"
-import {SessionCardList} from "@agenta/sessions-ui"
+import {SessionCardList, SessionListSkeleton} from "@agenta/sessions-ui"
 import {Button} from "@agenta/ui/ui"
 import {Plus} from "lucide-react"
 import {useRouter} from "next/router"
@@ -17,11 +17,14 @@ import {useStartBlankSession} from "./useStartBlankSession"
  */
 export const SessionsPane = ({
     agentId,
+    agentResolving = false,
     base,
     activeSessionId,
 }: {
-    /** Scope to this agent's sessions. Absent while the session's agent is still resolving. */
+    /** Scope to this agent's sessions. Absent while resolving, or for a session with no agent. */
     agentId?: string | null
+    /** A null `agentId` is not yet the answer. */
+    agentResolving?: boolean
     /** `/w/:workspace/p/:project` */
     base: string
     activeSessionId: string
@@ -55,18 +58,25 @@ export const SessionsPane = ({
                 ) : null}
             </div>
             <div className="ag-scroll-quiet min-h-0 flex-1 overflow-y-auto px-2">
-                <SessionCardList
-                    agentId={agentId ?? undefined}
-                    policy={{origin: "exclude-trigger", expansions: []}}
-                    limit={20}
-                    withPinned
-                    alwaysShowPin
-                    emptyText="No sessions with this agent yet."
-                    onOpenRow={open}
-                    menuFor={menu.menuFor}
-                    onMenuSelect={menu.onMenuSelect}
-                    onRenameRow={menu.onRenameRow}
-                />
+                {/* Held back while resolving: an unscoped list would re-key and refetch once the agent lands. */}
+                {agentId || !agentResolving ? (
+                    <SessionCardList
+                        agentId={agentId ?? undefined}
+                        policy={{origin: "exclude-trigger", expansions: []}}
+                        limit={20}
+                        withPinned
+                        // Beside the transcript, not the screen's point: its reads queue behind it.
+                        lowPriority
+                        alwaysShowPin
+                        emptyText="No sessions with this agent yet."
+                        onOpenRow={open}
+                        menuFor={menu.menuFor}
+                        onMenuSelect={menu.onMenuSelect}
+                        onRenameRow={menu.onRenameRow}
+                    />
+                ) : (
+                    <SessionListSkeleton rows={6} />
+                )}
             </div>
         </div>
     )

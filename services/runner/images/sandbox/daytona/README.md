@@ -6,7 +6,7 @@ Agenta `sandbox-agent` runner path.
 We ship the recipe, not a built snapshot. The operator runs it in their own Daytona account:
 
 ```bash
-DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
+DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py
 ```
 
 Configure the runner service with:
@@ -15,7 +15,7 @@ Configure the runner service with:
 AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local,daytona
 AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER=daytona
 AGENTA_RUNNER_DAYTONA_API_KEY=...
-AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1
+AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v<N>
 ```
 
 The SDK custom-code evaluator runner can share the built snapshot (it reads the separate
@@ -35,7 +35,9 @@ The snapshot recipe therefore:
   hash-pinned Python lock `agent-requirements.txt`, both embedded (gzip, base64, one `RUN`
   line each) because the Daytona build has no repo context. To change the Python set, edit the
   package list, then regenerate the lock with
-  `uv pip compile --python-version 3.11 --generate-hashes --no-header --no-annotate requirements.in -o agent-requirements.txt`;
+  `uv pip compile --python-version 3.11 --generate-hashes --no-header --no-annotate --override overrides.txt requirements.in -o agent-requirements.txt`,
+  where `overrides.txt` holds `pillow==12.3.0` (moviepy 2.2.1 caps Pillow below 12, and the install
+  runs with `--no-deps` so the override holds);
   the install runs with `--require-hashes`, so a hand-edited pin without a hash fails the build. The same file runs in both runner
   Dockerfiles, so the local sandbox and the Daytona sandbox ship one tool list: the everyday shell
   tools, `gh` from GitHub's apt repo, `uv`, `fd` 10.4.2 (Pi's `find` builtin needs a flag Debian's
@@ -44,8 +46,16 @@ The snapshot recipe therefore:
   data, and the web, and one headless Chromium installed by Playwright under
   `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and linked as `chromium`. Every section of the
   script asserts its own pin and fails the build otherwise; the pins live at the top of that file;
-- installs `@earendil-works/pi-coding-agent@0.85.1`;
+- installs `@earendil-works/pi-coding-agent@0.99.1`;
 - fails the build unless `pi --version` succeeds;
+- applies the pi-ai provider-cost patch to the copy of pi-ai bundled into the `pi` CLI: Pi's
+  OpenAI-completions client keeps OpenRouter's billed `usage.cost` instead of replacing it with
+  Pi's price-table estimate, so a Daytona Pi
+  chat span carries the same billed cost as a local one. The spec is single-sourced from
+  `services/runner/src/tools/pi-provider-cost-patch.json` (shared with the runner image
+  build), the step verifies its own write, and the build fails loudly if `parseChunkUsage`
+  drifts. When a custom image lacks Pi, the runner installs it at session time and applies the
+  same patch there;
 - reinstalls the private Pi ACP adapter at `pi-acp@0.0.29` through
   `sandbox-agent install-agent`, rather than installing a global package that the daemon
   would not resolve;
@@ -64,22 +74,75 @@ The snapshot recipe therefore:
 - verifies that the Claude, Codex, and OpenCode binaries are still present; and
 - installs the FUSE and geesefs dependencies used for durable remote working directories.
 
+Every adapter pin replaces only the adapter. `sandbox-agent install-agent --reinstall` would also
+download a second copy of the agent's native CLI, which the adapters do not run (claude-agent-acp
+runs the Claude binary bundled in its SDK package, codex-acp its bundled codex), so the recipe
+removes the base adapter and installs the pinned one without `--reinstall`, and clears the npm
+cache in the same `RUN`.
+
+## Size budget
+
+Daytona refuses a snapshot over 5 GB and counts every image layer, so a file that a later `RUN`
+deletes or overwrites still counts. v0.120.0 hit the cap at 5.53 GB. The script fails the build
+when Daytona reports a size over `SIZE_BUDGET_GB` (4.85), so a staging or trial build flags lost
+headroom before a production build hits the cap. To save space, clean caches in the `RUN` that
+creates them, and do not reinstall what the base image already ships.
+
 The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit. The CLI
 runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the
 adapter version must not be inherited implicitly from the base image because older versions
 do not forward Pi extension dialogs as ACP permission requests.
 
+## Recipe version
+
+The snapshot name is `agenta-agent-sandbox-v<N>`, where `<N>` is the `version` in
+`services/runner/config/sandbox-recipe.json`. The runner asks for that name by default.
+
+Any change to a pinned harness version or to any build input of this recipe needs, in the same
+commit, a bump of that `version` and a regenerated `sandbox-recipe-fingerprint.json`:
+
+```bash
+uv run --with pytest --with daytona python -c "import json, test_recipe_fingerprint as t; open('sandbox-recipe-fingerprint.json', 'w').write(json.dumps({'fingerprint': t.recipe_fingerprint()}, indent=2) + '\n')"
+uv run --with pytest --with daytona python -m pytest -q test_recipe_fingerprint.py
+```
+
+The fingerprint test fails when the inputs change and the fingerprint does not. CI runs it. A new
+version is a new snapshot name: build it in every Daytona account before the runner that asks for
+it deploys.
+
 ## Refreshing an existing snapshot
 
-The snapshot name is pinned, so Daytona keeps serving whatever you built under it. When this recipe
-changes, rebuild it in each Daytona account that uses it:
+Daytona keeps serving whatever you built under a name. When this recipe changes, rebuild it in each
+Daytona account that uses it:
 
 ```bash
 DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
 ```
 
-`--force` is required: without it the script sees the existing snapshot and exits. Sandboxes already
-running keep the old contents; only sandboxes created after the rebuild pick up the change.
+`--force` on a working snapshot replaces it in three steps:
+
+1. It builds a trial snapshot, `<name>-candidate-<timestamp>-<random>`, from the same recipe, running every
+   build assertion. If the trial fails, the script deletes it and exits; the live snapshot is not
+   touched.
+2. Once the trial passes, it deletes the live snapshot and rebuilds it under its real name. New
+   Daytona sandboxes cannot start while this rebuild runs, so rebuild in a quiet window. If the
+   rebuild fails, the script keeps the trial and prints the setting that points the runner at it:
+   `AGENTA_RUNNER_DAYTONA_SNAPSHOT=<trial name>`. Set it and restart the runner.
+3. When the real snapshot is active, it deletes the trial.
+
+Deleting a trial is best effort in both places: if Daytona refuses the delete, the script prints
+a warning naming the trial, and you delete it in Daytona. A leftover trial is clutter, not a risk,
+because no runner points at it.
+
+A snapshot whose build failed (`error` or `build_failed`) never served a sandbox, so `--force`
+replaces it directly. Without `--force`, the script builds nothing when the name already exists.
+Sandboxes already running keep the old contents; only sandboxes created after the rebuild pick up
+the change.
+
+To build beside the live snapshot instead, pass `--name <new-name>`, then set
+`AGENTA_RUNNER_DAYTONA_SNAPSHOT` to that name and restart the runner.
+
+The build decisions have unit tests that need no Daytona account: `uv run test_build_snapshot.py`.
 
 ## Pi installation
 

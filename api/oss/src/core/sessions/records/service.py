@@ -89,7 +89,7 @@ class RecordsService:
         *,
         events: List[SessionRecordEvent],
     ) -> None:
-        if self.executions_dao is None or not env.agenta.sessions.durable_stop:
+        if self.executions_dao is None:
             return
 
         endings: Dict[UUID, Set[Tuple[str, str]]] = {}
@@ -134,7 +134,7 @@ class RecordsService:
         best effort here because records and executions use different database engines; the
         watchdog repeats the reconciliation before it collapses stale ownership.
         """
-        if self.executions_dao is None or not env.agenta.sessions.durable_approvals:
+        if self.executions_dao is None:
             return
 
         candidates = {
@@ -207,9 +207,6 @@ class RecordsService:
         A failed lookup quarantines nothing and appends everything. Losing a record is worse
         than showing one that should have been hidden, and the next delivery gets another go.
         """
-        if not env.agenta.sessions.durable_stop:
-            return events
-
         if self.executions_dao is not None:
             return await self._handle_by_execution_state(events=events)
 
@@ -366,6 +363,35 @@ class RecordsService:
         return await self.records_dao.get_event(
             project_id=project_id,
             record_id=record_id,
+        )
+
+    async def mark_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str] = None,
+    ) -> None:
+        log.warning(
+            "[RECORDS] A runner reported a dropped record; the log cannot rebuild context",
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
+        await self.records_dao.mark_records_incomplete(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def get_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        return await self.records_dao.get_records_incomplete(
+            project_id=project_id,
+            session_id=session_id,
         )
 
     async def get_records_page(

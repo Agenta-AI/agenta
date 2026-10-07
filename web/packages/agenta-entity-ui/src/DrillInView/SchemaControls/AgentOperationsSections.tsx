@@ -16,12 +16,13 @@ import {useCallback, type ReactNode} from "react"
 
 import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
 import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {Plus} from "@phosphor-icons/react"
+import {SkeletonBlock} from "@agenta/ui/ui"
+import {Lightning} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
+import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
 import {
     TriggerManagementSection,
     useAgentTriggers,
@@ -77,7 +78,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                 </div>
             </section>
             <section className="flex grow flex-col" aria-busy>
-                <AgentRegionHeaderBar title="Files" sticky={sticky}>
+                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
@@ -142,14 +143,14 @@ export function AgentOperationsSections({
                             {countSummary(triggerCount, "automation")}
                         </span>
                         {disabled ? null : (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={onAdd}
-                                aria-label="Add automation"
-                            >
-                                <Plus size={16} />
-                            </Button>
+                            <CreateWithAIAddMenu
+                                label="Add automation"
+                                starterPrompt="I want an automation that"
+                                onManual={onAdd}
+                                manualTitle="Create manually"
+                                manualHint="Run on a schedule or an event"
+                                manualIcon={<Lightning size={16} />}
+                            />
                         )}
                     </ConfigRowTrailing>
                 </AgentRegionHeaderBar>
@@ -166,7 +167,7 @@ export function AgentOperationsSections({
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
             <section className="flex grow flex-col">
-                <AgentRegionHeaderBar title="Files" sticky={sticky}>
+                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     {storageHeader}
                 </AgentRegionHeaderBar>
                 {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}

@@ -179,10 +179,9 @@ deployments are irrelevant to clones — clones copy config, not deployments).
   entrypoint but start different servers.
 - **Mobile app:** `web-mobile` serves `/m`. The gateway routes `/m` and `/m/*`
   to it with **no** prefix strip, because the Next app is built with
-  `basePath: "/m"` and owns the prefix. Preview gate policy: `web` sets
-  `AGENTA_MOBILE_GATE=true` so a phone is redirected from a desktop route to
-  `/m`, and `web-mobile` sets `AGENTA_MOBILE_REVERSE_GATE=false` so a reviewer
-  on a laptop can open `/m` directly.
+  `basePath: "/m"` and owns the prefix. A phone is redirected from a desktop
+  route to `/m`, and a reviewer on a laptop can open `/m` directly. The
+  service is part of every environment.
 - **Healthchecks:** set only on `api` and `services`, which both serve
   `/health`. Two services have none on purpose, and `../scripts/configure.sh`
   clears the same two.

@@ -32,7 +32,8 @@ SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}"
 
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
-# Optional: the mobile app is opt-in (see bootstrap.sh AGENTA_RAILWAY_WITH_MOBILE).
+# Optional here only because an environment bootstrapped before web-mobile became
+# standard may still lack the service; bootstrap.sh now always creates it.
 AGENTA_WEB_MOBILE_IMAGE="${AGENTA_WEB_MOBILE_IMAGE:-}"
 AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-}"
 AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-}"
@@ -165,7 +166,7 @@ ENV REDIS_URI_VOLATILE=redis://redis.railway.internal:6379/0
 ENV REDIS_URI_DURABLE=redis://redis.railway.internal:6379/0
 ENV SUPERTOKENS_CONNECTION_URI=http://supertokens.railway.internal:3567
 
-CMD ["gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "entrypoints.uvicorn_worker.DrainingUvicornWorker", "--workers", "2", "--max-requests", "100000", "--max-requests-jitter", "10000", "--timeout", "60", "--graceful-timeout", "900", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
 EOF
 }
 

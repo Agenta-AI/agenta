@@ -93,6 +93,14 @@ RUN pnpm run build:extension
 # installs later.
 RUN node_modules/.bin/tsx scripts/patch-pi-validation-message.ts
 
+# Keep OpenRouter's billed cost. OpenRouter returns the real charge in `usage.cost`, and pi-ai's
+# OpenAI-completions client drops it and prices the tokens from Pi's own table instead. The patch
+# keeps the billed charge in `usage.cost.total` and marks it `source: "provider"`, which the tracer
+# stamps on the chat span. The `local` provider's `pi` and the in-process engine both load this
+# copy. It exits non-zero if `parseChunkUsage` no longer matches, so a pi-ai bump breaks the build.
+# The Daytona snapshot applies the same spec (images/sandbox/daytona/build_snapshot.py).
+RUN node_modules/.bin/tsx scripts/patch-pi-provider-cost.ts
+
 ENV NODE_ENV=production \
     AGENTA_RUNNER_PORT=8765
 
@@ -119,6 +127,11 @@ RUN mkdir -p /var/lib/agenta/runner-state && chown node:node /var/lib/agenta/run
 # another's. Confinement between sessions is the runner's mount namespace, not these bits.
 RUN mkdir -p /var/lib/agenta/mounts && chmod 1777 /var/lib/agenta /var/lib/agenta/mounts
 
+# `inprocess` keeps its session folders at the command sandbox's paths on the runner too
+# (DAYTONA_DURABLE_MOUNT_ROOT, /home/sandbox/agenta/mounts/...), where Pi reads its instructions
+# file: one absolute path must name the same folder in both places. Same 1777 mode, same reason.
+RUN mkdir -p /home/sandbox/agenta/mounts && chmod 1777 /home/sandbox/agenta /home/sandbox/agenta/mounts
+
 # Pin HOME so the sandbox-agent daemon's per-agent install dir ($HOME/.local/share/sandbox-agent)
 # is the same at build time (the pin RUN below) and at runtime (buildDaemonEnv copies HOME into the
 # daemon env). Without a fixed HOME an arbitrary runtime uid would miss the baked pin and reinstall.
@@ -134,18 +147,18 @@ RUN gh --version >/dev/null && uv --version >/dev/null && fd --version >/dev/nul
     && chromium --headless=new --no-sandbox --disable-gpu --dump-dom about:blank 2>/dev/null | grep -q '<html'
 
 # Pin the Codex ACP adapter (decision D-005). The sandbox-agent daemon otherwise installs
-# @agentclientprotocol/codex-acp from the npm registry with a FLOATING `^1.1.7` range at first Codex
+# @agentclientprotocol/codex-acp from the npm registry with a FLOATING `^1.13.1` range at first Codex
 # use, so a later registry release would drift protocol behavior (gate shapes, config channels)
-# under us. `install-agent codex --agent-process-version 1.1.7` pre-installs it here, generating a
-# lockfile (package-lock.json, lockfileVersion 3) that pins codex-acp 1.1.7 exactly (with its
-# bundled @openai/codex 0.145.0). The daemon finds the adapter already present at runtime and skips
+# under us. `install-agent codex --agent-process-version 1.13.1` pre-installs it here, generating a
+# lockfile (package-lock.json, lockfileVersion 3) that pins codex-acp 1.13.1 exactly (with its
+# bundled @openai/codex 0.156.1). The daemon finds the adapter already present at runtime and skips
 # the floating fetch. Codex (codex-acp + @openai/codex) is Apache-2.0, so baking it is licensing-
 # clean, unlike proprietary Claude Code. Pinned versions recorded next to the sandbox-agent pin in
 # package.json. Runs as `node` so the install lands in the runtime user's HOME.
-# PIN: @agentclientprotocol/codex-acp 1.1.7 (bundles @openai/codex 0.145.0).
+# PIN: @agentclientprotocol/codex-acp 1.13.1 (bundles @openai/codex 0.156.1).
 # The sandbox-agent package ships no bin entry (its CLI is a transitive optional dep), so the
 # pin script resolves the daemon binary via the runner's own daemon.ts resolution.
-RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.1.7 -n
+RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.13.1 -n
 
 # Decouple approvals from the full-access sandbox in the adapter we just pinned (decision D-008
 # amendment). codex-acp's `agent-full-access` preset hardcodes `approvalPolicy: "never"`, which
