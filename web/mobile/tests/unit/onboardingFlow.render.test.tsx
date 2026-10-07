@@ -507,6 +507,26 @@ describe("first agent onboarding", () => {
         })
     })
 
+    it("saves the draft once edits pause, and at once when the page hides or unmounts", () => {
+        render(baseProps())
+        toGallery()
+        click(/^New agent/)
+        const savedName = () =>
+            JSON.parse(window.sessionStorage.getItem("onboarding:test") ?? "{}").agent?.name
+        type("Name your agent", "Atl")
+        expect(savedName()).toBe("")
+        act(() => vi.advanceTimersByTime(300))
+        expect(savedName()).toBe("Atl")
+        type("Name your agent", "Atlas")
+        expect(savedName()).toBe("Atl")
+        act(() => window.dispatchEvent(new Event("pagehide")))
+        expect(savedName()).toBe("Atlas")
+        type("Name your agent", "Atlas 2")
+        act(() => root!.unmount())
+        root = undefined
+        expect(savedName()).toBe("Atlas 2")
+    })
+
     it("keeps the message and points at the model note when sent without a model", async () => {
         const props = baseProps({model: model(false)})
         render(props)
