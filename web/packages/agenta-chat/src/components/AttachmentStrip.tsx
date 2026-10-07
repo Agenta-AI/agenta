@@ -67,6 +67,8 @@ const ImageTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
                         src={file.src}
                         alt={file.name}
                         draggable={false}
+                        loading="lazy"
+                        decoding="async"
                         onLoad={() => setSettled({src: file.src ?? "", ok: true})}
                         onError={() => setSettled({src: file.src ?? "", ok: false})}
                         className={`absolute inset-0 h-full w-full object-cover ${
@@ -203,6 +205,8 @@ const OverflowTile = ({
                 src={first.src}
                 alt=""
                 draggable={false}
+                loading="lazy"
+                decoding="async"
                 className="absolute inset-0 h-full w-full object-cover"
             />
         ) : null}

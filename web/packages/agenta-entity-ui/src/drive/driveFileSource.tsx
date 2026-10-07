@@ -99,14 +99,25 @@ export function useRemoteObjectUrl(src: string | null): {
 export function useDriveMediaSrc(
     mount: Mount | null,
     path: string,
+    {direct = false}: {direct?: boolean} = {},
 ): {src: string | null; isPending: boolean; failed: boolean; onError: () => void} {
     const local = useLocalFile(path)
     const mountRes = useMountFileMediaSrc(mount, path)
-    const remote = useRemoteObjectUrl(local && !local.file ? local.src : null)
+    // `direct`: an <img> loads the URL itself (and reuses the browser cache); bytes only on error.
+    const [directFailed, setDirectFailed] = useState<string | null>(null)
+    const tryDirect = direct && Boolean(local && !local.file && directFailed !== local.src)
+    const remote = useRemoteObjectUrl(local && !local.file && !tryDirect ? local.src : null)
     // A local source can still fail to decode (corrupt / unsupported) — surface it like a mount
     // error so the viewer shows its "couldn't load" card rather than a broken element.
     const [failedSrc, setFailedSrc] = useState<string | null>(null)
     if (!local) return mountRes
+    if (tryDirect)
+        return {
+            src: local.src,
+            isPending: false,
+            failed: false,
+            onError: () => setDirectFailed(local.src),
+        }
     const src = local.file ? local.src : remote.url
     const failed = remote.failed || (src !== null && failedSrc === src)
     return {

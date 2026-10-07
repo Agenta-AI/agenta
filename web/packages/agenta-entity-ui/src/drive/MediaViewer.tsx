@@ -84,7 +84,7 @@ function useItemFile(item: MediaViewerItem) {
 }
 
 const ViewerImage = ({mount, path, name}: {mount: Mount | null; path: string; name: string}) => {
-    const {src, isPending, failed, onError} = useDriveMediaSrc(mount, path)
+    const {src, isPending, failed, onError} = useDriveMediaSrc(mount, path, {direct: true})
     const [loaded, setLoaded] = useState<string | null>(null)
     if (failed)
         return (
