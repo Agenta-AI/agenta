@@ -1,12 +1,43 @@
 import {useEffect, useRef, useState, type FormEvent} from "react"
 
 import {clearEmailCodeAttempt, resendEmailCode, submitEmailCodeDetailed} from "@agenta/auth"
+import {
+    ArrowClockwise,
+    ArrowLeft,
+    ArrowUpRight,
+    CheckCircle,
+    CircleNotch,
+    PaperPlaneTilt,
+    Tray,
+} from "@phosphor-icons/react"
 
 import {OtpInput, type OtpInputHandle} from "./OtpInput"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSuccessPayload} from "./types"
 
-const RESEND_COOLDOWN_MS = 60_000
+const CODE_LENGTH = 6
+const RESEND_COOLDOWN_S = 60
+
+/** Webmail inboxes we can open straight to, by the address's domain. */
+const GMAIL: [string, string] = [
+    "Gmail",
+    "https://mail.google.com/mail/u/0/#search/from%3Aagenta+newer_than%3A1h",
+]
+const OUTLOOK: [string, string] = ["Outlook", "https://outlook.live.com/mail/0/"]
+const ICLOUD: [string, string] = ["iCloud Mail", "https://www.icloud.com/mail"]
+const PROTON: [string, string] = ["Proton Mail", "https://mail.proton.me/"]
+const INBOXES: Record<string, [string, string]> = {
+    "gmail.com": GMAIL,
+    "googlemail.com": GMAIL,
+    "outlook.com": OUTLOOK,
+    "hotmail.com": OUTLOOK,
+    "live.com": OUTLOOK,
+    "yahoo.com": ["Yahoo Mail", "https://mail.yahoo.com/"],
+    "icloud.com": ICLOUD,
+    "me.com": ICLOUD,
+    "proton.me": PROTON,
+    "protonmail.com": PROTON,
+}
 
 export interface OtpVerifyFormProps {
     email: string
@@ -22,7 +53,7 @@ export interface OtpVerifyFormProps {
     onFail?: () => void
 }
 
-/** The code step of the OTP flow: six cells, resend with a 60s cooldown, a way back. */
+/** The code step of the OTP flow: six cells that verify on the last one, a resend countdown. */
 export const OtpVerifyForm = ({
     email,
     message,
@@ -34,9 +65,10 @@ export const OtpVerifyForm = ({
     onFail,
 }: OtpVerifyFormProps) => {
     const [code, setCode] = useState("")
-    const [isLoading, setIsLoading] = useState(false)
-    const [resendBlocked, setResendBlocked] = useState(false)
+    const [status, setStatus] = useState<"idle" | "verifying" | "verified">("idle")
+    const [resendIn, setResendIn] = useState(RESEND_COOLDOWN_S)
     const inputRef = useRef<OtpInputHandle>(null)
+    const inbox = INBOXES[email.split("@")[1]?.trim().toLowerCase() ?? ""]
 
     // Returning to the tab means returning with the code — put the caret where it goes.
     useEffect(() => {
@@ -46,111 +78,149 @@ export const OtpVerifyForm = ({
     }, [])
 
     useEffect(() => {
-        if (!resendBlocked) return
-        const timer = setTimeout(() => setResendBlocked(false), RESEND_COOLDOWN_MS)
+        if (resendIn <= 0) return
+        const timer = setTimeout(() => setResendIn((seconds) => seconds - 1), 1000)
         return () => clearTimeout(timer)
-    }, [resendBlocked])
+    }, [resendIn])
 
     const restart = async () => {
         await clearEmailCodeAttempt()
         onRestart()
     }
 
-    const submit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault()
-        if (isLoading) return
-        if (code.trim().length < 6) {
-            setMessage({message: "Invalid OTP!", type: "error"})
-            return
-        }
+    const verify = async (value: string) => {
+        if (status !== "idle") return
         try {
-            setIsLoading(true)
+            setStatus("verifying")
             onSubmitStart?.()
-            const outcome = await submitEmailCodeDetailed(code.trim())
+            const outcome = await submitEmailCodeDetailed(value)
             if (outcome.kind === "ok") {
                 await clearEmailCodeAttempt()
-                setMessage({message: "Verification successful", type: "success"})
+                setStatus("verified")
                 await onSuccess({
                     user: outcome.user,
                     createdNewRecipeUser: outcome.createdNewRecipeUser,
                 })
-            } else if (outcome.kind === "incorrect") {
+                return
+            }
+            setStatus("idle")
+            setCode("")
+            inputRef.current?.focus()
+            if (outcome.kind === "incorrect") {
+                const left = outcome.attemptsLeft
                 setMessage({
-                    message: "Invalid code, Please try again.",
-                    sub: `Retry available  ${outcome.attemptsLeft}`,
+                    message: `That code isn’t right. ${left} ${left === 1 ? "attempt" : "attempts"} left.`,
                     type: "error",
                 })
             } else if (outcome.kind === "expired") {
                 setMessage({
-                    message: "Your code has expired",
-                    sub: "Please request for a new code below",
+                    message: "This code has expired. Request a new one below.",
                     type: "error",
                 })
+                setResendIn(0)
             } else {
-                setMessage({message: "Authentication failed. Please try again", type: "error"})
+                setMessage({message: "Authentication failed. Please try again.", type: "error"})
                 onFail?.()
                 await restart()
             }
         } catch (error) {
+            setStatus("idle")
             onAuthError?.(error)
             onFail?.()
-        } finally {
-            setIsLoading(false)
         }
+    }
+
+    const handleCode = (value: string) => {
+        if (status !== "idle") return
+        setCode(value)
+        if (message.type === "error") setMessage({} as AuthMessage)
+        if (value.length === CODE_LENGTH) void verify(value)
+    }
+
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        if (code.length < CODE_LENGTH) {
+            setMessage({message: "Enter all 6 characters of the code.", type: "error"})
+            return
+        }
+        void verify(code)
     }
 
     const resend = async () => {
         const outcome = await resendEmailCode()
         if (outcome.kind === "ok") {
-            setMessage({message: "New code sent successfully", type: "info"})
-            setResendBlocked(true)
+            setMessage({message: "New code sent.", type: "info"})
+            setCode("")
+            setResendIn(RESEND_COOLDOWN_S)
+            inputRef.current?.focus()
         } else {
-            setMessage({message: "Resend OTP failed. Please try again", type: "error"})
+            setMessage({message: "Could not send a new code. Please try again.", type: "error"})
             await restart()
         }
     }
 
     return (
-        <div className="w-full">
-            <form className="flex w-full flex-col gap-4" onSubmit={submit}>
-                {message.type === "error" && <ShowErrorMessage info={message} />}
-                <input
-                    type="email"
-                    value={email}
-                    disabled
-                    className="auth-input auth-locked-input"
-                />
+        <div className="flex w-full flex-col gap-[22px]">
+            <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
                 <OtpInput
                     ref={inputRef}
                     value={code}
-                    onChange={setCode}
+                    onChange={handleCode}
+                    length={CODE_LENGTH}
                     error={message.type === "error"}
                     autoFocus
-                    disabled={isLoading}
+                    disabled={status === "verified"}
                 />
-                <button type="submit" className="auth-btn-yellow" disabled={isLoading}>
-                    {isLoading ? "Verifying…" : "Continue with OTP"}
-                </button>
+                {status === "verifying" ? (
+                    <p className="auth-status-text m-0">
+                        <CircleNotch size={14} className="motion-safe:animate-spin" />
+                        Verifying…
+                    </p>
+                ) : status === "verified" ? (
+                    <p className="auth-status-text auth-status-success m-0">
+                        <CheckCircle size={15} />
+                        Code verified
+                    </p>
+                ) : message.type === "error" ? (
+                    <ShowErrorMessage info={message} />
+                ) : message.message ? (
+                    <p className="auth-status-text m-0">
+                        <PaperPlaneTilt size={14} />
+                        {message.message}
+                    </p>
+                ) : null}
             </form>
 
-            <div className="mt-4 grid gap-2 text-center">
-                <button type="button" className="auth-quiet-btn w-full" onClick={restart}>
-                    ← Use a different email
+            <div className="auth-step-footer">
+                <button type="button" className="auth-quiet-btn -ml-2" onClick={restart}>
+                    <ArrowLeft size={14} />
+                    Use a different email
                 </button>
                 <button
                     type="button"
-                    className="auth-quiet-btn w-full"
-                    disabled={resendBlocked || isLoading}
+                    className="auth-resend-btn"
+                    disabled={resendIn > 0 || status !== "idle"}
                     onClick={resend}
                 >
-                    Resend one-time password
+                    <ArrowClockwise size={12} />
+                    {resendIn > 0
+                        ? `Resend code · 0:${String(resendIn).padStart(2, "0")}`
+                        : "Resend code"}
                 </button>
-                {resendBlocked && (
-                    <span className="text-colorTextQuaternary">
-                        Please wait to request new code (60s)
-                    </span>
-                )}
             </div>
+
+            {inbox ? (
+                <a href={inbox[1]} target="_blank" rel="noopener noreferrer" className="auth-inbox-link">
+                    <Tray size={18} className="mt-px flex-none text-[var(--a-secondary)]" />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="text-sm font-medium">Open {inbox[0]} to find your code</span>
+                        <span className="truncate text-[13px] text-[var(--a-secondary)]">
+                            Sent to {email}
+                        </span>
+                    </span>
+                    <ArrowUpRight size={15} className="mt-0.5 flex-none text-[var(--a-secondary)]" />
+                </a>
+            ) : null}
         </div>
     )
 }

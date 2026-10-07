@@ -1,6 +1,7 @@
 import {useState, type FormEvent} from "react"
 
 import {requestEmailCode} from "@agenta/auth"
+import {CircleNotch, EnvelopeSimple} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import {ShowErrorMessage} from "./ShowErrorMessage"
@@ -37,7 +38,7 @@ export const PasswordlessRequestForm = ({
         event.preventDefault()
         if (isLoading) return
         if (!email.trim()) {
-            setMessage({message: "Please input your email!", type: "error"})
+            setMessage({message: "Please add your email.", type: "error"})
             return
         }
         const token = security ? security.ensureToken() : null
@@ -47,7 +48,7 @@ export const PasswordlessRequestForm = ({
             security?.stampToken(token)
             const outcome = await requestEmailCode(email.trim())
             if (outcome.kind === "ok") {
-                setMessage({message: "Check your inbox for the OTP to continue!", type: "success"})
+                setMessage({message: "Code sent. Not there? Check spam.", type: "info"})
                 onCodeSent()
             } else {
                 setMessage({message: outcome.message, type: "error"})
@@ -61,22 +62,33 @@ export const PasswordlessRequestForm = ({
     }
 
     return (
-        <form className="w-full space-y-2" onSubmit={submit} noValidate>
-            {message.type === "error" && <ShowErrorMessage info={message} />}
-            <input
-                type="email"
-                autoComplete="email"
-                aria-label="Email address"
-                placeholder="Enter valid email address"
-                value={email}
-                disabled={lockEmail}
-                className={clsx("auth-input", lockEmail && "auth-locked-input")}
-                onChange={(event) => setEmail(event.target.value)}
-            />
+        <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
+            {lockEmail ? null : (
+                <input
+                    type="email"
+                    autoComplete="email"
+                    aria-label="Email address"
+                    placeholder="Enter your email address"
+                    value={email}
+                    className={clsx("auth-input", message.type === "error" && "auth-input-error")}
+                    onChange={(event) => setEmail(event.target.value)}
+                />
+            )}
             {security?.widget}
             <button type="submit" className="auth-btn-yellow" disabled={disabled || isLoading}>
-                {isLoading ? "Sending…" : "Continue with OTP"}
+                {isLoading ? (
+                    <>
+                        <CircleNotch size={16} className="motion-safe:animate-spin" />
+                        <span>Sending code…</span>
+                    </>
+                ) : (
+                    <>
+                        <EnvelopeSimple size={16} />
+                        <span>Email me a one-time code</span>
+                    </>
+                )}
             </button>
+            {message.type === "error" && <ShowErrorMessage info={message} />}
         </form>
     )
 }

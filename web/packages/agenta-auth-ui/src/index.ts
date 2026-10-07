@@ -23,6 +23,7 @@ export {
     type UseSignInFlowOptions,
 } from "./useSignInFlow"
 export {EmailFirstForm, type EmailFirstFormProps} from "./EmailFirstForm"
+export {EmailChip, type EmailChipProps} from "./EmailChip"
 export {
     SocialAuthButtons,
     type SocialAuthButtonsProps,

@@ -375,10 +375,130 @@
 .auth-redesign .auth-input::placeholder {
     color: var(--a-faint);
 }
-.auth-redesign .auth-input-promoted {
-    height: 48px;
-    box-shadow: var(--a-surface-shadow-strong);
+.auth-redesign .auth-input-tagged {
     padding-right: 96px;
+}
+
+/* Small square icon button inside a field (show password). */
+.auth-icon-btn {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--a-secondary);
+    cursor: pointer;
+}
+.auth-icon-btn:hover,
+.auth-icon-btn:focus-visible {
+    color: var(--a-heading);
+    background-color: var(--a-chip-bg);
+}
+
+/* The address a step carries forward, with a way back to change it. */
+.auth-email-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    max-width: 100%;
+    height: 32px;
+    padding: 0 4px 0 10px;
+    border-radius: 8px;
+    background-color: var(--a-surface-bg);
+    box-shadow: var(--a-surface-shadow);
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--a-heading);
+}
+.auth-email-chip-change {
+    flex: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--a-secondary);
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 5px;
+}
+.auth-email-chip-change:hover,
+.auth-email-chip-change:focus-visible {
+    color: var(--a-heading);
+    background-color: var(--a-chip-bg);
+}
+
+/* Back on the left, resend on the right, under a hairline. */
+.auth-step-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--a-hairline);
+}
+.auth-resend-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background-color: var(--a-surface-bg);
+    box-shadow: var(--a-surface-shadow);
+    color: var(--a-heading);
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+.auth-resend-btn:hover:not(:disabled),
+.auth-resend-btn:focus-visible {
+    box-shadow: var(--a-surface-shadow-strong);
+}
+.auth-resend-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+.auth-inbox-link {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background-color: var(--a-chip-bg);
+    box-shadow: 0 0 0 1px var(--a-chip-ring);
+    color: var(--a-heading);
+    line-height: 20px;
+    text-decoration: none;
+}
+.auth-inbox-link:hover,
+.auth-inbox-link:focus-visible {
+    box-shadow: var(--a-surface-shadow-strong);
+}
+
+/* Inline error and status lines under a form. */
+.auth-error-text {
+    color: var(--a-error, #d61010);
+    font-size: 13px;
+    line-height: 20px;
+}
+.auth-status-text {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--a-secondary);
+    font-size: 13px;
+    line-height: 20px;
+}
+.auth-status-success {
+    color: var(--a-success);
 }
 
 /* Last-used tag */
@@ -427,12 +547,6 @@
     text-decoration: underline;
 }
 
-/* Locked email (a step that carries the address forward, not an editable field) */
-.auth-redesign .auth-locked-input {
-    opacity: 0.75;
-    cursor: not-allowed;
-}
-
 /* Error ring on inputs (native replacement for antd's status="error") */
 .auth-redesign .auth-input-error {
     box-shadow: 0 0 0 1px var(--a-error, #d61010);
@@ -447,12 +561,12 @@
 .auth-otp-cell {
     flex: 1;
     min-width: 0;
-    height: 44px;
+    height: 52px;
     border: none;
     outline: none;
     border-radius: 8px;
     text-align: center;
-    font-size: 16px;
+    font-size: 20px;
     font-weight: 500;
     background-color: var(--a-surface-bg);
     box-shadow: var(--a-surface-shadow);
