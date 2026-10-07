@@ -5,6 +5,8 @@ import {motion} from "motion/react"
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
+import {AppTileStack} from "../marketplace/AppTileStack"
+
 import {OnboardingAgentChip} from "./OnboardingAgentChip"
 import {appIdentity, type ConnectedApps} from "./onboardingApps"
 import {ONBOARDING_COPY} from "./onboardingCopy"
@@ -75,16 +77,15 @@ export const OnboardingAgentPreview = ({
                         {instructions || copy.previewEmpty}
                     </p>
                     {apps.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                            {apps.map((app) => (
-                                <span
-                                    key={app.key}
-                                    className="bg-muted ring-accent inline-flex h-[26px] items-center gap-1.5 rounded-md px-2 text-xs ring-1"
-                                >
-                                    <img src={app.logo} alt="" className="size-3.5 object-contain" />
-                                    {app.name}
-                                </span>
-                            ))}
+                        <div className="flex min-w-0 items-center gap-2">
+                            <AppTileStack
+                                decorative
+                                size="xs"
+                                apps={apps.map((app) => ({slug: app.key, name: app.name, logo: app.logo}))}
+                            />
+                            <span className="text-muted-foreground truncate text-xs">
+                                {apps.map((app) => app.name).join(", ")}
+                            </span>
                         </div>
                     ) : null}
                     <div className="ring-accent text-muted-foreground flex h-10 items-center justify-between rounded-[9px] pl-3 pr-1.5 text-[13px] ring-1">

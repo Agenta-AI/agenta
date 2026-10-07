@@ -1,8 +1,11 @@
 import type {ReactNode} from "react"
 
-import {PROVIDERS, templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {PROVIDERS, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {Button} from "@agenta/ui/ui"
 import {ArrowRight, Lightning} from "@phosphor-icons/react"
+
+import {AppTileStack} from "../marketplace/AppTileStack"
+import {templateProviders} from "../marketplace/marketplaceView"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {OnboardingTemplateTile} from "./OnboardingTemplateTile"
@@ -53,7 +56,7 @@ export const OnboardingTemplateDetail = ({
     template: AgentStarterTemplate
     onUse: (template: AgentStarterTemplate) => void
 }) => {
-    const providers = templateProviderSlugs(template).filter((slug) => PROVIDERS[slug])
+    const providers = templateProviders(template)
     const required = template.connections.some((slot) => slot.required)
     const steps = templateSteps(template)
     const nodes = [
@@ -96,18 +99,9 @@ export const OnboardingTemplateDetail = ({
                     <div className="flex flex-col gap-2">
                         <span className={ONBOARDING_COPY.kickerClass}>{copy.connects}</span>
                         <div className="flex items-center gap-2.5">
-                            <span className="flex">
-                                {providers.map((slug) => (
-                                    <span
-                                        key={slug}
-                                        className="bg-background ring-border -mr-px inline-flex size-6 items-center justify-center rounded-md ring-1 ring-inset"
-                                    >
-                                        <AppLogo slug={slug} size={14} />
-                                    </span>
-                                ))}
-                            </span>
+                            <AppTileStack apps={providers} size="sm" decorative />
                             <span className="min-w-0 flex-1 text-sm leading-5">
-                                {joinNames(providers.map((slug) => PROVIDERS[slug].label))}
+                                {joinNames(providers.map((app) => app.name))}
                             </span>
                             <span className="text-muted-foreground text-[13px] leading-5">
                                 {required ? copy.required : copy.optional}
