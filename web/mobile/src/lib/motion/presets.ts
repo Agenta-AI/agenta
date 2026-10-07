@@ -98,6 +98,13 @@ export const fadeUp: Variants = {
     exit: {opacity: 0, transition: {duration: 0.12, ease: "easeOut"}},
 }
 
+/** A panel opening in place under its row, and folding away again. */
+export const expand: Variants = {
+    initial: {height: 0, opacity: 0},
+    animate: {height: "auto", opacity: 1, transition: stepTransition},
+    exit: {height: 0, opacity: 0, transition: {duration: 0.2, ease: "easeOut"}},
+}
+
 /** A mark popping in when its value changes (an icon swapped for another). */
 export const pop: Variants = {
     initial: {scale: 0.6, opacity: 0},
@@ -160,6 +167,7 @@ export interface MotionPresets {
     sharedAxisPush: Variants
     stepSlide: Variants
     fadeUp: Variants
+    expand: Variants
     pop: Variants
     stepTransition: Transition
     tiltFollow: Transition
@@ -208,6 +216,7 @@ export function useMotionPresets(): MotionPresets {
                       sharedAxisPush: instant,
                       stepSlide: instant,
                       fadeUp: instant,
+                      expand: instant,
                       pop: instant,
                       stepTransition: instantTransition,
                       tiltFollow: instantTransition,
@@ -235,6 +244,7 @@ export function useMotionPresets(): MotionPresets {
                       sharedAxisPush,
                       stepSlide,
                       fadeUp,
+                      expand,
                       pop,
                       stepTransition,
                       tiltFollow,

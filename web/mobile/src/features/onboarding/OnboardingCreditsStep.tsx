@@ -8,12 +8,13 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@agenta/ui/ui"
-import {ArrowRight, Check, Coins, Key, OpenAiLogo} from "@phosphor-icons/react"
+import {ArrowRight, Check, Coins, OpenAiLogo} from "@phosphor-icons/react"
 
 import {WalletCard} from "../wallet/WalletCard"
 import {formatUsd, MUSD_PER_CREDIT} from "../wallet/walletFormat"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
+import {OnboardingKeyRow} from "./OnboardingKeyRow"
 import {onboardingHeadingId} from "./onboardingRoute"
 import {OnboardingWayRow} from "./OnboardingWayRow"
 import {OnboardingCreditsSkeleton} from "./states/OnboardingCreditsSkeleton"
@@ -97,21 +98,7 @@ export const OnboardingCreditsStep = ({
                     }
                 />
             ) : null}
-            <OnboardingWayRow
-                delay={0.44}
-                icon={<Key size={15} />}
-                title={copy.key}
-                hint={
-                    keys.connections.length > 0
-                        ? copy.keyUsing(keys.connections[0].name, keys.connections.length - 1)
-                        : copy.keyHint
-                }
-                action={
-                    <Button variant="outline" className={ACTION} onClick={keys.openDrawer}>
-                        {copy.addKey}
-                    </Button>
-                }
-            />
+            <OnboardingKeyRow keys={keys} delay={0.44} />
         </div>
     )
 
