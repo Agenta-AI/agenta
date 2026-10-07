@@ -139,6 +139,8 @@ export const OnboardingCreditsStep = ({
                                     entrance
                                     interactive
                                     glow
+                                    // Fills the column, so the glow lands under the row as in the design.
+                                    className="sm:flex-1"
                                 />
                             </div>
                         ) : null}
