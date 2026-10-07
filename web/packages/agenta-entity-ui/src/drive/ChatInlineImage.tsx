@@ -22,9 +22,11 @@ import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {mediaViewerAtom} from "./MediaViewer"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
-/** The preview's box: never wider than this, never taller than `MAX_HEIGHT`. */
+/** The image: never wider than this, never taller than `MAX_HEIGHT`, never past its own size. */
 const MAX_WIDTH = 320
 const MAX_HEIGHT = 360
+/** The figure: wide enough for the caption's name and two buttons, whatever the image's size. */
+const MIN_FRAME_WIDTH = 180
 
 export function ChatInlineImage({candidate}: {candidate: string}) {
     const sessionId = useDriveSessionId() ?? ""
@@ -75,16 +77,17 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
             index: 0,
         })
     const width = Math.min(MAX_WIDTH, data.width, (MAX_HEIGHT * data.width) / data.height)
+    const frameWidth = Math.max(MIN_FRAME_WIDTH, width)
     return (
         <figure
             className="mx-0 my-2 max-w-full overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary"
-            style={{width}}
+            style={{width: frameWidth}}
         >
             <button
                 type="button"
                 aria-label={`Expand ${name}`}
                 onClick={expand}
-                className="block w-full cursor-zoom-in border-0 bg-transparent p-0"
+                className="flex w-full cursor-zoom-in justify-center border-0 bg-colorFillTertiary p-0"
             >
                 {/* A generated data URL; next/image cannot optimize it. */}
                 <img
@@ -93,8 +96,8 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
                     width={data.width}
                     height={data.height}
                     draggable={false}
-                    className="block h-auto w-full"
-                    style={{aspectRatio: `${data.width} / ${data.height}`}}
+                    className="block h-auto max-w-full"
+                    style={{width, aspectRatio: `${data.width} / ${data.height}`}}
                 />
             </button>
             <figcaption className="flex min-w-0 items-center gap-0.5 border-0 border-t border-solid border-colorBorderSecondary py-0.5 pl-2 pr-0.5 text-xs leading-5 text-colorTextSecondary">
