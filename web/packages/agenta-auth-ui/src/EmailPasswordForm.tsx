@@ -1,9 +1,18 @@
 import {useEffect, useState, type FormEvent} from "react"
 
 import {signInDetailed, signUpDetailed} from "@agenta/auth"
-import {Check, CircleNotch, Eye, EyeSlash} from "@phosphor-icons/react"
-import clsx from "clsx"
+import {
+    Input,
+    InputGroup,
+    InputGroupAddon,
+    InputGroupButton,
+    InputGroupInput,
+    LoadingButton,
+    cn,
+} from "@agenta/ui/ui"
+import {Check, Eye, EyeSlash} from "@phosphor-icons/react"
 
+import {FIELD_CLASS, KEYCAP_CLASS} from "./classes"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSecurityAdapter, AuthSuccessPayload} from "./types"
 import {useShake} from "./useShake"
@@ -118,61 +127,59 @@ export const EmailPasswordForm = ({
         }
     }
 
+    const invalid = message.type === "error" || undefined
+
     return (
         <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
             {/* A locked address is shown by the host; the field stays for password managers. */}
-            <input
+            <Input
                 type="email"
                 autoComplete="username"
                 aria-label="Email address"
+                aria-invalid={invalid}
                 placeholder="Enter your email address"
                 value={email}
                 readOnly={lockEmail}
                 tabIndex={lockEmail ? -1 : undefined}
-                className={clsx(
-                    lockEmail ? "sr-only" : "auth-input",
-                    message.type === "error" && "auth-input-error",
-                )}
+                size="lg"
+                className={lockEmail ? "sr-only" : FIELD_CLASS}
                 onChange={(event) => setEmail(event.target.value)}
             />
-            <div className={clsx("relative", shakeClass)}>
-                <input
+            <InputGroup className={cn("h-11 rounded-lg", shakeClass)}>
+                <InputGroupInput
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     aria-label="Password"
+                    aria-invalid={invalid}
                     placeholder="Password"
                     value={password}
                     autoFocus={lockEmail}
-                    className={clsx(
-                        "auth-input pr-11",
-                        message.type === "error" && "auth-input-error",
-                    )}
+                    className="h-full px-3 text-sm md:text-sm"
                     onChange={(event) => setPassword(event.target.value)}
                 />
-                <button
-                    type="button"
-                    className="auth-icon-btn absolute right-2 top-1/2 -translate-y-1/2"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    onClick={() => setShowPassword((shown) => !shown)}
-                >
-                    {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
-                </button>
-            </div>
-            <button type="submit" className="auth-btn-yellow" disabled={isLoading || signedIn}>
-                {signedIn ? (
-                    <span key="done" className="auth-swap">
-                        <Check size={16} />
-                        Signed in
-                    </span>
-                ) : isLoading ? (
-                    <span key="busy" className="auth-swap">
-                        <CircleNotch size={16} className="motion-safe:animate-spin" />
-                        Signing in…
-                    </span>
-                ) : (
-                    <span key="idle">Continue with password</span>
-                )}
-            </button>
+                <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                        size="icon-xs"
+                        className="size-7 text-muted-foreground hover:text-foreground"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((shown) => !shown)}
+                    >
+                        {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
+                    </InputGroupButton>
+                </InputGroupAddon>
+            </InputGroup>
+            <LoadingButton
+                type="submit"
+                size="lg"
+                loading={isLoading && !signedIn}
+                disabled={signedIn}
+                className={KEYCAP_CLASS}
+            >
+                <span key={signedIn ? "done" : isLoading ? "busy" : "idle"} className="auth-swap">
+                    {signedIn ? <Check size={16} /> : null}
+                    {signedIn ? "Signed in" : isLoading ? "Signing in…" : "Continue with password"}
+                </span>
+            </LoadingButton>
             {message.type === "error" && <ShowErrorMessage info={message} />}
             {security?.widget}
         </form>

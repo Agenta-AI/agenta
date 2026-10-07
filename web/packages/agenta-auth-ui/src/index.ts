@@ -1,6 +1,6 @@
 /**
- * @agenta/auth-ui — the sign-in surface's building blocks, extracted from the OSS design
- * (auth.css carries the scoped brand tokens, light + dark). Plain elements only; flows run
+ * @agenta/auth-ui — the sign-in surface's building blocks, on the @agenta/ui primitives and the
+ * theme tokens (auth.css keeps only the panel, the preview mock and the keyframes). Flows run
  * on @agenta/auth; anything app-specific (post-auth redirect, provider transport, the
  * "Learn more" modal) arrives through props. The forms take their security check through
  * the neutral AuthSecurityAdapter; the one adapter both apps use — Cloudflare Turnstile,
@@ -15,6 +15,13 @@ export {AuthDivider} from "./AuthDivider"
 export {default as AuthSideBanner} from "./AuthSideBanner"
 export {AuthShell, type AuthShellProps} from "./AuthShell"
 export {AgentaMark, AgentaWordmark} from "./AgentaBrand"
+export {
+    HEADLINE_CLASS,
+    KEYCAP_CLASS,
+    STATUS_TEXT_CLASS,
+    SUBLINE_CLASS,
+    SURFACE_CLASS,
+} from "./classes"
 export {NotFoundScreen, type NotFoundScreenProps} from "./NotFoundScreen"
 export {
     useSignInFlow,

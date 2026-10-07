@@ -1,9 +1,10 @@
 import {useState, type FormEvent} from "react"
 
 import {requestEmailCode} from "@agenta/auth"
-import {CircleNotch, EnvelopeSimple} from "@phosphor-icons/react"
-import clsx from "clsx"
+import {Input, LoadingButton} from "@agenta/ui/ui"
+import {EnvelopeSimple} from "@phosphor-icons/react"
 
+import {FIELD_CLASS, KEYCAP_CLASS} from "./classes"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSecurityAdapter} from "./types"
 
@@ -64,30 +65,31 @@ export const PasswordlessRequestForm = ({
     return (
         <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
             {lockEmail ? null : (
-                <input
+                <Input
                     type="email"
                     autoComplete="email"
                     aria-label="Email address"
+                    aria-invalid={message.type === "error" || undefined}
                     placeholder="Enter your email address"
                     value={email}
-                    className={clsx("auth-input", message.type === "error" && "auth-input-error")}
+                    size="lg"
+                    className={FIELD_CLASS}
                     onChange={(event) => setEmail(event.target.value)}
                 />
             )}
             {security?.widget}
-            <button type="submit" className="auth-btn-yellow" disabled={disabled || isLoading}>
-                {isLoading ? (
-                    <span key="busy" className="auth-swap">
-                        <CircleNotch size={16} className="motion-safe:animate-spin" />
-                        Sending code…
-                    </span>
-                ) : (
-                    <span key="idle" className="inline-flex items-center gap-2.5">
-                        <EnvelopeSimple size={16} />
-                        Email me a one-time code
-                    </span>
-                )}
-            </button>
+            <LoadingButton
+                type="submit"
+                size="lg"
+                loading={isLoading}
+                disabled={disabled}
+                className={KEYCAP_CLASS}
+            >
+                <span key={isLoading ? "busy" : "idle"} className="auth-swap">
+                    {isLoading ? null : <EnvelopeSimple size={16} />}
+                    {isLoading ? "Sending code…" : "Email me a one-time code"}
+                </span>
+            </LoadingButton>
             {message.type === "error" && <ShowErrorMessage info={message} />}
         </form>
     )

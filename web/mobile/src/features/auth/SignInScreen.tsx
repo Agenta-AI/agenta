@@ -12,9 +12,14 @@ import {
     SocialAuthButtons,
     useSignInFlow,
     useTurnstileSecurity,
+    HEADLINE_CLASS,
+    KEYCAP_CLASS,
+    SUBLINE_CLASS,
+    SURFACE_CLASS,
     type AuthSuccessPayload,
     type SignInStage,
 } from "@agenta/auth-ui"
+import {LoadingButton} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
 import {AgentaLogo} from "@/components/AgentaLogo"
@@ -158,20 +163,22 @@ export const SignInScreen = () => {
                 ) : null}
                 {(methods.password || methods.otp) && methods.sso.length ? <AuthDivider /> : null}
                 {methods.sso.map((provider) => (
-                    <button
+                    <LoadingButton
                         key={provider.id}
                         type="button"
-                        className={methods.password || methods.otp ? "auth-surface-btn" : "auth-btn-yellow"}
-                        disabled={flow.redirecting}
+                        size="lg"
+                        variant={methods.password || methods.otp ? "outline" : "default"}
+                        className={methods.password || methods.otp ? SURFACE_CLASS : KEYCAP_CLASS}
+                        loading={flow.redirecting}
                         onClick={() => void flow.startSso(provider)}
                     >
                         {flow.redirecting
                             ? `Redirecting to ${provider.label}…`
                             : `Continue with SSO (${provider.label})`}
-                    </button>
+                    </LoadingButton>
                 ))}
                 {!methods.password && !methods.otp && methods.sso.length === 0 ? (
-                    <p className="auth-subline m-0">
+                    <p className={SUBLINE_CLASS}>
                         This email has no sign-in method here. Try another address.
                     </p>
                 ) : null}
@@ -207,7 +214,7 @@ export const SignInScreen = () => {
                         promoted={entry.promotedEmail}
                     />
                 ) : null}
-                <p className="auth-terms m-0">
+                <p className="m-0 text-xs leading-[18px] text-muted-foreground [&_a]:text-muted-foreground [&_a]:no-underline [&_a:hover]:text-foreground [&_a:hover]:underline">
                     By continuing, you agree to Agenta&apos;s{" "}
                     <a href={TERMS_URL} target="_blank" rel="noopener noreferrer">
                         Terms of Service
@@ -225,7 +232,7 @@ export const SignInScreen = () => {
     return (
         <AuthShell
             leaving={leaving}
-            header={<AgentaLogo className="h-[23px] w-auto text-[var(--a-heading)]" />}
+            header={<AgentaLogo className="h-[23px] w-auto text-foreground" />}
         >
             <div
                 key={loading ? "loading" : flow.stage}
@@ -233,8 +240,8 @@ export const SignInScreen = () => {
             >
                 {chip}
                 <header className="flex flex-col gap-1">
-                    <h1 className="auth-headline auth-headline-form m-0">{heading}</h1>
-                    <p className="auth-subline m-0 text-pretty">{subheading}</p>
+                    <h1 className={HEADLINE_CLASS}>{heading}</h1>
+                    <p className={SUBLINE_CLASS}>{subheading}</p>
                 </header>
                 {body}
             </div>

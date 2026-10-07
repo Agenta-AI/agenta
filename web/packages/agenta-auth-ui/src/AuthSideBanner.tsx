@@ -3,11 +3,11 @@
  * headline, and a live mock of the Automations page. It hides itself below `lg`; the phone layout
  * is the form alone.
  *
- * Styles come from auth.css (`.auth-panel`, `.auth-chip`), so the panel needs no props — only
- * the surrounding `.auth-redesign` scope.
+ * The dotted panel and the preview's colors come from auth.css; the rest is theme tokens.
  */
 import {memo, useLayoutEffect, useRef, useState} from "react"
 
+import {Button} from "@agenta/ui/ui"
 import {GithubLogo} from "@phosphor-icons/react"
 
 import {ProductPreview} from "./ProductPreview"
@@ -46,16 +46,18 @@ const AuthSideBanner = () => {
                 className="flex flex-col gap-3.5 pr-8"
                 style={{transform: `translateY(${offset}px)`}}
             >
-                <a
-                    href="https://github.com/Agenta-AI/agenta"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="auth-chip self-start"
+                <Button
+                    asChild
+                    variant="outline"
+                    size="xs"
+                    className="self-start rounded-full bg-background pl-2 pr-2.5 text-xs font-medium no-underline shadow-[var(--ag-boxShadowTertiary)]"
                 >
-                    <GithubLogo size={14} weight="fill" />
-                    <span>Open Source</span>
-                </a>
-                <h2 className="auth-headline auth-headline-panel m-0 max-w-[520px]">
+                    <a href="https://github.com/Agenta-AI/agenta" target="_blank" rel="noopener noreferrer">
+                        <GithubLogo size={14} weight="fill" />
+                        Open Source
+                    </a>
+                </Button>
+                <h2 className="auth-headline m-0 max-w-[520px] text-balance text-[clamp(28px,3vw,40px)] font-semibold leading-[1.15] tracking-[-0.02em] text-foreground">
                     Agents that run while you work on something else
                 </h2>
             </div>

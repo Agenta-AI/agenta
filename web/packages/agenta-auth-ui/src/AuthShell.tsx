@@ -43,7 +43,7 @@ export const AuthShell = ({
     leaving = false,
 }: AuthShellProps) => (
     <main
-        className={`auth-redesign auth-shell flex min-h-dvh w-full lg:h-screen lg:overflow-hidden ${leaving ? "auth-shell-leaving" : ""}`}
+        className={`auth-redesign auth-shell flex min-h-dvh w-full bg-background text-foreground lg:h-screen lg:overflow-hidden ${leaving ? "auth-shell-leaving" : ""}`}
         data-display-font={displayFontUrl ? "serif" : undefined}
     >
         {displayFontUrl && (

@@ -1,14 +1,8 @@
-/* Sign-in / sign-up redesign — scoped brand tokens and component styles.
-   These values come straight from the design handoff (design_handoff_signin_redesign)
-   and are intentionally raw brand tokens rather than the app's antd palette: the auth
-   screen is a bare marketing surface with its own yellow keycap language.
-   Everything is scoped under .auth-redesign so nothing leaks into the product app. */
+/* Sign-in surface: only what the @agenta/ui primitives and the theme tokens cannot express.
+   That is the optional display font, the dotted product panel, the preview mock's palette
+   (mapped onto the --ag-* theme vars), and the design's keyframes. Scoped to .auth-redesign. */
 
-/* ── Headlines ───────────────────────────────────────────────────────────────
-   Default (every install): Inter, weighted so the headings read as an intentional
-   choice, not a fallback. A deploy-time display font is optional — when its URL is
-   configured, the page injects an @font-face for "Agenta Display" and sets
-   data-display-font="serif" on the root, switching to the lighter display treatment. */
+/* With a deploy-time display font configured, headlines switch to its lighter weight. */
 .auth-headline {
     font-family:
         "Agenta Display",
@@ -20,188 +14,78 @@
         "Helvetica Neue",
         Arial,
         sans-serif;
-    color: var(--a-heading);
 }
-.auth-headline-form {
-    font-size: 34px;
-    line-height: 40px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-}
-.auth-headline-panel {
-    font-size: clamp(28px, 3vw, 40px);
-    line-height: 1.15;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    text-wrap: balance;
-}
-/* With the optional display font loaded, use its lighter weight and natural spacing. */
 .auth-redesign[data-display-font="serif"] .auth-headline {
     font-weight: 300;
     letter-spacing: 0;
 }
 
-/* ── Scoped design tokens ────────────────────────────────────────────────── */
-.auth-redesign {
-    --a-page: #f6f5f3;
-    --a-panel: #ffffff;
-    --a-panel-ring: #e5e5e3;
-    --a-heading: #242424;
-    --a-secondary: #676770;
-    --a-faint: #a3a19f;
-    --a-hairline: #f0efed;
-    --a-chip-bg: #f6f5f3;
-    --a-chip-ring: #f0efed;
-    --a-surface-bg: #ffffff;
-    --a-surface-shadow: 0 0 0 1px rgba(72, 70, 68, 0.08), 0 1px 3px rgba(72, 70, 68, 0.08);
-    --a-surface-shadow-strong: 0 0 0 1px #a3a19f, 0 1px 3px rgba(72, 70, 68, 0.1);
-    --a-tag-bg: #f6f5f3;
-    --a-tag-ring: #f0efed;
-    --a-tag-text: #676770;
-    --a-pill-sel-bg: #242424;
-    --a-pill-sel-text: #ffffff;
-    --a-yellow: linear-gradient(180deg, #f2f25c 0%, #e7e712 100%);
-    --a-yellow-shadow: inset 0 2px 6.4px rgba(255, 255, 255, 0.8);
-    --a-dot: rgba(72, 70, 68, 0.14);
-    --a-success: #389e0d;
-    --a-running: #e7e712;
-    --a-mock-bg: #ffffff;
-    --a-mock-sidebar: #f7f7f6;
-    --a-mock-line: #ecebe8;
-    --a-mock-subtle: #fafaf9;
-    --a-mock-faint: #8a8886;
-    --a-mock-pending: #d9d7d3;
-    --a-mock-cta-bg: #1e1c1d;
-    --a-mock-cta-text: #ffffff;
-    --a-preview-shadow: 0 30px 80px rgba(72, 70, 68, 0.16), 0 0 0 1px rgba(72, 70, 68, 0.1);
-}
-
-.dark .auth-redesign {
-    --a-page: #1e1c1d;
-    --a-panel: #242220;
-    --a-panel-ring: rgba(229, 229, 227, 0.1);
-    --a-heading: #ffffff;
-    --a-secondary: rgba(255, 255, 255, 0.64);
-    --a-faint: rgba(255, 255, 255, 0.4);
-    --a-hairline: rgba(229, 229, 227, 0.1);
-    --a-chip-bg: rgba(255, 255, 255, 0.06);
-    --a-chip-ring: rgba(229, 229, 227, 0.1);
-    --a-surface-bg: rgba(255, 255, 255, 0.04);
-    --a-surface-shadow: 0 0 0 1px rgba(229, 229, 227, 0.1);
-    --a-surface-shadow-strong: 0 0 0 1px rgba(255, 255, 255, 0.28);
-    --a-tag-bg: rgba(255, 255, 255, 0.08);
-    --a-tag-ring: rgba(229, 229, 227, 0.1);
-    --a-tag-text: rgba(255, 255, 255, 0.72);
-    --a-pill-sel-bg: #ffffff;
-    --a-pill-sel-text: #242424;
-    --a-dot: rgba(255, 255, 255, 0.08);
-    --a-success: #52c41a;
-    --a-mock-bg: #242220;
-    --a-mock-sidebar: #1e1c1d;
-    --a-mock-line: rgba(229, 229, 227, 0.1);
-    --a-mock-subtle: rgba(255, 255, 255, 0.03);
-    --a-mock-faint: rgba(255, 255, 255, 0.45);
-    --a-mock-pending: rgba(255, 255, 255, 0.24);
-    --a-mock-cta-bg: #ffffff;
-    --a-mock-cta-text: #242424;
-    --a-preview-shadow: 0 30px 80px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(229, 229, 227, 0.1);
-}
-
-/* Page + panel */
-.auth-redesign {
-    background-color: var(--a-page);
-    color: var(--a-heading);
-}
-/* The sign-in frame is the white column; the product panel beside it is the page tone. */
-.auth-shell {
-    background-color: var(--a-panel);
-    animation: auth-fade-in 0.3s ease both;
-}
-/* Played once a sign-in succeeds, before the post-auth loader fades in over it. */
-.auth-shell-leaving {
-    animation: auth-out 0.42s ease both;
-}
+/* The product panel: page tone with a dot grid. */
 .auth-panel {
-    background-color: var(--a-page);
-    background-image: radial-gradient(var(--a-dot) 1px, transparent 1px);
+    background-color: var(--ag-colorBgLayout);
+    background-image: radial-gradient(var(--ag-colorBorder) 1px, transparent 1px);
     background-size: 20px 20px;
-    box-shadow: 0 0 0 1px var(--a-panel-ring);
+    box-shadow: 0 0 0 1px var(--ag-colorBorderSecondary);
 }
 
-/* GitHub chip */
-.auth-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px 4px 8px;
-    border-radius: 999px;
-    background-color: var(--a-panel);
-    box-shadow: var(--a-surface-shadow);
-    color: var(--a-heading);
-    font-size: 12px;
-    line-height: 18px;
-    font-weight: 500;
-    text-decoration: none;
-    transition: box-shadow 0.15s ease;
-}
-.auth-chip:hover,
-.auth-chip:focus-visible {
-    box-shadow: var(--a-surface-shadow-strong);
-}
-
-/* Product preview: a static-colored mock of the app, themed with the page. */
+/* Product preview: a mock of the app, drawn in the app's own theme colors. */
 .auth-preview-frame {
-    box-shadow: var(--a-preview-shadow);
+    box-shadow:
+        0 0 0 1px var(--ag-colorBorderSecondary),
+        var(--ag-boxShadowSecondary);
 }
 .auth-preview {
-    background-color: var(--a-mock-bg);
-    color: var(--a-heading);
+    background-color: var(--ag-colorBgContainer);
+    color: var(--ag-colorText);
 }
 .auth-preview-sidebar {
-    background-color: var(--a-mock-sidebar);
-    border-right: 1px solid var(--a-mock-line);
+    background-color: var(--ag-colorBgLayout);
+    border-right: 1px solid var(--ag-colorBorderSecondary);
 }
 .auth-preview-nav-active {
-    background-color: var(--a-mock-bg);
-    box-shadow: var(--a-surface-shadow);
+    background-color: var(--ag-colorBgContainer);
+    box-shadow:
+        0 0 0 1px var(--ag-colorBorderSecondary),
+        var(--ag-boxShadowTertiary);
 }
 .auth-preview-muted {
-    color: var(--a-secondary);
+    color: var(--ag-colorTextSecondary);
 }
 .auth-preview-faint {
-    color: var(--a-mock-faint);
+    color: var(--ag-colorTextTertiary);
 }
 .auth-preview-ring-dot {
-    box-shadow: inset 0 0 0 1.25px var(--a-mock-faint);
+    box-shadow: inset 0 0 0 1.25px var(--ag-colorTextTertiary);
 }
 .auth-preview-pending {
-    box-shadow: inset 0 0 0 1.25px var(--a-mock-pending);
+    box-shadow: inset 0 0 0 1.25px var(--ag-colorBorder);
 }
 .auth-preview-success {
-    color: var(--a-success);
+    color: var(--ag-colorSuccess);
 }
 .auth-preview-success-bg {
-    background-color: var(--a-success);
+    background-color: var(--ag-colorSuccess);
 }
 .auth-preview-running-bg {
-    background-color: var(--a-running);
+    background-color: var(--ag-hero-action-bg);
 }
 .auth-preview-cta {
-    background-color: var(--a-mock-cta-bg);
-    color: var(--a-mock-cta-text);
+    background-color: var(--ag-colorBgSpotlight);
+    color: var(--ag-colorTextLightSolid);
 }
 .auth-preview-feature {
-    background-color: var(--a-mock-subtle);
-    box-shadow: 0 0 0 1px var(--a-mock-line);
+    background-color: var(--ag-colorFillQuaternary);
+    box-shadow: 0 0 0 1px var(--ag-colorBorderSecondary);
 }
 .auth-preview-card,
 .auth-preview-tag {
-    background-color: var(--a-mock-bg);
-    box-shadow: 0 0 0 1px var(--a-mock-line);
+    background-color: var(--ag-colorBgContainer);
+    box-shadow: 0 0 0 1px var(--ag-colorBorderSecondary);
 }
 .auth-preview-divider {
-    border-top: 1px solid var(--a-hairline);
+    border-top: 1px solid var(--ag-colorSplit);
 }
+/* App logos keep their brand colors, so their tiles stay white in both themes. */
 .auth-preview-app {
     display: inline-flex;
     width: 30px;
@@ -209,482 +93,14 @@
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    background-color: #ffffff;
+    background-color: var(--ag-colorWhite);
     box-shadow:
-        0 0 0 1px var(--a-mock-line),
-        0 1px 2px rgba(72, 70, 68, 0.06);
-}
-
-/* Form heading + copy */
-.auth-subline {
-    color: var(--a-secondary);
-    font-size: 15px;
-    line-height: 22px;
-}
-
-/* Data residency label */
-.auth-label {
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    font-size: 12px;
-    line-height: 18px;
-    font-weight: 500;
-    color: var(--a-secondary);
-}
-.auth-link {
-    color: var(--a-secondary);
-    font-size: 12px;
-    line-height: 18px;
-    text-decoration: none;
-}
-.auth-link:hover {
-    color: var(--a-heading);
-    text-decoration: underline;
-}
-
-/* Region pills */
-.auth-pill {
-    flex: 1;
-    height: 40px;
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-size: 14px;
-    line-height: 20px;
-    font-weight: 500;
-    cursor: pointer;
-    border: none;
-    background-color: var(--a-surface-bg);
-    box-shadow: var(--a-surface-shadow);
-    color: var(--a-secondary);
-    transition:
-        box-shadow 0.15s ease,
-        background-color 0.15s ease;
-}
-.auth-pill:disabled {
-    cursor: default;
-}
-.auth-pill-selected {
-    background: var(--a-pill-sel-bg);
-    color: var(--a-pill-sel-text);
-    box-shadow: none;
-}
-
-/* Surface buttons (OAuth, neutral Continue) */
-.auth-surface-btn {
-    width: 100%;
-    height: 44px;
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    font-size: 14px;
-    line-height: 20px;
-    font-weight: 500;
-    cursor: pointer;
-    border: none;
-    background-color: var(--a-surface-bg);
-    box-shadow: var(--a-surface-shadow);
-    color: var(--a-heading);
-    transition:
-        box-shadow 0.15s ease,
-        opacity 0.15s ease;
-}
-.auth-surface-btn:hover:not(:disabled),
-.auth-surface-btn:focus-visible {
-    box-shadow: var(--a-surface-shadow-strong);
-}
-.auth-surface-btn:disabled {
-    opacity: 0.6;
-    cursor: default;
-}
-.auth-surface-btn svg {
-    width: 16px;
-    height: 16px;
-}
-
-/* Promoted last-used surface button (2b) — taller, stronger ring */
-.auth-surface-btn-promoted {
-    height: 48px;
-    box-shadow: var(--a-surface-shadow-strong);
-}
-
-/* Yellow keycap primary */
-.auth-btn-yellow {
-    width: 100%;
-    height: 44px;
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-size: 14px;
-    line-height: 20px;
-    font-weight: 500;
-    cursor: pointer;
-    border: none;
-    color: #242424;
-    background: var(--a-yellow);
-    box-shadow: var(--a-yellow-shadow);
-    transition: filter 0.15s ease;
-}
-.auth-btn-yellow:hover:not(:disabled) {
-    filter: brightness(1.03);
-}
-.auth-btn-yellow:focus-visible {
-    box-shadow: var(--a-yellow-shadow), var(--a-surface-shadow-strong);
-}
-.auth-btn-yellow:disabled {
-    opacity: 0.7;
-    cursor: default;
-}
-
-/* Post-discovery antd primary buttons (password / OTP / SSO submit) inherit the
-   same yellow keycap so the whole screen speaks one visual language. */
-.auth-redesign .ant-btn-primary,
-.auth-redesign .ant-btn-primary:hover,
-.auth-redesign .ant-btn-primary:focus {
-    background: var(--a-yellow);
-    box-shadow: var(--a-yellow-shadow);
-    color: #242424;
-    border: none;
-    border-radius: 8px;
-    font-weight: 500;
-}
-.auth-redesign .ant-btn-primary:hover {
-    filter: brightness(1.03);
-}
-
-/* Inputs (plain elements — the package renders native inputs) */
-.auth-redesign .auth-input {
-    width: 100%;
-    box-sizing: border-box;
-    border: none;
-    outline: none;
-    padding: 0 12px;
-    height: 44px;
-    border-radius: 8px;
-    background-color: var(--a-surface-bg);
-    box-shadow: var(--a-surface-shadow);
-    color: var(--a-heading);
-    font-size: 14px;
-}
-/* `outline: none` above removes the platform focus ring, so every focusable
-   surface restates one with the same stronger ring the OTP cells use. */
-.auth-redesign .auth-input:focus-visible {
-    box-shadow: var(--a-surface-shadow-strong);
-}
-.auth-redesign .auth-input::placeholder {
-    color: var(--a-faint);
-}
-.auth-redesign .auth-input-tagged {
-    padding-right: 96px;
-}
-
-/* Small square icon button inside a field (show password). */
-.auth-icon-btn {
-    display: inline-flex;
-    width: 28px;
-    height: 28px;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--a-secondary);
-    cursor: pointer;
-}
-.auth-icon-btn:hover,
-.auth-icon-btn:focus-visible {
-    color: var(--a-heading);
-    background-color: var(--a-chip-bg);
-}
-
-/* The address a step carries forward, with a way back to change it. */
-.auth-email-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    align-self: flex-start;
-    max-width: 100%;
-    height: 32px;
-    padding: 0 4px 0 10px;
-    border-radius: 8px;
-    background-color: var(--a-surface-bg);
-    box-shadow: var(--a-surface-shadow);
-    font-size: 13px;
-    line-height: 20px;
-    color: var(--a-heading);
-}
-.auth-email-chip-change {
-    flex: none;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    color: var(--a-secondary);
-    font-size: 13px;
-    line-height: 20px;
-    font-weight: 500;
-    padding: 2px 6px;
-    border-radius: 5px;
-}
-.auth-email-chip-change:hover,
-.auth-email-chip-change:focus-visible {
-    color: var(--a-heading);
-    background-color: var(--a-chip-bg);
-}
-
-/* Back on the left, resend on the right, under a hairline. */
-.auth-step-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding-top: 14px;
-    border-top: 1px solid var(--a-hairline);
-}
-.auth-resend-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 10px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    background-color: var(--a-surface-bg);
-    box-shadow: var(--a-surface-shadow);
-    color: var(--a-heading);
-    font-size: 12px;
-    line-height: 18px;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-}
-.auth-resend-btn:hover:not(:disabled),
-.auth-resend-btn:focus-visible {
-    box-shadow: var(--a-surface-shadow-strong);
-}
-.auth-resend-btn:disabled {
-    opacity: 0.55;
-    cursor: default;
-}
-.auth-inbox-link {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: 10px;
-    background-color: var(--a-chip-bg);
-    box-shadow: 0 0 0 1px var(--a-chip-ring);
-    color: var(--a-heading);
-    line-height: 20px;
-    text-decoration: none;
-}
-.auth-inbox-link:hover,
-.auth-inbox-link:focus-visible {
-    box-shadow: var(--a-surface-shadow-strong);
-}
-
-/* Inline error and status lines under a form. */
-.auth-error-text {
-    color: var(--a-error, #d61010);
-    font-size: 13px;
-    line-height: 20px;
-}
-.auth-status-text {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--a-secondary);
-    font-size: 13px;
-    line-height: 20px;
-}
-.auth-status-success {
-    color: var(--a-success);
-}
-
-/* Last-used tag */
-.auth-last-used-tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background-color: var(--a-tag-bg);
-    box-shadow: 0 0 0 1px var(--a-tag-ring);
-    color: var(--a-tag-text);
-    font-size: 11px;
-    line-height: 16px;
-    font-weight: 500;
-    white-space: nowrap;
-}
-
-/* Divider with "or" */
-.auth-divider {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    color: var(--a-faint);
-    font-size: 12px;
-    line-height: 18px;
-}
-.auth-divider::before,
-.auth-divider::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background-color: var(--a-hairline);
-}
-
-/* Terms */
-.auth-terms {
-    color: var(--a-secondary);
-    font-size: 12px;
-    line-height: 18px;
-}
-.auth-terms a {
-    color: var(--a-secondary);
-    text-decoration: none;
-}
-.auth-terms a:hover {
-    text-decoration: underline;
-}
-
-/* Error ring on inputs (native replacement for antd's status="error") */
-.auth-redesign .auth-input-error {
-    box-shadow: 0 0 0 1px var(--a-error, #d61010);
-}
-
-/* OTP cells — six boxes, one character each */
-.auth-otp-group {
-    display: flex;
-    gap: 8px;
-    width: 100%;
-}
-.auth-otp-cell {
-    flex: 1;
-    min-width: 0;
-    height: 52px;
-    border: none;
-    outline: none;
-    border-radius: 8px;
-    text-align: center;
-    font-size: 20px;
-    font-weight: 500;
-    background-color: var(--a-surface-bg);
-    box-shadow: var(--a-surface-shadow);
-    color: var(--a-heading);
-    text-transform: uppercase;
-}
-.auth-otp-group .auth-otp-cell:focus {
-    box-shadow: var(--a-surface-shadow-strong);
-}
-.auth-otp-cell-filled {
-    box-shadow:
-        0 0 0 1px rgba(72, 70, 68, 0.2),
-        0 1px 3px rgba(72, 70, 68, 0.08);
-    animation: auth-cell-fill 0.15s ease both;
-}
-.dark .auth-otp-cell-filled {
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
-}
-.auth-otp-cell {
-    transition:
-        box-shadow 0.15s ease,
-        opacity 0.15s ease;
-}
-.auth-otp-group-verifying .auth-otp-cell {
-    opacity: 0.6;
-}
-.auth-otp-group.auth-otp-group-verified .auth-otp-cell {
-    box-shadow: 0 0 0 1px var(--a-success);
-}
-.auth-otp-group.auth-otp-group-error .auth-otp-cell {
-    box-shadow: 0 0 0 1px var(--a-error, #d61010);
-}
-
-/* Quiet link-style buttons (back, resend) */
-.auth-quiet-btn {
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    color: var(--a-secondary);
-    font-size: 13px;
-    line-height: 20px;
-    padding: 6px 8px;
-    border-radius: 8px;
-}
-.auth-quiet-btn:hover:not(:disabled) {
-    color: var(--a-heading);
-}
-.auth-quiet-btn:focus-visible {
-    color: var(--a-heading);
-    box-shadow: var(--a-surface-shadow-strong);
-}
-.auth-quiet-btn:disabled {
-    opacity: 0.6;
-    cursor: default;
-}
-
-/* ── 404 ─────────────────────────────────────────────────────────────────────
-   The numerals are the page's only oversized type, so they get their own scale
-   rather than a headline token: the mark stands in for the middle zero, and the
-   two 4s have to close around it tightly enough to read as one word. */
-.auth-404-digits {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family:
-        var(--font-inter),
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        Roboto,
-        "Helvetica Neue",
-        Arial,
-        sans-serif;
-    /* Scales with the viewport so the glyph block never outgrows a phone screen. */
-    font-size: clamp(96px, 15vw, 196px);
-    font-weight: 900;
-    line-height: 1;
-    letter-spacing: -0.04em;
-    color: var(--a-heading);
-}
-/* Sized against the numerals' cap height, not their em box, so the leaf sits on the
-   same optical line as the 4s. The small negative margins take up the slack in the SVG's
-   own letterboxing without letting the leaf collide with either 4. */
-.auth-404-mark {
-    height: 0.7em;
-    width: auto;
-    margin: 0 -0.04em;
-    flex: none;
-}
-
-/* Error code + failed address. The quietest text on the page — it is here to be
-   quoted into a bug report, not read. */
-.auth-404-code {
-    color: var(--a-faint);
-    font-size: 12px;
-    line-height: 18px;
-}
-
-/* The keycap and surface buttons are full-width by default because the sign-in
-   column stacks them. Here they sit side by side and size to their labels. */
-.auth-btn-auto {
-    width: auto;
-    padding: 0 20px;
-    text-decoration: none;
+        0 0 0 1px var(--ag-colorBorderSecondary),
+        var(--ag-boxShadowTertiary);
 }
 
 /* ── Motion ──────────────────────────────────────────────────────────────────
-   Keyframes from the sign-in design. Every one is shortened to nothing under
-   reduced motion at the end of this block, so they stay state changes, not motion. */
+   Keyframes from the sign-in design, all shortened to nothing under reduced motion. */
 @keyframes auth-fade-in {
     from {
         opacity: 0;
@@ -766,7 +182,7 @@
         transform: translateX(2px);
     }
 }
-@keyframes auth-cell-fill {
+@keyframes auth-pop {
     from {
         transform: scale(0.94);
     }
@@ -775,6 +191,13 @@
     }
 }
 
+.auth-shell {
+    animation: auth-fade-in 0.3s ease both;
+}
+/* Played once a sign-in succeeds, before the post-auth loader fades in over it. */
+.auth-shell-leaving {
+    animation: auth-out 0.42s ease both;
+}
 /* A sign-in step arriving: from the right going forward, from the left going back. */
 .auth-step-fwd {
     animation: auth-step-fwd 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
@@ -788,9 +211,8 @@
 .auth-shake-b {
     animation: auth-shake-b 380ms ease;
 }
-/* Errors, notices and a button's busy or done label rise in when they change. */
-.auth-error-text,
-.auth-status-text,
+/* Errors, notices and a button's changing label rise in. */
+.auth-rise,
 .auth-swap {
     animation: auth-fade-up 0.2s ease both;
 }
@@ -798,6 +220,9 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
+}
+.auth-otp-pop {
+    animation: auth-pop 0.15s ease both;
 }
 .auth-preview-enter {
     animation: auth-fade-up 0.4s ease both;
