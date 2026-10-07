@@ -13,10 +13,7 @@ const isTwoColumn = () => window.matchMedia?.(TWO_COLUMN).matches ?? false
 const scrollerOf = (node: HTMLElement | null) =>
     node?.closest<HTMLElement>("[data-onboarding-scroller]") ?? null
 
-/**
- * The gallery's phone view: a focused panel replaces the list, and closing it brings the list
- * back where it was scrolled.
- */
+/** On a phone the focused panel replaces the list, which keeps its scroll on return. */
 export const useGalleryDetail = (rootRef: RefObject<HTMLElement | null>, focused: boolean) => {
     const twoColumn = useSyncExternalStore(subscribe, isTwoColumn, () => false)
     const open = focused && !twoColumn

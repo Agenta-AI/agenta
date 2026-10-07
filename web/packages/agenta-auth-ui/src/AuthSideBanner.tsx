@@ -1,10 +1,4 @@
-/**
- * The product panel beside the sign-in form on wide viewports: the open-source pill, the
- * headline, and a live mock of the Automations page. It hides itself below `lg`; the phone layout
- * is the form alone.
- *
- * The dotted panel and the preview's colors come from auth.css; the rest is theme tokens.
- */
+/** The product panel beside the sign-in form on wide screens. */
 import {memo, useLayoutEffect, useRef, useState} from "react"
 
 import {Button} from "@agenta/ui/ui"
@@ -52,7 +46,11 @@ const AuthSideBanner = () => {
                     size="xs"
                     className="self-start rounded-full bg-background pl-2 pr-2.5 text-xs font-medium no-underline shadow-[var(--ag-boxShadowTertiary)]"
                 >
-                    <a href="https://github.com/Agenta-AI/agenta" target="_blank" rel="noopener noreferrer">
+                    <a
+                        href="https://github.com/Agenta-AI/agenta"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
                         <GithubLogo size={14} weight="fill" />
                         Open Source
                     </a>

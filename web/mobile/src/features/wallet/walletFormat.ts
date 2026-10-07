@@ -1,4 +1,4 @@
-export const MUSD_PER_USD = 1_000_000
+const MUSD_PER_USD = 1_000_000
 /** 1 credit = 1 US cent. */
 export const MUSD_PER_CREDIT = 10_000
 

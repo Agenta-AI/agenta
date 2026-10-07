@@ -40,7 +40,7 @@ export function getEnv(key: string): string {
     return buildEnv[key] ?? process.env[key] ?? ""
 }
 
-/** The guided first-agent onboarding replaces the empty project's Home. */
+/** Gates the per-user onboarding redirect after sign-up. */
 export const isOnboardingFlowEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED").toLowerCase() === "true"
 

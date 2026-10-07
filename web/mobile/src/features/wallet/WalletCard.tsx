@@ -13,7 +13,7 @@ import {cn} from "@/lib/utils"
 const MARK =
     "M115.504 95.9335C115.221 98.4384 116.607 99.1695 118.671 98.2233C124.787 95.4184 149.253 82.6572 162.347 82.6572C166.663 82.6572 184.04 84.7181 149.838 117.918C121.062 145.85 113.265 139.835 111.236 137.807C105.889 132.459 108.817 117.798 109.715 110.453C110.039 107.807 109.134 106.985 106.571 108.131C83.5096 118.441 40.4169 140 16.5021 140C-29.3433 140 33.8427 64.9164 43.6743 52.9651C76.3083 13.2951 97.3726 0 109.234 0C130.713 0 121.893 39.2078 115.504 95.9335Z"
 
-export const WALLET_CARD_COPY = {
+const copy = {
     brand: "Agenta",
     label: "Wallet",
     balance: "Balance",
@@ -22,8 +22,6 @@ export const WALLET_CARD_COPY = {
     rate: (usd: string) => `1 credit = ${usd}`,
     active: "Active",
 }
-
-const copy = WALLET_CARD_COPY
 
 export interface WalletCardProps {
     /** Spendable balance in micro-USD; `null` shows `emptyHint` in its place. */

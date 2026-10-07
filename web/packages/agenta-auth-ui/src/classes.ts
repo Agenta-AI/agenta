@@ -1,7 +1,4 @@
-/**
- * The sign-in look as className on the shared primitives: one source, so every step's controls
- * stay the same size and color. Colors come from the theme (`--ag-*` and the shadcn tokens).
- */
+/** The sign-in look as classNames on the shared primitives, on theme tokens. */
 
 /** The brand keycap on `Button`: the one primary action of a step. Classes stay literal for Tailwind's scan. */
 export const KEYCAP_CLASS = [

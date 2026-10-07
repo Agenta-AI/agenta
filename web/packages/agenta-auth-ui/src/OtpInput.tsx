@@ -12,10 +12,7 @@ export interface OtpInputHandle {
     focus: () => void
 }
 
-/**
- * Six one-character cells over one string value (antd `Input.OTP` replacement, plain
- * elements). Paste fills from the first cell; typing advances; Backspace walks back.
- */
+/** Six one-character `Input` cells over one string: paste fills, typing advances, Backspace walks back. */
 export const OtpInput = forwardRef<
     OtpInputHandle,
     {

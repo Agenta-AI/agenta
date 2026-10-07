@@ -1,11 +1,4 @@
-/**
- * The sign-in page frame — the outer composition every host renders its methods inside.
- *
- * A white method column (logo in its corner, the flow capped at 400px) beside the dotted product
- * panel, which hides itself below `lg` so the same markup is the phone screen.
- *
- * The logo strip is positioned, not stacked, so the form's top edge does not move with it.
- */
+/** The sign-in frame: the method column beside the product panel, which hides below `lg`. */
 import type {ReactNode} from "react"
 
 import AuthSideBanner from "./AuthSideBanner"

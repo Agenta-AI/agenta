@@ -1,7 +1,7 @@
 import {onboardingDraftKey, saveOnboardingDraft} from "./onboardingDraft"
 
 /** Set at sign-up for a new account; while it stands, Home sends that user to onboarding. */
-export const onboardingPendingKey = (userId: string) => `agenta:onboarding:pending:${userId}`
+const onboardingPendingKey = (userId: string) => `agenta:onboarding:pending:${userId}`
 
 export const markOnboardingPending = (userId: string, at: number = Date.now()) => {
     try {
@@ -33,10 +33,7 @@ export const endOnboarding = (userId: string) => {
     saveOnboardingDraft(onboardingDraftKey(userId), null)
 }
 
-/**
- * What Home does about a pending mark: `wait` holds Home until the answer is known, `start`
- * opens onboarding, `dismiss` drops a mark the project's agents make moot.
- */
+/** Home's move on a pending mark: wait for the answer, start onboarding, or dismiss it. */
 export type PendingOnboarding = "none" | "wait" | "start" | "dismiss"
 
 export interface PendingOnboardingInput {
