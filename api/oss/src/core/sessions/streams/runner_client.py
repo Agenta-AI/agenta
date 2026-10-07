@@ -109,16 +109,20 @@ async def runner_address_is_replica(
 
 
 class RunnerCancelResult:
-    """What the direct hop learned, as three named cases.
+    """What the direct hop learned, as four named cases.
 
     * `accepted` — the runner holds the session and took the command. The outcome arrives
       later on the outcome route, never in this response.
     * `not_held` — the runner answered, and it does not hold that session.
+    * `replica_gone` — the turn's bound pod address did not answer `/health` as the bound
+      replica, so nothing was posted. After a restart the old pod is gone and this is the
+      answer; a slow live pod gives the same answer, so the caller decides what it means.
     * `unreachable` — no answer, a non-2xx that is not 404, or no runner configured at all.
     """
 
     accepted = "accepted"
     not_held = "not_held"
+    replica_gone = "replica_gone"
     unreachable = "unreachable"
 
 
@@ -154,7 +158,7 @@ async def cancel_runner_execution(
 
     `base_url` is the address of the pod that holds the target turn, and `runner_replica_id` is
     the replica the turn is bound to. The call goes to the address only when the pod there
-    answers as that replica; otherwise it is `unreachable`, never a post to whatever pod now
+    answers as that replica; otherwise it is `replica_gone`, never a post to whatever pod now
     has that IP. Without an address the call goes to the Service URL, which picks any pod.
 
     The body is camelCase because the runner's own HTTP surface is (see its `/kill`).
@@ -180,7 +184,7 @@ async def cancel_runner_execution(
             if base_url and not await runner_address_is_replica(
                 client, address=base_url, replica_id=runner_replica_id
             ):
-                return RunnerCancelResponse(RunnerCancelResult.unreachable)
+                return RunnerCancelResponse(RunnerCancelResult.replica_gone)
             response = await client.post(
                 url,
                 json={

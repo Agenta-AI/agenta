@@ -7,7 +7,7 @@ Service URL, as it did before bindings existed.
 
 Before the post, the transport asks the pod at the address for its replica id on `/health`.
 Kubernetes can give a dead pod's IP to another pod, so the token goes there only when the id
-equals the binding's. Any other answer is `unreachable`, with nothing posted.
+equals the binding's. Any other answer is `replica_gone`, with nothing posted.
 
 The receipts stay distinct: a 404 from the pod is `not_held` and settles at once, while a
 transport failure is `unreachable` and leaves the command to the abandoned-command sweep.
@@ -353,11 +353,11 @@ async def test_cancel_without_an_address_posts_to_the_service_url_with_no_check(
 async def test_cancel_sends_nothing_to_an_address_that_is_not_the_bound_replica(
     http, runner_replica_id
 ):
-    """A reused pod IP must not receive the runner token. The outcome is the same as a
-    transport failure, so the command waits for the sweep, which reads the binding again."""
+    """A reused pod IP must not receive the runner token. The answer is `replica_gone`, and
+    the service decides what it means (see `test_stop_after_the_bound_pod_is_gone.py`)."""
     answer = await _cancel(http, _ADDRESS_A, runner_replica_id=runner_replica_id)
 
-    assert answer == RunnerCancelResponse(RunnerCancelResult.unreachable)
+    assert answer == RunnerCancelResponse(RunnerCancelResult.replica_gone)
     assert http.posts == []
 
 

@@ -1275,6 +1275,21 @@ class SessionCommandsService:
             )
             return DeliveryReceipt(status="unreachable", detail=str(e))
 
+        if receipt.status == "replica_gone":
+            try:
+                receipt = await self._judge_gone_replica(command)
+            except Exception as error:  # noqa: BLE001 - the command is committed already
+                # Without the lock read there is no evidence either way, so keep the command
+                # open for the sweep, as before the identity check learned to say `gone`.
+                log.warning(
+                    "control delivery: could not judge the gone pod for command=%s "
+                    "session=%s: %s",
+                    command.id,
+                    command.session_id,
+                    error,
+                )
+                receipt = DeliveryReceipt(status="unreachable", detail=str(error))
+
         if receipt.status == "accepted":
             # Take the claim on the runner's behalf, so the outcome route's guard reads the same
             # way on every transport: only the holder of the claim writes the outcome.
@@ -1382,6 +1397,45 @@ class SessionCommandsService:
                 }
             }
         )
+
+    async def _judge_gone_replica(self, command: SessionCommand) -> DeliveryReceipt:
+        """The target turn's bound pod did not answer `/health` as itself. Nothing was sent.
+
+        A turn never moves between pods, so when its pod is gone no process holds it, and the
+        honest answer is the one a reachable runner gives: `not_held`. A runner restart leaves
+        exactly this behind. The restarted turn ended and released `running`, its binding still
+        names the old pod, and a Send Now cancels that turn to promote the queued message. Kept
+        `unreachable`, the cancel waited for the sweep, which settles it `lost`, and `lost`
+        never promotes the message, so the session stayed queued for good.
+
+        A turn that still holds `running` is executing somewhere, and a slow live pod fails the
+        same check. That cancel stays `unreachable` and the sweep redelivers it to the binding,
+        so a Stop is never settled on a guess while its turn may still run.
+
+        `running` is evidence, not a guess. Its holder loses it only to the turn's own end beat,
+        a settled Stop, a takeover, or the watchdog after the turn stops beating, and the last
+        three tombstone the turn so it can never beat its way back. A quiet runner keeps it until
+        the watchdog sweeps the turn as lost, so a missing `running` means the rest of the
+        system has already called the turn over.
+        """
+        running_owner = await get_running_owner(
+            self._lock,
+            project_id=str(command.project_id),
+            session_id=command.session_id,
+        )
+        if command.target_turn_id and running_owner == command.target_turn_id:
+            return DeliveryReceipt(
+                status="unreachable",
+                detail="the bound pod did not answer as itself and its turn holds running",
+            )
+        log.info(
+            "control delivery: the pod bound to turn %s is gone and the turn holds no "
+            "`running`; settling command=%s as not held. session=%s",
+            command.target_turn_id,
+            command.id,
+            command.session_id,
+        )
+        return DeliveryReceipt(status="not_held", detail="the bound pod is gone")
 
     async def _settle_not_held(self, command: SessionCommand) -> None:
         """A reachable runner said it does not hold this session. Two different things look
