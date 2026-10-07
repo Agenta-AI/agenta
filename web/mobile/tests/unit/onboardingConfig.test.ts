@@ -36,12 +36,13 @@ describe("onboarding agent configuration", () => {
         expect(base.agent.tools).toHaveLength(1)
     })
 
-    it("always adds the zero-auth tools and leaves unchosen apps out", () => {
-        const tools = write({}, [connected("search", "composio_search"), connected("gh")], [])
-            .tools as unknown[]
-        expect(tools.map((tool) => parseGatewayConnection(tool)?.integration)).toEqual([
-            "composio_search",
-        ])
+    it("leaves out a connected app the user did not choose", () => {
+        const tools = write(
+            {},
+            [connected("search", "composio_search"), connected("gh")],
+            ["github"],
+        ).tools as unknown[]
+        expect(tools.map((tool) => parseGatewayConnection(tool)?.integration)).toEqual(["github"])
     })
 
     it("replaces earlier gateway tools on retry and never duplicates an integration", () => {

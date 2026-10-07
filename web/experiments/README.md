@@ -13,7 +13,7 @@ With the flag on, onboarding is per user. When SuperTokens reports a new user at
 3. How your agents run. The Agenta credits row shows the organization's real credits: the `starter-credits` Vault connection, Agenta's built-in models, and the wallet balance when the wallet is enforced. No number appears unless the wallet reports one. ChatGPT opens the existing subscription sign-in dialog, and the API key row opens the existing provider drawer. The model is picked automatically from the runnable connections, with Agenta credits first. If nothing can run, the step says so.
 4. Create your first agent. A gallery of the real template catalog, grouped by category, with Recommended ordered by the first answer. A template fills the creator, and Start from scratch opens it blank. The creator takes a name, an icon and color, instructions, optional apps, and a first message. Create commits the agent with those instructions and opens its playground with the first message sent.
 
-To preview the flow on any project, open `/m/w/<workspace>/p/<project>/onboarding`. Without a pending mark the page is a preview: it sends no analytics and does not seed the zero-auth tools. Create still creates a real agent. To test the trigger by hand, set `agenta:onboarding:pending:<your user id>` in local storage and open Home in an empty project.
+To preview the flow on any project, open `/m/w/<workspace>/p/<project>/onboarding`. Without a pending mark the page is a preview: it sends no analytics. Create still creates a real agent. To test the trigger by hand, set `agenta:onboarding:pending:<your user id>` in local storage and open Home in an empty project.
 
 Outside a preview, the flow sends these events:
 

@@ -28,7 +28,6 @@ import {endOnboarding, isOnboardingPending} from "./onboardingPending"
 import {personProperties} from "./onboardingQuestions"
 import {onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
-import {useSeedToolConnections} from "./useSeedToolConnections"
 
 /** Wires the flow to the draft agent, the catalog, analytics, and the shared create path. */
 export const OnboardingFlowHost = ({
@@ -46,7 +45,7 @@ export const OnboardingFlowHost = ({
     /** Where Skip leads. */
     homeUrl: string
 }) => {
-    // Without a pending mark the page is a preview: no analytics and no tool seeding.
+    // Without a pending mark the page is a preview: no analytics.
     const [preview] = useState(() => !userId || !isOnboardingPending(userId))
     const router = useRouter()
     const templates = useAtomValue(agentTemplatesAtom)
@@ -69,14 +68,8 @@ export const OnboardingFlowHost = ({
     )
     const updateConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const toolsEnabled = useMemo(() => isToolsEnabled(), [])
-    const connectionsQuery = useToolConnectionsQuery()
-    const {connections} = connectionsQuery
+    const {connections} = useToolConnectionsQuery()
     const apps = useMemo(() => connectedApps(connections), [connections])
-    useSeedToolConnections({
-        enabled: toolsEnabled && !preview,
-        connections,
-        loaded: !connectionsQuery.isLoading && !connectionsQuery.error,
-    })
     const newAgent = useNewAgentAction(base)
     // Files stage against a session id before the agent exists, as on Home.
     const [sessionId] = useState(newId)
