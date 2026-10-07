@@ -6,7 +6,7 @@ import {
     type KeyboardEvent,
 } from "react"
 
-import clsx from "clsx"
+import {Input, cn} from "@agenta/ui/ui"
 
 export interface OtpInputHandle {
     focus: () => void
@@ -66,20 +66,22 @@ export const OtpInput = forwardRef<
     }
 
     return (
-        <div
-            className={clsx(
-                "auth-otp-group",
-                error && "auth-otp-group-error",
-                status && `auth-otp-group-${status}`,
-            )}
-        >
+        <div className="flex w-full gap-2" role="group" aria-label="One-time code">
             {Array.from({length}, (_, index) => (
-                <input
+                <Input
                     key={index}
                     ref={(el) => {
                         cellsRef.current[index] = el
                     }}
-                    className={clsx("auth-otp-cell", value[index] && "auth-otp-cell-filled")}
+                    aria-label={`Character ${index + 1}`}
+                    aria-invalid={error || undefined}
+                    size="lg"
+                    className={cn(
+                        "h-[52px] min-w-0 flex-1 rounded-lg px-0 text-center text-xl font-medium uppercase transition-[border-color,box-shadow,opacity] md:text-xl",
+                        value[index] && "auth-otp-pop border-ring",
+                        status === "verifying" && "opacity-60",
+                        status === "verified" && "border-success",
+                    )}
                     inputMode="text"
                     autoComplete={index === 0 ? "one-time-code" : "off"}
                     autoFocus={autoFocus && index === 0}

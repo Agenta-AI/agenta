@@ -1,7 +1,9 @@
 import type {ReactNode} from "react"
 
-import {CircleNotch} from "@phosphor-icons/react"
-import clsx from "clsx"
+import {LoadingButton, cn} from "@agenta/ui/ui"
+
+import {KEYCAP_CLASS, SURFACE_CLASS} from "./classes"
+import {LastUsedBadge} from "./LastUsedBadge"
 
 export interface SocialProvider {
     id: string
@@ -39,38 +41,33 @@ export const SocialAuthButtons = ({
 
     return (
         <div className="flex flex-col gap-[10px]">
-            {providers.map((provider) => (
-                <button
-                    key={provider.id}
-                    type="button"
-                    className={clsx(
-                        "relative",
-                        yellow
-                            ? "auth-btn-yellow"
-                            : clsx(
-                                  "auth-surface-btn",
-                                  variant === "promoted" && "auth-surface-btn-promoted",
-                              ),
-                    )}
-                    onClick={() => onSelect(provider.id)}
-                    disabled={disabled || isLoading}
-                >
-                    {isLoading && provider.id === pendingProviderId ? (
-                        <span key="busy" className="auth-swap">
-                            <CircleNotch size={16} className="motion-safe:animate-spin" />
-                            Redirecting to {provider.label}…
+            {providers.map((provider) => {
+                const pending = Boolean(isLoading) && provider.id === pendingProviderId
+                return (
+                    <LoadingButton
+                        key={provider.id}
+                        type="button"
+                        variant={yellow ? "default" : "outline"}
+                        size="lg"
+                        loading={pending}
+                        className={cn(
+                            "relative",
+                            yellow ? KEYCAP_CLASS : SURFACE_CLASS,
+                            variant === "promoted" && !yellow && "h-12 border-ring",
+                        )}
+                        onClick={() => onSelect(provider.id)}
+                        disabled={disabled || (isLoading && !pending)}
+                    >
+                        <span key={pending ? "busy" : "idle"} className="auth-swap">
+                            {pending ? null : provider.icon}
+                            {pending ? `Redirecting to ${provider.label}…` : `Continue with ${provider.label}`}
                         </span>
-                    ) : (
-                        <span key="idle" className="inline-flex items-center gap-2.5">
-                            {provider.icon}
-                            Continue with {provider.label}
-                        </span>
-                    )}
-                    {provider.id === lastUsedProviderId && (
-                        <span className="auth-last-used-tag absolute right-3">Last used</span>
-                    )}
-                </button>
-            ))}
+                        {provider.id === lastUsedProviderId && !pending && (
+                            <LastUsedBadge className="absolute right-3" />
+                        )}
+                    </LoadingButton>
+                )
+            })}
         </div>
     )
 }

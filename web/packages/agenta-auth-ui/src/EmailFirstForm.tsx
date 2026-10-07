@@ -1,9 +1,10 @@
 import {useEffect, useState, type FormEvent} from "react"
 
 import {isValidEmailAddress} from "@agenta/auth"
-import {CircleNotch} from "@phosphor-icons/react"
-import clsx from "clsx"
+import {Input, LoadingButton, cn} from "@agenta/ui/ui"
 
+import {ERROR_TEXT_CLASS, FIELD_CLASS, KEYCAP_CLASS, SURFACE_CLASS} from "./classes"
+import {LastUsedBadge} from "./LastUsedBadge"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage} from "./types"
 import {useShake} from "./useShake"
@@ -59,13 +60,16 @@ export const EmailFirstForm = ({
         }
     }
 
+    const invalid = message.type === "error" || Boolean(validation)
+
     return (
         <form className="flex w-full flex-col gap-[10px]" onSubmit={handleSubmit} noValidate>
-            <div className={clsx("relative", shakeClass)}>
-                <input
+            <div className={cn("relative", shakeClass)}>
+                <Input
                     type="email"
                     autoComplete="email"
                     aria-label="Email address"
+                    aria-invalid={invalid || undefined}
                     placeholder="Enter your email address"
                     value={email}
                     disabled={disabled}
@@ -73,35 +77,26 @@ export const EmailFirstForm = ({
                         setEmail(event.target.value)
                         setValidation(null)
                     }}
-                    className={clsx(
-                        "auth-input",
-                        promoted && "auth-input-tagged",
-                        (message.type === "error" || validation) && "auth-input-error",
-                    )}
+                    size="lg"
+                    className={cn(FIELD_CLASS, promoted && "pr-24")}
                 />
-                {promoted && (
-                    <span className="auth-last-used-tag absolute right-3 top-1/2 -translate-y-1/2">
-                        Last used
-                    </span>
-                )}
+                {promoted && <LastUsedBadge className="absolute right-3 top-1/2 -translate-y-1/2" />}
             </div>
 
-            <button
+            <LoadingButton
                 type="submit"
-                className={clsx(primary ? "auth-btn-yellow" : "auth-surface-btn")}
-                disabled={disabled || isLoading}
+                variant={primary ? "default" : "outline"}
+                size="lg"
+                loading={isLoading}
+                className={primary ? KEYCAP_CLASS : SURFACE_CLASS}
+                disabled={disabled}
             >
-                {isLoading ? (
-                    <span key="busy" className="auth-swap">
-                        <CircleNotch size={16} className="motion-safe:animate-spin" />
-                        Checking…
-                    </span>
-                ) : (
-                    <span key="idle">Continue</span>
-                )}
-            </button>
-            {validation && <p className="auth-error-text m-0">{validation}</p>}
-            {message.type === "error" && <ShowErrorMessage info={message} className="text-start" />}
+                <span key={isLoading ? "busy" : "idle"} className={isLoading ? "auth-swap" : undefined}>
+                    {isLoading ? "Checking…" : "Continue"}
+                </span>
+            </LoadingButton>
+            {validation && <p className={ERROR_TEXT_CLASS}>{validation}</p>}
+            {message.type === "error" && <ShowErrorMessage info={message} />}
         </form>
     )
 }

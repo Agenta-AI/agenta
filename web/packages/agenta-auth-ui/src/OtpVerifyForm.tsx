@@ -11,6 +11,9 @@ import {
     Tray,
 } from "@phosphor-icons/react"
 
+import {Button} from "@agenta/ui/ui"
+
+import {STATUS_TEXT_CLASS} from "./classes"
 import {OtpInput, type OtpInputHandle} from "./OtpInput"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSuccessPayload} from "./types"
@@ -179,33 +182,41 @@ export const OtpVerifyForm = ({
                     />
                 </div>
                 {status === "verifying" ? (
-                    <p className="auth-status-text m-0">
+                    <p className={STATUS_TEXT_CLASS}>
                         <CircleNotch size={14} className="motion-safe:animate-spin" />
                         Verifying…
                     </p>
                 ) : status === "verified" ? (
-                    <p className="auth-status-text auth-status-success m-0">
+                    <p className={`${STATUS_TEXT_CLASS} text-success`}>
                         <CheckCircle size={15} />
                         Code verified
                     </p>
                 ) : message.type === "error" ? (
                     <ShowErrorMessage info={message} />
                 ) : message.message ? (
-                    <p className="auth-status-text m-0">
+                    <p className={STATUS_TEXT_CLASS}>
                         <PaperPlaneTilt size={14} />
                         {message.message}
                     </p>
                 ) : null}
             </form>
 
-            <div className="auth-step-footer">
-                <button type="button" className="auth-quiet-btn -ml-2" onClick={restart}>
+            <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-colorSplit pt-3.5">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="-ml-2 text-[13px] text-muted-foreground hover:text-foreground"
+                    onClick={restart}
+                >
                     <ArrowLeft size={14} />
                     Use a different email
-                </button>
-                <button
+                </Button>
+                <Button
                     type="button"
-                    className="auth-resend-btn"
+                    variant="outline"
+                    size="xs"
+                    className="rounded-lg text-xs font-medium tabular-nums"
                     disabled={resendIn > 0 || status !== "idle"}
                     onClick={resend}
                 >
@@ -213,19 +224,22 @@ export const OtpVerifyForm = ({
                     {resendIn > 0
                         ? `Resend code · ${Math.floor(resendIn / 60)}:${String(resendIn % 60).padStart(2, "0")}`
                         : "Resend code"}
-                </button>
+                </Button>
             </div>
 
             {inbox ? (
-                <a href={inbox[1]} target="_blank" rel="noopener noreferrer" className="auth-inbox-link">
-                    <Tray size={18} className="mt-px flex-none text-[var(--a-secondary)]" />
+                <a
+                    href={inbox[1]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="auth-rise flex items-start gap-3 rounded-[10px] border border-solid border-colorSplit bg-muted px-4 py-3.5 leading-5 text-foreground no-underline outline-none transition-colors hover:border-ring focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]"
+                >
+                    <Tray size={18} className="mt-px flex-none text-muted-foreground" />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="text-sm font-medium">Open {inbox[0]} to find your code</span>
-                        <span className="truncate text-[13px] text-[var(--a-secondary)]">
-                            Sent to {email}
-                        </span>
+                        <span className="truncate text-[13px] text-muted-foreground">Sent to {email}</span>
                     </span>
-                    <ArrowUpRight size={15} className="mt-0.5 flex-none text-[var(--a-secondary)]" />
+                    <ArrowUpRight size={15} className="mt-0.5 flex-none text-muted-foreground" />
                 </a>
             ) : null}
         </div>

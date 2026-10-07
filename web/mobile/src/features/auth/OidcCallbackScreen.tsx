@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
 import {TurnstileWidget} from "@agenta/auth-ui"
+import {Button} from "@agenta/ui/ui"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
@@ -69,9 +70,9 @@ export const OidcCallbackScreen = () => {
                     <p className="text-destructive text-xs" role="alert">
                         {error}
                     </p>
-                    <Link href="/auth" className="-m-3 p-3 text-xs underline underline-offset-4">
-                        Back to sign in
-                    </Link>
+                    <Button asChild variant="link" size="sm" className="text-xs text-foreground">
+                        <Link href="/auth">Back to sign in</Link>
+                    </Button>
                 </>
             ) : (
                 <p className="text-muted-foreground text-xs">Finishing sign-in…</p>
