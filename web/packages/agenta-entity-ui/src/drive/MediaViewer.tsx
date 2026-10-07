@@ -57,7 +57,7 @@ const MEDIA_TYPE_KINDS: [test: (type: string) => boolean, kind: DriveFileKind][]
 ]
 
 /** The name's extension first (it tells `.py` from plain text), the media type when that fails. */
-export const mediaViewerKind = (item: Pick<MediaViewerItem, "name" | "mediaType">) => {
+const mediaViewerKind = (item: Pick<MediaViewerItem, "name" | "mediaType">) => {
     const byName = resolveDriveFileKind(item.name)
     if (byName !== "other" || !item.mediaType) return byName
     return MEDIA_TYPE_KINDS.find(([test]) => test(item.mediaType ?? ""))?.[1] ?? "other"
@@ -264,26 +264,25 @@ const ViewerFrame = ({
     return file.mount ? frame : <DriveSessionProvider sessionId="">{frame}</DriveSessionProvider>
 }
 
-export interface MediaViewerProps {
-    items: MediaViewerItem[]
-    /** The item on screen; null keeps the viewer closed. */
-    index: number | null
-    /** A new index to show, or null to close. */
-    onIndexChange: (index: number | null) => void
-}
+/** What the app-wide viewer shows, or null when it is closed. Openers set it; the host renders it. */
+export const mediaViewerAtom = atom<{items: MediaViewerItem[]; index: number} | null>(null)
 
-export function MediaViewer({items, index, onIndexChange}: MediaViewerProps) {
+/** The one viewer, mounted once by the app, so a remounting opener cannot close it. */
+export function MediaViewerHost() {
+    const [open, setOpen] = useAtom(mediaViewerAtom)
+    const items = open?.items ?? []
     const count = items.length
+    const index = open?.index ?? null
     const current = index !== null && index >= 0 && index < count ? index : null
     const item = current !== null ? items[current] : null
     const go = (step: -1 | 1) => {
-        if (current === null || count < 2) return
-        onIndexChange((current + step + count) % count)
+        if (!open || current === null || count < 2) return
+        setOpen({...open, index: (current + step + count) % count})
     }
-    const close = () => onIndexChange(null)
+    const close = () => setOpen(null)
 
     return (
-        <Dialog open={item !== null} onOpenChange={(open) => !open && close()}>
+        <Dialog open={item !== null} onOpenChange={(isOpen) => !isOpen && close()}>
             {item && current !== null ? (
                 <DialogContent
                     showCloseButton={false}
@@ -308,21 +307,5 @@ export function MediaViewer({items, index, onIndexChange}: MediaViewerProps) {
                 </DialogContent>
             ) : null}
         </Dialog>
-    )
-}
-
-/** What the app-wide viewer shows, or null when it is closed. Openers set it; the host renders it. */
-export const mediaViewerAtom = atom<{items: MediaViewerItem[]; index: number} | null>(null)
-
-/** The one viewer, mounted once for the app so it outlives whatever opened it: a transcript row
- * remounts when the server transcript replaces the streamed one, mid-view. */
-export function MediaViewerHost() {
-    const [open, setOpen] = useAtom(mediaViewerAtom)
-    return (
-        <MediaViewer
-            items={open?.items ?? []}
-            index={open?.index ?? null}
-            onIndexChange={(index) => setOpen(open && index !== null ? {...open, index} : null)}
-        />
     )
 }
