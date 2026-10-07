@@ -42,6 +42,7 @@ export const OnboardingComposer = ({
                 }}
                 sending={create.creating}
                 onCreate={({text}) => {
+                    if (create.pending) return false
                     if (!create.modelReady) {
                         chooseModelRef.current?.focus()
                         return false

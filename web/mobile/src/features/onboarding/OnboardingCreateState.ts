@@ -5,6 +5,8 @@ import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 export interface OnboardingCreateState {
     /** A runnable model is selected. */
     modelReady: boolean
+    /** The model or the draft agent is still loading; Create waits without complaint. */
+    pending: boolean
     creating: boolean
     error?: string | null
     /** Files staged in the composer; they ride into the create with the first message. */

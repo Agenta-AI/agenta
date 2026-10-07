@@ -149,6 +149,7 @@ export const OnboardingFlow = ({
     const detailPushedRef = useRef(false)
     const create: OnboardingCreateState = {
         modelReady: model.ready,
+        pending: model.status === "loading",
         creating,
         error,
         attachments,

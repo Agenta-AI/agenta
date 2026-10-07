@@ -27,7 +27,7 @@ export const OnboardingFlowScreen = ({
             <PageTitle title={ONBOARDING_COPY.pageTitle} />
             {error ? (
                 <OnboardingFlowError onRetry={retry} />
-            ) : entityId && !profile.isPending ? (
+            ) : !profile.isPending ? (
                 <OnboardingFlowHost
                     base={`/w/${workspaceId}/p/${projectId}`}
                     projectId={projectId}

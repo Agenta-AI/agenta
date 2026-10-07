@@ -3,8 +3,16 @@ import {
     isConnectionValid,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {locateTemplate} from "@agenta/entity-ui/tool-permission"
 import {parseGatewayConnection, upsertGatewayConnection} from "@agenta/entity-ui/tool-utils"
+import {atom} from "jotai"
+
+const NO_CONFIGURATION = atom<Record<string, unknown> | null>(null)
+
+/** The draft agent's config, or nothing while the draft is still being minted. */
+export const draftConfigurationAtom = (entityId: string | null) =>
+    entityId ? workflowMolecule.selectors.configuration(entityId) : NO_CONFIGURATION
 
 /** A connection the runner can use: active, valid, and fully addressed. */
 export const isUsableToolConnection = (connection: ToolConnection) =>
