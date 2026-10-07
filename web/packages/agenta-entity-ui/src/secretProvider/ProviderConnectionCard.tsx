@@ -68,9 +68,7 @@ import {harnessMetaFor, selectableHarnesses} from "../DrillInView/SchemaControls
 
 import ActiveModelsSection from "./ActiveModelsSection"
 import HarnessesSection, {type HarnessChoice} from "./HarnessesSection"
-
-/** The harness the card checks by default for an API key, when the provider can reach it. */
-const DEFAULT_HARNESS = "pi_core"
+import {DEFAULT_KEY_HARNESS as DEFAULT_HARNESS} from "./useSaveProviderKey"
 
 /** The capability map is global; the key only records which surface asked for it. */
 const HARNESS_CATALOG_KEY = "agenta:settings:ai-providers"
