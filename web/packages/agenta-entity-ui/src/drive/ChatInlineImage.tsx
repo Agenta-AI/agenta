@@ -3,7 +3,7 @@
  * preview (never the full bytes); a tap opens the viewer and Download sits in its corner. The
  * link in the sentence stays and names the file; this is the picture that goes with it.
  */
-import {useMemo, type ReactNode} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {mountFileContentQueryFamily} from "@agenta/entities/session"
@@ -21,7 +21,7 @@ import {
 import {chatFileResolver, fileCandidate, knownFromRecords} from "./chatFileRefs"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {mediaViewerAtom} from "./MediaViewer"
-import {SVG_PREVIEW_CAP, svgIntrinsicSize, useSvgObjectUrl} from "./svgPreview"
+import {SVG_PREVIEW_CAP, svgDeclaresSize, svgIntrinsicSize, useSvgObjectUrl} from "./svgPreview"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** The image: never wider than this, never taller than `MAX_HEIGHT`, never past its own size. */
@@ -53,6 +53,7 @@ function useSvgPreview(file: {mountId: string; path: string}) {
                       src,
                       bytes: new Blob([text]).size,
                       ...(svgIntrinsicSize(text) ?? SVG_FALLBACK_SIZE),
+                      trustNatural: svgDeclaresSize(text),
                   }
                 : null,
         [text, src],
@@ -85,6 +86,9 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
     const preview = raster ? thumbnail : svg
     const download = useDriveFileDownload()
     const openViewer = useSetAtom(mediaViewerAtom)
+    const [natural, setNatural] = useState<{src: string; width: number; height: number} | null>(
+        null,
+    )
     const name = candidate.split("/").pop() ?? candidate
     const data = preview.data
 
@@ -96,10 +100,11 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
             <div
                 ref={ref}
                 aria-hidden
+                data-holding={holding || undefined}
                 className={
                     holding
-                        ? "my-2 aspect-[4/3] w-full max-w-[320px] rounded-lg bg-colorFillTertiary motion-safe:animate-pulse"
-                        : "h-0"
+                        ? "aspect-[4/3] w-[320px] max-w-full rounded-lg bg-colorFillTertiary motion-safe:animate-pulse"
+                        : "absolute h-0 w-0"
                 }
             />
         )
@@ -117,27 +122,43 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
             ],
             index: 0,
         })
-    const width = Math.min(MAX_WIDTH, data.width, (MAX_HEIGHT * data.width) / data.height)
+    // The browser's own reading of the image wins once loaded: an SVG's units can differ from
+    // what the root tag parse assumed. A size-less SVG reports a stand-in, so it keeps the hint.
+    const loaded =
+        natural &&
+        natural.src === data.src &&
+        natural.width > 0 &&
+        natural.height > 0 &&
+        ("trustNatural" in data ? data.trustNatural : true)
+            ? natural
+            : data
+    const width = Math.min(MAX_WIDTH, loaded.width, (MAX_HEIGHT * loaded.width) / loaded.height)
+    const height = (width * loaded.height) / loaded.width
     return (
         <figure
-            className="group/inline-image relative mx-0 my-2 flex max-w-full items-center justify-center overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorFillTertiary"
-            style={{width: Math.max(MIN_FRAME, width), minHeight: MIN_FRAME}}
+            className="group/inline-image relative m-0 flex max-w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorFillTertiary"
+            style={{minWidth: MIN_FRAME, minHeight: MIN_FRAME}}
         >
             <button
                 type="button"
                 aria-label={`Expand ${name}`}
                 onClick={expand}
-                className="flex max-w-full cursor-zoom-in border-0 bg-transparent p-0"
+                className="flex cursor-zoom-in border-0 bg-transparent p-0"
             >
                 {/* A data or object URL; next/image cannot optimize it. An SVG stays in `<img>`. */}
                 <img
                     src={data.src}
                     alt={name}
-                    width={data.width}
-                    height={data.height}
                     draggable={false}
-                    className="block h-auto max-w-full"
-                    style={{width, aspectRatio: `${data.width} / ${data.height}`}}
+                    onLoad={(e) =>
+                        setNatural({
+                            src: data.src,
+                            width: e.currentTarget.naturalWidth,
+                            height: e.currentTarget.naturalHeight,
+                        })
+                    }
+                    className="block"
+                    style={{width, height}}
                 />
             </button>
             <div className={CORNER_ACTION}>
@@ -168,12 +189,13 @@ function ChatImageFollowUps({values}: {values: string[]}) {
             : candidate.replace(/^(?:\.\/|\/)+/, "")
         if (!byFile.has(file)) byFile.set(file, candidate)
     }
+    // One row that wraps; its margin only once something in it shows.
     return (
-        <>
+        <div className="relative flex flex-wrap items-start gap-2 has-[figure]:my-2 has-[[data-holding]]:my-2">
             {[...byFile].map(([file, candidate]) => (
                 <ChatInlineImage key={file} candidate={candidate} />
             ))}
-        </>
+        </div>
     )
 }
 

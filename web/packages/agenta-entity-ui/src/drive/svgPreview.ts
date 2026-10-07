@@ -38,6 +38,13 @@ export function svgIntrinsicSize(text: string): {width: number; height: number} 
     return {width: box[2], height: box[3]}
 }
 
+/** Whether the root tag sets both `width` and `height`, in any unit: then the browser's natural
+ * size for the image is real, not its 300 x 150 stand-in for a size-less SVG. */
+export function svgDeclaresSize(text: string): boolean {
+    const tag = /<svg\b[^>]*>/i.exec(text)?.[0]
+    return Boolean(tag && attrOf(tag, "width") && attrOf(tag, "height"))
+}
+
 /** An `image/svg+xml` object URL for SVG text within the cap; null otherwise. */
 export function useSvgObjectUrl(text: string | null | undefined): string | null {
     const blob = useMemo(
