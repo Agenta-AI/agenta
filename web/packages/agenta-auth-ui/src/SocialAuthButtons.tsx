@@ -56,15 +56,15 @@ export const SocialAuthButtons = ({
                     disabled={disabled || isLoading}
                 >
                     {isLoading && provider.id === pendingProviderId ? (
-                        <>
+                        <span key="busy" className="auth-swap">
                             <CircleNotch size={16} className="motion-safe:animate-spin" />
-                            <span>Redirecting to {provider.label}…</span>
-                        </>
+                            Redirecting to {provider.label}…
+                        </span>
                     ) : (
-                        <>
+                        <span key="idle" className="inline-flex items-center gap-2.5">
                             {provider.icon}
-                            <span>Continue with {provider.label}</span>
-                        </>
+                            Continue with {provider.label}
+                        </span>
                     )}
                     {provider.id === lastUsedProviderId && (
                         <span className="auth-last-used-tag absolute right-3">Last used</span>

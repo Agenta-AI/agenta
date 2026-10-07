@@ -1,4 +1,4 @@
-import {useState, type FormEvent} from "react"
+import {useEffect, useState, type FormEvent} from "react"
 
 import {isValidEmailAddress} from "@agenta/auth"
 import {CircleNotch} from "@phosphor-icons/react"
@@ -6,6 +6,7 @@ import clsx from "clsx"
 
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage} from "./types"
+import {useShake} from "./useShake"
 
 export interface EmailFirstFormProps {
     email: string
@@ -31,12 +32,20 @@ export const EmailFirstForm = ({
 }: EmailFirstFormProps) => {
     const [isLoading, setIsLoading] = useState(false)
     const [validation, setValidation] = useState<string | null>(null)
+    const [shakeClass, shake] = useShake()
+
+    useEffect(() => {
+        if (message.type === "error") shake()
+    }, [message, shake])
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         const value = email.trim()
-        if (!value) return setValidation("Please add your email.")
-        if (!isValidEmailAddress(value)) return setValidation("Please enter a valid email address.")
+        if (!value || !isValidEmailAddress(value)) {
+            setValidation(value ? "Please enter a valid email address." : "Please add your email.")
+            shake()
+            return
+        }
         setValidation(null)
         try {
             setIsLoading(true)
@@ -52,7 +61,7 @@ export const EmailFirstForm = ({
 
     return (
         <form className="flex w-full flex-col gap-[10px]" onSubmit={handleSubmit} noValidate>
-            <div className="relative">
+            <div className={clsx("relative", shakeClass)}>
                 <input
                     type="email"
                     autoComplete="email"
@@ -83,12 +92,12 @@ export const EmailFirstForm = ({
                 disabled={disabled || isLoading}
             >
                 {isLoading ? (
-                    <>
+                    <span key="busy" className="auth-swap">
                         <CircleNotch size={16} className="motion-safe:animate-spin" />
-                        <span>Checking…</span>
-                    </>
+                        Checking…
+                    </span>
                 ) : (
-                    "Continue"
+                    <span key="idle">Continue</span>
                 )}
             </button>
             {validation && <p className="auth-error-text m-0">{validation}</p>}

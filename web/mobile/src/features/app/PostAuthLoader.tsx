@@ -3,7 +3,7 @@ import {useCallback} from "react"
 import {useAtom} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
-import {useMotionPresets} from "@/lib/motion/presets"
+import {useLoaderMotion} from "@/lib/motion/loaderMotion"
 
 import {BootLoaderScreen} from "./BootLoaderScreen"
 import {postAuthBootAtom} from "./postAuthBoot"
@@ -14,7 +14,7 @@ import {postAuthBootAtom} from "./postAuthBoot"
  */
 export const PostAuthLoader = () => {
     const [boot, setBoot] = useAtom(postAuthBootAtom)
-    const presets = useMotionPresets()
+    const motionSet = useLoaderMotion()
     const finish = useCallback(() => setBoot(null), [setBoot])
 
     return (
@@ -22,7 +22,7 @@ export const PostAuthLoader = () => {
             {boot ? (
                 <motion.div
                     key="post-auth-boot"
-                    variants={presets.crossfade}
+                    variants={motionSet.loaderOverlay}
                     initial="initial"
                     animate="animate"
                     exit="exit"

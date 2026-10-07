@@ -115,6 +115,11 @@
 /* The sign-in frame is the white column; the product panel beside it is the page tone. */
 .auth-shell {
     background-color: var(--a-panel);
+    animation: auth-fade-in 0.3s ease both;
+}
+/* Played once a sign-in succeeds, before the post-auth loader fades in over it. */
+.auth-shell-leaving {
+    animation: auth-out 0.42s ease both;
 }
 .auth-panel {
     background-color: var(--a-page);
@@ -573,10 +578,30 @@
     color: var(--a-heading);
     text-transform: uppercase;
 }
-.auth-otp-cell:focus {
+.auth-otp-group .auth-otp-cell:focus {
     box-shadow: var(--a-surface-shadow-strong);
 }
-.auth-otp-group-error .auth-otp-cell {
+.auth-otp-cell-filled {
+    box-shadow:
+        0 0 0 1px rgba(72, 70, 68, 0.2),
+        0 1px 3px rgba(72, 70, 68, 0.08);
+    animation: auth-cell-fill 0.15s ease both;
+}
+.dark .auth-otp-cell-filled {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.auth-otp-cell {
+    transition:
+        box-shadow 0.15s ease,
+        opacity 0.15s ease;
+}
+.auth-otp-group-verifying .auth-otp-cell {
+    opacity: 0.6;
+}
+.auth-otp-group.auth-otp-group-verified .auth-otp-cell {
+    box-shadow: 0 0 0 1px var(--a-success);
+}
+.auth-otp-group.auth-otp-group-error .auth-otp-cell {
     box-shadow: 0 0 0 1px var(--a-error, #d61010);
 }
 
@@ -655,4 +680,137 @@
     width: auto;
     padding: 0 20px;
     text-decoration: none;
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────────
+   Keyframes from the sign-in design. Every one is shortened to nothing under
+   reduced motion at the end of this block, so they stay state changes, not motion. */
+@keyframes auth-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+@keyframes auth-fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+@keyframes auth-out {
+    to {
+        opacity: 0;
+        transform: scale(0.985);
+    }
+}
+@keyframes auth-step-fwd {
+    from {
+        opacity: 0;
+        transform: translateX(18px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+@keyframes auth-step-back {
+    from {
+        opacity: 0;
+        transform: translateX(-18px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+/* Two identical shakes, so alternating the class restarts the animation on every error. */
+@keyframes auth-shake-a {
+    0%,
+    100% {
+        transform: none;
+    }
+    20% {
+        transform: translateX(-6px);
+    }
+    40% {
+        transform: translateX(5px);
+    }
+    60% {
+        transform: translateX(-3px);
+    }
+    80% {
+        transform: translateX(2px);
+    }
+}
+@keyframes auth-shake-b {
+    0%,
+    100% {
+        transform: none;
+    }
+    20% {
+        transform: translateX(-6px);
+    }
+    40% {
+        transform: translateX(5px);
+    }
+    60% {
+        transform: translateX(-3px);
+    }
+    80% {
+        transform: translateX(2px);
+    }
+}
+@keyframes auth-cell-fill {
+    from {
+        transform: scale(0.94);
+    }
+    to {
+        transform: none;
+    }
+}
+
+/* A sign-in step arriving: from the right going forward, from the left going back. */
+.auth-step-fwd {
+    animation: auth-step-fwd 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.auth-step-back {
+    animation: auth-step-back 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.auth-shake-a {
+    animation: auth-shake-a 380ms ease;
+}
+.auth-shake-b {
+    animation: auth-shake-b 380ms ease;
+}
+/* Errors, notices and a button's busy or done label rise in when they change. */
+.auth-error-text,
+.auth-status-text,
+.auth-swap {
+    animation: auth-fade-up 0.2s ease both;
+}
+.auth-swap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.auth-preview-enter {
+    animation: auth-fade-up 0.4s ease both;
+}
+.auth-preview-check {
+    animation: auth-fade-up 0.25s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .auth-redesign,
+    .auth-redesign * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

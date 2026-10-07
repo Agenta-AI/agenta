@@ -23,6 +23,8 @@ export interface AuthShellProps {
     banner?: ReactNode
     /** Anything floating over the frame — hosts put their toast here. */
     overlay?: ReactNode
+    /** Plays the exit (fade and slight shrink) once a sign-in has succeeded. */
+    leaving?: boolean
 }
 
 /**
@@ -38,9 +40,10 @@ export const AuthShell = ({
     displayFontUrl,
     banner,
     overlay,
+    leaving = false,
 }: AuthShellProps) => (
     <main
-        className="auth-redesign auth-shell flex min-h-dvh w-full lg:h-screen lg:overflow-hidden"
+        className={`auth-redesign auth-shell flex min-h-dvh w-full lg:h-screen lg:overflow-hidden ${leaving ? "auth-shell-leaving" : ""}`}
         data-display-font={displayFontUrl ? "serif" : undefined}
     >
         {displayFontUrl && (

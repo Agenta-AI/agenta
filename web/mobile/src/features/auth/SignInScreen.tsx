@@ -13,19 +13,24 @@ import {
     useSignInFlow,
     useTurnstileSecurity,
     type AuthSuccessPayload,
+    type SignInStage,
 } from "@agenta/auth-ui"
 import {useRouter} from "next/router"
 
 import {AgentaLogo} from "@/components/AgentaLogo"
 import {clearEmailCodeAttempt, shouldShowRegionSelector, startOidcSignIn} from "@/lib/auth"
+import {useLoaderMotion} from "@/lib/motion/loaderMotion"
 
 import {providerIcon} from "./providerIcons"
 import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
 import {NoAuthMethods} from "./states/NoAuthMethods"
-import {useAuthSuccess} from "./useAuthSuccess"
+import {useAuthSuccess, type AuthSuccess} from "./useAuthSuccess"
 
 const TERMS_URL = "https://agenta.ai/docs/administration/security/terms-of-service"
 const PRIVACY_URL = "https://agenta.ai/docs/administration/security/privacy-policy"
+
+/** Step order, so a step change knows whether it moves forward or back. */
+const STAGE_ORDER: Record<SignInStage, number> = {entry: 0, methods: 1, code: 2}
 
 /**
  * Email first: ask for an address, discover what it can use, then show only that. A returning
@@ -41,6 +46,8 @@ export const SignInScreen = () => {
     const onSuccess = useAuthSuccess()
     const router = useRouter()
     const [pendingProvider, setPendingProvider] = useState<string | null>(null)
+    const [leaving, setLeaving] = useState(false)
+    const {leaveMs} = useLoaderMotion()
 
     const flow = useSignInFlow({
         query: router.query,
@@ -53,8 +60,21 @@ export const SignInScreen = () => {
     const {entry, methods, message, setMessage} = flow
     const security = useTurnstileSecurity(setMessage)
 
+    const [step, setStep] = useState({stage: flow.stage, direction: "fwd"})
+    if (step.stage !== flow.stage) {
+        const forward = STAGE_ORDER[flow.stage] > STAGE_ORDER[step.stage]
+        setStep({stage: flow.stage, direction: forward ? "fwd" : "back"})
+    }
+
+    // The screen plays its exit first; the post-auth loader then fades in over it.
+    const leaveThen = async (success: AuthSuccess) => {
+        setLeaving(true)
+        await new Promise((resolve) => setTimeout(resolve, leaveMs))
+        await onSuccess(success)
+    }
+
     const onEmailSuccess = (payload: AuthSuccessPayload) =>
-        onSuccess({
+        leaveThen({
             method: "email",
             email: flow.email,
             isNewUser: Boolean(payload.createdNewRecipeUser),
@@ -79,8 +99,9 @@ export const SignInScreen = () => {
         ? "Sign in to continue to your workspace."
         : "Sign in or create an account."
     let body: ReactNode
+    const loading = !flow.ready || flow.restoring
 
-    if (!flow.ready || flow.restoring) {
+    if (loading) {
         body = <AuthMethodsSkeleton />
     } else if (!entry.showEmailEntry && entry.providers.length === 0) {
         body = <NoAuthMethods />
@@ -202,13 +223,21 @@ export const SignInScreen = () => {
     }
 
     return (
-        <AuthShell header={<AgentaLogo className="h-[23px] w-auto text-[var(--a-heading)]" />}>
-            {chip}
-            <header className="flex flex-col gap-1">
-                <h1 className="auth-headline auth-headline-form m-0">{heading}</h1>
-                <p className="auth-subline m-0 text-pretty">{subheading}</p>
-            </header>
-            {body}
+        <AuthShell
+            leaving={leaving}
+            header={<AgentaLogo className="h-[23px] w-auto text-[var(--a-heading)]" />}
+        >
+            <div
+                key={loading ? "loading" : flow.stage}
+                className={`flex flex-col gap-[22px] auth-step-${step.direction}`}
+            >
+                {chip}
+                <header className="flex flex-col gap-1">
+                    <h1 className="auth-headline auth-headline-form m-0">{heading}</h1>
+                    <p className="auth-subline m-0 text-pretty">{subheading}</p>
+                </header>
+                {body}
+            </div>
         </AuthShell>
     )
 }

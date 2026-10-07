@@ -77,15 +77,15 @@ export const PasswordlessRequestForm = ({
             {security?.widget}
             <button type="submit" className="auth-btn-yellow" disabled={disabled || isLoading}>
                 {isLoading ? (
-                    <>
+                    <span key="busy" className="auth-swap">
                         <CircleNotch size={16} className="motion-safe:animate-spin" />
-                        <span>Sending code…</span>
-                    </>
+                        Sending code…
+                    </span>
                 ) : (
-                    <>
+                    <span key="idle" className="inline-flex items-center gap-2.5">
                         <EnvelopeSimple size={16} />
-                        <span>Email me a one-time code</span>
-                    </>
+                        Email me a one-time code
+                    </span>
                 )}
             </button>
             {message.type === "error" && <ShowErrorMessage info={message} />}

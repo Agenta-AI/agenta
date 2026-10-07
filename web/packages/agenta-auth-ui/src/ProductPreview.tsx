@@ -294,7 +294,7 @@ const Sidebar = () => (
 
 const StepIcon = ({state}: {state: StepState}) =>
     state === "done" ? (
-        <CheckCircle size={16} weight="fill" className="auth-preview-success" />
+        <CheckCircle size={16} weight="fill" className="auth-preview-success auth-preview-check" />
     ) : state === "running" ? (
         <CircleNotch size={15} className="motion-safe:animate-spin" />
     ) : (
@@ -336,7 +336,7 @@ export const ProductPreview = () => {
                             />
                             {finished ? "Completed just now" : "Running now"}
                         </span>
-                        <div key={cycle} className="flex flex-col gap-3">
+                        <div key={cycle} className="auth-preview-enter flex flex-col gap-3">
                             <AppStack apps={featured.apps} />
                             <div className="flex flex-col gap-1.5">
                                 <span className="text-xl font-semibold leading-[26px] tracking-[-0.01em]">
@@ -362,7 +362,7 @@ export const ProductPreview = () => {
                                 <div
                                     key={text}
                                     className={clsx(
-                                        "flex items-start gap-2.5 text-[13px] leading-[18px] transition-colors",
+                                        "flex items-start gap-2.5 text-[13px] leading-[18px] transition-colors duration-300",
                                         state === "pending" && "auth-preview-faint",
                                     )}
                                 >

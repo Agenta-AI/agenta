@@ -23,10 +23,12 @@ export const OtpInput = forwardRef<
         onChange: (value: string) => void
         length?: number
         error?: boolean
+        /** Dims the cells while the code is checked, then rings them green once it passes. */
+        status?: "verifying" | "verified"
         autoFocus?: boolean
         disabled?: boolean
     }
->(({value, onChange, length = 6, error, autoFocus, disabled}, ref) => {
+>(({value, onChange, length = 6, error, status, autoFocus, disabled}, ref) => {
     const cellsRef = useRef<(HTMLInputElement | null)[]>([])
     const focusCell = (index: number) =>
         cellsRef.current[Math.max(0, Math.min(index, length - 1))]?.focus()
@@ -64,14 +66,20 @@ export const OtpInput = forwardRef<
     }
 
     return (
-        <div className={clsx("auth-otp-group", error && "auth-otp-group-error")}>
+        <div
+            className={clsx(
+                "auth-otp-group",
+                error && "auth-otp-group-error",
+                status && `auth-otp-group-${status}`,
+            )}
+        >
             {Array.from({length}, (_, index) => (
                 <input
                     key={index}
                     ref={(el) => {
                         cellsRef.current[index] = el
                     }}
-                    className="auth-otp-cell"
+                    className={clsx("auth-otp-cell", value[index] && "auth-otp-cell-filled")}
                     inputMode="text"
                     autoComplete={index === 0 ? "one-time-code" : "off"}
                     autoFocus={autoFocus && index === 0}

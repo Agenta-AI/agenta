@@ -1,11 +1,12 @@
-import {useState, type FormEvent} from "react"
+import {useEffect, useState, type FormEvent} from "react"
 
 import {signInDetailed, signUpDetailed} from "@agenta/auth"
-import {CircleNotch, Eye, EyeSlash} from "@phosphor-icons/react"
+import {Check, CircleNotch, Eye, EyeSlash} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSecurityAdapter, AuthSuccessPayload} from "./types"
+import {useShake} from "./useShake"
 
 export interface EmailPasswordFormProps {
     message: Partial<AuthMessage>
@@ -37,12 +38,19 @@ export const EmailPasswordForm = ({
     const [password, setPassword] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
+    const [signedIn, setSignedIn] = useState(false)
+    const [shakeClass, shake] = useShake()
+
+    useEffect(() => {
+        if (message.type === "error") shake()
+    }, [message, shake])
 
     const trySignUp = async (token: string | null) => {
         security?.stampToken(token)
         const outcome = await signUpDetailed(email.trim(), password)
         if (outcome.kind === "ok") {
             setMessage({message: "Verification successful", type: "success"})
+            setSignedIn(true)
             await onSuccess({user: outcome.user, createdNewRecipeUser: true})
         } else if (outcome.kind === "field-error") {
             setMessage({
@@ -80,6 +88,7 @@ export const EmailPasswordForm = ({
             const outcome = await signInDetailed(email.trim(), password)
             if (outcome.kind === "ok") {
                 setMessage({message: "Verification successful", type: "success"})
+                setSignedIn(true)
                 await onSuccess({user: outcome.user})
             } else if (outcome.kind === "wrong-credentials") {
                 security?.clearToken()
@@ -126,7 +135,7 @@ export const EmailPasswordForm = ({
                 )}
                 onChange={(event) => setEmail(event.target.value)}
             />
-            <div className="relative">
+            <div className={clsx("relative", shakeClass)}>
                 <input
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
@@ -149,14 +158,19 @@ export const EmailPasswordForm = ({
                     {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
                 </button>
             </div>
-            <button type="submit" className="auth-btn-yellow" disabled={isLoading}>
-                {isLoading ? (
-                    <>
+            <button type="submit" className="auth-btn-yellow" disabled={isLoading || signedIn}>
+                {signedIn ? (
+                    <span key="done" className="auth-swap">
+                        <Check size={16} />
+                        Signed in
+                    </span>
+                ) : isLoading ? (
+                    <span key="busy" className="auth-swap">
                         <CircleNotch size={16} className="motion-safe:animate-spin" />
-                        <span>Signing in…</span>
-                    </>
+                        Signing in…
+                    </span>
                 ) : (
-                    "Continue with password"
+                    <span key="idle">Continue with password</span>
                 )}
             </button>
             {message.type === "error" && <ShowErrorMessage info={message} />}
