@@ -66,7 +66,7 @@ export const OnboardingCreator = ({
         )
 
     return (
-        <div className="grid items-start gap-10 md:grid-cols-[minmax(0,1fr)_minmax(300px,440px)]">
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-10 md:grid-cols-[minmax(0,1fr)_minmax(300px,440px)]">
             <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-1.5">
                     <h1

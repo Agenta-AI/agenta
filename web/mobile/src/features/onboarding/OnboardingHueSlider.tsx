@@ -17,9 +17,11 @@ const fromHue = (hue: number) => hsvToHex(((hue % 360) + 360) % 360, 0.78, 0.62)
 export const OnboardingHueSlider = ({
     color,
     onChange,
+    className,
 }: {
     color: string
     onChange: (hex: string) => void
+    className?: string
 }) => {
     const custom = !isPalette(color)
     const hue = custom ? hexToHsv(color).h : 0
@@ -66,6 +68,7 @@ export const OnboardingHueSlider = ({
             className={cn(
                 "relative h-2.5 min-w-16 flex-1 cursor-pointer touch-none rounded-full outline-offset-2",
                 FOCUS_RING,
+                className,
             )}
         >
             <span

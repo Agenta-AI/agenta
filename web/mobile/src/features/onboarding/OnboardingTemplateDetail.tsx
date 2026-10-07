@@ -76,7 +76,7 @@ export const OnboardingTemplateDetail = ({
     ]
 
     return (
-        <section aria-label={template.name} className="bg-muted flex flex-col rounded-xl">
+        <section aria-label={template.name} className="bg-muted flex min-w-0 flex-col rounded-xl">
             <div className="flex items-start gap-3 p-3">
                 <OnboardingTemplateTile template={template} size="panel" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -135,9 +135,9 @@ export const OnboardingTemplateDetail = ({
                     </ol>
                 </div>
             </div>
-            <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-1">
+            <div className="flex flex-col gap-2 px-3 pb-3 pt-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <span className="text-muted-foreground text-xs leading-[18px]">{copy.review}</span>
-                <Button size="sm" onClick={() => onUse(template)}>
+                <Button size="sm" className="max-sm:h-10 max-sm:w-full" onClick={() => onUse(template)}>
                     {copy.use}
                     <ArrowRight data-icon="inline-end" />
                 </Button>

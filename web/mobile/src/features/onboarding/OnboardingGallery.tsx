@@ -1,7 +1,8 @@
 import {useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {templateCategories, type AgentStarterTemplate} from "@agenta/entities/workflow"
-import {Plus} from "@phosphor-icons/react"
+import {Button} from "@agenta/ui/ui"
+import {ArrowLeft, Plus} from "@phosphor-icons/react"
 import {motion} from "motion/react"
 
 import {FOCUS_RING} from "@/lib/interactive"
@@ -25,6 +26,7 @@ import {OnboardingTemplateDetail} from "./OnboardingTemplateDetail"
 import {OnboardingTemplateTile} from "./OnboardingTemplateTile"
 import {OnboardingGalleryError} from "./states/OnboardingGalleryError"
 import {OnboardingGallerySkeleton} from "./states/OnboardingGallerySkeleton"
+import {useGalleryDetail} from "./useGalleryDetail"
 
 const copy = ONBOARDING_COPY.gallery
 
@@ -85,26 +87,53 @@ export const OnboardingGallery = ({
         activeChipRef.current?.scrollIntoView?.({block: "nearest", inline: "nearest"})
     }, [category, catalog.status])
 
-    const panel: ReactNode = scratch ? (
+    const panelKey = scratch ? "scratch" : (focused?.key ?? "none")
+    const rootRef = useRef<HTMLDivElement | null>(null)
+    const detail = useGalleryDetail(rootRef)
+    const focusAndOpen = (next: GalleryFocus) => {
+        onFocus(next)
+        detail.openDetail()
+    }
+    const use = (template: AgentStarterTemplate) => {
+        detail.dropDetail()
+        onUse(template)
+    }
+    const shownPanel: ReactNode = scratch ? (
         <OnboardingScratchPanel agent={agent} onChange={onChange} create={create} />
     ) : focused ? (
-        <OnboardingTemplateDetail template={focused} onUse={onUse} />
+        <OnboardingTemplateDetail template={focused} onUse={use} />
     ) : null
-    const panelKey = scratch ? "scratch" : (focused?.key ?? "none")
-    const inlinePanel = (
-        <motion.div
-            key={panelKey}
-            variants={presets.fadeUp}
-            initial="initial"
-            animate="animate"
-            className="mb-2 mt-1 md:hidden"
-        >
-            {panel}
-        </motion.div>
-    )
 
     return (
-        <div className="flex flex-col gap-6">
+        <div ref={rootRef} className="min-w-0">
+            {detail.open && shownPanel ? (
+                <motion.div
+                    key={`detail-${panelKey}`}
+                    variants={presets.stepSlide}
+                    custom={1}
+                    initial="initial"
+                    animate="animate"
+                    className="flex min-w-0 flex-col gap-3 md:hidden"
+                >
+                    <Button
+                        variant="ghost"
+                        onClick={detail.closeDetail}
+                        className="-ml-3 h-11 self-start px-3 text-sm font-medium"
+                    >
+                        <ArrowLeft data-icon="inline-start" />
+                        {copy.backToTemplates}
+                    </Button>
+                    {shownPanel}
+                </motion.div>
+            ) : null}
+            <motion.div
+                key={detail.open ? "list-under-detail" : "list"}
+                variants={presets.stepSlide}
+                custom={-1}
+                initial={detail.returning ? "initial" : false}
+                animate="animate"
+                className={cn("flex min-w-0 flex-col gap-6", detail.open && "max-md:hidden")}
+            >
             <div className="flex flex-col gap-1.5">
                 <h1
                     id={onboardingHeadingId("gallery")}
@@ -144,12 +173,12 @@ export const OnboardingGallery = ({
                     })}
                 </div>
             ) : null}
-            <div className="grid items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
-                <div className="flex flex-col gap-1 md:-mx-0.5 md:-my-3 md:max-h-[calc(100dvh-340px)] md:min-h-60 md:overflow-y-auto md:px-0.5 md:py-3 md:[mask-image:linear-gradient(180deg,transparent_0,#000_16px,#000_calc(100%-24px),transparent_100%)] md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden">
+            <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
+                <div className="flex min-w-0 flex-col gap-1 md:-mx-0.5 md:-my-3 md:max-h-[calc(100dvh-340px)] md:min-h-60 md:overflow-y-auto md:px-0.5 md:py-3 md:[mask-image:linear-gradient(180deg,transparent_0,#000_16px,#000_calc(100%-24px),transparent_100%)] md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden">
                     <button
                         type="button"
                         aria-pressed={scratch}
-                        onClick={() => onFocus({kind: "scratch"})}
+                        onClick={() => focusAndOpen({kind: "scratch"})}
                         className={cn(
                             ROW,
                             "mb-1.5 border-[1.5px] border-dashed",
@@ -169,7 +198,6 @@ export const OnboardingGallery = ({
                             </span>
                         </span>
                     </button>
-                    {scratch ? inlinePanel : null}
                     {catalog.status === "pending" ? (
                         <OnboardingGallerySkeleton />
                     ) : catalog.status === "error" ? (
@@ -194,9 +222,9 @@ export const OnboardingGallery = ({
                                             type="button"
                                             aria-pressed={active}
                                             onClick={() =>
-                                                onFocus({kind: "template", key: template.key})
+                                                focusAndOpen({kind: "template", key: template.key})
                                             }
-                                            onDoubleClick={() => onUse(template)}
+                                            onDoubleClick={() => use(template)}
                                             className={cn(
                                                 ROW,
                                                 "border-0",
@@ -214,14 +242,13 @@ export const OnboardingGallery = ({
                                                 </span>
                                             </span>
                                         </button>
-                                        {active ? inlinePanel : null}
                                     </motion.div>
                                 )
                             })}
                         </div>
                     )}
                 </div>
-                {panel ? (
+                {shownPanel ? (
                     <motion.div
                         key={panelKey}
                         variants={presets.stepSlide}
@@ -230,10 +257,11 @@ export const OnboardingGallery = ({
                         animate="animate"
                         className="sticky top-24 max-md:hidden"
                     >
-                        {panel}
+                        {shownPanel}
                     </motion.div>
                 ) : null}
             </div>
+            </motion.div>
         </div>
     )
 }
