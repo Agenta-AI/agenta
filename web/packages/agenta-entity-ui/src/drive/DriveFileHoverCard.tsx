@@ -4,6 +4,8 @@
  * anything else its type. Every read here is one the link or the figure already makes, so a
  * card that opens on a resolved link costs nothing new.
  */
+import {useMemo} from "react"
+
 import {
     fileTypeLabel,
     humanSize,
@@ -18,10 +20,21 @@ import {useAtomValue} from "jotai"
 import {CHAT_IMAGE_PREVIEW_PX, isRasterImage, useMountResolver} from "./chatFileLookup"
 import {driveFileIcon} from "./driveIcons"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
-import {isSvgPath, useSvgObjectUrl} from "./svgPreview"
+import {isSvgPath, useSvgImage} from "./svgPreview"
 
 const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv", "html"])
 const SNIPPET_LINES = 10
+const SNIPPET_CHARS = 4096
+
+/** The first `count` lines, found without splitting the whole body. */
+const firstLines = (text: string, count: number): string => {
+    let end = -1
+    for (let line = 0; line < count; line++) {
+        end = text.indexOf("\n", end + 1)
+        if (end < 0 || end > SNIPPET_CHARS) return text.slice(0, SNIPPET_CHARS)
+    }
+    return text.slice(0, end)
+}
 const NO_FILE = {mountId: "", path: ""}
 
 const Footer = ({path, meta}: {path: string; meta: string}) => (
@@ -53,7 +66,8 @@ export function DriveFileHoverCard({path}: {path: string}) {
     )
     const content = useAtomValue(mountFileContentQueryFamily(readsText ? file : NO_FILE))
     const text = typeof content.data === "string" ? content.data : null
-    const svgSrc = useSvgObjectUrl(isSvgPath(path) ? text : null)
+    const svgSrc = useSvgImage(isSvgPath(path) ? text : null)?.src
+    const snippet = useMemo(() => (text === null ? "" : firstLines(text, SNIPPET_LINES)), [text])
 
     const label = fileTypeLabel(path)
     if (!target) return <Footer path={path} meta={label} />
@@ -97,7 +111,7 @@ export function DriveFileHoverCard({path}: {path: string}) {
         return (
             <div className="flex flex-col">
                 <pre className="m-0 max-h-40 overflow-hidden whitespace-pre-wrap break-all bg-muted px-3 py-2 font-mono text-[10px] leading-[1.45] text-muted-foreground">
-                    {text.split("\n").slice(0, SNIPPET_LINES).join("\n") || " "}
+                    {snippet || " "}
                 </pre>
                 <Footer path={path} meta={label} />
             </div>

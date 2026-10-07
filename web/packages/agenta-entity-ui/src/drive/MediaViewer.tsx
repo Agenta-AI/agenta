@@ -23,7 +23,7 @@ import {
 } from "./driveFileSource"
 import {DriveSessionProvider} from "./driveSessionContext"
 import {DownloadCard, DriveFileBody} from "./renderers"
-import {isSvgPath, SVG_PREVIEW_CAP, useSvgObjectUrl} from "./svgPreview"
+import {isSvgPath, SVG_PREVIEW_CAP, useSvgImage} from "./svgPreview"
 
 /** Where a viewer item's bytes come from. */
 export type MediaViewerSource =
@@ -123,7 +123,7 @@ interface ItemFile {
  * download may not say SVG, and the markup never enters the DOM. */
 const ViewerSvg = ({mount, path, name}: {mount: Mount | null; path: string; name: string}) => {
     const {data, isPending} = useDriveFileText(mount, path)
-    const src = useSvgObjectUrl(data)
+    const src = useSvgImage(data)?.src
     if (isPending || (typeof data === "string" && data.length <= SVG_PREVIEW_CAP && !src))
         return <Spinner className="text-white/70" aria-label="Loading image" />
     if (!src)

@@ -21,7 +21,7 @@ import {
 import {ChatFileCode, fileCandidate, knownFromRecords} from "./chatFileRefs"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {mediaViewerAtom} from "./MediaViewer"
-import {SVG_PREVIEW_CAP, svgDeclaresSize, svgIntrinsicSize, useSvgObjectUrl} from "./svgPreview"
+import {SVG_PREVIEW_CAP, svgDeclaresSize, svgIntrinsicSize, useSvgImage} from "./svgPreview"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** The image: never wider than this, never taller than `MAX_HEIGHT`, never past its own size. */
@@ -45,23 +45,25 @@ const SVG_FALLBACK_SIZE = {width: 320, height: 240}
 function useSvgPreview(file: {mountId: string; path: string}) {
     const read = useAtomValue(mountFileContentQueryFamily(file))
     const text = typeof read.data === "string" ? read.data : null
-    const src = useSvgObjectUrl(text)
+    const image = useSvgImage(text)
+    const src = image?.src
+    const bytes = image?.bytes ?? 0
     const data = useMemo(
         () =>
             text !== null && src
                 ? {
                       src,
-                      bytes: new Blob([text]).size,
+                      bytes,
                       ...(svgIntrinsicSize(text) ?? SVG_FALLBACK_SIZE),
                       trustNatural: svgDeclaresSize(text),
                   }
                 : null,
-        [text, src],
+        [text, src, bytes],
     )
     // Over the cap there is text but no picture: settled, and the mention stays a link.
     return {
         data,
-        isPending: read.isPending || (text !== null && !src && text.length <= SVG_PREVIEW_CAP),
+        isPending: read.isPending || (text !== null && !image && text.length <= SVG_PREVIEW_CAP),
     }
 }
 
