@@ -27,12 +27,12 @@ import {useAtom, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import type {ConfirmDestructive} from "../confirm"
+import {findScrollRoot} from "../shared/scrollRoot"
 import {
     SettingsCatalog,
     type SettingsCatalogGroup,
     type SettingsCatalogItem,
 } from "../shared/SettingsCatalog"
-import {findScrollRoot} from "../shared/scrollRoot"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
