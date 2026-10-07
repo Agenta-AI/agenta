@@ -52,8 +52,11 @@ async def _read_html(response: httpx.Response) -> Optional[str]:
     )
     if content_type not in _HTML_TYPES:
         return None
+    # Raw bytes only: the size cap must bound what arrives, not what a compressed body inflates to.
+    if response.headers.get("content-encoding", "identity").lower() != "identity":
+        return None
     body = bytearray()
-    async for chunk in response.aiter_bytes():
+    async for chunk in response.aiter_raw():
         body += chunk
         if len(body) >= _MAX_BYTES:
             break
@@ -96,6 +99,7 @@ async def _fetch_html(url: str) -> tuple[str, Optional[str]]:
                     "Host": host_header,
                     "User-Agent": _USER_AGENT,
                     "Accept": "text/html,application/xhtml+xml",
+                    "Accept-Encoding": "identity",
                 },
                 # The TLS handshake must name the host, not the pinned address.
                 extensions={"sni_hostname": target.hostname},
