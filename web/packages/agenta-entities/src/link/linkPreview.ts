@@ -1,4 +1,4 @@
-import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {getLinksClient} from "@agenta/sdk/resources"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -32,10 +32,9 @@ export async function fetchLinkPreview({
 }): Promise<LinkPreview | null> {
     if (!url || !projectId) return null
     try {
-        const {data} = await axios.post(
-            `${getAgentaApiUrl()}/links/preview`,
+        const data = await getLinksClient().previewLink(
             {url},
-            {params: {project_id: projectId}},
+            {queryParams: {project_id: projectId}},
         )
         const parsed = safeParseWithLogging(linkPreviewResponseSchema, data, "[fetchLinkPreview]")
         return parsed?.preview ?? null
