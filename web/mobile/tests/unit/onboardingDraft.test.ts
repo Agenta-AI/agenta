@@ -3,22 +3,24 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/entities/workflow", () => ({
     templateBuilderMessage: (template: {name: string}) => `Build ${template.name}`,
+    templateProviderSlugs: () => ["github", "slack"],
 }))
-
-import {withTestQuestions} from "./onboardingTestQuestion"
 
 import {galleryTemplates} from "@/features/onboarding/onboardingChoices"
 import {
     BLANK_AGENT,
+    blankAgentInput,
     EMPTY_ONBOARDING_DRAFT,
-    firstAgentInput,
     onboardingDraftKey,
     onboardingReducer,
     readOnboardingDraft,
     saveOnboardingDraft,
+    templateAgentInput,
     type OnboardingDraft,
 } from "@/features/onboarding/onboardingDraft"
 import {personProperties, recommendedCategory} from "@/features/onboarding/onboardingQuestions"
+
+import {withTestQuestions} from "./onboardingTestQuestion"
 
 type Template = Parameters<typeof galleryTemplates>[0][number]
 
@@ -44,8 +46,7 @@ describe("onboarding draft storage", () => {
     it("restores a saved draft and forgets it after creation", () => {
         const saved = draft({
             answers: {role: "Engineering", source: "GitHub"},
-            templateKey: "review",
-            agent: {...BLANK_AGENT, name: "Atlas", apps: ["slack"]},
+            agent: {...BLANK_AGENT, name: "Atlas", firstMessage: "Plan my week"},
             completed: ["role", "source"],
         })
         saveOnboardingDraft("draft", saved)
@@ -65,17 +66,18 @@ describe("onboarding draft storage", () => {
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
     })
 
-    it("drops answers and steps the questions no longer have, and keeps the rest", () => {
+    it("drops answers, steps and fields the flow no longer has, and keeps the rest", () => {
         window.sessionStorage.setItem(
             "draft",
             JSON.stringify({
-                ...draft({templateKey: "review"}),
+                ...draft({category: "Sales"}),
+                templateKey: "pr-reviewer",
                 answers: {role: "Removed role", source: "GitHub", gone: "Yes"},
                 completed: ["role", "gone"],
             }),
         )
         expect(readOnboardingDraft("draft")).toEqual(
-            draft({templateKey: "review", answers: {source: "GitHub"}, completed: ["role"]}),
+            draft({category: "Sales", answers: {source: "GitHub"}, completed: ["role"]}),
         )
     })
 })
@@ -102,45 +104,6 @@ describe("onboarding answers", () => {
         })
     })
 
-    it("fills the creator from a template and empties it for a blank start", () => {
-        const filled = onboardingReducer(draft({agent: {...BLANK_AGENT, name: "Mine"}}), {
-            type: "template",
-            template: template("review", "Engineering", "PR reviewer"),
-            apps: ["github"],
-        })
-        expect(filled.templateKey).toBe("review")
-        expect(filled.agent).toEqual({
-            name: "PR reviewer",
-            icon: {icon: "code", color: "#123456"},
-            apps: ["github"],
-            firstMessage: "",
-        })
-        const blank = onboardingReducer(filled, {type: "scratch"})
-        expect(blank.templateKey).toBeNull()
-        expect(blank.agent).toEqual(BLANK_AGENT)
-    })
-
-    it("keeps edits when the same template or a blank start is picked again", () => {
-        const pr = template("review", "Engineering", "PR reviewer")
-        const edited = onboardingReducer(
-            onboardingReducer(draft(), {type: "template", template: pr, apps: []}),
-            {type: "agent", patch: {name: "Mine"}},
-        )
-        expect(onboardingReducer(edited, {type: "template", template: pr, apps: []})).toBe(edited)
-        const blank = onboardingReducer(draft(), {type: "agent", patch: {name: "Blank"}})
-        expect(onboardingReducer(blank, {type: "scratch"}).agent.name).toBe("Blank")
-    })
-
-    it("adds and removes an app once each", () => {
-        const one = onboardingReducer(draft(), {type: "app", key: "slack", on: true})
-        expect(onboardingReducer(one, {type: "app", key: "slack", on: true}).agent.apps).toEqual([
-            "slack",
-        ])
-        expect(onboardingReducer(one, {type: "app", key: "slack", on: false}).agent.apps).toEqual(
-            [],
-        )
-    })
-
     it("caps the name at 100 characters", () => {
         const long = onboardingReducer(draft(), {type: "agent", patch: {name: "x".repeat(150)}})
         expect(long.agent.name).toHaveLength(100)
@@ -149,30 +112,28 @@ describe("onboarding answers", () => {
 
 describe("first agent input", () => {
     it("needs a first message on a blank start, and names it", () => {
-        const blank = (agent: Partial<typeof BLANK_AGENT>) => ({
-            templateKey: null,
-            agent: {...BLANK_AGENT, ...agent},
-        })
-        expect(firstAgentInput(blank({name: "Atlas"}), null)).toBeNull()
-        expect(firstAgentInput(blank({firstMessage: " Plan my week "}), null)).toEqual({
+        const agent = {...BLANK_AGENT, name: " Atlas "}
+        expect(blankAgentInput(agent, "  ")).toBeNull()
+        expect(blankAgentInput(BLANK_AGENT, " Plan my week ")).toEqual({
             name: "My first agent",
             firstMessage: "Plan my week",
             templateKey: null,
+            icon: BLANK_AGENT.icon,
+            apps: [],
         })
-        expect(firstAgentInput(blank({name: " Atlas ", firstMessage: "Hi"}), null)).toEqual({
-            name: "Atlas",
-            firstMessage: "Hi",
-            templateKey: null,
-        })
+        expect(blankAgentInput(agent, "Hi")?.name).toBe("Atlas")
     })
 
-    it("creates a template from its own name once the catalog has it", () => {
-        const picked = {templateKey: "review", agent: {...BLANK_AGENT, name: "Edited"}}
-        expect(firstAgentInput(picked, null)).toBeNull()
-        expect(firstAgentInput(picked, template("review", "Engineering", "PR reviewer"))).toEqual({
+    it("creates a template from its package, look and connected apps", () => {
+        const connected = new Map([["slack", "Slack"]])
+        expect(
+            templateAgentInput(template("review", "Engineering", "PR reviewer"), connected),
+        ).toEqual({
             name: "PR reviewer",
             firstMessage: "",
             templateKey: "review",
+            icon: {icon: "code", color: "#123456"},
+            apps: ["slack"],
         })
     })
 })

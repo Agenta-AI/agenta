@@ -1,9 +1,13 @@
 import {useEffect, useMemo, useRef, type ReactNode} from "react"
 
-import {templateCategories, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {templateCategories} from "@agenta/entities/workflow"
 import {Button} from "@agenta/ui/ui"
 import {ArrowLeft, Plus} from "@phosphor-icons/react"
 import {motion} from "motion/react"
+
+import {FOCUS_RING} from "@/lib/interactive"
+import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
 
 import {
     ALL,
@@ -24,10 +28,6 @@ import {OnboardingGalleryError} from "./states/OnboardingGalleryError"
 import {OnboardingGallerySkeleton} from "./states/OnboardingGallerySkeleton"
 import {useGalleryDetail} from "./useGalleryDetail"
 
-import {FOCUS_RING} from "@/lib/interactive"
-import {useMotionPresets} from "@/lib/motion/presets"
-import {cn} from "@/lib/utils"
-
 const copy = ONBOARDING_COPY.gallery
 
 const ROW =
@@ -44,7 +44,6 @@ export const OnboardingGallery = ({
     onCategory,
     onFocus,
     onCloseDetail,
-    onUse,
     onChange,
 }: {
     catalog: OnboardingCatalog
@@ -60,8 +59,7 @@ export const OnboardingGallery = ({
     /** `open`: a phone shows the panel on its own view, a new history entry. */
     onFocus: (focus: GalleryFocus, open: boolean) => void
     onCloseDetail: () => void
-    onUse: (template: AgentStarterTemplate) => void
-    onChange: (patch: Partial<Omit<OnboardingAgent, "apps">>) => void
+    onChange: (patch: Partial<OnboardingAgent>) => void
 }) => {
     const presets = useMotionPresets()
     const chips = useMemo(
@@ -104,7 +102,7 @@ export const OnboardingGallery = ({
     const shownPanel: ReactNode = scratch ? (
         <OnboardingScratchPanel agent={agent} onChange={onChange} create={create} />
     ) : focused ? (
-        <OnboardingTemplateDetail template={focused} onUse={onUse} />
+        <OnboardingTemplateDetail template={focused} create={create} />
     ) : null
 
     return (
@@ -234,7 +232,6 @@ export const OnboardingGallery = ({
                                                         key: template.key,
                                                     })
                                                 }
-                                                onDoubleClick={() => onUse(template)}
                                                 className={cn(
                                                     ROW,
                                                     "border-0",

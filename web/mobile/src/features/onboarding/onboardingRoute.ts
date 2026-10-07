@@ -2,7 +2,7 @@ import type {OnboardingDraft} from "./onboardingDraft"
 import {ONBOARDING_QUESTIONS, type OnboardingQuestionId} from "./onboardingQuestions"
 
 /** The steps after the questions, always shown. */
-const FIXED_STEPS = ["credits", "templates", "review"] as const
+const FIXED_STEPS = ["credits", "templates"] as const
 type FixedStep = (typeof FIXED_STEPS)[number]
 
 export type OnboardingStep = OnboardingQuestionId | FixedStep
@@ -29,12 +29,6 @@ export const onboardingSteps = (): OnboardingSteps => [
     ...ONBOARDING_QUESTIONS.filter((question) => question.enabled).map((question) => question.id),
     ...FIXED_STEPS,
 ]
-
-/** The progress dots: every shown step but review, which shares the templates dot. */
-export const progressSteps = (steps: OnboardingSteps) => steps.filter((step) => step !== "review")
-
-export const progressIndex = (step: OnboardingStep, steps: OnboardingSteps) =>
-    progressSteps(steps).indexOf(step === "review" ? "templates" : step)
 
 /** The shown step after `step`. */
 export const nextStep = (step: OnboardingStep, steps: OnboardingSteps): OnboardingStep =>
@@ -74,16 +68,15 @@ export const onboardingRoutePath = (route: OnboardingRoute): string => {
     return `templates/${detail}`
 }
 
-type Answers = Pick<OnboardingDraft, "answers" | "templateKey">
+type Answers = Pick<OnboardingDraft, "answers">
 
 /** A later step opens once every shown question before it is answered. */
 export const isStepOpen = (step: OnboardingStep, draft: Answers, steps: OnboardingSteps) => {
     const at = steps.indexOf(step)
     if (at < 0) return false
-    const asked = steps
+    return steps
         .slice(0, at)
         .every((earlier) => isFixedStep(earlier) || draft.answers[earlier] !== undefined)
-    return asked && (step !== "review" || draft.templateKey !== null)
 }
 
 /** The latest step the answers open, for a link to a step the user has not reached. */

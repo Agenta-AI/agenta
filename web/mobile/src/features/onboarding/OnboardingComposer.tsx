@@ -8,6 +8,7 @@ import {cn} from "@/lib/utils"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
+import {OnboardingCreateStatus} from "./OnboardingCreateStatus"
 
 const copy = ONBOARDING_COPY.creator
 
@@ -25,27 +26,6 @@ export const OnboardingComposer = ({
 }) => {
     const inputRef = useRef<RichChatInputHandle | null>(null)
     const chooseModelRef = useRef<HTMLButtonElement | null>(null)
-
-    const status = create.error ? (
-        <span role="alert" className="text-destructive text-xs">
-            {create.error}
-        </span>
-    ) : !create.modelReady ? (
-        <span className="text-muted-foreground text-xs">
-            {copy.modelMissing}{" "}
-            <button
-                ref={chooseModelRef}
-                type="button"
-                onClick={create.onChooseModel}
-                className={cn(
-                    "text-foreground cursor-pointer rounded-sm border-0 bg-transparent p-0 text-xs underline",
-                    FOCUS_RING,
-                )}
-            >
-                {copy.modelMissingAction}
-            </button>
-        </span>
-    ) : null
 
     return (
         <div className="flex min-w-0 flex-col gap-2">
@@ -69,7 +49,7 @@ export const OnboardingComposer = ({
                     return create.onCreate(text)
                 }}
             />
-            {status}
+            <OnboardingCreateStatus create={create} chooseModelRef={chooseModelRef} />
             <div
                 role="group"
                 aria-label={copy.starters}

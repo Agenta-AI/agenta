@@ -20,9 +20,6 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
     isConnectionValid: () => true,
     useToolConnectionsQuery: () => ({connections: [], isLoading: false, error: null}),
 }))
-vi.mock("@agenta/entity-ui/gatewayTool", () => ({
-    useDirectToolConnect: () => ({connect: vi.fn(), connectingKey: null}),
-}))
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
     ProviderDrawer: () => null,
     SubscriptionConnectionCard: () => null,
@@ -220,7 +217,7 @@ const catalog = {
     retry: () => undefined,
     templates: [
         {
-            key: "review",
+            key: "pr-reviewer",
             name: "PR reviewer",
             category: "Engineering",
             initials: "PR",
@@ -280,7 +277,6 @@ const baseProps = (overrides: Partial<OnboardingFlowProps> = {}): OnboardingFlow
     catalog,
     model: model(),
     connectedApps: new Map([["github", "GitHub"]]),
-    toolsEnabled: false,
     creating: false,
     attachments: {} as OnboardingFlowProps["attachments"],
     onStepCompleted: vi.fn(),
@@ -373,22 +369,17 @@ describe("first agent onboarding", () => {
     it("walks the steps with the browser's Back and Forward", () => {
         render(baseProps())
         toGallery()
-        click("Use template")
-        expect(nav.url).toBe(`${nav.BASE}/review`)
-        browserBack()
-        expect(heading()).toBe("Create your first agent")
         browserBack()
         expect(heading()).toBe("500 credits, on us")
         browserBack()
         expect(heading()).toBe("How did you hear about Agenta?")
         browserForward()
         browserForward()
-        browserForward()
-        expect(heading()).toBe("Review your agent")
+        expect(heading()).toBe("Create your first agent")
     })
 
     it("sends a link to a step not yet reached to the furthest one the answers open", () => {
-        nav.open(`${nav.BASE}/review`)
+        nav.open(`${nav.BASE}/templates`)
         render(baseProps())
         expect(heading()).toBe("What kind of work do you do?")
         expect(nav.url).toBe(`${nav.BASE}/role`)
@@ -399,53 +390,45 @@ describe("first agent onboarding", () => {
         expect(nav.url).toBe(`${nav.BASE}/templates`)
     })
 
-    it("locks a template's name and brief and creates from its package", () => {
+    it("creates a template from its package with Use template, its connected apps and look", async () => {
         const props = baseProps()
         render(props)
         toGallery()
-        expect(heading()).toBe("Create your first agent")
-        click("Use template")
-        expect(heading()).toBe("Review your agent")
-        expect(host!.querySelector('[placeholder="Name your agent"]')).toBeNull()
-        expect(host!.textContent).toContain("PR reviewer")
-        expect(host!.textContent).toContain("Review each opened PR.")
-        expect(host!.textContent).toContain("Set by the template.")
-        expect(message("What should it do first?")).toBe("")
-        click("Create agent")
+        expect(host!.textContent).toContain("Creates the agent and opens it.")
+        await act(async () => button("Use template").click())
         expect(props.onCreate).toHaveBeenCalledWith({
             name: "PR reviewer",
             firstMessage: "",
-            templateKey: "review",
-            icon: {icon: "code", color: "#123456"},
+            templateKey: "pr-reviewer",
+            icon: {icon: "git-pull-request", color: "#123456"},
             apps: ["github"],
         })
+        render({...props, creating: true})
+        expect(button("Creating agent").getAttribute("aria-busy")).toBe("true")
+        render({...props, error: "Couldn't create the agent"})
+        expect(host!.querySelector('[role="alert"]')?.textContent).toBe("Couldn't create the agent")
     })
 
-    it("keeps the creator's edits through a detour to choose a model and a re-picked template", () => {
+    it("blocks Use template without a model and returns to the template after choosing one", () => {
         const props = baseProps({model: model(false)})
         render(props)
         toGallery()
-        click("Use template")
-        type("What should it do first?", "Review PR 12")
+        click(/^PR reviewer/)
+        expect(button("Use template").disabled).toBe(true)
+        expect(host!.textContent).toContain("Your agent needs a model to run.")
         click("Choose one")
-        expect(heading()).toBe("Choose how your agents run")
-        expect(nav.url).toBe(`${nav.BASE}/credits?return=review`)
+        expect(props.onCreate).not.toHaveBeenCalled()
+        expect(nav.url).toBe(`${nav.BASE}/credits?return=templates%2Fpr-reviewer`)
         render({...props, model: model(true)})
         click(/^Continue/)
-        expect(heading()).toBe("Review your agent")
-        expect(message("What should it do first?")).toBe("Review PR 12")
-        click("First agent")
-        expect(heading()).toBe("Create your first agent")
-        click("Use template")
-        expect(message("What should it do first?")).toBe("Review PR 12")
+        expect(nav.url).toBe(`${nav.BASE}/templates/pr-reviewer`)
+        expect(button("Use template").disabled).toBe(false)
     })
 
     it("builds a blank start in the gallery and creates from its first message", async () => {
         const props = baseProps()
         render(props)
         toGallery()
-        click("Use template")
-        click("First agent")
         click(/^New agent/)
         expect(heading()).toBe("Create your first agent")
         expect(host!.querySelector("[data-dock]")).toBeNull()
@@ -512,7 +495,7 @@ describe("first agent onboarding", () => {
         render(baseProps())
         toGallery()
         click(/^PR reviewer/)
-        expect(nav.url).toBe(`${nav.BASE}/templates/review`)
+        expect(nav.url).toBe(`${nav.BASE}/templates/pr-reviewer`)
         expect(button("Templates")).toBeTruthy()
         click("Templates")
         expect(nav.url).toBe(`${nav.BASE}/templates`)
@@ -521,24 +504,6 @@ describe("first agent onboarding", () => {
         expect(nav.url).toBe(`${nav.BASE}/templates/scratch`)
         expect(host!.querySelector('[placeholder="Name your agent"]')).not.toBeNull()
         click("Templates")
-        click(/^PR reviewer/)
-        click("Use template")
-        expect(heading()).toBe("Review your agent")
-        browserBack()
-        expect(nav.url).toBe(`${nav.BASE}/templates/review`)
-        click("Templates")
-        expect(nav.url).toBe(`${nav.BASE}/templates`)
-    })
-
-    it("starts the agent over when a blank start is opened by link over a picked template", () => {
-        render(baseProps())
-        toGallery()
-        click("Use template")
-        act(() => nav.open(`${nav.BASE}/templates/scratch`))
-        expect(
-            (host!.querySelector('[placeholder="Name your agent"]') as HTMLInputElement).value,
-        ).toBe("")
-        act(() => nav.open(`${nav.BASE}/review`))
         expect(nav.url).toBe(`${nav.BASE}/templates`)
     })
 
