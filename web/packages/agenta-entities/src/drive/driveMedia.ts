@@ -119,12 +119,14 @@ const thumbnailQueue: (() => void)[] = []
 async function withThumbnailSlot<T>(run: () => Promise<T>): Promise<T> {
     if (thumbnailsInFlight >= MAX_THUMBNAILS_IN_FLIGHT)
         await new Promise<void>((resolve) => thumbnailQueue.push(resolve))
-    thumbnailsInFlight += 1
+    else thumbnailsInFlight += 1
     try {
         return await run()
     } finally {
-        thumbnailsInFlight -= 1
-        thumbnailQueue.shift()?.()
+        // Hand the slot straight to a waiter, so a new caller cannot slip in between.
+        const next = thumbnailQueue.shift()
+        if (next) next()
+        else thumbnailsInFlight -= 1
     }
 }
 
