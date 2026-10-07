@@ -5,6 +5,8 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/entities/workflow", () => ({
+    ALL_TEMPLATES_CATEGORY: "All",
+    categorySlug: (category: string) => category.toLowerCase(),
     PROVIDERS: {},
     composioLogo: (slug: string) => slug,
     templateBuilderMessage: () => "Build a PR reviewer that comments inline.",
