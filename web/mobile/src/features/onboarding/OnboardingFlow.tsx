@@ -1,7 +1,6 @@
 import {useEffect, useLayoutEffect, useReducer, useRef, useState} from "react"
 
 import type {useComposerAttachments} from "@agenta/chat/hooks"
-import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {motion} from "motion/react"
 
 import {useMotionPresets} from "@/lib/motion/presets"
@@ -10,16 +9,15 @@ import {cn} from "@/lib/utils"
 import type {ConnectedApps} from "./onboardingApps"
 import type {OnboardingCatalog} from "./onboardingChoices"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
-import {OnboardingCreator} from "./OnboardingCreator"
 import {OnboardingCreditsStep} from "./OnboardingCreditsStep"
 import {
-    firstAgentInput,
+    blankAgentInput,
     onboardingReducer,
     readOnboardingDraft,
     saveOnboardingDraft,
+    templateAgentInput,
     type FirstAgentInput,
     type OnboardingDraft,
-    type OnboardingIconPick,
 } from "./onboardingDraft"
 import {OnboardingGallery} from "./OnboardingGallery"
 import {OnboardingHeader} from "./OnboardingHeader"
@@ -37,8 +35,6 @@ import {
     nextStep,
     onboardingHeadingId,
     onboardingRoutePath,
-    progressIndex,
-    progressSteps,
     stepIndex,
     stepRoute,
     type GalleryFocus,
@@ -48,11 +44,6 @@ import {
 } from "./onboardingRoute"
 import type {OnboardingModel} from "./useOnboardingModel"
 import {useOnboardingNav} from "./useOnboardingNav"
-
-export interface OnboardingCreateInput extends FirstAgentInput {
-    icon: OnboardingIconPick
-    apps: string[]
-}
 
 export interface OnboardingFlowProps {
     /** The page's own path, `/w/<workspace>/p/<project>/onboarding`; steps hang off it. */
@@ -64,14 +55,13 @@ export interface OnboardingFlowProps {
     catalog: OnboardingCatalog
     model: OnboardingModel
     connectedApps: ConnectedApps
-    toolsEnabled: boolean
     creating: boolean
     error?: string | null
     /** The first message's staged files; the host sends them with the create. */
     attachments: ReturnType<typeof useComposerAttachments>
     onStepCompleted: (step: OnboardingStep, draft: OnboardingDraft) => void
     /** Resolves `false` when no agent was created. */
-    onCreate: (input: OnboardingCreateInput) => Promise<boolean>
+    onCreate: (input: FirstAgentInput) => Promise<boolean>
 }
 
 const QUESTION_WIDTH = "max-w-[680px]"
@@ -80,19 +70,7 @@ const QUESTION_WIDTH = "max-w-[680px]"
 const WIDTH = {
     credits: "max-w-[880px]",
     templates: "max-w-[1040px] max-md:self-start",
-    review: "max-w-[1040px] max-md:self-start",
 } as const
-
-/** Which progress dots open from here: any answered step, and the templates from review. */
-const reachable = (
-    draft: OnboardingDraft,
-    steps: OnboardingSteps,
-    current: OnboardingStep,
-    target: OnboardingStep,
-) =>
-    progressIndex(target, steps) === progressIndex(current, steps)
-        ? current === "review"
-        : isStepOpen(target, draft, steps)
 
 const TEMPLATES: OnboardingRoute = {step: "templates", focus: null}
 
@@ -104,7 +82,6 @@ export const OnboardingFlow = ({
     catalog,
     model,
     connectedApps,
-    toolsEnabled,
     creating,
     error,
     attachments,
@@ -132,12 +109,6 @@ export const OnboardingFlow = ({
     useEffect(() => {
         if (redirect) navigate(routeRef.current, {replace: true})
     }, [redirect, canonical, navigate])
-
-    // The blank start edits the agent a template filled, so opening it starts that agent over.
-    const scratchOverTemplate = focus?.kind === "scratch" && draft.templateKey !== null
-    useLayoutEffect(() => {
-        if (scratchOverTemplate) dispatch({type: "scratch"})
-    }, [scratchOverTemplate])
 
     const presets = useMotionPresets()
     const [shown, setShown] = useState({step, direction: 1, moved: false})
@@ -176,12 +147,6 @@ export const OnboardingFlow = ({
 
     // Set when a phone opens a panel over the list, so its Back control pops that entry.
     const detailPushedRef = useRef(false)
-    const template = catalog.templates.find((item) => item.key === draft.templateKey) ?? null
-    const onUse = (picked: AgentStarterTemplate) => {
-        const apps = templateProviderSlugs(picked).filter((key) => connectedApps.has(key))
-        dispatch({type: "template", template: picked, apps})
-        go({step: "review"})
-    }
     const create: OnboardingCreateState = {
         modelReady: model.ready,
         creating,
@@ -189,17 +154,12 @@ export const OnboardingFlow = ({
         attachments,
         onChooseModel: () => go({step: "credits"}, {returnTo: routeRef.current}),
         onCreate: async (firstMessage) => {
-            const {agent} = draftRef.current
-            const input = firstAgentInput(
-                {templateKey: draftRef.current.templateKey, agent: {...agent, firstMessage}},
-                template,
-            )
-            if (!input) return false
-            return onCreate({...input, icon: agent.icon, apps: agent.apps})
+            const input = blankAgentInput(draftRef.current.agent, firstMessage)
+            return input ? onCreate(input) : false
         },
+        onCreateFromTemplate: (template) => onCreate(templateAgentInput(template, connectedApps)),
     }
-    const onAgent = (patch: Partial<Omit<OnboardingDraft["agent"], "apps">>) =>
-        dispatch({type: "agent", patch})
+    const onAgent = (patch: Partial<OnboardingDraft["agent"]>) => dispatch({type: "agent", patch})
 
     const question = (id: OnboardingQuestionId) => {
         const asked = onboardingQuestion(id)
@@ -244,20 +204,7 @@ export const OnboardingFlow = ({
                         go(TEMPLATES, {replace: true})
                     }
                 }}
-                onUse={onUse}
                 onChange={onAgent}
-            />
-        ),
-        review: () => (
-            <OnboardingCreator
-                agent={draft.agent}
-                template={template}
-                suggestedApps={template ? templateProviderSlugs(template) : []}
-                connectedApps={connectedApps}
-                toolsEnabled={toolsEnabled}
-                onChange={onAgent}
-                onApp={(key, on) => dispatch({type: "app", key, on})}
-                create={create}
             />
         ),
     }
@@ -286,9 +233,11 @@ export const OnboardingFlow = ({
                 </motion.section>
             </main>
             <OnboardingProgressDots
-                steps={progressSteps(steps)}
-                current={progressIndex(step, steps)}
-                reached={(target) => !creating && reachable(draft, steps, step, target)}
+                steps={steps}
+                current={steps.indexOf(step)}
+                reached={(target) =>
+                    !creating && target !== step && isStepOpen(target, draft, steps)
+                }
                 onGo={(target) => go(stepRoute(target))}
             />
         </div>

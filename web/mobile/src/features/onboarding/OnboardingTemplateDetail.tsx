@@ -1,13 +1,15 @@
 import type {ReactNode} from "react"
 
 import {PROVIDERS, type AgentStarterTemplate} from "@agenta/entities/workflow"
-import {Button} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/ui"
 import {ArrowRight, Lightning} from "@phosphor-icons/react"
 
 import {AppTileStack} from "../marketplace/AppTileStack"
 import {templateProviders} from "../marketplace/marketplaceView"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
+import type {OnboardingCreateState} from "./OnboardingCreateState"
+import {OnboardingCreateStatus} from "./OnboardingCreateStatus"
 import {OnboardingTemplateTile} from "./OnboardingTemplateTile"
 
 const copy = ONBOARDING_COPY.gallery
@@ -48,13 +50,13 @@ const AppLogo = ({slug, size}: {slug: string; size: number}) =>
         />
     ) : null
 
-/** The focused template: what it connects, how it runs, and the way into the creator. */
+/** The focused template: what it connects, how it runs, and Use template, which creates it. */
 export const OnboardingTemplateDetail = ({
     template,
-    onUse,
+    create,
 }: {
     template: AgentStarterTemplate
-    onUse: (template: AgentStarterTemplate) => void
+    create: OnboardingCreateState
 }) => {
     const providers = templateProviders(template)
     const required = template.connections.some((slot) => slot.required)
@@ -121,7 +123,9 @@ export const OnboardingTemplateDetail = ({
                                     ) : null}
                                 </div>
                                 <div className="flex flex-col gap-0.5 pb-3">
-                                    <span className={ONBOARDING_COPY.kickerClass}>{node.label}</span>
+                                    <span className={ONBOARDING_COPY.kickerClass}>
+                                        {node.label}
+                                    </span>
                                     <span className="text-sm leading-5">{node.text}</span>
                                 </div>
                             </li>
@@ -129,12 +133,23 @@ export const OnboardingTemplateDetail = ({
                     </ol>
                 </div>
             </div>
-            <div className="flex flex-col gap-2 px-3 pb-3 pt-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                <span className="text-muted-foreground text-xs leading-[18px]">{copy.review}</span>
-                <Button size="sm" className="max-sm:h-10 max-sm:w-full" onClick={() => onUse(template)}>
-                    {copy.use}
-                    <ArrowRight data-icon="inline-end" />
-                </Button>
+            <div className="flex flex-col gap-2 px-3 pb-3 pt-1">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                    <span className="text-muted-foreground text-xs leading-[18px]">
+                        {copy.useHint}
+                    </span>
+                    <LoadingButton
+                        size="sm"
+                        className="max-sm:h-10 max-sm:w-full"
+                        loading={create.creating}
+                        disabled={!create.modelReady}
+                        onClick={() => void create.onCreateFromTemplate(template)}
+                    >
+                        {create.creating ? copy.creating : copy.use}
+                        {create.creating ? null : <ArrowRight data-icon="inline-end" />}
+                    </LoadingButton>
+                </div>
+                <OnboardingCreateStatus create={create} />
             </div>
         </section>
     )

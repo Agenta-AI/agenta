@@ -27,7 +27,7 @@ export const OnboardingScratchPanel = ({
     create,
 }: {
     agent: OnboardingAgent
-    onChange: (patch: Partial<Omit<OnboardingAgent, "apps">>) => void
+    onChange: (patch: Partial<OnboardingAgent>) => void
     create: OnboardingCreateState
 }) => {
     const glyphs = useGlyphPaths()

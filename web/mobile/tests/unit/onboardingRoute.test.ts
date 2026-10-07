@@ -1,31 +1,28 @@
 import {describe, expect, it} from "vitest"
 
-import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
-
 import {
     guardOnboardingRoute as guardWith,
     nextStep,
     onboardingRoutePath,
     onboardingSteps,
     parseOnboardingRoute,
-    progressIndex,
-    progressSteps,
     stepIndex,
     type OnboardingRoute,
     type OnboardingStep,
 } from "@/features/onboarding/onboardingRoute"
 
+import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
+
 withTestQuestions()
 
-const ALL: OnboardingStep[] = ["role", "source", "credits", "templates", "review"]
+const ALL: OnboardingStep[] = ["role", "source", "credits", "templates"]
 const guardOnboardingRoute = (
     route: OnboardingRoute | null,
     answers: Parameters<typeof guardWith>[1],
 ) => guardWith(route, answers, ALL)
 
-const none = {answers: {}, templateKey: null}
-const answered = {answers: {role: "Engineering", source: "GitHub"}, templateKey: null}
-const picked = {...answered, templateKey: "review"}
+const none = {answers: {}}
+const answered = {answers: {role: "Engineering", source: "GitHub"}}
 
 describe("onboarding URL steps", () => {
     it("reads each step from the path after /onboarding", () => {
@@ -41,14 +38,14 @@ describe("onboarding URL steps", () => {
             step: "templates",
             focus: {kind: "template", key: "pr-reviewer"},
         })
-        expect(parseOnboardingRoute(["review"])).toEqual({step: "review"})
     })
 
     it("names no step for the bare page, an unknown or an over-long path", () => {
         expect(parseOnboardingRoute([])).toBeNull()
         expect(parseOnboardingRoute(["gallery"])).toBeNull()
         expect(parseOnboardingRoute(["role", "extra"])).toBeNull()
-        expect(parseOnboardingRoute(["review", "extra"])).toBeNull()
+        expect(parseOnboardingRoute(["review"])).toBeNull()
+        expect(parseOnboardingRoute(["credits", "extra"])).toBeNull()
         expect(parseOnboardingRoute(["templates", "a", "b"])).toBeNull()
     })
 
@@ -69,33 +66,28 @@ describe("onboarding step guard", () => {
     it("keeps a step the answers open", () => {
         const route = {step: "templates", focus: {kind: "template", key: "x"}} as const
         expect(guardOnboardingRoute(route, answered)).toEqual(route)
-        expect(guardOnboardingRoute({step: "review"}, picked)).toEqual({step: "review"})
     })
 
     it("sends a step not yet reached to the furthest one the answers open", () => {
-        expect(guardOnboardingRoute({step: "review"}, none)).toEqual({step: "role"})
+        expect(guardOnboardingRoute({step: "templates", focus: null}, none)).toEqual({
+            step: "role",
+        })
         expect(
             guardOnboardingRoute({step: "credits"}, {...none, answers: {role: "Engineering"}}),
         ).toEqual({step: "source"})
-        expect(guardOnboardingRoute({step: "review"}, answered)).toEqual({
-            step: "templates",
-            focus: null,
-        })
     })
 
     it("resumes the bare page or an unknown path at the furthest open step", () => {
         expect(guardOnboardingRoute(null, none)).toEqual({step: "role"})
-        expect(guardOnboardingRoute(null, picked)).toEqual({step: "review"})
+        expect(guardOnboardingRoute(null, answered)).toEqual({step: "templates", focus: null})
     })
 })
 
 describe("hidden question steps", () => {
-    const noRole = ["source", "credits", "templates", "review"] as const
-    const noQuestions = ["credits", "templates", "review"] as const
+    const noRole = ["source", "credits", "templates"] as const
+    const noQuestions = ["credits", "templates"] as const
 
-    it("drops a hidden step from the order, the dots and the next step", () => {
-        expect(progressSteps(noRole)).toEqual(["source", "credits", "templates"])
-        expect(progressIndex("review", noRole)).toBe(2)
+    it("drops a hidden step from the order and the next step", () => {
         expect(nextStep("source", noRole)).toBe("credits")
     })
 
@@ -114,8 +106,8 @@ describe("hidden question steps", () => {
         expect(onboardingSteps()).toEqual(ALL)
         registerQuestion({...TEAM_QUESTION, enabled: false})
         expect(onboardingSteps()).toEqual(ALL)
-        const steps = ["role", "source", "team", "credits", "review"] as OnboardingStep[]
-        expect(steps.map(stepIndex)).toEqual([0, 1, 2, 3, 5])
+        const steps = ["role", "source", "team", "credits", "templates"] as OnboardingStep[]
+        expect(steps.map(stepIndex)).toEqual([0, 1, 2, 3, 4])
         expect(parseOnboardingRoute(["team"])).toEqual({step: "team"})
         expect(guardWith(parseOnboardingRoute(["team"]), answered, ALL)).toEqual({
             step: "templates",

@@ -9,7 +9,7 @@ import {
     refetchAgentTemplatesAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
-import {isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
+import {isWalletsEnabled} from "@agenta/shared/api/env"
 import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -21,8 +21,13 @@ import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {connectedApps} from "./onboardingApps"
 import type {OnboardingCatalog} from "./onboardingChoices"
 import {onboardingConfiguration} from "./onboardingConfig"
-import {onboardingDraftKey, type OnboardingDraft, type OnboardingIconPick} from "./onboardingDraft"
-import {OnboardingFlow, type OnboardingCreateInput} from "./OnboardingFlow"
+import {
+    onboardingDraftKey,
+    type FirstAgentInput,
+    type OnboardingDraft,
+    type OnboardingIconPick,
+} from "./onboardingDraft"
+import {OnboardingFlow} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingPending} from "./onboardingPending"
 import {personProperties} from "./onboardingQuestions"
 import {onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
@@ -62,7 +67,6 @@ export const OnboardingFlowHost = ({
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
     const updateConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
-    const toolsEnabled = useMemo(() => isToolsEnabled(), [])
     const {connections} = useToolConnectionsQuery()
     const apps = useMemo(() => connectedApps(connections), [connections])
     const newAgent = useNewAgentAction(base)
@@ -106,7 +110,7 @@ export const OnboardingFlowHost = ({
         icon,
         apps: chosenApps,
         templateKey,
-    }: OnboardingCreateInput) => {
+    }: FirstAgentInput) => {
         updateConfiguration(
             entityId,
             onboardingConfiguration(configuration ?? {}, {apps: chosenApps, connections}),
@@ -142,7 +146,6 @@ export const OnboardingFlowHost = ({
             catalog={catalog}
             model={model}
             connectedApps={apps}
-            toolsEnabled={toolsEnabled}
             creating={newAgent.creating}
             error={newAgent.error}
             attachments={attachments}
