@@ -3,9 +3,9 @@ import type {TabRunBadge} from "./tabRunBadge"
 type Badge = NonNullable<TabRunBadge>
 
 const SIZE = 64
-const CENTER = 46
-const RADIUS = 17
-const GAP = 4
+const DOT_X = 54
+const DOT_Y = 10
+const DOT_RADIUS = 10
 
 const BADGE_COLOR_TOKEN: Record<Badge, string> = {
     running: "--ag-run-status-processing",
@@ -31,7 +31,7 @@ const originalOf = (link: HTMLLinkElement): LinkOriginal =>
 
 const baseIconHref = (): string | null => {
     const links = iconLinks().map(originalOf)
-    return (links.find((link) => link.type === "image/svg+xml") ?? links[0])?.href ?? null
+    return (links.find((link) => link.type !== "image/svg+xml") ?? links[0])?.href ?? null
 }
 
 const restoreAttribute = (link: HTMLLinkElement, name: string, value: string | null) => {
@@ -59,15 +59,9 @@ const draw = async (badge: Badge): Promise<string | null> => {
         const height = icon.naturalHeight * scale
         ctx.drawImage(icon, (SIZE - width) / 2, (SIZE - height) / 2, width, height)
 
-        ctx.globalCompositeOperation = "destination-out"
-        ctx.beginPath()
-        ctx.arc(CENTER, CENTER, RADIUS + GAP, 0, Math.PI * 2)
-        ctx.fill()
-
-        ctx.globalCompositeOperation = "source-over"
         ctx.fillStyle = color
         ctx.beginPath()
-        ctx.arc(CENTER, CENTER, RADIUS, 0, Math.PI * 2)
+        ctx.arc(DOT_X, DOT_Y, DOT_RADIUS, 0, Math.PI * 2)
         ctx.fill()
         return canvas.toDataURL("image/png")
     } catch {
