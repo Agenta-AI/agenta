@@ -46,11 +46,7 @@ export const OnboardingScratchPanel = ({
                 {copy.modelMissingAction}
             </button>
         </span>
-    ) : !create.complete ? (
-        <span className="text-muted-foreground text-xs">{copy.needsMessage}</span>
-    ) : (
-        <span />
-    )
+    ) : null
 
     return (
         <section
@@ -159,8 +155,8 @@ export const OnboardingScratchPanel = ({
                     </div>
                 </div>
             </div>
-            <div className="flex flex-col gap-2 px-3 pb-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
-                {status}
+            <div className="flex flex-col gap-2 px-3 pb-3 pt-1 sm:flex-row sm:items-center sm:justify-end">
+                {status ? <div className="sm:mr-auto">{status}</div> : null}
                 <LoadingButton
                     size="sm"
                     className="max-sm:h-10 max-sm:w-full"

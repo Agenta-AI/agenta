@@ -103,7 +103,6 @@ export const ONBOARDING_COPY = {
         starters: "Message ideas",
         create: "Create agent",
         creating: "Creating agent",
-        needsMessage: "Write a first message to create your agent.",
         modelMissing: "Your agent needs a model to run.",
         modelMissingAction: "Choose one",
         previewLabel: "Preview",
