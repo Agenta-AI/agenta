@@ -1,17 +1,21 @@
-# First-agent onboarding experiment
+# First-agent onboarding
 
-`onboarding-first-agent-v1.json` records the intended PostHog configuration. It is a setup specification, not an API request body. Creating the GitHub PR does not create or launch the experiment in PostHog.
-
-Create a web experiment with flag key `onboarding-first-agent-v1`. Use `control` (name first) and `task-first` (task first), each at 50%, with 100% overall rollout. Use the funnel from `onboarding_started` to `onboarding_agent_created` as the primary metric. The latter event fires after a successful save, not when Create is clicked. It does not claim the first agent run succeeded.
-
-The PostHog flag is read only in first-agent onboarding. The existing analytics client identifies the visitor before flag evaluation. A resolved variant remains fixed for that mounted flow. If analytics is unavailable for three seconds, name-first onboarding remains usable without enrolling that visitor in the experiment. Such visitors do not emit the experiment's creation or start events.
+The first-agent onboarding flow no longer runs a PostHog experiment. The `onboarding-first-agent-v1` A/B test (name first against task first) was dropped, and its setup file was removed. Every visitor gets the same flow. If the flag still exists in PostHog, archive it there; nothing in the app reads it.
 
 The flow lives in the mobile app (`web/mobile/src/features/onboarding/`, served at `/m`) and is off by default. Set `NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED=true` to turn it on. A container takes it from `AGENTA_ONBOARDING_FLOW_ENABLED` through `web/entrypoint.sh`, and a host-run app reads it from `web/mobile/public/__env.js` or the build environment. With the flag off, an empty project opens Home as before.
 
-With the flag on, an empty project's Home (`/m/w/<workspace>/p/<project>/apps`) opens the flow full page. To preview a variant, add `?onboarding-variant=control` or `?onboarding-variant=task-first` to that URL. The preview also opens the flow on a project that already has agents. The preview switch is for design review, QA, and demos: it shows that variant without enrolling the visitor, so it emits no `onboarding_started`, `onboarding_create_clicked`, or `onboarding_agent_created` event and its step events carry no `variant`. To test enrollment itself, use PostHog's flag override for each variant instead. Without a configured PostHog key, the fallback is name first at once.
+With the flag on, an empty project's Home (`/m/w/<workspace>/p/<project>/apps`) opens the flow full page. The flow has four numbered steps:
 
-The flow replaces the empty project's Home. Role and referral choices are sent through `onboarding_step_completed` with the `user_role_v2` and `referral_source_v2` person properties, each set only once it is answered. Each step event carries `step` (its 1-based position in the five-step order) and `step_key`. It does not submit the old multi-question survey or calculate its ICP score.
+1. What kind of work do you do? Twelve answers, picked by tap or by the letter keys A to L. The flow moves on by itself.
+2. How did you hear about Agenta? The same twelve-answer pattern.
+3. How your agents run. The Agenta credits row shows the organization's real credits: the `starter-credits` Vault connection, Agenta's built-in models, and the wallet balance when the wallet is enforced. No number appears unless the wallet reports one. ChatGPT opens the existing subscription sign-in dialog, and the API key row opens the existing provider drawer. The model is picked automatically from the runnable connections, with Agenta credits first. If nothing can run, the step says so.
+4. Create your first agent. A gallery of the real template catalog, grouped by category, with Recommended ordered by the first answer. A template fills the creator, and Start from scratch opens it blank. The creator takes a name, an icon and color, instructions, optional apps, and a first message. Create commits the agent with those instructions and opens its playground with the first message sent.
 
-The tools step is skipped when the deployment has no tool gateway (`NEXT_PUBLIC_AGENTA_TOOLS_ENABLED`). Tool connections use the existing catalog and the direct connect flow. Only valid, active saved connections show Connected, and every one of them joins the first agent. On its first load in a project and browser session, the tools step connects Composio Search and Browser Tool, which need no sign-in, unless they already exist. It does not do this in a preview or when the connections read fails. Model selection uses the deployment's runnable candidates. Available credits and subscriptions are shown only when the backend reports them. Create commits the draft agent through the same create path as the rest of the app, hands its first message to the new session, and opens it. No template example is presented as a real run.
+To preview the flow on any project, add `?onboarding-preview` to that URL (for example `?onboarding-preview=1`). A preview sends no analytics and does not seed the zero-auth tools. Create still creates a real agent.
 
-Sources: [PostHog experiment setup](https://posthog.com/docs/experiments/creating-an-experiment), [experiment API](https://posthog.com/docs/api/experiments).
+Outside a preview, the flow sends these events:
+
+- `onboarding_started` when the flow opens.
+- `onboarding_step_completed` each time the user moves forward. It carries `step` (the 1-based position in the order `role`, `referral`, `credits`, `gallery`, `creator`) and `step_key`. It sets the `user_role_v2` and `referral_source_v2` person properties once each answer is given. The answer lists changed with this flow, so values recorded before it use the old labels.
+- `onboarding_create_clicked` when Create is pressed.
+- `onboarding_agent_created` after the agent is saved, with its `revision_id`. It does not claim the first run succeeded.

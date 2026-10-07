@@ -1,13 +1,13 @@
-# Approved onboarding preview, 2026-09-15
+# Approved onboarding preview, 2026-10-07
 
-Design reference: https://agenta-onboarding-design-20260915.mahmoud-637.workers.dev/?v=3
+Design reference: the `Onboarding.dc.html` design in the Claude Design project (live artifact https://claude.ai/artifact/Mi2TWPUpkSWNQS2Y4jHU2v).
 
-The reference is the supplied `Onboarding Prototype (interactive).html`, from `Agenta onboarding extraction (2).zip`. The mobile app (`web/mobile/src/features/onboarding/`) follows its five-step layout (role, tools, model, referral, first agent) and the two first-agent treatments, using real model and tool connections.
+The mobile app (`web/mobile/src/features/onboarding/`) builds one flow from it. The earlier name-first and task-first variants, their PostHog experiment, and the standalone model and tools steps are gone. Pixel parity with the design is not a goal. The flow, the hierarchy, the copy, and the behavior are.
 
-- Full-page shell, Agenta wordmark, full-width progress, centered role/referral cards with Phosphor icons, and borderless navigation.
-- Tools load on scroll with a bottom fade. Intermediate pages display complete rows; the last page may have a partial row. A tool keeps its catalog position when it connects, so cards do not move under the pointer. A card starts the provider sign-in directly, under a generated connection name. Composio Search and Browser Tool need no sign-in, so they are connected once per project and browser session when the step first loads, never in a preview.
-- Model setup presents available connections, ChatGPT, Claude's self-hosting information, and provider keys. Credit amounts are not invented from prototype copy. Creation still requires a runnable selected model.
-- Name-first uses the identity selector and horizontal suggestions. A name alone creates a builder seed. Task-first presents tasks and an illustrative example alongside them. Both use the existing save and first-message path.
-- Icon choices stay in the onboarding draft until Create, then save onto the new agent's workflow artifact (`tags["@ag"].icon`), so every browser and teammate sees them. Name-first saves the identity it shows, including the default one.
-
-The original reference's OAuth, balance and agent runs are simulations. The implementation preserves live validation, permission selection, model connection dialogs, errors and retries.
+- Shell: full page, the Agenta wordmark, a back button, and "Step N of 4" with dots. The gallery and the creator share step 4.
+- Questions: work type, then how the user heard about Agenta. Twelve chips each, letter keys A to L, and the flow moves on after a pick.
+- Credits: real data only. The Agenta credits row appears when the organization has the `starter-credits` Vault connection, Agenta's built-in models, or an enforced wallet. Its number is the wallet's spendable balance, and it is hidden when the wallet reports none. ChatGPT and the API key open the existing connection dialog and provider drawer. The model is picked from the runnable connections, Agenta credits first, so Create always has a model when one exists. If none can run, the step says so and the creator links back to it.
+- Gallery: the API template catalog (`agentTemplatesAtom`), not the design's sample templates. Category chips come from the catalog, with Recommended ordered by the work-type answer. A list sits beside a focused detail panel (what it connects, when it runs, and the authored example run). On a phone, the detail opens under the focused row. Start from scratch opens a blank creator.
+- Creator: name, icon and color (the shared agent icon picker), instructions, optional apps, and a first message with starter ideas, beside a live preview. A template fills every field: its instructions summary, a category glyph on its catalog color, and its builder message as the first message. An app chip connects the app on first tap, then toggles it. Composio Search and Browser Tool need no sign-in, so they are connected once per project and browser session and join every first agent, never in a preview.
+- Create: the instructions go into the agent's `AGENTS.md`, the chosen apps become gateway tools, and the agent is committed through the shared create path. The user lands in the agent's playground with the first message sent. The design's "Agent ready" and chat screens are not built. The icon saves onto the new agent's workflow artifact (`tags["@ag"].icon`).
+- Answers survive a reload or an auth redirect in session storage until Create succeeds.
