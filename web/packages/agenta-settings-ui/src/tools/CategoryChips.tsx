@@ -8,6 +8,7 @@ import {
     DropdownMenuTrigger,
     cn,
 } from "@agenta/ui/ui"
+import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {CaretDown} from "@phosphor-icons/react"
 
 import {categoryLabel} from "./categoryLabel"
@@ -42,6 +43,7 @@ export const CategoryChips = ({
 }) => {
     const {categories, error} = useToolCatalogCategories()
     const rowRef = useRef<HTMLDivElement>(null)
+    useScrollFadeEdges(rowRef, {axis: "x", enabled: categories.length > 0})
     // On a phone the row scrolls sideways; keep the selected chip in view.
     useEffect(() => {
         rowRef.current
@@ -62,7 +64,7 @@ export const CategoryChips = ({
             role="toolbar"
             aria-label="Categories"
             // The row scrolls sideways, which clips; the padding leaves room for the focus ring.
-            className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 pt-2 [scrollbar-width:none]"
+            className="ag-scroll-fade-x -mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 pt-2 [scrollbar-width:none]"
         >
             <Chip on={selected === null} onClick={() => onSelect(null)}>
                 All
