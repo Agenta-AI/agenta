@@ -5,7 +5,6 @@ from urllib.parse import urljoin, urlparse, urlunparse
 import httpx
 
 from oss.src.core.gateways.dtos import no_cookie_jar
-from oss.src.core.gateways.egress import _pin_to_resolved_address
 from oss.src.core.links.guard import resolve_link_target
 from oss.src.core.links.parser import head_section, parse_link_meta
 from oss.src.core.links.types import (
@@ -16,6 +15,7 @@ from oss.src.core.links.types import (
 )
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.network import pin_to_resolved_address
 
 log = get_module_logger(__name__)
 
@@ -98,7 +98,7 @@ async def _fetch_html(url: str) -> tuple[str, Optional[str]]:
                     "A redirect led to a refused target."
                 ) from None
 
-            pinned_url, host_header = _pin_to_resolved_address(current, target.address)
+            pinned_url, host_header = pin_to_resolved_address(current, target.address)
             request = client.build_request(
                 "GET",
                 pinned_url,

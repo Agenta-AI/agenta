@@ -1,7 +1,7 @@
 """Which link targets the preview fetcher may dial.
 
-The address predicate is the API's one copy, `core/webhooks/utils.py::_is_blocked_ip`,
-asked with the insecure flag forced off: link targets come from chat text, which anyone in the
+The address predicate is the API's one copy, `utils/network.py::is_blocked_ip`, asked with
+no insecure flag: link targets come from chat text, which anyone in the
 conversation, including the agent, controls. Every resolved address must pass, and the caller
 connects to the address returned here, so a name that re-resolves cannot move the request.
 """
@@ -16,7 +16,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from oss.src.core.links.types import LinkPreviewRefused, LinkPreviewUnreachable
-from oss.src.core.webhooks.utils import _is_blocked_ip
+from oss.src.utils.network import is_blocked_ip
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 _RESOLVE_TIMEOUT_SECONDS = 1.5
@@ -55,9 +55,7 @@ class LinkTarget:
 def is_blocked_address(ip: ipaddress._BaseAddress) -> bool:
     # Judged as the IPv4 address it carries, whatever this Python's predicates do with it.
     embedded = getattr(ip, "ipv4_mapped", None)
-    return _is_blocked_ip(ip, allow_insecure=False) or (
-        embedded is not None and _is_blocked_ip(embedded, allow_insecure=False)
-    )
+    return is_blocked_ip(ip) or (embedded is not None and is_blocked_ip(embedded))
 
 
 def check_link_url(url: str) -> tuple[str, int]:
