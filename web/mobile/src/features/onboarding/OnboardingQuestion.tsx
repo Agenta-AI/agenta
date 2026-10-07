@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
 import {Kbd} from "@agenta/ui/ui"
+import {useIsPresent} from "motion/react"
 
 import {useMotionPresets} from "@/lib/motion/presets"
 import {FOCUS_RING} from "@/lib/interactive"
@@ -31,11 +32,22 @@ export const OnboardingQuestion = <Label extends string>({
     const [picked, setPicked] = useState<Label | null>(null)
     const pickedRef = useRef(false)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    // A question that is leaving the screen stays mounted while it animates out; it must not act.
+    const present = useIsPresent()
+    useEffect(() => {
+        if (!present) {
+            clearTimeout(timerRef.current ?? undefined)
+            return
+        }
+        // Back can bring the same question back before its exit finished; it must answer again.
+        pickedRef.current = false
+        setPicked(null)
+    }, [present])
     useEffect(() => () => clearTimeout(timerRef.current ?? undefined), [])
 
     const pickRef = useRef<(label: Label) => void>(() => undefined)
     pickRef.current = (label: Label) => {
-        if (pickedRef.current) return
+        if (pickedRef.current || !present) return
         pickedRef.current = true
         setPicked(label)
         onAnswer(label)

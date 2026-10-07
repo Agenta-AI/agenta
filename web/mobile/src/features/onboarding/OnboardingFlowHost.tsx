@@ -17,7 +17,8 @@ import {capture} from "@/features/analytics/client"
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 
 import type {OnboardingCatalog} from "./onboardingChoices"
-import {onboardingConfiguration} from "./onboardingConfig"
+import {connectedApps} from "./onboardingApps"
+import {onboardingConfiguration, readInstructionsBlock} from "./onboardingConfig"
 import {
     onboardingDraftKey,
     onboardingStepNumber,
@@ -47,7 +48,7 @@ export const OnboardingFlowHost = ({
     projectId: string
     /** The local draft agent the flow configures and Create commits. */
     entityId: string
-    /** A `?onboarding-preview` visit: no analytics and no tool seeding until Create. */
+    /** A `?onboarding-preview` visit: no analytics and no tool seeding. */
     preview: boolean
 }) => {
     const templates = useAtomValue(agentTemplatesAtom)
@@ -65,6 +66,12 @@ export const OnboardingFlowHost = ({
     const toolsEnabled = useMemo(() => isToolsEnabled(), [])
     const connectionsQuery = useToolConnectionsQuery()
     const {connections} = connectionsQuery
+    const apps = useMemo(() => connectedApps(connections), [connections])
+    // The instructions the draft was minted with; each Create writes over these, never a retry's.
+    const baseInstructionsRef = useRef<{value: unknown} | null>(null)
+    if (!baseInstructionsRef.current && configuration) {
+        baseInstructionsRef.current = {value: readInstructionsBlock(configuration)}
+    }
     useSeedToolConnections({
         enabled: toolsEnabled && !preview,
         connections,
@@ -102,10 +109,21 @@ export const OnboardingFlowHost = ({
             $set: personProperties(draft),
         })
 
-    const onCreate = ({name, instructions, firstMessage, icon, apps}: OnboardingCreateInput) => {
+    const onCreate = ({
+        name,
+        instructions,
+        firstMessage,
+        icon,
+        apps: chosenApps,
+    }: OnboardingCreateInput) => {
         updateConfiguration(
             entityId,
-            onboardingConfiguration(configuration ?? {}, {instructions, apps, connections}),
+            onboardingConfiguration(configuration ?? {}, {
+                instructions,
+                baseInstructions: baseInstructionsRef.current?.value,
+                apps: chosenApps,
+                connections,
+            }),
         )
         track("onboarding_create_clicked")
         void newAgent.createFromPrompt({
@@ -125,6 +143,7 @@ export const OnboardingFlowHost = ({
             draftKey={draftKey}
             catalog={catalog}
             model={model}
+            connectedApps={apps}
             toolsEnabled={toolsEnabled}
             creating={newAgent.creating}
             error={newAgent.error}

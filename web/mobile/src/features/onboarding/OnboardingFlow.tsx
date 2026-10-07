@@ -6,6 +6,7 @@ import {AnimatePresence, motion} from "motion/react"
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
+import type {ConnectedApps} from "./onboardingApps"
 import {
     ONBOARDING_ROLES,
     ONBOARDING_SOURCES,
@@ -43,6 +44,7 @@ export interface OnboardingFlowProps {
     draftKey: string
     catalog: OnboardingCatalog
     model: OnboardingModel
+    connectedApps: ConnectedApps
     toolsEnabled: boolean
     creating: boolean
     error?: string | null
@@ -50,12 +52,13 @@ export interface OnboardingFlowProps {
     onCreate: (input: OnboardingCreateInput) => void
 }
 
-const WIDTH: Record<OnboardingStep, string> = {
+/** Each step's column; the questions sit lower, near the middle of a wide screen. */
+const FRAME: Record<OnboardingStep, string> = {
     role: "max-w-[680px] lg:pt-[10vh]",
     referral: "max-w-[680px] lg:pt-[10vh]",
-    credits: "max-w-[640px]",
-    gallery: "max-w-[1040px]",
-    creator: "max-w-[1040px]",
+    credits: "max-w-[640px] lg:pt-10",
+    gallery: "max-w-[1040px] lg:pt-10",
+    creator: "max-w-[1040px] lg:pt-10",
 }
 
 /** The four-step first-agent flow; it owns the answers, the host owns data and side effects. */
@@ -63,6 +66,7 @@ export const OnboardingFlow = ({
     draftKey,
     catalog,
     model,
+    connectedApps,
     toolsEnabled,
     creating,
     error,
@@ -87,14 +91,24 @@ export const OnboardingFlow = ({
             ?.focus({preventScroll: true})
     }, [step])
 
+    // Mirrors `draft.completed` synchronously, so a double click reports a step once.
+    const completedRef = useRef(new Set(draft.completed))
     const go = (next: OnboardingStep) => {
         const current = draftRef.current
         const forward = ONBOARDING_STEPS.indexOf(next) > ONBOARDING_STEPS.indexOf(current.step)
-        if (forward) onStepCompleted(current.step, current)
+        if (forward && !completedRef.current.has(current.step)) {
+            completedRef.current.add(current.step)
+            dispatch({type: "completed", step: current.step})
+            onStepCompleted(current.step, current)
+        }
         setDirection(forward ? 1 : -1)
         movedRef.current = true
         dispatch({type: "step", step: next})
         if (scrollerRef.current) scrollerRef.current.scrollTop = 0
+    }
+    /** A question's timer or key moves the flow only while its own step is current. */
+    const advance = (from: OnboardingStep, to: OnboardingStep) => {
+        if (draftRef.current.step === from) go(to)
     }
     const previous = PREVIOUS[step]
 
@@ -102,7 +116,8 @@ export const OnboardingFlow = ({
         catalog.templates.find((item) => item.key === draft.templateKey) ?? null
     const input = firstAgentInput(draft.agent)
     const onUse = (picked: AgentStarterTemplate) => {
-        dispatch({type: "template", template: picked})
+        const apps = templateProviderSlugs(picked).filter((key) => connectedApps.has(key))
+        dispatch({type: "template", template: picked, apps})
         go("creator")
     }
 
@@ -115,7 +130,7 @@ export const OnboardingFlow = ({
                 choices={ONBOARDING_ROLES}
                 value={draft.role}
                 onAnswer={(role) => dispatch({type: "role", role})}
-                onAdvance={() => go("referral")}
+                onAdvance={() => advance("role", "referral")}
             />
         ),
         referral: () => (
@@ -126,10 +141,19 @@ export const OnboardingFlow = ({
                 choices={ONBOARDING_SOURCES}
                 value={draft.source}
                 onAnswer={(source) => dispatch({type: "source", source})}
-                onAdvance={() => go("credits")}
+                onAdvance={() => advance("referral", "credits")}
             />
         ),
-        credits: () => <OnboardingCreditsStep model={model} onContinue={() => go("gallery")} />,
+        credits: () => (
+            <OnboardingCreditsStep
+                model={model}
+                onContinue={() => {
+                    const next = draftRef.current.returnTo ?? "gallery"
+                    dispatch({type: "returnTo", step: null})
+                    go(next)
+                }}
+            />
+        ),
         gallery: () => (
             <OnboardingGallery
                 catalog={catalog}
@@ -150,6 +174,7 @@ export const OnboardingFlow = ({
                 agent={draft.agent}
                 templateName={template?.name ?? null}
                 suggestedApps={template ? templateProviderSlugs(template) : []}
+                connectedApps={connectedApps}
                 toolsEnabled={toolsEnabled}
                 onChange={(patch) => dispatch({type: "agent", patch})}
                 onApp={(key, on) => dispatch({type: "app", key, on})}
@@ -158,7 +183,10 @@ export const OnboardingFlow = ({
                     complete: input !== null,
                     creating,
                     error,
-                    onChooseModel: () => go("credits"),
+                    onChooseModel: () => {
+                        dispatch({type: "returnTo", step: "creator"})
+                        go("credits")
+                    },
                     onCreate: () => {
                         if (!input) return
                         onCreate({...input, icon: draft.agent.icon, apps: draft.agent.apps})
@@ -186,7 +214,7 @@ export const OnboardingFlow = ({
                         initial="initial"
                         animate="animate"
                         exit="exit"
-                        className={cn("mx-auto w-full pb-16 pt-6 lg:pt-10", WIDTH[step])}
+                        className={cn("mx-auto w-full pb-16 pt-6", FRAME[step])}
                     >
                         {body[step]()}
                     </motion.section>

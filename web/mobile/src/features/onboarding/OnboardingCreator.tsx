@@ -4,6 +4,7 @@ import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
 
 import {OnboardingAgentPreview} from "./OnboardingAgentPreview"
+import type {ConnectedApps} from "./onboardingApps"
 import {OnboardingAppsField} from "./OnboardingAppsField"
 import {FIRST_MESSAGE_STARTERS} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
@@ -33,6 +34,7 @@ export const OnboardingCreator = ({
     agent,
     templateName,
     suggestedApps,
+    connectedApps,
     toolsEnabled,
     onChange,
     onApp,
@@ -42,6 +44,7 @@ export const OnboardingCreator = ({
     /** The template the agent was filled from, if any. */
     templateName: string | null
     suggestedApps: readonly string[]
+    connectedApps: ConnectedApps
     toolsEnabled: boolean
     onChange: (patch: Partial<Omit<OnboardingAgent, "apps">>) => void
     onApp: (key: string, on: boolean) => void
@@ -151,7 +154,7 @@ export const OnboardingCreator = ({
             </div>
         </div>
         <div className="sticky top-24 max-lg:hidden">
-            <OnboardingAgentPreview agent={agent} />
+            <OnboardingAgentPreview agent={agent} connected={connectedApps} />
         </div>
     </div>
 )

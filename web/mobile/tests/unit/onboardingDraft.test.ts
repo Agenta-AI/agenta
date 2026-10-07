@@ -85,18 +85,30 @@ describe("onboarding answers", () => {
         const filled = onboardingReducer(draft({agent: {...BLANK_AGENT, name: "Mine"}}), {
             type: "template",
             template: template("review", "Engineering", "PR reviewer"),
+            apps: ["github"],
         })
         expect(filled.templateKey).toBe("review")
         expect(filled.agent).toEqual({
             name: "PR reviewer",
             icon: {icon: "code", color: "#123456"},
             instructions: "PR reviewer instructions",
-            apps: [],
+            apps: ["github"],
             firstMessage: "Build PR reviewer",
         })
         const blank = onboardingReducer(filled, {type: "scratch"})
         expect(blank.templateKey).toBeNull()
         expect(blank.agent).toEqual(BLANK_AGENT)
+    })
+
+    it("keeps edits when the same template or a blank start is picked again", () => {
+        const pr = template("review", "Engineering", "PR reviewer")
+        const edited = onboardingReducer(
+            onboardingReducer(draft(), {type: "template", template: pr, apps: []}),
+            {type: "agent", patch: {name: "Mine"}},
+        )
+        expect(onboardingReducer(edited, {type: "template", template: pr, apps: []})).toBe(edited)
+        const blank = onboardingReducer(draft(), {type: "agent", patch: {name: "Blank"}})
+        expect(onboardingReducer(blank, {type: "scratch"})).toBe(blank)
     })
 
     it("adds and removes an app once each", () => {

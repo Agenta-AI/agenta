@@ -65,6 +65,10 @@ export interface OnboardingDraft {
     /** The template the creator was filled from, if any. */
     templateKey: string | null
     agent: OnboardingAgent
+    /** Where credits' Continue leads after a detour from a later step; `null` is the gallery. */
+    returnTo: OnboardingStep | null
+    /** Steps already reported as completed, so each is reported once. */
+    completed: OnboardingStep[]
 }
 
 export const ONBOARDING_NAME_MAX = 100
@@ -86,13 +90,18 @@ export const EMPTY_ONBOARDING_DRAFT: OnboardingDraft = {
     focus: null,
     templateKey: null,
     agent: BLANK_AGENT,
+    returnTo: null,
+    completed: [],
 }
 
-export const agentFromTemplate = (template: AgentStarterTemplate): OnboardingAgent => ({
+export const agentFromTemplate = (
+    template: AgentStarterTemplate,
+    apps: readonly string[],
+): OnboardingAgent => ({
     name: template.name,
     icon: {icon: templateGlyph(template), color: template.color},
     instructions: template.instructions,
-    apps: [],
+    apps: [...apps],
     firstMessage: templateBuilderMessage(template),
 })
 
@@ -102,10 +111,13 @@ export type OnboardingAction =
     | {type: "source"; source: OnboardingSource}
     | {type: "category"; category: GalleryCategory}
     | {type: "focus"; key: string}
-    | {type: "template"; template: AgentStarterTemplate}
+    /** `apps`: the template's apps that are already connected. */
+    | {type: "template"; template: AgentStarterTemplate; apps: readonly string[]}
     | {type: "scratch"}
     | {type: "agent"; patch: Partial<Omit<OnboardingAgent, "apps">>}
     | {type: "app"; key: string; on: boolean}
+    | {type: "returnTo"; step: OnboardingStep | null}
+    | {type: "completed"; step: OnboardingStep}
 
 export const onboardingReducer = (
     draft: OnboardingDraft,
@@ -126,13 +138,18 @@ export const onboardingReducer = (
         case "focus":
             return {...draft, focus: action.key}
         case "template":
-            return {
-                ...draft,
-                templateKey: action.template.key,
-                agent: agentFromTemplate(action.template),
-            }
+            // Coming back to the same template keeps what the user already changed.
+            return action.template.key === draft.templateKey
+                ? draft
+                : {
+                      ...draft,
+                      templateKey: action.template.key,
+                      agent: agentFromTemplate(action.template, action.apps),
+                  }
         case "scratch":
-            return {...draft, templateKey: null, agent: BLANK_AGENT}
+            return draft.templateKey === null
+                ? draft
+                : {...draft, templateKey: null, agent: BLANK_AGENT}
         case "agent": {
             const agent = {...draft.agent, ...action.patch}
             return {
@@ -145,6 +162,12 @@ export const onboardingReducer = (
                 },
             }
         }
+        case "returnTo":
+            return {...draft, returnTo: action.step}
+        case "completed":
+            return draft.completed.includes(action.step)
+                ? draft
+                : {...draft, completed: [...draft.completed, action.step]}
         case "app": {
             const others = draft.agent.apps.filter((key) => key !== action.key)
             return {
@@ -198,6 +221,8 @@ const draftSchema = z
             apps: z.array(z.string().min(1)),
             firstMessage: z.string().max(ONBOARDING_TEXT_MAX),
         }),
+        returnTo: z.enum(ONBOARDING_STEPS).nullable(),
+        completed: z.array(z.enum(ONBOARDING_STEPS)),
     })
     // A draft past a question must carry its answer, or the flow resumes past an empty one.
     .refine(
