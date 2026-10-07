@@ -1216,7 +1216,10 @@ class KubeStack(Stack):
                 try:
                     secrets[ref[0]] = self.kubectl.json("get", "secret", ref[0])
                 except (RuntimeError, ValueError) as exc:
-                    print(f"[r1] cannot read secret {ref[0]}: {exc}", file=sys.stderr)
+                    print(
+                        f"[r1] cannot read a runner Secret ({type(exc).__name__})",
+                        file=sys.stderr,
+                    )
                     secrets[ref[0]] = {}
             value = _decode_secret(secrets[ref[0]], ref[1])
             if value:
@@ -1529,14 +1532,13 @@ class Ctx:
             return {}
         if row is None:
             self.subscription_skip = (
-                f"no `{SUBSCRIPTION_SECRET_KIND}` connection with slug {slug!r} in the "
-                "project"
+                f"no hosted subscription connection with slug {slug!r} in the project"
             )
             return {}
         if row["login_state"] != "ready":
             self.subscription_skip = (
-                f"the hosted connection {slug!r} is {row['login_state']!r}, not `ready`; a "
-                "human must sign in before these cells mean anything"
+                f"the hosted connection {slug!r} is not `ready`; a human must sign in "
+                "before these cells mean anything"
             )
         self._hosted_slug = slug
         return row

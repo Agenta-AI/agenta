@@ -1247,7 +1247,7 @@ def stock_custom_provider(custom_provider: dict) -> None:
         body = r.text.replace(key, "<redacted>") if key else r.text
         raise SystemExit(f"vault create HTTP {r.status_code}: {body[:400]}")
     print(
-        f"[bootstrap] vault stocked with custom connection {custom_provider['slug']}",
+        "[bootstrap] vault stocked with the custom connection",
         file=sys.stderr,
     )
 
