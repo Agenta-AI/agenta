@@ -567,6 +567,16 @@ export const useAgentConversation = ({
     // every file then resolves against the agent mount and 404s (#6535 follow-up).
     useFileActivityDetector({sessionId, messages})
 
+    // A run this client did not stream (started from Home, or on another device) ends with no
+    // `onFinish`, and a file it made by running code is no write-tool activity either. Its cwd
+    // mount can be new, so re-read the mounts when liveness says the run settled.
+    const sharedRunWasLiveRef = useRef(sharedReaderRunning)
+    useEffect(() => {
+        const wasLive = sharedRunWasLiveRef.current
+        sharedRunWasLiveRef.current = sharedReaderRunning
+        if (wasLive && !sharedReaderRunning) revalidateSessionMounts(sessionId)
+    }, [sharedReaderRunning, sessionId, revalidateSessionMounts])
+
     // Hybrid history: localStorage holds the cached conversation; the durable content lives in
     // the backend record log. Cache-first — when this session opens with no locally-cached
     // messages (never ran here, or after a storage clear), hydrate once from the server and seed.
