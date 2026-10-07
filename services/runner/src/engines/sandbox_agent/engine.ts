@@ -4,7 +4,7 @@ import {
   type EmitEvent,
 } from "../../protocol.ts";
 import { parseGatewayErrorDetail } from "../../gateway-error.ts";
-import { isUserStopAbort } from "../../sessions/stop-signal.ts";
+import { isCooperativeCancelAbort } from "../../sessions/stop-signal.ts";
 import { acquireEnvironment } from "./environment.ts";
 import { runCredential } from "./runtime-policy.ts";
 import { loadDurableDecisions } from "../../sessions/interactions.ts";
@@ -45,10 +45,12 @@ export function isTurnIndexTaken(result: AgentRunResult): boolean {
  * keeps the session, the sandbox, and the harness session resumable. Three things must all be
  * true, and each answers a different question:
  *
- *  - `isUserStopAbort(signal)` — WAS this abort a cooperative Stop? The signal is labelled at
- *    the one call site that means it (`server.ts`, the heartbeat interrupt). Reading
+ *  - `isCooperativeCancelAbort(signal)` — WAS this abort a cooperative Stop? The signal is
+ *    labelled at the one call site that means it (`server.ts`, the heartbeat interrupt). Reading
  *    `signal.aborted` alone cannot answer this, and inferring it from the stop reason would let
  *    any future `controller.abort()` park a sandbox nobody checked. See `sessions/stop-signal.ts`.
+ *    A shutdown cancel carries its own label and parks the same way; the shutdown's teardown
+ *    step then deletes the parked sandbox.
  *  - `result.stopReason === "cancelled"` — did the TURN actually end as a cancel?
  *  - `result.cancelSettled` — did the HARNESS confirm it stopped? See `cancel-turn.ts`.
  *
@@ -76,7 +78,7 @@ export function shouldPark(
 ): boolean {
   // The harness is idle and the sandbox is worth keeping warm, whatever the stream did.
   const settledUserStop =
-    isUserStopAbort(signal) &&
+    isCooperativeCancelAbort(signal) &&
     result.ok === true &&
     result.stopReason === "cancelled" &&
     result.cancelSettled === true;

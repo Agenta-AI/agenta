@@ -23,6 +23,7 @@ import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
 import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import {
+  isRunnerShutdownAbort,
   isUserStopAbort,
   USER_STOP_ABORT_REASON,
 } from "./sessions/stop-signal.ts";
@@ -141,6 +142,7 @@ import {
 } from "./sessions/turn-settle.ts";
 import {
   ABANDONED_TURN_MARKER,
+  RUNNER_RESTARTING_MESSAGE,
   RUNNER_SHUTDOWN_REASON,
   abandonedTurnMessage,
   type RunErrorCode,
@@ -1008,7 +1010,7 @@ async function runAndStreamWithApiBaseResolved(
         sessionId,
         turnId,
         startedAt: Date.now(),
-        abort: () => controller.abort(USER_STOP_ABORT_REASON),
+        abort: (reason = USER_STOP_ABORT_REASON) => controller.abort(reason),
       });
 
       // Admitted. Tell the client which execution it is watching, before anything else streams.
@@ -1135,6 +1137,13 @@ async function runAndStreamWithApiBaseResolved(
     });
     if (outcome.settled) {
       result = outcome.value;
+      // `runTurn` ended a shutdown cancel with the restart error; the result says so too. A
+      // shutdown that caught the turn before `runTurn` (a cold create) gets the same ending from
+      // the backstop below.
+      const endedByShutdown =
+        isRunnerShutdownAbort(controller.signal) &&
+        (result.stopReason === "cancelled" || !terminalRecordEmitted);
+      if (endedByShutdown) result = { ok: false, error: RUNNER_RESTARTING_MESSAGE };
       // `runTurn` normally emits `done` itself. Acquisition can fail before `runTurn` starts,
       // though, and a cooperative Stop during a cold sandbox create reaches exactly that path.
       // Close any failed run that emitted no terminal record; preserve the Stop marker when the
@@ -1149,7 +1158,10 @@ async function runAndStreamWithApiBaseResolved(
       ) {
         const userStopped = isUserStopAbort(controller.signal);
         if (!userStopped && !result.ok && persistError) {
-          persistError(result.error ?? "Agent run failed.");
+          persistError(
+            result.error ?? "Agent run failed.",
+            endedByShutdown ? "execution_lost" : undefined,
+          );
         }
         persistTerminal(userStopped ? "cancelled" : undefined);
       }

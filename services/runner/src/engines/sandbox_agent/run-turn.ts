@@ -79,6 +79,7 @@ import {
   conciseError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   type RunErrorCode,
+  RUNNER_RESTARTING_MESSAGE,
   runLimitError,
   TURN_INDEX_TAKEN_CODE,
   TURN_INDEX_TAKEN_MESSAGE,
@@ -87,7 +88,10 @@ import {
   withPublicCode,
 } from "./errors.ts";
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
-import { isUserStopAbort } from "../../sessions/stop-signal.ts";
+import {
+  isCooperativeCancelAbort,
+  isRunnerShutdownAbort,
+} from "../../sessions/stop-signal.ts";
 import { cancelHarnessTurn } from "./cancel-turn.ts";
 import {
   followsUnansweredUserTurn,
@@ -1713,7 +1717,7 @@ export async function runTurn(
         );
       }
 
-      if (isUserStopAbort(signal)) {
+      if (isCooperativeCancelAbort(signal)) {
         stopReason = "cancelled";
       }
       if (request.sessionId && request.turnId) {
@@ -1933,6 +1937,16 @@ export async function runTurn(
       run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent(errorEventWithDetail(classified.message, classified.code));
     }
+    // A shutdown cancels like a Stop, but nobody stopped this turn. It ends with an error the
+    // client offers to retry; the cancel's park and continuity stay those of a Stop.
+    const endedByShutdown =
+      stopReason === "cancelled" && isRunnerShutdownAbort(signal);
+    if (endedByShutdown) {
+      run.recordError(RUNNER_RESTARTING_MESSAGE);
+      run.emitEvent(
+        errorEventWithDetail(RUNNER_RESTARTING_MESSAGE, "execution_lost"),
+      );
+    }
     if (nativeTraceBatches === 0 && !swallowedError) {
       await harnessTrace.emitMissingBatchFallback(run);
     }
@@ -1940,7 +1954,9 @@ export async function runTurn(
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
     await settleInBandInteractions?.();
     if (outputLimitReason) throw new Error(outputLimitReason);
-    const output = run.finish(swallowedError ? "error" : stopReason);
+    const output = run.finish(
+      swallowedError || endedByShutdown ? "error" : stopReason,
+    );
     await run.flush();
     const turnEndedAt = new Date().toISOString();
 
