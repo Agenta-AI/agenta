@@ -21,7 +21,8 @@ interface LinkOriginal {
 
 /** The icon links as the page declared them, held only while a badge replaces them. */
 const originals = new Map<HTMLLinkElement, LinkOriginal>()
-const drawn = new Map<Badge, Promise<string | null>>()
+/** Badged copies keyed by badge and source href, so each link keeps its own artwork. */
+const drawn = new Map<string, Promise<string | null>>()
 let wanted: TabRunBadge = null
 
 const iconLinks = () => Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]'))
@@ -29,19 +30,13 @@ const iconLinks = () => Array.from(document.querySelectorAll<HTMLLinkElement>('l
 const originalOf = (link: HTMLLinkElement): LinkOriginal =>
     originals.get(link) ?? {href: link.getAttribute("href"), type: link.getAttribute("type")}
 
-const baseIconHref = (): string | null => {
-    const links = iconLinks().map(originalOf)
-    return (links.find((link) => link.type !== "image/svg+xml") ?? links[0])?.href ?? null
-}
-
 const restoreAttribute = (link: HTMLLinkElement, name: string, value: string | null) => {
     if (value === null) link.removeAttribute(name)
     else link.setAttribute(name, value)
 }
 
-const draw = async (badge: Badge): Promise<string | null> => {
+const draw = async (href: string, badge: Badge): Promise<string | null> => {
     try {
-        const href = baseIconHref()
         const color = getComputedStyle(document.documentElement)
             .getPropertyValue(BADGE_COLOR_TOKEN[badge])
             .trim()
@@ -49,7 +44,7 @@ const draw = async (badge: Badge): Promise<string | null> => {
         canvas.width = SIZE
         canvas.height = SIZE
         const ctx = canvas.getContext("2d")
-        if (!href || !color || !ctx) return null
+        if (!color || !ctx) return null
 
         const icon = new Image()
         icon.src = href
@@ -69,12 +64,23 @@ const draw = async (badge: Badge): Promise<string | null> => {
     }
 }
 
-const apply = (dataUrl: string) => {
-    for (const link of iconLinks()) {
-        if (!originals.has(link)) originals.set(link, originalOf(link))
-        link.setAttribute("type", "image/png")
-        link.setAttribute("href", dataUrl)
+const apply = (link: HTMLLinkElement, dataUrl: string) => {
+    if (!originals.has(link)) originals.set(link, originalOf(link))
+    link.setAttribute("type", "image/png")
+    link.setAttribute("href", dataUrl)
+}
+
+const badged = (href: string, badge: Badge): Promise<string | null> => {
+    const key = `${badge} ${href}`
+    let dataUrl = drawn.get(key)
+    if (!dataUrl) {
+        dataUrl = draw(href, badge)
+        drawn.set(key, dataUrl)
+        void dataUrl.then((url) => {
+            if (!url) drawn.delete(key)
+        })
     }
+    return dataUrl
 }
 
 const restore = () => {
@@ -85,20 +91,18 @@ const restore = () => {
     originals.clear()
 }
 
-/** Swap every icon link to the badged icon, or put the declared icons back for `null`. */
+/** Badge every icon link from its own image, or put the declared icons back for `null`. */
 export const showTabRunBadge = (badge: TabRunBadge): void => {
     wanted = badge
     if (!badge) {
         restore()
         return
     }
-    let dataUrl = drawn.get(badge)
-    if (!dataUrl) {
-        dataUrl = draw(badge)
-        drawn.set(badge, dataUrl)
+    for (const link of iconLinks()) {
+        const {href} = originalOf(link)
+        if (!href) continue
+        void badged(href, badge).then((url) => {
+            if (url && wanted === badge) apply(link, url)
+        })
     }
-    void dataUrl.then((url) => {
-        if (!url) drawn.delete(badge)
-        else if (wanted === badge) apply(url)
-    })
 }
