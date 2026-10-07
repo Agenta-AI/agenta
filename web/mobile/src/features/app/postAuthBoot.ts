@@ -1,7 +1,8 @@
 import {atom} from "jotai"
 
 /** Set by `useAuthSuccess`, cleared by `PostAuthLoader` once the first screen has its data. */
-export type AccountKind = "new" | "returning"
+/** `pending`: an OIDC code is still being exchanged, so the account kind is not known yet. */
+export type AccountKind = "new" | "returning" | "pending"
 
 export interface PostAuthBoot {
     account: AccountKind
@@ -24,6 +25,7 @@ export const bootStage = (projects: ProjectsAnswer, agentsSettled: boolean): Boo
 export const BOOT_STATUSES: Record<AccountKind, readonly [string, string, string]> = {
     new: ["Creating your workspace", "Setting up your first project", "Almost ready"],
     returning: ["Loading your agents", "Restoring recent sessions", "Almost ready"],
+    pending: ["Signing you in", "Loading your workspace", "Almost ready"],
 }
 
 export const BOOT_TIPS = [
