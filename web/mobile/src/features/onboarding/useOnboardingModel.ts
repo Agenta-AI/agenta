@@ -82,7 +82,7 @@ export const useOnboardingModel = (entityId: string, projectId: string): Onboard
     const updateConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const allConnections = useAtomValue(providerConnectionsAtom)
     const {mutate: refreshVault} = useVaultSecret()
-    const wallet = useWalletSummary(projectId).data
+    const wallet = useWalletSummary(projectId, {poll: false}).data
 
     const selection = useMemo(() => configuredSelection(configuration), [configuration])
     const runnable = agentModelSelectionIsRunnable(candidates.candidates, selection)
