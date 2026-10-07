@@ -18,6 +18,7 @@ import {
     type useComposerAttachments,
 } from "@agenta/chat/hooks"
 import {refusedSendRejections} from "@agenta/chat/model"
+import {MediaViewer} from "@agenta/entity-ui/drive"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -28,6 +29,7 @@ import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
 
 import {useComposerPrefill} from "./useComposerPrefill"
+import {useStagedAttachmentViewer} from "./useStagedAttachmentViewer"
 
 /**
  * The mobile composer shell — the SAME `ChatComposer` the desktop dock renders (lazy rich
@@ -282,6 +284,8 @@ export const Composer = ({
         }
     }, [])
 
+    const stagedViewer = useStagedAttachmentViewer(attachments)
+
     return (
         <div className="bg-background shrink-0 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
             <ContentRail>
@@ -360,6 +364,7 @@ export const Composer = ({
                             fileMentions
                             attachments={attachments}
                             attachmentsBlocked={attachmentsBlocked}
+                            onViewAttachment={attachments.setViewingUid}
                             initialMarkdown={draft.initialDraft}
                             onChange={draft.handleComposerChange}
                             slashCommands={slash.sections}
@@ -410,6 +415,7 @@ export const Composer = ({
                     </AnimatePresence>
                 </div>
             </ContentRail>
+            <MediaViewer {...stagedViewer} />
         </div>
     )
 }
