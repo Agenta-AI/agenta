@@ -20,7 +20,7 @@ import {useNewAgentAction} from "../agents/useNewAgentAction"
 
 import {connectedApps} from "./onboardingApps"
 import type {OnboardingCatalog} from "./onboardingChoices"
-import {onboardingConfiguration} from "./onboardingConfig"
+import {draftConfigurationAtom, onboardingConfiguration} from "./onboardingConfig"
 import {
     onboardingDraftKey,
     type FirstAgentInput,
@@ -42,8 +42,8 @@ export const OnboardingFlowHost = ({
 }: {
     base: string
     projectId: string
-    /** The local draft agent the flow configures and Create commits. */
-    entityId: string
+    /** The local draft agent Create commits; `null` while it is still being minted. */
+    entityId: string | null
     userId: string | null
 }) => {
     // Without a pending mark the page is a preview: no analytics.
@@ -63,9 +63,7 @@ export const OnboardingFlowHost = ({
         [walletsEnabled, autoModel],
     )
     const steps = useMemo(() => onboardingSteps(), [])
-    const configuration = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
-    )
+    const configuration = useAtomValue(useMemo(() => draftConfigurationAtom(entityId), [entityId]))
     const updateConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const {connections} = useToolConnectionsQuery()
     const apps = useMemo(() => connectedApps(connections), [connections])
@@ -111,6 +109,7 @@ export const OnboardingFlowHost = ({
         apps: chosenApps,
         templateKey,
     }: FirstAgentInput) => {
+        if (!entityId) return false
         updateConfiguration(
             entityId,
             onboardingConfiguration(configuration ?? {}, {apps: chosenApps, connections}),

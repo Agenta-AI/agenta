@@ -23,6 +23,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useWalletSummary} from "../wallet/useWalletSummary"
 
+import {draftConfigurationAtom} from "./onboardingConfig"
 import {ONBOARDING_COPY} from "./onboardingCopy"
 
 /** Picks the candidate a pending switch is waiting for, once the candidate list has it. */
@@ -74,11 +75,9 @@ const configuredSelection = (configuration: unknown): AgentModelSelection | null
 }
 
 /** The first agent's model, no picker: credits first, then a connection made here, then any. */
-export const useOnboardingModel = (entityId: string, projectId: string): OnboardingModel => {
+export const useOnboardingModel = (entityId: string | null, projectId: string): OnboardingModel => {
     const candidates = useAtomValue(agentModelCandidatesAtomFamily(true))
-    const configuration = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
-    )
+    const configuration = useAtomValue(useMemo(() => draftConfigurationAtom(entityId), [entityId]))
     const updateConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const allConnections = useAtomValue(providerConnectionsAtom)
     const {mutate: refreshVault} = useVaultSecret()
@@ -111,7 +110,7 @@ export const useOnboardingModel = (entityId: string, projectId: string): Onboard
                 withHarnessKind(configurationRef.current, candidate.harness),
                 candidate,
             )
-            if (next) updateConfiguration(entityId, next)
+            if (next && entityId) updateConfiguration(entityId, next)
         },
         [entityId, updateConfiguration],
     )
@@ -180,8 +179,9 @@ export const useOnboardingModel = (entityId: string, projectId: string): Onboard
     const hasCredits = Boolean(creditsConnection) || creditsRunnable || wallet?.mode === "enforce"
 
     return {
-        status: candidates.status,
-        ready: candidates.status === "ready" && Boolean(selected),
+        // Until the draft agent exists there is nothing to run on yet.
+        status: entityId ? candidates.status : "loading",
+        ready: Boolean(entityId) && candidates.status === "ready" && Boolean(selected),
         credits: hasCredits
             ? {inUse: isCredits(selected), runnable: creditsRunnable, balanceMusd: walletBalance}
             : null,

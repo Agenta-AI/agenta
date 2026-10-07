@@ -20,7 +20,7 @@ export const OnboardingCreateStatus = ({
         <span role="alert" className="text-destructive text-xs">
             {create.error}
         </span>
-    ) : !create.modelReady ? (
+    ) : !create.modelReady && !create.pending ? (
         <span className="text-muted-foreground text-xs">
             {copy.modelMissing}{" "}
             <button
