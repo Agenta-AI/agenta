@@ -51,6 +51,7 @@ export const OnboardingComposer = ({
         <div className="flex min-w-0 flex-col gap-2">
             <HomeTaskComposer
                 mode="create"
+                voice
                 attachments={create.attachments}
                 onStart={() => undefined}
                 inputRef={inputRef}
