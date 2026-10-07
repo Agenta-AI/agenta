@@ -27,6 +27,19 @@ TERMINAL_RECORD_TYPE = "done"
 RECORD_SETTLED_BY_ATTRIBUTE = "settled_by"
 SETTLED_BY_WATCHDOG = "watchdog"
 
+# Terminal records that do not end their execution: a paused turn stays continuable, and a
+# cancel is settled by its Stop command.
+NON_ENDING_STOP_REASONS = ("paused", "cancelled")
+
+RunnerEnding = Literal["completed", "failed"]
+
+
+def runner_ending(stop_reason: Optional[str]) -> Optional[RunnerEnding]:
+    """The execution outcome a runner terminal record carries, or None when it ends nothing."""
+    if stop_reason in NON_ENDING_STOP_REASONS:
+        return None
+    return "failed" if stop_reason == "error" else "completed"
+
 
 class SessionRecordEvent(BaseModel):
     project_id: UUID

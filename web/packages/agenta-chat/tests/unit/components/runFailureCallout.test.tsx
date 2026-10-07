@@ -204,6 +204,19 @@ describe("RunFailureCallout", () => {
         expect(rendered).not.toContain("Sign in again")
     })
 
+    it("offers Try again for a broken tool call from the model", () => {
+        const rendered = text(
+            <RunFailureCallout
+                text="The model returned a broken tool call twice. Send the message again."
+                stateKey="turn-malformed"
+                code="malformed_tool_call"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("Try again")
+    })
+
     it("does not offer Try again for a non-transient failure", () => {
         const rendered = text(
             <RunFailureCallout

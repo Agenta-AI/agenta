@@ -300,12 +300,12 @@ async def test_completion_promotes_one_fifo_input_in_the_settlement_transaction(
     )
     service = _settlement_service(input_scope, inputs)
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=input_scope["project_id"],
         session_id=input_scope["session_id"],
         execution_id="source-turn",
     )
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=input_scope["project_id"],
         session_id=input_scope["session_id"],
         execution_id="source-turn",
@@ -378,7 +378,7 @@ async def test_admission_rechecks_settlement_under_the_execution_lock(
     )
     await streams.observed_busy.wait()
 
-    assert await settlement_service.settle_execution_completed(
+    assert await settlement_service.settle_execution_ended(
         project_id=input_scope["project_id"],
         session_id=input_scope["session_id"],
         execution_id="source-turn",
@@ -431,7 +431,7 @@ async def test_admission_queues_behind_running_input_promoted_by_settlement(
     )
     await streams.observed_busy.wait()
 
-    assert await settlement_service.settle_execution_completed(
+    assert await settlement_service.settle_execution_ended(
         project_id=input_scope["project_id"],
         session_id=input_scope["session_id"],
         execution_id="source-turn",

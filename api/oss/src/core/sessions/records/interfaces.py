@@ -8,6 +8,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecordsPage,
     SessionRecordsReplay,
     SessionRecordsReadState,
+    RunnerEnding,
 )
 
 
@@ -93,11 +94,11 @@ class RecordsDAOInterface:
 
         raise NotImplementedError
 
-    async def runner_completed_turns(
+    async def runner_ended_turns(
         self,
         *,
         project_id: UUID,
         keys: Sequence[Tuple[str, str]],
-    ) -> Set[Tuple[str, str]]:
-        """Turns with an effective, successful runner terminal record."""
+    ) -> Dict[Tuple[str, str], RunnerEnding]:
+        """Turns with an effective runner terminal record that ends them, and how they ended."""
         raise NotImplementedError

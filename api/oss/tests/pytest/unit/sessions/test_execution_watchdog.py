@@ -363,8 +363,8 @@ class _FakeRecordsService:
         self.queries.append(list(keys))
         return {key for key in keys if key in self.settled}
 
-    async def runner_completed_turns(self, *, project_id, keys):
-        return set()
+    async def runner_ended_turns(self, *, project_id, keys):
+        return {}
 
 
 @pytest.mark.anyio
@@ -1151,7 +1151,7 @@ async def test_completion_lookup_failure_defers_settlement_and_cleanup(
     anyio_backend, monkeypatch
 ):
     class _FailingCompletionLookup(_FakeRecordsService):
-        async def runner_completed_turns(self, *, project_id, keys):
+        async def runner_ended_turns(self, *, project_id, keys):
             raise RuntimeError("tracing db unreachable")
 
     stream = _stale_running_row(

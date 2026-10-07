@@ -472,3 +472,46 @@ describe("a completed turn and its conversation file (Codex R9-2)", () => {
     }, 30_000);
   }
 });
+
+describe("a broken tool call from the model (production EU, 2026-10-06)", () => {
+  // Gemini ended a model call with `finish_reason: malformed_function_call` right after a bash
+  // call had succeeded, and the turn failed with an unclassified internal error.
+  const MALFORMED = { finishReason: "malformed_function_call" };
+
+  it("sends the model call again once, and the turn completes", async () => {
+    const fixture = createHostFixture(model.baseUrl);
+    model.script([{ tool: "bash", args: { command: "echo first" } }, MALFORMED, { text: "recovered" }]);
+    const { session, host, turn } = await openSession(fixture);
+    const before = model.requests.length;
+    expect(await session.prompt(prompt("run it"))).toEqual({ stopReason: "end_turn" });
+    expect(turn.text()).toContain("recovered");
+    expect(model.requests.length - before).toBe(3);
+    // The retry is the same request: the failed attempt is not in what the model sees.
+    expect(JSON.stringify(model.requests.at(-1)!.messages)).toBe(JSON.stringify(model.requests.at(-2)!.messages));
+    await host.destroySandbox();
+  }, 60_000);
+
+  it("ends the turn with a classified, plain error when the retry is broken too", async () => {
+    const fixture = createHostFixture(model.baseUrl);
+    model.script([{ tool: "bash", args: { command: "echo first" } }, MALFORMED, MALFORMED, { text: "never reached" }]);
+    const { session, host } = await openSession(fixture);
+    const before = model.requests.length;
+    await expect(session.prompt(prompt("run it"))).rejects.toMatchObject({
+      publicCode: "malformed_tool_call",
+      message: "The model returned a broken tool call twice. Send the message again.",
+    });
+    expect(model.requests.length - before).toBe(3);
+    // The failed turn can be taken back out, so the next turn starts clean.
+    expect(await session.rollbackFailedTurn()).toBe(true);
+    await host.destroySandbox();
+  }, 60_000);
+
+  it("gives the retry back after a model call succeeds", async () => {
+    const fixture = createHostFixture(model.baseUrl);
+    model.script([MALFORMED, { tool: "bash", args: { command: "echo first" } }, MALFORMED, { text: "recovered twice" }]);
+    const { session, host, turn } = await openSession(fixture);
+    expect(await session.prompt(prompt("run it"))).toEqual({ stopReason: "end_turn" });
+    expect(turn.text()).toContain("recovered twice");
+    await host.destroySandbox();
+  }, 60_000);
+});

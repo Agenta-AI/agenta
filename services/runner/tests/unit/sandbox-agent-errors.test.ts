@@ -1006,3 +1006,13 @@ describe("a run limit that ended the turn (EU 2026-10-06, reference a50dcb81)", 
     }
   });
 });
+
+describe("a broken tool call from the model", () => {
+  // Production EU, 2026-10-06: Gemini ended a model call with `malformed_function_call`, and the
+  // person read "The agent run failed (reference 6296cab1)" with nothing to act on.
+  it("is its own class with a sentence the person can act on, not an unclassified error", () => {
+    expect(
+      classifyRunError(new Error("Internal error: Provider finish_reason: malformed_function_call"), "pi_core", "google", { unknownText: "hidden" }),
+    ).toEqual({ message: "The model returned a broken tool call. Send the message again.", code: "malformed_tool_call" });
+  });
+});

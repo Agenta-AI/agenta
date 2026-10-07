@@ -48,6 +48,7 @@ from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
     SETTLED_BY_WATCHDOG,
+    RunnerEnding,
     TERMINAL_RECORD_TYPE,
     SessionRecordEvent,
 )
@@ -309,26 +310,29 @@ async def _mark_endings_written(
     )
 
 
-async def _reconcile_completed_executions(
+async def _reconcile_ended_executions(
     *,
     commands_service: Optional[Any],
-    candidates: Sequence[Tuple[UUID, str, str]],
+    candidates: Dict[Tuple[UUID, str, str], RunnerEnding],
 ) -> Set[Tuple[UUID, str, str]]:
     """Return persisted endings whose execution could not be terminalized yet."""
     if commands_service is None:
         return set(candidates)
     failed: Set[Tuple[UUID, str, str]] = set()
-    for project_id, session_id, turn_id in candidates:
+    for (project_id, session_id, turn_id), ending in sorted(
+        candidates.items(), key=lambda item: item[0][1]
+    ):
         try:
-            reconciled = await commands_service.settle_execution_completed(
+            reconciled = await commands_service.settle_execution_ended(
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=turn_id,
+                terminal_outcome=ending,
             )
         except Exception:
             reconciled = False
             log.warning(
-                "watchdog: failed to settle a completed continuation execution",
+                "watchdog: failed to settle an ended continuation execution",
                 project_id=str(project_id),
                 session_id=session_id,
                 turn_id=turn_id,
@@ -339,19 +343,19 @@ async def _reconcile_completed_executions(
     return failed
 
 
-async def _runner_completed_executions(
+async def _runner_ended_executions(
     *,
     records_service: RecordsService,
     candidates: Sequence[Tuple[UUID, str, str]],
-) -> Tuple[Set[Tuple[UUID, str, str]], Set[Tuple[UUID, str, str]]]:
+) -> Tuple[Dict[Tuple[UUID, str, str], RunnerEnding], Set[Tuple[UUID, str, str]]]:
     by_project: Dict[UUID, List[Tuple[str, str]]] = {}
     for project_id, session_id, turn_id in candidates:
         by_project.setdefault(project_id, []).append((session_id, turn_id))
-    completed: Set[Tuple[UUID, str, str]] = set()
+    ended: Dict[Tuple[UUID, str, str], RunnerEnding] = {}
     failed: Set[Tuple[UUID, str, str]] = set()
     for project_id, keys in by_project.items():
         try:
-            matches = await records_service.runner_completed_turns(
+            matches = await records_service.runner_ended_turns(
                 project_id=project_id,
                 keys=keys,
             )
@@ -365,10 +369,11 @@ async def _runner_completed_executions(
                 (project_id, session_id, turn_id) for session_id, turn_id in keys
             )
             continue
-        completed.update(
-            (project_id, session_id, turn_id) for session_id, turn_id in matches
+        ended.update(
+            ((project_id, session_id, turn_id), ending)
+            for (session_id, turn_id), ending in matches.items()
         )
-    return completed, failed
+    return ended, failed
 
 
 async def _settle_abandoned_commands(
@@ -536,17 +541,17 @@ async def run_orphan_sweep(
 
         # A runner can persist `done` and die before the post-append execution settlement.
         # Reconcile that durable proof before clearing its stale heartbeat; otherwise the next
-        # Send would see a recoverable continuation and replay already-completed work.
+        # Send would see a recoverable continuation and replay already-ended work.
         completion_failures: Set[Tuple[UUID, str, str]] = set()
         if records_service is not None and commands_service is not None:
-            runner_completed, completion_failures = await _runner_completed_executions(
+            runner_ended, completion_failures = await _runner_ended_executions(
                 records_service=records_service,
                 candidates=claimed,
             )
             completion_failures.update(
-                await _reconcile_completed_executions(
+                await _reconcile_ended_executions(
                     commands_service=commands_service,
-                    candidates=sorted(runner_completed, key=lambda t: t[1]),
+                    candidates=runner_ended,
                 )
             )
             if completion_failures:
