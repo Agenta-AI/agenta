@@ -19,6 +19,7 @@ import {
     isProtocolRelativeHref,
     withExplicitRelativeLinks,
 } from "@agenta/entity-ui/drive"
+import {useSettledValue} from "@agenta/shared/hooks"
 import {HoverCard, HoverCardContent, HoverCardTrigger} from "@agenta/ui/ui"
 import {createCodePlugin, type CodeHighlighterPlugin} from "@streamdown/code"
 import {math} from "@streamdown/math"
@@ -297,7 +298,10 @@ const ResolvedFollowUps = ({
     const link = useResolver()
     const render = link?.renderFollowUps
     const claimable = link?.claimsFollowUp
-    const wanted = claimable ? values.filter(claimable) : values
+    const wantedJson = JSON.stringify(claimable ? values.filter(claimable) : values)
+    // Names still being streamed claim nothing until they stop changing.
+    const settledJson = useSettledValue(wantedJson)
+    const wanted = useMemo(() => JSON.parse(settledJson) as string[], [settledJson])
     return render && wanted.length ? <ClaimedFollowUps values={wanted} render={render} /> : null
 }
 

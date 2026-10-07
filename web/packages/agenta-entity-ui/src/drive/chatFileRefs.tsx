@@ -16,6 +16,7 @@ import {type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {mountFileContentQueryFamily, mountPathMatchesToolPath} from "@agenta/entities/session"
+import {useSettledValue} from "@agenta/shared/hooks"
 import {useAtomValue} from "jotai"
 
 import {
@@ -88,6 +89,9 @@ function OnDemandFileRef({candidate, fallback}: {candidate: string; fallback: Re
 function ChatFileCode({text, fallback}: {text: string; fallback: ReactNode}) {
     const sessionId = useDriveSessionId() ?? ""
     const index = useAtomValue(recordIndexAtomFamily(sessionId))
+    // A span still being streamed (`foo.t`, `foo.ts`, ...) resolves once it stops changing.
+    const settled = useSettledValue(text)
+    if (settled !== text) return <>{fallback}</>
     const candidate = fileCandidate(text)
     if (!candidate) return <>{fallback}</>
     if (knownFromRecords(index, candidate)) return <DriveFileInlineRef path={candidate} />
