@@ -118,6 +118,7 @@ export const OnboardingScratchPanel = ({
             </div>
             <div className="flex flex-col gap-3 p-3">
                 <Input
+                    autoFocus
                     aria-label={copy.name}
                     value={agent.name}
                     maxLength={ONBOARDING_NAME_MAX}
