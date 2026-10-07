@@ -5,7 +5,6 @@ export const ONBOARDING_COPY = {
     mintError: "Couldn't set up your agent.",
     stepCounter: (current: number, total: number) => `Step ${current} of ${total}`,
     continue: "Continue",
-    skip: "Skip for now",
     /** The fixed steps' dot labels; a question's comes from its registry entry. */
     dots: {
         credits: "Credits",

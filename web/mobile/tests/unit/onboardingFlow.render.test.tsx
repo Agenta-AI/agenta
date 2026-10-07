@@ -285,7 +285,6 @@ const baseProps = (overrides: Partial<OnboardingFlowProps> = {}): OnboardingFlow
     attachments: {} as OnboardingFlowProps["attachments"],
     onStepCompleted: vi.fn(),
     onCreate: vi.fn(() => Promise.resolve(true)),
-    onSkip: vi.fn(),
     ...overrides,
 })
 
@@ -398,16 +397,6 @@ describe("first agent onboarding", () => {
         act(() => nav.open(`${nav.BASE}/review`))
         expect(heading()).toBe("Create your first agent")
         expect(nav.url).toBe(`${nav.BASE}/templates`)
-    })
-
-    it("skips from any step, and hides Skip while Create runs", () => {
-        const onSkip = vi.fn()
-        render(baseProps({onSkip}))
-        answer(/^Engineering/)
-        click("Skip for now")
-        expect(onSkip).toHaveBeenCalledWith("source")
-        render(baseProps({onSkip, creating: true}))
-        expect(() => button("Skip for now")).toThrow()
     })
 
     it("locks a template's name and brief and creates from its package", () => {

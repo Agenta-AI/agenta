@@ -12,7 +12,6 @@ import {
 import {isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
 import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
-import {useRouter} from "next/router"
 
 import {capture} from "@/features/analytics/client"
 import {newId} from "@/lib/ids"
@@ -35,19 +34,15 @@ export const OnboardingFlowHost = ({
     projectId,
     entityId,
     userId,
-    homeUrl,
 }: {
     base: string
     projectId: string
     /** The local draft agent the flow configures and Create commits. */
     entityId: string
     userId: string | null
-    /** Where Skip leads. */
-    homeUrl: string
 }) => {
     // Without a pending mark the page is a preview: no analytics.
     const [preview] = useState(() => !userId || !isOnboardingPending(userId))
-    const router = useRouter()
     const templates = useAtomValue(agentTemplatesAtom)
     const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
     const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
@@ -76,9 +71,6 @@ export const OnboardingFlowHost = ({
     const attachments = useComposerAttachments({sessionId})
     const store = useStore()
     const draftKey = onboardingDraftKey(userId ?? "anonymous")
-    const finish = () => {
-        if (userId) endOnboarding(userId)
-    }
     const track = (event: string, properties?: Record<string, unknown>) => {
         if (!preview) capture(event, properties)
     }
@@ -133,21 +125,13 @@ export const OnboardingFlowHost = ({
             sessionId,
             parts,
             onCreated: (agent) => {
-                finish()
+                if (userId) endOnboarding(userId)
                 track("onboarding_agent_created", {revision_id: agent.revisionId})
                 void applyIcon(agent.appId, icon).catch(() => undefined)
             },
         })
         if (!created) attachments.restoreAttachments(staged)
         return created
-    }
-
-    const onSkip = (step: OnboardingStep) => {
-        if (!preview) {
-            capture("onboarding_skipped", {step: stepIndex(step) + 1, step_key: step})
-            finish()
-        }
-        void router.replace(homeUrl)
     }
 
     return (
@@ -164,7 +148,6 @@ export const OnboardingFlowHost = ({
             attachments={attachments}
             onStepCompleted={onStepCompleted}
             onCreate={onCreate}
-            onSkip={onSkip}
         />
     )
 }
