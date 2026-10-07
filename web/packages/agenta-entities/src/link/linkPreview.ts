@@ -22,8 +22,7 @@ const linkPreviewResponseSchema = z.object({
     preview: linkPreviewSchema.nullish(),
 })
 
-/** One page's preview, or null when the server refuses the link or the read fails. Axios, not
- * Fern: the route is internal and kept out of the OpenAPI schema. */
+/** One page's preview, or null when the server refuses the link or the read fails. */
 export async function fetchLinkPreview({
     url,
     projectId,
