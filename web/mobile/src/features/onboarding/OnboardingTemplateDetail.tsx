@@ -4,20 +4,14 @@ import {PROVIDERS, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {LoadingButton} from "@agenta/ui/ui"
 import {ArrowRight, Lightning} from "@phosphor-icons/react"
 
-import {AppTileStack} from "../marketplace/AppTileStack"
-import {templateProviders} from "../marketplace/marketplaceView"
-
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
 import {OnboardingCreateStatus} from "./OnboardingCreateStatus"
+import {OnboardingTemplateApps} from "./OnboardingTemplateApps"
 import {OnboardingTemplateTile} from "./OnboardingTemplateTile"
 
 const copy = ONBOARDING_COPY.gallery
 const MAX_STEPS = 4
-
-/** "Gmail", "Gmail and Calendar", "Gmail, Slack and Calendar". */
-const joinNames = (names: string[]) =>
-    names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
 
 interface Step {
     text: string
@@ -58,8 +52,6 @@ export const OnboardingTemplateDetail = ({
     template: AgentStarterTemplate
     create: OnboardingCreateState
 }) => {
-    const providers = templateProviders(template)
-    const required = template.connections.some((slot) => slot.required)
     const steps = templateSteps(template)
     const nodes = [
         {
@@ -97,20 +89,7 @@ export const OnboardingTemplateDetail = ({
                 </div>
             </div>
             <div className="flex flex-col gap-4 px-3 pb-3 pt-1">
-                {providers.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                        <span className={ONBOARDING_COPY.kickerClass}>{copy.connects}</span>
-                        <div className="flex items-center gap-2.5">
-                            <AppTileStack apps={providers} size="sm" decorative />
-                            <span className="min-w-0 flex-1 text-sm leading-5">
-                                {joinNames(providers.map((app) => app.name))}
-                            </span>
-                            <span className="text-muted-foreground text-[13px] leading-5">
-                                {required ? copy.required : copy.optional}
-                            </span>
-                        </div>
-                    </div>
-                ) : null}
+                <OnboardingTemplateApps template={template} />
                 <div className="flex flex-col gap-2">
                     <span className={ONBOARDING_COPY.kickerClass}>{copy.howItWorks}</span>
                     <ol className="m-0 flex list-none flex-col p-0">
