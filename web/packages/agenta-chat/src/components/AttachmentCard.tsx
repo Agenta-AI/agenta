@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useState} from "react"
 
 import {
     ArrowClockwise,
@@ -11,6 +11,8 @@ import {
 } from "@phosphor-icons/react"
 
 import {typeBadgeFor} from "../assets/attachmentRules"
+
+import {useAudioPlayback} from "./useAudioPlayback"
 
 /** One height for every card: uniformity is what lets the grid wrap without ragged rows. */
 const CARD_HEIGHT = "h-9"
@@ -89,26 +91,7 @@ const CardAction = ({
 
 /** Play/pause only — a transport bar would not fit a one-row card. */
 const AudioTile = ({src, name}: {src?: string; name: string}) => {
-    const ref = useRef<HTMLAudioElement>(null)
-    const [playing, setPlaying] = useState(false)
-
-    useEffect(() => {
-        const el = ref.current
-        if (!el) return
-        const onPlay = () => setPlaying(true)
-        const onStop = () => setPlaying(false)
-        el.addEventListener("play", onPlay)
-        el.addEventListener("pause", onStop)
-        el.addEventListener("ended", onStop)
-        return () => {
-            el.removeEventListener("play", onPlay)
-            el.removeEventListener("pause", onStop)
-            el.removeEventListener("ended", onStop)
-        }
-        // The <audio> only mounts once a src arrives, so a mount-only effect would run while the
-        // ref is still null and never attach.
-    }, [src])
-
+    const {ref, playing, toggle} = useAudioPlayback(src)
     return (
         <>
             <button
@@ -117,10 +100,7 @@ const AudioTile = ({src, name}: {src?: string; name: string}) => {
                 aria-label={`${playing ? "Pause" : "Play"} ${name}`}
                 onClick={(e) => {
                     e.stopPropagation()
-                    const el = ref.current
-                    if (!el) return
-                    if (el.paused) void el.play()
-                    else el.pause()
+                    toggle()
                 }}
                 className={`flex ${TILE} items-center justify-center border-0 bg-colorFillTertiary p-0 [&_svg]:shrink-0 text-colorTextSecondary transition-colors ${src ? "cursor-pointer hover:text-colorText" : "cursor-default opacity-50"}`}
             >
