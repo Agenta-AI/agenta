@@ -173,16 +173,31 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if hasKey $runner "terminationGracePeriodSeconds" }}{{ $runner.terminationGracePeriodSeconds }}{{ else }}300{{ end -}}
 {{- end }}
 
+{{- /* Whether the runner Deployment uses the Recreate strategy: an explicit agentRunner.strategy
+       says so, and without one the local provider does (see runner-deployment.yaml). */ -}}
+{{- define "agenta.agentRunner.recreates" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if $runner.strategy -}}
+{{- eq (toString $runner.strategy.type) "Recreate" -}}
+{{- else -}}
+{{- include "agenta.agentRunner.localProviderEnabled" . -}}
+{{- end -}}
+{{- end }}
+
 {{- /* AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: how long a stopping runner pod lets its running turns
-       finish before it cancels them. The default leaves 100 s of the grace period for what comes
-       around the wait: the 10 s preStop delay, the cancel of running turns and of parked prompts
-       (up to 15 s each with the default AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS of 10 s) and the
-       sandbox teardown (up to 50 s), with 10 s to spare. agenta.validateRunnerShutdownWait
-       refuses an explicit value above it. */ -}}
+       finish before it cancels them. With RollingUpdate the new pod is already ready, and the
+       default leaves 100 s of the grace period for what comes around the wait: the 10 s preStop
+       delay, the cancel of running turns and of parked prompts (up to 15 s each with the default
+       AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS of 10 s) and the sandbox teardown (up to 50 s), with
+       10 s to spare. With Recreate the new pod starts only after the old one exits, so a wait
+       would leave the install without a runner: the default is 0.
+       agenta.validateRunnerShutdownWait refuses an explicit value above grace minus 100. */ -}}
 {{- define "agenta.agentRunner.shutdownWaitSeconds" -}}
 {{- $runner := default dict .Values.agentRunner -}}
 {{- if not (kindIs "invalid" $runner.shutdownWaitSeconds) -}}
 {{- $runner.shutdownWaitSeconds -}}
+{{- else if eq (include "agenta.agentRunner.recreates" .) "true" -}}
+0
 {{- else -}}
 {{- max 0 (sub (int (include "agenta.agentRunner.terminationGracePeriodSeconds" .)) 100) -}}
 {{- end -}}

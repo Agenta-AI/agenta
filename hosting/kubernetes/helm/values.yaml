@@ -314,9 +314,11 @@ redisDurable:
 #                              # maxUnavailable 0); with local it uses Recreate.
 #   shutdownWaitSeconds: 200   # AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS. On SIGTERM the pod refuses
 #                              # new turns, lets running ones finish for this long, cancels the
-#                              # rest and deletes its sandboxes. Default: the grace period minus
-#                              # 100 (never below 0), which leaves room for the preStop delay, the
-#                              # cancel and the teardown. The render fails for a larger value. The
+#                              # rest and deletes its sandboxes. Default with RollingUpdate: the
+#                              # grace period minus 100 (never below 0), which leaves room for the
+#                              # preStop delay, the cancel and the teardown. Default with Recreate
+#                              # (the local provider): 0, because no new pod starts until the old
+#                              # one exits. The render fails for a larger value. The
 #                              # 100 assumes the default AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS
 #                              # (10 s); a larger settle time needs a shorter wait, by twice the
 #                              # increase.
