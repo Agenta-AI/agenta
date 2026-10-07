@@ -119,7 +119,7 @@ export const OnboardingGallery = ({
                 <div
                     role="group"
                     aria-label={copy.categories}
-                    className="-mx-4 flex scroll-px-4 gap-1.5 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden"
+                    className="-mx-4 flex scroll-px-4 gap-1.5 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
                 >
                     {chips.map((chip) => {
                         const active = chip.id === category
