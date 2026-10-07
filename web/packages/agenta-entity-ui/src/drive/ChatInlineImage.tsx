@@ -21,7 +21,7 @@ import {
 import {ChatFileCode, fileCandidate, knownFromRecords} from "./chatFileRefs"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {mediaViewerAtom} from "./MediaViewer"
-import {SVG_PREVIEW_CAP, svgDeclaresSize, svgIntrinsicSize, useSvgImage} from "./svgPreview"
+import {SVG_PREVIEW_CAP, useSvgImage} from "./svgPreview"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** The image: never wider than this, never taller than `MAX_HEIGHT`, never past its own size. */
@@ -37,7 +37,7 @@ const CORNER_ACTION =
 const CORNER_BUTTON =
     "flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-black/55 p-0 text-white transition-colors hover:bg-black/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
 
-/** Default box for an SVG that states no size of its own. */
+/** The box an SVG holds until it loads, and keeps when it has no size of its own. */
 const SVG_FALLBACK_SIZE = {width: 320, height: 240}
 
 /** An SVG's preview from the same text read its link resolves with: the read succeeding is the
@@ -49,15 +49,7 @@ function useSvgPreview(file: {mountId: string; path: string}) {
     const src = image?.src
     const bytes = image?.bytes ?? 0
     const data = useMemo(
-        () =>
-            text !== null && src
-                ? {
-                      src,
-                      bytes,
-                      ...(svgIntrinsicSize(text) ?? SVG_FALLBACK_SIZE),
-                      trustNatural: svgDeclaresSize(text),
-                  }
-                : null,
+        () => (text !== null && src ? {src, bytes, ...SVG_FALLBACK_SIZE, svg: true} : null),
         [text, src, bytes],
     )
     // Over the cap there is text but no picture: settled, and the mention stays a link.
@@ -124,14 +116,10 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
             ],
             index: 0,
         })
-    // The browser's own reading of the image wins once loaded: an SVG's units can differ from
-    // what the root tag parse assumed. A size-less SVG reports a stand-in, so it keeps the hint.
+    // An SVG sizes from the browser; 300 x 150 is its stand-in for an SVG with no size.
+    const sizeless = "svg" in data && natural?.width === 300 && natural.height === 150
     const loaded =
-        natural &&
-        natural.src === data.src &&
-        natural.width > 0 &&
-        natural.height > 0 &&
-        ("trustNatural" in data ? data.trustNatural : true)
+        natural && natural.src === data.src && natural.width > 0 && natural.height > 0 && !sizeless
             ? natural
             : data
     const width = Math.min(MAX_WIDTH, loaded.width, (MAX_HEIGHT * loaded.width) / loaded.height)
@@ -159,7 +147,7 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
                             height: e.currentTarget.naturalHeight,
                         })
                     }
-                    className="block"
+                    className="block object-contain"
                     style={{width, height}}
                 />
             </button>
