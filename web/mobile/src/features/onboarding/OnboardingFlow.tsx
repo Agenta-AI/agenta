@@ -25,14 +25,17 @@ import {OnboardingQuestion} from "./OnboardingQuestion"
 import {
     guardOnboardingRoute,
     isStepOpen,
+    nextStep,
     onboardingHeadingId,
     onboardingRoutePath,
-    PROGRESS,
+    progressIndex,
+    progressSteps,
     stepIndex,
     stepRoute,
     type GalleryFocus,
     type OnboardingRoute,
     type OnboardingStep,
+    type OnboardingSteps,
 } from "./onboardingRoute"
 import type {OnboardingModel} from "./useOnboardingModel"
 import {useOnboardingNav} from "./useOnboardingNav"
@@ -50,6 +53,8 @@ export interface OnboardingFlowProps {
     onboardingPath: string
     /** sessionStorage key; answers survive a reload or an auth redirect. */
     draftKey: string
+    /** The steps to show, in order. */
+    steps: OnboardingSteps
     catalog: OnboardingCatalog
     model: OnboardingModel
     connectedApps: ConnectedApps
@@ -71,8 +76,15 @@ const WIDTH: Record<OnboardingStep, string> = {
 }
 
 /** Which progress dots open from here: any answered step, and the templates from review. */
-const reachable = (draft: OnboardingDraft, current: OnboardingStep, target: OnboardingStep) =>
-    PROGRESS[target] === PROGRESS[current] ? current === "review" : isStepOpen(target, draft)
+const reachable = (
+    draft: OnboardingDraft,
+    steps: OnboardingSteps,
+    current: OnboardingStep,
+    target: OnboardingStep,
+) =>
+    progressIndex(target, steps) === progressIndex(current, steps)
+        ? current === "review"
+        : isStepOpen(target, draft, steps)
 
 const TEMPLATES: OnboardingRoute = {step: "templates", focus: null}
 
@@ -80,6 +92,7 @@ const TEMPLATES: OnboardingRoute = {step: "templates", focus: null}
 export const OnboardingFlow = ({
     onboardingPath,
     draftKey,
+    steps,
     catalog,
     model,
     connectedApps,
@@ -98,7 +111,7 @@ export const OnboardingFlow = ({
 
     const nav = useOnboardingNav(onboardingPath)
     const {navigate} = nav
-    const route = guardOnboardingRoute(nav.requested, draft)
+    const route = guardOnboardingRoute(nav.requested, draft, steps)
     const routeRef = useRef(route)
     routeRef.current = route
     const {step} = route
@@ -185,7 +198,7 @@ export const OnboardingFlow = ({
                 choices={ONBOARDING_ROLES}
                 value={draft.role}
                 onAnswer={(role) => dispatch({type: "role", role})}
-                onAdvance={() => advance("role", "source")}
+                onAdvance={() => advance("role", nextStep("role", steps))}
             />
         ),
         source: () => (
@@ -196,7 +209,7 @@ export const OnboardingFlow = ({
                 choices={ONBOARDING_SOURCES}
                 value={draft.source}
                 onAnswer={(source) => dispatch({type: "source", source})}
-                onAdvance={() => advance("source", "credits")}
+                onAdvance={() => advance("source", nextStep("source", steps))}
             />
         ),
         credits: () => (
@@ -265,8 +278,9 @@ export const OnboardingFlow = ({
                 </motion.section>
             </main>
             <OnboardingProgressDots
-                current={PROGRESS[step]}
-                reached={(target) => !creating && reachable(draft, step, target)}
+                steps={progressSteps(steps)}
+                current={progressIndex(step, steps)}
+                reached={(target) => !creating && reachable(draft, steps, step, target)}
                 onGo={(target) => go(stepRoute(target))}
             />
         </div>

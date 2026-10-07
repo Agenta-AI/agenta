@@ -4,15 +4,27 @@ import type {OnboardingDraft} from "./onboardingDraft"
 export const ONBOARDING_STEPS = ["role", "source", "credits", "templates", "review"] as const
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
 
-/** The four progress dots: each is the step it opens, and the templates dot covers review. */
-export const PROGRESS_STEPS = ["role", "source", "credits", "templates"] as const
-export const PROGRESS: Record<OnboardingStep, number> = {
-    role: 0,
-    source: 1,
-    credits: 2,
-    templates: 3,
-    review: 3,
-}
+/** The steps a deployment can turn off; set one to `false` to drop it from the flow. */
+export const OPTIONAL_STEPS = {role: true, source: true} satisfies Partial<
+    Record<OnboardingStep, boolean>
+>
+
+/** The steps this flow shows, in order. */
+export type OnboardingSteps = readonly OnboardingStep[]
+
+export const activeOnboardingSteps = (
+    optional: Partial<Record<OnboardingStep, boolean>> = OPTIONAL_STEPS,
+): OnboardingSteps => ONBOARDING_STEPS.filter((step) => optional[step] ?? true)
+
+/** The progress dots: every shown step but review, which shares the templates dot. */
+export const progressSteps = (steps: OnboardingSteps) => steps.filter((step) => step !== "review")
+
+export const progressIndex = (step: OnboardingStep, steps: OnboardingSteps) =>
+    progressSteps(steps).indexOf(step === "review" ? "templates" : step)
+
+/** The shown step after `step`. */
+export const nextStep = (step: OnboardingStep, steps: OnboardingSteps): OnboardingStep =>
+    steps[steps.indexOf(step) + 1] ?? step
 
 /** The gallery's focused panel: a blank start, one template, or (`null`) the list alone. */
 export type GalleryFocus = {kind: "scratch"} | {kind: "template"; key: string} | null
@@ -53,29 +65,32 @@ export const onboardingRoutePath = (route: OnboardingRoute): string => {
 
 type Answers = Pick<OnboardingDraft, "role" | "source" | "templateKey">
 
-const answered = (answers: Answers) => answers.role !== null && answers.source !== null
-
-/** What each step needs answered before it opens. */
-const OPENS: Record<OnboardingStep, (answers: Answers) => boolean> = {
-    role: () => true,
-    source: (answers) => answers.role !== null,
-    credits: answered,
-    templates: answered,
-    review: (answers) => answered(answers) && answers.templateKey !== null,
+/** A question step's answer; a later step opens once every shown question is answered. */
+const ANSWERED: Partial<Record<OnboardingStep, (answers: Answers) => boolean>> = {
+    role: (answers) => answers.role !== null,
+    source: (answers) => answers.source !== null,
 }
 
-export const isStepOpen = (step: OnboardingStep, answers: Answers) => OPENS[step](answers)
+export const isStepOpen = (step: OnboardingStep, answers: Answers, steps: OnboardingSteps) => {
+    const at = steps.indexOf(step)
+    if (at < 0) return false
+    const asked = steps.slice(0, at).every((earlier) => ANSWERED[earlier]?.(answers) ?? true)
+    return asked && (step !== "review" || answers.templateKey !== null)
+}
 
 /** The latest step the answers open, for a link to a step the user has not reached. */
-const furthestOnboardingRoute = (answers: Answers): OnboardingRoute =>
-    stepRoute(ONBOARDING_STEPS.findLast((step) => OPENS[step](answers)) ?? "role")
+const furthestOnboardingRoute = (answers: Answers, steps: OnboardingSteps): OnboardingRoute =>
+    stepRoute(steps.findLast((step) => isStepOpen(step, answers, steps)) ?? steps[0])
 
 /** The requested route when the answers open it, else the furthest one they do. */
 export const guardOnboardingRoute = (
     requested: OnboardingRoute | null,
     answers: Answers,
+    steps: OnboardingSteps,
 ): OnboardingRoute =>
-    requested && OPENS[requested.step](answers) ? requested : furthestOnboardingRoute(answers)
+    requested && isStepOpen(requested.step, answers, steps)
+        ? requested
+        : furthestOnboardingRoute(answers, steps)
 
 /** Each step's heading id: focus lands on it, and its choices are labelled by it. */
 export const onboardingHeadingId = (step: OnboardingStep) => `onboarding-heading-${step}`

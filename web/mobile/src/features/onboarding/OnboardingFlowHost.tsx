@@ -8,7 +8,7 @@ import {
     refetchAgentTemplatesAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
-import {isToolsEnabled} from "@agenta/shared/api/env"
+import {isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
 import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
@@ -21,7 +21,7 @@ import {onboardingConfiguration} from "./onboardingConfig"
 import {onboardingDraftKey, type OnboardingDraft, type OnboardingIconPick} from "./onboardingDraft"
 import {OnboardingFlow, type OnboardingCreateInput} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingPending} from "./onboardingPending"
-import {stepIndex, type OnboardingStep} from "./onboardingRoute"
+import {activeOnboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
 
@@ -59,7 +59,14 @@ export const OnboardingFlowHost = ({
         () => ({templates, status: templatesStatus, retry: () => refetchTemplates()}),
         [templates, templatesStatus, refetchTemplates],
     )
-    const model = useOnboardingModel(entityId, projectId)
+    const autoModel = useOnboardingModel(entityId, projectId)
+    // The wallet is behind its own flag; without it the credits step offers only a plan or a key.
+    const walletsEnabled = useMemo(() => isWalletsEnabled(), [])
+    const model = useMemo(
+        () => (walletsEnabled ? autoModel : {...autoModel, credits: null}),
+        [walletsEnabled, autoModel],
+    )
+    const steps = useMemo(() => activeOnboardingSteps(), [])
     const configuration = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
@@ -146,6 +153,7 @@ export const OnboardingFlowHost = ({
         <OnboardingFlow
             onboardingPath={`${base}/onboarding`}
             draftKey={draftKey}
+            steps={steps}
             catalog={catalog}
             model={model}
             connectedApps={apps}

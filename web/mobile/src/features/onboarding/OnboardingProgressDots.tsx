@@ -1,17 +1,19 @@
 import {motion} from "motion/react"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
-import {PROGRESS_STEPS, type OnboardingStep} from "./onboardingRoute"
+import type {OnboardingStep} from "./onboardingRoute"
 
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
-/** The four progress dots; a reached dot jumps back to its step. */
+/** One dot per shown step; a reached dot jumps back to its step. */
 export const OnboardingProgressDots = ({
+    steps,
     current,
     reached,
     onGo,
 }: {
+    steps: readonly OnboardingStep[]
     /** Index of the current dot. */
     current: number
     /** Whether a dot's step can be opened from here. */
@@ -21,11 +23,11 @@ export const OnboardingProgressDots = ({
     const {stepTransition} = useMotionPresets()
     return (
         <nav
-            aria-label={ONBOARDING_COPY.stepCounter(current + 1, PROGRESS_STEPS.length)}
+            aria-label={ONBOARDING_COPY.stepCounter(current + 1, steps.length)}
             // In the page's flow on a phone, so it never covers content; fixed at the foot from md.
             className="flex shrink-0 items-center justify-center gap-0.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:fixed md:bottom-8 md:left-1/2 md:z-20 md:-translate-x-1/2 md:pb-0"
         >
-            {PROGRESS_STEPS.map((step, index) => {
+            {steps.map((step, index) => {
                 const open = reached(step)
                 return (
                     <button
