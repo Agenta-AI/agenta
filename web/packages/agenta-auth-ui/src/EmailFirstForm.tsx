@@ -80,7 +80,9 @@ export const EmailFirstForm = ({
                     size="lg"
                     className={cn(FIELD_CLASS, promoted && "pr-24")}
                 />
-                {promoted && <LastUsedBadge className="absolute right-3 top-1/2 -translate-y-1/2" />}
+                {promoted && (
+                    <LastUsedBadge className="absolute right-3 top-1/2 -translate-y-1/2" />
+                )}
             </div>
 
             <LoadingButton
@@ -91,7 +93,10 @@ export const EmailFirstForm = ({
                 className={primary ? KEYCAP_CLASS : SURFACE_CLASS}
                 disabled={disabled}
             >
-                <span key={isLoading ? "busy" : "idle"} className={isLoading ? "auth-swap" : undefined}>
+                <span
+                    key={isLoading ? "busy" : "idle"}
+                    className={isLoading ? "auth-swap" : undefined}
+                >
                     {isLoading ? "Checking…" : "Continue"}
                 </span>
             </LoadingButton>

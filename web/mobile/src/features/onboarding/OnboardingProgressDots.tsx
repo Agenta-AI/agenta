@@ -1,11 +1,11 @@
 import {motion} from "motion/react"
 
+import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
+
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {onboardingQuestion} from "./onboardingQuestions"
 import type {OnboardingStep} from "./onboardingRoute"
-
-import {useMotionPresets} from "@/lib/motion/presets"
-import {cn} from "@/lib/utils"
 
 const dotLabel = (step: OnboardingStep) =>
     onboardingQuestion(step)?.dot ?? ONBOARDING_COPY.dots[step as keyof typeof ONBOARDING_COPY.dots]

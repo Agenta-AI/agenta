@@ -7,6 +7,9 @@ import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
+import {fetchProjects} from "@/lib/context"
+import {useMotionPresets} from "@/lib/motion/presets"
+
 import {
     BOOT_MAX_MS,
     BOOT_MIN_MS,
@@ -17,9 +20,6 @@ import {
     type PostAuthBoot,
     type ProjectsAnswer,
 } from "./postAuthBoot"
-
-import {fetchProjects} from "@/lib/context"
-import {useMotionPresets} from "@/lib/motion/presets"
 
 interface BootLoaderScreenProps {
     boot: PostAuthBoot

@@ -1,11 +1,11 @@
 import {useEffect, useRef, useState} from "react"
 
-import {CHOICE_KEYS, type OnboardingChoice} from "./onboardingChoices"
-import {ONBOARDING_COPY} from "./onboardingCopy"
-
 import {FOCUS_RING} from "@/lib/interactive"
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
+
+import {CHOICE_KEYS, type OnboardingChoice} from "./onboardingChoices"
+import {ONBOARDING_COPY} from "./onboardingCopy"
 
 /** A one-tap question: a chip or its letter key answers it, then the flow moves on. */
 export const OnboardingQuestion = ({

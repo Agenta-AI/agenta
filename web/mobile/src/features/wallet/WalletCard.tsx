@@ -2,12 +2,12 @@ import type {ReactNode} from "react"
 
 import {motion} from "motion/react"
 
-import {useCardTilt} from "./useCardTilt"
-import {formatUsd, MUSD_PER_CREDIT} from "./walletFormat"
-
 import {useMotionPresets} from "@/lib/motion/presets"
 import {useCountUp} from "@/lib/motion/useCountUp"
 import {cn} from "@/lib/utils"
+
+import {useCardTilt} from "./useCardTilt"
+import {formatUsd, MUSD_PER_CREDIT} from "./walletFormat"
 
 /** The Agenta mark, drawn in the card's ink. */
 const MARK =

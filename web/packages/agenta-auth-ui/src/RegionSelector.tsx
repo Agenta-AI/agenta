@@ -133,7 +133,9 @@ const RegionSelectorInner = ({onLearnMore}: RegionSelectorProps) => {
                     ),
                 )}
             </div>
-            {!onLearnMore && isInfoOpen ? <RegionInfoText className="text-[15px] leading-[22px] text-muted-foreground" /> : null}
+            {!onLearnMore && isInfoOpen ? (
+                <RegionInfoText className="text-[15px] leading-[22px] text-muted-foreground" />
+            ) : null}
         </div>
     )
 }

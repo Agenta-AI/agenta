@@ -3,10 +3,10 @@ import {useCallback} from "react"
 import {useAtom} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
+import {useMotionPresets} from "@/lib/motion/presets"
+
 import {BootLoaderScreen} from "./BootLoaderScreen"
 import {postAuthBootAtom} from "./postAuthBoot"
-
-import {useMotionPresets} from "@/lib/motion/presets"
 
 /** One loader over every route change between sign-in and the first real screen. */
 export const PostAuthLoader = () => {

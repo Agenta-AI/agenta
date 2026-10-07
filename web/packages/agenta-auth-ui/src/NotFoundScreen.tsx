@@ -59,11 +59,21 @@ export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
 
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                     {onBack ? (
-                        <Button type="button" size="lg" className={`${KEYCAP_CLASS} w-auto px-5`} onClick={onBack}>
+                        <Button
+                            type="button"
+                            size="lg"
+                            className={`${KEYCAP_CLASS} w-auto px-5`}
+                            onClick={onBack}
+                        >
                             Go back
                         </Button>
                     ) : null}
-                    <Button asChild variant="outline" size="lg" className="h-11 rounded-lg px-5 text-sm font-medium">
+                    <Button
+                        asChild
+                        variant="outline"
+                        size="lg"
+                        className="h-11 rounded-lg px-5 text-sm font-medium"
+                    >
                         <a href={ISSUES_URL}>Report</a>
                     </Button>
                 </div>

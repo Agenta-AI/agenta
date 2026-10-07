@@ -5,12 +5,12 @@ import {Button} from "@agenta/ui/ui"
 import {Check, Key} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
+import {useMotionPresets} from "@/lib/motion/presets"
+
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {OnboardingKeyForm} from "./OnboardingKeyForm"
 import {OnboardingWayRow} from "./OnboardingWayRow"
 import type {OnboardingModel} from "./useOnboardingModel"
-
-import {useMotionPresets} from "@/lib/motion/presets"
 
 const copy = ONBOARDING_COPY.model
 const PILL =

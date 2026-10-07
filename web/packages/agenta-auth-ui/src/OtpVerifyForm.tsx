@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState, type FormEvent} from "react"
 
 import {clearEmailCodeAttempt, resendEmailCode, submitEmailCodeDetailed} from "@agenta/auth"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
     ArrowLeft,
@@ -10,8 +11,6 @@ import {
     PaperPlaneTilt,
     Tray,
 } from "@phosphor-icons/react"
-
-import {Button} from "@agenta/ui/ui"
 
 import {STATUS_TEXT_CLASS} from "./classes"
 import {OtpInput, type OtpInputHandle} from "./OtpInput"
@@ -236,8 +235,12 @@ export const OtpVerifyForm = ({
                 >
                     <Tray size={18} className="mt-px flex-none text-muted-foreground" />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="text-sm font-medium">Open {inbox[0]} to find your code</span>
-                        <span className="truncate text-[13px] text-muted-foreground">Sent to {email}</span>
+                        <span className="text-sm font-medium">
+                            Open {inbox[0]} to find your code
+                        </span>
+                        <span className="truncate text-[13px] text-muted-foreground">
+                            Sent to {email}
+                        </span>
                     </span>
                     <ArrowUpRight size={15} className="mt-0.5 flex-none text-muted-foreground" />
                 </a>

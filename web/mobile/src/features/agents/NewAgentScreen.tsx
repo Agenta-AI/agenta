@@ -1,9 +1,9 @@
+import {PageTitle} from "@/components/PageTitle"
+
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 
 import {FirstRunScreen} from "./FirstRunScreen"
-
-import {PageTitle} from "@/components/PageTitle"
 
 /**
  * Where every "New agent" entry lands (`/agents/new`) — the same create surface a brand-new

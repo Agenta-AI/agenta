@@ -31,7 +31,7 @@ export const registerQuestion = (question: OnboardingQuestionDef) => {
 /** The two questions the flow tests were written against, independent of the app's list. */
 export const TEST_QUESTIONS: readonly OnboardingQuestionDef[] = [
     {
-        id: "role",
+        id: "persona",
         title: "What kind of work do you do?",
         subtitle: "We’ll suggest agents that fit your work.",
         dot: "Your work",

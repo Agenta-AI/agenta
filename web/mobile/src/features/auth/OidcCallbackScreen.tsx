@@ -6,11 +6,11 @@ import {useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
-import {useAuthSuccess} from "./useAuthSuccess"
-
 import {AgentaLogo} from "@/components/AgentaLogo"
 import {postAuthBootAtom} from "@/features/app/postAuthBoot"
 import {completeOidcSignIn, isTurnstileEnabled, setPendingTurnstileToken} from "@/lib/auth"
+
+import {useAuthSuccess} from "./useAuthSuccess"
 
 /**
  * Landing for an OIDC redirect the mobile app started. The provider redirected

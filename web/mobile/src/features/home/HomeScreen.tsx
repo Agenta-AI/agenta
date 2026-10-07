@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef} from "react"
 
+import {useProfile} from "@agenta/entities/profile"
 import {
     agentTemplatesAtom,
     agentTemplatesStatusAtom,
@@ -8,7 +9,6 @@ import {
     refetchAgentTemplatesAtom,
     type Workflow,
 } from "@agenta/entities/workflow"
-import {useProfile} from "@agenta/entities/profile"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
 import {getUnseenReleases, isWhatsNewOptedOut} from "@agenta/navigation"
 import {LoadError} from "@agenta/ui/components/presentational"
