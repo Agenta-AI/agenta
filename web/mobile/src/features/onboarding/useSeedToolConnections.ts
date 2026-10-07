@@ -9,11 +9,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 
-/** Zero-auth Composio integrations every new workspace starts with. */
-const SEED_TOOLS = [
-    {key: "composio_search", name: "Composio Search"},
-    {key: "browser_tool", name: "Browser Tool"},
-] as const
+import {SEED_TOOLS} from "./onboardingConfig"
 
 const seededKey = (projectId: string) => `agenta:onboarding:tools-seeded:v1:${projectId}`
 

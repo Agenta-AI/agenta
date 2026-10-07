@@ -1,93 +1,111 @@
-import type {AgentStarterTemplate} from "@agenta/entities/workflow"
-import {AGENT_ICON_COLORS, DEFAULT_AGENT_ICON} from "@agenta/ui/agent-icon"
+import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {DEFAULT_AGENT_ICON} from "@agenta/ui/agent-icon"
 import {z} from "zod"
 
 import {
     ONBOARDING_ROLES,
     ONBOARDING_SOURCES,
+    RECOMMENDED,
+    templateGlyph,
+    type GalleryCategory,
     type OnboardingRole,
     type OnboardingSource,
-    type OnboardingVariant,
 } from "./onboardingChoices"
 
-/** Canonical order; analytics numbers steps by it even when one is skipped. */
-export const ONBOARDING_STEPS = ["role", "tools", "model", "referral", "agent"] as const
+/** Canonical order; analytics numbers steps by it. */
+export const ONBOARDING_STEPS = ["role", "referral", "credits", "gallery", "creator"] as const
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
+
+/** The header counts four steps: the gallery and the creator share the last one. */
+export const PROGRESS_TOTAL = 4
+export const PROGRESS: Record<OnboardingStep, number> = {
+    role: 1,
+    referral: 2,
+    credits: 3,
+    gallery: 4,
+    creator: 4,
+}
+
+export const PREVIOUS: Record<OnboardingStep, OnboardingStep | null> = {
+    role: null,
+    referral: "role",
+    credits: "referral",
+    gallery: "credits",
+    creator: "gallery",
+}
 
 /** Each step's heading id: focus lands on it, and its choices are labelled by it. */
 export const onboardingHeadingId = (step: OnboardingStep) => `onboarding-heading-${step}`
 
 export const onboardingStepNumber = (step: OnboardingStep) => ONBOARDING_STEPS.indexOf(step) + 1
 
-/** The tools step needs the tool gateway; without it there is nothing to connect. */
-export const activeOnboardingSteps = (toolsEnabled: boolean): readonly OnboardingStep[] =>
-    toolsEnabled ? ONBOARDING_STEPS : ONBOARDING_STEPS.filter((step) => step !== "tools")
-
-export type TemplatePick = {kind: "template"; key: string} | {kind: "custom"} | null
-
-/** A glyph name from the agent-icon catalog and a palette colour. */
+/** A glyph name from the agent-icon catalog and a colour. */
 export interface OnboardingIconPick {
     icon: string
     color: string
+}
+
+/** The agent the creator edits and Create commits. */
+export interface OnboardingAgent {
+    name: string
+    icon: OnboardingIconPick
+    instructions: string
+    /** Tool integration keys the user chose; only connected ones join the agent. */
+    apps: string[]
+    firstMessage: string
 }
 
 export interface OnboardingDraft {
     step: OnboardingStep
     role: OnboardingRole | null
     source: OnboardingSource | null
-    name: string
-    task: string
-    pick: TemplatePick
-    icon: OnboardingIconPick | null
+    category: GalleryCategory
+    /** The focused gallery template; `null` focuses the first one listed. */
+    focus: string | null
+    /** The template the creator was filled from, if any. */
+    templateKey: string | null
+    agent: OnboardingAgent
+}
+
+export const ONBOARDING_NAME_MAX = 100
+export const ONBOARDING_TEXT_MAX = 10000
+
+export const BLANK_AGENT: OnboardingAgent = {
+    name: "",
+    icon: {icon: DEFAULT_AGENT_ICON.icon, color: DEFAULT_AGENT_ICON.color},
+    instructions: "",
+    apps: [],
+    firstMessage: "",
 }
 
 export const EMPTY_ONBOARDING_DRAFT: OnboardingDraft = {
     step: "role",
     role: null,
     source: null,
-    name: "",
-    task: "",
-    pick: null,
-    icon: null,
+    category: RECOMMENDED,
+    focus: null,
+    templateKey: null,
+    agent: BLANK_AGENT,
 }
 
-export const ONBOARDING_NAME_MAX = 100
-export const ONBOARDING_TASK_MAX = 10000
-
-/** What name-first shows before a pick, and saves when nothing else was chosen. */
-export const DEFAULT_IDENTITY: OnboardingIconPick = {
-    icon: DEFAULT_AGENT_ICON.icon,
-    color: DEFAULT_AGENT_ICON.color,
-}
-
-/** One glyph per suggestion slot, so each picked template brings its own identity. */
-const TEMPLATE_GLYPHS = [
-    "git-pull-request",
-    "bug",
-    "lightning",
-    "chat-circle-dots",
-    "chart-line-up",
-]
-
-export const templateIcon = (index: number): OnboardingIconPick => ({
-    icon: TEMPLATE_GLYPHS[index % TEMPLATE_GLYPHS.length],
-    color: AGENT_ICON_COLORS[(index + 1) % AGENT_ICON_COLORS.length][0],
+export const agentFromTemplate = (template: AgentStarterTemplate): OnboardingAgent => ({
+    name: template.name,
+    icon: {icon: templateGlyph(template), color: template.color},
+    instructions: template.instructions,
+    apps: [],
+    firstMessage: templateBuilderMessage(template),
 })
 
 export type OnboardingAction =
     | {type: "step"; step: OnboardingStep}
     | {type: "role"; role: OnboardingRole}
     | {type: "source"; source: OnboardingSource}
-    | {type: "name"; name: string}
-    | {type: "task"; task: string}
-    | {
-          type: "template"
-          template: AgentStarterTemplate
-          index: number
-          variant: OnboardingVariant
-      }
-    | {type: "custom"}
-    | {type: "icon"; icon: OnboardingIconPick}
+    | {type: "category"; category: GalleryCategory}
+    | {type: "focus"; key: string}
+    | {type: "template"; template: AgentStarterTemplate}
+    | {type: "scratch"}
+    | {type: "agent"; patch: Partial<Omit<OnboardingAgent, "apps">>}
+    | {type: "app"; key: string; on: boolean}
 
 export const onboardingReducer = (
     draft: OnboardingDraft,
@@ -97,69 +115,91 @@ export const onboardingReducer = (
         case "step":
             return {...draft, step: action.step}
         case "role":
-            if (action.role === draft.role) return draft
-            // Suggestions follow the role, so a new role drops the pick made from the old list.
-            return {...draft, role: action.role, pick: null, task: "", name: "", icon: null}
+            // The gallery's Recommended slice follows the role, so its focus resets with it.
+            return action.role === draft.role
+                ? draft
+                : {...draft, role: action.role, category: RECOMMENDED, focus: null}
         case "source":
             return {...draft, source: action.source}
-        case "name":
-            return {...draft, name: action.name.slice(0, ONBOARDING_NAME_MAX)}
-        case "task":
-            return {...draft, task: action.task.slice(0, ONBOARDING_TASK_MAX)}
+        case "category":
+            return {...draft, category: action.category, focus: null}
+        case "focus":
+            return {...draft, focus: action.key}
         case "template":
             return {
                 ...draft,
-                pick: {kind: "template", key: action.template.key},
-                task: "",
-                name: action.variant === "control" ? action.template.name : draft.name,
-                icon: templateIcon(action.index),
+                templateKey: action.template.key,
+                agent: agentFromTemplate(action.template),
             }
-        case "custom":
-            return {...draft, pick: {kind: "custom"}, task: ""}
-        case "icon":
-            return {...draft, icon: action.icon}
+        case "scratch":
+            return {...draft, templateKey: null, agent: BLANK_AGENT}
+        case "agent": {
+            const agent = {...draft.agent, ...action.patch}
+            return {
+                ...draft,
+                agent: {
+                    ...agent,
+                    name: agent.name.slice(0, ONBOARDING_NAME_MAX),
+                    instructions: agent.instructions.slice(0, ONBOARDING_TEXT_MAX),
+                    firstMessage: agent.firstMessage.slice(0, ONBOARDING_TEXT_MAX),
+                },
+            }
+        }
+        case "app": {
+            const others = draft.agent.apps.filter((key) => key !== action.key)
+            return {
+                ...draft,
+                agent: {...draft.agent, apps: action.on ? [...others, action.key] : others},
+            }
+        }
     }
 }
 
-const STEP_COMPLETE: Record<
-    OnboardingStep,
-    (draft: OnboardingDraft, context: {modelReady: boolean}) => boolean
-> = {
-    role: (draft) => draft.role !== null,
-    tools: () => true,
-    model: (_, {modelReady}) => modelReady,
-    referral: (draft) => draft.source !== null,
-    agent: () => false,
+export const FIRST_AGENT_FALLBACK_NAME = "My first agent"
+
+export interface FirstAgentInput {
+    name: string
+    instructions: string
+    firstMessage: string
 }
 
-export const canLeaveStep = (draft: OnboardingDraft, context: {modelReady: boolean}) =>
-    STEP_COMPLETE[draft.step](draft, context)
+/** What Create commits; it needs instructions or a first message to have anything to do. */
+export const firstAgentInput = ({
+    name,
+    instructions,
+    firstMessage,
+}: OnboardingAgent): FirstAgentInput | null => {
+    const input = {
+        name: name.trim() || FIRST_AGENT_FALLBACK_NAME,
+        instructions: instructions.trim(),
+        firstMessage: firstMessage.trim(),
+    }
+    return input.instructions || input.firstMessage ? input : null
+}
 
-export const stepAfter = (steps: readonly OnboardingStep[], step: OnboardingStep) =>
-    steps[steps.indexOf(step) + 1] ?? null
-
-export const stepBefore = (steps: readonly OnboardingStep[], step: OnboardingStep) =>
-    steps[steps.indexOf(step) - 1] ?? null
-
-export const onboardingDraftKey = (projectId: string) => `agenta:onboarding:draft:v1:${projectId}`
+export const onboardingDraftKey = (projectId: string) => `agenta:onboarding:draft:v2:${projectId}`
 
 const stepIndex = (step: OnboardingStep) => ONBOARDING_STEPS.indexOf(step)
+
+const iconSchema = z.object({icon: z.string().min(1), color: z.string().min(1)})
 
 const draftSchema = z
     .object({
         step: z.enum(ONBOARDING_STEPS),
         role: z.enum(ONBOARDING_ROLES.map((role) => role.label)).nullable(),
         source: z.enum(ONBOARDING_SOURCES.map((source) => source.label)).nullable(),
-        name: z.string().max(ONBOARDING_NAME_MAX),
-        task: z.string().max(ONBOARDING_TASK_MAX),
-        pick: z.union([
-            z.object({kind: z.literal("template"), key: z.string().min(1)}),
-            z.object({kind: z.literal("custom")}),
-            z.null(),
-        ]),
-        icon: z.object({icon: z.string().min(1), color: z.string().min(1)}).nullable(),
+        category: z.string().min(1),
+        focus: z.string().min(1).nullable(),
+        templateKey: z.string().min(1).nullable(),
+        agent: z.object({
+            name: z.string().max(ONBOARDING_NAME_MAX),
+            icon: iconSchema,
+            instructions: z.string().max(ONBOARDING_TEXT_MAX),
+            apps: z.array(z.string().min(1)),
+            firstMessage: z.string().max(ONBOARDING_TEXT_MAX),
+        }),
     })
-    // A draft past a question must carry its answer, or the flow resumes on a dead Next.
+    // A draft past a question must carry its answer, or the flow resumes past an empty one.
     .refine(
         (draft) =>
             (draft.role !== null || draft.step === "role") &&

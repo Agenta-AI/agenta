@@ -5,22 +5,27 @@ vi.mock("@agenta/entities/workflow", () => ({
     templateBuilderMessage: (template: {name: string}) => `Build ${template.name}`,
 }))
 
-import {firstAgentInput, suggestionsForRole} from "@/features/onboarding/onboardingChoices"
+import {galleryTemplates} from "@/features/onboarding/onboardingChoices"
 import {
-    activeOnboardingSteps,
-    canLeaveStep,
+    BLANK_AGENT,
     EMPTY_ONBOARDING_DRAFT,
+    firstAgentInput,
     onboardingReducer,
     readOnboardingDraft,
     saveOnboardingDraft,
-    stepAfter,
     type OnboardingDraft,
 } from "@/features/onboarding/onboardingDraft"
 
-type Template = Parameters<typeof firstAgentInput>[2] & object
+type Template = Parameters<typeof galleryTemplates>[0][number]
 
 const template = (key: string, category: string, name = key) =>
-    ({key, name, category}) as unknown as Template
+    ({
+        key,
+        name,
+        category,
+        color: "#123456",
+        instructions: `${name} instructions`,
+    }) as unknown as Template
 
 afterEach(() => window.sessionStorage.clear())
 
@@ -31,7 +36,12 @@ const draft = (overrides: Partial<OnboardingDraft> = {}): OnboardingDraft => ({
 
 describe("onboarding draft storage", () => {
     it("restores a saved draft and forgets it after creation", () => {
-        const saved = draft({step: "model", role: "Engineering"})
+        const saved = draft({
+            step: "creator",
+            role: "Engineering",
+            source: "GitHub",
+            agent: {...BLANK_AGENT, name: "Atlas", apps: ["slack"]},
+        })
         saveOnboardingDraft("draft", saved)
         expect(readOnboardingDraft("draft")).toEqual(saved)
         saveOnboardingDraft("draft", null)
@@ -41,15 +51,15 @@ describe("onboarding draft storage", () => {
     it("starts over on malformed or incomplete stored drafts", () => {
         window.sessionStorage.setItem("draft", "{")
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
-        window.sessionStorage.setItem("draft", JSON.stringify({step: "agent"}))
+        window.sessionStorage.setItem("draft", JSON.stringify({step: "creator"}))
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
     })
 
-    it("keeps an unanswered referral until its step and rejects removed answers", () => {
+    it("never resumes past an unanswered question or on a removed answer", () => {
         const atReferral = draft({step: "referral", role: "Engineering"})
         saveOnboardingDraft("draft", atReferral)
         expect(readOnboardingDraft("draft").step).toBe("referral")
-        saveOnboardingDraft("draft", {...atReferral, step: "agent"})
+        saveOnboardingDraft("draft", {...atReferral, step: "credits"})
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
         window.sessionStorage.setItem(
             "draft",
@@ -60,97 +70,88 @@ describe("onboarding draft storage", () => {
 })
 
 describe("onboarding answers", () => {
-    it("drops the pick, task, name and icon when the role changes", () => {
-        const picked = draft({
-            role: "Engineering",
-            name: "Reviewer",
-            task: "Do it",
-            pick: {kind: "template", key: "review"},
-            icon: {icon: "bug", color: "#111111"},
-        })
-        expect(onboardingReducer(picked, {type: "role", role: "Sales"})).toEqual({
-            ...picked,
+    it("resets the gallery to Recommended when the role changes, and only then", () => {
+        const browsing = draft({role: "Engineering", category: "Sales", focus: "lead"})
+        expect(onboardingReducer(browsing, {type: "role", role: "Sales"})).toEqual({
+            ...browsing,
             role: "Sales",
-            name: "",
-            task: "",
-            pick: null,
-            icon: null,
+            category: "recommended",
+            focus: null,
         })
+        expect(onboardingReducer(browsing, {type: "role", role: "Engineering"})).toBe(browsing)
     })
 
-    it("keeps every answer when the same role is picked again", () => {
-        const picked = draft({role: "Engineering", name: "Reviewer"})
-        expect(onboardingReducer(picked, {type: "role", role: "Engineering"})).toBe(picked)
-    })
-
-    it("names the agent after a picked template only in name-first", () => {
-        const pr = template("review", "Engineering", "PR reviewer")
-        const control = onboardingReducer(draft({name: "Mine"}), {
+    it("fills the creator from a template and empties it for a blank start", () => {
+        const filled = onboardingReducer(draft({agent: {...BLANK_AGENT, name: "Mine"}}), {
             type: "template",
-            template: pr,
-            index: 0,
-            variant: "control",
+            template: template("review", "Engineering", "PR reviewer"),
         })
-        expect(control.name).toBe("PR reviewer")
-        expect(control.icon).toEqual({icon: "git-pull-request", color: expect.any(String)})
-        const taskFirst = onboardingReducer(draft({name: "Mine"}), {
-            type: "template",
-            template: pr,
-            index: 1,
-            variant: "task-first",
+        expect(filled.templateKey).toBe("review")
+        expect(filled.agent).toEqual({
+            name: "PR reviewer",
+            icon: {icon: "code", color: "#123456"},
+            instructions: "PR reviewer instructions",
+            apps: [],
+            firstMessage: "Build PR reviewer",
         })
-        expect(taskFirst.name).toBe("Mine")
-        expect(taskFirst.icon?.icon).toBe("bug")
+        const blank = onboardingReducer(filled, {type: "scratch"})
+        expect(blank.templateKey).toBeNull()
+        expect(blank.agent).toEqual(BLANK_AGENT)
     })
 
-    it("gates each step on its own answer", () => {
-        expect(canLeaveStep(draft(), {modelReady: true})).toBe(false)
-        expect(canLeaveStep(draft({role: "Product"}), {modelReady: false})).toBe(true)
-        expect(canLeaveStep(draft({role: "Product", step: "model"}), {modelReady: false})).toBe(
-            false,
-        )
-        expect(canLeaveStep(draft({role: "Product", step: "referral"}), {modelReady: true})).toBe(
-            false,
+    it("adds and removes an app once each", () => {
+        const one = onboardingReducer(draft(), {type: "app", key: "slack", on: true})
+        expect(onboardingReducer(one, {type: "app", key: "slack", on: true}).agent.apps).toEqual([
+            "slack",
+        ])
+        expect(onboardingReducer(one, {type: "app", key: "slack", on: false}).agent.apps).toEqual(
+            [],
         )
     })
 
-    it("skips the tools step when the deployment has no tool gateway", () => {
-        expect(activeOnboardingSteps(false)).toEqual(["role", "model", "referral", "agent"])
-        expect(stepAfter(activeOnboardingSteps(true), "role")).toBe("tools")
-        expect(stepAfter(activeOnboardingSteps(true), "agent")).toBeNull()
+    it("caps the name at 100 characters", () => {
+        const long = onboardingReducer(draft(), {type: "agent", patch: {name: "x".repeat(150)}})
+        expect(long.agent.name).toHaveLength(100)
     })
 })
 
 describe("first agent input", () => {
-    it("rejects blank input and trims custom tasks", () => {
-        expect(firstAgentInput("control", {name: " ", task: "do this"}, null)).toBeNull()
-        expect(firstAgentInput("task-first", {name: "", task: "  "}, null)).toBeNull()
-        expect(firstAgentInput("task-first", {name: "", task: " Plan my week "}, null)).toEqual({
+    it("needs instructions or a first message, and names a blank agent", () => {
+        expect(firstAgentInput({...BLANK_AGENT, name: "Atlas"})).toBeNull()
+        expect(firstAgentInput({...BLANK_AGENT, firstMessage: " Plan my week "})).toEqual({
             name: "My first agent",
-            seedMessage: "Plan my week",
-        })
-    })
-
-    it("seeds a name alone with a builder prompt and a template with its builder message", () => {
-        expect(firstAgentInput("control", {name: " Atlas ", task: ""}, null)).toEqual({
-            name: "Atlas",
-            seedMessage: "Set up Atlas: help me define what this agent should do.",
+            instructions: "",
+            firstMessage: "Plan my week",
         })
         expect(
-            firstAgentInput("task-first", {name: "", task: ""}, template("r", "x", "PR reviewer")),
-        ).toEqual({name: "PR reviewer", seedMessage: "Build PR reviewer"})
+            firstAgentInput({...BLANK_AGENT, name: " Atlas ", instructions: " Be brief. "}),
+        ).toEqual({name: "Atlas", instructions: "Be brief.", firstMessage: ""})
+    })
+})
+
+describe("gallery templates", () => {
+    const templates = [
+        template("a", "Support"),
+        template("b", "Ops"),
+        ...Array.from({length: 6}, (_, index) => template(`e${index}`, "Engineering")),
+    ]
+    const keys = (list: Template[]) => list.map((item) => item.key)
+
+    it("leads Recommended with the role's category and keeps six", () => {
+        expect(keys(galleryTemplates(templates, "recommended", "Customer support"))).toEqual([
+            "a",
+            "b",
+            "e0",
+            "e1",
+            "e2",
+            "e3",
+        ])
+        expect(keys(galleryTemplates(templates, "recommended", "Finance"))[0]).toBe("b")
+        expect(keys(galleryTemplates(templates, "recommended", null))).toHaveLength(6)
     })
 
-    it("suggests at most five templates from the role's category", () => {
-        const templates = [
-            template("a", "Support"),
-            template("b", "Ops"),
-            ...Array.from({length: 6}, (_, index) => template(`e${index}`, "Engineering")),
-        ]
-        expect(suggestionsForRole(templates, "Customer support").map((item) => item.key)).toEqual([
-            "a",
-        ])
-        expect(suggestionsForRole(templates, "Engineering")).toHaveLength(5)
-        expect(suggestionsForRole(templates, null)).toEqual([])
+    it("filters by category and lists everything under All", () => {
+        expect(keys(galleryTemplates(templates, "Ops", "Engineering"))).toEqual(["b"])
+        expect(galleryTemplates(templates, "all", "Engineering")).toHaveLength(8)
     })
 })

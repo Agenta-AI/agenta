@@ -74,6 +74,9 @@ export const featuredDwellMs = 5000
 /** How long a finished example run holds before it fades and plays again. */
 export const runHoldMs = 4000
 
+/** How long a picked answer holds before a one-tap question moves on. */
+export const answerHoldMs = 420
+
 /** Instant variants used when the user prefers reduced motion. */
 const instant: Variants = {
     initial: {opacity: 0},
@@ -100,6 +103,8 @@ export interface MotionPresets {
     runHoldMs: number
     /** 0 when reduced: the featured carousel does not advance by itself. */
     featuredDwellMs: number
+    /** 0 when reduced: a picked answer moves on at once. */
+    answerHoldMs: number
 }
 
 /**
@@ -125,6 +130,7 @@ export function useMotionPresets(): MotionPresets {
                       stepRevealMs: 0,
                       runHoldMs: 0,
                       featuredDwellMs: 0,
+                      answerHoldMs: 0,
                   }
                 : {
                       reduced,
@@ -138,6 +144,7 @@ export function useMotionPresets(): MotionPresets {
                       stepRevealMs,
                       runHoldMs,
                       featuredDwellMs,
+                      answerHoldMs,
                   },
         [reduced],
     )

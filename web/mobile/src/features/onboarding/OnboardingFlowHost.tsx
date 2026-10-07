@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import {useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {
@@ -17,8 +17,8 @@ import {capture} from "@/features/analytics/client"
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 
 import type {OnboardingCatalog} from "./onboardingChoices"
+import {onboardingConfiguration} from "./onboardingConfig"
 import {
-    activeOnboardingSteps,
     onboardingDraftKey,
     onboardingStepNumber,
     saveOnboardingDraft,
@@ -27,11 +27,8 @@ import {
     type OnboardingStep,
 } from "./onboardingDraft"
 import {OnboardingFlow, type OnboardingCreateInput} from "./OnboardingFlow"
-import {OnboardingModelStep} from "./OnboardingModelStep"
-import {withOnboardingTools} from "./onboardingTools"
-import {OnboardingToolsStep} from "./OnboardingToolsStep"
-import type {OnboardingAssignment} from "./useOnboardingExperiment"
 import {useOnboardingModel} from "./useOnboardingModel"
+import {useSeedToolConnections} from "./useSeedToolConnections"
 
 /** Answers become person properties only once given, so an empty one never overwrites. */
 const personProperties = ({role, source}: OnboardingDraft) => ({
@@ -44,18 +41,15 @@ export const OnboardingFlowHost = ({
     base,
     projectId,
     entityId,
-    assignment,
     preview,
 }: {
     base: string
     projectId: string
     /** The local draft agent the flow configures and Create commits. */
     entityId: string
-    assignment: OnboardingAssignment
-    /** A `?onboarding-variant=` preview; it changes nothing in the project until Create. */
+    /** A `?onboarding-preview` visit: no analytics and no tool seeding until Create. */
     preview: boolean
 }) => {
-    const {variant, enrolled} = assignment
     const templates = useAtomValue(agentTemplatesAtom)
     const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
     const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
@@ -63,17 +57,32 @@ export const OnboardingFlowHost = ({
         () => ({templates, status: templatesStatus, retry: () => refetchTemplates()}),
         [templates, templatesStatus, refetchTemplates],
     )
-    const model = useOnboardingModel(entityId)
+    const model = useOnboardingModel(entityId, projectId)
     const configuration = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
     const updateConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
-    const {connections} = useToolConnectionsQuery()
+    const toolsEnabled = useMemo(() => isToolsEnabled(), [])
+    const connectionsQuery = useToolConnectionsQuery()
+    const {connections} = connectionsQuery
+    useSeedToolConnections({
+        enabled: toolsEnabled && !preview,
+        connections,
+        loaded: !connectionsQuery.isLoading && !connectionsQuery.error,
+    })
     const newAgent = useNewAgentAction(base)
     const store = useStore()
-    const steps = useMemo(() => activeOnboardingSteps(isToolsEnabled()), [])
     const draftKey = onboardingDraftKey(projectId)
-    const experiment = enrolled ? {variant} : {}
+    const track = (event: string, properties?: Record<string, unknown>) => {
+        if (!preview) capture(event, properties)
+    }
+
+    const startedRef = useRef(false)
+    useEffect(() => {
+        if (preview || startedRef.current) return
+        startedRef.current = true
+        capture("onboarding_started")
+    }, [preview])
 
     const applyIcon = async (appId: string, pick: OnboardingIconPick) => {
         const glyph = (await loadAgentIconCatalog()).find((item) => item.name === pick.icon)
@@ -87,40 +96,36 @@ export const OnboardingFlowHost = ({
     }
 
     const onStepCompleted = (step: OnboardingStep, draft: OnboardingDraft) =>
-        capture("onboarding_step_completed", {
-            ...experiment,
+        track("onboarding_step_completed", {
             step: onboardingStepNumber(step),
             step_key: step,
             $set: personProperties(draft),
         })
 
-    const onCreate = ({name, seedMessage, icon}: OnboardingCreateInput) => {
-        updateConfiguration(entityId, withOnboardingTools(configuration ?? {}, connections))
-        if (enrolled) capture("onboarding_create_clicked", {variant})
+    const onCreate = ({name, instructions, firstMessage, icon, apps}: OnboardingCreateInput) => {
+        updateConfiguration(
+            entityId,
+            onboardingConfiguration(configuration ?? {}, {instructions, apps, connections}),
+        )
+        track("onboarding_create_clicked")
         void newAgent.createFromPrompt({
-            text: seedMessage,
+            text: firstMessage,
             name,
             entityId,
             onCreated: (agent) => {
                 saveOnboardingDraft(draftKey, null)
-                if (enrolled) {
-                    capture("onboarding_agent_created", {variant, revision_id: agent.revisionId})
-                }
-                if (icon) void applyIcon(agent.appId, icon).catch(() => undefined)
+                track("onboarding_agent_created", {revision_id: agent.revisionId})
+                void applyIcon(agent.appId, icon).catch(() => undefined)
             },
         })
     }
 
     return (
         <OnboardingFlow
-            variant={variant}
             draftKey={draftKey}
-            steps={steps}
             catalog={catalog}
-            tools={<OnboardingToolsStep seed={!preview} />}
-            model={<OnboardingModelStep model={model} />}
-            modelReady={model.ready}
-            modelNextLabel={model.nextLabel}
+            model={model}
+            toolsEnabled={toolsEnabled}
             creating={newAgent.creating}
             error={newAgent.error}
             onStepCompleted={onStepCompleted}
