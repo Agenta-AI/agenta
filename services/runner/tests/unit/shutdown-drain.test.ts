@@ -50,7 +50,11 @@ import {
   type FacetDigests,
 } from "../../src/lifecycle/desired-state.ts";
 import { CredentialMaterial } from "../../src/engines/sandbox_agent/session-identity.ts";
-import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
+import {
+  isUserStopAbort,
+  RUNNER_SHUTDOWN_ABORT_REASON,
+  USER_STOP_ABORT_REASON,
+} from "../../src/sessions/stop-signal.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { turnLogUnmoved } from "../utils/turn-log.ts";
@@ -386,7 +390,7 @@ async function shutDownDuringTurn(cancelSettled: boolean) {
     sessionId,
     turnId,
     startedAt: Date.now(),
-    abort: () => controller.abort(USER_STOP_ABORT_REASON),
+    abort: (reason = USER_STOP_ABORT_REASON) => controller.abort(reason),
   });
   const turn = runWithKeepalive(
     sessionRequest(sessionId, turnId),
@@ -411,13 +415,27 @@ async function shutDownDuringTurn(cancelSettled: boolean) {
     },
     log: noLog,
   });
-  return { result: await turn, env: envs[0], pool, reasonsAtTeardown, inFlightSweeps };
+  return {
+    result: await turn,
+    signal: controller.signal,
+    env: envs[0],
+    pool,
+    reasonsAtTeardown,
+    inFlightSweeps,
+  };
 }
 
 describe("the cancel at the wait limit", () => {
-  it("ends a turn whose harness cancel settled as cancelled, then deletes its sandbox at teardown", async () => {
+  it("cancels a turn with the shutdown reason, not a user Stop's", async () => {
+    const { signal } = await shutDownDuringTurn(true);
+    assert.equal(signal.reason, RUNNER_SHUTDOWN_ABORT_REASON);
+    assert.equal(isUserStopAbort(signal), false, "the turn must not end as a Stop");
+  });
+
+  it("parks a turn whose harness cancel settled, then deletes its sandbox at teardown", async () => {
     const { result, env, pool, reasonsAtTeardown } = await shutDownDuringTurn(true);
-    assert.equal(result.stopReason, "cancelled", "the turn ends normally as cancelled");
+    assert.equal(result.stopReason, "cancelled", "the harness cancel ran as a Stop's does");
+    assert.equal(result.cancelSettled, true);
     assert.deepEqual(
       reasonsAtTeardown,
       [[]],

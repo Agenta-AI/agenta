@@ -12,8 +12,9 @@
     `agentRunner.env` or `agentRunner.extraEnv` setting a sandbox provider variable fails the
     render.
   * `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS` defaults to the grace period minus 100 seconds,
-    never below 0. `agentRunner.shutdownWaitSeconds` replaces it, and a value past that limit
-    is refused. The chart owns the variable: `agentRunner.env` or `agentRunner.extraEnv`
+    never below 0, when the runner rolls out with `RollingUpdate`. With `Recreate` the new pod
+    starts only after the old one exits, so the default is 0. `agentRunner.shutdownWaitSeconds`
+    replaces the default in both cases, and a value past the limit is refused. The chart owns the variable: `agentRunner.env` or `agentRunner.extraEnv`
     setting it fails the render.
   * The runner keeps its PodDisruptionBudget at two pods.
 
@@ -173,18 +174,44 @@ def replica_guard_failures() -> list[str]:
 def shutdown_wait_failures() -> list[str]:
     failures: list[str] = []
     cases = [
-        ("default grace 300", [], "200"),
+        ("local provider (chart default): Recreate waits 0", [], "0"),
+        ("local and daytona: Recreate waits 0", LOCAL_AND_REMOTE, "0"),
+        ("daytona only, default grace 300", REMOTE_ONLY, "200"),
         (
-            "grace 150",
-            ["--set", "agentRunner.terminationGracePeriodSeconds=150"],
+            "daytona only, an explicit Recreate waits 0",
+            REMOTE_ONLY + ["--set", "agentRunner.strategy.type=Recreate"],
+            "0",
+        ),
+        (
+            "local, an explicit Recreate waits 0",
+            ["--set", "agentRunner.strategy.type=Recreate"],
+            "0",
+        ),
+        (
+            "daytona only, a strategy without a type is RollingUpdate",
+            REMOTE_ONLY + ["--set", "agentRunner.strategy.rollingUpdate.maxSurge=2"],
+            "200",
+        ),
+        (
+            "daytona only, grace 150",
+            REMOTE_ONLY + ["--set", "agentRunner.terminationGracePeriodSeconds=150"],
             "50",
         ),
         (
-            "grace 60 never goes below 0",
-            ["--set", "agentRunner.terminationGracePeriodSeconds=60"],
+            "daytona only, grace 60 never goes below 0",
+            REMOTE_ONLY + ["--set", "agentRunner.terminationGracePeriodSeconds=60"],
             "0",
         ),
-        ("explicit wait", ["--set", "agentRunner.shutdownWaitSeconds=150"], "150"),
+        (
+            "explicit wait, Recreate",
+            ["--set", "agentRunner.shutdownWaitSeconds=150"],
+            "150",
+        ),
+        (
+            "explicit wait, RollingUpdate",
+            REMOTE_ONLY + ["--set", "agentRunner.shutdownWaitSeconds=150"],
+            "150",
+        ),
         (
             "explicit wait at the limit of a longer grace",
             [
@@ -195,7 +222,11 @@ def shutdown_wait_failures() -> list[str]:
             ],
             "230",
         ),
-        ("explicit zero wait", ["--set", "agentRunner.shutdownWaitSeconds=0"], "0"),
+        (
+            "explicit zero wait, RollingUpdate",
+            REMOTE_ONLY + ["--set", "agentRunner.shutdownWaitSeconds=0"],
+            "0",
+        ),
     ]
     for label, args, expected in cases:
         values = shutdown_wait(render(args))

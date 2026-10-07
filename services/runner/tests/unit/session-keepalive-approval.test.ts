@@ -34,6 +34,8 @@ import {
   type KeepaliveEngine,
 } from "../../src/server.ts";
 import { applyCommand } from "../../src/sessions/control-channel.ts";
+import { RUNNER_SHUTDOWN_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
+import { RUNNER_RESTARTING_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
 import { resetAppliedCommandsForTest } from "../../src/sessions/applied-commands.ts";
 import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
 import { SessionTurnIndexTaken } from "../../src/engines/sandbox_agent/session-continuity-durable.ts";
@@ -3229,6 +3231,103 @@ describe("runTurn: real approval park + respondPermission resume", () => {
           entry.message === TOOL_NOT_EXECUTED_PAUSED,
       ),
       false,
+    );
+
+    await env.destroy();
+  });
+
+  it("stops waiting for an approved execution's closure when a runner shutdown cancels the paused turn", async () => {
+    // A paused turn waits for each open allowed execution to close, up to the per-call bound.
+    // A shutdown has a much shorter release budget. Before the fix the wait ignored the shutdown
+    // abort, so the turn sat on the full bound: this test then fails on the vitest timeout.
+    const { calls, deps, captured } = pausableHarness();
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000_000,
+      idleMs: 500_000,
+      ttfbMs: 500_000,
+      toolCallMs: 600_000,
+    });
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-approved",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-approved",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-approved", name: "commit" },
+    });
+    await firstTurn;
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const controller = new AbortController();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, controller.signal, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-approved",
+            reply: "once",
+            toolCallId: "tc-approved",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-approved",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate-2",
+        title: "deploy",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate-2", name: "deploy" },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    // `tc-approved` never closes. Let the terminalization reach its closure wait, then let the
+    // shutdown cancel the turn while it waits.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    controller.abort(RUNNER_SHUTDOWN_ABORT_REASON);
+    const result = await resumeTurn;
+
+    assert.equal(result.stopReason, "cancelled", "the cancelled-turn cleanup ran");
+    const run = calls.runs[1];
+    assert.equal(
+      run.settled.some(
+        (entry) =>
+          entry.id === "tc-approved" &&
+          entry.message === APPROVED_EXECUTION_RESULT_UNKNOWN,
+      ),
+      true,
+      "the unclosed execution is settled as unknown, as when its bound expires",
+    );
+    assert.deepEqual(
+      run.emitted.filter((event) => event.type === "error"),
+      [{ type: "error", message: RUNNER_RESTARTING_MESSAGE, code: "execution_lost" }],
+      "the turn ends with the restart error, not as a Stop",
     );
 
     await env.destroy();
