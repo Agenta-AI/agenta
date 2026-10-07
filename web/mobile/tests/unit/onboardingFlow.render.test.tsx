@@ -54,6 +54,7 @@ vi.mock("@agenta/entity-ui/gatewayTool", () => ({
 }))
 vi.mock("@agenta/shared/api/env", () => ({isToolsEnabled: () => true}))
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
+    KEY_PROVIDERS: [],
     ProviderDrawer: () => null,
     SubscriptionConnectionCard: () => null,
 }))
@@ -229,6 +230,8 @@ vi.mock("motion/react", async () => {
     }
 })
 
+import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
+
 import type {OnboardingCatalog} from "@/features/onboarding/onboardingChoices"
 import {OnboardingFlow, type OnboardingFlowProps} from "@/features/onboarding/OnboardingFlow"
 import {personProperties} from "@/features/onboarding/onboardingQuestions"
@@ -238,8 +241,6 @@ import {
     type OnboardingStep,
 } from "@/features/onboarding/onboardingRoute"
 import type {OnboardingModel} from "@/features/onboarding/useOnboardingModel"
-
-import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 

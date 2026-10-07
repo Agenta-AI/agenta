@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     agentModelSelectionIsRunnable,
+    firstAgentModelForConnection,
     providerConnectionsAtom,
     resolveAgentModelSelection,
     useVaultSecret,
@@ -56,7 +57,8 @@ export interface OnboardingModel {
         drawerOpen: boolean
         openDrawer: () => void
         closeDrawer: () => void
-        onSaved: () => void
+        /** A key was saved: switch to its first model once the vault refetch lists it. */
+        onSaved: (connectionId?: string) => void
         /** Every vault connection, for the drawer's connected list. */
         all: ProviderConnection[]
     }
@@ -159,23 +161,15 @@ export const useOnboardingModel = (entityId: string, projectId: string): Onboard
     }, [candidates.status, chatgptReady, arm])
 
     const [drawerOpen, setDrawerOpen] = useState(false)
-    const knownKeysRef = useRef<Set<string>>(new Set())
-    const openDrawer = useCallback(() => {
-        knownKeysRef.current = new Set(candidates.candidates.map((item) => item.connectionKey))
-        setDrawerOpen(true)
-    }, [candidates.candidates])
     // A save lands before the vault refetch does, so it arms a switch the new list fires.
-    const onSaved = useCallback(() => {
-        arm((list) =>
-            list.find(
-                (item) =>
-                    item.source === "connection" &&
-                    !item.managed &&
-                    !knownKeysRef.current.has(item.connectionKey),
-            ),
-        )
-        void refreshVault()
-    }, [arm, refreshVault])
+    const onSaved = useCallback(
+        (connectionId?: string) => {
+            if (connectionId)
+                arm((list) => firstAgentModelForConnection(list, connectionId) ?? undefined)
+            void refreshVault()
+        },
+        [arm, refreshVault],
+    )
 
     const keyConnections = candidates.connections.filter((item) => !item.subscription)
     const walletBalance =
@@ -207,7 +201,7 @@ export const useOnboardingModel = (entityId: string, projectId: string): Onboard
                 (item) => item.id === selected?.connectionKey && item.id !== creditsConnection?.id,
             ),
             drawerOpen,
-            openDrawer,
+            openDrawer: () => setDrawerOpen(true),
             closeDrawer: () => setDrawerOpen(false),
             onSaved,
             all: allConnections,
