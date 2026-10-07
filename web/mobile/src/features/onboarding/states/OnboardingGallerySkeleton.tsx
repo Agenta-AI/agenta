@@ -6,7 +6,7 @@ import {ONBOARDING_COPY} from "../onboardingCopy"
 export const OnboardingGallerySkeleton = () => (
     <div role="status" aria-label={ONBOARDING_COPY.gallery.loading} className="flex flex-col gap-1">
         {Array.from({length: 6}, (_, index) => (
-            <SkeletonBlock key={index} className="h-14 rounded-lg" />
+            <SkeletonBlock key={index} className="h-14 rounded-[10px]" />
         ))}
     </div>
 )

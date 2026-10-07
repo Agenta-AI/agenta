@@ -116,8 +116,73 @@ const CATEGORY_GLYPH: Record<string, string> = {
     Ops: "gear",
 }
 
+/** A glyph per known catalog template; a template not listed takes its category's. */
+const TEMPLATE_GLYPH: Record<string, string> = {
+    "pr-reviewer": "git-pull-request",
+    "changelog-writer": "books",
+    "issue-triage": "bug",
+    "ci-failure-triage": "terminal-window",
+    "code-qa": "code",
+    "dependency-digest": "package",
+    "support-triage": "lifebuoy",
+    "support-reply-drafter": "chats-circle",
+    "bug-report-router": "bug",
+    "feedback-clusterer": "chart-pie-slice",
+    "lead-qualifier": "funnel",
+    "crm-updater": "address-book",
+    "outreach-drafter": "paper-plane-tilt",
+    "meeting-followup": "microphone",
+    "pipeline-digest": "chart-line-up",
+    "incident-responder": "bell-ringing",
+    "error-triage": "warning",
+    "uptime-reporter": "heartbeat",
+    "oncall-briefer": "clipboard-text",
+    "docs-qa": "magnifying-glass",
+    "knowledge-chatbot": "chat-circle",
+    "onboarding-buddy": "hand-waving",
+    "content-repurposer": "megaphone",
+    "newsletter-drafter": "envelope-open",
+    "standup-summarizer": "list-checks",
+    "repo-slack-digest": "git-commit",
+    "cross-tool-sync": "share-network",
+    "weekly-report": "presentation-chart",
+}
+
 export const templateGlyph = (template: AgentStarterTemplate) =>
-    CATEGORY_GLYPH[template.category] ?? "robot"
+    TEMPLATE_GLYPH[template.key] ?? CATEGORY_GLYPH[template.category] ?? "robot"
+
+/** The catalog's category names, as the gallery chips say them. */
+const CATEGORY_LABEL: Record<string, string> = {Ops: "Operations"}
+
+export const categoryLabel = (category: string) => CATEGORY_LABEL[category] ?? category
+
+/** The glyphs a blank agent can wear, in the design's order (catalog names). */
+export const ICON_CHOICES = [
+    "robot",
+    "sparkle",
+    "lightning",
+    "brain",
+    "code",
+    "bug",
+    "git-pull-request",
+    "terminal-window",
+    "lifebuoy",
+    "chats-circle",
+    "envelope-open",
+    "calendar-blank",
+    "books",
+    "clipboard-text",
+    "chart-line-up",
+    "presentation-chart",
+    "magnifying-glass",
+    "globe",
+    "handshake",
+    "megaphone",
+    "rocket",
+    "shield",
+    "database",
+    "microphone",
+]
 
 /** Apps the creator offers when no template names any; slugs match the tool catalog. */
 export const SUGGESTED_APPS = [
@@ -134,8 +199,14 @@ export const SUGGESTED_APPS = [
 export const FIRST_MESSAGE_STARTERS = [
     "Summarize my unread email from today",
     "Draft a weekly update for my team",
+    "Plan my week from my calendar",
     "Research a company and write a one-page brief",
+    "Turn my meeting notes into action items",
     "Review my open pull requests",
+    "Draft replies to my support inbox",
+    "Find time for a 30-minute meeting next week",
+    "Summarize this week's Slack threads",
+    "Write release notes from merged PRs",
 ]
 
 /** The template catalog as the flow reads it; `templates` is empty until it succeeds. */

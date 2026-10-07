@@ -1,8 +1,5 @@
 import {useEffect, useRef, useState} from "react"
 
-import {Kbd} from "@agenta/ui/ui"
-import {useIsPresent} from "motion/react"
-
 import {useMotionPresets} from "@/lib/motion/presets"
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
@@ -32,22 +29,11 @@ export const OnboardingQuestion = <Label extends string>({
     const [picked, setPicked] = useState<Label | null>(null)
     const pickedRef = useRef(false)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    // A question that is leaving the screen stays mounted while it animates out; it must not act.
-    const present = useIsPresent()
-    useEffect(() => {
-        if (!present) {
-            clearTimeout(timerRef.current ?? undefined)
-            return
-        }
-        // Back can bring the same question back before its exit finished; it must answer again.
-        pickedRef.current = false
-        setPicked(null)
-    }, [present])
     useEffect(() => () => clearTimeout(timerRef.current ?? undefined), [])
 
     const pickRef = useRef<(label: Label) => void>(() => undefined)
     pickRef.current = (label: Label) => {
-        if (pickedRef.current || !present) return
+        if (pickedRef.current) return
         pickedRef.current = true
         setPicked(label)
         onAnswer(label)
@@ -75,7 +61,7 @@ export const OnboardingQuestion = <Label extends string>({
                 <h1 id={headingId} tabIndex={-1} className={ONBOARDING_COPY.headingClass}>
                     {title}
                 </h1>
-                <p className="text-muted-foreground m-0 text-[15px]">{subtitle}</p>
+                <p className="text-muted-foreground m-0 text-[15px] leading-[22px]">{subtitle}</p>
             </div>
             <div role="group" aria-labelledby={headingId} className="flex flex-wrap gap-2">
                 {choices.map(({label, icon: Icon}, index) => {
@@ -90,23 +76,16 @@ export const OnboardingQuestion = <Label extends string>({
                             title={ONBOARDING_COPY.keyHint(key)}
                             onClick={() => pickRef.current(label)}
                             className={cn(
-                                "inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-solid pl-3.5 pr-2.5 text-sm font-medium transition-[background-color,color,opacity,scale] motion-reduce:transition-none",
+                                "inline-flex h-[42px] cursor-pointer items-center gap-2 rounded-lg border-0 pl-3.5 pr-4 text-sm font-medium transition-[background-color,color,opacity,box-shadow,scale] motion-reduce:transition-none",
                                 FOCUS_RING,
                                 active
-                                    ? "border-foreground bg-foreground text-background"
-                                    : "border-border bg-background text-foreground hover:bg-accent",
+                                    ? "bg-foreground text-background"
+                                    : "bg-background text-foreground ring-foreground/10 hover:ring-foreground/30 shadow-xs ring-1",
                                 picked !== null && (active ? "scale-[0.98]" : "opacity-45"),
                             )}
                         >
-                            <Icon size={17} weight={active ? "fill" : "regular"} />
+                            <Icon size={17} />
                             {label}
-                            <Kbd
-                                aria-hidden
-                                tone={active ? "inverse" : "chip"}
-                                className="ml-1 max-lg:hidden"
-                            >
-                                {key}
-                            </Kbd>
                         </button>
                     )
                 })}

@@ -1,18 +1,15 @@
 import {useEffect, useReducer, useRef, useState, type ReactNode} from "react"
 
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
-import {AnimatePresence, motion} from "motion/react"
+import {motion} from "motion/react"
 
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
 import type {ConnectedApps} from "./onboardingApps"
-import {
-    ONBOARDING_ROLES,
-    ONBOARDING_SOURCES,
-    type OnboardingCatalog,
-} from "./onboardingChoices"
+import {ONBOARDING_ROLES, ONBOARDING_SOURCES, type OnboardingCatalog} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
+import type {OnboardingCreateState} from "./OnboardingCreateState"
 import {OnboardingCreator} from "./OnboardingCreator"
 import {OnboardingCreditsStep} from "./OnboardingCreditsStep"
 import {
@@ -20,7 +17,6 @@ import {
     ONBOARDING_STEPS,
     onboardingHeadingId,
     onboardingReducer,
-    PREVIOUS,
     PROGRESS,
     readOnboardingDraft,
     saveOnboardingDraft,
@@ -31,6 +27,7 @@ import {
 } from "./onboardingDraft"
 import {OnboardingGallery} from "./OnboardingGallery"
 import {OnboardingHeader} from "./OnboardingHeader"
+import {OnboardingProgressDots} from "./OnboardingProgressDots"
 import {OnboardingQuestion} from "./OnboardingQuestion"
 import type {OnboardingModel} from "./useOnboardingModel"
 
@@ -52,13 +49,21 @@ export interface OnboardingFlowProps {
     onCreate: (input: OnboardingCreateInput) => void
 }
 
-/** Each step's column; the questions sit lower, near the middle of a wide screen. */
-const FRAME: Record<OnboardingStep, string> = {
-    role: "max-w-[680px] lg:pt-[10vh]",
-    referral: "max-w-[680px] lg:pt-[10vh]",
-    credits: "max-w-[640px] lg:pt-10",
-    gallery: "max-w-[1040px] lg:pt-10",
-    creator: "max-w-[1040px] lg:pt-10",
+/** Each step's column width, as the design sets it. */
+const WIDTH: Record<OnboardingStep, string> = {
+    role: "max-w-[680px]",
+    referral: "max-w-[680px]",
+    credits: "max-w-[880px]",
+    gallery: "max-w-[1040px]",
+    creator: "max-w-[1040px]",
+}
+
+/** Which progress dots open from here: any answered step, and the gallery from its own creator. */
+const reachable = (draft: OnboardingDraft, target: OnboardingStep) => {
+    if (PROGRESS[target] === PROGRESS[draft.step]) return draft.step === "creator"
+    if (target === "role") return true
+    if (target === "referral") return draft.role !== null
+    return draft.source !== null
 }
 
 /** The four-step first-agent flow; it owns the answers, the host owns data and side effects. */
@@ -81,7 +86,6 @@ export const OnboardingFlow = ({
 
     const presets = useMotionPresets()
     const [direction, setDirection] = useState(1)
-    // The step column scrolls under a fixed header; a new step starts at its top.
     const scrollerRef = useRef<HTMLDivElement | null>(null)
     const movedRef = useRef(false)
     const {step} = draft
@@ -96,6 +100,7 @@ export const OnboardingFlow = ({
     const completedRef = useRef(new Set(draft.completed))
     const go = (next: OnboardingStep) => {
         const current = draftRef.current
+        if (next === current.step) return
         const forward = ONBOARDING_STEPS.indexOf(next) > ONBOARDING_STEPS.indexOf(current.step)
         if (forward && !completedRef.current.has(current.step)) {
             completedRef.current.add(current.step)
@@ -111,16 +116,30 @@ export const OnboardingFlow = ({
     const advance = (from: OnboardingStep, to: OnboardingStep) => {
         if (draftRef.current.step === from) go(to)
     }
-    const previous = PREVIOUS[step]
 
-    const template =
-        catalog.templates.find((item) => item.key === draft.templateKey) ?? null
+    const template = catalog.templates.find((item) => item.key === draft.templateKey) ?? null
     const input = firstAgentInput(draft, template)
     const onUse = (picked: AgentStarterTemplate) => {
         const apps = templateProviderSlugs(picked).filter((key) => connectedApps.has(key))
         dispatch({type: "template", template: picked, apps})
         go("creator")
     }
+    const create: OnboardingCreateState = {
+        modelReady: model.ready,
+        complete: input !== null,
+        creating,
+        error,
+        onChooseModel: () => {
+            dispatch({type: "returnTo", step: draftRef.current.step})
+            go("credits")
+        },
+        onCreate: () => {
+            if (!input) return
+            onCreate({...input, icon: draft.agent.icon, apps: draft.agent.apps})
+        },
+    }
+    const onAgent = (patch: Partial<Omit<OnboardingDraft["agent"], "apps">>) =>
+        dispatch({type: "agent", patch})
 
     const body: Record<OnboardingStep, () => ReactNode> = {
         role: () => (
@@ -161,68 +180,51 @@ export const OnboardingFlow = ({
                 role={draft.role}
                 category={draft.category}
                 focus={draft.focus}
+                agent={draft.agent}
+                create={create}
                 onCategory={(category) => dispatch({type: "category", category})}
-                onFocus={(key) => dispatch({type: "focus", key})}
+                onFocus={(focus) => dispatch({type: "focus", focus})}
                 onUse={onUse}
-                onScratch={() => {
-                    dispatch({type: "scratch"})
-                    go("creator")
-                }}
+                onChange={onAgent}
             />
         ),
         creator: () => (
             <OnboardingCreator
                 agent={draft.agent}
-                template={draft.templateKey ? template : null}
-                fromTemplate={draft.templateKey !== null}
+                template={template}
                 suggestedApps={template ? templateProviderSlugs(template) : []}
                 connectedApps={connectedApps}
                 toolsEnabled={toolsEnabled}
-                onChange={(patch) => dispatch({type: "agent", patch})}
+                onChange={onAgent}
                 onApp={(key, on) => dispatch({type: "app", key, on})}
-                create={{
-                    modelReady: model.ready,
-                    complete: input !== null,
-                    creating,
-                    error,
-                    onChooseModel: () => {
-                        dispatch({type: "returnTo", step: "creator"})
-                        go("credits")
-                    },
-                    onCreate: () => {
-                        if (!input) return
-                        onCreate({...input, icon: draft.agent.icon, apps: draft.agent.apps})
-                    },
-                }}
+                create={create}
             />
         ),
     }
 
     return (
-        <main className="bg-background text-foreground flex h-dvh flex-col overflow-hidden"
+        <div
+            ref={scrollerRef}
+            className="bg-background text-foreground flex h-dvh flex-col overflow-y-auto overflow-x-hidden"
         >
-            <OnboardingHeader
-                position={PROGRESS[step]}
-                onBack={previous && !creating ? () => go(previous) : null}
+            <OnboardingHeader />
+            <main className="box-border flex flex-1 items-center justify-center px-4 pb-24 pt-6 sm:px-6">
+                <motion.section
+                    key={step}
+                    custom={direction}
+                    variants={presets.stepSlide}
+                    initial="initial"
+                    animate="animate"
+                    className={cn("w-full", WIDTH[step])}
+                >
+                    {body[step]()}
+                </motion.section>
+            </main>
+            <OnboardingProgressDots
+                current={PROGRESS[step]}
+                reached={(target) => !creating && reachable(draft, target)}
+                onGo={go}
             />
-            <div
-                ref={scrollerRef}
-                className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 lg:px-6"
-            >
-                <AnimatePresence mode="popLayout" custom={direction} initial={false}>
-                    <motion.section
-                        key={step}
-                        custom={direction}
-                        variants={presets.stepSlide}
-                        initial="initial"
-                        animate="animate"
-                        exit="exit"
-                        className={cn("mx-auto w-full pb-16 pt-6", FRAME[step])}
-                    >
-                        {body[step]()}
-                    </motion.section>
-                </AnimatePresence>
-            </div>
-        </main>
+        </div>
     )
 }

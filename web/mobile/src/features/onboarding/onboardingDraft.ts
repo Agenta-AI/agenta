@@ -16,22 +16,14 @@ import {
 export const ONBOARDING_STEPS = ["role", "referral", "credits", "gallery", "creator"] as const
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
 
-/** The header counts four steps: the gallery and the creator share the last one. */
-export const PROGRESS_TOTAL = 4
+/** The four progress dots: each is the step it jumps back to, and the gallery covers the creator. */
+export const PROGRESS_STEPS = ["role", "referral", "credits", "gallery"] as const
 export const PROGRESS: Record<OnboardingStep, number> = {
-    role: 1,
-    referral: 2,
-    credits: 3,
-    gallery: 4,
-    creator: 4,
-}
-
-export const PREVIOUS: Record<OnboardingStep, OnboardingStep | null> = {
-    role: null,
-    referral: "role",
-    credits: "referral",
-    gallery: "credits",
-    creator: "gallery",
+    role: 0,
+    referral: 1,
+    credits: 2,
+    gallery: 3,
+    creator: 3,
 }
 
 /** Each step's heading id: focus lands on it, and its choices are labelled by it. */
@@ -55,14 +47,16 @@ export interface OnboardingAgent {
     firstMessage: string
 }
 
+/** The gallery's right panel: a blank start, one template, or (`null`) the first template listed. */
+export type GalleryFocus = {kind: "scratch"} | {kind: "template"; key: string} | null
+
 export interface OnboardingDraft {
     step: OnboardingStep
     role: OnboardingRole | null
     source: OnboardingSource | null
     category: GalleryCategory
-    /** The focused gallery template; `null` focuses the first one listed. */
-    focus: string | null
-    /** The template the creator was filled from, if any. */
+    focus: GalleryFocus
+    /** The template the creator was filled from; `null` while the blank start is edited. */
     templateKey: string | null
     agent: OnboardingAgent
     /** Where credits' Continue leads after a detour from a later step; `null` is the gallery. */
@@ -111,10 +105,9 @@ export type OnboardingAction =
     | {type: "role"; role: OnboardingRole}
     | {type: "source"; source: OnboardingSource}
     | {type: "category"; category: GalleryCategory}
-    | {type: "focus"; key: string}
+    | {type: "focus"; focus: GalleryFocus}
     /** `apps`: the template's apps that are already connected. */
     | {type: "template"; template: AgentStarterTemplate; apps: readonly string[]}
-    | {type: "scratch"}
     | {type: "agent"; patch: Partial<Omit<OnboardingAgent, "apps">>}
     | {type: "app"; key: string; on: boolean}
     | {type: "returnTo"; step: OnboardingStep | null}
@@ -137,7 +130,10 @@ export const onboardingReducer = (
         case "category":
             return {...draft, category: action.category, focus: null}
         case "focus":
-            return {...draft, focus: action.key}
+            // The blank start edits the same agent a template filled, so it starts it over.
+            return action.focus?.kind === "scratch" && draft.templateKey !== null
+                ? {...draft, focus: action.focus, templateKey: null, agent: BLANK_AGENT}
+                : {...draft, focus: action.focus}
         case "template":
             // Coming back to the same template keeps what the user already changed.
             return action.template.key === draft.templateKey
@@ -147,10 +143,6 @@ export const onboardingReducer = (
                       templateKey: action.template.key,
                       agent: agentFromTemplate(action.template, action.apps),
                   }
-        case "scratch":
-            return draft.templateKey === null
-                ? draft
-                : {...draft, templateKey: null, agent: BLANK_AGENT}
         case "agent": {
             const agent = {...draft.agent, ...action.patch}
             return {
@@ -224,7 +216,12 @@ const draftSchema = z
         role: z.enum(ONBOARDING_ROLES.map((role) => role.label)).nullable(),
         source: z.enum(ONBOARDING_SOURCES.map((source) => source.label)).nullable(),
         category: z.string().min(1),
-        focus: z.string().min(1).nullable(),
+        focus: z
+            .union([
+                z.object({kind: z.literal("scratch")}),
+                z.object({kind: z.literal("template"), key: z.string().min(1)}),
+            ])
+            .nullable(),
         templateKey: z.string().min(1).nullable(),
         agent: z.object({
             name: z.string().max(ONBOARDING_NAME_MAX),
@@ -240,7 +237,9 @@ const draftSchema = z
     .refine(
         (draft) =>
             (draft.role !== null || draft.step === "role") &&
-            (draft.source !== null || stepIndex(draft.step) <= stepIndex("referral")),
+            (draft.source !== null || stepIndex(draft.step) <= stepIndex("referral")) &&
+            // The creator page is only for a template; a blank start is edited in the gallery.
+            (draft.step !== "creator" || draft.templateKey !== null),
     )
 
 /** The saved draft, or a fresh one when there is none or it no longer parses. */

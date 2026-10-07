@@ -106,6 +106,18 @@ export const pop: Variants = {
     animate: {scale: [0.6, 1.06, 1], opacity: 1, transition: {duration: 0.3, ease: "easeOut"}},
 }
 
+/** A card following the pointer: near-instant, so the tilt tracks the hand. */
+export const tiltFollow: Transition = {duration: 0.1, ease: "linear"}
+
+/** A tilted card settling flat again, or arriving tilted and settling. */
+export const tiltSettle: Transition = {duration: 0.9, ease: settleEase}
+
+/** A light sweep crossing a card once, shortly after it lands. */
+export const shineSweep: Transition = {duration: 1.4, ease: "easeInOut", delay: 0.6}
+
+/** How long a number counts up to its value. */
+export const countUpMs = 1400
+
 /** How long a picked answer holds before a one-tap question moves on. */
 export const answerHoldMs = 420
 
@@ -126,6 +138,11 @@ export interface MotionPresets {
     fadeUp: Variants
     pop: Variants
     stepTransition: Transition
+    tiltFollow: Transition
+    tiltSettle: Transition
+    shineSweep: Transition
+    /** 0 when reduced: a number shows its value at once. */
+    countUpMs: number
     sheetSlideUp: Variants
     crossfade: Variants
     /** Raw transitions for imperative use (e.g. drag-settle on sheets). */
@@ -161,6 +178,10 @@ export function useMotionPresets(): MotionPresets {
                       fadeUp: instant,
                       pop: instant,
                       stepTransition: instantTransition,
+                      tiltFollow: instantTransition,
+                      tiltSettle: instantTransition,
+                      shineSweep: instantTransition,
+                      countUpMs: 0,
                       sheetSlideUp: instant,
                       crossfade: instant,
                       pushTransition: instantTransition,
@@ -179,6 +200,10 @@ export function useMotionPresets(): MotionPresets {
                       fadeUp,
                       pop,
                       stepTransition,
+                      tiltFollow,
+                      tiltSettle,
+                      shineSweep,
+                      countUpMs,
                       sheetSlideUp,
                       crossfade,
                       pushTransition,

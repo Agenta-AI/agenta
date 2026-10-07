@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef} from "react"
+import {useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {templateCategories, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {Plus} from "@phosphor-icons/react"
@@ -10,6 +10,7 @@ import {cn} from "@/lib/utils"
 
 import {
     ALL,
+    categoryLabel,
     galleryTemplates,
     RECOMMENDED,
     type GalleryCategory,
@@ -17,7 +18,9 @@ import {
     type OnboardingRole,
 } from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
-import {onboardingHeadingId} from "./onboardingDraft"
+import type {OnboardingCreateState} from "./OnboardingCreateState"
+import {onboardingHeadingId, type GalleryFocus, type OnboardingAgent} from "./onboardingDraft"
+import {OnboardingScratchPanel} from "./OnboardingScratchPanel"
 import {OnboardingTemplateDetail} from "./OnboardingTemplateDetail"
 import {OnboardingTemplateTile} from "./OnboardingTemplateTile"
 import {OnboardingGalleryError} from "./states/OnboardingGalleryError"
@@ -25,35 +28,42 @@ import {OnboardingGallerySkeleton} from "./states/OnboardingGallerySkeleton"
 
 const copy = ONBOARDING_COPY.gallery
 
-const ROW = cn(
-    "flex w-full cursor-pointer items-center gap-3 rounded-lg border border-solid p-2.5 text-left text-foreground transition-colors",
-    FOCUS_RING,
-)
+const ROW =
+    "flex h-14 w-full shrink-0 cursor-pointer items-center gap-3 rounded-[10px] px-3 text-left text-foreground transition-colors"
 
-/** The real template catalog by category, one template in focus, and a blank start. */
+/** The template catalog by category, one template or the blank start in focus beside it. */
 export const OnboardingGallery = ({
     catalog,
     role,
     category,
     focus,
+    agent,
+    create,
     onCategory,
     onFocus,
     onUse,
-    onScratch,
+    onChange,
 }: {
     catalog: OnboardingCatalog
     role: OnboardingRole | null
     category: GalleryCategory
-    focus: string | null
+    focus: GalleryFocus
+    /** The blank start's agent, edited in the scratch panel. */
+    agent: OnboardingAgent
+    create: OnboardingCreateState
     onCategory: (category: GalleryCategory) => void
-    onFocus: (key: string) => void
+    onFocus: (focus: GalleryFocus) => void
     onUse: (template: AgentStarterTemplate) => void
-    onScratch: () => void
+    onChange: (patch: Partial<Omit<OnboardingAgent, "apps">>) => void
 }) => {
+    const presets = useMotionPresets()
     const chips = useMemo(
         () => [
             {id: RECOMMENDED, label: copy.recommended},
-            ...templateCategories(catalog.templates).map((item) => ({id: item, label: item})),
+            ...templateCategories(catalog.templates).map((item) => ({
+                id: item,
+                label: categoryLabel(item),
+            })),
             {id: ALL, label: copy.all},
         ],
         [catalog.templates],
@@ -62,13 +72,36 @@ export const OnboardingGallery = ({
         () => galleryTemplates(catalog.templates, category, role),
         [catalog.templates, category, role],
     )
-    const focused = listed.find((item) => item.key === focus) ?? listed[0]
-    const presets = useMotionPresets()
+    const scratch = focus?.kind === "scratch"
+    const focused = scratch
+        ? null
+        : (listed.find((item) => focus?.kind === "template" && item.key === focus.key) ??
+          listed[0] ??
+          null)
+
     // On a phone the chip row scrolls; keep the chosen category in view, also after a reload.
     const activeChipRef = useRef<HTMLButtonElement | null>(null)
     useEffect(() => {
         activeChipRef.current?.scrollIntoView?.({block: "nearest", inline: "nearest"})
     }, [category, catalog.status])
+
+    const panel: ReactNode = scratch ? (
+        <OnboardingScratchPanel agent={agent} onChange={onChange} create={create} />
+    ) : focused ? (
+        <OnboardingTemplateDetail template={focused} onUse={onUse} />
+    ) : null
+    const panelKey = scratch ? "scratch" : (focused?.key ?? "none")
+    const inlinePanel = (
+        <motion.div
+            key={panelKey}
+            variants={presets.fadeUp}
+            initial="initial"
+            animate="animate"
+            className="mb-2 mt-1 md:hidden"
+        >
+            {panel}
+        </motion.div>
+    )
 
     return (
         <div className="flex flex-col gap-6">
@@ -80,13 +113,13 @@ export const OnboardingGallery = ({
                 >
                     {copy.title}
                 </h1>
-                <p className="text-muted-foreground m-0 text-[15px]">{copy.subtitle}</p>
+                <p className="text-muted-foreground m-0 text-[15px] leading-[22px]">{copy.subtitle}</p>
             </div>
             {catalog.status === "success" ? (
                 <div
                     role="group"
                     aria-label={copy.categories}
-                    className="-mx-4 flex scroll-px-4 gap-2 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0 [&::-webkit-scrollbar]:hidden"
+                    className="-mx-4 flex scroll-px-4 gap-1.5 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden"
                 >
                     {chips.map((chip) => {
                         const active = chip.id === category
@@ -98,11 +131,11 @@ export const OnboardingGallery = ({
                                 aria-pressed={active}
                                 onClick={() => onCategory(chip.id)}
                                 className={cn(
-                                    "h-8 shrink-0 cursor-pointer rounded-full border border-solid px-3.5 text-[13px] font-medium transition-colors",
+                                    "h-7 shrink-0 cursor-pointer rounded-md border-0 px-2.5 text-xs font-medium leading-4 transition-colors",
                                     FOCUS_RING,
                                     active
-                                        ? "border-foreground bg-foreground text-background"
-                                        : "border-border bg-background text-foreground hover:bg-accent",
+                                        ? "bg-foreground text-background"
+                                        : "bg-background text-foreground ring-foreground/10 shadow-xs ring-1",
                                 )}
                             >
                                 {chip.label}
@@ -111,23 +144,32 @@ export const OnboardingGallery = ({
                     })}
                 </div>
             ) : null}
-            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
-                <div className="flex flex-col gap-1">
+            <div className="grid items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
+                <div className="flex flex-col gap-1 md:-mx-0.5 md:-my-3 md:max-h-[calc(100dvh-340px)] md:min-h-60 md:overflow-y-auto md:px-0.5 md:py-3 md:[mask-image:linear-gradient(180deg,transparent_0,#000_16px,#000_calc(100%-24px),transparent_100%)] md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden">
                     <button
                         type="button"
-                        onClick={onScratch}
-                        className={cn(ROW, "border-border hover:bg-accent mb-2 border-dashed")}
+                        aria-pressed={scratch}
+                        onClick={() => onFocus({kind: "scratch"})}
+                        className={cn(
+                            ROW,
+                            "mb-1.5 border-[1.5px] border-dashed",
+                            FOCUS_RING,
+                            scratch
+                                ? "border-muted-foreground bg-muted"
+                                : "border-border hover:border-muted-foreground hover:bg-background bg-transparent",
+                        )}
                     >
-                        <span className="border-border flex size-9 shrink-0 items-center justify-center rounded-[10px] border border-dashed">
+                        <span className="bg-background ring-border flex size-[34px] shrink-0 items-center justify-center rounded-[9px] ring-1">
                             <Plus size={16} />
                         </span>
-                        <span className="min-w-0">
-                            <span className="block text-sm font-medium">{copy.scratch}</span>
-                            <span className="text-muted-foreground block text-xs">
+                        <span className="flex min-w-0 flex-1 flex-col">
+                            <span className="text-sm font-medium leading-5">{copy.scratch}</span>
+                            <span className="text-muted-foreground text-xs leading-[18px]">
                                 {copy.scratchHint}
                             </span>
                         </span>
                     </button>
+                    {scratch ? inlinePanel : null}
                     {catalog.status === "pending" ? (
                         <OnboardingGallerySkeleton />
                     ) : catalog.status === "error" ? (
@@ -137,68 +179,58 @@ export const OnboardingGallery = ({
                     ) : (
                         // Keyed by category, so a chip switch replays the rows' stagger.
                         <div key={category} className="flex flex-col gap-1">
-                        {listed.map((template, index) => {
-                            const active = template.key === focused?.key
-                            return (
-                                <motion.div
-                                    key={template.key}
-                                    variants={presets.fadeUp}
-                                    custom={index * 0.04}
-                                    initial="initial"
-                                    animate="animate"
-                                    className="flex flex-col gap-2"
-                                >
-                                    <button
-                                        type="button"
-                                        aria-pressed={active}
-                                        onClick={() => onFocus(template.key)}
-                                        onDoubleClick={() => onUse(template)}
-                                        className={cn(
-                                            ROW,
-                                            active
-                                                ? "bg-accent border-transparent"
-                                                : "hover:bg-accent border-transparent bg-transparent",
-                                        )}
+                            {listed.map((template, index) => {
+                                const active = template.key === focused?.key
+                                return (
+                                    <motion.div
+                                        key={template.key}
+                                        variants={presets.fadeUp}
+                                        custom={index * 0.04}
+                                        initial="initial"
+                                        animate="animate"
+                                        className="flex flex-col"
                                     >
-                                        <OnboardingTemplateTile template={template} />
-                                        <span className="min-w-0">
-                                            <span className="block truncate text-sm font-medium">
-                                                {template.name}
-                                            </span>
-                                            <span className="text-muted-foreground block truncate text-xs">
-                                                {template.trigger}
-                                            </span>
-                                        </span>
-                                    </button>
-                                    {active ? (
-                                        <motion.div
-                                            variants={presets.fadeUp}
-                                            initial="initial"
-                                            animate="animate"
-                                            className="mb-2 lg:hidden"
+                                        <button
+                                            type="button"
+                                            aria-pressed={active}
+                                            onClick={() =>
+                                                onFocus({kind: "template", key: template.key})
+                                            }
+                                            onDoubleClick={() => onUse(template)}
+                                            className={cn(
+                                                ROW,
+                                                "border-0",
+                                                FOCUS_RING,
+                                                active ? "bg-muted" : "hover:bg-muted bg-transparent",
+                                            )}
                                         >
-                                            <OnboardingTemplateDetail
-                                                template={template}
-                                                onUse={onUse}
-                                            />
-                                        </motion.div>
-                                    ) : null}
-                                </motion.div>
-                            )
-                        })}
+                                            <OnboardingTemplateTile template={template} />
+                                            <span className="flex min-w-0 flex-1 flex-col">
+                                                <span className="text-sm font-medium leading-5">
+                                                    {template.name}
+                                                </span>
+                                                <span className="text-muted-foreground truncate text-xs leading-[18px]">
+                                                    {template.trigger}
+                                                </span>
+                                            </span>
+                                        </button>
+                                        {active ? inlinePanel : null}
+                                    </motion.div>
+                                )
+                            })}
                         </div>
                     )}
                 </div>
-                {focused && catalog.status === "success" ? (
+                {panel ? (
                     <motion.div
-                        key={focused.key}
+                        key={panelKey}
                         variants={presets.stepSlide}
                         custom={1}
                         initial="initial"
                         animate="animate"
-                        className="sticky top-6 max-lg:hidden"
+                        className="sticky top-24 max-md:hidden"
                     >
-                        <OnboardingTemplateDetail template={focused} onUse={onUse} />
+                        {panel}
                     </motion.div>
                 ) : null}
             </div>

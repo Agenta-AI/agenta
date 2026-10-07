@@ -38,10 +38,18 @@ vi.mock("@agenta/ui/components/presentational", () => ({
 }))
 vi.mock("@agenta/ui/agent-icon", () => ({
     AGENT_ICON_CHIP_CLASS: "",
+    AGENT_ICON_COLORS: [
+        ["#111111", "#eeeeee"],
+        ["#222222", "#dddddd"],
+    ],
+    AGENT_ICON_CONIC: "conic-gradient(#111111,#222222)",
     DEFAULT_AGENT_ICON: {icon: "robot", color: "#111111"},
     AgentIcon: () => null,
     agentIconChipStyle: () => ({}),
+    hexToHsv: () => ({h: 0, s: 0, v: 0}),
+    hsvToHex: () => "#333333",
     loadAgentIconCatalog: () => Promise.resolve([]),
+    tintForColor: () => "#eeeeee",
 }))
 vi.mock("next/dynamic", () => ({default: () => () => null}))
 vi.mock("@/components/AgentaLogo", () => ({AgentaLogo: () => null}))
@@ -91,7 +99,7 @@ const catalog = {
 const model = (ready = true): OnboardingModel => ({
     status: "ready",
     ready,
-    credits: ready ? {inUse: true, runnable: true, balance: "500"} : null,
+    credits: ready ? {inUse: true, runnable: true, balanceMusd: 5_000_000} : null,
     chatgpt: {
         available: false,
         connection: null,
@@ -191,7 +199,7 @@ describe("first agent onboarding", () => {
             expect.objectContaining({role: "Engineering"}),
         )
         answer(/^GitHub/)
-        expect(heading()).toBe("Choose how your agents run")
+        expect(heading()).toBe("500 credits, on us")
         expect(onStepCompleted).toHaveBeenLastCalledWith(
             "referral",
             expect.objectContaining({source: "GitHub"}),
@@ -204,8 +212,8 @@ describe("first agent onboarding", () => {
         answer(/^Engineering/)
         answer(/^GitHub/)
         render(props)
-        expect(heading()).toBe("Choose how your agents run")
-        expect(host!.textContent).toContain("500 credits left.")
+        expect(heading()).toBe("500 credits, on us")
+        expect(host!.textContent).toContain("That’s $5.00 to spend on any model.")
         render(baseProps({draftKey: "onboarding:other"}))
         expect(heading()).toBe("What kind of work do you do?")
     })
@@ -217,10 +225,10 @@ describe("first agent onboarding", () => {
         expect(heading()).toBe("Create your first agent")
         click("Use template")
         expect(heading()).toBe("Review your agent")
-        expect(host!.querySelector('[placeholder="My first agent"]')).toBeNull()
-        const locked = host!.querySelector('[aria-label="From the template"]')!
-        expect(locked.textContent).toContain("PR reviewer")
-        expect(locked.textContent).toContain("Review each opened PR.")
+        expect(host!.querySelector('[placeholder="Name your agent"]')).toBeNull()
+        expect(host!.textContent).toContain("PR reviewer")
+        expect(host!.textContent).toContain("Review each opened PR.")
+        expect(host!.textContent).toContain("Set by the template.")
         expect(
             (host!.querySelector('[placeholder="What should it do first?"]') as HTMLTextAreaElement)
                 .value,
@@ -251,22 +259,22 @@ describe("first agent onboarding", () => {
             (host!.querySelector('[placeholder="What should it do first?"]') as HTMLTextAreaElement)
                 .value
         expect(message()).toBe("Review PR 12")
-        click("Back")
+        click("First agent")
+        expect(heading()).toBe("Create your first agent")
         click("Use template")
         expect(message()).toBe("Review PR 12")
     })
 
-    it("starts blank and needs something to do before Create", () => {
+    it("builds a blank start in the gallery and needs a first message before Create", () => {
         const props = baseProps()
         render(props)
         toGallery()
         click("Use template")
-        click("Back")
+        click("First agent")
         click(/^Start from scratch/)
-        expect(heading()).toBe("Create your agent")
-        expect(host!.querySelector('[aria-label="From the template"]')).toBeNull()
+        expect(heading()).toBe("Create your first agent")
         expect(button("Create agent").disabled).toBe(true)
-        type("My first agent", "Atlas")
+        type("Name your agent", "Atlas")
         click("Review my open pull requests")
         click("Create agent")
         expect(props.onCreate).toHaveBeenCalledWith({
@@ -289,14 +297,16 @@ describe("first agent onboarding", () => {
         click("Choose one")
         expect(heading()).toBe("Choose how your agents run")
         expect(host!.textContent).toContain("No model can run your agent yet.")
+        click(/^Continue/)
+        expect(heading()).toBe("Create your first agent")
     })
 
-    it("reports each completed step once, and never on Back", () => {
+    it("reports each completed step once, and never on the way back", () => {
         const onStepCompleted = vi.fn()
         render(baseProps({onStepCompleted}))
         answer(/^Engineering/)
         expect(onStepCompleted).toHaveBeenCalledOnce()
-        click("Back")
+        click("Your work")
         expect(heading()).toBe("What kind of work do you do?")
         expect(onStepCompleted).toHaveBeenCalledOnce()
         answer(/^Product/)
@@ -313,7 +323,7 @@ describe("first agent onboarding", () => {
         click("Try again")
         expect(retry).toHaveBeenCalledOnce()
         click(/^Start from scratch/)
-        expect(heading()).toBe("Create your agent")
+        expect(host!.querySelector('[placeholder="Name your agent"]')).not.toBeNull()
     })
 
     it("moves focus to the new step's heading and labels the choices by it", () => {

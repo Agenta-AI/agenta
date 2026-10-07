@@ -2,23 +2,24 @@ import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 
 import {cn} from "@/lib/utils"
 
-/** A template's monogram on its catalog colour, the mark every template surface uses. */
+import {OnboardingAgentChip} from "./OnboardingAgentChip"
+import {templateGlyph} from "./onboardingChoices"
+
+/** A template's face: its glyph on a tint of its catalog colour, the face its agent gets. */
 export const OnboardingTemplateTile = ({
     template,
-    large = false,
+    size = "row",
 }: {
     template: AgentStarterTemplate
-    large?: boolean
+    /** `row` in the gallery list; `panel` in the focused panel's header. */
+    size?: "row" | "panel"
 }) => (
-    <span
-        aria-hidden
-        // The catalog colour is data, and its initials are white on every theme by contract.
-        style={{backgroundColor: template.color}}
+    <OnboardingAgentChip
+        icon={{icon: templateGlyph(template), color: template.color}}
+        size={size === "row" ? 16 : 18}
         className={cn(
-            "flex shrink-0 items-center justify-center font-semibold text-white",
-            large ? "size-12 rounded-xl text-base" : "size-9 rounded-[10px] text-xs",
+            "ring-foreground/5 ring-1 ring-inset",
+            size === "row" ? "size-[34px] rounded-[9px]" : "size-8 rounded-lg",
         )}
-    >
-        {template.initials}
-    </span>
+    />
 )

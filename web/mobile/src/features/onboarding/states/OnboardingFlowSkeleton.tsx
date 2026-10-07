@@ -7,24 +7,24 @@ const CHIP_WIDTHS = ["w-32", "w-24", "w-24", "w-20", "w-28", "w-40", "w-28", "w-
 
 /** The first question's frame while the draft agent is minted: the same header and column. */
 export const OnboardingFlowSkeleton = () => (
-    <main
+    <div
         role="status"
         aria-label={ONBOARDING_COPY.preparing}
         className="bg-background text-foreground flex h-dvh flex-col"
     >
-        <OnboardingHeader position={1} onBack={null} />
-        <div className="flex-1 px-4 lg:px-6">
-            <div className="mx-auto flex w-full max-w-[680px] flex-col gap-7 pb-16 pt-6 lg:pt-[10vh]">
+        <OnboardingHeader />
+        <div className="flex flex-1 items-center justify-center px-4 pb-24 pt-6 sm:px-6">
+            <div className="flex w-full max-w-[680px] flex-col gap-7">
                 <div className="flex flex-col gap-1.5">
-                    <SkeletonBlock className="h-8 w-2/3 lg:h-9" />
-                    <SkeletonBlock className="h-5 w-1/2" />
+                    <SkeletonBlock className="h-[34px] w-2/3 sm:h-10" />
+                    <SkeletonBlock className="h-[22px] w-1/2" />
                 </div>
                 <div className="flex flex-wrap gap-2">
                     {CHIP_WIDTHS.map((width, index) => (
-                        <SkeletonBlock key={index} className={`h-11 rounded-lg ${width}`} />
+                        <SkeletonBlock key={index} className={`h-[42px] rounded-lg ${width}`} />
                     ))}
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 )
