@@ -100,7 +100,7 @@ describe("ShareMenu (/m)", () => {
     it("is a Publish button beside a Templates menu that holds the two template items", async () => {
         mount()
         expect(publishButton()?.textContent).toBe("Publish")
-        expect(trigger()?.textContent).toBe("Templates")
+        expect(trigger()?.getAttribute("aria-label")).toBe("Templates")
         expect(menuItem("save-zip")).toBeNull()
         await openMenu()
         expect(menuItem("save-zip")?.textContent).toContain("Save as template")

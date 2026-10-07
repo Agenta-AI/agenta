@@ -11,8 +11,9 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
-import {Broadcast, CaretDown, FileZip, Stack, Storefront} from "@phosphor-icons/react"
+import {Broadcast, FileZip, Stack, Storefront} from "@phosphor-icons/react"
 import {useAtomValue, useStore} from "jotai"
 
 import {useAgentPublishPanel} from "../agents/useAgentPublishPanel"
@@ -72,13 +73,19 @@ export const ShareMenu = ({
         <>
             {canRequestTemplate ? (
                 <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" data-testid="template-menu-button">
-                            <Stack data-icon="inline-start" />
-                            Templates
-                            <CaretDown data-icon="inline-end" />
-                        </Button>
-                    </DropdownMenuTrigger>
+                    <SimpleTooltip title="Templates">
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Templates"
+                                className="h-7 w-7 shrink-0 p-0"
+                                data-testid="template-menu-button"
+                            >
+                                <Stack size={14} />
+                            </Button>
+                        </DropdownMenuTrigger>
+                    </SimpleTooltip>
                     <DropdownMenuContent align="end" className="w-72">
                         <DropdownMenuItem
                             className="gap-2.5 py-1.5"
