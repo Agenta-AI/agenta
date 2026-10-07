@@ -206,6 +206,8 @@ export interface TurnSlot {
   release(): void;
 }
 
+const NO_SLOT: TurnSlot = { release() {} };
+
 /**
  * Keep the platform's count of this organization's running turns true while the turn runs: a
  * beat every interval, and a release at the end. A runner that dies stops beating, so its turns
@@ -215,6 +217,9 @@ export interface TurnSlot {
  * `heartbeat: false` holds no slot (the platform counted none) and only sends the release at the
  * end, which also ends the gateway's hold on the turn's session: a session must not keep serving
  * model calls past zero after its turn ended.
+ *
+ * Without a credential there is nothing to hold: admission asked the platform nothing, so it
+ * counts no slot and no session hold, and a call without a credential is refused anyway.
  */
 export function holdTurnSlot(
   authorization: string,
@@ -229,6 +234,7 @@ export function holdTurnSlot(
     heartbeat?: boolean;
   } = {},
 ): TurnSlot {
+  if (!authorization) return NO_SLOT;
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetch ?? fetch;
   const baseUrl = deps.baseUrl ?? apiBase();

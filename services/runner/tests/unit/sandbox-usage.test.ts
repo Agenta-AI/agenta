@@ -217,6 +217,23 @@ describe("holdTurnSlot", () => {
     expect(order).toEqual(["heartbeat:sent", "heartbeat:done", "release:sent", "release:done"]);
   });
 
+  it("holds nothing and posts nothing without a credential, as admission asks nothing", async () => {
+    const { calls, fetch } = platform();
+    const startLease = vi.fn(() => ({ credential: () => "", release: () => {} }));
+    const slot = holdTurnSlot("", "t-1", "sess-1", {
+      fetch,
+      baseUrl: BASE,
+      log: () => {},
+      intervalMs: 60_000,
+      startLease,
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    slot.release();
+    await Promise.resolve();
+    expect(calls).toEqual([]);
+    expect(startLease).not.toHaveBeenCalled();
+  });
+
   it("a failed beat is logged and never thrown", async () => {
     const lines: string[] = [];
     const down = (async () => {
