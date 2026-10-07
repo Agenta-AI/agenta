@@ -1276,7 +1276,19 @@ class SessionCommandsService:
             return DeliveryReceipt(status="unreachable", detail=str(e))
 
         if receipt.status == "replica_gone":
-            receipt = await self._judge_gone_replica(command)
+            try:
+                receipt = await self._judge_gone_replica(command)
+            except Exception as error:  # noqa: BLE001 - the command is committed already
+                # Without the lock read there is no evidence either way, so keep the command
+                # open for the sweep, as before the identity check learned to say `gone`.
+                log.warning(
+                    "control delivery: could not judge the gone pod for command=%s "
+                    "session=%s: %s",
+                    command.id,
+                    command.session_id,
+                    error,
+                )
+                receipt = DeliveryReceipt(status="unreachable", detail=str(error))
 
         if receipt.status == "accepted":
             # Take the claim on the runner's behalf, so the outcome route's guard reads the same
@@ -1399,6 +1411,12 @@ class SessionCommandsService:
         A turn that still holds `running` is executing somewhere, and a slow live pod fails the
         same check. That cancel stays `unreachable` and the sweep redelivers it to the binding,
         so a Stop is never settled on a guess while its turn may still run.
+
+        `running` is evidence, not a guess. Its holder loses it only to the turn's own end beat,
+        a settled Stop, a takeover, or the watchdog after the turn stops beating, and the last
+        three tombstone the turn so it can never beat its way back. A quiet runner keeps it until
+        the watchdog sweeps the turn as lost, so a missing `running` means the rest of the
+        system has already called the turn over.
         """
         running_owner = await get_running_owner(
             self._lock,

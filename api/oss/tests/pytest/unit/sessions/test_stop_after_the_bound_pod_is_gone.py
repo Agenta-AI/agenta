@@ -19,7 +19,8 @@ so that cancel stays `unreachable` and waits for the sweep, as before.
 """
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -41,6 +42,7 @@ from unit.sessions.test_session_cancel_admission import (
     _SESSION,
     _USER,
     _FakeCommandsDAO,
+    _FakeExecutionsDAO,
     _FakeStreamsService,
     _run_turn,
     _service,
@@ -171,5 +173,72 @@ async def test_a_cancel_for_a_running_turn_whose_pod_fails_the_check_stays_open(
 
     await _deliver_through_the_real_transport(svc, http)
 
+    assert http.posts == []
+    assert dao.rows[0].state == SessionCommandState.pending
+
+
+@pytest.mark.asyncio
+async def test_send_now_on_an_ended_turn_whose_pod_is_gone_promotes_its_input(
+    lock_engine,
+):
+    """Send Now is a cancel that carries the queued input. The settlement promotes that input
+    only when the command settles `not_running` (or `stopped`) with the input bound to it, so
+    check the promotion itself, not only the outcome."""
+    await acquire_alive(
+        lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-A"
+    )
+    await _bind(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    executions = _FakeExecutionsDAO()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_ended_stream(),
+        delivery=DirectControlDelivery(timeout_seconds=1.0),
+        executions=executions,
+    )
+    promote = AsyncMock(return_value=None)
+    svc._promote_next_input = promote
+    queued = uuid4()
+    http = _FakeRunnerHttp(health_error=httpx.ConnectError("refused"))
+
+    await _deliver_through_the_real_transport(
+        svc, http, expected_execution_id="turn-A", steer_input_id=queued
+    )
+
+    assert http.posts == []
+    assert dao.rows[0].outcome == SessionCommandOutcome.not_running
+    assert executions.rows[(_SESSION, "turn-A")].terminal_outcome == "not_running"
+    promote.assert_awaited_once()
+    assert promote.await_args.kwargs["input_id"] == queued
+    assert promote.await_args.kwargs["parent_execution_id"] == "turn-A"
+    assert promote.await_args.kwargs["only_policy"] == "steer"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_lock_read_keeps_the_cancel_open_and_the_request_answered(
+    lock_engine,
+):
+    """The command is committed before delivery. A Redis failure while judging the gone pod
+    must not turn the admitted request into an error; the sweep keeps recovery open."""
+    await acquire_alive(
+        lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-A"
+    )
+    await _bind(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_ended_stream(),
+        delivery=DirectControlDelivery(timeout_seconds=1.0),
+    )
+    svc._judge_gone_replica = AsyncMock(side_effect=ConnectionError("redis is down"))
+    http = _FakeRunnerHttp(health_replica_id="agenta-runner-new-pod")
+
+    admission = await _deliver_through_the_real_transport(
+        svc, http, expected_execution_id="turn-A"
+    )
+
+    assert admission.command.id == dao.rows[0].id
     assert http.posts == []
     assert dao.rows[0].state == SessionCommandState.pending
