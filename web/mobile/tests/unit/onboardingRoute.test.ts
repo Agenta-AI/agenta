@@ -1,10 +1,21 @@
 import {describe, expect, it} from "vitest"
 
 import {
-    guardOnboardingRoute,
+    activeOnboardingSteps,
+    guardOnboardingRoute as guardWith,
+    nextStep,
     onboardingRoutePath,
     parseOnboardingRoute,
+    progressIndex,
+    progressSteps,
+    type OnboardingRoute,
 } from "@/features/onboarding/onboardingRoute"
+
+const ALL = activeOnboardingSteps({role: true, source: true})
+const guardOnboardingRoute = (
+    route: OnboardingRoute | null,
+    answers: Parameters<typeof guardWith>[1],
+) => guardWith(route, answers, ALL)
 
 const none = {role: null, source: null, templateKey: null}
 const answered = {role: "Engineering", source: "GitHub", templateKey: null} as const
@@ -68,5 +79,29 @@ describe("onboarding step guard", () => {
     it("sends an unknown path to the furthest open step", () => {
         expect(guardOnboardingRoute(null, none)).toEqual({step: "role"})
         expect(guardOnboardingRoute(null, picked)).toEqual({step: "review"})
+    })
+})
+
+describe("hidden question steps", () => {
+    const noRole = activeOnboardingSteps({role: false, source: true})
+    const noQuestions = activeOnboardingSteps({role: false, source: false})
+
+    it("drops a hidden step from the order, the dots and the next step", () => {
+        expect(noRole).toEqual(["source", "credits", "templates", "review"])
+        expect(progressSteps(noRole)).toEqual(["source", "credits", "templates"])
+        expect(progressIndex("review", noRole)).toBe(2)
+        expect(nextStep("source", noRole)).toBe("credits")
+    })
+
+    it("opens later steps without the hidden question's answer", () => {
+        expect(guardWith({step: "credits"}, none, noRole)).toEqual({step: "source"})
+        expect(guardWith({step: "credits"}, {...none, source: "GitHub"}, noRole)).toEqual({
+            step: "credits",
+        })
+        expect(guardWith(null, none, noQuestions)).toEqual({step: "templates", focus: null})
+        expect(guardWith({step: "role"}, none, noQuestions)).toEqual({
+            step: "templates",
+            focus: null,
+        })
     })
 })

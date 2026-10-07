@@ -156,7 +156,9 @@ export const OnboardingCreditsStep = ({
                             </div>
                         ) : null}
                         <div className="flex flex-col gap-2">
-                            <span className={ONBOARDING_COPY.kickerClass}>{copy.ways}</span>
+                            {credits ? (
+                                <span className={ONBOARDING_COPY.kickerClass}>{copy.ways}</span>
+                            ) : null}
                             {ways}
                         </div>
                     </div>

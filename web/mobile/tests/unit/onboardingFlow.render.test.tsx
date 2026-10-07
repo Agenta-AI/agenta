@@ -153,6 +153,7 @@ vi.mock("motion/react", async () => {
 
 import type {OnboardingCatalog} from "@/features/onboarding/onboardingChoices"
 import {OnboardingFlow, type OnboardingFlowProps} from "@/features/onboarding/OnboardingFlow"
+import {activeOnboardingSteps} from "@/features/onboarding/onboardingRoute"
 import type {OnboardingModel} from "@/features/onboarding/useOnboardingModel"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -218,6 +219,7 @@ afterEach(() => {
 const baseProps = (overrides: Partial<OnboardingFlowProps> = {}): OnboardingFlowProps => ({
     onboardingPath: nav.BASE,
     draftKey: "onboarding:test",
+    steps: activeOnboardingSteps(),
     catalog,
     model: model(),
     connectedApps: new Map([["github", "GitHub"]]),
