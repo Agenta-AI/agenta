@@ -40,10 +40,15 @@ describe("onboarding draft storage", () => {
             step: "creator",
             role: "Engineering",
             source: "GitHub",
+            templateKey: "review",
+            focus: {kind: "template", key: "review"},
             agent: {...BLANK_AGENT, name: "Atlas", apps: ["slack"]},
         })
         saveOnboardingDraft("draft", saved)
         expect(readOnboardingDraft("draft")).toEqual(saved)
+        // The creator page is a template's; a blank start never resumes there.
+        saveOnboardingDraft("draft", {...saved, templateKey: null})
+        expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
         saveOnboardingDraft("draft", null)
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
     })
@@ -71,7 +76,11 @@ describe("onboarding draft storage", () => {
 
 describe("onboarding answers", () => {
     it("resets the gallery to Recommended when the role changes, and only then", () => {
-        const browsing = draft({role: "Engineering", category: "Sales", focus: "lead"})
+        const browsing = draft({
+            role: "Engineering",
+            category: "Sales",
+            focus: {kind: "template", key: "lead"},
+        })
         expect(onboardingReducer(browsing, {type: "role", role: "Sales"})).toEqual({
             ...browsing,
             role: "Sales",
@@ -95,7 +104,7 @@ describe("onboarding answers", () => {
             apps: ["github"],
             firstMessage: "",
         })
-        const blank = onboardingReducer(filled, {type: "scratch"})
+        const blank = onboardingReducer(filled, {type: "focus", focus: {kind: "scratch"}})
         expect(blank.templateKey).toBeNull()
         expect(blank.agent).toEqual(BLANK_AGENT)
     })
@@ -108,7 +117,9 @@ describe("onboarding answers", () => {
         )
         expect(onboardingReducer(edited, {type: "template", template: pr, apps: []})).toBe(edited)
         const blank = onboardingReducer(draft(), {type: "agent", patch: {name: "Blank"}})
-        expect(onboardingReducer(blank, {type: "scratch"})).toBe(blank)
+        expect(
+            onboardingReducer(blank, {type: "focus", focus: {kind: "scratch"}}).agent.name,
+        ).toBe("Blank")
     })
 
     it("adds and removes an app once each", () => {

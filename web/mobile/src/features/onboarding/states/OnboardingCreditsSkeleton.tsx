@@ -1,10 +1,11 @@
 import {SkeletonBlock} from "@agenta/ui/ui"
 
-/** The ways to pay while the deployment's model connections resolve. */
+/** The wallet card and the ways-to-pay panel while the model connections resolve. */
 export const OnboardingCreditsSkeleton = () => (
-    <div aria-busy className="flex flex-col gap-2">
-        {Array.from({length: 3}, (_, index) => (
-            <SkeletonBlock key={index} className="h-[76px] rounded-xl" />
-        ))}
+    <div aria-busy className="grid gap-x-6 gap-y-2 sm:grid-cols-[minmax(0,304px)_minmax(0,1fr)]">
+        <SkeletonBlock className="h-4 w-24" />
+        <SkeletonBlock className="h-4 w-24 max-sm:hidden" />
+        <SkeletonBlock className="aspect-[1.586] rounded-2xl" />
+        <SkeletonBlock className="min-h-48 rounded-xl" />
     </div>
 )

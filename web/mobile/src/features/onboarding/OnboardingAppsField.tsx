@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import {useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {useDirectToolConnect} from "@agenta/entity-ui/gatewayTool"
 import {Spinner} from "@agenta/ui/ui"
-import {Check, Plus} from "@phosphor-icons/react"
+import {Check} from "@phosphor-icons/react"
 
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
@@ -65,11 +65,11 @@ export const OnboardingAppsField = ({
                             })
                         }}
                         className={cn(
-                            "inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-solid px-3 text-[13px] font-medium transition-colors",
+                            "bg-background text-foreground inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border-0 pl-2.5 pr-3 text-[13px] font-medium leading-[18px] transition-shadow",
                             FOCUS_RING,
                             on
-                                ? "border-foreground bg-background text-foreground"
-                                : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground",
+                                ? "ring-foreground ring-[1.5px]"
+                                : "ring-foreground/10 hover:ring-foreground/30 shadow-xs ring-1",
                         )}
                     >
                         <img src={chip.logo} alt="" className="size-4 object-contain" />
@@ -78,9 +78,7 @@ export const OnboardingAppsField = ({
                             <Spinner size="small" aria-label={ONBOARDING_COPY.creator.connecting} />
                         ) : on ? (
                             <Check size={12} weight="bold" />
-                        ) : (
-                            <Plus size={12} />
-                        )}
+                        ) : null}
                     </button>
                 )
             })}

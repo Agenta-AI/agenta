@@ -5,23 +5,23 @@ import {motion} from "motion/react"
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
-/** One way to pay for runs: its mark, what it is, and the verb or state beside it. */
+/** One way to pay for runs, as a row of the Ways to pay panel: tile, what it is, its action. */
 export const OnboardingWayRow = ({
     icon,
     title,
     hint,
     action,
-    active = false,
     delay,
+    highlight = false,
 }: {
     icon: ReactNode
     title: string
     hint: string
     action: ReactNode
-    /** The way the first agent runs on now. */
-    active?: boolean
     /** Entrance delay in seconds, so the rows arrive one after another. */
     delay: number
+    /** The brand tile, for Agenta's own credits. */
+    highlight?: boolean
 }) => {
     const presets = useMotionPresets()
     return (
@@ -30,15 +30,21 @@ export const OnboardingWayRow = ({
             custom={delay}
             initial="initial"
             animate="animate"
-            className={cn(
-                "bg-background flex items-center gap-3 rounded-xl border border-solid p-4 transition-colors motion-reduce:transition-none",
-                active ? "border-foreground" : "border-border",
-            )}
+            className="border-border flex flex-1 items-center gap-3 border-0 border-solid py-3 [&+&]:border-t"
         >
-            {icon}
-            <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">{title}</span>
-                <span className="text-muted-foreground block text-xs">{hint}</span>
+            <span
+                className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-md ring-1 ring-inset",
+                    highlight
+                        ? "bg-hero-action text-hero-action-foreground ring-hero-action-foreground/10"
+                        : "bg-background text-foreground ring-border",
+                )}
+            >
+                {icon}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-sm font-medium leading-5">{title}</span>
+                <span className="text-muted-foreground text-xs leading-4">{hint}</span>
             </span>
             <span className="shrink-0">{action}</span>
         </motion.div>

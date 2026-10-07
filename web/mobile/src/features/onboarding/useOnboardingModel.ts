@@ -21,7 +21,6 @@ import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useWalletSummary} from "../wallet/useWalletSummary"
-import {formatCredits} from "../wallet/walletFormat"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
 
@@ -40,8 +39,8 @@ export interface OnboardingModel {
         inUse: boolean
         /** Some model runs on these credits. */
         runnable: boolean
-        /** Spendable wallet credits, formatted; `null` where the wallet reports no balance. */
-        balance: string | null
+        /** Spendable wallet balance in micro-dollars; `null` where the wallet reports none. */
+        balanceMusd: number | null
     } | null
     chatgpt: {
         available: boolean
@@ -183,7 +182,7 @@ export const useOnboardingModel = (entityId: string, projectId: string): Onboard
     const keyConnections = candidates.connections.filter((item) => !item.subscription)
     const walletBalance =
         wallet?.mode === "enforce" && wallet.spendable_musd !== null
-            ? formatCredits(Math.max(0, wallet.spendable_musd))
+            ? Math.max(0, wallet.spendable_musd)
             : null
     const creditsRunnable = candidates.candidates.some(isCredits)
     const hasCredits = Boolean(creditsConnection) || creditsRunnable || wallet?.mode === "enforce"
@@ -192,7 +191,7 @@ export const useOnboardingModel = (entityId: string, projectId: string): Onboard
         status: candidates.status,
         ready: candidates.status === "ready" && Boolean(selected),
         credits: hasCredits
-            ? {inUse: isCredits(selected), runnable: creditsRunnable, balance: walletBalance}
+            ? {inUse: isCredits(selected), runnable: creditsRunnable, balanceMusd: walletBalance}
             : null,
         chatgpt: {
             available: Boolean(chatgptConnection || candidates.capabilities?.codex),

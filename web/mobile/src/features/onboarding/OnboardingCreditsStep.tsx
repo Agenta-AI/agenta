@@ -12,18 +12,21 @@ import {ArrowRight, Check, Coins, Key, OpenAiLogo} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
+import {formatUsd, MUSD_PER_CREDIT} from "../wallet/walletFormat"
+
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {onboardingHeadingId} from "./onboardingDraft"
+import {OnboardingWalletCard} from "./OnboardingWalletCard"
 import {OnboardingWayRow} from "./OnboardingWayRow"
 import {OnboardingCreditsSkeleton} from "./states/OnboardingCreditsSkeleton"
 import type {OnboardingModel} from "./useOnboardingModel"
 
 const copy = ONBOARDING_COPY.model
+const PILL =
+    "bg-success-bg text-success inline-flex h-[22px] items-center gap-1 rounded-md px-2 text-xs font-medium leading-4"
+const ACTION = "h-7 rounded-md px-2.5 text-xs font-medium"
 
-const TILE = "flex size-10 shrink-0 items-center justify-center rounded-[10px]"
-const STATUS = "text-success flex items-center gap-1.5 text-xs font-medium"
-
-/** How the first agent's runs are paid: the seeded Agenta credits, a ChatGPT plan, or a key. */
+/** The wallet step: the organization's real credits, and the other ways to pay for runs. */
 export const OnboardingCreditsStep = ({
     model,
     onContinue,
@@ -32,17 +35,92 @@ export const OnboardingCreditsStep = ({
     onContinue: () => void
 }) => {
     const {credits, chatgpt, keys} = model
+    const balance = credits?.balanceMusd ?? null
+    const heading = credits
+        ? balance !== null
+            ? {
+                  kicker: copy.kicker,
+                  title: copy.title(Math.round(balance / MUSD_PER_CREDIT).toLocaleString()),
+                  subtitle: copy.subtitle(formatUsd(balance)),
+              }
+            : {kicker: copy.kicker, title: copy.creditsOnlyTitle, subtitle: copy.creditsOnlySubtitle}
+        : {kicker: copy.noCreditsKicker, title: copy.noCreditsTitle, subtitle: copy.noCreditsSubtitle}
+
+    const ways = (
+        <div className="bg-muted flex flex-1 flex-col rounded-xl px-3">
+            {credits ? (
+                <OnboardingWayRow
+                    delay={0.2}
+                    highlight
+                    icon={<Coins size={15} />}
+                    title={copy.creditsTitle}
+                    hint={copy.creditsHint}
+                    action={
+                        credits.inUse ? (
+                            <span className={PILL}>
+                                <Check size={11} weight="bold" />
+                                {copy.inUse}
+                            </span>
+                        ) : null
+                    }
+                />
+            ) : null}
+            {chatgpt.available ? (
+                <OnboardingWayRow
+                    delay={0.32}
+                    icon={<OpenAiLogo size={15} />}
+                    title={copy.chatgpt}
+                    hint={chatgpt.ready ? copy.chatgptReadyHint : copy.chatgptHint}
+                    action={
+                        chatgpt.ready ? (
+                            <span className={PILL}>
+                                <Check size={11} weight="bold" />
+                                {chatgpt.inUse ? copy.inUse : copy.connected}
+                            </span>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                className={ACTION}
+                                onClick={() => chatgpt.setDialogOpen(true)}
+                            >
+                                {copy.connect}
+                            </Button>
+                        )
+                    }
+                />
+            ) : null}
+            <OnboardingWayRow
+                delay={0.44}
+                icon={<Key size={15} />}
+                title={copy.key}
+                hint={
+                    keys.connections.length > 0
+                        ? copy.keyUsing(keys.connections[0].name, keys.connections.length - 1)
+                        : copy.keyHint
+                }
+                action={
+                    <Button variant="outline" className={ACTION} onClick={keys.openDrawer}>
+                        {copy.addKey}
+                    </Button>
+                }
+            />
+        </div>
+    )
+
     return (
-        <div className="flex flex-col gap-7">
+        <div className="flex flex-col gap-8">
             <div className="flex flex-col gap-1.5">
+                <span className={ONBOARDING_COPY.kickerClass}>{heading.kicker}</span>
                 <h1
                     id={onboardingHeadingId("credits")}
                     tabIndex={-1}
-                    className={ONBOARDING_COPY.headingClass}
+                    className="m-0 text-[32px] font-semibold leading-[38px] tracking-[-0.02em] text-balance outline-none"
                 >
-                    {copy.title}
+                    {heading.title}
                 </h1>
-                <p className="text-muted-foreground m-0 text-[15px]">{copy.subtitle}</p>
+                <p className="text-muted-foreground m-0 text-sm leading-[21px] text-pretty">
+                    {heading.subtitle}
+                </p>
             </div>
             {model.status === "loading" ? (
                 <OnboardingCreditsSkeleton />
@@ -50,93 +128,23 @@ export const OnboardingCreditsStep = ({
                 <LoadError title={copy.loadError} onRetry={model.retry} />
             ) : (
                 <div className="flex flex-col gap-2">
-                    {credits ? (
-                        <OnboardingWayRow
-                            delay={0.2}
-                            active={credits.inUse}
-                            icon={
-                                <span
-                                    className={cn(
-                                        TILE,
-                                        "bg-[var(--ag-preset-yellow-bg)] text-[var(--ag-preset-yellow-text)]",
-                                    )}
-                                >
-                                    <Coins size={20} weight="fill" />
-                                </span>
-                            }
-                            title={copy.creditsTitle}
-                            hint={[
-                                credits.balance ? copy.creditsBalance(credits.balance) : "",
-                                credits.runnable ? copy.creditsHint : "",
-                            ]
-                                .filter(Boolean)
-                                .join(" ")}
-                            action={
-                                credits.runnable ? (
-                                    <span className={STATUS}>
-                                        <Check size={13} weight="bold" />
-                                        {credits.inUse ? copy.inUse : copy.added}
-                                    </span>
-                                ) : null
-                            }
-                        />
-                    ) : (
-                        <p className="text-muted-foreground m-0 pb-1 text-sm">
-                            {copy.creditsNone}
-                        </p>
-                    )}
-                    {chatgpt.available ? (
-                        <OnboardingWayRow
-                            delay={0.32}
-                            active={chatgpt.inUse}
-                            icon={
-                                <span className={cn(TILE, "bg-muted text-foreground")}>
-                                    <OpenAiLogo size={20} />
-                                </span>
-                            }
-                            title={copy.chatgpt}
-                            hint={chatgpt.ready ? copy.chatgptReadyHint : copy.chatgptHint}
-                            action={
-                                chatgpt.ready ? (
-                                    <span className={STATUS}>
-                                        <Check size={13} weight="bold" />
-                                        {chatgpt.inUse ? copy.inUse : copy.connected}
-                                    </span>
-                                ) : (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => chatgpt.setDialogOpen(true)}
-                                    >
-                                        {copy.connect}
-                                    </Button>
-                                )
-                            }
-                        />
-                    ) : null}
-                    <OnboardingWayRow
-                        delay={0.44}
-                        active={keys.inUse}
-                        icon={
-                            <span className={cn(TILE, "bg-muted text-foreground")}>
-                                <Key size={20} />
-                            </span>
-                        }
-                        title={copy.key}
-                        hint={
-                            keys.connections.length > 0
-                                ? copy.keyUsing(
-                                      keys.connections[0].name,
-                                      keys.connections.length - 1,
-                                  )
-                                : copy.keyHint
-                        }
-                        action={
-                            <Button variant="outline" size="sm" onClick={keys.openDrawer}>
-                                {copy.addKey}
-                            </Button>
-                        }
-                    />
+                    <div
+                        className={cn(
+                            "grid gap-x-6 gap-y-2",
+                            credits && "sm:grid-cols-[minmax(0,304px)_minmax(0,1fr)]",
+                        )}
+                    >
+                        {credits ? (
+                            <div className="flex flex-col gap-2 max-sm:mb-6">
+                                <span className={ONBOARDING_COPY.kickerClass}>{copy.wallet}</span>
+                                <OnboardingWalletCard balanceMusd={balance} />
+                            </div>
+                        ) : null}
+                        <div className="flex flex-col gap-2">
+                            <span className={ONBOARDING_COPY.kickerClass}>{copy.ways}</span>
+                            {ways}
+                        </div>
+                    </div>
                     {!model.ready ? (
                         <p role="status" className="text-muted-foreground m-0 pt-2 text-sm">
                             {copy.noneRunnable}
@@ -145,7 +153,7 @@ export const OnboardingCreditsStep = ({
                 </div>
             )}
             <div className="flex justify-end">
-                <Button size="lg" onClick={onContinue} disabled={model.status === "loading"}>
+                <Button onClick={onContinue} disabled={model.status === "loading"}>
                     {ONBOARDING_COPY.continue}
                     <ArrowRight data-icon="inline-end" />
                 </Button>

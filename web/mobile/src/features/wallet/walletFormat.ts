@@ -1,6 +1,6 @@
-const MUSD_PER_USD = 1_000_000
+export const MUSD_PER_USD = 1_000_000
 /** 1 credit = 1 US cent. */
-const MUSD_PER_CREDIT = 10_000
+export const MUSD_PER_CREDIT = 10_000
 
 /** Compact dollars for the sidebar: "$19.98". */
 export const formatUsd = (musd: number): string =>

@@ -1,9 +1,9 @@
-import {useEffect, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {loadAgentIconCatalog, type PhosphorCatalogEntry} from "@agenta/ui/agent-icon"
 
-/** A glyph's SVG markup by catalog name; `null` until the lazy catalog chunk answers. */
-export const useAgentGlyph = (name: string): string | null => {
+/** Every catalog glyph's SVG markup by name; empty until the lazy catalog chunk answers. */
+export const useGlyphPaths = (): ReadonlyMap<string, string> => {
     const [catalog, setCatalog] = useState<PhosphorCatalogEntry[] | null>(null)
     useEffect(() => {
         let live = true
@@ -16,5 +16,11 @@ export const useAgentGlyph = (name: string): string | null => {
             live = false
         }
     }, [])
-    return catalog?.find((entry) => entry.name === name)?.path ?? null
+    return useMemo(
+        () => new Map((catalog ?? []).map((entry) => [entry.name, entry.path])),
+        [catalog],
+    )
 }
+
+/** One glyph's SVG markup by catalog name; `null` until the catalog answers. */
+export const useAgentGlyph = (name: string): string | null => useGlyphPaths().get(name) ?? null
