@@ -10,10 +10,11 @@
  *  2. Wait. Every admitted execution may finish on its own, up to the configured wait. A turn
  *     parked on an approval runs nothing, so it does not hold the wait.
  *  3. Cancel. A turn still running is stopped the way a user Stop stops it: the harness is asked
- *     to cancel and the turn waits for its answer. A settled cancel ends the turn `cancelled`; an
- *     unsettled one deletes its sandbox. The settled wait matters even though step 4 deletes the
- *     sandbox anyway: it lets the harness finish writing its transcript to the durable mount, so
- *     the next pod loads a full history of that turn.
+ *     to cancel and the turn waits for its answer. A settled cancel parks the sandbox until step 4;
+ *     an unsettled one deletes it. Either way the turn ends with the restart error, not as a Stop,
+ *     so the client offers to send it again. The settled wait matters even though step 4 deletes
+ *     the sandbox anyway: it lets the harness finish writing its transcript to the durable mount,
+ *     so the next pod loads a full history of that turn.
  *     An approval-parked prompt is released through its parked control directly, NOT through
  *     `applyCommand`. No Stop outcome reaches the api, so the pending approval stays answerable,
  *     and the user's answer later runs cold on another pod through the stored decision. Routing
@@ -25,6 +26,7 @@
  */
 import { resolveCancelSettleMs } from "../engines/sandbox_agent/cancel-turn.ts";
 import type { LiveExecution } from "../sessions/execution-registry.ts";
+import { RUNNER_SHUTDOWN_ABORT_REASON } from "../sessions/stop-signal.ts";
 import type { ParkedSessionControl } from "../sessions/control-channel.ts";
 
 let draining = false;
@@ -133,9 +135,10 @@ export async function drainThenTearDown(steps: ShutdownSteps): Promise<void> {
  * environment.
  *
  * The abort is the cancel: it makes the turn send the harness `session/cancel` and wait for the
- * answer, so a settled cancel ends `cancelled` and an unsettled one deletes the sandbox. An
- * execution whose prompt already settled is only tearing down; aborting it would make that
- * teardown delete a healthy environment, so it is only waited for.
+ * answer, so a settled cancel parks the sandbox and an unsettled one deletes it. The shutdown
+ * reason makes the turn end with the restart error instead of as a Stop. An execution whose
+ * prompt already settled is only tearing down; aborting it would make that teardown delete a
+ * healthy environment, so it is only waited for.
  */
 export async function cancelExecutions(
   executions: readonly LiveExecution[],
@@ -144,7 +147,7 @@ export async function cancelExecutions(
 ): Promise<void> {
   if (executions.length === 0) return;
   for (const execution of executions) {
-    if (!execution.settled) execution.abort();
+    if (!execution.settled) execution.abort(RUNNER_SHUTDOWN_ABORT_REASON);
   }
   const released = await withinBudget(
     Promise.allSettled(executions.map((execution) => execution.released ?? Promise.resolve(true))),

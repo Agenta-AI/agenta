@@ -79,6 +79,7 @@ import {
   conciseError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   type RunErrorCode,
+  RUNNER_RESTARTING_MESSAGE,
   runLimitError,
   TURN_INDEX_TAKEN_CODE,
   TURN_INDEX_TAKEN_MESSAGE,
@@ -87,7 +88,10 @@ import {
   withPublicCode,
 } from "./errors.ts";
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
-import { isUserStopAbort } from "../../sessions/stop-signal.ts";
+import {
+  isCooperativeCancelAbort,
+  isRunnerShutdownAbort,
+} from "../../sessions/stop-signal.ts";
 import { cancelHarnessTurn } from "./cancel-turn.ts";
 import {
   followsUnansweredUserTurn,
@@ -861,13 +865,22 @@ export async function runTurn(
       if (!openToolCallIds().includes(toolCallId)) {
         return Promise.resolve(true);
       }
+      // A shutdown has a release budget, and this wait can last a whole tool-call bound. Stop
+      // waiting when the shutdown cancels the turn, so the cancelled-turn cleanup below cancels
+      // the harness and ends the turn with the restart error inside that budget. A user Stop keeps
+      // its old behavior.
+      if (isRunnerShutdownAbort(signal)) return Promise.resolve(false);
       return new Promise<boolean>((resolve) => {
         let timeout: NodeJS.Timeout | undefined;
         let finished = false;
+        const onAbort = (): void => {
+          if (isRunnerShutdownAbort(signal)) finish(false);
+        };
         const finish = (closed: boolean): void => {
           if (finished) return;
           finished = true;
           if (timeout) clearTimeout(timeout);
+          signal?.removeEventListener("abort", onAbort);
           const waiters = toolCallClosureWaiters.get(toolCallId);
           waiters?.delete(onClosed);
           if (waiters?.size === 0) toolCallClosureWaiters.delete(toolCallId);
@@ -878,6 +891,7 @@ export async function runTurn(
         waiters.add(onClosed);
         toolCallClosureWaiters.set(toolCallId, waiters);
         void runLimitTripped.then(() => finish(false));
+        signal?.addEventListener("abort", onAbort, { once: true });
         timeout = setTimeout(() => finish(false), timeoutMs);
       });
     };
@@ -1713,7 +1727,7 @@ export async function runTurn(
         );
       }
 
-      if (isUserStopAbort(signal)) {
+      if (isCooperativeCancelAbort(signal)) {
         stopReason = "cancelled";
       }
       if (request.sessionId && request.turnId) {
@@ -1933,6 +1947,16 @@ export async function runTurn(
       run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent(errorEventWithDetail(classified.message, classified.code));
     }
+    // A shutdown cancels like a Stop, but nobody stopped this turn. It ends with an error the
+    // client offers to retry; the cancel's park and continuity stay those of a Stop.
+    const endedByShutdown =
+      stopReason === "cancelled" && isRunnerShutdownAbort(signal);
+    if (endedByShutdown) {
+      run.recordError(RUNNER_RESTARTING_MESSAGE);
+      run.emitEvent(
+        errorEventWithDetail(RUNNER_RESTARTING_MESSAGE, "execution_lost"),
+      );
+    }
     if (nativeTraceBatches === 0 && !swallowedError) {
       await harnessTrace.emitMissingBatchFallback(run);
     }
@@ -1940,7 +1964,9 @@ export async function runTurn(
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
     await settleInBandInteractions?.();
     if (outputLimitReason) throw new Error(outputLimitReason);
-    const output = run.finish(swallowedError ? "error" : stopReason);
+    const output = run.finish(
+      swallowedError || endedByShutdown ? "error" : stopReason,
+    );
     await run.flush();
     const turnEndedAt = new Date().toISOString();
 
