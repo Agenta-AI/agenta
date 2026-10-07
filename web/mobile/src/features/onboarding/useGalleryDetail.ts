@@ -32,5 +32,5 @@ export const useGalleryDetail = (rootRef: RefObject<HTMLElement | null>, focused
         listScrollRef.current = scrollerOf(rootRef.current)?.scrollTop ?? 0
     }
 
-    return {open, twoColumn, returning: !open && wasOpenRef.current, rememberListScroll}
+    return {open, twoColumn, rememberListScroll}
 }

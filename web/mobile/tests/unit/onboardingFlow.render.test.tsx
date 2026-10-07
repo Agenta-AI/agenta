@@ -430,6 +430,7 @@ describe("first agent onboarding", () => {
         const props = baseProps()
         render(props)
         toGallery()
+        click(/^PR reviewer/)
         expect(host!.textContent).toContain("Creates the agent and opens it.")
         await act(async () => button("Use template").click())
         expect(props.onCreate).toHaveBeenCalledWith({
@@ -455,6 +456,7 @@ describe("first agent onboarding", () => {
         tools.set([connection("github")])
         render(baseProps())
         toGallery()
+        click(/^PR reviewer/)
         expect(host!.textContent).toContain("Connects · 1 of 2 connected")
         expect(() => button("Connect GitHub")).toThrow()
         click("Connect Slack")
