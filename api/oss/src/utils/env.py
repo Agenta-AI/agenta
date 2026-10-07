@@ -1061,6 +1061,10 @@ class GatewayEgressConfig(BaseModel):
     Turning this on does not open every internal address by accident on a dev stack: the
     narrower escape hatches are `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` and the mock upstreams
     admitted while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on.
+
+    The same boundary applies to a workflow or evaluator revision whose `url` is not under
+    `AGENTA_SERVICES_URL`, so this flag and `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` are also how
+    an operator lets custom workflows on a private network or plain http be called.
     """
 
     insecure_allowed: bool = _parse_bool_env(
@@ -1142,7 +1146,8 @@ class MCPGatewayConfig(BaseModel):
     `host_allowlist` mirrors the runner's `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP
     server whose host is listed here skips the SSRF guard (`core/webhooks/utils.py`)
     entirely, so a self-hoster can reach one known internal server without disabling the
-    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED."""
+    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED. The list applies to every target of
+    the gateway egress boundary, custom workflow service URLs included."""
 
     enabled: bool = _parse_bool_env("AGENTA_MCP_GATEWAY_ENABLED", default=True)
 

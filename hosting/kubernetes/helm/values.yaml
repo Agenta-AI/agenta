@@ -121,8 +121,10 @@ llmGateway:
 # not change either one. Those defaults require https and refuse a private
 # or loopback address.
 #
-# Set insecureAllowed: true if an MCP server in one of your projects sits on
-# a private network or answers over plain http. It lifts the https
+# Set insecureAllowed: true if an MCP server or a custom workflow URL in one
+# of your projects sits on a private network or answers over plain http.
+# Workflow URLs under AGENTA_SERVICES_URL are your own services and are not
+# affected. It lifts the https
 # requirement and the address check for every gateway target, at save time
 # and at call time. On a deployment where people you do not trust can create
 # MCP connections, leave it unset and name the one server you want reachable

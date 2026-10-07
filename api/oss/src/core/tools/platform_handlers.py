@@ -74,6 +74,8 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
 )
+from oss.src.core.gateways.dtos import no_cookie_jar
+from oss.src.core.gateways.egress import EgressRefusedError
 from oss.src.core.workflows.service import WorkflowsService
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
@@ -275,14 +277,30 @@ async def _invoke_child_workflow(
         }
     )
     try:
+        target_url, target_headers, extensions = await WorkflowsService._open_service(
+            url=f"{service_url}/invoke",
+            headers=headers,
+        )
+    except EgressRefusedError as e:
+        return WorkflowServiceBatchResponse(
+            status=WorkflowServiceStatus(
+                code=400,
+                message=f"Workflow service URL was refused: {e.relay_detail}",
+            )
+        )
+    try:
+        # Redirects are never followed: a 3xx would re-point a credentialed request at a
+        # host nothing checked.
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_s),
-            follow_redirects=True,
+            follow_redirects=False,
+            cookies=no_cookie_jar(),
         ) as client:
             raw_response = await client.post(
-                f"{service_url}/invoke",
+                target_url,
                 json=payload,
-                headers=headers,
+                headers=target_headers,
+                extensions=extensions,
             )
     except httpx.TimeoutException:
         return WorkflowServiceBatchResponse(
