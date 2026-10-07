@@ -68,7 +68,11 @@ export const ONBOARDING_COPY = {
         subtitle: "Give it a name, a look and something to do.",
         fromTemplateTitle: "Review your agent",
         fromTemplateSubtitle: (name: string) =>
-            `Based on the ${name} template. Change anything you like.`,
+            `Based on the ${name} template. Pick its look, apps and first message.`,
+        fromTemplateLabel: "From the template",
+        fromTemplateNote:
+            "The name and instructions come from the template. Its full instructions, tools and trigger load when you create the agent.",
+        templateFirstMessageHint: "Optional. Leave it empty and the template starts itself.",
         name: "Name",
         icon: "Icon and color",
         changeIcon: "Change agent icon",

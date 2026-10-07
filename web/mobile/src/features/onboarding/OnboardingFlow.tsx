@@ -114,7 +114,7 @@ export const OnboardingFlow = ({
 
     const template =
         catalog.templates.find((item) => item.key === draft.templateKey) ?? null
-    const input = firstAgentInput(draft.agent)
+    const input = firstAgentInput(draft, template)
     const onUse = (picked: AgentStarterTemplate) => {
         const apps = templateProviderSlugs(picked).filter((key) => connectedApps.has(key))
         dispatch({type: "template", template: picked, apps})
@@ -172,7 +172,8 @@ export const OnboardingFlow = ({
         creator: () => (
             <OnboardingCreator
                 agent={draft.agent}
-                templateName={template?.name ?? null}
+                template={draft.templateKey ? template : null}
+                fromTemplate={draft.templateKey !== null}
                 suggestedApps={template ? templateProviderSlugs(template) : []}
                 connectedApps={connectedApps}
                 toolsEnabled={toolsEnabled}

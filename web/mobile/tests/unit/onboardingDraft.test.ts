@@ -91,9 +91,9 @@ describe("onboarding answers", () => {
         expect(filled.agent).toEqual({
             name: "PR reviewer",
             icon: {icon: "code", color: "#123456"},
-            instructions: "PR reviewer instructions",
+            instructions: "",
             apps: ["github"],
-            firstMessage: "Build PR reviewer",
+            firstMessage: "",
         })
         const blank = onboardingReducer(filled, {type: "scratch"})
         expect(blank.templateKey).toBeNull()
@@ -128,16 +128,32 @@ describe("onboarding answers", () => {
 })
 
 describe("first agent input", () => {
-    it("needs instructions or a first message, and names a blank agent", () => {
-        expect(firstAgentInput({...BLANK_AGENT, name: "Atlas"})).toBeNull()
-        expect(firstAgentInput({...BLANK_AGENT, firstMessage: " Plan my week "})).toEqual({
+    it("needs instructions or a first message on a blank start, and names it", () => {
+        const blank = (agent: Partial<typeof BLANK_AGENT>) => ({
+            templateKey: null,
+            agent: {...BLANK_AGENT, ...agent},
+        })
+        expect(firstAgentInput(blank({name: "Atlas"}), null)).toBeNull()
+        expect(firstAgentInput(blank({firstMessage: " Plan my week "}), null)).toEqual({
             name: "My first agent",
             instructions: "",
             firstMessage: "Plan my week",
+            templateKey: null,
         })
-        expect(
-            firstAgentInput({...BLANK_AGENT, name: " Atlas ", instructions: " Be brief. "}),
-        ).toEqual({name: "Atlas", instructions: "Be brief.", firstMessage: ""})
+        expect(firstAgentInput(blank({name: " Atlas ", instructions: " Be brief. "}), null)).toEqual(
+            {name: "Atlas", instructions: "Be brief.", firstMessage: "", templateKey: null},
+        )
+    })
+
+    it("creates a template from its own name once the catalog has it", () => {
+        const picked = {templateKey: "review", agent: {...BLANK_AGENT, name: "Edited"}}
+        expect(firstAgentInput(picked, null)).toBeNull()
+        expect(firstAgentInput(picked, template("review", "Engineering", "PR reviewer"))).toEqual({
+            name: "PR reviewer",
+            instructions: "",
+            firstMessage: "",
+            templateKey: "review",
+        })
     })
 })
 

@@ -1,3 +1,4 @@
+import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {Field, Input, LoadingButton, Textarea} from "@agenta/ui/ui"
 
 import {FOCUS_RING} from "@/lib/interactive"
@@ -15,13 +16,14 @@ import {
     type OnboardingAgent,
 } from "./onboardingDraft"
 import {OnboardingIconField} from "./OnboardingIconField"
+import {OnboardingTemplateLock} from "./OnboardingTemplateLock"
 
 const copy = ONBOARDING_COPY.creator
 
 export interface OnboardingCreateState {
     /** A runnable model is selected. */
     modelReady: boolean
-    /** The draft has instructions or a first message. */
+    /** A blank start has instructions or a first message; a template has loaded. */
     complete: boolean
     creating: boolean
     error?: string | null
@@ -32,7 +34,8 @@ export interface OnboardingCreateState {
 /** The agent's name, face, instructions, apps and first message, beside a live preview. */
 export const OnboardingCreator = ({
     agent,
-    templateName,
+    template,
+    fromTemplate,
     suggestedApps,
     connectedApps,
     toolsEnabled,
@@ -41,8 +44,10 @@ export const OnboardingCreator = ({
     create,
 }: {
     agent: OnboardingAgent
-    /** The template the agent was filled from, if any. */
-    templateName: string | null
+    /** The picked template, once the catalog has it. */
+    template: AgentStarterTemplate | null
+    /** A template was picked, so its name and instructions are not edited here. */
+    fromTemplate: boolean
     suggestedApps: readonly string[]
     connectedApps: ConnectedApps
     toolsEnabled: boolean
@@ -58,33 +63,43 @@ export const OnboardingCreator = ({
                     tabIndex={-1}
                     className={ONBOARDING_COPY.headingClass}
                 >
-                    {templateName ? copy.fromTemplateTitle : copy.title}
+                    {fromTemplate ? copy.fromTemplateTitle : copy.title}
                 </h1>
                 <p className="text-muted-foreground m-0 text-[15px]">
-                    {templateName ? copy.fromTemplateSubtitle(templateName) : copy.subtitle}
+                    {fromTemplate && template
+                        ? copy.fromTemplateSubtitle(template.name)
+                        : fromTemplate
+                          ? ""
+                          : copy.subtitle}
                 </p>
             </div>
-            <Field label={copy.name} size="sm" gap="sm">
-                <Input
-                    size="lg"
-                    value={agent.name}
-                    maxLength={ONBOARDING_NAME_MAX}
-                    placeholder={FIRST_AGENT_FALLBACK_NAME}
-                    onChange={(event) => onChange({name: event.target.value})}
-                />
-            </Field>
+            {fromTemplate ? (
+                <OnboardingTemplateLock template={template} />
+            ) : (
+                <Field label={copy.name} size="sm" gap="sm">
+                    <Input
+                        size="lg"
+                        value={agent.name}
+                        maxLength={ONBOARDING_NAME_MAX}
+                        placeholder={FIRST_AGENT_FALLBACK_NAME}
+                        onChange={(event) => onChange({name: event.target.value})}
+                    />
+                </Field>
+            )}
             <div className="flex flex-col gap-2">
                 <span className="text-sm font-medium">{copy.icon}</span>
                 <OnboardingIconField value={agent.icon} onChange={(icon) => onChange({icon})} />
             </div>
-            <Field label={copy.instructions} size="sm" gap="sm">
-                <Textarea
-                    rows={5}
-                    value={agent.instructions}
-                    placeholder={copy.instructionsPlaceholder}
-                    onChange={(event) => onChange({instructions: event.target.value})}
-                />
-            </Field>
+            {fromTemplate ? null : (
+                <Field label={copy.instructions} size="sm" gap="sm">
+                    <Textarea
+                        rows={5}
+                        value={agent.instructions}
+                        placeholder={copy.instructionsPlaceholder}
+                        onChange={(event) => onChange({instructions: event.target.value})}
+                    />
+                </Field>
+            )}
             {toolsEnabled ? (
                 <div className="flex flex-col gap-2">
                     <span className="text-sm font-medium">
@@ -99,7 +114,12 @@ export const OnboardingCreator = ({
                     />
                 </div>
             ) : null}
-            <Field label={copy.firstMessage} size="sm" gap="sm">
+            <Field
+                label={copy.firstMessage}
+                description={fromTemplate ? copy.templateFirstMessageHint : undefined}
+                size="sm"
+                gap="sm"
+            >
                 <Textarea
                     rows={3}
                     value={agent.firstMessage}
@@ -139,7 +159,7 @@ export const OnboardingCreator = ({
                             {copy.modelMissingAction}
                         </button>
                     </p>
-                ) : !create.complete ? (
+                ) : !create.complete && !fromTemplate ? (
                     <p className="text-muted-foreground m-0 text-sm">{copy.needsSomething}</p>
                 ) : null}
                 <LoadingButton
@@ -154,7 +174,14 @@ export const OnboardingCreator = ({
             </div>
         </div>
         <div className="sticky top-24 max-lg:hidden">
-            <OnboardingAgentPreview agent={agent} connected={connectedApps} />
+            <OnboardingAgentPreview
+                agent={
+                    template
+                        ? {...agent, name: template.name, instructions: template.instructions}
+                        : agent
+                }
+                connected={connectedApps}
+            />
         </div>
     </div>
 )

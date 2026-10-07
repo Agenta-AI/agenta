@@ -203,19 +203,27 @@ describe("first agent onboarding", () => {
         expect(heading()).toBe("What kind of work do you do?")
     })
 
-    it("fills the creator from a template and creates with the edits", () => {
+    it("locks a template's name and instructions and creates from its package", () => {
         const props = baseProps()
         render(props)
         toGallery()
         expect(heading()).toBe("Create your first agent")
         click("Use template")
         expect(heading()).toBe("Review your agent")
-        type("My first agent", "My reviewer")
+        expect(host!.querySelector('[placeholder="My first agent"]')).toBeNull()
+        const locked = host!.querySelector('[aria-label="From the template"]')!
+        expect(locked.textContent).toContain("PR reviewer")
+        expect(locked.textContent).toContain("Review each opened PR.")
+        expect(
+            (host!.querySelector('[placeholder="What should it do first?"]') as HTMLTextAreaElement)
+                .value,
+        ).toBe("")
         click("Create agent")
         expect(props.onCreate).toHaveBeenCalledWith({
-            name: "My reviewer",
-            instructions: "Review each opened PR.",
-            firstMessage: "Build a PR reviewer that comments inline.",
+            name: "PR reviewer",
+            instructions: "",
+            firstMessage: "",
+            templateKey: "review",
             icon: {icon: "code", color: "#123456"},
             apps: ["github"],
         })
@@ -226,35 +234,39 @@ describe("first agent onboarding", () => {
         render(props)
         toGallery()
         click("Use template")
-        type("My first agent", "My reviewer")
+        type("What should it do first?", "Review PR 12")
         click("Choose one")
         expect(heading()).toBe("Choose how your agents run")
         render({...props, model: model(true)})
         click(/^Continue/)
         expect(heading()).toBe("Review your agent")
-        expect((host!.querySelector('[placeholder="My first agent"]') as HTMLInputElement).value).toBe(
-            "My reviewer",
-        )
+        const message = () =>
+            (host!.querySelector('[placeholder="What should it do first?"]') as HTMLTextAreaElement)
+                .value
+        expect(message()).toBe("Review PR 12")
         click("Back")
         click("Use template")
-        expect((host!.querySelector('[placeholder="My first agent"]') as HTMLInputElement).value).toBe(
-            "My reviewer",
-        )
+        expect(message()).toBe("Review PR 12")
     })
 
     it("starts blank and needs something to do before Create", () => {
         const props = baseProps()
         render(props)
         toGallery()
+        click("Use template")
+        click("Back")
         click(/^Start from scratch/)
         expect(heading()).toBe("Create your agent")
+        expect(host!.querySelector('[aria-label="From the template"]')).toBeNull()
         expect(button("Create agent").disabled).toBe(true)
+        type("My first agent", "Atlas")
         click("Review my open pull requests")
         click("Create agent")
         expect(props.onCreate).toHaveBeenCalledWith({
-            name: "My first agent",
+            name: "Atlas",
             instructions: "",
             firstMessage: "Review my open pull requests",
+            templateKey: null,
             icon: {icon: "robot", color: "#111111"},
             apps: [],
         })
