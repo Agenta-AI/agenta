@@ -6,18 +6,43 @@ conversation, including the agent, controls. Every resolved address must pass, a
 connects to the address returned here, so a name that re-resolves cannot move the request.
 """
 
+import asyncio
 import ipaddress
 import socket
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
+from typing import Optional
 from urllib.parse import urlparse
 
-from oss.src.core.gateways.egress import resolve_offloaded
 from oss.src.core.links.types import LinkPreviewRefused, LinkPreviewUnreachable
 from oss.src.core.webhooks.utils import _is_blocked_ip
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 _RESOLVE_TIMEOUT_SECONDS = 1.5
+# Own pool: a chat-controlled host whose DNS hangs must not hold the gateway's resolver threads.
+_RESOLVER_THREADS = 2
+
+_resolver_pool: Optional[ThreadPoolExecutor] = None
+
+
+def _resolver() -> ThreadPoolExecutor:
+    global _resolver_pool
+    if _resolver_pool is None:
+        _resolver_pool = ThreadPoolExecutor(
+            max_workers=_RESOLVER_THREADS, thread_name_prefix="link-resolver"
+        )
+    return _resolver_pool
+
+
+async def _resolve(hostname: str, port: int) -> list:
+    """`getaddrinfo` on the link pool; a timed-out lookup still queued is cancelled, not kept."""
+    loop = asyncio.get_running_loop()
+    lookup = loop.run_in_executor(
+        _resolver(),
+        partial(socket.getaddrinfo, hostname, port, type=socket.SOCK_STREAM),
+    )
+    return await asyncio.wait_for(lookup, _RESOLVE_TIMEOUT_SECONDS)
 
 
 @dataclass(frozen=True)
@@ -71,10 +96,7 @@ async def resolve_link_target(url: str) -> LinkTarget:
         addresses = [literal]
     else:
         try:
-            infos = await resolve_offloaded(
-                partial(socket.getaddrinfo, hostname, port, type=socket.SOCK_STREAM),
-                timeout=_RESOLVE_TIMEOUT_SECONDS,
-            )
+            infos = await _resolve(hostname, port)
         except (OSError, TimeoutError) as exc:
             raise LinkPreviewUnreachable(
                 "The link's host could not be resolved."

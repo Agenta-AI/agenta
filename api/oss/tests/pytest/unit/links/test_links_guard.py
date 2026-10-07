@@ -113,32 +113,32 @@ async def test_a_literal_private_address_is_refused_without_resolving():
 
 @pytest.mark.asyncio
 async def test_a_name_with_any_private_answer_is_refused(monkeypatch):
-    async def fake_resolve(resolve, *, timeout=None):
+    async def fake_resolve(hostname, port):
         return [
             (2, 1, 6, "", ("93.184.215.14", 443)),
             (2, 1, 6, "", ("10.0.0.7", 443)),
         ]
 
-    monkeypatch.setattr(guard, "resolve_offloaded", fake_resolve)
+    monkeypatch.setattr(guard, "_resolve", fake_resolve)
     with pytest.raises(LinkPreviewRefused):
         await resolve_link_target("https://rebind.example/")
 
 
 @pytest.mark.asyncio
 async def test_a_public_name_resolves_to_the_checked_address(monkeypatch):
-    async def fake_resolve(resolve, *, timeout=None):
+    async def fake_resolve(hostname, port):
         return [(2, 1, 6, "", ("93.184.215.14", 443))]
 
-    monkeypatch.setattr(guard, "resolve_offloaded", fake_resolve)
+    monkeypatch.setattr(guard, "_resolve", fake_resolve)
     target = await resolve_link_target("https://example.com/page")
     assert (target.hostname, target.address) == ("example.com", "93.184.215.14")
 
 
 @pytest.mark.asyncio
 async def test_an_unresolvable_name_is_unreachable_not_refused(monkeypatch):
-    async def fake_resolve(resolve, *, timeout=None):
+    async def fake_resolve(hostname, port):
         raise OSError("no such host")
 
-    monkeypatch.setattr(guard, "resolve_offloaded", fake_resolve)
+    monkeypatch.setattr(guard, "_resolve", fake_resolve)
     with pytest.raises(LinkPreviewUnreachable):
         await resolve_link_target("https://nowhere.invalid/")
