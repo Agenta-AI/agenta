@@ -204,7 +204,7 @@ export const OtpVerifyForm = ({
                 >
                     <ArrowClockwise size={12} />
                     {resendIn > 0
-                        ? `Resend code · 0:${String(resendIn).padStart(2, "0")}`
+                        ? `Resend code · ${Math.floor(resendIn / 60)}:${String(resendIn % 60).padStart(2, "0")}`
                         : "Resend code"}
                 </button>
             </div>
