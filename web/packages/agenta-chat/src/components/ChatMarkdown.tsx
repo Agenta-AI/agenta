@@ -2,8 +2,10 @@ import {
     createContext,
     isValidElement,
     memo,
+    useCallback,
     useContext,
     useLayoutEffect,
+    useMemo,
     useState,
     useSyncExternalStore,
     type ComponentProps,
@@ -37,6 +39,8 @@ export interface ChatMarkdownLinkResolver {
     /** Block content to place under a paragraph or list item for the code spans and relative
      * hrefs it names; each value goes to its first mention in the message only. */
     renderFollowUps?: (values: string[]) => ReactNode
+    /** Whether a value can have a follow-up at all; the rest never join the claims. */
+    claimsFollowUp?: (value: string) => boolean
 }
 
 /** Hook the host passes in to publish its resolver; returns null when no drive is mounted. */
@@ -203,44 +207,54 @@ const mentionsIn = (node: HastNode, out = new Set<string>()): Set<string> => {
     return out
 }
 
-/**
- * Which follow-up block owns each value: the first in document order. Blocks register from a
- * layout effect, so a render that never commits claims nothing, and order is read from the DOM
- * because a streamed message is parsed block by block, with no shared source offsets.
- */
 /** `./chart.png`, `/chart.png` and `chart.png` claim as one name. */
 const claimKey = (value: string) => value.replace(/^(?:\.\/|\/)+/, "")
 
+/** Which follow-up block owns each key: the first in DOM order (blocks parse separately). */
 class FollowUpClaims {
     private blocks = new Map<Element, string[]>()
+    private owned = new Map<Element, string>()
     private listeners = new Set<() => void>()
-    private version = 0
+    private pending = false
     subscribe = (listener: () => void) => {
         this.listeners.add(listener)
         return () => void this.listeners.delete(listener)
     }
-    getVersion = () => this.version
-    set(block: Element, values: string[] | null) {
-        if (values) this.blocks.set(block, values.map(claimKey))
+    /** The keys `block` owns, joined: a string, so an unchanged block bails out of re-rendering. */
+    ownedBy = (block: Element | null): string => (block ? (this.owned.get(block) ?? "") : "")
+    set(block: Element, keys: string[] | null) {
+        if (keys) this.blocks.set(block, keys)
         else this.blocks.delete(block)
-        this.version += 1
-        this.listeners.forEach((listener) => listener())
+        // Batched: a cleanup and the re-register after it settle as one change.
+        if (this.pending) return
+        this.pending = true
+        queueMicrotask(() => {
+            this.pending = false
+            this.settle()
+        })
     }
-    owns(block: Element, value: string): boolean {
-        const key = claimKey(value)
-        for (const [other, keys] of this.blocks) {
-            if (other === block || !keys.includes(key)) continue
-            if (other.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING)
-                return false
+    private settle() {
+        const ordered = [...this.blocks.keys()].sort((a, b) =>
+            a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+        )
+        const taken = new Set<string>()
+        const next = new Map<Element, string>()
+        for (const block of ordered) {
+            const mine = (this.blocks.get(block) ?? []).filter((key) => !taken.has(key))
+            mine.forEach((key) => taken.add(key))
+            next.set(block, mine.join("\n"))
         }
-        return this.blocks.has(block)
+        const changed =
+            next.size !== this.owned.size ||
+            [...next].some(([block, keys]) => this.owned.get(block) !== keys)
+        this.owned = next
+        if (changed) this.listeners.forEach((listener) => listener())
     }
 }
 
 const FollowUpClaimsContext = createContext<FollowUpClaims | null>(null)
 
-/** The values this block owns, rendered by the host. `display: contents`, so the prose's sibling
- * spacing never sees an empty block. */
+/** The values this block owns, rendered by the host; `display: contents` adds no spacing. */
 const ClaimedFollowUps = ({
     values,
     render,
@@ -250,18 +264,19 @@ const ClaimedFollowUps = ({
 }) => {
     const claims = useContext(FollowUpClaimsContext)
     const [block, setBlock] = useState<HTMLDivElement | null>(null)
-    const key = JSON.stringify(values)
+    const keysJson = JSON.stringify(values.map(claimKey))
     useLayoutEffect(() => {
         if (!block || !claims) return
-        claims.set(block, JSON.parse(key) as string[])
+        claims.set(block, JSON.parse(keysJson) as string[])
         return () => claims.set(block, null)
-    }, [block, claims, key])
-    useSyncExternalStore(
-        claims?.subscribe ?? noopSubscribe,
-        claims?.getVersion ?? zero,
-        claims?.getVersion ?? zero,
-    )
-    const owned = block && claims ? values.filter((value) => claims.owns(block, value)) : []
+    }, [block, claims, keysJson])
+    const getOwned = useCallback(() => claims?.ownedBy(block) ?? "", [claims, block])
+    const ownedKeys = useSyncExternalStore(claims?.subscribe ?? noopSubscribe, getOwned, getOwned)
+    const valuesJson = JSON.stringify(values)
+    const owned = useMemo(() => {
+        const keys = new Set(ownedKeys ? ownedKeys.split("\n") : [])
+        return (JSON.parse(valuesJson) as string[]).filter((value) => keys.has(claimKey(value)))
+    }, [ownedKeys, valuesJson])
     return (
         <div ref={setBlock} className="contents">
             {owned.length ? render(owned) : null}
@@ -270,9 +285,8 @@ const ClaimedFollowUps = ({
 }
 
 const noopSubscribe = () => () => undefined
-const zero = () => 0
 
-// Split out so the host hook is called unconditionally, and claims are made only where it renders.
+// Split out so the host hook is called unconditionally, and only claimable values subscribe.
 const ResolvedFollowUps = ({
     useResolver,
     values,
@@ -280,8 +294,11 @@ const ResolvedFollowUps = ({
     useResolver: UseChatMarkdownLinkResolver
     values: string[]
 }) => {
-    const render = useResolver()?.renderFollowUps
-    return render ? <ClaimedFollowUps values={values} render={render} /> : null
+    const link = useResolver()
+    const render = link?.renderFollowUps
+    const claimable = link?.claimsFollowUp
+    const wanted = claimable ? values.filter(claimable) : values
+    return render && wanted.length ? <ClaimedFollowUps values={wanted} render={render} /> : null
 }
 
 /** Follow-ups for one block, only where the host's resolver renders them. */

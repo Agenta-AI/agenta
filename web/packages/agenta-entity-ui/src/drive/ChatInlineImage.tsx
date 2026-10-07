@@ -3,7 +3,7 @@
  * preview (never the full bytes); a tap opens the viewer and Download sits in its corner. The
  * link in the sentence stays and names the file; this is the picture that goes with it.
  */
-import {useMemo, useState, type ReactNode} from "react"
+import {memo, useMemo, useState, type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {mountFileContentQueryFamily} from "@agenta/entities/session"
@@ -65,7 +65,7 @@ function useSvgPreview(file: {mountId: string; path: string}) {
     }
 }
 
-export function ChatInlineImage({candidate}: {candidate: string}) {
+function ChatInlineImageImpl({candidate}: {candidate: string}) {
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId()
     const known = knownFromRecords(useAtomValue(recordIndexAtomFamily(sessionId)), candidate)
@@ -175,9 +175,15 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
     )
 }
 
-/** The previews for one paragraph's mentions: previewable images only, one per file. Spellings
- * that reach the same file (`./a.png`, `/a.png`, `a.png`) collapse on the resolved mount path. */
-function ChatImageFollowUps({values}: {values: string[]}) {
+export const ChatInlineImage = memo(ChatInlineImageImpl)
+
+const isImageMention = (value: string): boolean => {
+    const candidate = fileCandidate(value)
+    return Boolean(candidate && isInlineImage(candidate))
+}
+
+/** One figure per file: `./a.png`, `/a.png` and `a.png` collapse on the resolved mount path. */
+function ChatImageFollowUpsImpl({values}: {values: string[]}) {
     const resolveMount = useMountResolver(useDriveSessionId() ?? "", useDriveArtifactId())
     const byFile = new Map<string, string>()
     for (const value of values) {
@@ -199,8 +205,14 @@ function ChatImageFollowUps({values}: {values: string[]}) {
     )
 }
 
+const ChatImageFollowUps = memo(
+    ChatImageFollowUpsImpl,
+    (a, b) => a.values.join("\n") === b.values.join("\n"),
+)
+
 /** {@link chatFileResolver} plus inline image previews, for an agent's reply. */
 export const chatReplyFileResolver = {
     ...chatFileResolver,
     renderFollowUps: (values: string[]): ReactNode => <ChatImageFollowUps values={values} />,
+    claimsFollowUp: isImageMention,
 }
