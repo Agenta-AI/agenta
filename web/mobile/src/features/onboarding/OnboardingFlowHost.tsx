@@ -13,19 +13,19 @@ import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
-import {capture} from "@/features/analytics/client"
-
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 
-import type {OnboardingCatalog} from "./onboardingChoices"
 import {connectedApps} from "./onboardingApps"
-import {onboardingConfiguration, readInstructionsBlock} from "./onboardingConfig"
+import type {OnboardingCatalog} from "./onboardingChoices"
+import {onboardingConfiguration} from "./onboardingConfig"
 import {onboardingDraftKey, type OnboardingDraft, type OnboardingIconPick} from "./onboardingDraft"
 import {OnboardingFlow, type OnboardingCreateInput} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingPending} from "./onboardingPending"
-import {onboardingStepNumber, type OnboardingStep} from "./onboardingRoute"
+import {stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
+
+import {capture} from "@/features/analytics/client"
 
 /** Answers become person properties only once given, so an empty one never overwrites. */
 const personProperties = ({role, source}: OnboardingDraft) => ({
@@ -68,11 +68,6 @@ export const OnboardingFlowHost = ({
     const connectionsQuery = useToolConnectionsQuery()
     const {connections} = connectionsQuery
     const apps = useMemo(() => connectedApps(connections), [connections])
-    // The instructions the draft was minted with; each Create writes over these, never a retry's.
-    const baseInstructionsRef = useRef<{value: unknown} | null>(null)
-    if (!baseInstructionsRef.current && configuration) {
-        baseInstructionsRef.current = {value: readInstructionsBlock(configuration)}
-    }
     useSeedToolConnections({
         enabled: toolsEnabled && !preview,
         connections,
@@ -108,14 +103,13 @@ export const OnboardingFlowHost = ({
 
     const onStepCompleted = (step: OnboardingStep, draft: OnboardingDraft) =>
         track("onboarding_step_completed", {
-            step: onboardingStepNumber(step),
+            step: stepIndex(step) + 1,
             step_key: step,
             $set: personProperties(draft),
         })
 
     const onCreate = ({
         name,
-        instructions,
         firstMessage,
         icon,
         apps: chosenApps,
@@ -123,16 +117,10 @@ export const OnboardingFlowHost = ({
     }: OnboardingCreateInput) => {
         updateConfiguration(
             entityId,
-            onboardingConfiguration(configuration ?? {}, {
-                instructions,
-                baseInstructions: baseInstructionsRef.current?.value,
-                apps: chosenApps,
-                connections,
-            }),
+            onboardingConfiguration(configuration ?? {}, {apps: chosenApps, connections}),
         )
         track("onboarding_create_clicked")
-        // A template's package brings its own name, instructions, tools, trigger and model; the
-        // tools already on the draft stay, and an empty first message gets the template's own.
+        // A template's package sets its own name, instructions, tools, trigger and model.
         void newAgent.createFromPrompt({
             text: firstMessage,
             name,
@@ -148,7 +136,7 @@ export const OnboardingFlowHost = ({
 
     const onSkip = (step: OnboardingStep) => {
         if (!preview) {
-            capture("onboarding_skipped", {step: onboardingStepNumber(step), step_key: step})
+            capture("onboarding_skipped", {step: stepIndex(step) + 1, step_key: step})
             finish()
         }
         void router.replace(homeUrl)

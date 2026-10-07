@@ -8,9 +8,6 @@ import {
 import {LoadingButton, SkeletonBlock, Textarea} from "@agenta/ui/ui"
 import {LockSimple} from "@phosphor-icons/react"
 
-import {FOCUS_RING} from "@/lib/interactive"
-import {cn} from "@/lib/utils"
-
 import {OnboardingAgentPreview} from "./OnboardingAgentPreview"
 import type {ConnectedApps} from "./onboardingApps"
 import {OnboardingAppsField} from "./OnboardingAppsField"
@@ -21,14 +18,14 @@ import type {OnboardingAgent} from "./onboardingDraft"
 import {onboardingHeadingId} from "./onboardingRoute"
 import {useGlyphPaths} from "./useAgentGlyph"
 
+import {FOCUS_RING} from "@/lib/interactive"
+import {cn} from "@/lib/utils"
+
 const copy = ONBOARDING_COPY.creator
 const LABEL = "text-[13px] font-medium leading-[18px]"
 const SURFACE = "bg-background ring-foreground/10 shadow-xs ring-1"
 
-/**
- * A picked template, reviewed before it is created: its own name and instructions shown as set,
- * its face, apps and first message chosen here, beside a live preview of the agent.
- */
+/** A picked template reviewed before Create, beside a live preview. */
 export const OnboardingCreator = ({
     agent,
     template,
@@ -108,7 +105,10 @@ export const OnboardingCreator = ({
                                             "inline-flex h-9 cursor-pointer items-center justify-center rounded-lg border-0 p-0 transition-colors",
                                             FOCUS_RING,
                                             active
-                                                ? cn(AGENT_ICON_CHIP_CLASS, "ring-foreground ring-[1.5px]")
+                                                ? cn(
+                                                      AGENT_ICON_CHIP_CLASS,
+                                                      "ring-foreground ring-[1.5px]",
+                                                  )
                                                 : "text-foreground hover:bg-accent bg-transparent",
                                         )}
                                     >
@@ -209,11 +209,8 @@ export const OnboardingCreator = ({
             </div>
             <div className="sticky top-24 max-md:hidden">
                 <OnboardingAgentPreview
-                    agent={
-                        template
-                            ? {...agent, name: template.name, instructions: template.instructions}
-                            : agent
-                    }
+                    agent={template ? {...agent, name: template.name} : agent}
+                    brief={template?.instructions ?? ""}
                     connected={connectedApps}
                 />
             </div>

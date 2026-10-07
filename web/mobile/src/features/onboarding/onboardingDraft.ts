@@ -23,7 +23,6 @@ export interface OnboardingIconPick {
 export interface OnboardingAgent {
     name: string
     icon: OnboardingIconPick
-    instructions: string
     /** Tool integration keys the user chose; only connected ones join the agent. */
     apps: string[]
     firstMessage: string
@@ -47,7 +46,6 @@ export const ONBOARDING_TEXT_MAX = 10000
 export const BLANK_AGENT: OnboardingAgent = {
     name: "",
     icon: {icon: DEFAULT_AGENT_ICON.icon, color: DEFAULT_AGENT_ICON.color},
-    instructions: "",
     apps: [],
     firstMessage: "",
 }
@@ -68,7 +66,6 @@ export const agentFromTemplate = (
 ): OnboardingAgent => ({
     name: template.name,
     icon: {icon: templateGlyph(template), color: template.color},
-    instructions: "",
     apps: [...apps],
     firstMessage: "",
 })
@@ -119,7 +116,6 @@ export const onboardingReducer = (
                 agent: {
                     ...agent,
                     name: agent.name.slice(0, ONBOARDING_NAME_MAX),
-                    instructions: agent.instructions.slice(0, ONBOARDING_TEXT_MAX),
                     firstMessage: agent.firstMessage.slice(0, ONBOARDING_TEXT_MAX),
                 },
             }
@@ -142,16 +138,12 @@ export const FIRST_AGENT_FALLBACK_NAME = "My first agent"
 
 export interface FirstAgentInput {
     name: string
-    instructions: string
     firstMessage: string
     /** The template whose package Create loads; `null` for a blank start. */
     templateKey: string | null
 }
 
-/**
- * What Create commits. A template creates from its own package, so it needs only to have loaded;
- * a blank start needs instructions or a first message to have anything to do.
- */
+/** What Create commits: a loaded template, or a blank start with a first message. */
 export const firstAgentInput = (
     {templateKey, agent}: Pick<OnboardingDraft, "templateKey" | "agent">,
     template: AgentStarterTemplate | null,
@@ -159,16 +151,11 @@ export const firstAgentInput = (
     const firstMessage = agent.firstMessage.trim()
     if (templateKey) {
         return template?.key === templateKey
-            ? {name: template.name, instructions: "", firstMessage, templateKey}
+            ? {name: template.name, firstMessage, templateKey}
             : null
     }
-    const input = {
-        name: agent.name.trim() || FIRST_AGENT_FALLBACK_NAME,
-        instructions: agent.instructions.trim(),
-        firstMessage,
-        templateKey: null,
-    }
-    return input.instructions || input.firstMessage ? input : null
+    if (!firstMessage) return null
+    return {name: agent.name.trim() || FIRST_AGENT_FALLBACK_NAME, firstMessage, templateKey: null}
 }
 
 /** Per user: a preview on any project resumes the same answers. */
@@ -184,7 +171,6 @@ const draftSchema = z.object({
     agent: z.object({
         name: z.string().max(ONBOARDING_NAME_MAX),
         icon: iconSchema,
-        instructions: z.string().max(ONBOARDING_TEXT_MAX),
         apps: z.array(z.string().min(1)),
         firstMessage: z.string().max(ONBOARDING_TEXT_MAX),
     }),

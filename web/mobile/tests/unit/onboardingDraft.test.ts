@@ -88,7 +88,6 @@ describe("onboarding answers", () => {
         expect(filled.agent).toEqual({
             name: "PR reviewer",
             icon: {icon: "code", color: "#123456"},
-            instructions: "",
             apps: ["github"],
             firstMessage: "",
         })
@@ -125,7 +124,7 @@ describe("onboarding answers", () => {
 })
 
 describe("first agent input", () => {
-    it("needs instructions or a first message on a blank start, and names it", () => {
+    it("needs a first message on a blank start, and names it", () => {
         const blank = (agent: Partial<typeof BLANK_AGENT>) => ({
             templateKey: null,
             agent: {...BLANK_AGENT, ...agent},
@@ -133,13 +132,14 @@ describe("first agent input", () => {
         expect(firstAgentInput(blank({name: "Atlas"}), null)).toBeNull()
         expect(firstAgentInput(blank({firstMessage: " Plan my week "}), null)).toEqual({
             name: "My first agent",
-            instructions: "",
             firstMessage: "Plan my week",
             templateKey: null,
         })
-        expect(
-            firstAgentInput(blank({name: " Atlas ", instructions: " Be brief. "}), null),
-        ).toEqual({name: "Atlas", instructions: "Be brief.", firstMessage: "", templateKey: null})
+        expect(firstAgentInput(blank({name: " Atlas ", firstMessage: "Hi"}), null)).toEqual({
+            name: "Atlas",
+            firstMessage: "Hi",
+            templateKey: null,
+        })
     })
 
     it("creates a template from its own name once the catalog has it", () => {
@@ -147,7 +147,6 @@ describe("first agent input", () => {
         expect(firstAgentInput(picked, null)).toBeNull()
         expect(firstAgentInput(picked, template("review", "Engineering", "PR reviewer"))).toEqual({
             name: "PR reviewer",
-            instructions: "",
             firstMessage: "",
             templateKey: "review",
         })
