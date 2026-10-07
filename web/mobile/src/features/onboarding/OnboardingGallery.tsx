@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import type {AgentStarterTemplate} from "@agenta/entities/workflow"
+import {templateCategories, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {Plus} from "@phosphor-icons/react"
 
 import {FOCUS_RING} from "@/lib/interactive"
@@ -8,7 +8,6 @@ import {cn} from "@/lib/utils"
 
 import {
     ALL,
-    galleryCategories,
     galleryTemplates,
     RECOMMENDED,
     type GalleryCategory,
@@ -52,7 +51,7 @@ export const OnboardingGallery = ({
     const chips = useMemo(
         () => [
             {id: RECOMMENDED, label: copy.recommended},
-            ...galleryCategories(catalog.templates).map((item) => ({id: item, label: item})),
+            ...templateCategories(catalog.templates).map((item) => ({id: item, label: item})),
             {id: ALL, label: copy.all},
         ],
         [catalog.templates],
