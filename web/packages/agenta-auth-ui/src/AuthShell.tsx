@@ -49,7 +49,7 @@ export const AuthShell = ({
         {displayFontUrl && (
             <style>{`@font-face{font-family:"Agenta Display";src:url("${cssUrl(displayFontUrl)}");font-weight:300;font-display:swap;}`}</style>
         )}
-        <section className="relative z-[1] flex w-full flex-col overflow-y-auto [scrollbar-width:none] lg:w-[min(560px,46%)] lg:shrink-0">
+        <section className="relative z-[1] flex w-full flex-col overflow-y-auto [scrollbar-width:none] lg:w-1/2 lg:shrink-0">
             {header ? (
                 <div className={`absolute left-0 top-0 px-6 pt-7 sm:px-9 ${headerClassName ?? ""}`}>
                     {header}
