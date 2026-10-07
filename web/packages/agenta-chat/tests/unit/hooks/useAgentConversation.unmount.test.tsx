@@ -124,8 +124,7 @@ describe.each([
         // Fresh: the hydration and revalidate-on-open effects stay out of the way, so every
         // adoption below is one this test asked for.
         markSessionFresh(sessionId)
-        // A durable send whose turn the runner has accepted. It leaves `localRenderBusyRef` false,
-        // because a shared turn is not a stream this client renders, so adoption stays open.
+        // An accepted shared turn: no local stream, so adoption stays open.
         acceptedRunBySession.set(sessionId, "turn-1")
 
         const first = mountConversation(store, sessionId)
@@ -148,8 +147,7 @@ describe.each([
         // The user leaves the session view mid-stream.
         first.unmount()
 
-        // ...and comes back. The accepted run's stream had closed, so nothing was preserved: the
-        // new mount starts from its own seed, and the stale read must still not reach it.
+        // ...and comes back to a fresh chat, since a closed stream is not preserved.
         const second = mountConversation(store, sessionId)
         expect(second.result.current.messages).toHaveLength(0)
         await act(async () => {
