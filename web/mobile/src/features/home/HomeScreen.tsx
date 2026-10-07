@@ -23,7 +23,7 @@ import {useCurrentProject} from "../context/useCurrentProject"
 import {whatsNewAtom} from "../education/whatsNewAtom"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
-import {ONBOARDING_PREVIEW_PARAM, parseOnboardingVariant} from "../onboarding/onboardingChoices"
+import {ONBOARDING_PREVIEW_PARAM} from "../onboarding/onboardingChoices"
 import {OnboardingFlowScreen} from "../onboarding/OnboardingFlowScreen"
 
 import {resolveHomeSurface} from "./homeSurface"
@@ -67,7 +67,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         if (hasAgents && unseen.length > 0 && !isWhatsNewOptedOut()) openWhatsNew({})
     }, [agentsSettled, hasAgents, openWhatsNew])
     const router = useRouter()
-    const previewVariant = parseOnboardingVariant(router.query[ONBOARDING_PREVIEW_PARAM])
+    const onboardingPreview = router.query[ONBOARDING_PREVIEW_PARAM] !== undefined
     // The project the flow has been shown for; it stays up until this route is left.
     const [onboardingProject, setOnboardingProject] = useState<string | null>(null)
     const surface = resolveHomeSurface({
@@ -75,7 +75,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         isPending: agentsQuery.isPending,
         isError: agentsQuery.isError,
         onboardingFlow: isOnboardingFlowEnabled(),
-        onboardingPreview: previewVariant !== null,
+        onboardingPreview,
         onboardingShown: onboardingProject === projectId,
     })
     if (surface === "onboarding" && onboardingProject !== projectId) setOnboardingProject(projectId)
@@ -102,7 +102,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             <OnboardingFlowScreen
                 workspaceId={workspaceId}
                 projectId={projectId}
-                previewVariant={previewVariant}
+                preview={onboardingPreview}
             />
         )
     }

@@ -24,7 +24,7 @@ export interface HomeSurfaceInput {
     isError: boolean
     /** The guided first-agent flow replaces an empty project's Home. */
     onboardingFlow: boolean
-    /** A `?onboarding-variant=` preview opens the flow on any project. */
+    /** A `?onboarding-preview` visit opens the flow on any project. */
     onboardingPreview: boolean
     /** The flow is already on screen; a list refetch (the create itself) must not swap it out. */
     onboardingShown: boolean

@@ -20,27 +20,40 @@ import {
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {useWalletSummary} from "../wallet/useWalletSummary"
+import {formatCredits} from "../wallet/walletFormat"
+
 import {ONBOARDING_COPY} from "./onboardingCopy"
 
 /** Picks the candidate a pending switch is waiting for, once the candidate list has it. */
 type PendingSwitch = (candidates: readonly AgentModelCandidate[]) => AgentModelCandidate | undefined
 
+/** The Vault slug of the budget-capped connection a new organization is seeded with. */
+const STARTER_CREDITS_SLUG = "starter-credits"
+
 export interface OnboardingModel {
     status: "loading" | "error" | "ready"
-    /** A runnable model is selected, so the flow may continue. */
+    /** A runnable model is selected, so Create can run the agent. */
     ready: boolean
-    nextLabel: string
-    managed: boolean
-    noneAvailable: boolean
+    /** Agenta-funded runs: the starter-credits connection, built-in models, or the wallet. */
+    credits: {
+        inUse: boolean
+        /** Some model runs on these credits. */
+        runnable: boolean
+        /** Spendable wallet credits, formatted; `null` where the wallet reports no balance. */
+        balance: string | null
+    } | null
     chatgpt: {
         available: boolean
         connection: ProviderConnection | null
         ready: boolean
+        inUse: boolean
         dialogOpen: boolean
         setDialogOpen: (open: boolean) => void
     }
     keys: {
         connections: ProviderConnection[]
+        inUse: boolean
         drawerOpen: boolean
         openDrawer: () => void
         closeDrawer: () => void
@@ -61,9 +74,9 @@ const configuredSelection = (configuration: unknown): AgentModelSelection | null
 
 /**
  * The model the first agent runs on. There is no picker: credits win by default, a ChatGPT
- * sign-in or a key saved here takes over, and the first available candidate is the fallback.
+ * sign-in or a key saved during onboarding takes over, and the first candidate is the fallback.
  */
-export const useOnboardingModel = (entityId: string): OnboardingModel => {
+export const useOnboardingModel = (entityId: string, projectId: string): OnboardingModel => {
     const candidates = useAtomValue(agentModelCandidatesAtomFamily(true))
     const configuration = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
@@ -71,6 +84,7 @@ export const useOnboardingModel = (entityId: string): OnboardingModel => {
     const updateConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const allConnections = useAtomValue(providerConnectionsAtom)
     const {mutate: refreshVault} = useVaultSecret()
+    const wallet = useWalletSummary(projectId).data
 
     const selection = useMemo(() => configuredSelection(configuration), [configuration])
     const runnable = agentModelSelectionIsRunnable(candidates.candidates, selection)
@@ -78,7 +92,14 @@ export const useOnboardingModel = (entityId: string): OnboardingModel => {
         ? (resolveAgentModelSelection({candidates: candidates.candidates, explicit: selection}) ??
           undefined)
         : undefined
-    const managed = candidates.candidates.find((item) => item.managed)
+    const creditsConnection =
+        allConnections.find((item) => item.slug === STARTER_CREDITS_SLUG) ?? null
+    const creditsId = creditsConnection?.id
+    const isCredits = useCallback(
+        (item: AgentModelCandidate | undefined) =>
+            item?.namespace === "builtin" || (Boolean(creditsId) && item?.connectionKey === creditsId),
+        [creditsId],
+    )
     const chatgptConnection = candidates.connections.find((item) => item.subscription) ?? null
     const chatgptReady = chatgptConnection?.subscription?.loginState === "ready"
 
@@ -99,9 +120,11 @@ export const useOnboardingModel = (entityId: string): OnboardingModel => {
     // `configuration` re-runs the pick when the config lands after the candidates did.
     useEffect(() => {
         if (candidates.status !== "ready" || selected || !configuration) return
-        const preferred = resolveAgentModelSelection({candidates: candidates.candidates})
+        const preferred =
+            candidates.candidates.find(isCredits) ??
+            resolveAgentModelSelection({candidates: candidates.candidates})
         if (preferred) select(preferred)
-    }, [candidates.status, candidates.candidates, configuration, selected, select])
+    }, [candidates.status, candidates.candidates, configuration, selected, select, isCredits])
 
     const candidatesRef = useRef(candidates.candidates)
     candidatesRef.current = candidates.candidates
@@ -157,27 +180,35 @@ export const useOnboardingModel = (entityId: string): OnboardingModel => {
         void refreshVault()
     }, [arm, refreshVault])
 
-    const nextLabel = selected?.managed
-        ? ONBOARDING_COPY.model.nextWithCredits
-        : selected?.harness === "codex"
-          ? ONBOARDING_COPY.model.nextWithChatgpt
-          : ONBOARDING_COPY.model.nextWithKey
+    const keyConnections = candidates.connections.filter((item) => !item.subscription)
+    const walletBalance =
+        wallet?.mode === "enforce" && wallet.spendable_musd !== null
+            ? formatCredits(Math.max(0, wallet.spendable_musd))
+            : null
+    const creditsRunnable = candidates.candidates.some(isCredits)
+    const hasCredits = Boolean(creditsConnection) || creditsRunnable || wallet?.mode === "enforce"
 
     return {
         status: candidates.status,
         ready: candidates.status === "ready" && Boolean(selected),
-        nextLabel,
-        managed: Boolean(managed),
-        noneAvailable: candidates.status === "ready" && candidates.candidates.length === 0,
+        credits: hasCredits
+            ? {inUse: isCredits(selected), runnable: creditsRunnable, balance: walletBalance}
+            : null,
         chatgpt: {
             available: Boolean(chatgptConnection || candidates.capabilities?.codex),
             connection: chatgptConnection,
             ready: chatgptReady,
+            inUse:
+                selected?.source === "subscription" ||
+                (Boolean(chatgptConnection) && selected?.connectionKey === chatgptConnection?.id),
             dialogOpen: chatgptDialogOpen,
             setDialogOpen: setChatgptDialogOpen,
         },
         keys: {
-            connections: candidates.connections.filter((item) => !item.subscription),
+            connections: keyConnections,
+            inUse: keyConnections.some(
+                (item) => item.id === selected?.connectionKey && item.id !== creditsConnection?.id,
+            ),
             drawerOpen,
             openDrawer,
             closeDrawer: () => setDrawerOpen(false),
