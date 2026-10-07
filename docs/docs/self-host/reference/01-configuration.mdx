@@ -329,7 +329,14 @@ agentRunner:
   providers:
     enabled: [daytona]
     default: daytona
+    daytona:
+      apiKeySecretRef:
+        name: agenta-runner-daytona
+        key: api-key
 ```
+
+The Secret named in `apiKeySecretRef` holds your Daytona API key. The chart injects it as
+`AGENTA_RUNNER_DAYTONA_API_KEY`. The runner needs it when Daytona is enabled.
 
 `agentRunner.providers.enabled` and `agentRunner.providers.default` accept `local`, `daytona` and
 `inprocess`. The chart sets the replica id to the pod name; there is no value to set.
