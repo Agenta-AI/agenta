@@ -15,7 +15,10 @@ vi.mock("../../src/features/wallet/useWalletSummary", () => ({
     useWalletSummary: () => ({data: {mode: "enforce"}}),
 }))
 
-import {useActiveSettingsTab} from "../../src/features/settings/settingsTabs"
+import {
+    DEFAULT_MOBILE_SETTINGS_TAB,
+    useActiveSettingsTab,
+} from "../../src/features/settings/settingsTabs"
 
 beforeEach(() => {
     env.ee = true
@@ -28,11 +31,11 @@ describe("wallet settings tabs behind a deep link", () => {
     })
 
     it.each(["credits", "walletUsage"])(
-        "fall back to preferences for %s on OSS, even with the wallet flag on",
+        "fall back to the default tab for %s on OSS, even with the wallet flag on",
         (tab) => {
             env.ee = false
             env.path = `/settings?tab=${tab}`
-            expect(useActiveSettingsTab()).toBe("preferences")
+            expect(useActiveSettingsTab()).toBe(DEFAULT_MOBILE_SETTINGS_TAB)
         },
     )
 })

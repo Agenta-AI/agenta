@@ -18,6 +18,7 @@ import {CaretRight} from "@phosphor-icons/react"
 
 import {SERIES_COLORS, analyticsColor} from "../colors"
 import {
+    SPLIT_KEYS,
     useAnalyticsSplit,
     type AnalyticsTools,
     type AnalyticsWindowData,
@@ -26,6 +27,13 @@ import {
 
 const LIMIT = 8
 const OTHER = "__other"
+
+/**
+ * How many keys the table splits. Show all is capped at SPLIT_KEYS because the split costs
+ * one request per key; keys past the cap fold into the "Other (N)" row.
+ */
+export const breakdownLimit = (showAll: boolean, keys: number): number =>
+    showAll ? Math.min(keys, SPLIT_KEYS) : Math.min(keys, LIMIT)
 
 interface RunRow {
     key: string
@@ -114,8 +122,7 @@ const RunTable = ({
     const failed = dim === "agent" ? data.agentFailed : data.modelFailed
     const order = dim === "agent" ? data.agentOrder : data.modelOrder
     const [showAll, setShowAll] = useState(false)
-    // Show all asks for every key, so nothing is left behind as "Other".
-    const limit = showAll ? order.length : LIMIT
+    const limit = breakdownLimit(showAll, order.length)
     const top = useMemo(() => order.slice(0, limit), [order, limit])
     const split = useAnalyticsSplit(dim, top, window, filters, true, focus)
     const totals = data.overview.totals
@@ -249,7 +256,11 @@ const RunTable = ({
                     onClick={() => setShowAll(!showAll)}
                     className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-xs text-muted-foreground hover:text-foreground"
                 >
-                    {showAll ? `Show top ${LIMIT}` : `Show all ${order.length}`}
+                    {showAll
+                        ? `Show top ${LIMIT}`
+                        : order.length > SPLIT_KEYS
+                          ? `Show top ${SPLIT_KEYS}`
+                          : `Show all ${order.length}`}
                 </button>
             ) : null}
         </div>

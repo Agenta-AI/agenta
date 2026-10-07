@@ -12,7 +12,7 @@ import {
     SAVE_AS_TEMPLATE_MESSAGE,
     SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
 } from "@agenta/entities/workflow"
-import {atom, createStore, Provider} from "jotai"
+import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -22,10 +22,14 @@ import {pendingTasksAtom, takePendingTaskAtom} from "../../src/features/home/pen
 
 const openHub = vi.fn()
 
-vi.mock("@agenta/entities/workflow", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
-    agentWorkflowsListQueryStateAtom: atom({data: []}),
-}))
+// The factory is hoisted above the imports, so it loads jotai itself.
+vi.mock("@agenta/entities/workflow", async (importOriginal) => {
+    const {atom: mockAtom} = await import("jotai")
+    return {
+        ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
+        agentWorkflowsListQueryStateAtom: mockAtom({data: []}),
+    }
+})
 
 vi.mock("../../src/features/agents/useAgentPublishPanel", () => ({
     useAgentPublishPanel: () => ({openHub, panel: null}),

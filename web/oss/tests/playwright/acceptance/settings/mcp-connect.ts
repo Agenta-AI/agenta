@@ -83,8 +83,23 @@ const openSettings = async (page: Page, basePath: string) => {
     settingsWarmed = true
 }
 
+/**
+ * One connection's row, by the name it shows.
+ *
+ * The list is not a table. Each row is an element with role `button`, because a click opens
+ * the connection, and its accessible name is its cells read in order. So a row is the button
+ * that holds its own "Server actions" menu and this name. The menu tells a row apart from any
+ * other button on the page, and the name is unique to the case.
+ */
 const connectionRow = (page: Page, name: string) =>
-    page.locator("tr").filter({hasText: name}).first()
+    page
+        .getByRole("button")
+        .filter({has: page.getByRole("button", {name: "Server actions"})})
+        .filter({hasText: name})
+
+/** A row's action menu, by the name it gives itself. */
+const rowMenu = (page: Page, name: string) =>
+    connectionRow(page, name).getByRole("button", {name: "Server actions"})
 
 /** Open the journey from the settings header and drive it to the name step. */
 const startJourney = async (page: Page, url: string, name: string) => {
@@ -341,8 +356,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         })
 
         await scenarios.when("the user removes it", async () => {
-            const row = connectionRow(page, name)
-            await row.getByRole("button").last().click()
+            await rowMenu(page, name).click()
             await page.getByRole("menuitem", {name: "Remove"}).click()
             // Removing takes the identity with it, which is why it confirms.
             await page
@@ -352,7 +366,21 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         })
 
         await scenarios.then("the connection is gone from the list", async () => {
+            // The confirmation has to be gone first. A modal hides the rest of the page from
+            // the accessibility tree while it is open or closing, and a row query run then
+            // finds nothing whether or not the row is still there.
+            await expect(page.getByRole("dialog")).toHaveCount(0, {timeout: 30000})
             await expect(connectionRow(page, name)).toHaveCount(0, {timeout: 30000})
+            await expect(page.getByText(name, {exact: true})).toHaveCount(0)
+
+            // And the project no longer has it, which the list alone cannot prove.
+            const response = await page.request.post(
+                `${apiBaseUrl()}/gateways/mcps/endpoints/query?project_id=${projectIdFrom(basePath)}`,
+                {data: {}},
+            )
+            expect(response.ok(), await response.text()).toBe(true)
+            const body = (await response.json()) as {endpoints: {name?: string}[]}
+            expect(body.endpoints.filter((row) => row.name === name)).toHaveLength(0)
         })
 
         await scenarios.and("a server needing no authentication offers no Disconnect", async () => {
@@ -363,7 +391,9 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await dialog.getByRole("button", {name: "Connect", exact: true}).click()
             const row = connectionRow(page, other)
             await finishJourney(page, row.getByText("Connected", {exact: true}))
-            await row.getByRole("button").last().click()
+            await rowMenu(page, other).click()
+            // The menu is open, so the missing item is missing and not merely not drawn yet.
+            await expect(page.getByRole("menuitem", {name: "Remove"})).toBeVisible()
             await expect(page.getByRole("menuitem", {name: "Disconnect"})).toHaveCount(0)
             await page.keyboard.press("Escape")
         })
@@ -493,8 +523,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         })
 
         await scenarios.when("the user disconnects it", async () => {
-            const row = connectionRow(page, name)
-            await row.getByRole("button").last().click()
+            await rowMenu(page, name).click()
             await page.getByRole("menuitem", {name: "Disconnect"}).click()
             await page
                 .getByRole("button", {name: /Yes|Disconnect|Confirm/})
