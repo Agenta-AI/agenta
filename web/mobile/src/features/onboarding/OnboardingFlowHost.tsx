@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import {useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {
     agentIconAtomFamily,
@@ -13,6 +14,9 @@ import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
+import {capture} from "@/features/analytics/client"
+import {newId} from "@/lib/ids"
+
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 
 import {connectedApps} from "./onboardingApps"
@@ -25,8 +29,6 @@ import {personProperties} from "./onboardingQuestions"
 import {onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
-
-import {capture} from "@/features/analytics/client"
 
 /** Wires the flow to the draft agent, the catalog, analytics, and the shared create path. */
 export const OnboardingFlowHost = ({
@@ -76,6 +78,9 @@ export const OnboardingFlowHost = ({
         loaded: !connectionsQuery.isLoading && !connectionsQuery.error,
     })
     const newAgent = useNewAgentAction(base)
+    // Files stage against a session id before the agent exists, as on Home.
+    const [sessionId] = useState(newId)
+    const attachments = useComposerAttachments({sessionId})
     const store = useStore()
     const draftKey = onboardingDraftKey(userId ?? "anonymous")
     const finish = () => {
@@ -110,7 +115,7 @@ export const OnboardingFlowHost = ({
             $set: personProperties(draft.answers),
         })
 
-    const onCreate = ({
+    const onCreate = async ({
         name,
         firstMessage,
         icon,
@@ -122,18 +127,26 @@ export const OnboardingFlowHost = ({
             onboardingConfiguration(configuration ?? {}, {apps: chosenApps, connections}),
         )
         track("onboarding_create_clicked")
+        const staged = attachments.files
+        const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
+        // Cleared before the hand-off: the chat route seeds its tray from this session's store.
+        attachments.clearAttachments(staged.map((file) => file.uid))
         // A template's package sets its own name, instructions, tools, trigger and model.
-        void newAgent.createFromPrompt({
+        const created = await newAgent.createFromPrompt({
             text: firstMessage,
             name,
             entityId,
             templateKey: templateKey ?? undefined,
+            sessionId,
+            parts,
             onCreated: (agent) => {
                 finish()
                 track("onboarding_agent_created", {revision_id: agent.revisionId})
                 void applyIcon(agent.appId, icon).catch(() => undefined)
             },
         })
+        if (!created) attachments.restoreAttachments(staged)
+        return created
     }
 
     const onSkip = (step: OnboardingStep) => {
@@ -155,6 +168,7 @@ export const OnboardingFlowHost = ({
             toolsEnabled={toolsEnabled}
             creating={newAgent.creating}
             error={newAgent.error}
+            attachments={attachments}
             onStepCompleted={onStepCompleted}
             onCreate={onCreate}
             onSkip={onSkip}

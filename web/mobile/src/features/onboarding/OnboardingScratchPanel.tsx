@@ -4,13 +4,14 @@ import {
     AgentIcon,
     agentIconChipStyle,
 } from "@agenta/ui/agent-icon"
-import {Input, LoadingButton, Textarea} from "@agenta/ui/ui"
+import {Input} from "@agenta/ui/ui"
 
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
 
 import {OnboardingAgentChip} from "./OnboardingAgentChip"
 import {FIRST_MESSAGE_STARTERS, ICON_CHOICES} from "./onboardingChoices"
+import {OnboardingComposer} from "./OnboardingComposer"
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
 import {ONBOARDING_NAME_MAX, type OnboardingAgent} from "./onboardingDraft"
@@ -19,7 +20,7 @@ import {useGlyphPaths} from "./useAgentGlyph"
 
 const copy = ONBOARDING_COPY.creator
 
-/** The blank start, built where a template's panel would be: face, name, first message, Create. */
+/** The blank start, built where a template's panel would be: face, name, and a first message that creates. */
 export const OnboardingScratchPanel = ({
     agent,
     onChange,
@@ -31,23 +32,6 @@ export const OnboardingScratchPanel = ({
 }) => {
     const glyphs = useGlyphPaths()
     const {icon, color} = agent.icon
-    const status = create.error ? (
-        <span role="alert" className="text-destructive text-xs">
-            {create.error}
-        </span>
-    ) : !create.modelReady ? (
-        <span className="text-muted-foreground text-xs">
-            {copy.modelMissing}{" "}
-            <button
-                type="button"
-                onClick={create.onChooseModel}
-                className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline"
-            >
-                {copy.modelMissingAction}
-            </button>
-        </span>
-    ) : null
-
     return (
         <section
             aria-label={ONBOARDING_COPY.gallery.scratch}
@@ -55,7 +39,11 @@ export const OnboardingScratchPanel = ({
         >
             <div className="flex min-w-0 flex-col gap-2.5 p-3">
                 <div className="flex min-w-0 items-center gap-2.5">
-                    <OnboardingAgentChip icon={agent.icon} size={16} className="size-7 rounded-md" />
+                    <OnboardingAgentChip
+                        icon={agent.icon}
+                        size={16}
+                        className="size-7 rounded-md"
+                    />
                     <span aria-hidden className="bg-border h-5 w-px shrink-0" />
                     <div
                         role="group"
@@ -104,7 +92,10 @@ export const OnboardingScratchPanel = ({
                             className="border-foreground/10 size-5 shrink-0 cursor-pointer rounded-full border border-solid p-0 outline-offset-2"
                         />
                     ))}
-                    <span aria-hidden className="bg-border mx-1 h-3.5 w-px shrink-0 max-sm:hidden" />
+                    <span
+                        aria-hidden
+                        className="bg-border mx-1 h-3.5 w-px shrink-0 max-sm:hidden"
+                    />
                     <OnboardingHueSlider
                         className="max-sm:mt-2 max-sm:basis-full"
                         color={color}
@@ -123,49 +114,16 @@ export const OnboardingScratchPanel = ({
                     className="bg-background h-9"
                 />
                 <div className="flex flex-col gap-1.5">
-                    <span className="text-[13px] font-medium leading-[18px]">{copy.firstMessage}</span>
-                    <div className="flex items-stretch gap-2 max-sm:flex-col">
-                        <Textarea
-                            aria-label={copy.firstMessage}
-                            rows={5}
-                            value={agent.firstMessage}
-                            placeholder={copy.firstMessagePlaceholder}
-                            onChange={(event) => onChange({firstMessage: event.target.value})}
-                            className="bg-background min-h-[120px] min-w-0 flex-1 resize-none"
-                        />
-                        <div
-                            role="group"
-                            aria-label={copy.starters}
-                            className="flex shrink-0 gap-1 [scrollbar-width:none] max-sm:-mx-3 max-sm:overflow-x-auto max-sm:px-3 sm:h-[120px] sm:w-[44%] sm:max-w-60 sm:flex-col sm:overflow-y-auto sm:pb-4 sm:[mask-image:linear-gradient(180deg,#000_0,#000_calc(100%-16px),transparent_100%)] [&::-webkit-scrollbar]:hidden"
-                        >
-                            {FIRST_MESSAGE_STARTERS.map((text) => (
-                                <button
-                                    type="button"
-                                    key={text}
-                                    onClick={() => onChange({firstMessage: text})}
-                                    className={cn(
-                                        "bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground min-h-7 shrink-0 cursor-pointer rounded-md border-0 px-2 py-[5px] text-left text-xs leading-4 max-sm:whitespace-nowrap sm:w-full",
-                                        FOCUS_RING,
-                                    )}
-                                >
-                                    {text}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                    <span className="text-[13px] font-medium leading-[18px]">
+                        {copy.firstMessage}
+                    </span>
+                    <OnboardingComposer
+                        message={agent.firstMessage}
+                        onMessage={(firstMessage) => onChange({firstMessage})}
+                        create={create}
+                        starters={FIRST_MESSAGE_STARTERS}
+                    />
                 </div>
-            </div>
-            <div className="flex flex-col gap-2 px-3 pb-3 pt-1 sm:flex-row sm:items-center sm:justify-end">
-                {status ? <div className="sm:mr-auto">{status}</div> : null}
-                <LoadingButton
-                    size="sm"
-                    className="max-sm:h-10 max-sm:w-full"
-                    loading={create.creating}
-                    disabled={!create.modelReady || !create.complete}
-                    onClick={create.onCreate}
-                >
-                    {create.creating ? copy.creating : copy.create}
-                </LoadingButton>
             </div>
         </section>
     )

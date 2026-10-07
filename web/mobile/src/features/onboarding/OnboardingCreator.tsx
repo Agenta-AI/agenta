@@ -8,6 +8,9 @@ import {
 import {LoadingButton, SkeletonBlock, Textarea} from "@agenta/ui/ui"
 import {LockSimple} from "@phosphor-icons/react"
 
+import {FOCUS_RING} from "@/lib/interactive"
+import {cn} from "@/lib/utils"
+
 import {OnboardingAgentPreview} from "./OnboardingAgentPreview"
 import type {ConnectedApps} from "./onboardingApps"
 import {OnboardingAppsField} from "./OnboardingAppsField"
@@ -17,9 +20,6 @@ import type {OnboardingCreateState} from "./OnboardingCreateState"
 import type {OnboardingAgent} from "./onboardingDraft"
 import {onboardingHeadingId} from "./onboardingRoute"
 import {useGlyphPaths} from "./useAgentGlyph"
-
-import {FOCUS_RING} from "@/lib/interactive"
-import {cn} from "@/lib/utils"
 
 const copy = ONBOARDING_COPY.creator
 const LABEL = "text-[13px] font-medium leading-[18px]"
@@ -199,8 +199,8 @@ export const OnboardingCreator = ({
                     ) : null}
                     <LoadingButton
                         loading={create.creating}
-                        disabled={!create.modelReady || !create.complete}
-                        onClick={create.onCreate}
+                        disabled={!create.modelReady || !template}
+                        onClick={() => void create.onCreate(agent.firstMessage)}
                         className="bg-hero-action text-hero-action-foreground hover:bg-hero-action-hover h-12 w-full rounded-lg text-[15px] font-medium"
                     >
                         {create.creating ? copy.creating : copy.create}
