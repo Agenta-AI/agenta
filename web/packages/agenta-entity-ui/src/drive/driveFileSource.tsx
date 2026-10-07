@@ -64,7 +64,7 @@ const remoteBytesQueryFamily = ({src, as}: {src: string; as: "blob" | "text"}) =
 const useRemoteBytes = (local: LocalDriveFile | null, as: "blob" | "text") =>
     useAtomValue(remoteBytesQueryFamily({src: local && !local.file ? local.src : "", as}))
 
-/** An object URL for `blob`, minted in an effect so a strict-mode remount never keeps a revoked one. */
+/** An object URL for `blob`, minted in an effect so strict mode never keeps a revoked one. */
 export function useObjectUrl(blob: Blob | null): string | null {
     const [minted, setMinted] = useState<{blob: Blob; url: string} | null>(null)
     useEffect(() => {
@@ -76,9 +76,7 @@ export function useObjectUrl(blob: Blob | null): string | null {
     return minted && minted.blob === blob ? minted.url : null
 }
 
-/** A remote source's bytes as an object URL; a null `src` fetches nothing. Media plays from the
- * blob because the attachments endpoint ignores `Range`, and an `<audio>` or `<video>` pointed at
- * it never gets its metadata. */
+/** A remote source's bytes as an object URL; media plays from it (the endpoint ignores Range). */
 export function useRemoteObjectUrl(src: string | null): {
     url: string | null
     isPending: boolean
@@ -94,8 +92,7 @@ export function useRemoteObjectUrl(src: string | null): {
     }
 }
 
-/** Streaming media source (image / audio / video): the local file's URL, a remote source's
- * fetched bytes, or mount media. */
+/** Media source: a local file's URL, a remote source's fetched bytes, or mount media. */
 export function useDriveMediaSrc(
     mount: Mount | null,
     path: string,
@@ -128,8 +125,7 @@ export function useDriveMediaSrc(
     }
 }
 
-/** Object URL for a downloadable preview (PDF). A remote source is fetched: its endpoint may send
- * `Content-Disposition: attachment`, which an `<embed>` obeys. */
+/** Object URL for a PDF; a remote one is fetched, as `<embed>` obeys its attachment header. */
 export function useDriveObjectUrl(
     mount: Mount | null,
     path: string,

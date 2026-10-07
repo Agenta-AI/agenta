@@ -119,8 +119,7 @@ const VideoTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
     )
 }
 
-/** Plays in place, as it did on the card; the rest of the tile still opens the viewer. The bytes
- * are fetched on the first Play, since the attachments endpoint cannot stream to an `<audio>`. */
+/** Plays in place, fetching its bytes on the first Play; the rest of the tile opens the viewer. */
 const AudioTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => {
     const [requested, setRequested] = useState(false)
     const {url, isPending, failed} = useRemoteObjectUrl(requested ? (file.src ?? null) : null)
@@ -222,12 +221,7 @@ const OverflowTile = ({
     </div>
 )
 
-/**
- * A sent message's files as a row of square tiles: images show themselves, other files their type
- * and name, audio keeps an in-place play control. A tap opens the app's viewer at that file, where
- * Download lives; the host app mounts `MediaViewerHost` once. Past `maxTiles`, the last tile reads
- * "+N" and opens the viewer at the first file it hides.
- */
+/** A message's files as tiles that open the app viewer; past `maxTiles` the last reads "+N". */
 export const AttachmentStrip = ({files, align = "end", maxTiles = 4}: AttachmentStripProps) => {
     const openViewer = useSetAtom(mediaViewerAtom)
     // Only a file with a source can be viewed; the viewer pages through those alone.

@@ -1,8 +1,3 @@
-/**
- * An image the agent names in its reply, shown under the paragraph that names it: a downscaled
- * preview (never the full bytes); a tap opens the viewer and Download sits in its corner. The
- * link in the sentence stays and names the file; this is the picture that goes with it.
- */
 import {memo, useMemo, useState, type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
@@ -40,8 +35,7 @@ const CORNER_BUTTON =
 /** The box an SVG holds until it loads, and keeps when it has no size of its own. */
 const SVG_FALLBACK_SIZE = {width: 320, height: 240}
 
-/** An SVG's preview from the same text read its link resolves with: the read succeeding is the
- * confirmation, and the picture is that text as an `image/svg+xml` blob. */
+/** An SVG's preview from the text read that also confirms its link. */
 function useSvgPreview(file: {mountId: string; path: string}) {
     const read = useAtomValue(mountFileContentQueryFamily(file))
     const text = typeof read.data === "string" ? read.data : null
@@ -87,8 +81,7 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
     const data = preview.data
 
     if (!data || !target) {
-        // A file the agent wrote holds its space while the preview loads; an unverified mention
-        // shows nothing until it proves to be an image, so a miss never flashes a placeholder.
+        // Only a file the agent wrote holds a placeholder; an unverified mention shows nothing.
         const holding = known && (!enabled || preview.isPending)
         return (
             <div

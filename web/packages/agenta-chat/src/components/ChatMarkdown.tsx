@@ -37,8 +37,7 @@ import LinkPreviewCard from "./LinkPreviewCard"
 export interface ChatMarkdownLinkResolver {
     /** Render `value` as a file link when it resolves, else `fallback`; may resolve asynchronously. */
     renderCode: (value: string, fallback: ReactNode) => ReactNode
-    /** Block content to place under a paragraph or list item for the code spans and relative
-     * hrefs it names; each value goes to its first mention in the message only. */
+    /** Content under a block for the values it names; each value renders at its first mention. */
     renderFollowUps?: (values: string[]) => ReactNode
     /** Whether a value can have a follow-up at all; the rest never join the claims. */
     claimsFollowUp?: (value: string) => boolean
@@ -105,8 +104,7 @@ interface AnchorProps {
 
 const isWebHref = (href?: string): href is string => Boolean(href && /^https?:\/\//i.test(href))
 
-/** Plain link, opened in a new tab; also the fallback when a relative href isn't a known file. A
- * web link previews its page on hover. */
+/** Plain link in a new tab; a web link previews its page on hover. */
 const ExternalLink = ({href, title, className, children}: AnchorProps) => {
     const link = (
         <a
@@ -338,8 +336,7 @@ const sameBlock = (
     )
 }
 
-/** Streamdown's paragraph, plus the follow-ups for what it names. A lone image or code block is
- * unwrapped, as Streamdown's own paragraph does: neither belongs inside a `<p>`. */
+/** Streamdown's paragraph (a lone image or code block unwrapped) plus its follow-ups. */
 const Paragraph = memo(({node, children, ...rest}: BlockProps<"p">) => {
     const kids = (Array.isArray(children) ? children : [children]).filter(
         (child) => child != null && child !== "",

@@ -1,10 +1,4 @@
-/**
- * The full-screen viewer for chat files: a message's attachments and the images an agent names.
- * One item at a time over a dark mask, with its name, "n of m", Download, and previous / next by
- * arrow buttons, the keyboard, or a swipe. Images render bare on the mask; every other kind reuses
- * the drive renderer registry ({@link DriveFileBody}), fed through {@link DriveFileSourceContext}
- * when the file is not on a mount.
- */
+/** The full-screen chat file viewer; non-image kinds reuse the drive renderer registry. */
 import {useMemo, useRef, useState, type PointerEvent} from "react"
 
 import {resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
@@ -38,7 +32,7 @@ export interface MediaViewerItem {
     /** Unique within the list. */
     key: string
     name: string
-    /** Decides the kind when the name's extension cannot (attachments carry one; drive files not). */
+    /** Decides the kind when the name's extension cannot. */
     mediaType?: string
     /** Bytes, for the registry's too-large-to-preview caps. */
     size?: number | null
@@ -119,8 +113,7 @@ interface ItemFile {
     path: string
 }
 
-/** An SVG from its text, as an `image/svg+xml` blob in `<img>`: the server's type guess for the
- * download may not say SVG, and the markup never enters the DOM. */
+/** An SVG from its text as an `image/svg+xml` blob in `<img>`; its markup never enters the DOM. */
 const ViewerSvg = ({mount, path, name}: {mount: Mount | null; path: string; name: string}) => {
     const {data, isPending} = useDriveFileText(mount, path)
     const src = useSvgImage(data)?.src
@@ -264,7 +257,7 @@ const ViewerFrame = ({
     return file.mount ? frame : <DriveSessionProvider sessionId="">{frame}</DriveSessionProvider>
 }
 
-/** What the app-wide viewer shows, or null when it is closed. Openers set it; the host renders it. */
+/** What the app-wide viewer shows, or null when closed; openers set it, the host renders it. */
 export const mediaViewerAtom = atom<{items: MediaViewerItem[]; index: number} | null>(null)
 
 /** The one viewer, mounted once by the app, so a remounting opener cannot close it. */

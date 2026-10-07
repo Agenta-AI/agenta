@@ -43,8 +43,7 @@ export async function fetchLinkPreview({
     }
 }
 
-/** A link's preview, fetched once per URL and kept for the session; pass "" to fetch nothing,
- * which is how a card stays idle until it is hovered. */
+/** A link's preview, fetched once per URL; "" fetches nothing. */
 export const linkPreviewQueryFamily = atomFamily((url: string) =>
     atomWithQuery<LinkPreview | null>((get) => {
         const projectId = get(projectIdAtom) ?? ""

@@ -1,8 +1,4 @@
-/**
- * The lookups behind chat file mentions — written-file index and mount resolution —
- * shared by the inline links ({@link chatFileRefs}) and the inline image previews
- * ({@link ChatInlineImage}). Internal to the drive module: not re-exported from its index.
- */
+/** Chat file mention lookups shared by links and inline previews; not exported from the index. */
 import {useCallback} from "react"
 
 import {
@@ -26,8 +22,7 @@ import {isSvgPath} from "./svgPreview"
 /** Longest side of an inline chat image preview: sharp at 320 CSS px on a 2x screen. */
 export const CHAT_IMAGE_PREVIEW_PX = 720
 
-/** An image the browser can downscale into a thumbnail. SVG cannot go through
- * `createImageBitmap`; it previews from its text instead (`svgPreview.ts`). */
+/** An image `createImageBitmap` can downscale; SVG previews from its text instead. */
 export const isRasterImage = (candidate: string): boolean =>
     resolveDriveFileKind(candidate) === "image" && !isSvgPath(candidate)
 
@@ -53,9 +48,7 @@ export const recordIndexAtomFamily = atomFamily((sessionId: string) =>
     }),
 )
 
-/** Mount resolution from the (small) mount lists ONLY — no file listing. Maps a mention to its
- * mount + mount-relative path, the same rule the full drive uses; a sandbox-absolute tool path is
- * first reduced to the mount it sits under. */
+/** A mention's mount and mount-relative path, from the mount lists only (no file listing). */
 export function useMountResolver(sessionId: string, artifactId?: string | null) {
     const cwdMounts = useAtomValue(sessionMountsQueryFamily(sessionId)).data ?? []
     const cwdMount = pickCwdMount(cwdMounts)

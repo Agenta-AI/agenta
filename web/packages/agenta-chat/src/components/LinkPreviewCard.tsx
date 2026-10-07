@@ -20,8 +20,7 @@ const DomainLine = ({domain}: {domain: string}) => (
     </span>
 )
 
-/** The hover card body for a web link: the page's image, title, description and domain, read
- * by the server. A page with nothing to show still names where the link goes. */
+/** A web link's hover card; a page with nothing to show still names where the link goes. */
 export const LinkPreviewCard = ({href}: {href: string}) => {
     const query = useAtomValue(linkPreviewQueryFamily(href))
     const [imageFailed, setImageFailed] = useState(false)

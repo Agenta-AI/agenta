@@ -1,8 +1,4 @@
-/**
- * SVG previews, shown through `<img>` only: an image context runs no script and loads nothing
- * external, so SVG markup is never put into the DOM. The bytes come from the text read (an SVG is
- * text), which `createImageBitmap` cannot downscale.
- */
+/** SVG previews through `<img>` only, where SVG runs no script and loads nothing external. */
 import {useEffect, useState} from "react"
 
 /** Past this an SVG stays a link: its bytes would sit in memory as a string and a blob. */
@@ -12,7 +8,7 @@ export const isSvgPath = (path: string): boolean => /\.svg$/i.test(path)
 
 const SVG_TYPE = "image/svg+xml"
 
-/** One object URL per SVG text, shared by the figure, hover card and viewer; revoked when unused. */
+/** One object URL per SVG text, shared by figure, hover card and viewer; revoked when unused. */
 const sharedImages = new Map<string, {src: string; bytes: number; refs: number}>()
 
 function acquire(text: string) {

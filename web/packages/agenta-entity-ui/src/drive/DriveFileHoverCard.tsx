@@ -1,9 +1,4 @@
-/**
- * The hover card body for a file link in the chat: a picture of the file before it is opened.
- * Images show the downscaled preview the inline figure uses, text-like files their first lines,
- * anything else its type. Every read here is one the link or the figure already makes, so a
- * card that opens on a resolved link costs nothing new.
- */
+/** A file link's hover card; it reuses the reads the link and the inline figure already make. */
 import {useMemo} from "react"
 
 import {

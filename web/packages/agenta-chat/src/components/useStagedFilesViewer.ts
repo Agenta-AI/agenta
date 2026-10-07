@@ -6,8 +6,7 @@ import {useSetAtom} from "jotai"
 import {isViewable} from "../assets/attachmentRules"
 import type {StagedUpload} from "../model"
 
-/** Opens a staged file in the app's media viewer, paging through the tray's viewable files. The
- * host app mounts `MediaViewerHost` once; the bytes are read from memory. */
+/** Opens a staged file in the app's media viewer, paging through the tray's viewable files. */
 export function useStagedFilesViewer(files: StagedUpload[]): (uid: string) => void {
     const openViewer = useSetAtom(mediaViewerAtom)
     const items = useMemo(
