@@ -33,10 +33,18 @@ export function useDirectToolConnect(
 ) {
     const [connectingKey, setConnectingKey] = useState<string | null>(null)
     const cleanupRef = useRef<(() => void) | null>(null)
+    const busyRef = useRef(false)
+    const mountedRef = useRef(true)
     const onSettledRef = useRef(onSettled)
     onSettledRef.current = onSettled
 
-    useEffect(() => () => cleanupRef.current?.(), [])
+    useEffect(() => {
+        mountedRef.current = true
+        return () => {
+            mountedRef.current = false
+            cleanupRef.current?.()
+        }
+    }, [])
 
     const connect = useCallback(
         async ({
@@ -45,7 +53,9 @@ export function useDirectToolConnect(
             authSchemes,
             existingCount,
         }: DirectConnectInput) => {
-            if (!integrationKey) return
+            // One attempt at a time: a second would create a second connection.
+            if (!integrationKey || busyRef.current) return
+            busyRef.current = true
             setConnectingKey(integrationKey)
             const name = defaultConnectionName(integrationName, existingCount ?? 0)
             const slug = generateDefaultSlug(name || integrationKey, randomAlphanumeric(3))
@@ -55,6 +65,8 @@ export function useDirectToolConnect(
             const settle = async (id: string | null | undefined) => {
                 const connection = await latest(id)
                 invalidateToolConnections()
+                busyRef.current = false
+                if (!mountedRef.current) return
                 setConnectingKey(null)
                 onSettledRef.current?.(integrationKey, connection)
             }
@@ -72,7 +84,7 @@ export function useDirectToolConnect(
                 const id = result.connection?.id
                 const redirectUrl = (result.connection?.data as Record<string, unknown> | undefined)
                     ?.redirect_url
-                if (typeof redirectUrl !== "string" || !redirectUrl) {
+                if (typeof redirectUrl !== "string" || !redirectUrl || !mountedRef.current) {
                     await settle(id)
                     return
                 }
@@ -80,9 +92,13 @@ export function useDirectToolConnect(
                     cleanupRef.current = null
                     void settle(id)
                 })
-                if (!cleanupRef.current) setConnectingKey(null)
+                if (!cleanupRef.current) {
+                    busyRef.current = false
+                    setConnectingKey(null)
+                }
             } catch {
-                setConnectingKey(null)
+                busyRef.current = false
+                if (mountedRef.current) setConnectingKey(null)
             }
         },
         [],
