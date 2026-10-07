@@ -1206,6 +1206,92 @@ describe("createAgentServer", () => {
     }
   });
 
+  for (const testCase of [
+    { name: "durable continuation", continuation: true, clientGone: false },
+    { name: "session-owned turn", continuation: false, clientGone: true },
+  ]) {
+    it(`a ${testCase.name} whose caller closes mid-turn reports clientGone=${testCase.clientGone} to the park decision`, async () => {
+      // The api dispatches an answered approval detached and closes the stream once the first
+      // record arrives. That close must not read as a lost client, or the resumed warm sandbox is
+      // destroyed at turn end and the next message starts cold. Any other session-owned turn
+      // keeps "disconnect means destroy, never park".
+      vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+      let markStarted: (() => void) | undefined;
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      let releaseRun: (() => void) | undefined;
+      let clientGoneAtEnd: boolean | undefined;
+      const run: RunAgent = async (_request, emit, _signal, options) => {
+        emit?.({ type: "message", text: "first" } as never);
+        markStarted?.();
+        await new Promise<void>((resolve) => {
+          releaseRun = resolve;
+        });
+        clientGoneAtEnd = options?.clientGone?.();
+        return { ok: true, output: "continued", events: [] };
+      };
+      const realFetch = globalThis.fetch.bind(globalThis);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (input, init) => {
+          const url = String(input);
+          if (url.startsWith(s.url)) return realFetch(input, init);
+          if (url.includes("/sessions/control/commands/command-close/outcome")) {
+            return Response.json({
+              command: { id: "command-close", state: "applied" },
+              admitted: true,
+            });
+          }
+          if (url.endsWith("/sessions/streams/heartbeat")) {
+            return Response.json({
+              stream: { id: "stream-close" },
+              is_current_turn: true,
+            });
+          }
+          return Response.json({ ok: true });
+        });
+      const s = await listen(run);
+
+      try {
+        const request = http.request(`${s.url}/run`, {
+          method: "POST",
+          headers: {
+            ...AUTH,
+            accept: "application/x-ndjson",
+            "content-type": "application/json",
+          },
+        });
+        request.on("error", () => {});
+        request.end(
+          JSON.stringify({
+            harness: "pi_core",
+            sessionId: `session-close-${testCase.continuation ? "c" : "s"}`,
+            turnId: `turn-close-${testCase.continuation ? "c" : "s"}`,
+            projectId: "project-1",
+            ...(testCase.continuation
+              ? { controlCommandId: "command-close", detached: true }
+              : {}),
+            messages: [{ role: "user", content: "approved" }],
+          }),
+        );
+
+        await started;
+        request.destroy();
+        await new Promise<void>((resolve) => setTimeout(resolve, 25));
+        releaseRun?.();
+        await vi.waitFor(() => assert.notEqual(clientGoneAtEnd, undefined), {
+          timeout: 1_000,
+        });
+        assert.equal(clientGoneAtEnd, testCase.clientGone);
+      } finally {
+        releaseRun?.();
+        await s.close();
+        fetchSpy.mockRestore();
+      }
+    });
+  }
+
   it("keeps a continuation retryable when its admission outcome cannot be reported", async () => {
     vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
     let runCalls = 0;
