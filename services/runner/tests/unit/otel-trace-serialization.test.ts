@@ -228,9 +228,16 @@ describe("Pi recovery tracing", () => {
   it("keeps one root through recovery and retains safe diagnostics without message capture", async () => {
     const spans: ReadableSpan[] = [];
     const serialize = vi.spyOn(ProtobufTraceSerializer, "serializeRequest");
+    // The processor also serializes each span alone to measure it, so read the spans of the
+    // serializer call that produced each exported body: the last one before the export.
+    const batches: ReadableSpan[][] = [];
     const otel = createAgentaOtel({
       captureContent: false,
-      serializedBatchTransport: { export: async () => {} },
+      serializedBatchTransport: {
+        export: async () => {
+          batches.push(serialize.mock.calls.at(-1)![0] as ReadableSpan[]);
+        },
+      },
     });
     const handlers: Record<string, (...args: any[]) => Promise<void>> = {};
     otel.register({
@@ -274,7 +281,7 @@ describe("Pi recovery tracing", () => {
     await handlers.message_end({ message: failure });
     await handlers.turn_end({});
     await handlers.agent_end({ messages: [failure] });
-    expect(serialize).not.toHaveBeenCalled();
+    expect(batches).toHaveLength(0);
     await handlers.agent_start({});
     await handlers.turn_start({ turnIndex: 1 });
     await handlers.before_provider_request(
@@ -290,10 +297,10 @@ describe("Pi recovery tracing", () => {
     await handlers.message_end({ message: success });
     await handlers.turn_end({});
     await handlers.agent_end({ messages: [success] });
-    expect(serialize).not.toHaveBeenCalled();
+    expect(batches).toHaveLength(0);
     await handlers.agent_settled({});
     await otel.flush();
-    for (const [batch] of serialize.mock.calls) spans.push(...batch);
+    for (const batch of batches) spans.push(...batch);
     expect(spans.filter((s) => s.name === "invoke_agent")).toHaveLength(1);
     const root = spans.find((s) => s.name === "invoke_agent")!;
     expect(root.status.code).not.toBe(2);

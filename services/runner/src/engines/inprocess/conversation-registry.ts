@@ -13,7 +13,7 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { ConversationWorkspace } from "./conversation-workspace.ts";
-import { CommandSandbox, CONVERSATION_LABEL, type CommandSandboxSettings, type CommandSandboxStats } from "./sandbox/command-sandbox.ts";
+import { CommandSandbox, type CommandSandboxSettings, type CommandSandboxStats } from "./sandbox/command-sandbox.ts";
 import type { DaytonaApi } from "./sandbox/daytona-api.ts";
 import { SandboxDrive, type DriveMounter, type DriveRoot } from "./sandbox/sandbox-drive.ts";
 import type { SandboxOwner } from "./sandbox/sandbox-owner.ts";
@@ -21,6 +21,7 @@ import { sleep } from "./sandbox/serial-queue.ts";
 import { DriveObjects, type ObjectStore } from "./workspace/drive-objects.ts";
 import { TranscriptStore, transcriptDir } from "./workspace/transcript-store.ts";
 import type { MountCredentials } from "../sandbox_agent/mount.ts";
+import { sessionSandboxLabels } from "../sandbox_agent/sandbox-labels.ts";
 import type { SandboxUsageContext } from "../../metering/sandbox-usage.ts";
 
 type Log = (message: string) => void;
@@ -71,10 +72,7 @@ export class ConversationRegistry {
   hold(spec: ConversationSpec): ConversationWorkspace {
     let workspace = this.entries.get(spec.key);
     if (!workspace) {
-      const labels: Record<string, string> = {
-        [CONVERSATION_LABEL]: spec.conversationId,
-        ...(spec.projectId ? { "agenta.project": spec.projectId } : {}),
-      };
+      const labels = sessionSandboxLabels(spec.projectId, spec.conversationId);
       const sandbox = new CommandSandbox(spec.key, this.settings, this.api, this.owner, labels, this.log);
       const drive = new SandboxDrive(spec.drive, this.options.mounter, {
         ...(spec.agentRoot ? { agentLink: { cwd: spec.cwd, agentRoot: spec.agentRoot } } : {}),
@@ -164,6 +162,19 @@ export class ConversationRegistry {
       commands += stats.commands;
     }
     return { conversations: this.entries.size, running, inUse, retired, commands };
+  }
+
+  /**
+   * Shutdown: delete the sandbox of every conversation no environment holds any more. No later
+   * process reconnects to a sandbox this one created, so a parked one would only wait for
+   * Daytona's autodelete. Runs in the background; `settle` waits for it.
+   */
+  deleteUnheld(): void {
+    for (const workspace of [...this.entries.values()]) {
+      if (workspace.sandbox.holders > 0 || workspace.sandbox.inUse) continue;
+      this.entries.delete(workspace.sandbox.key);
+      this.track(this.drop(workspace));
+    }
   }
 
   /** Wait (bounded) for parks, deletes and retirements; the runner calls it on shutdown. */

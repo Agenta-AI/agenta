@@ -132,7 +132,12 @@ export const SsoProvidersSection = ({
                             ) : (
                                 <StatusIndicator tone="warning" label="Pending" />
                             )}
-                            <span className="flex justify-end">
+                            {/* The row opens the edit drawer on click. A disabled button lets
+                                the click through, so the cell stops it, not the button. */}
+                            <span
+                                className="flex justify-end"
+                                onClick={(event) => event.stopPropagation()}
+                            >
                                 {(!isEnabled(record) || !isValid(record)) && onEnable ? (
                                     <Button disabled={enabling} onClick={() => onEnable(record)}>
                                         Enable

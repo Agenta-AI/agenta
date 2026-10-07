@@ -238,9 +238,9 @@ mechanism-blind cell from scratch, to avoid duplicating scaffolding.
 ## Session control cells
 
 `resources/session_control.py` is a second, standalone driver: sixteen cells that cover Stop,
-durable commands, and the runner's recovery paths (owner release, park/resume, watchdog
-quarantine). It drives the same product endpoint and asserts on the same wire, but it needs its
-own account bootstrap, so it runs as a separate process rather than as `qa_product.py` cells. See
+durable commands, and the runner's recovery paths (park/resume, watchdog quarantine). It drives
+the same product endpoint and asserts on the same wire, but it needs its own account bootstrap,
+so it runs as a separate process rather than as `qa_product.py` cells. See
 `resources/path_triggers.py` for the exact mandatory-cell mechanism.
 
 **These cells are MANDATORY** — run them, not just the standing gate — whenever the release diff
@@ -286,6 +286,33 @@ fallback:
   have a provider key. Lives in `~/.agenta-qa-openai.env`.
 - `ANTHROPIC_API_KEY` — only required for `--harness claude`, stocked into the same vault the
   same way. Lives in `~/.agenta-qa-secrets.env`. A pi_core- or codex-only run does not need it.
+
+**Run `--harness claude` on a custom connection** (for example when the Anthropic key has no
+credit). Set these, and `ANTHROPIC_API_KEY` is no longer needed:
+
+- `AGENTA_QA_CLAUDE_MODEL` — the model key, `<connection name>/custom/<model slug>`, e.g.
+  `orclaude/custom/anthropic/claude-haiku-4.5`.
+- `AGENTA_QA_CLAUDE_PROVIDER` — the protocol the connection speaks; default `anthropic`.
+- `AGENTA_QA_CLAUDE_CONNECTION_SLUG` — the vault slug the agent config names.
+- `AGENTA_QA_CLAUDE_CUSTOM_URL` and `AGENTA_QA_CLAUDE_CUSTOM_KEY` — the connection's base URL
+  and key (for OpenRouter: `https://openrouter.ai/api` and `OPENROUTER_API_KEY` from
+  `~/.agenta-qa-secrets.env`).
+
+The driver mints a fresh account on every run, so a slug copied from another project's vault does
+not exist there. Bootstrap creates the custom connection in the minted vault under the slug you
+give, from the model key, URL and key. `AGENTA_QA_CLAUDE_MODEL` and `AGENTA_QA_CLAUDE_PROVIDER`
+also work alone, to change the model on the vault Anthropic key. `results.json` records the model
+the run used.
+
+**The long-turn prompt is not a bare `sleep N`.** Claude Code refuses a standalone long sleep
+(`Blocked: standalone sleep 45 ... use run_in_background`), the turn ends in seconds, and a later
+Stop gets 409 `current: none`. The cells ask for `timeout N tail -f /dev/null; echo <codeword>`,
+which runs in the foreground for N seconds.
+
+**`stop-approval` asks for a mutating command.** Claude Code auto-approves a read-only command such
+as a bare `echo` whatever the permission policy says, so no approval parks and the cell fails with
+`no pending approval was seen before the Stop`. `runner.kind` is not the cause: the SDK reads only
+`runner.permissions.default`.
 
 A Daytona run additionally needs a Secrets-capable Daytona key on the runner; the key in most
 session env files returns 403 on the Secrets endpoint, so check that before trusting a Daytona
@@ -693,6 +720,44 @@ environment is destroyed with the approval still pending — "gate pending → e
 without any intervening user turn and without touching the message history. Answering afterwards
 lands on a pool miss and takes the cold decision-map path, which is exactly the state
 `shouldRegateStaleApproval` guards. Worth a spike before concluding this needs a runner-side hook.
+- `resources/matrix_r1_two_replicas.py` — **[coached] runner replicas.** Needs a stack with TWO
+  runner containers and `--project <compose project>` plus `--stack-env <env file>` (runner token,
+  Daytona key). It decides which container served each turn from the containers' own logs
+  (`heartbeat OK session=<s> turn=<t>`, `hit-continue`), the turn ledger, the runner-token
+  streams read (`runner_replica_id`) and `session_commands.claimed_by`, never from the stream.
+  Phase 1 cells (`--cells phase1`): `warm-holder`, `approval-warm` (answered through the respond
+  route like `web/mobile`), `queued-input`, `stop-on-b`, `kill-from-non-holder`,
+  `duplicate-turn-id` (direct `/run` on both container addresses, mock harness) and
+  `inprocess-warm`. Phase 2 cells kill, stop or recreate a runner and SKIP without
+  `--allow-destructive`; `identity-mismatch` also needs `--worktree`, `--recreate-license`,
+  `--recreate-stage` and `--recreate-env-file` (no stack-specific defaults). **A release record
+  needs BOTH phases: `--cells all --allow-destructive`.** A phase-1-only run is partial
+  coverage, and a run where every selected cell SKIPs exits 2, never 0. Two traps it encodes:
+  Claude Code refuses a standalone `sleep N`, so its
+  long turns run `timeout N tail -f /dev/null`; and a queued input must carry only the trailing
+  user message, as the browser sends it, or the runner sees a history mismatch and goes cold.
+  `--subscription hosted` (plus `--subscription-slug`, `--subscription-sandbox daytona|inprocess`,
+  `--pi-model`) runs the six routing cells on Pi with the project's hosted ChatGPT connection
+  and SKIPs them all when that connection is not `ready`; `--subscription mounted` is the
+  operator's Pi login mounted into the runners, `inprocess` only. The other cells SKIP under a
+  subscription shape. Under
+  `hosted`, `hosted-both-pods` (phase 1), `hosted-refresh-across-pods` and
+  `hosted-restart-reconnect` (phase 2) check the hosted login itself on both pods from the pods'
+  `event=subscription.materialize|publish` lines and the row's `login_version` /
+  `login_generation`: both pods run on the login the request delivers, one refresh is pushed
+  back once and reused by the other pod, and a restarted pod needs no device login.
+  `--daytona-harness pi_core` runs the Daytona cells on Pi with the `--custom-name` /
+  `--custom-model` connection instead of Claude Code. `--kube-namespace <ns>` (with
+  `--kube-context`, `--kubeconfig`, `--kube-release`, optional `--kube-secret`) runs against a
+  Helm release with two runner pods: logs are followed per pod from the run start, Postgres is
+  read with `psql` inside an api pod, posts to a pod go through `kubectl port-forward`. There,
+  kill is a force pod delete (the Deployment starts a new pod, so the follow-up may run on B or
+  A's replacement), the drain is a graceful pod delete, `identity-mismatch` SKIPs, and two
+  kube-only phase 2 cells run: `rollout-during-turn` (`rollout restart` under a long turn) and
+  `drain-node-parked-approval` (cordon and drain A's node with a runner-only pod selector, through
+  the PodDisruptionBudget; always uncordoned).
+  Mandatory (via `path_triggers.py`) when the turn binding, Stop routing, follow-up routing, Kill
+  by label, or the drain changes.
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.

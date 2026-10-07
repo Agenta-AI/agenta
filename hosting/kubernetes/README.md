@@ -263,6 +263,11 @@ Three settings outside the gunicorn block must be at least as long as
 - `api.terminationGracePeriodSeconds`. The kubelet sends KILL at the end of it.
   The chart default is `gracefulTimeout + 30`, which covers the 10-second preStop
   delay. If you set the grace period yourself, keep that margin.
+  GKE Autopilot caps the grace period at 600 seconds and silently rewrites a
+  larger value to 600, so the default of 930 does not hold there. On Autopilot,
+  set `gracefulTimeout` to 560 or less and `terminationGracePeriodSeconds` to
+  600. Check the value the cluster applied with
+  `kubectl get deploy <release>-api -o jsonpath='{.spec.template.spec.terminationGracePeriodSeconds}'`.
 - The load balancer's connection draining. On GKE this is
   `connectionDraining.drainingTimeoutSec` on the api's `BackendConfig`. After that
   timeout the load balancer stops all traffic to the old pod, open streams
@@ -490,6 +495,36 @@ pod IP, so a runner bound to loopback refuses every health probe and never
 becomes ready. The chart sets `AGENTA_RUNNER_HOST=0.0.0.0` for you. Change it
 with `agentRunner.host`, or through the `agentRunner.env` map, which suppresses
 the chart's entry rather than adding a second one.
+
+## More than one runner pod
+
+`agentRunner.replicas` above 1 needs remote sandbox providers only. A local
+sandbox runs inside the runner pod that started it, so the render fails when
+`agentRunner.providers.enabled` lists `local` with more than one runner. With
+only remote providers the runner rolls out with `RollingUpdate` (`maxSurge: 1`,
+`maxUnavailable: 0`); with `local` it keeps `Recreate`, and the render fails for an
+explicit `agentRunner.strategy` of another type. These checks read
+`agentRunner.providers`, so the chart owns `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`
+and `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER`: the render fails when
+`agentRunner.env` or `agentRunner.extraEnv` sets either one. Set them with
+`agentRunner.providers.enabled` and `agentRunner.providers.default`.
+
+Each turn is bound to the pod that runs it, by the pod's replica id. The chart
+sets that id to the pod name, and the render fails when `agentRunner.env` or
+`agentRunner.extraEnv` sets `AGENTA_RUNNER_REPLICA_ID`: a shared id would let two
+pods take the same turn. The api sends a Stop to that pod's IP, and Services
+sends the session's follow-up messages there. A NetworkPolicy that blocks api or
+Services traffic to runner pod IPs on the runner port breaks Stop and follow-up
+routing.
+
+On SIGTERM a runner pod refuses new turns with a 503, lets its running turns
+finish for `agentRunner.shutdownWaitSeconds`, cancels the rest, and deletes its
+sandboxes. The default wait is the grace period minus 100 seconds (200 of the
+default 300), and the render fails for a longer one. The 100 seconds cover the
+preStop delay, the cancel and the teardown with the default
+`AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS`. The chart owns
+`AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS`: the render fails when `agentRunner.env` or
+`agentRunner.extraEnv` sets it.
 
 ## Checking a values file before you install
 

@@ -13,7 +13,7 @@ Covers:
     is_current_turn to False (the lock was gone, then silently re-acquired);
   - a steer (different turn_id takes the lock) also reports the OLD turn's next beat as
     is_current_turn=False, and does not steal the lock back for the old turn;
-  - a replica that lost the owner claim entirely reports is_current_turn=False.
+  - a second replica's turn, beaten while another turn runs, reports is_current_turn=False.
 """
 
 from typing import Optional
@@ -163,18 +163,20 @@ async def test_steer_flips_the_old_turns_next_beat_to_not_current(lock_engine):
 
 
 @pytest.mark.asyncio
-async def test_losing_owner_claim_reports_not_current(lock_engine):
+async def test_a_second_replicas_turn_reports_not_current_while_a_turn_runs(
+    lock_engine,
+):
     svc = _service(lock_engine)
 
     await svc.heartbeat(project_id=_PROJECT, request=_beat("replica-a", "turn-1"))
 
-    # A second replica heartbeats the same session; claim_owner never steals, so it loses.
+    # A second replica beats another turn of the same session while turn-1 holds `running`.
     result = await svc.heartbeat(
         project_id=_PROJECT, request=_beat("replica-b", "turn-2")
     )
 
     assert result.is_current_turn is False
-    assert result.replica_id == "replica-a"
+    assert result.replica_id == "replica-b"
 
 
 @pytest.mark.asyncio

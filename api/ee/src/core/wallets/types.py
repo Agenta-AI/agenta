@@ -350,6 +350,17 @@ class WalletsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def get_awarded_credit(
+        self,
+        *,
+        organization_id: UUID,
+        idempotency_key: str,
+    ) -> Optional[WalletCreditDTO]:
+        """Read-only: the organization's credit that `award_credit` minted under this
+        idempotency key, or `None` if that award has not happened."""
+        raise NotImplementedError
+
+    @abstractmethod
     async def award_credit(
         self,
         *,

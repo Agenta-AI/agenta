@@ -327,9 +327,8 @@ services:
         environment:
             AGENTA_RUNNER_PORT: "8765"
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
-            # Stable id so a runner restart keeps ownership of its local-sandbox sessions;
-            # a random id would orphan them for the owner TTL. A fixed default is safe because
-            # compose runs a single runner. Override only if you scale to multiple runners.
+            # The API binds each turn to one runner by this id, so two runners must never share
+            # it. A fixed default is safe because compose runs a single runner.
             AGENTA_RUNNER_REPLICA_ID: ${AGENTA_RUNNER_REPLICA_ID:-local-runner-1}
             AGENTA_API_URL: ${AGENTA_API_URL:-}
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}

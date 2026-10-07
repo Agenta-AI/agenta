@@ -23,7 +23,6 @@ from oss.src.dbs.redis.sessions.contract import (
     DISPLACEMENT_REASON_STOLEN,
     HEARTBEAT_INTERVAL_SECONDS,
     HEARTBEAT_WRITE_THRESHOLD_SECONDS,
-    OWNER_TTL_SECONDS,
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
     SESSION_ID_MAX_LEN,
@@ -31,7 +30,6 @@ from oss.src.dbs.redis.sessions.contract import (
     attached_key,
     displaced_channel,
     make_displacement_payload,
-    owner_key,
     running_key,
     validate_session_id,
 )
@@ -73,10 +71,6 @@ def test_attached_ttl(fixture):
     assert ATTACHED_TTL_SECONDS == fixture["ttls"]["attached"]
 
 
-def test_owner_ttl(fixture):
-    assert OWNER_TTL_SECONDS == fixture["ttls"]["owner"]
-
-
 def test_heartbeat_interval(fixture):
     assert HEARTBEAT_INTERVAL_SECONDS == fixture["ttls"]["heartbeat_interval"]
 
@@ -111,13 +105,6 @@ def test_attached_key(fixture):
     assert (
         attached_key(_PROJECT_EXAMPLE, _SESSION_EXAMPLE)
         == fixture["keys"]["attached_example"]
-    )
-
-
-def test_owner_key(fixture):
-    assert (
-        owner_key(_PROJECT_EXAMPLE, _SESSION_EXAMPLE)
-        == fixture["keys"]["owner_example"]
     )
 
 

@@ -274,7 +274,9 @@ Set on the `runner` service.
 | `AGENTA_RUNNER_PORT` | Bind port | `8765` | no | Chart-managed (`8765`) |
 | `AGENTA_RUNNER_CONCURRENCY_LIMIT` | Maximum concurrent runs | `1000` | no | `agentRunner.env.AGENTA_RUNNER_CONCURRENCY_LIMIT` |
 | `AGENTA_RUNNER_LOG_LEVEL` | Log verbosity | `silent` | no | `agentRunner.logLevel` |
-| `AGENTA_RUNNER_REPLICA_ID` | Runner identity for local-sandbox session ownership | Random per process when unset | no | `agentRunner.env.AGENTA_RUNNER_REPLICA_ID` |
+| `AGENTA_RUNNER_REPLICA_ID` | Runner identity: the platform binds each turn to one runner by this id | Random per process when unset | no | Chart-managed (the pod name) |
+| `AGENTA_RUNNER_REPLICA_ADDRESS` | URL that reaches this runner directly, where the platform sends Stop for its turns | Empty (use `AGENTA_RUNNER_INTERNAL_URL`) | no | Chart-managed (`http://<pod IP>:<port>`) |
+| `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS` | Seconds a stopping runner lets its running turns finish before it cancels them | `0` | no | `agentRunner.shutdownWaitSeconds` (default: the grace period minus 100) |
 
 Every variable on this page treats an empty value as unset, so leaving a line blank selects the
 default rather than an empty string.
@@ -283,13 +285,30 @@ The code default host is `127.0.0.1`. The bundled Compose files set `AGENTA_RUNN
 so the Services container can reach the runner across the Compose network. `AGENTA_RUNNER_PORT` and
 `AGENTA_RUNNER_CONCURRENCY_LIMIT` must be positive integers.
 
-`AGENTA_RUNNER_REPLICA_ID` is not a log label. A local-sandbox session is owned by the runner that
-created it, and the runner refuses to resume one on a different runner. When this value is unset the
-runner generates a fresh id on each start, so a restart orphans its local sessions until the previous
-owner record expires (the owner TTL, 120 seconds by default). The bundled Compose files set a stable
-value so a restart keeps ownership. The local sandbox is single-runner only: running more than one
-runner with the local provider is not supported, because there is no session-to-runner routing. To
-run multiple runners, use the Daytona provider, whose sessions any runner can resume.
+`AGENTA_RUNNER_REPLICA_ID` is not only a log label. The platform binds each turn to the first runner
+that reports it, and refuses the same turn from a runner with a different id. Every runner must
+therefore have its own id. When the value is unset the runner generates a fresh id on each start.
+The bundled Compose files set a fixed value, which is safe because Compose runs one runner. The Helm
+chart sets the pod name, and the render fails when `agentRunner.env` or `agentRunner.extraEnv`
+sets this variable.
+
+`AGENTA_RUNNER_REPLICA_ADDRESS` is where the platform API sends Stop for a turn that this runner
+runs, and where Services sends the session's follow-up messages. Leave it empty when one runner
+sits behind `AGENTA_RUNNER_INTERNAL_URL`, as in Compose. The Helm chart sets it to the pod IP and
+the runner port, so the API and Services must be able to reach runner pods directly: a
+NetworkPolicy that blocks API or Services traffic to runner pod IPs breaks Stop and follow-up
+routing. The platform stores the
+address only when the runner presents its runner token.
+
+When a runner gets SIGTERM, it refuses new turns with a 503 and keeps Stop and Kill open. It lets
+its running turns finish for `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS`, cancels the turns that still
+run, and deletes its sandboxes. The default `0` cancels at once, because Docker Compose stops a
+container 10 seconds after SIGTERM. The Helm chart sets the wait from the pod's grace period, or
+from `agentRunner.shutdownWaitSeconds`, and the render fails when `agentRunner.env` or
+`agentRunner.extraEnv` sets this variable.
+
+The local sandbox is single-runner only: its sessions live on one runner's disk. To run multiple
+runners, use the Daytona provider.
 
 ### Routing and authentication
 
@@ -341,6 +360,10 @@ templates apply it to both.
 |---|---|---|---|
 | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` | Providers this deployment can use | `local` | `agentRunner.providers.enabled` (list, rendered comma-joined) |
 | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` | Provider used when a run does not choose | `local` | `agentRunner.providers.default` |
+
+The Helm chart checks `agentRunner.providers` before it allows more than one runner pod or a
+rolling update, and the render fails when `agentRunner.env` or `agentRunner.extraEnv` sets either
+variable. Set them with `agentRunner.providers.enabled` and `agentRunner.providers.default`.
 
 Rules:
 
@@ -646,6 +669,7 @@ The runner fails to start when configuration is invalid, before it listens. The 
 | `AGENTA_RUNNER_INPROCESS_FOR_PI` other than `true` or `false` | `AGENTA_RUNNER_INPROCESS_FOR_PI must be 'true' or 'false', got '<value>'.` |
 | Snapshot and image both set | `AGENTA_RUNNER_DAYTONA_SNAPSHOT and AGENTA_RUNNER_DAYTONA_IMAGE are mutually exclusive; set only one.` |
 | Non-integer positive value | `<variable> must be a positive integer, got '<value>'.` |
+| Shutdown wait that is negative or not an integer | `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS must be a non-negative integer, got '<value>'.` |
 
 The last message covers `AGENTA_RUNNER_PORT`, `AGENTA_RUNNER_CONCURRENCY_LIMIT`,
 `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`, `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`,

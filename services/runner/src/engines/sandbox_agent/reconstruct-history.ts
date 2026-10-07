@@ -83,18 +83,22 @@ export async function reconstructHistoryIfNeeded(
   // The client kept no copy of the conversation, so there is no history to fall back to. Answering
   // anyway would silently produce an agent that forgot everything, which reads as a correct reply.
   // Fail the turn instead: `runTurn`'s catch turns this into an error result the caller can see.
-  if (recordsIncomplete(sessionId)) {
+  const incomplete = (): never => {
     throw new Error(
       `session ${sessionId} lost a durable record; refusing to rebuild an incomplete conversation`,
     );
-  }
+  };
+  if (recordsIncomplete(sessionId)) incomplete();
 
-  const records = await fetchSessionRecords(sessionId, auth);
-  if (!records) {
+  const recordLog = await fetchSessionRecords(sessionId, auth);
+  if (!recordLog) {
     throw new Error(
       `session ${sessionId} record log is unreadable; cannot rebuild the conversation`,
     );
   }
+  // Reported by whichever runner dropped the record, so this holds on every runner.
+  if (recordLog.recordsIncomplete) incomplete();
+  const records = recordLog.records;
 
   // Drop this turn's own records: the inbound message already carries the current prompt.
   const currentTurnId = request.turnId?.trim();

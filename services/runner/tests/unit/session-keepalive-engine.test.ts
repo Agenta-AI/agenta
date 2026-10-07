@@ -16,15 +16,20 @@ import assert from "node:assert/strict";
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
 import {
   acquireEnvironment,
+  isTurnIndexTaken,
   runTurn,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
 import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
+import { SessionTurnIndexTaken } from "../../src/engines/sandbox_agent/session-continuity-durable.ts";
+import { TURN_INDEX_TAKEN_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
 
 interface FakeOptions {
   probeError?: Error;
   createOtelError?: Error;
   stopReasons?: string[];
+  /** 1-based prompt numbers that throw, as a provider failure does. */
+  failingPrompts?: number[];
 }
 
 /** One fake otel run per createOtel call, recording which updates it handled. */
@@ -72,6 +77,8 @@ function fakeHarness(options: FakeOptions = {}) {
     },
     async prompt(_blocks: any) {
       calls.promptCount += 1;
+      if (options.failingPrompts?.includes(calls.promptCount))
+        throw new Error("provider refused the turn");
       return {
         stopReason: options.stopReasons?.[calls.promptCount - 1] ?? "complete",
         usage: { inputTokens: 1, outputTokens: 1 },
@@ -460,6 +467,135 @@ describe("conversation turn indexes", () => {
     assert.deepEqual(calls.completedTurnIndexes, [0]);
     assert.equal(calls.ledgerRows.size, 1);
     assert.equal(typeof calls.ledgerRows.get(0)?.endTime, "string");
+    await acquired.env.destroy();
+  });
+});
+
+describe("turn-start write conflict (409)", () => {
+  /** A ledger whose every start row already exists, as when another runner wrote it. */
+  const takenLedger = (calls: {
+    startedTurnIndexes: number[];
+    completedTurnIndexes: number[];
+  }) => {
+    const client: NonNullable<SandboxAgentDeps["appendSessionTurn"]> = async (
+      sessionId,
+      _harness,
+      turnIndex,
+    ) => {
+      calls.startedTurnIndexes.push(turnIndex);
+      throw new SessionTurnIndexTaken(sessionId, turnIndex);
+    };
+    client.complete = async (_sessionId, turnIndex) => {
+      calls.completedTurnIndexes.push(turnIndex);
+    };
+    return client;
+  };
+
+  it("a fresh prompt ends with the named error before the prompt is sent", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.appendSessionTurn = takenLedger(calls);
+    const acquired = await acquireEnvironment(continuityRequest, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    const result = await runTurn(
+      acquired.env,
+      continuityRequest,
+      undefined,
+      undefined,
+      { continuation: true },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error, TURN_INDEX_TAKEN_MESSAGE);
+    assert.equal(result.errorDetail?.code, "turn_index_taken");
+    assert.equal(result.errorDetail?.retryable, true);
+    assert.equal(isTurnIndexTaken(result), true);
+    assert.equal(calls.promptCount, 0, "a stale prompt must never reach the harness");
+    assert.deepEqual(
+      calls.completedTurnIndexes,
+      [],
+      "the other runner's row is never completed from here",
+    );
+    assert.ok(
+      calls.logs.some((line) =>
+        line.includes("already written by another runner"),
+      ),
+      "the conflict is logged as an error",
+    );
+    await acquired.env.destroy();
+  });
+
+  it("an approval resume's 409 is silent and the turn runs", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.appendSessionTurn = takenLedger(calls);
+    const acquired = await acquireEnvironment(continuityRequest, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    const result = await runTurn(
+      acquired.env,
+      continuityRequest,
+      undefined,
+      undefined,
+      { continuation: true, settleApprovalsThenPrompt: { decisions: [] } },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.promptCount, 1);
+    assert.deepEqual(calls.startedTurnIndexes, [0]);
+    assert.ok(
+      !calls.logs.some((line) => line.includes("another runner")),
+      "a resume's duplicate start is expected, so nothing is logged",
+    );
+    await acquired.env.destroy();
+  });
+
+  it("a finished turn that recorded nothing still spends its index", async () => {
+    // A harness with no native session id records no resume point. The next fresh prompt on the
+    // same warm environment must still take a new index, or its start write would be refused.
+    const { calls, deps } = fakeHarness();
+    const acquired = await acquireEnvironment(continuityRequest, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    (acquired.env.session as { agentSessionId?: string }).agentSessionId =
+      undefined;
+
+    await runTurn(acquired.env, continuityRequest, undefined, undefined, {});
+    await runTurn(acquired.env, continuityRequest, undefined, undefined, {
+      continuation: true,
+    });
+
+    assert.deepEqual(calls.startedTurnIndexes, [0, 1]);
+    await acquired.env.destroy();
+  });
+
+  it("a failed turn whose row was written spends its index", async () => {
+    const { calls, deps } = fakeHarness({ failingPrompts: [1] });
+    const acquired = await acquireEnvironment(continuityRequest, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    const failed = await runTurn(
+      acquired.env,
+      continuityRequest,
+      undefined,
+      undefined,
+      {},
+    );
+    assert.equal(failed.ok, false);
+    assert.equal(failed.stopReason, undefined, "a failure, not a pause");
+    const next = await runTurn(
+      acquired.env,
+      continuityRequest,
+      undefined,
+      undefined,
+      { continuation: true },
+    );
+
+    assert.equal(next.ok, true);
+    assert.deepEqual(calls.startedTurnIndexes, [0, 1]);
+    assert.deepEqual(calls.completedTurnIndexes, [1], "the failed row stays open");
     await acquired.env.destroy();
   });
 });

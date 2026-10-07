@@ -1876,10 +1876,6 @@ class SessionsRedisConfig(BaseModel):
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ATTACHED_TTL_SECONDS")
         or 60
     )
-    owner_ttl_seconds: int = (
-        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS")
-        or 120
-    )
     heartbeat_interval_seconds: int = (
         _parse_optional_positive_int_env(
             "AGENTA_SESSIONS_REDIS_HEARTBEAT_INTERVAL_SECONDS"

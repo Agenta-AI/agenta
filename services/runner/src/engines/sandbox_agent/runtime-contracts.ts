@@ -161,17 +161,6 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   /** Durable read of the sandbox pointer (the latest turn's sandbox_id), for the remote
    * reconnect ladder. The write side is folded into `appendSessionTurn`. */
   readStoredSandboxPointer?: typeof readStoredSandboxPointer;
-  /**
-   * Resolve `{replicaId, ownerReplicaId}` for a session-owned local-sandbox run, so
-   * `acquireEnvironment` can fail loudly instead of silently cold-starting on a non-owner
-   * replica. The default claims the `owner` affinity key via the coordination plane and reads
-   * back the actual owner (`claimSessionOwnership`); tests inject their own. `authorization` is
-   * the run credential (the claim authenticates as the invoke caller).
-   */
-  resolveLocalRunnerOwner?: (
-    sessionId: string,
-    authorization: string,
-  ) => Promise<{ replicaId: string; ownerReplicaId: string | undefined }>;
   log?: Log;
 }
 
@@ -511,6 +500,12 @@ export interface SessionEnvironment {
    * The multi-answer resume and the all-parkable park check read `parkedApprovals`, not this.
    */
   parkedApproval?: ParkedApproval;
+  /**
+   * The turn whose gates are parked, set when the dispatch parks the environment awaiting an
+   * approval. A Stop compares its target turn with this, so a delayed Stop for an older turn
+   * cannot end a newer parked approval.
+   */
+  parkedTurnId?: string;
   /**
    * Approved Pi calls settled with the non-retry unknown-result sentinel while a sibling gate was
    * parked. Consumed and re-seeded on the next live resume; empty outside that internal carry.

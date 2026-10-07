@@ -2,8 +2,9 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 
-import { runSandboxAgent, type SandboxAgentDeps } from "../../src/engines/sandbox_agent.ts";
+import { isTurnIndexTaken, runSandboxAgent, type SandboxAgentDeps } from "../../src/engines/sandbox_agent.ts";
 import {
+  SessionTurnIndexTaken,
   appendSessionTurn,
   type AppendSessionTurnFn,
   type DurableContinuityDeps,
@@ -152,6 +153,24 @@ describe("turn ledger credential rotation", () => {
     });
   }
 
+  it("hands the run's signal to the turn-start write and not to the completion", async () => {
+    const fake = fakeTurn(async () => "cancelled");
+    const seen: Array<AbortSignal | undefined> = [];
+    const ledger = fake.deps.appendSessionTurn!;
+    const watched: AppendSessionTurnFn = (id, harness, index, turn, deps) => {
+      seen.push(deps.signal);
+      return ledger(id, harness, index, turn, deps);
+    };
+    watched.complete = (id, index, turn, deps) => {
+      seen.push(deps.signal);
+      return ledger.complete!(id, index, turn, deps);
+    };
+    fake.deps.appendSessionTurn = watched;
+    await runSandboxAgent(fake.request, undefined, fake.signal, fake.deps, { credential: fake.credential });
+    // A Stop must not cut the completion: a settled cancel is a resume point.
+    assert.deepEqual(seen, [fake.signal, undefined]);
+  });
+
   it("uses an already-refreshed credential when appending the start row", async () => {
     const fake = fakeTurn(async () => "completed");
     fake.rotate("Secret fresh-before-start");
@@ -215,5 +234,47 @@ describe("turn ledger credential rotation", () => {
     } finally {
       lease.release();
     }
+  });
+});
+
+describe("one-turn engine teardown when another runner wrote the turn", () => {
+  /** Record what the teardown does to the Daytona sandbox: park (pause) or delete. */
+  function watchSandbox(fake: ReturnType<typeof fakeTurn>) {
+    const teardown: string[] = [];
+    const start = fake.deps.startSandboxAgent as (...args: unknown[]) => Promise<any>;
+    fake.deps.startSandboxAgent = (async (...args: unknown[]) => {
+      const sandbox = await start(...args);
+      sandbox.pauseSandbox = async () => { teardown.push("pause"); };
+      sandbox.destroySandbox = async () => { teardown.push("destroy"); };
+      return sandbox;
+    }) as any;
+    return teardown;
+  }
+
+  it("a fresh prompt refused with turn_index_taken parks the sandbox", async () => {
+    const fake = fakeTurn(async () => "completed");
+    const teardown = watchSandbox(fake);
+    const ledger: AppendSessionTurnFn = async (sessionId, _harness, turnIndex) => {
+      throw new SessionTurnIndexTaken(sessionId, turnIndex);
+    };
+    ledger.complete = async () => {};
+    fake.deps.appendSessionTurn = ledger;
+
+    const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credential: fake.credential });
+
+    assert.equal(result.ok, false);
+    assert.equal(isTurnIndexTaken(result), true);
+    assert.deepEqual(teardown, ["pause"]);
+  });
+
+  it("an ordinary failed turn still deletes the sandbox", async () => {
+    const fake = fakeTurn(async () => "failed");
+    const teardown = watchSandbox(fake);
+
+    const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credential: fake.credential });
+
+    assert.equal(result.ok, false);
+    assert.equal(isTurnIndexTaken(result), false);
+    assert.deepEqual(teardown, ["destroy"]);
   });
 });

@@ -4,9 +4,10 @@
  * Same contract as the CLI, exposed over HTTP so the wrapper can run as its own
  * container (a sidecar) that the Python service calls in-network:
  *
- *   GET  /health              -> runner identity ({ status, runner, protocol, engines, harnesses })
+ *   GET  /health              -> runner identity ({ status, runner, protocol, engines, harnesses,
+ *                             replicaId })
  *   GET  /subscription-status -> one login state per harness (no paths, no credentials)
- *   POST/GET/DELETE /subscription-login/attempts[/{id}] -> device-code login for a hosted
+ *   POST/DELETE /subscription-login/attempts[/{id}] -> device-code login for a hosted
  *                             subscription connection (the login goes to the API, never to a user)
  *   POST /stream              -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
  *   POST /kill                -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
@@ -51,11 +52,13 @@ import {
   resolveKeepaliveMount,
   runSandboxAgent,
   runTurn,
-  shouldPark,
+  turnTeardownReason,
   type ParkedApproval,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
 import type { SandboxAgentDeps } from "./engines/sandbox_agent/runtime-contracts.ts";
+import { readLatestSessionTurn } from "./engines/sandbox_agent/session-continuity-durable.ts";
+import { sessionContinuityStore } from "./engines/sandbox_agent/session-continuity.ts";
 import { withGatewayErrorDetail } from "./engines/sandbox_agent/engine.ts";
 import {
   cancelHarnessTurn,
@@ -85,6 +88,7 @@ import { SessionPool } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import { subscriptionStatusResponse } from "./subscription-status.ts";
 import {
+  abandonSubscriptionLogins,
   subscriptionLoginAttempts,
   SUBSCRIPTION_LOGIN_PROVIDER,
 } from "./subscription-login-attempts.ts";
@@ -104,8 +108,8 @@ import {
   SESSION_ADMISSION_UNCONFIRMED_MESSAGE,
 } from "./sessions/admission.ts";
 import {
+  REPLICA_ADDRESS,
   REPLICA_ID,
-  releaseOwnedSessions,
   startAliveWatchdog,
 } from "./sessions/alive.ts";
 import {
@@ -118,10 +122,19 @@ import {
 import { claimContinuationAdmission } from "./sessions/continuation-admission.ts";
 import {
   findExecution,
+  liveExecutions,
   noteExecutionProject,
   registerExecution,
   unregisterExecution,
 } from "./sessions/execution-registry.ts";
+import {
+  beginDrain,
+  cancelExecutions,
+  cancelParkedPrompts,
+  drainThenTearDown,
+  isDraining,
+  shutdownCancelBudgetMs,
+} from "./lifecycle/shutdown.ts";
 import {
   awaitTurnOrAbandon,
   resolveTurnSettleLimits,
@@ -139,7 +152,7 @@ import {
 import { proposeSessionName } from "./sessions/name.ts";
 import {
   buildPersistingEmitter,
-  noteRecordsIncomplete,
+  reportRecordsIncomplete,
   takePersistFailures,
 } from "./sessions/persist.ts";
 import { seedForRun } from "./redaction.ts";
@@ -148,10 +161,20 @@ import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
 import { applySandboxRouting } from "./engines/sandbox_agent/sandbox-routing.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
+import {
+  KILL_DEADLINE_MS,
+  killSessionSandboxesByLabel,
+  whenAborted,
+  type KillSessionSandboxes,
+} from "./engines/sandbox_agent/kill-by-label.ts";
 import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/turn-admission.ts";
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
-const SHUTDOWN_TURN_END_BUDGET_MS = 5_000;
+const SHUTDOWN_TURN_END_BUDGET_MS = 10_000;
+/** The bound on each of the two shutdown delete sweeps: the keep-alive pools, then in-flight runs. */
+const SHUTDOWN_DELETE_BUDGET_MS = 10_000;
+/** The bound on the wait for in-process command sandboxes still being deleted in the background. */
+const SHUTDOWN_INPROCESS_SETTLE_MS = 20_000;
 /** How long an in-process run gets to unwind after its abort, inside the shutdown budget above. */
 const INPROCESS_ABANDON_GRACE_MS = 3_000;
 
@@ -187,6 +210,15 @@ function concurrencyLimit(): number {
 }
 
 let inFlight = 0;
+
+/**
+ * Whether this process still runs an admitted execution. The execution registry holds every
+ * session-owned turn, Daytona and in-process alike; the request count adds the runs without a
+ * session. A turn parked on an approval has neither, because it runs nothing.
+ */
+export function hasRunningWork(): boolean {
+  return inFlight > 0 || liveExecutions().length > 0;
+}
 
 /** Constant-time string compare so the token check does not leak length/prefix via timing. */
 function tokensMatch(provided: string, expected: string): boolean {
@@ -295,7 +327,7 @@ export {
   type KeepaliveEngine,
 } from "./lifecycle/session-coordinator.ts";
 
-const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<SandboxAgentDeps>): KeepaliveEngine => ({
+export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<SandboxAgentDeps>): KeepaliveEngine => ({
   resolveKeepaliveMount: (request) => resolveKeepaliveMount(request),
   acquireEnvironment: async (request, signal, presignedMount, emit) =>
     acquireEnvironment(request, await engineDeps(), signal, presignedMount, emit),
@@ -333,6 +365,13 @@ const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<Sandbo
     if (!cwd) return true;
     return isMounted(cwd, klog);
   },
+  readLatestTurnIndex: async (sessionId, authorization) => {
+    const read = await readLatestSessionTurn(sessionId, undefined, {
+      authorization,
+      log: klog,
+    });
+    return read.ok ? { ok: true, turnIndex: read.turn?.turn_index } : read;
+  },
   // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
   // mount threaded through so an up-front keep-alive sign is never repeated.
   runCold: async (
@@ -365,18 +404,13 @@ const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<Sandbo
       });
       return result;
     } finally {
-      // A remote sandbox parks to warm on the same policy the warm path uses. `result` is
-      // undefined when runTurn threw, which is a failed turn: destroy.
-      const cleanResumable =
-        acquired.env.resumable &&
-        result !== undefined &&
-        shouldPark(result, signal, clientGone);
       await acquired.env.destroy({
-        reason: cleanResumable
-          ? "clean-resumable"
-          : signal?.aborted || clientGone?.()
-            ? "aborted"
-            : "failed-turn",
+        reason: turnTeardownReason(
+          result,
+          acquired.env.resumable,
+          signal,
+          clientGone,
+        ),
       });
     }
   },
@@ -950,8 +984,9 @@ async function runAndStreamWithApiBaseResolved(
             `No pool resolve, no eviction.\n`,
         );
         // Stops the heartbeat interval and releases the credential lease. Its final
-        // `is_running: false` beat is owner-scoped server-side, so it cannot clear the live
-        // turn's `running` lock or stamp its own turn id on the session row.
+        // `is_running: false` beat is turn-scoped server-side, and refused outright when the
+        // turn is bound to another replica, so it cannot clear the live turn's `running` lock
+        // or stamp its own turn id on the session row.
         await watchdog.release().catch(() => {});
         unregisterExecution(sessionId, turnId);
         liveEmit({
@@ -1164,7 +1199,13 @@ async function runAndStreamWithApiBaseResolved(
     if (sessionOwned && sessionId) {
       const dropped = takePersistFailures(sessionId);
       if (dropped > 0) {
-        noteRecordsIncomplete(sessionId);
+        // Before the watchdog release below, so the flag is on the log before another turn on
+        // this session can be admitted, on this runner or any other.
+        await reportRecordsIncomplete(
+          sessionId,
+          turnId,
+          aliveWatchdog?.credential ?? (() => runCredential(request)),
+        );
         process.stderr.write(
           `[sessions] records INCOMPLETE session=${sessionId} dropped=${dropped}; ` +
             `reconstruction disabled for this session\n`,
@@ -1246,7 +1287,7 @@ function readBodyCapped(
 /** The route prefix every subscription-login request shares. */
 const SUBSCRIPTION_LOGIN_ROUTE = "/subscription-login/attempts";
 
-/** The start body is `{ provider }`. */
+/** The start body is `{ provider, projectId, secretId }`. */
 const SUBSCRIPTION_LOGIN_BODY_MAX_BYTES = 4 * 1024;
 
 /**
@@ -1272,11 +1313,12 @@ function subscriptionLoginAttemptId(
 }
 
 /**
- * Serve the three device-login routes.
+ * Serve the two device-login routes: start, and stop.
  *
  * The response bodies are the runner half of the contract in
  * `docs/design/hosted-subscription-connections/implementation-contract.md` section 2. The API
- * translates them for the browser; it is the only caller.
+ * translates them for the browser; it is the only caller. There is no read route: the pod whose
+ * provider poll ends reports the outcome to the API, so no request has to find that pod again.
  */
 async function handleSubscriptionLoginRoute(
   req: IncomingMessage,
@@ -1284,11 +1326,11 @@ async function handleSubscriptionLoginRoute(
 ): Promise<void> {
   const path = (req.url ?? "").split("?")[0];
   const attempts = subscriptionLoginAttempts();
-  // Every answer on this route carries a credential or a user code, so none of them may be cached.
+  // The start answer carries a user code, so no answer on this route may be cached.
   res.setHeader("cache-control", "no-store");
 
   if (req.method === "POST" && path === SUBSCRIPTION_LOGIN_ROUTE) {
-    let body: { provider?: unknown };
+    let body: { provider?: unknown; projectId?: unknown; secretId?: unknown };
     try {
       const raw = await readBodyCapped(req, SUBSCRIPTION_LOGIN_BODY_MAX_BYTES);
       body = raw.trim() ? JSON.parse(raw) : {};
@@ -1306,8 +1348,26 @@ async function handleSubscriptionLoginRoute(
         error: `provider must be '${SUBSCRIPTION_LOGIN_PROVIDER}'`,
       });
     }
+    // Where the outcome goes. Without them the loop could not report, and the user's poll would
+    // wait out the provider's whole window for nothing.
+    const projectId = readRequiredId(body.projectId);
+    const secretId = readRequiredId(body.secretId);
+    if (!projectId || !secretId) {
+      return send(res, 400, {
+        ok: false,
+        error: "projectId and secretId are required",
+      });
+    }
     try {
-      return send(res, 200, await attempts.start(provider));
+      const view = await attempts.start(provider, { projectId, secretId });
+      // The API keeps this pod's own address on the attempt, so a cancel reaches the pod that
+      // runs the provider poll rather than whichever pod the Service URL picks. The id lets the
+      // API check, before the cancel, that the address still belongs to this pod.
+      return send(res, 200, {
+        ...view,
+        replicaAddress: REPLICA_ADDRESS,
+        replicaId: REPLICA_ID,
+      });
     } catch (err) {
       // `start` already reduced the provider's message to a short reason word.
       return send(res, 502, {
@@ -1320,17 +1380,10 @@ async function handleSubscriptionLoginRoute(
   const attemptId = subscriptionLoginAttemptId(req.url);
   if (!attemptId) return send(res, 404, { ok: false, error: "Not found" });
 
-  if (req.method === "GET") {
-    const view = attempts.get(attemptId);
-    // A purged or restarted attempt is gone, not broken. The API reads 404 as expired and offers
-    // the user a fresh sign-in rather than a retry against an id nothing holds.
-    if (!view) return send(res, 404, { ok: false, error: "Not found" });
-    return send(res, 200, view);
-  }
-
   if (req.method === "DELETE") {
     attempts.cancel(attemptId);
-    // Idempotent: a repeated delete, or one for an id already purged, is still 204.
+    // Idempotent: a repeated delete, one for an id that already ended, or one for an id another
+    // pod holds is still 204.
     res.writeHead(204);
     res.end();
     return;
@@ -1365,35 +1418,59 @@ function parkedSessionControl(
   for (const provider of Object.keys(
     keepalivePools,
   ) as KeepaliveProviderName[]) {
-    const pool = keepalivePools[provider];
-    const parked = pool.get(key);
-    if (!parked || parked.state !== "awaiting_approval") continue;
-    return {
-      stop: async () => {
-        // Checkout makes the transition exclusive: a racing request cannot consume the same
-        // permission gate while Stop is releasing it.
-        const live = pool.checkoutApproval(key);
-        if (!live) throw new Error("parked approval was already checked out");
-        await stopParkedApprovalSession({
-          environment: live.environment,
-          repark: () =>
-            pool.repark(
-              live,
-              {
-                historyFingerprint: live.historyFingerprint,
-                historyAsserted: live.historyAsserted,
-                credentialEpoch: live.credentialEpoch,
-              },
-              keepaliveConfigs[provider].stoppedTtlMs ??
-                keepaliveConfigs[provider].ttlMs,
-            ),
-          teardown: () =>
-            pool.evictIfCurrent(live, "stop-approval-failed", "failed-turn"),
-        });
-      },
-    };
+    const control = parkedControlAt(keepalivePools[provider], provider, key);
+    if (control) return control;
   }
   return undefined;
+}
+
+/** Every approval-parked session this process holds, in every pool. */
+export function parkedSessionControls(
+  pools: Record<
+    KeepaliveProviderName,
+    SessionPool<SessionEnvironment>
+  > = keepalivePools,
+): ParkedSessionControl[] {
+  return (Object.keys(pools) as KeepaliveProviderName[]).flatMap((provider) =>
+    pools[provider]
+      .keys()
+      .map((key) => parkedControlAt(pools[provider], provider, key))
+      .filter((control) => control !== undefined),
+  );
+}
+
+function parkedControlAt(
+  pool: SessionPool<SessionEnvironment>,
+  provider: KeepaliveProviderName,
+  key: string,
+): ParkedSessionControl | undefined {
+  const parked = pool.get(key);
+  if (!parked || parked.state !== "awaiting_approval") return undefined;
+  return {
+    turnId: parked.environment.parkedTurnId,
+    stop: async () => {
+      // Checkout makes the transition exclusive: a racing request cannot consume the same
+      // permission gate while Stop is releasing it.
+      const live = pool.checkoutApproval(key);
+      if (!live) throw new Error("parked approval was already checked out");
+      await stopParkedApprovalSession({
+        environment: live.environment,
+        repark: () =>
+          pool.repark(
+            live,
+            {
+              historyFingerprint: live.historyFingerprint,
+              historyAsserted: live.historyAsserted,
+              credentialEpoch: live.credentialEpoch,
+            },
+            keepaliveConfigs[provider].stoppedTtlMs ??
+              keepaliveConfigs[provider].ttlMs,
+          ),
+        teardown: () =>
+          pool.evictIfCurrent(live, "stop-approval-failed", "failed-turn"),
+      });
+    },
+  };
 }
 
 interface StopParkedApprovalSessionInput {
@@ -1449,6 +1526,14 @@ export async function stopParkedApprovalSession(
     env.nonParkablePauseCount = 0;
     env.commitAuthorization = undefined;
     env.clearTurn();
+    // The paused turn wrote its turn-log row and will never be resumed, so its index is spent.
+    // A paused turn records nothing, so without this the next fresh prompt on this warm
+    // environment would take the same index, and the turn-start write refuses a fresh prompt on
+    // a written index.
+    if (env.sessionId && env.continuityTurnIndex !== undefined) {
+      const store = env.deps.sessionContinuityStore ?? sessionContinuityStore;
+      store.restoreLatestTurn(env.sessionId, env.continuityTurnIndex);
+    }
     if (!(await input.repark())) {
       throw new Error("released approval could not return to the pool");
     }
@@ -1463,11 +1548,15 @@ export async function stopParkedApprovalSession(
 /** Build the HTTP request listener around a given engine runner (the testable seam). */
 export function createRequestListener(
   run: RunAgent,
+  killLabelledSandboxes: KillSessionSandboxes = killSessionSandboxesByLabel,
+  killDeadlineMs: number = KILL_DEADLINE_MS,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     try {
       if (req.method === "GET" && req.url === "/health") {
-        return send(res, 200, runnerInfo());
+        // A caller that holds a pod address checks this id against the turn's binding before
+        // it sends a token there: Kubernetes can give a dead pod's IP to another pod.
+        return send(res, 200, { ...runnerInfo(), replicaId: REPLICA_ID });
       }
 
       // Deployment state, not project data — but it is still operator state, so it sits behind the
@@ -1482,7 +1571,7 @@ export function createRequestListener(
       // Device-code login for a hosted subscription connection. Same token gate as the routes
       // above: the caller is the API, never a browser, and the login never leaves this hop except
       // as the API's own stored secret. See `subscription-login-attempts.ts` for why an attempt is
-      // a running promise rather than a stored record.
+      // a running promise here and its outcome a record at the API.
       if (req.url?.startsWith(SUBSCRIPTION_LOGIN_ROUTE)) {
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
@@ -1494,6 +1583,10 @@ export function createRequestListener(
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
+        // One deadline for all the work of this kill, started when the kill begins, so the route
+        // answers while the api still waits and no label sweep starts after that wait has ended.
+        // Node unrefs this timer, so a pending deadline never holds the process open.
+        const deadline = AbortSignal.timeout(killDeadlineMs);
         // Scoped, idempotent, best-effort: both sessionId and projectId are required so the
         // pool-key drain and the in-flight sandbox sweep agree on exactly one tenant's session
         // (pool keys are always project-scoped; see `poolKeyFor`).
@@ -1526,17 +1619,38 @@ export function createRequestListener(
           { sessionId, runContext: { project: { id: projectId } } },
           projectId,
         );
-        await Promise.all(
-          Object.values(keepalivePools).map((pool) =>
-            scope ? pool.destroy(scope.key, "kill") : Promise.resolve(),
-          ),
-        );
-        await destroyInFlightSandboxesForSession(
-          sessionId,
-          projectId,
-          5000,
-          "kill",
-        );
+        // A pool teardown has no bound of its own, so the drain is raced against the deadline.
+        // A drain that loses keeps going in the background.
+        const drain = (async () => {
+          await Promise.all(
+            Object.values(keepalivePools).map((pool) =>
+              scope ? pool.destroy(scope.key, "kill") : Promise.resolve(),
+            ),
+          );
+          await destroyInFlightSandboxesForSession(
+            sessionId,
+            projectId,
+            5000,
+            "kill",
+          );
+          return "drained" as const;
+        })();
+        const drained = await Promise.race([drain, whenAborted(deadline)]);
+        if (drained === "deadline") {
+          process.stderr.write(
+            `[sandbox-agent] kill: deadline passed during the drain session=${sessionId}; no label sweep, the drain finishes in the background, Daytona removes the rest\n`,
+          );
+          // The answer has gone, so a later drain failure has only this log.
+          drain.catch((error: unknown) => {
+            process.stderr.write(
+              `[sandbox-agent] kill: background drain failed session=${sessionId}: ${error instanceof Error ? error.message : String(error)}\n`,
+            );
+          });
+          return send(res, 200, { ok: true });
+        }
+        // The drain above reaches only what this pod holds. The labels reach the rest of the
+        // session's sandboxes, whichever pod created them.
+        await killLabelledSandboxes({ sessionId, projectId }, deadline);
         return send(res, 200, { ok: true });
       }
 
@@ -1618,6 +1732,15 @@ export function createRequestListener(
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
 
+        // A draining pod takes no new turn. A caller that posted to this pod's own address
+        // retries once at the Service URL, where another pod takes it.
+        if (isDraining()) {
+          return send(res, 503, {
+            ok: false,
+            error: "Runner is shutting down; send the turn to another runner",
+          });
+        }
+
         // Per-box admission gate: reject before doing any work when this replica
         // is already at its in-flight limit. Reserve the slot for the whole run and release
         // it in `finally`, whichever path (streaming or one-shot) is taken.
@@ -1679,21 +1802,31 @@ export function createRequestListener(
 }
 
 /** Create the sidecar HTTP server. Defaults to the real engine dispatch; tests pass a fake. */
-export function createAgentServer(run: RunAgent = runAgent): Server {
-  return createServer(createRequestListener(run));
+export function createAgentServer(
+  run: RunAgent = runAgent,
+  killLabelledSandboxes?: KillSessionSandboxes,
+  killDeadlineMs?: number,
+): Server {
+  return createServer(
+    createRequestListener(run, killLabelledSandboxes, killDeadlineMs),
+  );
 }
 
 /**
- * Register a shutdown handler that best-effort deletes any in-flight sandbox(es) before exit.
+ * Register a shutdown handler that drains the process and best-effort deletes its sandbox(es)
+ * before exit.
  *
  * Without this, `docker stop` (SIGTERM) kills the process while the per-run `finally` in
  * `runSandboxAgent` is still waiting on the harness — so the sandbox it created is never deleted
- * and leaks (a Daytona credit-burner). The handler drains the in-flight registry, then exits.
+ * and leaks (a Daytona credit-burner).
  *
- * It is timeout-bounded so it can NEVER hang shutdown: `destroyInFlightSandboxes` races the
- * deletes against its own timeout, and if the SIGTERM grace period elapses the orchestrator's
- * SIGKILL ends the process anyway (the Daytona auto-stop backstop in `provider.ts` covers that
- * unreachable case). The handler installs once and is idempotent against a repeated signal.
+ * The drain flag goes up before any cleanup starts, so `/run` and `/stream` refuse new turns
+ * from the first moment, whatever the cleanup does (see `lifecycle/shutdown.ts`).
+ *
+ * It is timeout-bounded so it can NEVER hang shutdown: every step of the cleanup races its own
+ * timeout, and if the SIGTERM grace period elapses the orchestrator's SIGKILL ends the process
+ * anyway (the Daytona auto-stop backstop in `provider.ts` covers that unreachable case). The
+ * handler installs once and is idempotent against a repeated signal.
  *
  * Injectable (`onCleanup` / `exit`) so a test can drive it without killing the test process.
  */
@@ -1710,14 +1843,60 @@ export function registerShutdownHandler({
   const handle = (signal: NodeJS.Signals): void => {
     if (shuttingDown) return; // a second signal must not race a second cleanup
     shuttingDown = true;
+    beginDrain();
     process.stderr.write(
-      `[sandbox-agent] received ${signal}, cleaning up in-flight sandboxes\n`,
+      `[sandbox-agent] received ${signal}, draining and cleaning up sandboxes\n`,
     );
     void onCleanup()
       .catch(() => {})
       .finally(() => exit(0));
   };
   for (const signal of signals) process.on(signal, handle);
+}
+
+/**
+ * The last shutdown step: delete every sandbox this process holds, idle, parked and in flight.
+ * Both pool reasons delete: no other process reconnects to a sandbox this one created, so a
+ * stopped one would only wait for Daytona's autodelete.
+ */
+export async function tearDownHeldSandboxes(
+  pools: readonly SessionPool<SessionEnvironment>[] = Object.values(keepalivePools),
+  destroyInFlight: (
+    timeoutMs: number,
+    reason: TeardownReason,
+  ) => Promise<void> = destroyInFlightSandboxes,
+  abandonLogins: () => Promise<void> = abandonSubscriptionLogins,
+): Promise<void> {
+  // While the API is still reachable: an in-process turn the cancel step did not end writes its
+  // ending, so no client waits on a turn this process will never finish; and a device login whose
+  // provider poll this process holds is reported failed, so its user can start again at once.
+  // Both run after the drain wait, so a turn or a sign-in that finished during it reported its
+  // own outcome; a sign-in report still on its way is waited for in the same bound. They run side
+  // by side, so the login report adds no time to the shutdown.
+  await Promise.all([
+    endActiveTurns(RUNNER_SHUTDOWN_REASON, SHUTDOWN_TURN_END_BUDGET_MS),
+    abandonLogins().catch(() => {}),
+  ]);
+  await Promise.all(
+    pools.map((pool) =>
+      pool.destroyAll(
+        SHUTDOWN_DELETE_BUDGET_MS,
+        "shutdown-idle",
+        "shutdown-in-flight",
+      ),
+    ),
+  );
+  await destroyInFlight(SHUTDOWN_DELETE_BUDGET_MS, "shutdown-in-flight");
+  // A command sandbox whose environment already left the pool is still held by the in-process
+  // provider. Its delete, like the ones above, runs in the background; let them all reach Daytona
+  // before exit.
+  await inProcessProvider?.then(
+    (provider) => {
+      provider.deleteUnheld();
+      return provider.settle(SHUTDOWN_INPROCESS_SETTLE_MS);
+    },
+    () => {},
+  );
 }
 
 // Only run as a server when this file is the process entry (`tsx src/server.ts`); importing
@@ -1739,42 +1918,29 @@ if (isEntrypoint(import.meta.url)) {
     );
   });
 
-  // On `docker stop` (SIGTERM) / Ctrl-C (SIGINT), drain the keep-alive pool (its complete
-  // per-session destroy) and then delete any sandbox a run created, so a kill does not leak a
-  // parked session or an in-flight sandbox (the per-run teardown never runs on a process kill).
-  registerShutdownHandler({
-    onCleanup: async (timeoutMs?: number) => {
-      // First, while persistence still works: every running turn writes its ending, so no
-      // client waits on a turn this process will never finish.
-      await endActiveTurns(RUNNER_SHUTDOWN_REASON, SHUTDOWN_TURN_END_BUDGET_MS);
-      await Promise.all(
-        Object.values(keepalivePools).map((pool) =>
-          pool.destroyAll(timeoutMs, "shutdown-idle", "shutdown-in-flight"),
-        ),
-      );
-      await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");
-      // Command sandboxes park in the background; let those stops reach Daytona before exit.
-      await inProcessProvider?.then(
-        (provider) => provider.settle(Math.min(timeoutMs ?? 20_000, 20_000)),
-        () => {},
-      );
-      // LAST, and only after the sandboxes are gone: hand back the `owner:session:<id>`
-      // affinity keys this replica holds. Nothing else releases them, and `claim_owner` never
-      // steals, so without this the replacement replica is refused every message on those
-      // sessions for the rest of the 120-second lease. It runs last because a session whose
-      // sandbox is still being destroyed should not yet look free to another replica, and it
-      // is bounded so it can never hold the process past the SIGTERM grace period. A SIGKILL
-      // reaches no handler at all; the lease stays the fallback for that.
-      await releaseOwnedSessions(timeoutMs);
-    },
-  });
-
   // Parse and validate the operator configuration ONCE before listening. An invalid
   // configuration (empty/unknown provider list, default not enabled, Daytona enabled without a
   // credential, mutually exclusive artifact, invalid lifecycle values) fails startup here. Log
   // one redacted summary, then bridge the typed Daytona credential into the ambient names the
   // vendored SDK reads during sandbox creation.
   let runnerConfig = loadRunnerConfig();
+
+  // On SIGTERM (a deploy, a node drain, `docker stop`) or Ctrl-C (SIGINT): refuse new turns,
+  // let running ones finish, cancel the rest with a settled wait, then delete every sandbox this
+  // process holds (the per-run teardown never runs on a process kill).
+  const shutdownWaitMs = runnerConfig.server.shutdownWaitSeconds * 1000;
+  registerShutdownHandler({
+    onCleanup: () =>
+      drainThenTearDown({
+        waitMs: shutdownWaitMs,
+        busy: hasRunningWork,
+        cancelRunning: () =>
+          cancelExecutions(liveExecutions(), shutdownCancelBudgetMs()),
+        cancelParked: () =>
+          cancelParkedPrompts(parkedSessionControls(), shutdownCancelBudgetMs()),
+        tearDown: () => tearDownHeldSandboxes(),
+      }),
+  });
   // The shared token is required to SERVE, but not to parse config: the per-request config reads
   // (provider defaults) must not depend on an auth secret. So it is asserted here, at the one
   // boundary that exposes the HTTP surface, and nowhere else.
@@ -1814,7 +1980,12 @@ if (isEntrypoint(import.meta.url)) {
             "cannot tell its own api from a third-party collector and cannot attribute the run " +
             "credential. Set AGENTA_API_URL to the public api base (e.g. https://<host>/api); " +
             `AGENTA_API_INTERNAL_URL host (${internalApiHost}) is the ` +
-            "in-network hop and does not substitute for it.\n",
+            "in-network hop and does not substitute for it." +
+            (process.env.AGENTA_API_INTERNAL_URL
+              ? ""
+              : " With neither set, the runner sends its runner token only to the default " +
+                "http://api:8000, never to an api base it infers from a run's trace endpoint.") +
+            "\n",
         );
       }
       if (insecureEgressAllowed()) {

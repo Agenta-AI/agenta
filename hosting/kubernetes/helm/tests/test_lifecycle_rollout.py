@@ -261,8 +261,13 @@ def main() -> int:
             assert_default_rollout_keys(workload)
 
     # --- A value set on a workload replaces its default. ---
+    # Remote sandboxes only: with the local provider the chart refuses a rolling runner.
     override_docs = render(
         [
+            "--set",
+            "agentRunner.providers.enabled={daytona}",
+            "--set",
+            "agentRunner.providers.default=daytona",
             "--set",
             "agentRunner.terminationGracePeriodSeconds=30",
             "--set",
