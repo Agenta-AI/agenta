@@ -70,26 +70,45 @@ export function useObjectUrl(blob: Blob | null): string | null {
     return minted && minted.blob === blob ? minted.url : null
 }
 
-/** Streaming media source (image / audio / video). The local src; mount media otherwise. */
+/** A remote source's bytes as an object URL; a null `src` fetches nothing. Media plays from the
+ * blob because the attachments endpoint ignores `Range`, and an `<audio>` or `<video>` pointed at
+ * it never gets its metadata. */
+export function useRemoteObjectUrl(src: string | null): {
+    url: string | null
+    isPending: boolean
+    failed: boolean
+} {
+    const remote = useAtomValue(remoteBytesQueryFamily({src: src ?? "", as: "blob"}))
+    const blob = remote.data instanceof Blob ? remote.data : null
+    const url = useObjectUrl(blob)
+    return {
+        url,
+        isPending: Boolean(src) && (remote.isPending || (blob !== null && !url)),
+        failed: Boolean(src) && !remote.isPending && !blob,
+    }
+}
+
+/** Streaming media source (image / audio / video): the local file's URL, a remote source's
+ * fetched bytes, or mount media. */
 export function useDriveMediaSrc(
     mount: Mount | null,
     path: string,
 ): {src: string | null; isPending: boolean; failed: boolean; onError: () => void} {
     const local = useLocalFile(path)
     const mountRes = useMountFileMediaSrc(mount, path)
+    const remote = useRemoteObjectUrl(local && !local.file ? local.src : null)
     // A local source can still fail to decode (corrupt / unsupported) — surface it like a mount
     // error so the viewer shows its "couldn't load" card rather than a broken element.
     const [failedSrc, setFailedSrc] = useState<string | null>(null)
-    if (local) {
-        const failed = failedSrc === local.src
-        return {
-            src: failed ? null : local.src,
-            isPending: false,
-            failed,
-            onError: () => setFailedSrc(local.src),
-        }
+    if (!local) return mountRes
+    const src = local.file ? local.src : remote.url
+    const failed = remote.failed || (src !== null && failedSrc === src)
+    return {
+        src: failed ? null : src,
+        isPending: remote.isPending,
+        failed,
+        onError: () => setFailedSrc(src),
     }
-    return mountRes
 }
 
 /** Object URL for a downloadable preview (PDF). A remote source is fetched: its endpoint may send
@@ -100,16 +119,10 @@ export function useDriveObjectUrl(
 ): {url: string | null; isPending: boolean; failed: boolean} {
     const local = useLocalFile(path)
     const mountRes = useMountFileObjectUrl(mount, path)
-    const remote = useRemoteBytes(local, "blob")
-    const blob = remote.data instanceof Blob ? remote.data : null
-    const remoteUrl = useObjectUrl(blob)
+    const remote = useRemoteObjectUrl(local && !local.file ? local.src : null)
     if (!local) return mountRes
     if (local.file) return {url: local.src, isPending: false, failed: false}
-    return {
-        url: remoteUrl,
-        isPending: remote.isPending || (blob !== null && !remoteUrl),
-        failed: !remote.isPending && !blob,
-    }
+    return remote
 }
 
 /** Text content for the source-family bodies: the local file, the remote source, or the mount. */

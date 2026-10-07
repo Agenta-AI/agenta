@@ -1,6 +1,6 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
-import {mediaViewerAtom, type MediaViewerItem} from "@agenta/entity-ui/drive"
+import {mediaViewerAtom, useRemoteObjectUrl, type MediaViewerItem} from "@agenta/entity-ui/drive"
 import {ImageBroken, Pause, Play} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -78,33 +78,59 @@ const ImageTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
     )
 }
 
-const VideoTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => (
-    <button
-        type="button"
-        aria-label={`View ${file.name}`}
-        disabled={!onOpen}
-        onClick={onOpen}
-        className={OPEN_BUTTON}
-    >
-        {file.src ? (
-            // The first frame, fetched as metadata only; muted so no autoplay policy applies.
-            <video
-                src={`${file.src}#t=0.1`}
-                muted
-                playsInline
-                preload="metadata"
-                className="absolute inset-0 h-full w-full object-cover"
-            />
-        ) : null}
-        <span className="relative flex size-7 items-center justify-center rounded-full bg-black/50 text-white">
-            <Play size={13} weight="fill" />
-        </span>
-    </button>
-)
+/** Above this a video tile keeps its glyph: its first frame would cost the whole file. */
+const VIDEO_FRAME_CAP = 8 * 1024 * 1024
 
-/** Plays in place, as it did on the card; the rest of the tile still opens the viewer. */
+const VideoTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => {
+    // Fetched whole: the attachments endpoint ignores `Range`, so a URL `src` never loads metadata.
+    const small = file.size !== undefined && file.size <= VIDEO_FRAME_CAP
+    const {url} = useRemoteObjectUrl(small ? (file.src ?? null) : null)
+    return (
+        <button
+            type="button"
+            aria-label={`View ${file.name}`}
+            disabled={!onOpen}
+            onClick={onOpen}
+            className={OPEN_BUTTON}
+        >
+            {url ? (
+                // Muted so no autoplay policy applies; seeked just past 0 to paint a frame.
+                <video
+                    src={url}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    onLoadedMetadata={(e) => {
+                        e.currentTarget.currentTime = 0.1
+                    }}
+                    className="absolute inset-0 h-full w-full object-cover"
+                />
+            ) : null}
+            <span className="relative flex size-7 items-center justify-center rounded-full bg-black/50 text-white">
+                <Play size={13} weight="fill" />
+            </span>
+        </button>
+    )
+}
+
+/** Plays in place, as it did on the card; the rest of the tile still opens the viewer. The bytes
+ * are fetched on the first Play, since the attachments endpoint cannot stream to an `<audio>`. */
 const AudioTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => {
-    const {ref, playing, toggle} = useAudioPlayback(file.src)
+    const [requested, setRequested] = useState(false)
+    const {url, isPending, failed} = useRemoteObjectUrl(requested ? (file.src ?? null) : null)
+    const {ref, playing, toggle} = useAudioPlayback(url ?? undefined)
+    // The first Play waits for the bytes, then starts once the element has them.
+    const playWhenReady = useRef(false)
+    useEffect(() => {
+        if (!url || !playWhenReady.current) return
+        playWhenReady.current = false
+        void ref.current?.play()
+    }, [url, ref])
+    const onPlay = () => {
+        if (url) return toggle()
+        playWhenReady.current = true
+        setRequested(true)
+    }
     return (
         <>
             <button
@@ -118,14 +144,17 @@ const AudioTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
             </button>
             <button
                 type="button"
-                disabled={!file.src}
+                disabled={!file.src || failed}
                 aria-label={`${playing ? "Pause" : "Play"} ${file.name}`}
-                onClick={toggle}
-                className="absolute left-1/2 top-2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-colorFillSecondary p-0 text-colorText transition-colors hover:bg-colorFill disabled:cursor-default disabled:opacity-50"
+                aria-busy={isPending}
+                onClick={onPlay}
+                className={`absolute left-1/2 top-2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-colorFillSecondary p-0 text-colorText transition-colors hover:bg-colorFill disabled:cursor-default disabled:opacity-50 ${
+                    isPending ? "motion-safe:animate-pulse" : ""
+                }`}
             >
                 {playing ? <Pause size={14} weight="fill" /> : <Play size={14} weight="fill" />}
             </button>
-            {file.src ? <audio ref={ref} src={file.src} preload="none" className="hidden" /> : null}
+            {url ? <audio ref={ref} src={url} preload="auto" className="hidden" /> : null}
         </>
     )
 }
