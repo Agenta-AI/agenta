@@ -1,5 +1,5 @@
 /** The product panel beside the sign-in form on wide screens. */
-import {memo, useLayoutEffect, useRef, useState} from "react"
+import {memo, useLayoutEffect, useRef, useState, useSyncExternalStore} from "react"
 
 import {Button} from "@agenta/ui/ui"
 import {GithubLogo} from "@phosphor-icons/react"
@@ -11,6 +11,22 @@ const FRAME_HEIGHT = 760
 /** How far the frame runs past the panel's right and bottom edges, as in the design. */
 const BLEED = 48
 const MAX_SCALE = 2
+/** Tailwind's `lg`, where the panel shows. */
+const WIDE = "(min-width: 1024px)"
+
+const subscribeWide = (onChange: () => void) => {
+    const list = window.matchMedia?.(WIDE)
+    list?.addEventListener("change", onChange)
+    return () => list?.removeEventListener("change", onChange)
+}
+
+/** Whether the panel is on screen; below `lg` CSS hides it and the live preview should not run. */
+const useWide = () =>
+    useSyncExternalStore(
+        subscribeWide,
+        () => window.matchMedia?.(WIDE).matches ?? false,
+        () => false,
+    )
 
 /** Scale the preview with the panel; on tall screens push the content down so the preview bleeds. */
 const useFrameFit = () => {
@@ -34,6 +50,7 @@ const useFrameFit = () => {
 
 const AuthSideBanner = () => {
     const [stageRef, {scale, offset}] = useFrameFit()
+    const wide = useWide()
     return (
         <section className="auth-panel m-3 hidden min-w-0 flex-1 flex-col gap-[clamp(24px,4vh,40px)] overflow-hidden rounded-lg pl-[clamp(32px,5vw,72px)] pt-[clamp(32px,8vh,72px)] lg:flex">
             <div
@@ -64,7 +81,7 @@ const AuthSideBanner = () => {
                     className="auth-preview-frame absolute left-0 top-0 h-[760px] w-[920px] origin-top-left overflow-hidden rounded-[14px]"
                     style={{transform: `translateY(${offset}px) scale(${scale})`}}
                 >
-                    <ProductPreview />
+                    {wide ? <ProductPreview /> : null}
                 </div>
             </div>
         </section>
