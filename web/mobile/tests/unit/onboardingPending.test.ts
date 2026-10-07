@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {withTestQuestions} from "./onboardingTestQuestion"
+
 import {
     EMPTY_ONBOARDING_DRAFT,
     onboardingDraftKey,
@@ -30,6 +32,8 @@ afterEach(() => {
     vi.unstubAllGlobals()
     window.sessionStorage.clear()
 })
+
+withTestQuestions()
 
 describe("onboarding pending mark", () => {
     it("is written per user with its timestamp and cleared once", () => {
