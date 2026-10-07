@@ -1,5 +1,7 @@
 import {PaperPlaneRight} from "@phosphor-icons/react"
+import {motion} from "motion/react"
 
+import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
 import {OnboardingAgentChip} from "./OnboardingAgentChip"
@@ -18,6 +20,7 @@ export const OnboardingAgentPreview = ({
     /** Only a connected app joins the agent, so only a connected app is previewed. */
     connected: ConnectedApps
 }) => {
+    const presets = useMotionPresets()
     const name = agent.name.trim() || FIRST_AGENT_FALLBACK_NAME
     const instructions = agent.instructions.trim()
     const apps = agent.apps
@@ -30,7 +33,20 @@ export const OnboardingAgentPreview = ({
         >
             <span className="text-muted-foreground text-xs font-medium">{copy.previewLabel}</span>
             <div className="flex items-center gap-3">
-                <OnboardingAgentChip icon={agent.icon} size={24} className="size-11 rounded-xl" />
+                {/* Keyed by the face, so a new icon or colour pops in. */}
+                <motion.span
+                    key={`${agent.icon.icon}:${agent.icon.color}`}
+                    variants={presets.pop}
+                    initial="initial"
+                    animate="animate"
+                    className="flex"
+                >
+                    <OnboardingAgentChip
+                        icon={agent.icon}
+                        size={24}
+                        className="size-11 rounded-xl"
+                    />
+                </motion.span>
                 <span className="min-w-0">
                     <span className="block truncate text-[15px] font-semibold">{name}</span>
                     <span className="text-muted-foreground text-xs">{copy.previewAgent}</span>

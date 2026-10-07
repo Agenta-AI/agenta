@@ -173,7 +173,7 @@ export const OnboardingCreator = ({
                 </LoadingButton>
             </div>
         </div>
-        <div className="sticky top-24 max-lg:hidden">
+        <div className="sticky top-6 max-lg:hidden">
             <OnboardingAgentPreview
                 agent={
                     template

@@ -90,12 +90,12 @@ export const OnboardingQuestion = <Label extends string>({
                             title={ONBOARDING_COPY.keyHint(key)}
                             onClick={() => pickRef.current(label)}
                             className={cn(
-                                "inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-solid pl-3.5 pr-2.5 text-sm font-medium transition-[background-color,color,opacity]",
+                                "inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-solid pl-3.5 pr-2.5 text-sm font-medium transition-[background-color,color,opacity,scale] motion-reduce:transition-none",
                                 FOCUS_RING,
                                 active
                                     ? "border-foreground bg-foreground text-background"
                                     : "border-border bg-background text-foreground hover:bg-accent",
-                                picked !== null && !active && "opacity-45",
+                                picked !== null && (active ? "scale-[0.98]" : "opacity-45"),
                             )}
                         >
                             <Icon size={17} weight={active ? "fill" : "regular"} />

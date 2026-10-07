@@ -45,16 +45,23 @@ vi.mock("@agenta/ui/agent-icon", () => ({
 }))
 vi.mock("next/dynamic", () => ({default: () => () => null}))
 vi.mock("@/components/AgentaLogo", () => ({AgentaLogo: () => null}))
-vi.mock("motion/react", () => ({
-    AnimatePresence: ({children}: {children: ReactNode}) => <>{children}</>,
-    motion: {
-        section: ({children, className}: {children: ReactNode; className?: string}) => (
-            <section className={className}>{children}</section>
-        ),
-    },
-    useIsPresent: () => true,
-    useReducedMotion: () => true,
-}))
+vi.mock("motion/react", async () => {
+    const {createElement} = await import("react")
+    // Any motion.<tag> renders the plain tag with its class; the animation props are dropped.
+    const tags = new Map<string, (props: {children?: ReactNode; className?: string}) => ReactNode>()
+    const plain = (tag: string) => {
+        if (!tags.has(tag)) {
+            tags.set(tag, ({children, className}) => createElement(tag, {className}, children))
+        }
+        return tags.get(tag)!
+    }
+    return {
+        AnimatePresence: ({children}: {children: ReactNode}) => <>{children}</>,
+        motion: new Proxy({}, {get: (_, tag: string) => plain(tag)}),
+        useIsPresent: () => true,
+        useReducedMotion: () => true,
+    }
+})
 
 import type {OnboardingCatalog} from "@/features/onboarding/onboardingChoices"
 import {OnboardingFlow, type OnboardingFlowProps} from "@/features/onboarding/OnboardingFlow"

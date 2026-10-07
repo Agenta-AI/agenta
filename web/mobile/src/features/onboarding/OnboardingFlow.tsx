@@ -81,7 +81,8 @@ export const OnboardingFlow = ({
 
     const presets = useMotionPresets()
     const [direction, setDirection] = useState(1)
-    const scrollerRef = useRef<HTMLElement | null>(null)
+    // The step column scrolls under a fixed header; a new step starts at its top.
+    const scrollerRef = useRef<HTMLDivElement | null>(null)
     const movedRef = useRef(false)
     const {step} = draft
     useEffect(() => {
@@ -198,20 +199,21 @@ export const OnboardingFlow = ({
     }
 
     return (
-        <main
-            ref={scrollerRef}
-            className="bg-background text-foreground flex h-dvh flex-col overflow-y-auto"
+        <main className="bg-background text-foreground flex h-dvh flex-col overflow-hidden"
         >
             <OnboardingHeader
                 position={PROGRESS[step]}
                 onBack={previous && !creating ? () => go(previous) : null}
             />
-            <div className="relative flex-1 overflow-x-hidden px-4 lg:px-6">
+            <div
+                ref={scrollerRef}
+                className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 lg:px-6"
+            >
                 <AnimatePresence mode="popLayout" custom={direction} initial={false}>
                     <motion.section
                         key={step}
                         custom={direction}
-                        variants={presets.sharedAxisPush}
+                        variants={presets.stepSlide}
                         initial="initial"
                         animate="animate"
                         exit="exit"
