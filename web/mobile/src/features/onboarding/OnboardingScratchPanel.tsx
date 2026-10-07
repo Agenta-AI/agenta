@@ -1,3 +1,5 @@
+import {useState} from "react"
+
 import {
     AGENT_ICON_CHIP_CLASS,
     AGENT_ICON_COLORS,
@@ -31,7 +33,10 @@ export const OnboardingScratchPanel = ({
     create: OnboardingCreateState
 }) => {
     const glyphs = useGlyphPaths()
-    const {icon, color} = agent.icon
+    // A hue drag shows here and reaches the draft once, on release.
+    const [dragColor, setDragColor] = useState<string | null>(null)
+    const icon = agent.icon.icon
+    const color = dragColor ?? agent.icon.color
     return (
         <section
             aria-label={ONBOARDING_COPY.gallery.scratch}
@@ -40,7 +45,7 @@ export const OnboardingScratchPanel = ({
             <div className="flex min-w-0 flex-col gap-2.5 p-3">
                 <div className="flex min-w-0 items-center gap-2.5">
                     <OnboardingAgentChip
-                        icon={agent.icon}
+                        icon={{icon, color}}
                         size={16}
                         className="size-7 rounded-md"
                     />
@@ -99,7 +104,11 @@ export const OnboardingScratchPanel = ({
                     <OnboardingHueSlider
                         className="max-sm:mt-2 max-sm:basis-full"
                         color={color}
-                        onChange={(hex) => onChange({icon: {icon, color: hex}})}
+                        onPreview={setDragColor}
+                        onChange={(hex) => {
+                            setDragColor(null)
+                            onChange({icon: {icon, color: hex}})
+                        }}
                     />
                 </div>
             </div>

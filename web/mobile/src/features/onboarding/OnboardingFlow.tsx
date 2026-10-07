@@ -14,7 +14,6 @@ import {
     blankAgentInput,
     onboardingReducer,
     readOnboardingDraft,
-    saveOnboardingDraft,
     templateAgentInput,
     type FirstAgentInput,
     type OnboardingDraft,
@@ -42,6 +41,7 @@ import {
     type OnboardingStep,
     type OnboardingSteps,
 } from "./onboardingRoute"
+import {useDraftSave} from "./useDraftSave"
 import type {OnboardingModel} from "./useOnboardingModel"
 import {useOnboardingNav} from "./useOnboardingNav"
 
@@ -89,7 +89,7 @@ export const OnboardingFlow = ({
     onCreate,
 }: OnboardingFlowProps) => {
     const [draft, dispatch] = useReducer(onboardingReducer, draftKey, readOnboardingDraft)
-    useEffect(() => saveOnboardingDraft(draftKey, draft), [draftKey, draft])
+    const flushDraft = useDraftSave(draftKey, draft)
     // A question advances on a timer armed before its answer re-rendered; read the latest.
     const draftRef = useRef(draft)
     draftRef.current = draft
@@ -155,9 +155,13 @@ export const OnboardingFlow = ({
         onChooseModel: () => go({step: "credits"}, {returnTo: routeRef.current}),
         onCreate: async (firstMessage) => {
             const input = blankAgentInput(draftRef.current.agent, firstMessage)
+            flushDraft()
             return input ? onCreate(input) : false
         },
-        onCreateFromTemplate: (template) => onCreate(templateAgentInput(template, connectedApps)),
+        onCreateFromTemplate: (template) => {
+            flushDraft()
+            return onCreate(templateAgentInput(template, connectedApps))
+        },
     }
     const onAgent = (patch: Partial<OnboardingDraft["agent"]>) => dispatch({type: "agent", patch})
 

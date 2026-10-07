@@ -16,10 +16,13 @@ const fromHue = (hue: number) => hsvToHex(((hue % 360) + 360) % 360, 0.78, 0.62)
 /** A custom agent colour picked along the hue wheel; drag, tap, or arrow keys. */
 export const OnboardingHueSlider = ({
     color,
+    onPreview,
     onChange,
     className,
 }: {
     color: string
+    /** Each step of a drag; `onChange` gets the colour once, on release. */
+    onPreview: (hex: string) => void
     onChange: (hex: string) => void
     className?: string
 }) => {
@@ -31,8 +34,11 @@ export const OnboardingHueSlider = ({
         const track = trackRef.current
         if (!track) return
         const box = track.getBoundingClientRect()
-        const set = (x: number) =>
-            onChange(fromHue(Math.max(0, Math.min(1, (x - box.left) / box.width)) * 360))
+        let last = color
+        const set = (x: number) => {
+            last = fromHue(Math.max(0, Math.min(1, (x - box.left) / box.width)) * 360)
+            onPreview(last)
+        }
         set(event.clientX)
         track.setPointerCapture(event.pointerId)
         const move = (next: globalThis.PointerEvent) => set(next.clientX)
@@ -40,6 +46,7 @@ export const OnboardingHueSlider = ({
             track.removeEventListener("pointermove", move)
             track.removeEventListener("pointerup", up)
             track.removeEventListener("pointercancel", up)
+            onChange(last)
         }
         track.addEventListener("pointermove", move)
         track.addEventListener("pointerup", up)
