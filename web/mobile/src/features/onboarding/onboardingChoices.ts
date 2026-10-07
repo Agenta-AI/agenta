@@ -107,11 +107,6 @@ export const galleryTemplates = (
     return [...first, ...rest].slice(0, RECOMMENDED_COUNT)
 }
 
-/** Catalog categories in the order the catalog first lists them. */
-export const galleryCategories = (templates: readonly AgentStarterTemplate[]): string[] => [
-    ...new Set(templates.map((item) => item.category)),
-]
-
 /** A glyph from the agent-icon catalog for each category, so a template brings a face. */
 const CATEGORY_GLYPH: Record<string, string> = {
     Engineering: "code",
