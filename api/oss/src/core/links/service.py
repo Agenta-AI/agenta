@@ -27,6 +27,8 @@ _MAX_REDIRECTS = 3
 _MAX_BYTES = 512 * 1024
 _HTML_TYPES = {"text/html", "application/xhtml+xml"}
 _USER_AGENT = "Mozilla/5.0 (compatible; AgentaLinkPreview/1.0; +https://agenta.ai)"
+# Built once at import: loading the CA bundle per request blocked the event loop.
+_SSL_CONTEXT = httpx.create_ssl_context()
 
 
 def normalize_link_url(url: str) -> str:
@@ -76,10 +78,12 @@ async def _fetch_html(url: str) -> tuple[str, Optional[str]]:
     reads as unreachable.
     """
     current = url
+    # One client per preview, never pooled: each hop is pinned to its own checked address.
     async with httpx.AsyncClient(
         timeout=_TIMEOUT_SECONDS,
         follow_redirects=False,
         cookies=no_cookie_jar(),
+        verify=_SSL_CONTEXT,
     ) as client:
         for hop in range(_MAX_REDIRECTS + 1):
             try:
