@@ -1,5 +1,6 @@
 """Read a page's preview fields from its `<head>`, with the standard library parser."""
 
+import re
 from html.parser import HTMLParser
 from typing import Optional
 from urllib.parse import urljoin, urlparse
@@ -77,7 +78,17 @@ def _absolute_image(src: Optional[str], base_url: str) -> Optional[str]:
     return absolute if urlparse(absolute).scheme in ("http", "https") else None
 
 
+_HEAD_END = re.compile(r"</head\s*>|<body[\s>]", re.IGNORECASE)
+
+
+def head_section(html: str) -> str:
+    """Everything before the head closes or the body opens: all the preview fields live there."""
+    end = _HEAD_END.search(html)
+    return html[: end.start()] if end else html
+
+
 def parse_link_meta(html: str, base_url: str) -> LinkMeta:
+    html = head_section(html)
     parser = _HeadParser()
     try:
         # Fed in slices so a page with a huge body stops being read once `<head>` closes.

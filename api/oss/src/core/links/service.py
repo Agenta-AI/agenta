@@ -7,7 +7,7 @@ import httpx
 from oss.src.core.gateways.dtos import no_cookie_jar
 from oss.src.core.gateways.egress import _pin_to_resolved_address
 from oss.src.core.links.guard import resolve_link_target
-from oss.src.core.links.parser import parse_link_meta
+from oss.src.core.links.parser import head_section, parse_link_meta
 from oss.src.core.links.types import (
     LinkPreview,
     LinkPreviewError,
@@ -25,6 +25,7 @@ _NEGATIVE_CACHE_TTL_SECONDS = 10 * 60
 _TIMEOUT_SECONDS = 3.0
 _MAX_REDIRECTS = 3
 _MAX_BYTES = 512 * 1024
+_PARSE_INLINE_CHARS = 64 * 1024
 _HTML_TYPES = {"text/html", "application/xhtml+xml"}
 _USER_AGENT = "Mozilla/5.0 (compatible; AgentaLinkPreview/1.0; +https://agenta.ai)"
 # Built once at import: loading the CA bundle per request blocked the event loop.
@@ -149,7 +150,15 @@ class LinksService:
         except (TimeoutError, httpx.HTTPError) as exc:
             log.debug("[links] preview fetch failed", url=key, error=type(exc).__name__)
 
-        meta = parse_link_meta(html, final_url) if html else None
+        meta = None
+        if html:
+            head = head_section(html)
+            # A page with no head end can still be 512 KB of markup: parse that off the loop.
+            meta = (
+                await asyncio.to_thread(parse_link_meta, head, final_url)
+                if len(head) > _PARSE_INLINE_CHARS
+                else parse_link_meta(head, final_url)
+            )
         preview = LinkPreview(
             url=final_url,
             domain=_domain(final_url),

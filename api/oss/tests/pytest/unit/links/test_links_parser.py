@@ -1,6 +1,6 @@
 """Preview fields come from Open Graph first, then Twitter cards, then plain HTML."""
 
-from oss.src.core.links.parser import LinkMeta, parse_link_meta
+from oss.src.core.links.parser import LinkMeta, head_section, parse_link_meta
 
 BASE = "https://example.com/blog/post"
 
@@ -81,3 +81,12 @@ def test_a_page_with_nothing_returns_empty_fields():
 def test_malformed_markup_keeps_what_was_read():
     html = '<head><meta property="og:title" content="Kept"><title>unterminated'
     assert parse_link_meta(html, BASE).title == "Kept"
+
+
+def test_the_head_section_ends_at_the_head_close_or_the_body():
+    assert (
+        head_section("<head><title>A</title></HEAD ><p>x</p>")
+        == "<head><title>A</title>"
+    )
+    assert head_section("<title>A</title><BODY class='x'>rest") == "<title>A</title>"
+    assert head_section("<title>A</title>") == "<title>A</title>"
