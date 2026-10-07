@@ -79,13 +79,19 @@ import {
   conciseError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   type RunErrorCode,
+  RUNNER_RESTARTING_MESSAGE,
   runLimitError,
+  TURN_INDEX_TAKEN_CODE,
+  TURN_INDEX_TAKEN_MESSAGE,
   TURN_TIME_LIMIT_CODE,
   withinCredentialPropagationWindow,
   withPublicCode,
 } from "./errors.ts";
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
-import { isUserStopAbort } from "../../sessions/stop-signal.ts";
+import {
+  isCooperativeCancelAbort,
+  isRunnerShutdownAbort,
+} from "../../sessions/stop-signal.ts";
 import { cancelHarnessTurn } from "./cancel-turn.ts";
 import {
   followsUnansweredUserTurn,
@@ -134,7 +140,10 @@ import {
   mcpPermissionsFromRequest,
   shouldSuppressPausedToolCallUpdate,
 } from "./runtime-policy.ts";
-import { appendSessionTurn } from "./session-continuity-durable.ts";
+import {
+  appendSessionTurn,
+  SessionTurnIndexTaken,
+} from "./session-continuity-durable.ts";
 import { nextTurnIndex, sessionContinuityStore } from "./session-continuity.ts";
 import {
   carriesGatewayRefusalMarker,
@@ -347,6 +356,12 @@ export async function runTurn(
       env.continuityTurnIndex === undefined
     ) {
       invalidateContinuity(sessionId, plan.harness, deps);
+      // The row is on the ledger, so the index is spent even though the turn is no resume point.
+      if (turnLedgerForFailure)
+        continuityStore.restoreLatestTurn(
+          turnLedgerForFailure.sessionId,
+          turnLedgerForFailure.turnIndex,
+        );
       return;
     }
     continuityStore.record(
@@ -749,10 +764,14 @@ export async function runTurn(
           }
         : undefined;
     if (turnLedgerContext) {
-      turnLedgerForFailure = turnLedgerContext;
       const workflowRefs = buildWorkflowReferenceList(
         request.runContext?.workflow,
       );
+      // An approval resume appends its paused turn's index again, and that 409 is expected. On a
+      // fresh prompt it means another runner already ran this turn, so this runner's view of the
+      // conversation is stale: end the turn here, before the prompt is sent.
+      const resumesPausedTurn =
+        !!opts.resume || !!opts.settleApprovalsThenPrompt || approvalReplyOnly;
       // Row existence proves only that a turn started. Native continuation is trustworthy only
       // after `end_time` is set.
       await sessionTurnClient(
@@ -769,8 +788,20 @@ export async function runTurn(
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,
         },
-        { authorization: credential(), log: logger },
-      ).catch(() => {});
+        { authorization: credential(), log: logger, signal },
+      ).catch((err: unknown) => {
+        if (!(err instanceof SessionTurnIndexTaken) || resumesPausedTurn)
+          return;
+        logger(
+          `[continuity] ERROR turn index ${err.turnIndex} of session=${err.sessionId} was ` +
+            "already written by another runner; ending this turn before the prompt",
+        );
+        throw withPublicCode(
+          new Error(TURN_INDEX_TAKEN_MESSAGE),
+          TURN_INDEX_TAKEN_CODE,
+        );
+      });
+      turnLedgerForFailure = turnLedgerContext;
     }
 
     // A cold pause sends the harness a cancel (`destroySession`). Claude and Codex answer the open
@@ -834,13 +865,22 @@ export async function runTurn(
       if (!openToolCallIds().includes(toolCallId)) {
         return Promise.resolve(true);
       }
+      // A shutdown has a release budget, and this wait can last a whole tool-call bound. Stop
+      // waiting when the shutdown cancels the turn, so the cancelled-turn cleanup below cancels
+      // the harness and ends the turn with the restart error inside that budget. A user Stop keeps
+      // its old behavior.
+      if (isRunnerShutdownAbort(signal)) return Promise.resolve(false);
       return new Promise<boolean>((resolve) => {
         let timeout: NodeJS.Timeout | undefined;
         let finished = false;
+        const onAbort = (): void => {
+          if (isRunnerShutdownAbort(signal)) finish(false);
+        };
         const finish = (closed: boolean): void => {
           if (finished) return;
           finished = true;
           if (timeout) clearTimeout(timeout);
+          signal?.removeEventListener("abort", onAbort);
           const waiters = toolCallClosureWaiters.get(toolCallId);
           waiters?.delete(onClosed);
           if (waiters?.size === 0) toolCallClosureWaiters.delete(toolCallId);
@@ -851,6 +891,7 @@ export async function runTurn(
         waiters.add(onClosed);
         toolCallClosureWaiters.set(toolCallId, waiters);
         void runLimitTripped.then(() => finish(false));
+        signal?.addEventListener("abort", onAbort, { once: true });
         timeout = setTimeout(() => finish(false), timeoutMs);
       });
     };
@@ -1686,7 +1727,7 @@ export async function runTurn(
         );
       }
 
-      if (isUserStopAbort(signal)) {
+      if (isCooperativeCancelAbort(signal)) {
         stopReason = "cancelled";
       }
       if (request.sessionId && request.turnId) {
@@ -1906,6 +1947,16 @@ export async function runTurn(
       run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent(errorEventWithDetail(classified.message, classified.code));
     }
+    // A shutdown cancels like a Stop, but nobody stopped this turn. It ends with an error the
+    // client offers to retry; the cancel's park and continuity stay those of a Stop.
+    const endedByShutdown =
+      stopReason === "cancelled" && isRunnerShutdownAbort(signal);
+    if (endedByShutdown) {
+      run.recordError(RUNNER_RESTARTING_MESSAGE);
+      run.emitEvent(
+        errorEventWithDetail(RUNNER_RESTARTING_MESSAGE, "execution_lost"),
+      );
+    }
     if (nativeTraceBatches === 0 && !swallowedError) {
       await harnessTrace.emitMissingBatchFallback(run);
     }
@@ -1913,7 +1964,9 @@ export async function runTurn(
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
     await settleInBandInteractions?.();
     if (outputLimitReason) throw new Error(outputLimitReason);
-    const output = run.finish(swallowedError ? "error" : stopReason);
+    const output = run.finish(
+      swallowedError || endedByShutdown ? "error" : stopReason,
+    );
     await run.flush();
     const turnEndedAt = new Date().toISOString();
 
@@ -1960,6 +2013,11 @@ export async function runTurn(
       )?.nativeHistorySaved?.() !== false;
     const turnIsResumePoint =
       stopReason !== "paused" && (stopReason !== "cancelled" || cancelSettled);
+    // Every ending but a pause has spent this turn's index, resume point or not. Without this a
+    // warm environment parked after an unrecorded turn would hand the next fresh prompt the
+    // same index, and the turn-start write refuses a fresh prompt on a written index.
+    if (stopReason !== "paused" && sessionId && env.continuityTurnIndex !== undefined)
+      continuityStore.restoreLatestTurn(sessionId, env.continuityTurnIndex);
     if (turnIsResumePoint && !nativeHistorySaved) {
       logger(
         `[continuity] native transcript behind the turn's records session=${sessionId ?? "-"}; ` +
@@ -2079,6 +2137,18 @@ export async function runTurn(
       error,
       ...(stalledBeforeFirstResponse
         ? { stalledBeforeFirstResponse: true }
+        : {}),
+      // Structured so the dispatch can tell this refusal from a broken session: it must not
+      // delete the environment or retry cold, and the caller may send the message again.
+      ...(classified.code === TURN_INDEX_TAKEN_CODE
+        ? {
+            errorDetail: {
+              code: TURN_INDEX_TAKEN_CODE,
+              message: error,
+              retryable: true,
+              next_step: "Send the message again.",
+            },
+          }
         : {}),
     };
   } finally {

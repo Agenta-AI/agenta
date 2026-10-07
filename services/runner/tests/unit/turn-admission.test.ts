@@ -112,6 +112,22 @@ describe("runAdmittedTurn", () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 
+  it("with the wallet switch off, a session turn posts no release: it holds nothing to give back", async () => {
+    // Release finding F4 (v0.122.4): a wallet-off deployment admitted every session turn without a
+    // call, then posted its release with an empty credential, which the API refused with a 401.
+    vi.stubEnv("AGENTA_WALLETS_ENABLED", "false");
+    const fetch = vi.fn(async () => new Response(null, { status: 401 }));
+    vi.stubGlobal("fetch", fetch);
+    try {
+      const result = await runAdmittedTurn(RUN, "t-1", undefined, async () => ({ ok: true }) as never);
+      expect(result).toMatchObject({ ok: true });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("a turn the runner abandons gives its slot back although its run never settles", async () => {
     const release = vi.fn();
     const holdSlot = vi.fn(() => ({ release }));

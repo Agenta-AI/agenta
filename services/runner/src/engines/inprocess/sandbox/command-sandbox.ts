@@ -28,6 +28,7 @@
 import { createHmac } from "node:crypto";
 import { abortedError, type CreateSandboxRequest, type DaytonaApi, type DaytonaSandbox, type NetworkSettings } from "./daytona-api.ts";
 import { SANDBOX_CAPACITY_MESSAGE, SANDBOX_PROVIDER_CAPACITY, withPublicCode } from "../../sandbox_agent/errors.ts";
+import { markSandboxCreated } from "../../sandbox_agent/created-sandboxes.ts";
 import { DEPLOYMENT_LABEL, OWNER_LABEL, type SandboxOwner } from "./sandbox-owner.ts";
 import { sandboxSlots, type SandboxSlots, type Slot } from "./sandbox-slots.ts";
 import { SerialQueue, sleep, untilAborted } from "./serial-queue.ts";
@@ -37,7 +38,6 @@ import { apiBase } from "../../../apiBase.ts";
 
 type Log = (message: string) => void;
 
-export const CONVERSATION_LABEL = "agenta.conversation";
 export const CREDENTIALS_LABEL = "agenta.credentials";
 
 export interface CommandSandboxSettings {
@@ -430,6 +430,8 @@ export class CommandSandbox {
       signal,
     );
     this.current = raw;
+    // The turn row stores this id, and the reconnect ladder trusts only ids this process created.
+    markSandboxCreated(raw.id);
     this.ended = new AbortController();
     this.believedRunning = true;
     this.appliedNetwork = networkKey(requirements.network);

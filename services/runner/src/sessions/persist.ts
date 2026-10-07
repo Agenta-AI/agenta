@@ -28,6 +28,7 @@ import type { AgentEvent } from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
 import { stableRecordId } from "./record-id.ts";
 import { LiveFramePublisher } from "./live-frames.ts";
+import { fetchControlPlane } from "./control-plane-fetch.ts";
 
 const INGEST_RETRY_BASE_MS = 100;
 // Per-request ceiling on one ingest POST. Without it a single stalled request (a hung API, a
@@ -209,17 +210,67 @@ export function takePersistFailures(sessionId: string): number {
   return n;
 }
 
-/** Sessions whose record log is known to have lost at least one record. */
+/**
+ * Sessions whose record log this process saw lose a record. The durable flag the api keeps is
+ * what every runner reads; this set covers the case where reporting that flag failed too.
+ */
 const incompleteSessions = new Set<string>();
+
+/** Bound the report at the turn-end drain: the turn's result waits on it. */
+const INCOMPLETE_REPORT_BUDGET_MS = 5_000;
+const INCOMPLETE_REPORT_ATTEMPTS = 3;
 
 /**
  * Mark a session's record log as incomplete, permanently for this process. Once a record is
  * dropped the log no longer represents the conversation, so it must never be used to rebuild
- * model context: the turn would silently run with a hole in its history. Set at the turn-end
- * drain; read by the reconstruction seam, which fails the turn instead of reconstructing.
+ * model context: the turn would silently run with a hole in its history. Read by the
+ * reconstruction seam, which fails the turn instead of reconstructing.
  */
 export function noteRecordsIncomplete(sessionId: string): void {
   incompleteSessions.add(sessionId);
+}
+
+/**
+ * `noteRecordsIncomplete`, plus the same fact reported to the api, which keeps it with the
+ * record log so a turn on another runner refuses too. Called at the turn-end drain. Best effort:
+ * a failed report is logged, and only this process then knows.
+ */
+export async function reportRecordsIncomplete(
+  sessionId: string,
+  turnId: string | undefined,
+  auth: () => string,
+): Promise<void> {
+  noteRecordsIncomplete(sessionId);
+  try {
+    const res = await fetchControlPlane(
+      (signal) =>
+        fetch(`${apiBase()}/sessions/records/incomplete`, {
+          method: "POST",
+          signal,
+          headers: {
+            "content-type": "application/json",
+            authorization: auth(),
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            ...(turnId ? { turn_id: turnId } : {}),
+          }),
+        }),
+      // The api sets the flag only once, so a repeat is harmless.
+      {
+        retryFailures: true,
+        maxAttempts: INCOMPLETE_REPORT_ATTEMPTS,
+        budgetMs: INCOMPLETE_REPORT_BUDGET_MS,
+      },
+    );
+    await res.body?.cancel().catch(() => {});
+    if (!res.ok)
+      log(`incomplete report HTTP ${res.status} session=${sessionId}`);
+  } catch (err) {
+    log(
+      `incomplete report FAILED session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+    );
+  }
 }
 
 /** Whether this session has lost a record and can no longer be reconstructed from. */

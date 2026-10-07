@@ -42,6 +42,7 @@
  * Everything else about geesefs — credentials, FUSE, staleness, ENOTCONN — is irrelevant to this
  * failure and is deliberately absent.
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
@@ -230,6 +231,7 @@ function makeEngine(host: Host, options: EngineOptions = {}) {
       );
     },
 
+    readLatestTurnIndex: turnLogUnmoved,
     async runCold() {
       throw new Error(
         "runCold must not be reached: every request here is session-owned",

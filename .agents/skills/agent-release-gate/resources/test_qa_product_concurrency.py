@@ -335,6 +335,43 @@ def test_a_capacity_refusal_is_a_skip_not_a_verdict():
     assert "pass" not in r
 
 
+def test_the_runner_sandbox_capacity_sentence_is_a_skip_not_a_verdict():
+    """The runner replaces the provider's refusal with its own `sandbox_capacity` sentence."""
+    _reset()
+
+    def provider_full(session, messages, params, timeout=300.0, deadline=None):
+        t = qa.Turn()
+        t.http_status = 200
+        t.errors.append(
+            "The command sandbox could not be started because the sandbox provider is at "
+            "its capacity limit. Try again in a few minutes."
+        )
+        return t
+
+    qa.invoke = provider_full
+    r = qa.j_burst(CELL)
+    assert r.get("skip") and "ENVIRONMENT, NOT THE PRODUCT" in r["why"], r
+    assert "pass" not in r
+
+
+def test_the_runner_own_sandbox_slot_limit_is_still_a_failure():
+    """Same `sandbox_capacity` code, but the runner's own limit: a real finding under burst."""
+    _reset()
+
+    def slots_full(session, messages, params, timeout=300.0, deadline=None):
+        t = qa.Turn()
+        t.http_status = 200
+        t.errors.append(
+            "This agent service is running as many command sandboxes as it is allowed to "
+            "right now, so the command did not run. Send it again in a moment."
+        )
+        return t
+
+    qa.invoke = slots_full
+    r = qa.j_burst(CELL)
+    assert not r.get("skip") and r["pass"] is False, r
+
+
 def test_an_internal_rate_limit_is_still_a_failure():
     """The capacity SKIP must never swallow `rate_limited`: that is a real finding."""
     _reset()
