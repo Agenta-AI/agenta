@@ -8,7 +8,7 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {ArrowRight, RotateCcw} from "lucide-react"
 
-import {FIRST_RUN_COPY} from "./copy"
+import {FIRST_RUN_COPY} from "./firstRunCopy"
 
 /**
  * The create surface's composer: describe an agent, send, and it exists.
