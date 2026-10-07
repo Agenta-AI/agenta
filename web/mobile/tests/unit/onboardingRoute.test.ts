@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {registerQuestion, TEAM_QUESTION} from "./onboardingTestQuestion"
+import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
 
 import {
     guardOnboardingRoute as guardWith,
@@ -15,7 +15,9 @@ import {
     type OnboardingStep,
 } from "@/features/onboarding/onboardingRoute"
 
-const ALL = onboardingSteps()
+withTestQuestions()
+
+const ALL: OnboardingStep[] = ["role", "source", "credits", "templates", "review"]
 const guardOnboardingRoute = (
     route: OnboardingRoute | null,
     answers: Parameters<typeof guardWith>[1],
@@ -109,7 +111,7 @@ describe("hidden question steps", () => {
     })
 
     it("numbers steps for analytics by the whole registry, shown or not", () => {
-        expect(ALL).toEqual(["role", "source", "credits", "templates", "review"])
+        expect(onboardingSteps()).toEqual(ALL)
         registerQuestion({...TEAM_QUESTION, enabled: false})
         expect(onboardingSteps()).toEqual(ALL)
         const steps = ["role", "source", "team", "credits", "review"] as OnboardingStep[]

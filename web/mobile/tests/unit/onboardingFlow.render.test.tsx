@@ -151,7 +151,7 @@ vi.mock("motion/react", async () => {
     }
 })
 
-import {registerQuestion, TEAM_QUESTION} from "./onboardingTestQuestion"
+import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
 
 import type {OnboardingCatalog} from "@/features/onboarding/onboardingChoices"
 import {OnboardingFlow, type OnboardingFlowProps} from "@/features/onboarding/OnboardingFlow"
@@ -164,6 +164,8 @@ import {
 import type {OnboardingModel} from "@/features/onboarding/useOnboardingModel"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
+
+withTestQuestions()
 
 const catalog = {
     status: "success",
