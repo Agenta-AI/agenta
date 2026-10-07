@@ -2,6 +2,7 @@ import os
 import importlib.metadata
 import re
 from typing import Dict, Tuple
+from urllib.parse import urlsplit, urlunsplit
 
 
 def get_current_version():
@@ -45,6 +46,39 @@ def parse_url(url: str) -> str:
         return url
 
     return url
+
+
+def strip_api_suffix(url: str) -> str:
+    """
+    Removes a trailing "/api" path segment from a URL, without touching the
+    scheme, host, or port.
+
+    This uses `urlsplit`/`urlunsplit` so that only the *path* component is
+    inspected. A naive `url.rsplit("/api", 1)` (or `str.replace`) on the raw
+    URL string is not anchored to a path segment: if the hostname itself
+    contains the literal substring "api" (e.g. "http://api:8000" or
+    "https://api.example.com"), it can match inside the scheme/host instead
+    of the intended "/api" path segment, corrupting the URL (e.g. dropping
+    the port). Checking `path.endswith("/api")` on the parsed path is
+    segment-anchored: it only matches when "api" is preceded by a "/" within
+    the path itself.
+
+    Args:
+        url (str): The original URL, e.g. "https://cloud.agenta.ai/api" or
+            "http://api:8000".
+
+    Returns:
+        str: The URL with a trailing "/api" path segment removed, if present.
+            Scheme, host, and port are always preserved untouched.
+    """
+
+    parts = urlsplit(url)
+
+    path = parts.path
+    if path.endswith("/api"):
+        path = path[: -len("/api")]
+
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
 
 
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
