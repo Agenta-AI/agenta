@@ -5,12 +5,13 @@ import {useDirectToolConnect} from "@agenta/entity-ui/gatewayTool"
 import {Spinner} from "@agenta/ui/ui"
 import {Check} from "@phosphor-icons/react"
 
-import {FOCUS_RING} from "@/lib/interactive"
-import {cn} from "@/lib/utils"
-
 import {appIdentity, connectedApps} from "./onboardingApps"
 import {SUGGESTED_APPS} from "./onboardingChoices"
+import {isUsableToolConnection} from "./onboardingConfig"
 import {ONBOARDING_COPY} from "./onboardingCopy"
+
+import {FOCUS_RING} from "@/lib/interactive"
+import {cn} from "@/lib/utils"
 
 const MAX_APPS = 10
 
@@ -26,8 +27,10 @@ export const OnboardingAppsField = ({
     onToggle: (key: string, on: boolean) => void
 }) => {
     const {connections} = useToolConnectionsQuery()
-    // Added once the sign-in settles; a cancelled one stays off because it never connects.
-    const {connect, connectingKey} = useDirectToolConnect((key) => onToggle(key, true))
+    // Only a sign-in that left a usable connection turns the app on.
+    const {connect, connectingKey} = useDirectToolConnect((key, connection) => {
+        if (connection && isUsableToolConnection(connection)) onToggle(key, true)
+    })
     const connected = useMemo(() => connectedApps(connections), [connections])
     const chips = useMemo(
         () =>
