@@ -35,6 +35,8 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
         staleTime: 30_000,
+        // An OIDC code is still in exchange; asking now only earns a 401 and a refresh.
+        enabled: boot.account !== "pending",
     })
     const projectId = useAtomValue(projectIdAtom)
     const agents = useAtomValue(agentWorkflowsListQueryStateAtom)
