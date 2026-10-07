@@ -1,51 +1,39 @@
 /**
- * The marketing panel beside the sign-in form on wide viewports — extracted from the OSS auth
- * page so every host (oss, ee, mobile) shows the same one. It hides itself below `lg`: the
- * phone layout is the form alone, and this is what fills the rest of a desktop window.
+ * The product panel beside the sign-in form on wide viewports: the open-source pill, the
+ * headline, and a live mock of the Automations page. It hides itself below `lg`; the phone layout
+ * is the form alone.
  *
- * Styles come from auth.css (`.auth-panel`, `.auth-chip`, `.auth-feature-row`), so the panel
- * needs no props — only the surrounding `.auth-redesign` scope.
+ * Styles come from auth.css (`.auth-panel`, `.auth-chip`), so the panel needs no props — only
+ * the surrounding `.auth-redesign` scope.
  */
 import {memo} from "react"
 
-import {ArrowUpRight, ChatCircle, Clock, GithubLogo, SquaresFour} from "@phosphor-icons/react"
+import {GithubLogo} from "@phosphor-icons/react"
 
-const FEATURES = [
-    {icon: <ChatCircle size={20} />, label: "Describe the work in chat"},
-    {icon: <SquaresFour size={20} />, label: "Connect the apps you use"},
-    {icon: <Clock size={20} />, label: "Run them in the background on a schedule or event"},
-]
+import {ProductPreview} from "./ProductPreview"
 
-const AuthSideBanner = () => {
-    return (
-        <section className="auth-panel hidden lg:flex flex-1 h-full flex-col justify-center p-24">
-            <div className="flex flex-col gap-[26px] max-w-[520px]">
-                <a
-                    href="https://github.com/Agenta-AI/agenta"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="auth-chip self-start"
-                >
-                    <GithubLogo size={13} weight="fill" />
-                    <span>Open source · GitHub</span>
-                    <ArrowUpRight size={13} weight="bold" />
-                </a>
-
-                <h2 className="auth-headline auth-headline-panel">
-                    Build agents that automate your work
-                </h2>
-
-                <div className="flex flex-col">
-                    {FEATURES.map((feature) => (
-                        <div key={feature.label} className="auth-feature-row">
-                            <span className="shrink-0">{feature.icon}</span>
-                            <span>{feature.label}</span>
-                        </div>
-                    ))}
-                </div>
+const AuthSideBanner = () => (
+    <section className="auth-panel m-3 hidden min-w-0 flex-1 flex-col gap-[clamp(24px,4vh,40px)] overflow-hidden rounded-lg pl-[clamp(32px,5vw,72px)] pt-[clamp(32px,8vh,72px)] lg:flex">
+        <div className="flex flex-col gap-3.5 pr-8">
+            <a
+                href="https://github.com/Agenta-AI/agenta"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="auth-chip self-start"
+            >
+                <GithubLogo size={14} weight="fill" />
+                <span>Open Source</span>
+            </a>
+            <h2 className="auth-headline auth-headline-panel m-0 max-w-[520px]">
+                Agents that run while you work on something else
+            </h2>
+        </div>
+        <div className="relative min-h-0 flex-1" aria-hidden>
+            <div className="auth-preview-frame absolute left-0 top-0 h-[760px] w-[920px] overflow-hidden rounded-[14px]">
+                <ProductPreview />
             </div>
-        </section>
-    )
-}
+        </div>
+    </section>
+)
 
 export default memo(AuthSideBanner)
