@@ -17,7 +17,8 @@ import {OnboardingAppsField} from "./OnboardingAppsField"
 import {ICON_CHOICES} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
-import {onboardingHeadingId, type OnboardingAgent} from "./onboardingDraft"
+import type {OnboardingAgent} from "./onboardingDraft"
+import {onboardingHeadingId} from "./onboardingRoute"
 import {useGlyphPaths} from "./useAgentGlyph"
 
 const copy = ONBOARDING_COPY.creator
@@ -70,7 +71,7 @@ export const OnboardingCreator = ({
             <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-1.5">
                     <h1
-                        id={onboardingHeadingId("creator")}
+                        id={onboardingHeadingId("review")}
                         tabIndex={-1}
                         className={ONBOARDING_COPY.headingClass}
                     >

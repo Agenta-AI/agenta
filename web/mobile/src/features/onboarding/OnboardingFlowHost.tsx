@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {
@@ -11,6 +11,7 @@ import {
 import {isToolsEnabled} from "@agenta/shared/api/env"
 import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
+import {useRouter} from "next/router"
 
 import {capture} from "@/features/analytics/client"
 
@@ -19,15 +20,10 @@ import {useNewAgentAction} from "../agents/useNewAgentAction"
 import type {OnboardingCatalog} from "./onboardingChoices"
 import {connectedApps} from "./onboardingApps"
 import {onboardingConfiguration, readInstructionsBlock} from "./onboardingConfig"
-import {
-    onboardingDraftKey,
-    onboardingStepNumber,
-    saveOnboardingDraft,
-    type OnboardingDraft,
-    type OnboardingIconPick,
-    type OnboardingStep,
-} from "./onboardingDraft"
+import {onboardingDraftKey, type OnboardingDraft, type OnboardingIconPick} from "./onboardingDraft"
 import {OnboardingFlow, type OnboardingCreateInput} from "./OnboardingFlow"
+import {endOnboarding, isOnboardingPending} from "./onboardingPending"
+import {onboardingStepNumber, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
 
@@ -42,15 +38,20 @@ export const OnboardingFlowHost = ({
     base,
     projectId,
     entityId,
-    preview,
+    userId,
+    homeUrl,
 }: {
     base: string
     projectId: string
     /** The local draft agent the flow configures and Create commits. */
     entityId: string
-    /** A `?onboarding-preview` visit: no analytics and no tool seeding. */
-    preview: boolean
+    userId: string | null
+    /** Where Skip leads. */
+    homeUrl: string
 }) => {
+    // Without a pending mark the page is a preview: no analytics and no tool seeding.
+    const [preview] = useState(() => !userId || !isOnboardingPending(userId))
+    const router = useRouter()
     const templates = useAtomValue(agentTemplatesAtom)
     const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
     const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
@@ -79,7 +80,10 @@ export const OnboardingFlowHost = ({
     })
     const newAgent = useNewAgentAction(base)
     const store = useStore()
-    const draftKey = onboardingDraftKey(projectId)
+    const draftKey = onboardingDraftKey(userId ?? "anonymous")
+    const finish = () => {
+        if (userId) endOnboarding(userId)
+    }
     const track = (event: string, properties?: Record<string, unknown>) => {
         if (!preview) capture(event, properties)
     }
@@ -135,15 +139,24 @@ export const OnboardingFlowHost = ({
             entityId,
             templateKey: templateKey ?? undefined,
             onCreated: (agent) => {
-                saveOnboardingDraft(draftKey, null)
+                finish()
                 track("onboarding_agent_created", {revision_id: agent.revisionId})
                 void applyIcon(agent.appId, icon).catch(() => undefined)
             },
         })
     }
 
+    const onSkip = (step: OnboardingStep) => {
+        if (!preview) {
+            capture("onboarding_skipped", {step: onboardingStepNumber(step), step_key: step})
+            finish()
+        }
+        void router.replace(homeUrl)
+    }
+
     return (
         <OnboardingFlow
+            onboardingPath={`${base}/onboarding`}
             draftKey={draftKey}
             catalog={catalog}
             model={model}
@@ -153,6 +166,7 @@ export const OnboardingFlowHost = ({
             error={newAgent.error}
             onStepCompleted={onStepCompleted}
             onCreate={onCreate}
+            onSkip={onSkip}
         />
     )
 }

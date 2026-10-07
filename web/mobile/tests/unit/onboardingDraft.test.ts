@@ -10,6 +10,7 @@ import {
     BLANK_AGENT,
     EMPTY_ONBOARDING_DRAFT,
     firstAgentInput,
+    onboardingDraftKey,
     onboardingReducer,
     readOnboardingDraft,
     saveOnboardingDraft,
@@ -37,38 +38,30 @@ const draft = (overrides: Partial<OnboardingDraft> = {}): OnboardingDraft => ({
 describe("onboarding draft storage", () => {
     it("restores a saved draft and forgets it after creation", () => {
         const saved = draft({
-            step: "creator",
             role: "Engineering",
             source: "GitHub",
             templateKey: "review",
-            focus: {kind: "template", key: "review"},
             agent: {...BLANK_AGENT, name: "Atlas", apps: ["slack"]},
+            completed: ["role", "source"],
         })
         saveOnboardingDraft("draft", saved)
         expect(readOnboardingDraft("draft")).toEqual(saved)
-        // The creator page is a template's; a blank start never resumes there.
-        saveOnboardingDraft("draft", {...saved, templateKey: null})
-        expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
         saveOnboardingDraft("draft", null)
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
     })
 
-    it("starts over on malformed or incomplete stored drafts", () => {
-        window.sessionStorage.setItem("draft", "{")
-        expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
-        window.sessionStorage.setItem("draft", JSON.stringify({step: "creator"}))
-        expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
+    it("keys the draft by user, so a preview on any project resumes the same answers", () => {
+        expect(onboardingDraftKey("user-1")).toBe("agenta:onboarding:draft:v3:user-1")
     })
 
-    it("never resumes past an unanswered question or on a removed answer", () => {
-        const atReferral = draft({step: "referral", role: "Engineering"})
-        saveOnboardingDraft("draft", atReferral)
-        expect(readOnboardingDraft("draft").step).toBe("referral")
-        saveOnboardingDraft("draft", {...atReferral, step: "credits"})
+    it("starts over on malformed stored drafts and on a removed answer", () => {
+        window.sessionStorage.setItem("draft", "{")
+        expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
+        window.sessionStorage.setItem("draft", JSON.stringify({step: "review"}))
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
         window.sessionStorage.setItem(
             "draft",
-            JSON.stringify({...atReferral, role: "Removed role"}),
+            JSON.stringify(draft({role: "Removed role" as OnboardingDraft["role"]})),
         )
         expect(readOnboardingDraft("draft")).toEqual(EMPTY_ONBOARDING_DRAFT)
     })
@@ -76,16 +69,11 @@ describe("onboarding draft storage", () => {
 
 describe("onboarding answers", () => {
     it("resets the gallery to Recommended when the role changes, and only then", () => {
-        const browsing = draft({
-            role: "Engineering",
-            category: "Sales",
-            focus: {kind: "template", key: "lead"},
-        })
+        const browsing = draft({role: "Engineering", category: "Sales"})
         expect(onboardingReducer(browsing, {type: "role", role: "Sales"})).toEqual({
             ...browsing,
             role: "Sales",
             category: "recommended",
-            focus: null,
         })
         expect(onboardingReducer(browsing, {type: "role", role: "Engineering"})).toBe(browsing)
     })
@@ -104,7 +92,7 @@ describe("onboarding answers", () => {
             apps: ["github"],
             firstMessage: "",
         })
-        const blank = onboardingReducer(filled, {type: "focus", focus: {kind: "scratch"}})
+        const blank = onboardingReducer(filled, {type: "scratch"})
         expect(blank.templateKey).toBeNull()
         expect(blank.agent).toEqual(BLANK_AGENT)
     })
@@ -117,9 +105,7 @@ describe("onboarding answers", () => {
         )
         expect(onboardingReducer(edited, {type: "template", template: pr, apps: []})).toBe(edited)
         const blank = onboardingReducer(draft(), {type: "agent", patch: {name: "Blank"}})
-        expect(
-            onboardingReducer(blank, {type: "focus", focus: {kind: "scratch"}}).agent.name,
-        ).toBe("Blank")
+        expect(onboardingReducer(blank, {type: "scratch"}).agent.name).toBe("Blank")
     })
 
     it("adds and removes an app once each", () => {
@@ -151,9 +137,9 @@ describe("first agent input", () => {
             firstMessage: "Plan my week",
             templateKey: null,
         })
-        expect(firstAgentInput(blank({name: " Atlas ", instructions: " Be brief. "}), null)).toEqual(
-            {name: "Atlas", instructions: "Be brief.", firstMessage: "", templateKey: null},
-        )
+        expect(
+            firstAgentInput(blank({name: " Atlas ", instructions: " Be brief. "}), null),
+        ).toEqual({name: "Atlas", instructions: "Be brief.", firstMessage: "", templateKey: null})
     })
 
     it("creates a template from its own name once the catalog has it", () => {

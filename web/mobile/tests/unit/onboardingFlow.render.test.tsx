@@ -54,39 +54,72 @@ vi.mock("@agenta/ui/agent-icon", () => ({
     tintForColor: () => "#eeeeee",
 }))
 vi.mock("next/dynamic", () => ({default: () => () => null}))
-// A phone-width router: the gallery's detail view lives in a shallow query param.
+// A phone-width router with a history: the step is the path after `/onboarding`.
 const nav = vi.hoisted(() => {
-    let query: Record<string, string> = {}
+    const BASE = "/w/ws/p/pr/onboarding"
+    const parse = (url: string) => {
+        const [path, search = ""] = url.split("?")
+        const segments = path.slice(BASE.length).split("/").filter(Boolean)
+        const query: Record<string, string | string[]> = segments.length ? {step: segments} : {}
+        new URLSearchParams(search).forEach((value, key) => {
+            query[key] = value
+        })
+        return query
+    }
+    let entries = [BASE]
+    let index = 0
+    let query = parse(BASE)
     const listeners = new Set<() => void>()
-    const set = (next: Record<string, string>) => {
-        query = next
+    const emit = () => {
+        query = parse(entries[index])
         listeners.forEach((listener) => listener())
     }
     return {
+        BASE,
+        get url() {
+            return entries[index]
+        },
         get query() {
             return query
         },
+        open: (url: string) => {
+            entries = [url]
+            index = 0
+            emit()
+        },
         reset: () => {
-            query = {}
+            entries = [BASE]
+            index = 0
+            query = parse(BASE)
+        },
+        forward: () => {
+            if (index < entries.length - 1) index += 1
+            emit()
         },
         subscribe: (listener: () => void) => {
             listeners.add(listener)
             return () => listeners.delete(listener)
         },
         router: {
-            pathname: "/apps",
+            isReady: true,
             get query() {
                 return query
             },
-            push: (url: {query: Record<string, string>}) => {
-                set(url.query)
+            push: (url: string) => {
+                entries = [...entries.slice(0, index + 1), url]
+                index += 1
+                emit()
                 return Promise.resolve(true)
             },
-            replace: (url: {query: Record<string, string>}) => {
-                set(url.query)
+            replace: (url: string) => {
+                entries[index] = url
+                emit()
                 return Promise.resolve(true)
             },
-            back: () => set({}),
+            back: () => {
+                if (index > 0) index -= 1
+                emit()
+            },
         },
     }
 })
@@ -183,6 +216,7 @@ afterEach(() => {
 })
 
 const baseProps = (overrides: Partial<OnboardingFlowProps> = {}): OnboardingFlowProps => ({
+    onboardingPath: nav.BASE,
     draftKey: "onboarding:test",
     catalog,
     model: model(),
@@ -191,6 +225,7 @@ const baseProps = (overrides: Partial<OnboardingFlowProps> = {}): OnboardingFlow
     creating: false,
     onStepCompleted: vi.fn(),
     onCreate: vi.fn(),
+    onSkip: vi.fn(),
     ...overrides,
 })
 
@@ -227,6 +262,8 @@ const type = (placeholder: string, value: string) => {
         field.dispatchEvent(new Event("input", {bubbles: true}))
     })
 }
+const browserBack = () => act(() => nav.router.back())
+const browserForward = () => act(() => nav.forward())
 const toGallery = () => {
     answer(/^Engineering/)
     answer(/^GitHub/)
@@ -249,21 +286,64 @@ describe("first agent onboarding", () => {
         answer(/^GitHub/)
         expect(heading()).toBe("500 credits, on us")
         expect(onStepCompleted).toHaveBeenLastCalledWith(
-            "referral",
+            "source",
             expect.objectContaining({source: "GitHub"}),
         )
     })
 
-    it("keeps answers and the step across a remount, and per project", () => {
+    it("puts each step in the URL and keeps the answers across a remount", () => {
         const props = baseProps()
         render(props)
         answer(/^Engineering/)
+        expect(nav.url).toBe(`${nav.BASE}/source`)
         answer(/^GitHub/)
+        expect(nav.url).toBe(`${nav.BASE}/credits`)
         render(props)
         expect(heading()).toBe("500 credits, on us")
         expect(host!.textContent).toContain("That’s $5.00 to spend on any model.")
+        // Another user's draft has no answers, so the same URL falls back to the first step.
         render(baseProps({draftKey: "onboarding:other"}))
         expect(heading()).toBe("What kind of work do you do?")
+        expect(nav.url).toBe(nav.BASE)
+    })
+
+    it("walks the steps with the browser's Back and Forward", () => {
+        render(baseProps())
+        toGallery()
+        click("Use template")
+        expect(nav.url).toBe(`${nav.BASE}/review`)
+        browserBack()
+        expect(heading()).toBe("Create your first agent")
+        browserBack()
+        expect(heading()).toBe("500 credits, on us")
+        browserBack()
+        expect(heading()).toBe("How did you hear about Agenta?")
+        browserForward()
+        browserForward()
+        browserForward()
+        expect(heading()).toBe("Review your agent")
+    })
+
+    it("sends a link to a step not yet reached to the furthest one the answers open", () => {
+        nav.open(`${nav.BASE}/review`)
+        render(baseProps())
+        expect(heading()).toBe("What kind of work do you do?")
+        expect(nav.url).toBe(nav.BASE)
+        answer(/^Engineering/)
+        answer(/^GitHub/)
+        act(() => nav.open(`${nav.BASE}/review`))
+        expect(heading()).toBe("Create your first agent")
+        expect(nav.url).toBe(`${nav.BASE}/templates`)
+    })
+
+    it("skips from any step, and hides Skip while Create runs", () => {
+        const onSkip = vi.fn()
+        render(baseProps({onSkip}))
+        answer(/^Engineering/)
+        click("Skip for now")
+        expect(onSkip).toHaveBeenCalledWith("source")
+        render(baseProps({onSkip, creating: true}))
+        expect(() => button("Skip for now")).toThrow()
     })
 
     it("locks a template's name and instructions and creates from its package", () => {
@@ -300,6 +380,7 @@ describe("first agent onboarding", () => {
         type("What should it do first?", "Review PR 12")
         click("Choose one")
         expect(heading()).toBe("Choose how your agents run")
+        expect(nav.url).toBe(`${nav.BASE}/credits?return=review`)
         render({...props, model: model(true)})
         click(/^Continue/)
         expect(heading()).toBe("Review your agent")
@@ -378,18 +459,34 @@ describe("first agent onboarding", () => {
         render(baseProps())
         toGallery()
         click(/^PR reviewer/)
-        expect(nav.query["onboarding-detail"]).toBe("1")
+        expect(nav.url).toBe(`${nav.BASE}/templates/review`)
         expect(button("Templates")).toBeTruthy()
         click("Templates")
-        expect(nav.query["onboarding-detail"]).toBeUndefined()
+        expect(nav.url).toBe(`${nav.BASE}/templates`)
         expect(() => button("Templates")).toThrow()
         click(/^Start from scratch/)
+        expect(nav.url).toBe(`${nav.BASE}/templates/scratch`)
         expect(host!.querySelector('[placeholder="Name your agent"]')).not.toBeNull()
         click("Templates")
         click(/^PR reviewer/)
         click("Use template")
         expect(heading()).toBe("Review your agent")
-        expect(nav.query["onboarding-detail"]).toBeUndefined()
+        browserBack()
+        expect(nav.url).toBe(`${nav.BASE}/templates/review`)
+        click("Templates")
+        expect(nav.url).toBe(`${nav.BASE}/templates`)
+    })
+
+    it("starts the agent over when a blank start is opened by link over a picked template", () => {
+        render(baseProps())
+        toGallery()
+        click("Use template")
+        act(() => nav.open(`${nav.BASE}/templates/scratch`))
+        expect(
+            (host!.querySelector('[placeholder="Name your agent"]') as HTMLInputElement).value,
+        ).toBe("")
+        act(() => nav.open(`${nav.BASE}/review`))
+        expect(nav.url).toBe(`${nav.BASE}/templates`)
     })
 
     it("moves focus to the new step's heading and labels the choices by it", () => {

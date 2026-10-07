@@ -4,7 +4,7 @@ import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
-import {PROGRESS_STEPS, type OnboardingStep} from "./onboardingDraft"
+import {PROGRESS_STEPS, type OnboardingStep} from "./onboardingRoute"
 
 /**
  * The four progress dots at the foot of the page. They are also the way back: a dot already

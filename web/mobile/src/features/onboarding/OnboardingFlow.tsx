@@ -1,4 +1,4 @@
-import {useEffect, useReducer, useRef, useState, type ReactNode} from "react"
+import {useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactNode} from "react"
 
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {motion} from "motion/react"
@@ -14,22 +14,31 @@ import {OnboardingCreator} from "./OnboardingCreator"
 import {OnboardingCreditsStep} from "./OnboardingCreditsStep"
 import {
     firstAgentInput,
-    ONBOARDING_STEPS,
-    onboardingHeadingId,
     onboardingReducer,
-    PROGRESS,
     readOnboardingDraft,
     saveOnboardingDraft,
     type FirstAgentInput,
     type OnboardingDraft,
     type OnboardingIconPick,
-    type OnboardingStep,
 } from "./onboardingDraft"
 import {OnboardingGallery} from "./OnboardingGallery"
 import {OnboardingHeader} from "./OnboardingHeader"
 import {OnboardingProgressDots} from "./OnboardingProgressDots"
 import {OnboardingQuestion} from "./OnboardingQuestion"
+import {
+    guardOnboardingRoute,
+    isStepOpen,
+    onboardingHeadingId,
+    onboardingRoutePath,
+    PROGRESS,
+    stepIndex,
+    stepRoute,
+    type GalleryFocus,
+    type OnboardingRoute,
+    type OnboardingStep,
+} from "./onboardingRoute"
 import type {OnboardingModel} from "./useOnboardingModel"
+import {useOnboardingNav} from "./useOnboardingNav"
 
 export interface OnboardingCreateInput extends FirstAgentInput {
     icon: OnboardingIconPick
@@ -37,6 +46,8 @@ export interface OnboardingCreateInput extends FirstAgentInput {
 }
 
 export interface OnboardingFlowProps {
+    /** The page's own path, `/w/<workspace>/p/<project>/onboarding`; steps hang off it. */
+    onboardingPath: string
     /** sessionStorage key; answers survive a reload or an auth redirect. */
     draftKey: string
     catalog: OnboardingCatalog
@@ -47,27 +58,27 @@ export interface OnboardingFlowProps {
     error?: string | null
     onStepCompleted: (step: OnboardingStep, draft: OnboardingDraft) => void
     onCreate: (input: OnboardingCreateInput) => void
+    onSkip: (step: OnboardingStep) => void
 }
 
 /** Each step's column width, as the design sets it. */
 const WIDTH: Record<OnboardingStep, string> = {
     role: "max-w-[680px]",
-    referral: "max-w-[680px]",
+    source: "max-w-[680px]",
     credits: "max-w-[880px]",
-    gallery: "max-w-[1040px] max-md:self-start",
-    creator: "max-w-[1040px] max-md:self-start",
+    templates: "max-w-[1040px] max-md:self-start",
+    review: "max-w-[1040px] max-md:self-start",
 }
 
-/** Which progress dots open from here: any answered step, and the gallery from its own creator. */
-const reachable = (draft: OnboardingDraft, target: OnboardingStep) => {
-    if (PROGRESS[target] === PROGRESS[draft.step]) return draft.step === "creator"
-    if (target === "role") return true
-    if (target === "referral") return draft.role !== null
-    return draft.source !== null
-}
+/** Which progress dots open from here: any answered step, and the templates from review. */
+const reachable = (draft: OnboardingDraft, current: OnboardingStep, target: OnboardingStep) =>
+    PROGRESS[target] === PROGRESS[current] ? current === "review" : isStepOpen(target, draft)
 
-/** The four-step first-agent flow; it owns the answers, the host owns data and side effects. */
+const TEMPLATES: OnboardingRoute = {step: "templates", focus: null}
+
+/** The four-step first-agent flow; it owns the answers, the URL owns the step. */
 export const OnboardingFlow = ({
+    onboardingPath,
     draftKey,
     catalog,
     model,
@@ -77,6 +88,7 @@ export const OnboardingFlow = ({
     error,
     onStepCompleted,
     onCreate,
+    onSkip,
 }: OnboardingFlowProps) => {
     const [draft, dispatch] = useReducer(onboardingReducer, draftKey, readOnboardingDraft)
     useEffect(() => saveOnboardingDraft(draftKey, draft), [draftKey, draft])
@@ -84,55 +96,78 @@ export const OnboardingFlow = ({
     const draftRef = useRef(draft)
     draftRef.current = draft
 
-    const presets = useMotionPresets()
-    const [direction, setDirection] = useState(1)
-    const scrollerRef = useRef<HTMLDivElement | null>(null)
-    const movedRef = useRef(false)
-    const {step} = draft
+    const nav = useOnboardingNav(onboardingPath)
+    const {navigate} = nav
+    const route = guardOnboardingRoute(nav.requested, draft)
+    const routeRef = useRef(route)
+    routeRef.current = route
+    const {step} = route
+    const focus: GalleryFocus = route.step === "templates" ? route.focus : null
+
+    // A link to a step the answers do not open yet lands on the furthest one they do.
+    const canonical = onboardingRoutePath(route)
+    const redirect =
+        nav.ready && (!nav.requested || onboardingRoutePath(nav.requested) !== canonical)
     useEffect(() => {
-        if (!movedRef.current) return
-        scrollerRef.current
-            ?.querySelector<HTMLElement>(`#${onboardingHeadingId(step)}`)
+        if (redirect) navigate(routeRef.current, {replace: true})
+    }, [redirect, canonical, navigate])
+
+    // The blank start edits the agent a template filled, so opening it starts that agent over.
+    const scratchOverTemplate = focus?.kind === "scratch" && draft.templateKey !== null
+    useLayoutEffect(() => {
+        if (scratchOverTemplate) dispatch({type: "scratch"})
+    }, [scratchOverTemplate])
+
+    const presets = useMotionPresets()
+    const [shown, setShown] = useState({step, direction: 1, moved: false})
+    if (shown.step !== step) {
+        setShown({step, direction: stepIndex(step) > stepIndex(shown.step) ? 1 : -1, moved: true})
+    }
+    const scrollerRef = useRef<HTMLDivElement | null>(null)
+    useLayoutEffect(() => {
+        if (!shown.moved) return
+        const scroller = scrollerRef.current
+        if (!scroller) return
+        scroller.scrollTop = 0
+        scroller
+            .querySelector<HTMLElement>(`#${onboardingHeadingId(shown.step)}`)
             ?.focus({preventScroll: true})
-    }, [step])
+    }, [shown])
 
     // Mirrors `draft.completed` synchronously, so a double click reports a step once.
     const completedRef = useRef(new Set(draft.completed))
-    const go = (next: OnboardingStep) => {
-        const current = draftRef.current
-        if (next === current.step) return
-        const forward = ONBOARDING_STEPS.indexOf(next) > ONBOARDING_STEPS.indexOf(current.step)
-        if (forward && !completedRef.current.has(current.step)) {
-            completedRef.current.add(current.step)
-            dispatch({type: "completed", step: current.step})
-            onStepCompleted(current.step, current)
+    const go = (
+        next: OnboardingRoute,
+        options?: {replace?: boolean; returnTo?: OnboardingRoute},
+    ) => {
+        const current = routeRef.current.step
+        if (stepIndex(next.step) > stepIndex(current) && !completedRef.current.has(current)) {
+            completedRef.current.add(current)
+            dispatch({type: "completed", step: current})
+            onStepCompleted(current, draftRef.current)
         }
-        setDirection(forward ? 1 : -1)
-        movedRef.current = true
-        dispatch({type: "step", step: next})
-        if (scrollerRef.current) scrollerRef.current.scrollTop = 0
+        navigate(next, options)
     }
     /** A question's timer or key moves the flow only while its own step is current. */
     const advance = (from: OnboardingStep, to: OnboardingStep) => {
-        if (draftRef.current.step === from) go(to)
+        if (routeRef.current.step === from) go(stepRoute(to))
     }
 
+    // Set when a phone opens a panel over the list, so its Back control pops that entry.
+    const detailPushedRef = useRef(false)
     const template = catalog.templates.find((item) => item.key === draft.templateKey) ?? null
     const input = firstAgentInput(draft, template)
     const onUse = (picked: AgentStarterTemplate) => {
         const apps = templateProviderSlugs(picked).filter((key) => connectedApps.has(key))
         dispatch({type: "template", template: picked, apps})
-        go("creator")
+        go({step: "review"})
     }
     const create: OnboardingCreateState = {
         modelReady: model.ready,
         complete: input !== null,
         creating,
         error,
-        onChooseModel: () => {
-            dispatch({type: "returnTo", step: draftRef.current.step})
-            go("credits")
-        },
+        onChooseModel: () => go({step: "credits"}, {returnTo: routeRef.current}),
         onCreate: () => {
             if (!input) return
             onCreate({...input, icon: draft.agent.icon, apps: draft.agent.apps})
@@ -150,45 +185,52 @@ export const OnboardingFlow = ({
                 choices={ONBOARDING_ROLES}
                 value={draft.role}
                 onAnswer={(role) => dispatch({type: "role", role})}
-                onAdvance={() => advance("role", "referral")}
+                onAdvance={() => advance("role", "source")}
             />
         ),
-        referral: () => (
+        source: () => (
             <OnboardingQuestion
-                headingId={onboardingHeadingId("referral")}
-                title={ONBOARDING_COPY.referral.title}
-                subtitle={ONBOARDING_COPY.referral.subtitle}
+                headingId={onboardingHeadingId("source")}
+                title={ONBOARDING_COPY.source.title}
+                subtitle={ONBOARDING_COPY.source.subtitle}
                 choices={ONBOARDING_SOURCES}
                 value={draft.source}
                 onAnswer={(source) => dispatch({type: "source", source})}
-                onAdvance={() => advance("referral", "credits")}
+                onAdvance={() => advance("source", "credits")}
             />
         ),
         credits: () => (
-            <OnboardingCreditsStep
-                model={model}
-                onContinue={() => {
-                    const next = draftRef.current.returnTo ?? "gallery"
-                    dispatch({type: "returnTo", step: null})
-                    go(next)
-                }}
-            />
+            <OnboardingCreditsStep model={model} onContinue={() => go(nav.returnTo ?? TEMPLATES)} />
         ),
-        gallery: () => (
+        templates: () => (
             <OnboardingGallery
                 catalog={catalog}
                 role={draft.role}
                 category={draft.category}
-                focus={draft.focus}
+                focus={focus}
                 agent={draft.agent}
                 create={create}
-                onCategory={(category) => dispatch({type: "category", category})}
-                onFocus={(focus) => dispatch({type: "focus", focus})}
+                onCategory={(category) => {
+                    dispatch({type: "category", category})
+                    if (focus) go(TEMPLATES, {replace: true})
+                }}
+                onFocus={(next, open) => {
+                    if (open) detailPushedRef.current = true
+                    go({step: "templates", focus: next}, {replace: !open})
+                }}
+                onCloseDetail={() => {
+                    if (detailPushedRef.current) {
+                        detailPushedRef.current = false
+                        nav.back()
+                    } else {
+                        go(TEMPLATES, {replace: true})
+                    }
+                }}
                 onUse={onUse}
                 onChange={onAgent}
             />
         ),
-        creator: () => (
+        review: () => (
             <OnboardingCreator
                 agent={draft.agent}
                 template={template}
@@ -208,11 +250,11 @@ export const OnboardingFlow = ({
             data-onboarding-scroller
             className="bg-background text-foreground flex h-dvh flex-col overflow-y-auto overflow-x-hidden"
         >
-            <OnboardingHeader />
+            <OnboardingHeader onSkip={creating ? undefined : () => onSkip(step)} />
             <main className="box-border flex min-w-0 flex-1 items-center justify-center px-4 pb-6 pt-6 sm:px-6 md:pb-24">
                 <motion.section
                     key={step}
-                    custom={direction}
+                    custom={shown.direction}
                     variants={presets.stepSlide}
                     initial="initial"
                     animate="animate"
@@ -225,8 +267,8 @@ export const OnboardingFlow = ({
             </main>
             <OnboardingProgressDots
                 current={PROGRESS[step]}
-                reached={(target) => !creating && reachable(draft, target)}
-                onGo={go}
+                reached={(target) => !creating && reachable(draft, step, target)}
+                onGo={(target) => go(stepRoute(target))}
             />
         </div>
     )

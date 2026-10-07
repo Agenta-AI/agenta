@@ -26,9 +26,6 @@ import {
     type Icon,
 } from "@phosphor-icons/react"
 
-/** `?onboarding-preview` opens the flow on any project and never seeds its tools. */
-export const ONBOARDING_PREVIEW_PARAM = "onboarding-preview"
-
 /** One key per chip, in order; a question has at most this many answers. */
 export const CHOICE_KEYS = "ABCDEFGHIJKL"
 
