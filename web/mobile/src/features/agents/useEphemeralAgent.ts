@@ -32,10 +32,13 @@ export const useEphemeralAgent = (active: boolean) => {
      * The config pane then has no fields to render and shows Advanced alone.
      */
     useEffect(() => {
-        const key = ["workflows", "schemas", "ag-types", AGENT_TEMPLATE_AG_TYPE]
-        if (queryClient.getQueryData(key) !== undefined) return
-        void fetchAgTypeSchema(AGENT_TEMPLATE_AG_TYPE)
-            .then((schema) => queryClient.setQueryData(key, schema))
+        // Through the cache, so it joins the schema atom's own request instead of racing it.
+        void queryClient
+            .ensureQueryData({
+                queryKey: ["workflows", "schemas", "ag-types", AGENT_TEMPLATE_AG_TYPE],
+                queryFn: () => fetchAgTypeSchema(AGENT_TEMPLATE_AG_TYPE),
+                staleTime: 5 * 60_000,
+            })
             .catch(() => undefined)
     }, [])
 
