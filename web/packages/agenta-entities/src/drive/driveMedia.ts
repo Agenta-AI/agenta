@@ -192,28 +192,38 @@ async function downscaleImage(blob: Blob, px: number): Promise<DriveImageThumb |
 }
 
 /** A file's thumbnail as a small data URL; the full bytes are fetched, scaled, then dropped. */
-export const mountFileThumbnailQueryFamily = atomFamily(
-    ({mountId, path, px = THUMB_PX}: {mountId: string; path: string; px?: number}) =>
-        atomWithQuery<DriveImageThumb | null>((get) => {
-            const projectId = get(projectIdAtom) ?? ""
-            return {
-                queryKey: ["mounts", "thumb", projectId, mountId, path, px],
-                queryFn: ({signal}) =>
-                    withThumbnailSlot(async () => {
-                        if (signal.aborted) return null
-                        const blob = await fetchMountFileBlob({mountId, projectId, path, signal})
-                        return blob ? downscaleImage(blob, px) : null
-                    }),
-                enabled: Boolean(mountId && path && projectId),
-                staleTime: Infinity,
-                // The larger chat previews are dropped sooner once nothing shows them.
-                gcTime: px > THUMB_PX ? 60_000 : 5 * 60_000,
-                refetchOnWindowFocus: false,
-            }
-        }),
-    (a, b) =>
-        a.mountId === b.mountId && a.path === b.path && (a.px ?? THUMB_PX) === (b.px ?? THUMB_PX),
+// Keyed by one string: an object key with a comparator is a linear scan on every lookup.
+const mountFileThumbnailByKey = atomFamily((key: string) =>
+    atomWithQuery<DriveImageThumb | null>((get) => {
+        const [mountId, path, pxText] = key.split("\0")
+        const px = Number(pxText)
+        const projectId = get(projectIdAtom) ?? ""
+        return {
+            queryKey: ["mounts", "thumb", projectId, mountId, path, px],
+            queryFn: ({signal}) =>
+                withThumbnailSlot(async () => {
+                    if (signal.aborted) return null
+                    const blob = await fetchMountFileBlob({mountId, projectId, path, signal})
+                    return blob ? downscaleImage(blob, px) : null
+                }),
+            enabled: Boolean(mountId && path && projectId),
+            staleTime: Infinity,
+            // The larger chat previews are dropped sooner once nothing shows them.
+            gcTime: px > THUMB_PX ? 60_000 : 5 * 60_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
 )
+
+export const mountFileThumbnailQueryFamily = ({
+    mountId,
+    path,
+    px = THUMB_PX,
+}: {
+    mountId: string
+    path: string
+    px?: number
+}) => mountFileThumbnailByKey(`${mountId}\0${path}\0${px}`)
 
 /** Download one drive file (any type) via the bytes endpoint. */
 /**

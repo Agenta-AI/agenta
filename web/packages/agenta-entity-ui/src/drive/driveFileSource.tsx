@@ -34,13 +34,16 @@ const useLocalFile = (path: string): LocalDriveFile | null =>
     useContext(DriveFileSourceContext)?.get(path) ?? null
 
 /** A remote source's bytes, through the app's authenticated client (the URL may need a header). */
-const remoteBytesQueryFamily = atomFamily(
-    ({src, as}: {src: string; as: "blob" | "text"}) =>
-        atomWithQuery<Blob | string | null>(() => ({
+// Keyed by one string: an object key with a comparator is a linear scan on every lookup.
+const remoteBytesByKey = atomFamily((key: string) =>
+    atomWithQuery<Blob | string | null>(() => {
+        const as = key.startsWith("text\0") ? "text" : "blob"
+        const src = key.slice(as.length + 1)
+        return {
             queryKey: ["drive-source", as, src],
-            queryFn: async () => {
+            queryFn: async ({signal}) => {
                 try {
-                    const blob = (await axios.get(src, {responseType: "blob"})).data as Blob
+                    const blob = (await axios.get(src, {responseType: "blob", signal})).data as Blob
                     return as === "text" ? await blob.text() : blob
                 } catch {
                     return null
@@ -51,9 +54,12 @@ const remoteBytesQueryFamily = atomFamily(
             // A blob lives only while a body renders it, as with mount bytes.
             gcTime: as === "blob" ? 0 : 60_000,
             refetchOnWindowFocus: false,
-        })),
-    (a, b) => a.src === b.src && a.as === b.as,
+        }
+    }),
 )
+
+const remoteBytesQueryFamily = ({src, as}: {src: string; as: "blob" | "text"}) =>
+    remoteBytesByKey(`${as}\0${src}`)
 
 const useRemoteBytes = (local: LocalDriveFile | null, as: "blob" | "text") =>
     useAtomValue(remoteBytesQueryFamily({src: local && !local.file ? local.src : "", as}))
