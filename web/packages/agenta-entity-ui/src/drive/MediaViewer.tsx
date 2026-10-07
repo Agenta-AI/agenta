@@ -63,6 +63,7 @@ export const mediaViewerKind = (item: Pick<MediaViewerItem, "name" | "mediaType"
 /** Kinds whose body never scrolls or scrubs sideways, so a horizontal swipe can mean "next". */
 const SWIPEABLE = new Set<DriveFileKind>(["image", "audio", "other"])
 const SWIPE_PX = 60
+const KEEPS_ARROWS = "video, audio, input, textarea, [contenteditable='true']"
 
 /** The item as the drive bodies read it: a mount + path, or a path served by a local source. */
 function useItemFile(item: MediaViewerItem) {
@@ -261,6 +262,8 @@ export function MediaViewer({items, index, onIndexChange}: MediaViewerProps) {
                     aria-describedby={undefined}
                     overlayClassName="bg-black/85 motion-reduce:!animate-none"
                     onKeyDown={(e) => {
+                        // Arrows inside a player or a field seek or move the caret instead.
+                        if ((e.target as HTMLElement).closest?.(KEEPS_ARROWS)) return
                         if (e.key === "ArrowLeft") go(-1)
                         else if (e.key === "ArrowRight") go(1)
                     }}
