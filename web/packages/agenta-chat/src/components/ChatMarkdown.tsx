@@ -295,9 +295,31 @@ const FollowUps = ({node}: {node?: unknown}) => {
 
 type BlockProps<T extends "p" | "li"> = ComponentProps<T> & {node?: unknown}
 
+interface Position {
+    start?: {line?: number; column?: number}
+    end?: {line?: number; column?: number}
+}
+
+/** Streamdown's block memo (class + source span), so a streamed token re-renders only its block. */
+const sameBlock = (
+    a: {className?: string; node?: unknown},
+    b: {className?: string; node?: unknown},
+) => {
+    if (a.className !== b.className) return false
+    const pa = (a.node as {position?: Position} | undefined)?.position
+    const pb = (b.node as {position?: Position} | undefined)?.position
+    if (!pa || !pb) return !pa && !pb
+    return (
+        pa.start?.line === pb.start?.line &&
+        pa.start?.column === pb.start?.column &&
+        pa.end?.line === pb.end?.line &&
+        pa.end?.column === pb.end?.column
+    )
+}
+
 /** Streamdown's paragraph, plus the follow-ups for what it names. A lone image or code block is
  * unwrapped, as Streamdown's own paragraph does: neither belongs inside a `<p>`. */
-const Paragraph = ({node, children, ...rest}: BlockProps<"p">) => {
+const Paragraph = memo(({node, children, ...rest}: BlockProps<"p">) => {
     const kids = (Array.isArray(children) ? children : [children]).filter(
         (child) => child != null && child !== "",
     )
@@ -312,19 +334,24 @@ const Paragraph = ({node, children, ...rest}: BlockProps<"p">) => {
             <FollowUps node={node} />
         </>
     )
-}
+}, sameBlock)
+Paragraph.displayName = "ChatMarkdownParagraph"
 
 /** Streamdown's list item (same classes), with the follow-ups for its own inline text. */
-const ListItem = ({node, children, className, ...rest}: BlockProps<"li">) => (
-    <li
-        className={["py-1 [&>p]:inline", className].filter(Boolean).join(" ")}
-        data-streamdown="list-item"
-        {...rest}
-    >
-        {children}
-        <FollowUps node={node} />
-    </li>
+const ListItem = memo(
+    ({node, children, className, ...rest}: BlockProps<"li">) => (
+        <li
+            className={["py-1 [&>p]:inline", className].filter(Boolean).join(" ")}
+            data-streamdown="list-item"
+            {...rest}
+        >
+            {children}
+            <FollowUps node={node} />
+        </li>
+    ),
+    sameBlock,
 )
+ListItem.displayName = "ChatMarkdownListItem"
 
 /** Module-scope: fresh literals would churn Streamdown's prop identity on every streamed token.
  * Exported so the link gates can be asserted without driving a full Streamdown render. */
