@@ -10,16 +10,16 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowRight, Check, Coins, Key, OpenAiLogo} from "@phosphor-icons/react"
 
-import {cn} from "@/lib/utils"
-
+import {WalletCard} from "../wallet/WalletCard"
 import {formatUsd, MUSD_PER_CREDIT} from "../wallet/walletFormat"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {onboardingHeadingId} from "./onboardingDraft"
-import {OnboardingWalletCard} from "./OnboardingWalletCard"
 import {OnboardingWayRow} from "./OnboardingWayRow"
 import {OnboardingCreditsSkeleton} from "./states/OnboardingCreditsSkeleton"
 import type {OnboardingModel} from "./useOnboardingModel"
+
+import {cn} from "@/lib/utils"
 
 const copy = ONBOARDING_COPY.model
 const PILL =
@@ -43,8 +43,16 @@ export const OnboardingCreditsStep = ({
                   title: copy.title(Math.round(balance / MUSD_PER_CREDIT).toLocaleString()),
                   subtitle: copy.subtitle(formatUsd(balance)),
               }
-            : {kicker: copy.kicker, title: copy.creditsOnlyTitle, subtitle: copy.creditsOnlySubtitle}
-        : {kicker: copy.noCreditsKicker, title: copy.noCreditsTitle, subtitle: copy.noCreditsSubtitle}
+            : {
+                  kicker: copy.kicker,
+                  title: copy.creditsOnlyTitle,
+                  subtitle: copy.creditsOnlySubtitle,
+              }
+        : {
+              kicker: copy.noCreditsKicker,
+              title: copy.noCreditsTitle,
+              subtitle: copy.noCreditsSubtitle,
+          }
 
     const ways = (
         <div className="bg-muted flex flex-1 flex-col rounded-xl px-3">
@@ -137,7 +145,14 @@ export const OnboardingCreditsStep = ({
                         {credits ? (
                             <div className="flex flex-col gap-2 max-sm:mb-6">
                                 <span className={ONBOARDING_COPY.kickerClass}>{copy.wallet}</span>
-                                <OnboardingWalletCard balanceMusd={balance} />
+                                <WalletCard
+                                    balanceMusd={balance}
+                                    emptyHint={copy.creditsHint}
+                                    countUp
+                                    entrance
+                                    interactive
+                                    glow
+                                />
                             </div>
                         ) : null}
                         <div className="flex flex-col gap-2">
