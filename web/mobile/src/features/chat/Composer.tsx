@@ -28,7 +28,6 @@ import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
 
 import {useComposerPrefill} from "./useComposerPrefill"
-import {useStagedAttachmentViewer} from "./useStagedAttachmentViewer"
 
 /**
  * The mobile composer shell — the SAME `ChatComposer` the desktop dock renders (lazy rich
@@ -283,8 +282,6 @@ export const Composer = ({
         }
     }, [])
 
-    const viewStaged = useStagedAttachmentViewer(attachments)
-
     return (
         <div className="bg-background shrink-0 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
             <ContentRail>
@@ -363,7 +360,6 @@ export const Composer = ({
                             fileMentions
                             attachments={attachments}
                             attachmentsBlocked={attachmentsBlocked}
-                            onViewAttachment={viewStaged}
                             initialMarkdown={draft.initialDraft}
                             onChange={draft.handleComposerChange}
                             slashCommands={slash.sections}
