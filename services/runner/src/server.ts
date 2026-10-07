@@ -1195,9 +1195,11 @@ async function runAndStreamWithApiBaseResolved(
       console.error(seedForRun(request).redactString(err.stack, "stderr"));
     }
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
-    // event — persist it here as the backstop. A shutdown that aborted the turn ends it with the
-    // restart error, as the settled path above does, so the client offers to retry it.
-    const endedByShutdown = isRunnerShutdownAbort(controller.signal);
+    // event — persist it here as the backstop. A shutdown that aborted the turn before it wrote a
+    // terminal record ends it with the restart error, as the settled path above does, so the
+    // client offers to retry it. A turn that already wrote `done` keeps its ending.
+    const endedByShutdown =
+      isRunnerShutdownAbort(controller.signal) && !terminalRecordEmitted;
     const reported = endedByShutdown ? RUNNER_RESTARTING_MESSAGE : message;
     if (persistError) {
       persistError(reported, endedByShutdown ? "execution_lost" : undefined);
