@@ -21,17 +21,12 @@ import {onboardingConfiguration} from "./onboardingConfig"
 import {onboardingDraftKey, type OnboardingDraft, type OnboardingIconPick} from "./onboardingDraft"
 import {OnboardingFlow, type OnboardingCreateInput} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingPending} from "./onboardingPending"
-import {activeOnboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
+import {personProperties} from "./onboardingQuestions"
+import {onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
 
 import {capture} from "@/features/analytics/client"
-
-/** Answers become person properties only once given, so an empty one never overwrites. */
-const personProperties = ({role, source}: OnboardingDraft) => ({
-    ...(role ? {user_role_v2: role} : {}),
-    ...(source ? {referral_source_v2: source} : {}),
-})
 
 /** Wires the flow to the draft agent, the catalog, analytics, and the shared create path. */
 export const OnboardingFlowHost = ({
@@ -66,7 +61,7 @@ export const OnboardingFlowHost = ({
         () => (walletsEnabled ? autoModel : {...autoModel, credits: null}),
         [walletsEnabled, autoModel],
     )
-    const steps = useMemo(() => activeOnboardingSteps(), [])
+    const steps = useMemo(() => onboardingSteps(), [])
     const configuration = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
@@ -112,7 +107,7 @@ export const OnboardingFlowHost = ({
         track("onboarding_step_completed", {
             step: stepIndex(step) + 1,
             step_key: step,
-            $set: personProperties(draft),
+            $set: personProperties(draft.answers),
         })
 
     const onCreate = ({

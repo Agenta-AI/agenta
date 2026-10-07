@@ -42,16 +42,16 @@ describe("onboarding pending mark", () => {
     })
 
     it("ends onboarding by clearing the user's mark and draft, and no one else's", () => {
-        const answers = {...EMPTY_ONBOARDING_DRAFT, role: "Engineering" as const}
+        const saved = {...EMPTY_ONBOARDING_DRAFT, answers: {role: "Engineering"}}
         markOnboardingPending("u1")
         markOnboardingPending("u2")
-        saveOnboardingDraft(onboardingDraftKey("u1"), answers)
-        saveOnboardingDraft(onboardingDraftKey("u2"), answers)
+        saveOnboardingDraft(onboardingDraftKey("u1"), saved)
+        saveOnboardingDraft(onboardingDraftKey("u2"), saved)
         endOnboarding("u1")
         expect(isOnboardingPending("u1")).toBe(false)
         expect(readOnboardingDraft(onboardingDraftKey("u1"))).toEqual(EMPTY_ONBOARDING_DRAFT)
         expect(isOnboardingPending("u2")).toBe(true)
-        expect(readOnboardingDraft(onboardingDraftKey("u2")).role).toBe("Engineering")
+        expect(readOnboardingDraft(onboardingDraftKey("u2")).answers.role).toBe("Engineering")
     })
 })
 

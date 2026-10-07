@@ -6,24 +6,16 @@ export const ONBOARDING_COPY = {
     stepCounter: (current: number, total: number) => `Step ${current} of ${total}`,
     continue: "Continue",
     skip: "Skip for now",
+    /** The fixed steps' dot labels; a question's comes from its registry entry. */
     dots: {
-        role: "Your work",
-        source: "How you found us",
         credits: "Credits",
         templates: "First agent",
     },
     /** Focus target for each step's heading; it needs no ring of its own. */
     headingClass:
         "m-0 text-[34px] font-semibold leading-10 tracking-[-0.02em] text-balance outline-none",
-    kickerClass: "text-muted-foreground text-[11px] font-medium uppercase leading-4 tracking-[0.04em]",
-    role: {
-        title: "What kind of work do you do?",
-        subtitle: "We’ll suggest agents that fit your work.",
-    },
-    source: {
-        title: "How did you hear about Agenta?",
-        subtitle: "Pick the one that fits best.",
-    },
+    kickerClass:
+        "text-muted-foreground text-[11px] font-medium uppercase leading-4 tracking-[0.04em]",
     keyHint: (key: string) => `Press ${key}`,
     model: {
         kicker: "Added to your wallet",
@@ -86,7 +78,8 @@ export const ONBOARDING_COPY = {
         fromTemplateTitle: "Review your agent",
         fromTemplateSubtitle: (name: string) =>
             `Based on the ${name} template. Pick its look, apps and first message.`,
-        fromTemplateNote: "Set by the template. Its full instructions, tools and trigger load when you create the agent.",
+        fromTemplateNote:
+            "Set by the template. Its full instructions, tools and trigger load when you create the agent.",
         templateFirstMessageHint: "Optional. Leave it empty and the template starts itself.",
         name: "Name",
         namePlaceholder: "Name your agent",

@@ -1,86 +1,14 @@
 import type {AgentStarterTemplate, AgentTemplatesStatus} from "@agenta/entities/workflow"
-import {
-    Code,
-    Cube,
-    CurrencyCircleDollar,
-    DotsThree,
-    Flask,
-    GearSix,
-    GithubLogo,
-    GoogleLogo,
-    Handshake,
-    Hash,
-    Lifebuoy,
-    LinkedinLogo,
-    Megaphone,
-    Microphone,
-    Newspaper,
-    OpenAiLogo,
-    PenNib,
-    RedditLogo,
-    RocketLaunch,
-    Scales,
-    Users,
-    XLogo,
-    YoutubeLogo,
-    type Icon,
-} from "@phosphor-icons/react"
+import type {Icon} from "@phosphor-icons/react"
 
 /** One key per chip, in order; a question has at most this many answers. */
 export const CHOICE_KEYS = "ABCDEFGHIJKL"
 
-export interface OnboardingChoice<Label extends string> {
-    label: Label
+export interface OnboardingChoice {
+    label: string
     icon: Icon
-}
-
-export const ONBOARDING_ROLES = [
-    {label: "Engineering", icon: Code},
-    {label: "Product", icon: Cube},
-    {label: "Design", icon: PenNib},
-    {label: "Sales", icon: Handshake},
-    {label: "Marketing", icon: Megaphone},
-    {label: "Customer support", icon: Lifebuoy},
-    {label: "Operations", icon: GearSix},
-    {label: "Finance", icon: CurrencyCircleDollar},
-    {label: "Legal", icon: Scales},
-    {label: "Founder or exec", icon: RocketLaunch},
-    {label: "Research", icon: Flask},
-    {label: "Other", icon: DotsThree},
-] as const satisfies readonly OnboardingChoice<string>[]
-
-export type OnboardingRole = (typeof ONBOARDING_ROLES)[number]["label"]
-
-export const ONBOARDING_SOURCES = [
-    {label: "Google search", icon: GoogleLogo},
-    {label: "ChatGPT or Claude", icon: OpenAiLogo},
-    {label: "X", icon: XLogo},
-    {label: "LinkedIn", icon: LinkedinLogo},
-    {label: "YouTube", icon: YoutubeLogo},
-    {label: "Reddit", icon: RedditLogo},
-    {label: "GitHub", icon: GithubLogo},
-    {label: "Hacker News", icon: Hash},
-    {label: "Friend or colleague", icon: Users},
-    {label: "Newsletter or blog", icon: Newspaper},
-    {label: "Podcast", icon: Microphone},
-    {label: "Other", icon: DotsThree},
-] as const satisfies readonly OnboardingChoice<string>[]
-
-export type OnboardingSource = (typeof ONBOARDING_SOURCES)[number]["label"]
-
-/** The catalog category whose templates each role sees first; unlisted roles get no preference. */
-const ROLE_CATEGORY: Partial<Record<OnboardingRole, string>> = {
-    Engineering: "Engineering",
-    Product: "Engineering",
-    Design: "Engineering",
-    Research: "Knowledge",
-    Sales: "Sales",
-    Marketing: "Sales",
-    "Customer support": "Support",
-    Operations: "Ops",
-    Finance: "Ops",
-    Legal: "Ops",
-    "Founder or exec": "Ops",
+    /** The catalog category this answer puts first under Recommended. */
+    category?: string
 }
 
 export const RECOMMENDED = "recommended"
@@ -90,15 +18,14 @@ export type GalleryCategory = typeof RECOMMENDED | typeof ALL | string
 
 const RECOMMENDED_COUNT = 6
 
-/** The templates a chip shows; Recommended leads with the role's category. */
+/** The templates a chip shows; Recommended leads with the `preferred` category. */
 export const galleryTemplates = (
     templates: readonly AgentStarterTemplate[],
     category: GalleryCategory,
-    role: OnboardingRole | null,
+    preferred: string | undefined,
 ): AgentStarterTemplate[] => {
     if (category === ALL) return [...templates]
     if (category !== RECOMMENDED) return templates.filter((item) => item.category === category)
-    const preferred = role ? ROLE_CATEGORY[role] : undefined
     const first = templates.filter((item) => item.category === preferred)
     const rest = templates.filter((item) => item.category !== preferred)
     return [...first, ...rest].slice(0, RECOMMENDED_COUNT)

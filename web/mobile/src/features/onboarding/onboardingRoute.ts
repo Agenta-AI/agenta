@@ -1,20 +1,34 @@
 import type {OnboardingDraft} from "./onboardingDraft"
+import {ONBOARDING_QUESTIONS, type OnboardingQuestionId} from "./onboardingQuestions"
 
-/** Canonical order; analytics numbers steps by it and the URL names them by it. */
-export const ONBOARDING_STEPS = ["role", "source", "credits", "templates", "review"] as const
-export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
+/** The steps after the questions, always shown. */
+const FIXED_STEPS = ["credits", "templates", "review"] as const
+type FixedStep = (typeof FIXED_STEPS)[number]
 
-/** The steps a deployment can turn off; set one to `false` to drop it from the flow. */
-export const OPTIONAL_STEPS = {role: true, source: true} satisfies Partial<
-    Record<OnboardingStep, boolean>
->
+export type OnboardingStep = OnboardingQuestionId | FixedStep
 
 /** The steps this flow shows, in order. */
 export type OnboardingSteps = readonly OnboardingStep[]
 
-export const activeOnboardingSteps = (
-    optional: Partial<Record<OnboardingStep, boolean>> = OPTIONAL_STEPS,
-): OnboardingSteps => ONBOARDING_STEPS.filter((step) => optional[step] ?? true)
+export const isFixedStep = (step: string): step is FixedStep =>
+    (FIXED_STEPS as readonly string[]).includes(step)
+
+/** Every registry question, shown or not, then the fixed steps; analytics numbers steps by it. */
+const canonicalSteps = (): OnboardingSteps => [
+    ...ONBOARDING_QUESTIONS.map((question) => question.id),
+    ...FIXED_STEPS,
+]
+
+export const stepIndex = (step: OnboardingStep) => canonicalSteps().indexOf(step)
+
+export const isOnboardingStep = (value: string): value is OnboardingStep =>
+    canonicalSteps().includes(value as OnboardingStep)
+
+/** The enabled questions in registry order, then the fixed steps. */
+export const onboardingSteps = (): OnboardingSteps => [
+    ...ONBOARDING_QUESTIONS.filter((question) => question.enabled).map((question) => question.id),
+    ...FIXED_STEPS,
+]
 
 /** The progress dots: every shown step but review, which shares the templates dot. */
 export const progressSteps = (steps: OnboardingSteps) => steps.filter((step) => step !== "review")
@@ -39,11 +53,10 @@ const SCRATCH = "scratch"
 export const stepRoute = (step: OnboardingStep): OnboardingRoute =>
     step === "templates" ? {step, focus: null} : {step}
 
-/** The route a path's segments name, or `null` when they name none. */
+/** The route a path's segments name, or `null` when they name none (the bare page resumes). */
 export const parseOnboardingRoute = (segments: readonly string[]): OnboardingRoute | null => {
     const [step, detail, ...rest] = segments
-    if (rest.length > 0) return null
-    if (step === undefined) return {step: "role"}
+    if (rest.length > 0 || step === undefined || !isOnboardingStep(step)) return null
     if (step === "templates") {
         if (!detail) return {step, focus: null}
         return {
@@ -51,31 +64,26 @@ export const parseOnboardingRoute = (segments: readonly string[]): OnboardingRou
             focus: detail === SCRATCH ? {kind: "scratch"} : {kind: "template", key: detail},
         }
     }
-    if (detail !== undefined) return null
-    return step === "source" || step === "credits" || step === "review" ? {step} : null
+    return detail === undefined ? {step} : null
 }
 
-/** The path after `/onboarding`, without a leading slash; the role step is the bare page. */
+/** The path after `/onboarding`, without a leading slash. */
 export const onboardingRoutePath = (route: OnboardingRoute): string => {
-    if (route.step === "role") return ""
     if (route.step !== "templates" || !route.focus) return route.step
     const detail = route.focus.kind === "scratch" ? SCRATCH : encodeURIComponent(route.focus.key)
     return `templates/${detail}`
 }
 
-type Answers = Pick<OnboardingDraft, "role" | "source" | "templateKey">
+type Answers = Pick<OnboardingDraft, "answers" | "templateKey">
 
-/** A question step's answer; a later step opens once every shown question is answered. */
-const ANSWERED: Partial<Record<OnboardingStep, (answers: Answers) => boolean>> = {
-    role: (answers) => answers.role !== null,
-    source: (answers) => answers.source !== null,
-}
-
-export const isStepOpen = (step: OnboardingStep, answers: Answers, steps: OnboardingSteps) => {
+/** A later step opens once every shown question before it is answered. */
+export const isStepOpen = (step: OnboardingStep, draft: Answers, steps: OnboardingSteps) => {
     const at = steps.indexOf(step)
     if (at < 0) return false
-    const asked = steps.slice(0, at).every((earlier) => ANSWERED[earlier]?.(answers) ?? true)
-    return asked && (step !== "review" || answers.templateKey !== null)
+    const asked = steps
+        .slice(0, at)
+        .every((earlier) => isFixedStep(earlier) || draft.answers[earlier] !== undefined)
+    return asked && (step !== "review" || draft.templateKey !== null)
 }
 
 /** The latest step the answers open, for a link to a step the user has not reached. */
@@ -94,5 +102,3 @@ export const guardOnboardingRoute = (
 
 /** Each step's heading id: focus lands on it, and its choices are labelled by it. */
 export const onboardingHeadingId = (step: OnboardingStep) => `onboarding-heading-${step}`
-
-export const stepIndex = (step: OnboardingStep) => ONBOARDING_STEPS.indexOf(step)

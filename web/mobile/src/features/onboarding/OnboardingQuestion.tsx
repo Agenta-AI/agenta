@@ -1,14 +1,14 @@
 import {useEffect, useRef, useState} from "react"
 
-import {useMotionPresets} from "@/lib/motion/presets"
-import {FOCUS_RING} from "@/lib/interactive"
-import {cn} from "@/lib/utils"
-
 import {CHOICE_KEYS, type OnboardingChoice} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
 
+import {FOCUS_RING} from "@/lib/interactive"
+import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
+
 /** A one-tap question: a chip or its letter key answers it, then the flow moves on. */
-export const OnboardingQuestion = <Label extends string>({
+export const OnboardingQuestion = ({
     headingId,
     title,
     subtitle,
@@ -20,19 +20,19 @@ export const OnboardingQuestion = <Label extends string>({
     headingId: string
     title: string
     subtitle: string
-    choices: readonly OnboardingChoice<Label>[]
-    value: Label | null
-    onAnswer: (label: Label) => void
+    choices: readonly OnboardingChoice[]
+    value: string | null
+    onAnswer: (label: string) => void
     onAdvance: () => void
 }) => {
     const {answerHoldMs} = useMotionPresets()
-    const [picked, setPicked] = useState<Label | null>(null)
+    const [picked, setPicked] = useState<string | null>(null)
     const pickedRef = useRef(false)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     useEffect(() => () => clearTimeout(timerRef.current ?? undefined), [])
 
-    const pickRef = useRef<(label: Label) => void>(() => undefined)
-    pickRef.current = (label: Label) => {
+    const pickRef = useRef<(label: string) => void>(() => undefined)
+    pickRef.current = (label: string) => {
         if (pickedRef.current) return
         pickedRef.current = true
         setPicked(label)

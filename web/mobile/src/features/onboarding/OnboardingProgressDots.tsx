@@ -1,10 +1,14 @@
 import {motion} from "motion/react"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
+import {onboardingQuestion} from "./onboardingQuestions"
 import type {OnboardingStep} from "./onboardingRoute"
 
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
+
+const dotLabel = (step: OnboardingStep) =>
+    onboardingQuestion(step)?.dot ?? ONBOARDING_COPY.dots[step as keyof typeof ONBOARDING_COPY.dots]
 
 /** One dot per shown step; a reached dot jumps back to its step. */
 export const OnboardingProgressDots = ({
@@ -35,8 +39,8 @@ export const OnboardingProgressDots = ({
                         key={step}
                         disabled={!open}
                         aria-current={index === current ? "step" : undefined}
-                        aria-label={ONBOARDING_COPY.dots[step]}
-                        title={ONBOARDING_COPY.dots[step]}
+                        aria-label={dotLabel(step)}
+                        title={dotLabel(step)}
                         onClick={() => onGo(step)}
                         className="inline-flex h-5 items-center border-0 bg-transparent px-0.5 enabled:cursor-pointer disabled:cursor-default"
                     >

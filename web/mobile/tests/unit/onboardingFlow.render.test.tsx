@@ -151,9 +151,16 @@ vi.mock("motion/react", async () => {
     }
 })
 
+import {registerQuestion, TEAM_QUESTION} from "./onboardingTestQuestion"
+
 import type {OnboardingCatalog} from "@/features/onboarding/onboardingChoices"
 import {OnboardingFlow, type OnboardingFlowProps} from "@/features/onboarding/OnboardingFlow"
-import {activeOnboardingSteps} from "@/features/onboarding/onboardingRoute"
+import {personProperties} from "@/features/onboarding/onboardingQuestions"
+import {
+    onboardingSteps,
+    stepIndex,
+    type OnboardingStep,
+} from "@/features/onboarding/onboardingRoute"
 import type {OnboardingModel} from "@/features/onboarding/useOnboardingModel"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -219,7 +226,7 @@ afterEach(() => {
 const baseProps = (overrides: Partial<OnboardingFlowProps> = {}): OnboardingFlowProps => ({
     onboardingPath: nav.BASE,
     draftKey: "onboarding:test",
-    steps: activeOnboardingSteps(),
+    steps: onboardingSteps(),
     catalog,
     model: model(),
     connectedApps: new Map([["github", "GitHub"]]),
@@ -283,19 +290,20 @@ describe("first agent onboarding", () => {
         expect(heading()).toBe("How did you hear about Agenta?")
         expect(onStepCompleted).toHaveBeenCalledWith(
             "role",
-            expect.objectContaining({role: "Engineering"}),
+            expect.objectContaining({answers: {role: "Engineering"}}),
         )
         answer(/^GitHub/)
         expect(heading()).toBe("500 credits, on us")
         expect(onStepCompleted).toHaveBeenLastCalledWith(
             "source",
-            expect.objectContaining({source: "GitHub"}),
+            expect.objectContaining({answers: {role: "Engineering", source: "GitHub"}}),
         )
     })
 
     it("puts each step in the URL and keeps the answers across a remount", () => {
         const props = baseProps()
         render(props)
+        expect(nav.url).toBe(`${nav.BASE}/role`)
         answer(/^Engineering/)
         expect(nav.url).toBe(`${nav.BASE}/source`)
         answer(/^GitHub/)
@@ -306,7 +314,7 @@ describe("first agent onboarding", () => {
         // Another user's draft has no answers, so the same URL falls back to the first step.
         render(baseProps({draftKey: "onboarding:other"}))
         expect(heading()).toBe("What kind of work do you do?")
-        expect(nav.url).toBe(nav.BASE)
+        expect(nav.url).toBe(`${nav.BASE}/role`)
     })
 
     it("walks the steps with the browser's Back and Forward", () => {
@@ -330,7 +338,7 @@ describe("first agent onboarding", () => {
         nav.open(`${nav.BASE}/review`)
         render(baseProps())
         expect(heading()).toBe("What kind of work do you do?")
-        expect(nav.url).toBe(nav.BASE)
+        expect(nav.url).toBe(`${nav.BASE}/role`)
         answer(/^Engineering/)
         answer(/^GitHub/)
         act(() => nav.open(`${nav.BASE}/review`))
@@ -497,5 +505,37 @@ describe("first agent onboarding", () => {
         )
         answer(/^Engineering/)
         expect(document.activeElement?.textContent).toBe("How did you hear about Agenta?")
+    })
+
+    it("shows, routes, guards and reports a question added to the registry", () => {
+        registerQuestion(TEAM_QUESTION)
+        const onStepCompleted = vi.fn()
+        const props = baseProps({onStepCompleted})
+        render(props)
+        expect(button("Your team").disabled).toBe(true)
+        answer(/^Engineering/)
+        answer(/^GitHub/)
+        expect(heading()).toBe("How big is your team?")
+        expect(nav.url).toBe(`${nav.BASE}/team`)
+        act(() => nav.open(`${nav.BASE}/credits`))
+        expect(heading()).toBe("How big is your team?")
+        expect(nav.url).toBe(`${nav.BASE}/team`)
+        act(() => {
+            window.dispatchEvent(new KeyboardEvent("keydown", {key: "b"}))
+        })
+        act(() => vi.runOnlyPendingTimers())
+        expect(heading()).toBe("500 credits, on us")
+        expect(nav.url).toBe(`${nav.BASE}/credits`)
+        const [step, draft] = onStepCompleted.mock.lastCall!
+        expect(step).toBe("team")
+        expect(stepIndex(step as OnboardingStep) + 1).toBe(3)
+        expect(personProperties(draft.answers)).toEqual({
+            user_role_v2: "Engineering",
+            referral_source_v2: "GitHub",
+            team_size_v1: "2 to 10",
+        })
+        render(props)
+        click("Your team")
+        expect(button(/^2 to 10/).getAttribute("aria-pressed")).toBe("true")
     })
 })
