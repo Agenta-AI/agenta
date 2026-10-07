@@ -276,7 +276,7 @@ Set on the `runner` service.
 | `AGENTA_RUNNER_LOG_LEVEL` | Log verbosity | `silent` | no | `agentRunner.logLevel` |
 | `AGENTA_RUNNER_REPLICA_ID` | Runner identity: the platform binds each turn to one runner by this id | Random per process when unset | no | Chart-managed (the pod name) |
 | `AGENTA_RUNNER_REPLICA_ADDRESS` | URL that reaches this runner directly, where the platform sends Stop for its turns | Empty (use `AGENTA_RUNNER_INTERNAL_URL`) | no | Chart-managed (`http://<pod IP>:<port>`) |
-| `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS` | Seconds a stopping runner lets its running turns finish before it cancels them | `0` | no | `agentRunner.shutdownWaitSeconds` (default: the grace period minus 100) |
+| `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS` | Seconds a stopping runner lets its running turns finish before it cancels them | `0` | no | `agentRunner.shutdownWaitSeconds` (default: the grace period minus 100 with `RollingUpdate`, `0` with `Recreate`) |
 
 Every variable on this page treats an empty value as unset, so leaving a line blank selects the
 default rather than an empty string.
@@ -303,8 +303,9 @@ address only when the runner presents its runner token.
 When a runner gets SIGTERM, it refuses new turns with a 503 and keeps Stop and Kill open. It lets
 its running turns finish for `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS`, cancels the turns that still
 run, and deletes its sandboxes. The default `0` cancels at once, because Docker Compose stops a
-container 10 seconds after SIGTERM. The Helm chart sets the wait from the pod's grace period, or
-from `agentRunner.shutdownWaitSeconds`, and the render fails when `agentRunner.env` or
+container 10 seconds after SIGTERM. The Helm chart sets the wait from the pod's grace period when the runner rolls out with
+`RollingUpdate`, to `0` when it uses `Recreate` (the local sandbox), or from
+`agentRunner.shutdownWaitSeconds`, and the render fails when `agentRunner.env` or
 `agentRunner.extraEnv` sets this variable.
 
 The local sandbox is single-runner only: its sessions live on one runner's disk. To run multiple
