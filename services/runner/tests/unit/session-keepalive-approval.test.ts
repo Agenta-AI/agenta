@@ -3307,8 +3307,9 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       await Promise.resolve();
     }
     assert.equal(env.currentTurn?.pause.active, true);
-    // `tc-approved` never closes. The shutdown cancels the turn while it waits.
-    await flush();
+    // `tc-approved` never closes. Let the terminalization reach its closure wait, then let the
+    // shutdown cancel the turn while it waits.
+    await new Promise((resolve) => setTimeout(resolve, 50));
     controller.abort(RUNNER_SHUTDOWN_ABORT_REASON);
     const result = await resumeTurn;
 
