@@ -69,8 +69,8 @@ function useItemFile(item: MediaViewerItem) {
     const objectUrl = useObjectUrl(file)
     const url = source.kind === "url" ? source.url : null
     const local = useMemo((): DriveFileSource | null => {
-        if (url) return new Map([[item.name, {src: url}]])
-        if (file && objectUrl) return new Map([[item.name, {src: objectUrl, file}]])
+        if (url) return new Map([[item.name, {objectUrl: url}]])
+        if (file && objectUrl) return new Map([[item.name, {objectUrl, file}]])
         return null
     }, [url, file, objectUrl, item.name])
     if (source.kind === "mount") return {mount: source.mount, path: source.path, local: null}

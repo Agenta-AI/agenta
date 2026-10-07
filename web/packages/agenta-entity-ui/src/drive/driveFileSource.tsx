@@ -21,8 +21,8 @@ import {useDriveFileDownload} from "./useDriveFileDownload"
 
 export interface LocalDriveFile {
     /** What media elements load and Download saves: an object URL, or an app-authenticated URL. */
-    src: string
-    /** The bytes, when they are already in memory; otherwise they are fetched from `src`. */
+    objectUrl: string
+    /** The bytes, when they are already in memory; otherwise they are fetched from `objectUrl`. */
     file?: File
 }
 
@@ -62,7 +62,7 @@ const remoteBytesQueryFamily = ({src, as}: {src: string; as: "blob" | "text"}) =
     remoteBytesByKey(`${as}\0${src}`)
 
 const useRemoteBytes = (local: LocalDriveFile | null, as: "blob" | "text") =>
-    useAtomValue(remoteBytesQueryFamily({src: local && !local.file ? local.src : "", as}))
+    useAtomValue(remoteBytesQueryFamily({src: local && !local.file ? local.objectUrl : "", as}))
 
 /** An object URL for `blob`, minted in an effect so strict mode never keeps a revoked one. */
 export function useObjectUrl(blob: Blob | null): string | null {
@@ -102,20 +102,20 @@ export function useDriveMediaSrc(
     const mountRes = useMountFileMediaSrc(mount, path)
     // `direct`: an <img> loads the URL itself (and reuses the browser cache); bytes only on error.
     const [directFailed, setDirectFailed] = useState<string | null>(null)
-    const tryDirect = direct && Boolean(local && !local.file && directFailed !== local.src)
-    const remote = useRemoteObjectUrl(local && !local.file && !tryDirect ? local.src : null)
+    const tryDirect = direct && Boolean(local && !local.file && directFailed !== local.objectUrl)
+    const remote = useRemoteObjectUrl(local && !local.file && !tryDirect ? local.objectUrl : null)
     // A local source can still fail to decode (corrupt / unsupported) — surface it like a mount
     // error so the viewer shows its "couldn't load" card rather than a broken element.
     const [failedSrc, setFailedSrc] = useState<string | null>(null)
     if (!local) return mountRes
     if (tryDirect)
         return {
-            src: local.src,
+            src: local.objectUrl,
             isPending: false,
             failed: false,
-            onError: () => setDirectFailed(local.src),
+            onError: () => setDirectFailed(local.objectUrl),
         }
-    const src = local.file ? local.src : remote.url
+    const src = local.file ? local.objectUrl : remote.url
     const failed = remote.failed || (src !== null && failedSrc === src)
     return {
         src: failed ? null : src,
@@ -132,9 +132,9 @@ export function useDriveObjectUrl(
 ): {url: string | null; isPending: boolean; failed: boolean} {
     const local = useLocalFile(path)
     const mountRes = useMountFileObjectUrl(mount, path)
-    const remote = useRemoteObjectUrl(local && !local.file ? local.src : null)
+    const remote = useRemoteObjectUrl(local && !local.file ? local.objectUrl : null)
     if (!local) return mountRes
-    if (local.file) return {url: local.src, isPending: false, failed: false}
+    if (local.file) return {url: local.objectUrl, isPending: false, failed: false}
     return remote
 }
 
@@ -176,7 +176,7 @@ export function useDriveDownload(mount: Mount | null, path: string): () => void 
     return useCallback(() => {
         if (local) {
             const a = document.createElement("a")
-            a.href = local.src
+            a.href = local.objectUrl
             a.download = path.split("/").pop() || "file"
             a.hidden = true
             document.body.append(a)

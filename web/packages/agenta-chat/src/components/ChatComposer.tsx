@@ -77,6 +77,8 @@ export interface ChatComposerProps {
     attachmentsBlocked?: () => boolean
     /** The composer itself is unusable (gates the paperclip alongside `uploadsEnabled`). */
     composerDisabled?: boolean
+    /** Open a viewable attachment in the host's own viewer; omitted, the app's media viewer. */
+    onViewAttachment?: (uid: string) => void
     /** Left of the paperclip: host extras (voice mic, context budget). */
     extraPrefix?: ReactNode
     /** The input's trailing slot (onboarding actions). */
@@ -121,6 +123,7 @@ export const ChatComposer = ({
     busyActions,
     attachmentsBlocked,
     composerDisabled,
+    onViewAttachment,
     extraPrefix,
     trailing,
     headerExtra,
@@ -316,7 +319,9 @@ export const ChatComposer = ({
                             <ComposerAttachments
                                 files={files}
                                 onRemove={removeFile}
-                                onView={uploadsEnabled ? viewStaged : undefined}
+                                onView={
+                                    uploadsEnabled ? (onViewAttachment ?? viewStaged) : undefined
+                                }
                                 onRetry={uploads.retry}
                                 canRetry={uploads.canRetry}
                             />
