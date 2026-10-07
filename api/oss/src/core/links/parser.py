@@ -17,6 +17,7 @@ _IMAGE_KEYS = (
     "twitter:image:src",
 )
 _MAX_TEXT = 300
+_MAX_IMAGE_URL = 2048
 
 
 class LinkMeta(BaseModel):
@@ -75,6 +76,8 @@ def _absolute_image(src: Optional[str], base_url: str) -> Optional[str]:
     if not src:
         return None
     absolute = urljoin(base_url, src.strip())
+    if len(absolute) > _MAX_IMAGE_URL:
+        return None
     return absolute if urlparse(absolute).scheme in ("http", "https") else None
 
 

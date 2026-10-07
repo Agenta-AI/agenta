@@ -11,6 +11,7 @@ from oss.src.core.links.parser import head_section, parse_link_meta
 from oss.src.core.links.types import (
     LinkPreview,
     LinkPreviewError,
+    LinkPreviewRefused,
     LinkPreviewUnreachable,
 )
 from oss.src.utils.caching import get_cache, set_cache
@@ -19,6 +20,7 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 _CACHE_NAMESPACE = "links:preview"
+_REFUSED_CACHE_NAMESPACE = "links:preview:refused"
 _CACHE_TTL_SECONDS = 24 * 60 * 60
 _NEGATIVE_CACHE_TTL_SECONDS = 10 * 60
 
@@ -127,10 +129,20 @@ async def _fetch_html(url: str) -> tuple[str, Optional[str]]:
 
 
 class LinksService:
+    def __init__(self) -> None:
+        # In-process single flight: concurrent requests for one uncached URL share a fetch.
+        self._inflight: dict[str, asyncio.Future] = {}
+
     async def preview(self, *, url: str) -> LinkPreview:
         """A link's preview, from cache or fetched. A page that cannot be read still yields its
         URL and domain; a refused URL raises `LinkPreviewRefused`."""
         key = normalize_link_url(url)
+
+        refused = await get_cache(
+            namespace=_REFUSED_CACHE_NAMESPACE, key=key, retry=False
+        )
+        if isinstance(refused, str):
+            raise LinkPreviewRefused(refused)
 
         cached = await get_cache(
             namespace=_CACHE_NAMESPACE,
@@ -141,10 +153,28 @@ class LinksService:
         if cached is not None:
             return cached
 
+        running = self._inflight.get(key)
+        if running is not None:
+            return await asyncio.shield(running)
+
+        task = asyncio.ensure_future(self._fetch_and_cache(url=url, key=key))
+        self._inflight[key] = task
+        task.add_done_callback(lambda _: self._inflight.pop(key, None))
+        return await asyncio.shield(task)
+
+    async def _fetch_and_cache(self, *, url: str, key: str) -> LinkPreview:
         final_url, html = url, None
         try:
             async with asyncio.timeout(_TIMEOUT_SECONDS):
                 final_url, html = await _fetch_html(url)
+        except LinkPreviewRefused as exc:
+            await set_cache(
+                namespace=_REFUSED_CACHE_NAMESPACE,
+                key=key,
+                value=exc.message,
+                ttl=_NEGATIVE_CACHE_TTL_SECONDS,
+            )
+            raise
         except LinkPreviewUnreachable:
             pass
         except (TimeoutError, httpx.HTTPError) as exc:

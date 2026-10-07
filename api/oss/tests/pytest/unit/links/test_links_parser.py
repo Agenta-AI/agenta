@@ -90,3 +90,8 @@ def test_the_head_section_ends_at_the_head_close_or_the_body():
     )
     assert head_section("<title>A</title><BODY class='x'>rest") == "<title>A</title>"
     assert head_section("<title>A</title>") == "<title>A</title>"
+
+
+def test_an_overlong_image_url_is_dropped():
+    html = f'<head><meta property="og:image" content="/{"a" * 2100}.png"></head>'
+    assert parse_link_meta(html, BASE).image is None
