@@ -27,7 +27,55 @@ vi.mock("@agenta/entity-ui/secretProvider", () => ({
     ProviderDrawer: () => null,
     SubscriptionConnectionCard: () => null,
 }))
-vi.mock("@agenta/home-ui", () => ({TemplateProviderMarks: () => null}))
+// The composer as a textarea: the real one is a lazy Lexical editor.
+vi.mock("@agenta/home-ui", async () => {
+    const {useImperativeHandle, useState} = await import("react")
+    const HomeTaskComposer = ({
+        placeholder = "Describe the agent you want",
+        initialMarkdown = "",
+        onChange,
+        onCreate,
+        inputRef,
+        hideDock,
+        sending,
+    }: {
+        placeholder?: string
+        initialMarkdown?: string
+        onChange?: (text: string) => void
+        onCreate?: (input: {text: string}) => unknown
+        inputRef?: {current: unknown}
+        hideDock?: boolean
+        sending?: boolean
+    }) => {
+        const [text, setText] = useState(initialMarkdown)
+        const edit = (next: string) => {
+            setText(next)
+            onChange?.(next)
+        }
+        useImperativeHandle(inputRef, () => ({setMarkdown: async (next: string) => edit(next)}))
+        return (
+            <div>
+                <textarea
+                    placeholder={placeholder}
+                    value={text}
+                    onChange={(event) => edit(event.target.value)}
+                />
+                {hideDock ? null : <span data-dock />}
+                <button
+                    type="button"
+                    aria-label="Send"
+                    disabled={sending || !text.trim()}
+                    onClick={async () => {
+                        const sent = text.trim()
+                        edit("")
+                        if ((await onCreate?.({text: sent})) === false) edit(sent)
+                    }}
+                />
+            </div>
+        )
+    }
+    return {HomeTaskComposer, TemplateProviderMarks: () => null}
+})
 vi.mock("@agenta/ui/components/presentational", () => ({
     LoadError: ({title, onRetry}: {title: string; onRetry: () => void}) => (
         <p>
@@ -151,8 +199,6 @@ vi.mock("motion/react", async () => {
     }
 })
 
-import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
-
 import type {OnboardingCatalog} from "@/features/onboarding/onboardingChoices"
 import {OnboardingFlow, type OnboardingFlowProps} from "@/features/onboarding/OnboardingFlow"
 import {personProperties} from "@/features/onboarding/onboardingQuestions"
@@ -162,6 +208,8 @@ import {
     type OnboardingStep,
 } from "@/features/onboarding/onboardingRoute"
 import type {OnboardingModel} from "@/features/onboarding/useOnboardingModel"
+
+import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -234,8 +282,9 @@ const baseProps = (overrides: Partial<OnboardingFlowProps> = {}): OnboardingFlow
     connectedApps: new Map([["github", "GitHub"]]),
     toolsEnabled: false,
     creating: false,
+    attachments: {} as OnboardingFlowProps["attachments"],
     onStepCompleted: vi.fn(),
-    onCreate: vi.fn(),
+    onCreate: vi.fn(() => Promise.resolve(true)),
     onSkip: vi.fn(),
     ...overrides,
 })
@@ -262,6 +311,9 @@ const answer = (name: RegExp) => {
     click(name)
     act(() => vi.runOnlyPendingTimers())
 }
+const send = () => act(async () => button("Send").click())
+const message = (placeholder: string) =>
+    (host!.querySelector(`[placeholder^="${placeholder}"]`) as HTMLTextAreaElement).value
 const heading = () => host!.querySelector("h1")?.textContent
 const type = (placeholder: string, value: string) => {
     const field = host!.querySelector(`[placeholder^="${placeholder}"]`) as
@@ -369,10 +421,7 @@ describe("first agent onboarding", () => {
         expect(host!.textContent).toContain("PR reviewer")
         expect(host!.textContent).toContain("Review each opened PR.")
         expect(host!.textContent).toContain("Set by the template.")
-        expect(
-            (host!.querySelector('[placeholder="What should it do first?"]') as HTMLTextAreaElement)
-                .value,
-        ).toBe("")
+        expect(message("What should it do first?")).toBe("")
         click("Create agent")
         expect(props.onCreate).toHaveBeenCalledWith({
             name: "PR reviewer",
@@ -395,17 +444,14 @@ describe("first agent onboarding", () => {
         render({...props, model: model(true)})
         click(/^Continue/)
         expect(heading()).toBe("Review your agent")
-        const message = () =>
-            (host!.querySelector('[placeholder="What should it do first?"]') as HTMLTextAreaElement)
-                .value
-        expect(message()).toBe("Review PR 12")
+        expect(message("What should it do first?")).toBe("Review PR 12")
         click("First agent")
         expect(heading()).toBe("Create your first agent")
         click("Use template")
-        expect(message()).toBe("Review PR 12")
+        expect(message("What should it do first?")).toBe("Review PR 12")
     })
 
-    it("builds a blank start in the gallery and needs a first message before Create", () => {
+    it("builds a blank start in the gallery and creates from its first message", async () => {
         const props = baseProps()
         render(props)
         toGallery()
@@ -413,10 +459,14 @@ describe("first agent onboarding", () => {
         click("First agent")
         click(/^New agent/)
         expect(heading()).toBe("Create your first agent")
-        expect(button("Create agent").disabled).toBe(true)
+        expect(host!.querySelector("[data-dock]")).toBeNull()
+        expect(button("Send").disabled).toBe(true)
         type("Name your agent", "Atlas")
         click("Review my open pull requests")
-        click("Create agent")
+        expect(message("Describe the agent")).toBe("Review my open pull requests")
+        render(props)
+        expect(message("Describe the agent")).toBe("Review my open pull requests")
+        await send()
         expect(props.onCreate).toHaveBeenCalledWith({
             name: "Atlas",
             firstMessage: "Review my open pull requests",
@@ -426,13 +476,17 @@ describe("first agent onboarding", () => {
         })
     })
 
-    it("says why Create is off without a model, and goes back to choose one", () => {
-        render(baseProps({model: model(false)}))
+    it("keeps the message and points at the model note when sent without a model", async () => {
+        const props = baseProps({model: model(false)})
+        render(props)
         toGallery()
         click(/^New agent/)
-        type("What should it do first?", "Plan my week")
-        expect(button("Create agent").disabled).toBe(true)
+        type("Describe the agent", "Plan my week")
         expect(host!.textContent).toContain("Your agent needs a model to run.")
+        await send()
+        expect(props.onCreate).not.toHaveBeenCalled()
+        expect(message("Describe the agent")).toBe("Plan my week")
+        expect(document.activeElement).toBe(button("Choose one"))
         click("Choose one")
         expect(heading()).toBe("Choose how your agents run")
         expect(host!.textContent).toContain("No model can run your agent yet.")

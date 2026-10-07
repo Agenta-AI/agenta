@@ -1,7 +1,11 @@
 import {useEffect, useLayoutEffect, useReducer, useRef, useState} from "react"
 
+import type {useComposerAttachments} from "@agenta/chat/hooks"
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {motion} from "motion/react"
+
+import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
 
 import type {ConnectedApps} from "./onboardingApps"
 import type {OnboardingCatalog} from "./onboardingChoices"
@@ -45,9 +49,6 @@ import {
 import type {OnboardingModel} from "./useOnboardingModel"
 import {useOnboardingNav} from "./useOnboardingNav"
 
-import {useMotionPresets} from "@/lib/motion/presets"
-import {cn} from "@/lib/utils"
-
 export interface OnboardingCreateInput extends FirstAgentInput {
     icon: OnboardingIconPick
     apps: string[]
@@ -66,8 +67,11 @@ export interface OnboardingFlowProps {
     toolsEnabled: boolean
     creating: boolean
     error?: string | null
+    /** The first message's staged files; the host sends them with the create. */
+    attachments: ReturnType<typeof useComposerAttachments>
     onStepCompleted: (step: OnboardingStep, draft: OnboardingDraft) => void
-    onCreate: (input: OnboardingCreateInput) => void
+    /** Resolves `false` when no agent was created. */
+    onCreate: (input: OnboardingCreateInput) => Promise<boolean>
     onSkip: (step: OnboardingStep) => void
 }
 
@@ -104,6 +108,7 @@ export const OnboardingFlow = ({
     toolsEnabled,
     creating,
     error,
+    attachments,
     onStepCompleted,
     onCreate,
     onSkip,
@@ -174,7 +179,6 @@ export const OnboardingFlow = ({
     // Set when a phone opens a panel over the list, so its Back control pops that entry.
     const detailPushedRef = useRef(false)
     const template = catalog.templates.find((item) => item.key === draft.templateKey) ?? null
-    const input = firstAgentInput(draft, template)
     const onUse = (picked: AgentStarterTemplate) => {
         const apps = templateProviderSlugs(picked).filter((key) => connectedApps.has(key))
         dispatch({type: "template", template: picked, apps})
@@ -182,13 +186,18 @@ export const OnboardingFlow = ({
     }
     const create: OnboardingCreateState = {
         modelReady: model.ready,
-        complete: input !== null,
         creating,
         error,
+        attachments,
         onChooseModel: () => go({step: "credits"}, {returnTo: routeRef.current}),
-        onCreate: () => {
-            if (!input) return
-            onCreate({...input, icon: draft.agent.icon, apps: draft.agent.apps})
+        onCreate: async (firstMessage) => {
+            const {agent} = draftRef.current
+            const input = firstAgentInput(
+                {templateKey: draftRef.current.templateKey, agent: {...agent, firstMessage}},
+                template,
+            )
+            if (!input) return false
+            return onCreate({...input, icon: agent.icon, apps: agent.apps})
         },
     }
     const onAgent = (patch: Partial<Omit<OnboardingDraft["agent"], "apps">>) =>
