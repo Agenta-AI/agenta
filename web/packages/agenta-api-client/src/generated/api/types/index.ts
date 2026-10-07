@@ -417,6 +417,8 @@ export * from "./JsonSchemasOutput.js";
 export * from "./LabelJsonInput.js";
 export * from "./LabelJsonOutput.js";
 export * from "./LegacyLifecycleDto.js";
+export * from "./LinkPreview.js";
+export * from "./LinkPreviewResponse.js";
 export * from "./ListApiKeysResponse.js";
 export * from "./ListOperator.js";
 export * from "./ListOptions.js";
