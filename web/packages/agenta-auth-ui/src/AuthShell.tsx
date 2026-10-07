@@ -55,7 +55,7 @@ export const AuthShell = ({
                     {header}
                 </div>
             ) : null}
-            <div className="flex flex-1 justify-center px-[clamp(24px,4vw,48px)] pb-24 pt-[clamp(88px,16vh,160px)]">
+            <div className="flex flex-1 items-center justify-center px-[clamp(24px,4vw,48px)] py-[88px]">
                 <div className="flex w-full max-w-[400px] flex-col gap-[22px]">{children}</div>
             </div>
         </section>
