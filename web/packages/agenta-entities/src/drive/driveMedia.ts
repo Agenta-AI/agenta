@@ -100,26 +100,34 @@ export function useMountFileObjectUrl(
 /** Longest side of a generated grid thumbnail, in px. */
 const THUMB_PX = 256
 
-/** Downscale an image blob to a small thumbnail data URL on the CLIENT (webp, `THUMB_PX` longest
- * side). `createImageBitmap` decodes off the main thread; the draw + encode are tiny. Returns null
- * if the browser can't decode it (caller falls back to the type icon). This is what lets the grid
- * cache a few KB per tile instead of pinning the full-size original in memory while browsing many
- * files — the whole point of the FE thumbnail path (no server resize). */
-async function downscaleImage(blob: Blob): Promise<string | null> {
+/** A downscaled image: a small data URL, its drawn size, and the original's byte size. */
+export interface DriveImageThumb {
+    src: string
+    width: number
+    height: number
+    bytes: number
+}
+
+/** Downscale an image blob to a small thumbnail data URL on the CLIENT (webp, `px` longest side).
+ * `createImageBitmap` decodes off the main thread; the draw + encode are tiny. Returns null if the
+ * browser can't decode it (caller falls back to the type icon). This is what lets the grid cache a
+ * few KB per tile instead of pinning the full-size original in memory while browsing many files —
+ * the whole point of the FE thumbnail path (no server resize). */
+async function downscaleImage(blob: Blob, px: number): Promise<DriveImageThumb | null> {
     if (typeof createImageBitmap !== "function") return null
     let bitmap: ImageBitmap | null = null
     try {
         bitmap = await createImageBitmap(blob)
-        const scale = Math.min(1, THUMB_PX / Math.max(bitmap.width, bitmap.height))
-        const w = Math.max(1, Math.round(bitmap.width * scale))
-        const h = Math.max(1, Math.round(bitmap.height * scale))
+        const scale = Math.min(1, px / Math.max(bitmap.width, bitmap.height))
+        const width = Math.max(1, Math.round(bitmap.width * scale))
+        const height = Math.max(1, Math.round(bitmap.height * scale))
         const canvas = document.createElement("canvas")
-        canvas.width = w
-        canvas.height = h
+        canvas.width = width
+        canvas.height = height
         const ctx = canvas.getContext("2d")
         if (!ctx) return null
-        ctx.drawImage(bitmap, 0, 0, w, h)
-        return canvas.toDataURL("image/webp", 0.7)
+        ctx.drawImage(bitmap, 0, 0, width, height)
+        return {src: canvas.toDataURL("image/webp", 0.7), width, height, bytes: blob.size}
     } catch {
         return null
     } finally {
@@ -128,21 +136,22 @@ async function downscaleImage(blob: Blob): Promise<string | null> {
 }
 
 /**
- * A file's grid THUMBNAIL as a small data-URL string — a downscaled image. The heavy original
- * bytes are fetched, converted, and DROPPED; only the tiny string is retained (generous `gcTime`,
- * strings are cheap). So browsing thousands of image files keeps memory bounded (KBs per seen
- * tile, not the full originals) and scroll-back is instant with no re-decode/re-render. Keyed
- * separately from the full-size {@link mountFileBlobQueryFamily} viewer.
+ * A file's THUMBNAIL as a small data-URL — a downscaled image, `px` on its longest side (grid tiles
+ * by default; an inline chat preview asks for more). The heavy original bytes are fetched,
+ * converted, and DROPPED; only the small string is retained (generous `gcTime`, strings are
+ * cheap). So browsing thousands of image files keeps memory bounded (KBs per seen tile, not the
+ * full originals) and scroll-back is instant with no re-decode/re-render. Keyed separately from the
+ * full-size {@link mountFileBlobQueryFamily} viewer.
  */
 export const mountFileThumbnailQueryFamily = atomFamily(
-    ({mountId, path}: {mountId: string; path: string}) =>
-        atomWithQuery<string | null>((get) => {
+    ({mountId, path, px = THUMB_PX}: {mountId: string; path: string; px?: number}) =>
+        atomWithQuery<DriveImageThumb | null>((get) => {
             const projectId = get(projectIdAtom) ?? ""
             return {
-                queryKey: ["mounts", "thumb", projectId, mountId, path],
+                queryKey: ["mounts", "thumb", projectId, mountId, path, px],
                 queryFn: async () => {
                     const blob = await fetchMountFileBlob({mountId, projectId, path})
-                    return blob ? downscaleImage(blob) : null
+                    return blob ? downscaleImage(blob, px) : null
                 },
                 enabled: Boolean(mountId && path && projectId),
                 staleTime: Infinity,
@@ -150,7 +159,8 @@ export const mountFileThumbnailQueryFamily = atomFamily(
                 refetchOnWindowFocus: false,
             }
         }),
-    (a, b) => a.mountId === b.mountId && a.path === b.path,
+    (a, b) =>
+        a.mountId === b.mountId && a.path === b.path && (a.px ?? THUMB_PX) === (b.px ?? THUMB_PX),
 )
 
 /** Download one drive file (any type) via the bytes endpoint. */
