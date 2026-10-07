@@ -217,8 +217,8 @@ export function useSignInFlow({
 
             if (result.kind === "failed") {
                 // Still advance: the deployment's own email method works without discovery.
+                // No error here: the next step is usable, and its submit reports a real outage.
                 setDiscovered({emailPassword: false, emailOtp: false, social: [], sso: []})
-                reportError(result.error)
                 return
             }
 
