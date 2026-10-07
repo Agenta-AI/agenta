@@ -288,7 +288,8 @@ so the Services container can reach the runner across the Compose network. `AGEN
 `AGENTA_RUNNER_REPLICA_ID` is not only a log label. The platform binds each turn to the first runner
 that reports it, and refuses the same turn from a runner with a different id. Every runner must
 therefore have its own id. When the value is unset the runner generates a fresh id on each start.
-The bundled Compose files set a fixed value, which is safe because Compose runs one runner. The Helm
+The bundled `gh` Compose files set `local-runner-1`, which is safe because Compose runs one runner.
+The bundled `dev` Compose files leave it unset, so the runner generates an id on each start. The Helm
 chart sets the pod name, and the render fails when `agentRunner.env` or `agentRunner.extraEnv`
 sets this variable.
 
@@ -307,6 +308,40 @@ container 10 seconds after SIGTERM. The Helm chart sets the wait from the pod's 
 from `agentRunner.shutdownWaitSeconds`, and the render fails when `agentRunner.env` or
 `agentRunner.extraEnv` sets this variable.
 
+:::warning Helm upgrade: remove chart-owned runner variables
+The Helm chart sets these four variables itself:
+
+- `AGENTA_RUNNER_REPLICA_ID`
+- `AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS`
+- `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`
+- `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER`
+
+If your values file sets any of them under `agentRunner.env` or `agentRunner.extraEnv`, remove those
+lines before you upgrade. Otherwise `helm upgrade` fails with `CONFIGURATION ERROR`, and the error
+names the variable and the key to remove from. Earlier docs told Helm users to set
+`agentRunner.env.AGENTA_RUNNER_REPLICA_ID`. That setting is no longer allowed.
+
+Use the chart values instead:
+
+```yaml
+agentRunner:
+  shutdownWaitSeconds: 30
+  providers:
+    enabled: [daytona]
+    default: daytona
+    daytona:
+      apiKeySecretRef:
+        name: agenta-runner-daytona
+        key: api-key
+```
+
+The Secret named in `apiKeySecretRef` holds your Daytona API key. The chart injects it as
+`AGENTA_RUNNER_DAYTONA_API_KEY`. The runner needs it when Daytona is enabled.
+
+`agentRunner.providers.enabled` and `agentRunner.providers.default` accept `local`, `daytona` and
+`inprocess`. The chart sets the replica id to the pod name; there is no value to set.
+:::
+
 The local sandbox is single-runner only: its sessions live on one runner's disk. To run multiple
 runners, use the Daytona provider.
 
@@ -322,7 +357,7 @@ same runner HTTP surface, not routed through Services, so both containers need b
 |---|---|---|---|---|---|
 | `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API and the platform API (both caller-side) | Compose: `http://runner:8765` on both callers (the `gh.local` and `gh.ssl` files set it on `api` from v0.115.3) | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
 | `AGENTA_RUNNER_TOKEN` | Shared request credential | Services and the platform API send it; runner verifies it | **Required — no default** | yes | `agenta.runnerToken`, or `agentRunner.auth.tokenSecretRef` to source it from your own Secret |
-| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `360` | no | n/a |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `480` | no | n/a |
 
 `AGENTA_RUNNER_TOKEN` is **required**, like `AGENTA_AUTH_KEY`. The runner refuses to start without
 it and rejects an un-tokened request with `401`, so there is no unauthenticated mode. It carries a
