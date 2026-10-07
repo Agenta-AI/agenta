@@ -54,8 +54,8 @@ const WIDTH: Record<OnboardingStep, string> = {
     role: "max-w-[680px]",
     referral: "max-w-[680px]",
     credits: "max-w-[880px]",
-    gallery: "max-w-[1040px]",
-    creator: "max-w-[1040px]",
+    gallery: "max-w-[1040px] max-md:self-start",
+    creator: "max-w-[1040px] max-md:self-start",
 }
 
 /** Which progress dots open from here: any answered step, and the gallery from its own creator. */
@@ -205,17 +205,20 @@ export const OnboardingFlow = ({
     return (
         <div
             ref={scrollerRef}
+            data-onboarding-scroller
             className="bg-background text-foreground flex h-dvh flex-col overflow-y-auto overflow-x-hidden"
         >
             <OnboardingHeader />
-            <main className="box-border flex flex-1 items-center justify-center px-4 pb-24 pt-6 sm:px-6">
+            <main className="box-border flex min-w-0 flex-1 items-center justify-center px-4 pb-6 pt-6 sm:px-6 md:pb-24">
                 <motion.section
                     key={step}
                     custom={direction}
                     variants={presets.stepSlide}
                     initial="initial"
                     animate="animate"
-                    className={cn("w-full", WIDTH[step])}
+                    // `min-w-0`: a flex item's floor is otherwise its widest row, which pushed the
+                    // gallery's scrolling icon row past a phone's edge.
+                    className={cn("w-full min-w-0", WIDTH[step])}
                 >
                     {body[step]()}
                 </motion.section>

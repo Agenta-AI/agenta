@@ -53,8 +53,11 @@ export const OnboardingScratchPanel = ({
     )
 
     return (
-        <section aria-label={ONBOARDING_COPY.gallery.scratch} className="bg-muted flex flex-col rounded-xl">
-            <div className="flex flex-col gap-2.5 p-3">
+        <section
+            aria-label={ONBOARDING_COPY.gallery.scratch}
+            className="bg-muted flex min-w-0 flex-col rounded-xl"
+        >
+            <div className="flex min-w-0 flex-col gap-2.5 p-3">
                 <div className="flex min-w-0 items-center gap-2.5">
                     <OnboardingAgentChip icon={agent.icon} size={16} className="size-7 rounded-md" />
                     <span aria-hidden className="bg-border h-5 w-px shrink-0" />
@@ -89,7 +92,7 @@ export const OnboardingScratchPanel = ({
                         })}
                     </div>
                 </div>
-                <div className="flex h-6 items-center gap-1.5 sm:pl-[49px]">
+                <div className="flex flex-wrap items-center gap-1.5 sm:h-6 sm:flex-nowrap sm:pl-[49px]">
                     {AGENT_ICON_COLORS.map(([solid]) => (
                         <button
                             type="button"
@@ -105,8 +108,9 @@ export const OnboardingScratchPanel = ({
                             className="border-foreground/10 size-5 shrink-0 cursor-pointer rounded-full border border-solid p-0 outline-offset-2"
                         />
                     ))}
-                    <span aria-hidden className="bg-border mx-1 h-3.5 w-px shrink-0" />
+                    <span aria-hidden className="bg-border mx-1 h-3.5 w-px shrink-0 max-sm:hidden" />
                     <OnboardingHueSlider
+                        className="max-sm:mt-2 max-sm:basis-full"
                         color={color}
                         onChange={(hex) => onChange({icon: {icon, color: hex}})}
                     />
@@ -135,7 +139,7 @@ export const OnboardingScratchPanel = ({
                         <div
                             role="group"
                             aria-label={copy.starters}
-                            className="flex shrink-0 flex-col gap-1 overflow-y-auto pb-4 [mask-image:linear-gradient(180deg,#000_0,#000_calc(100%-16px),transparent_100%)] [scrollbar-width:none] max-sm:max-h-[120px] sm:h-[120px] sm:w-[44%] sm:max-w-60 [&::-webkit-scrollbar]:hidden"
+                            className="flex shrink-0 gap-1 [scrollbar-width:none] max-sm:-mx-3 max-sm:overflow-x-auto max-sm:px-3 sm:h-[120px] sm:w-[44%] sm:max-w-60 sm:flex-col sm:overflow-y-auto sm:pb-4 sm:[mask-image:linear-gradient(180deg,#000_0,#000_calc(100%-16px),transparent_100%)] [&::-webkit-scrollbar]:hidden"
                         >
                             {FIRST_MESSAGE_STARTERS.map((text) => (
                                 <button
@@ -143,7 +147,7 @@ export const OnboardingScratchPanel = ({
                                     key={text}
                                     onClick={() => onChange({firstMessage: text})}
                                     className={cn(
-                                        "bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground min-h-7 w-full shrink-0 cursor-pointer rounded-md border-0 px-2 py-[5px] text-left text-xs leading-4",
+                                        "bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground min-h-7 shrink-0 cursor-pointer rounded-md border-0 px-2 py-[5px] text-left text-xs leading-4 max-sm:whitespace-nowrap sm:w-full",
                                         FOCUS_RING,
                                     )}
                                 >
@@ -154,10 +158,11 @@ export const OnboardingScratchPanel = ({
                     </div>
                 </div>
             </div>
-            <div className="flex items-center justify-between gap-2 px-3 pb-3 pt-1">
+            <div className="flex flex-col gap-2 px-3 pb-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
                 {status}
                 <LoadingButton
                     size="sm"
+                    className="max-sm:h-10 max-sm:w-full"
                     loading={create.creating}
                     disabled={!create.modelReady || !create.complete}
                     onClick={create.onCreate}

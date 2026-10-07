@@ -130,7 +130,7 @@ export const OnboardingCreditsStep = ({
                 <div className="flex flex-col gap-2">
                     <div
                         className={cn(
-                            "grid gap-x-6 gap-y-2",
+                            "grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-2",
                             credits && "sm:grid-cols-[minmax(0,304px)_minmax(0,1fr)]",
                         )}
                     >
@@ -153,7 +153,11 @@ export const OnboardingCreditsStep = ({
                 </div>
             )}
             <div className="flex justify-end">
-                <Button onClick={onContinue} disabled={model.status === "loading"}>
+                <Button
+                    onClick={onContinue}
+                    disabled={model.status === "loading"}
+                    className="max-sm:h-11 max-sm:w-full"
+                >
                     {ONBOARDING_COPY.continue}
                     <ArrowRight data-icon="inline-end" />
                 </Button>

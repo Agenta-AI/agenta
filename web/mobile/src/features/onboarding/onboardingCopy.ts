@@ -74,6 +74,7 @@ export const ONBOARDING_COPY = {
         categories: "Template categories",
         scratch: "Start from scratch",
         scratchHint: "Blank agent",
+        backToTemplates: "Templates",
         template: "Template",
         connects: "Connects",
         required: "Required",

@@ -52,6 +52,51 @@ vi.mock("@agenta/ui/agent-icon", () => ({
     tintForColor: () => "#eeeeee",
 }))
 vi.mock("next/dynamic", () => ({default: () => () => null}))
+// A phone-width router: the gallery's detail view lives in a shallow query param.
+const nav = vi.hoisted(() => {
+    let query: Record<string, string> = {}
+    const listeners = new Set<() => void>()
+    const set = (next: Record<string, string>) => {
+        query = next
+        listeners.forEach((listener) => listener())
+    }
+    return {
+        get query() {
+            return query
+        },
+        reset: () => {
+            query = {}
+        },
+        subscribe: (listener: () => void) => {
+            listeners.add(listener)
+            return () => listeners.delete(listener)
+        },
+        router: {
+            pathname: "/apps",
+            get query() {
+                return query
+            },
+            push: (url: {query: Record<string, string>}) => {
+                set(url.query)
+                return Promise.resolve(true)
+            },
+            replace: (url: {query: Record<string, string>}) => {
+                set(url.query)
+                return Promise.resolve(true)
+            },
+            back: () => set({}),
+        },
+    }
+})
+vi.mock("next/router", async () => {
+    const {useSyncExternalStore} = await import("react")
+    return {
+        useRouter: () => {
+            useSyncExternalStore(nav.subscribe, () => nav.query)
+            return nav.router
+        },
+    }
+})
 vi.mock("@/components/AgentaLogo", () => ({AgentaLogo: () => null}))
 vi.mock("motion/react", async () => {
     const {createElement} = await import("react")
@@ -131,6 +176,7 @@ afterEach(() => {
     root = undefined
     host = undefined
     window.sessionStorage.clear()
+    nav.reset()
     vi.useRealTimers()
 })
 
@@ -324,6 +370,24 @@ describe("first agent onboarding", () => {
         expect(retry).toHaveBeenCalledOnce()
         click(/^Start from scratch/)
         expect(host!.querySelector('[placeholder="Name your agent"]')).not.toBeNull()
+    })
+
+    it("opens a template on its own view on a phone, and Back returns to the list", () => {
+        render(baseProps())
+        toGallery()
+        click(/^PR reviewer/)
+        expect(nav.query["onboarding-detail"]).toBe("1")
+        expect(button("Templates")).toBeTruthy()
+        click("Templates")
+        expect(nav.query["onboarding-detail"]).toBeUndefined()
+        expect(() => button("Templates")).toThrow()
+        click(/^Start from scratch/)
+        expect(host!.querySelector('[placeholder="Name your agent"]')).not.toBeNull()
+        click("Templates")
+        click(/^PR reviewer/)
+        click("Use template")
+        expect(heading()).toBe("Review your agent")
+        expect(nav.query["onboarding-detail"]).toBeUndefined()
     })
 
     it("moves focus to the new step's heading and labels the choices by it", () => {

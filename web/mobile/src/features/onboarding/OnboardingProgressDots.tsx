@@ -25,7 +25,8 @@ export const OnboardingProgressDots = ({
     return (
         <nav
             aria-label={ONBOARDING_COPY.stepCounter(current + 1, PROGRESS_STEPS.length)}
-            className="fixed bottom-8 left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5"
+            // In the page's flow on a phone, so it never covers content; fixed at the foot from md.
+            className="flex shrink-0 items-center justify-center gap-0.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:fixed md:bottom-8 md:left-1/2 md:z-20 md:-translate-x-1/2 md:pb-0"
         >
             {PROGRESS_STEPS.map((step, index) => {
                 const open = reached(step)
