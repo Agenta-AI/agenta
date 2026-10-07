@@ -570,7 +570,9 @@ export const useAgentConversation = ({
     // A run streamed elsewhere (Home, another device) has no `onFinish` here to re-read mounts.
     const sharedRunWasLiveRef = useRef(sharedReaderRunning)
     const streamedHereRef = useRef(busy)
-    if (busy) streamedHereRef.current = true
+    useEffect(() => {
+        if (busy) streamedHereRef.current = true
+    }, [busy])
     useEffect(() => {
         const wasLive = sharedRunWasLiveRef.current
         sharedRunWasLiveRef.current = sharedReaderRunning
