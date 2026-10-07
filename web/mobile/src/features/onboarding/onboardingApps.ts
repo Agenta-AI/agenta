@@ -1,9 +1,7 @@
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {composioLogo, PROVIDERS} from "@agenta/entities/workflow"
 
-import {isUsableToolConnection, SEED_TOOLS} from "./onboardingConfig"
-
-const SEED_KEYS = new Set<string>(SEED_TOOLS.map((tool) => tool.key))
+import {isUsableToolConnection} from "./onboardingConfig"
 
 /** Usable tool connections by integration key, with the connection's name. */
 export type ConnectedApps = ReadonlyMap<string, string>
@@ -15,10 +13,10 @@ export const appIdentity = (key: string, connected: ConnectedApps) => ({
     logo: PROVIDERS[key]?.logo ?? composioLogo(key),
 })
 
-/** The usable connections, minus the zero-auth tools every first agent gets anyway. */
+/** The usable connections. */
 export const connectedApps = (connections: readonly ToolConnection[]): ConnectedApps =>
     new Map(
         connections
-            .filter((item) => isUsableToolConnection(item) && !SEED_KEYS.has(item.integration_key!))
+            .filter(isUsableToolConnection)
             .map((item) => [item.integration_key!, item.name ?? ""]),
     )
