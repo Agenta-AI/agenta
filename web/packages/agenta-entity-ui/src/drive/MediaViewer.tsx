@@ -11,6 +11,7 @@ import {resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {Button, Dialog, DialogContent, DialogTitle, Spinner} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, DownloadSimple, X} from "@phosphor-icons/react"
+import {atom, useAtom} from "jotai"
 
 import {
     DriveFileSourceContext,
@@ -280,5 +281,21 @@ export function MediaViewer({items, index, onIndexChange}: MediaViewerProps) {
                 </DialogContent>
             ) : null}
         </Dialog>
+    )
+}
+
+/** What the app-wide viewer shows, or null when it is closed. Openers set it; the host renders it. */
+export const mediaViewerAtom = atom<{items: MediaViewerItem[]; index: number} | null>(null)
+
+/** The one viewer, mounted once for the app so it outlives whatever opened it: a transcript row
+ * remounts when the server transcript replaces the streamed one, mid-view. */
+export function MediaViewerHost() {
+    const [open, setOpen] = useAtom(mediaViewerAtom)
+    return (
+        <MediaViewer
+            items={open?.items ?? []}
+            index={open?.index ?? null}
+            onIndexChange={(index) => setOpen(open && index !== null ? {...open, index} : null)}
+        />
     )
 }

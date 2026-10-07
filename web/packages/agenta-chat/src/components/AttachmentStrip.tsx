@@ -1,7 +1,8 @@
 import {useMemo, useState} from "react"
 
-import {MediaViewer, type MediaViewerItem} from "@agenta/entity-ui/drive"
+import {mediaViewerAtom, type MediaViewerItem} from "@agenta/entity-ui/drive"
 import {ImageBroken, Pause, Play} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 
 import {typeBadgeFor} from "../assets/attachmentRules"
 
@@ -186,12 +187,12 @@ const OverflowTile = ({
 
 /**
  * A sent message's files as a row of square tiles: images show themselves, other files their type
- * and name, audio keeps an in-place play control. A tap opens the shared viewer at that file, where
- * Download lives. Past `maxTiles`, the last tile reads "+N" and opens the viewer at the first file
- * it hides.
+ * and name, audio keeps an in-place play control. A tap opens the app's viewer at that file, where
+ * Download lives; the host app mounts `MediaViewerHost` once. Past `maxTiles`, the last tile reads
+ * "+N" and opens the viewer at the first file it hides.
  */
 export const AttachmentStrip = ({files, align = "end", maxTiles = 4}: AttachmentStripProps) => {
-    const [viewing, setViewing] = useState<number | null>(null)
+    const openViewer = useSetAtom(mediaViewerAtom)
     // Only a file with a source can be viewed; the viewer pages through those alone.
     const viewable = useMemo(
         () => files.flatMap((file, at) => (file.src ? [{file, at, src: file.src}] : [])),
@@ -210,39 +211,32 @@ export const AttachmentStrip = ({files, align = "end", maxTiles = 4}: Attachment
     )
     const openAt = (at: number) => {
         const index = viewable.findIndex((entry) => entry.at === at)
-        return index < 0 ? undefined : () => setViewing(index)
+        return index < 0 ? undefined : () => openViewer({items, index})
     }
 
     const overflow = files.length > maxTiles ? files.length - (maxTiles - 1) : 0
     const shown = overflow ? files.slice(0, maxTiles - 1) : files
 
     return (
-        <>
-            <div
-                className={`flex flex-wrap gap-1.5 ${align === "end" ? "justify-end" : "justify-start"}`}
-            >
-                {shown.map((file, at) => {
-                    const Tile = tileFor(file.mediaType)
-                    return (
-                        <div
-                            key={`${at}:${file.src ?? file.name}`}
-                            className={TILE}
-                            title={file.name}
-                        >
-                            <Tile file={file} onOpen={openAt(at)} />
-                        </div>
-                    )
-                })}
-                {overflow ? (
-                    <OverflowTile
-                        count={overflow}
-                        first={files[maxTiles - 1]}
-                        onOpen={openAt(maxTiles - 1)}
-                    />
-                ) : null}
-            </div>
-            <MediaViewer items={items} index={viewing} onIndexChange={setViewing} />
-        </>
+        <div
+            className={`flex flex-wrap gap-1.5 ${align === "end" ? "justify-end" : "justify-start"}`}
+        >
+            {shown.map((file, at) => {
+                const Tile = tileFor(file.mediaType)
+                return (
+                    <div key={`${at}:${file.src ?? file.name}`} className={TILE} title={file.name}>
+                        <Tile file={file} onOpen={openAt(at)} />
+                    </div>
+                )
+            })}
+            {overflow ? (
+                <OverflowTile
+                    count={overflow}
+                    first={files[maxTiles - 1]}
+                    onOpen={openAt(maxTiles - 1)}
+                />
+            ) : null}
+        </div>
     )
 }
 

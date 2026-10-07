@@ -3,12 +3,12 @@
  * preview (never the full bytes) with a caption bar to expand it into the media viewer or download
  * it. The link in the sentence stays; this is the picture that goes with it.
  */
-import {useState, type ReactNode} from "react"
+import {type ReactNode} from "react"
 
 import {humanSize, mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {Button} from "@agenta/ui/ui"
 import {ArrowsOut, DownloadSimple} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     CHAT_IMAGE_PREVIEW_PX,
@@ -19,7 +19,7 @@ import {
 } from "./chatFileLookup"
 import {chatFileResolver, fileCandidate, knownFromRecords} from "./chatFileRefs"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
-import {MediaViewer} from "./MediaViewer"
+import {mediaViewerAtom} from "./MediaViewer"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** The preview's box: never wider than this, never taller than `MAX_HEIGHT`. */
@@ -41,7 +41,7 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
         }),
     )
     const download = useDriveFileDownload()
-    const [viewing, setViewing] = useState<number | null>(null)
+    const openViewer = useSetAtom(mediaViewerAtom)
     const name = candidate.split("/").pop() ?? candidate
     const data = preview.data
 
@@ -62,6 +62,18 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
         )
     }
 
+    const expand = () =>
+        openViewer({
+            items: [
+                {
+                    key: candidate,
+                    name,
+                    size: data.bytes,
+                    source: {kind: "mount", mount: target.mount, path: target.path},
+                },
+            ],
+            index: 0,
+        })
     const width = Math.min(MAX_WIDTH, data.width, (MAX_HEIGHT * data.width) / data.height)
     return (
         <figure
@@ -71,7 +83,7 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
             <button
                 type="button"
                 aria-label={`Expand ${name}`}
-                onClick={() => setViewing(0)}
+                onClick={expand}
                 className="block w-full cursor-zoom-in border-0 bg-transparent p-0"
             >
                 {/* A generated data URL; next/image cannot optimize it. */}
@@ -93,7 +105,7 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
                     variant="ghost"
                     size="icon-xs"
                     aria-label={`Expand ${name}`}
-                    onClick={() => setViewing(0)}
+                    onClick={expand}
                 >
                     <ArrowsOut />
                 </Button>
@@ -106,18 +118,6 @@ export function ChatInlineImage({candidate}: {candidate: string}) {
                     <DownloadSimple />
                 </Button>
             </figcaption>
-            <MediaViewer
-                items={[
-                    {
-                        key: candidate,
-                        name,
-                        size: data.bytes,
-                        source: {kind: "mount", mount: target.mount, path: target.path},
-                    },
-                ]}
-                index={viewing}
-                onIndexChange={setViewing}
-            />
         </figure>
     )
 }

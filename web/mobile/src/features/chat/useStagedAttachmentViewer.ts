@@ -2,13 +2,16 @@ import {useMemo} from "react"
 
 import {isViewable} from "@agenta/chat/assets"
 import type {useComposerAttachments} from "@agenta/chat/hooks"
-import type {MediaViewerItem, MediaViewerProps} from "@agenta/entity-ui/drive"
+import {mediaViewerAtom, type MediaViewerItem} from "@agenta/entity-ui/drive"
+import {useSetAtom} from "jotai"
 
-/** The composer tray's viewable files as media-viewer items, opened by the tray's `viewingUid`. */
+/** Opens a staged composer file in the app's media viewer, paging through the tray's viewable
+ * files. Pass the result as the composer's `onViewAttachment`. */
 export function useStagedAttachmentViewer(
     attachments: ReturnType<typeof useComposerAttachments>,
-): MediaViewerProps {
-    const {files, viewingUid, setViewingUid} = attachments
+): (uid: string) => void {
+    const {files} = attachments
+    const openViewer = useSetAtom(mediaViewerAtom)
     const items = useMemo(
         () =>
             files.flatMap((staged): MediaViewerItem[] => {
@@ -26,10 +29,8 @@ export function useStagedAttachmentViewer(
             }),
         [files],
     )
-    const index = items.findIndex((item) => item.key === viewingUid)
-    return {
-        items,
-        index: index < 0 ? null : index,
-        onIndexChange: (next) => setViewingUid(next === null ? null : (items[next]?.key ?? null)),
+    return (uid) => {
+        const index = items.findIndex((item) => item.key === uid)
+        if (index >= 0) openViewer({items, index})
     }
 }
