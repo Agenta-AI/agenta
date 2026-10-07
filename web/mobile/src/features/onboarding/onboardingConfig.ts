@@ -27,14 +27,28 @@ export const isUsableToolConnection = (connection: ToolConnection) =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
-/** The draft agent's config with the creator's instructions and chosen apps written in. */
+/** The agent's `instructions` block, as the runner reads it. */
+export const readInstructionsBlock = (configuration: Record<string, unknown>): unknown =>
+    locateTemplate(configuration).template.instructions
+
+/**
+ * The draft agent's config with the creator's instructions and chosen apps written in. Every call
+ * starts from `baseInstructions`, the block the draft was minted with, so a retry never keeps
+ * text from an earlier attempt.
+ */
 export const onboardingConfiguration = (
     configuration: Record<string, unknown>,
     {
         instructions,
+        baseInstructions,
         apps,
         connections,
-    }: {instructions: string; apps: readonly string[]; connections: readonly ToolConnection[]},
+    }: {
+        instructions: string
+        baseInstructions: unknown
+        apps: readonly string[]
+        connections: readonly ToolConnection[]
+    },
 ): Record<string, unknown> => {
     const {template, wrap} = locateTemplate(configuration)
     const chosen = new Set(apps)
@@ -52,13 +66,11 @@ export const onboardingConfiguration = (
             permissions: {default: "allow", tools: {}},
         })
     }
-    const written = instructions
-        ? {
-              instructions: {
-                  ...(isRecord(template.instructions) ? template.instructions : {}),
-                  agents_md: instructions,
-              },
-          }
-        : {}
-    return wrap({...template, ...written, tools})
+    const next: Record<string, unknown> = {...template, tools}
+    const block = instructions
+        ? {...(isRecord(baseInstructions) ? baseInstructions : {}), agents_md: instructions}
+        : baseInstructions
+    if (block === undefined) delete next.instructions
+    else next.instructions = block
+    return wrap(next)
 }

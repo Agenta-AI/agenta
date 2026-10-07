@@ -18,7 +18,8 @@ const write = (
     connections: ToolConnection[],
     apps: string[] = ["github", "slack"],
     instructions = "",
-) => onboardingConfiguration(configuration, {instructions, apps, connections})
+    baseInstructions?: unknown,
+) => onboardingConfiguration(configuration, {instructions, baseInstructions, apps, connections})
 
 describe("onboarding agent configuration", () => {
     it("adds the chosen apps where the agent runner reads its tools", () => {
@@ -61,14 +62,15 @@ describe("onboarding agent configuration", () => {
         expect(write({}, unusable).tools).toEqual([])
     })
 
-    it("writes the instructions into the agent's AGENTS.md and keeps the rest of the block", () => {
-        const base = {agent: {instructions: {agents_md: "Default", files: ["a.md"]}}}
-        const agent = write(base, [], [], "Be brief.").agent as {
-            instructions: Record<string, unknown>
-        }
-        expect(agent.instructions).toEqual({agents_md: "Be brief.", files: ["a.md"]})
-        expect(write(base, [], [], "").agent).toMatchObject({
-            instructions: {agents_md: "Default"},
+    it("writes the instructions into AGENTS.md over the minted block, every time", () => {
+        const minted = {agents_md: "Default", files: ["a.md"]}
+        const first = write({agent: {instructions: minted}}, [], [], "Be brief.", minted)
+        expect((first.agent as {instructions: unknown}).instructions).toEqual({
+            agents_md: "Be brief.",
+            files: ["a.md"],
         })
+        const retry = write(first, [], [], "", minted)
+        expect((retry.agent as {instructions: unknown}).instructions).toEqual(minted)
+        expect(write(first, [], [], "", undefined).agent).not.toHaveProperty("instructions")
     })
 })

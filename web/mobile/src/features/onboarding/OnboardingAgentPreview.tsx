@@ -1,19 +1,28 @@
-import {PROVIDERS} from "@agenta/entities/workflow"
 import {PaperPlaneRight} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
 import {OnboardingAgentChip} from "./OnboardingAgentChip"
+import {appIdentity, type ConnectedApps} from "./onboardingApps"
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {FIRST_AGENT_FALLBACK_NAME, type OnboardingAgent} from "./onboardingDraft"
 
 const copy = ONBOARDING_COPY.creator
 
 /** What the creator is making, drawn as the agent will look: face, brief, apps, first message. */
-export const OnboardingAgentPreview = ({agent}: {agent: OnboardingAgent}) => {
+export const OnboardingAgentPreview = ({
+    agent,
+    connected,
+}: {
+    agent: OnboardingAgent
+    /** Only a connected app joins the agent, so only a connected app is previewed. */
+    connected: ConnectedApps
+}) => {
     const name = agent.name.trim() || FIRST_AGENT_FALLBACK_NAME
     const instructions = agent.instructions.trim()
-    const apps = agent.apps.flatMap((key) => (PROVIDERS[key] ? [PROVIDERS[key]] : []))
+    const apps = agent.apps
+        .filter((key) => connected.has(key))
+        .map((key) => appIdentity(key, connected))
     return (
         <section
             aria-label={copy.previewLabel}
@@ -39,11 +48,11 @@ export const OnboardingAgentPreview = ({agent}: {agent: OnboardingAgent}) => {
                 <div className="flex flex-wrap gap-1.5">
                     {apps.map((app) => (
                         <span
-                            key={app.label}
+                            key={app.key}
                             className="bg-muted inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs"
                         >
                             <img src={app.logo} alt="" className="size-3.5 object-contain" />
-                            {app.label}
+                            {app.name}
                         </span>
                     ))}
                 </div>

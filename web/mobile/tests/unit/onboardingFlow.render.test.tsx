@@ -8,7 +8,10 @@ vi.mock("@agenta/entities/workflow", () => ({
     PROVIDERS: {},
     composioLogo: (slug: string) => slug,
     templateBuilderMessage: () => "Build a PR reviewer that comments inline.",
-    templateProviderSlugs: () => [],
+    templateCategories: (templates: {category: string}[]) => [
+        ...new Set(templates.map((item) => item.category)),
+    ],
+    templateProviderSlugs: () => ["github"],
 }))
 vi.mock("@agenta/entities/gatewayTool", () => ({
     isConnectionActive: () => true,
@@ -49,6 +52,7 @@ vi.mock("motion/react", () => ({
             <section className={className}>{children}</section>
         ),
     },
+    useIsPresent: () => true,
     useReducedMotion: () => true,
 }))
 
@@ -119,6 +123,7 @@ const baseProps = (overrides: Partial<OnboardingFlowProps> = {}): OnboardingFlow
     draftKey: "onboarding:test",
     catalog,
     model: model(),
+    connectedApps: new Map([["github", "GitHub"]]),
     toolsEnabled: false,
     creating: false,
     onStepCompleted: vi.fn(),
@@ -212,8 +217,29 @@ describe("first agent onboarding", () => {
             instructions: "Review each opened PR.",
             firstMessage: "Build a PR reviewer that comments inline.",
             icon: {icon: "code", color: "#123456"},
-            apps: [],
+            apps: ["github"],
         })
+    })
+
+    it("keeps the creator's edits through a detour to choose a model and a re-picked template", () => {
+        const props = baseProps({model: model(false)})
+        render(props)
+        toGallery()
+        click("Use template")
+        type("My first agent", "My reviewer")
+        click("Choose one")
+        expect(heading()).toBe("Choose how your agents run")
+        render({...props, model: model(true)})
+        click(/^Continue/)
+        expect(heading()).toBe("Review your agent")
+        expect((host!.querySelector('[placeholder="My first agent"]') as HTMLInputElement).value).toBe(
+            "My reviewer",
+        )
+        click("Back")
+        click("Use template")
+        expect((host!.querySelector('[placeholder="My first agent"]') as HTMLInputElement).value).toBe(
+            "My reviewer",
+        )
     })
 
     it("starts blank and needs something to do before Create", () => {
@@ -246,13 +272,16 @@ describe("first agent onboarding", () => {
         expect(host!.textContent).toContain("No model can run your agent yet.")
     })
 
-    it("records a completed step only when moving forward", () => {
+    it("reports each completed step once, and never on Back", () => {
         const onStepCompleted = vi.fn()
         render(baseProps({onStepCompleted}))
         answer(/^Engineering/)
         expect(onStepCompleted).toHaveBeenCalledOnce()
         click("Back")
         expect(heading()).toBe("What kind of work do you do?")
+        expect(onStepCompleted).toHaveBeenCalledOnce()
+        answer(/^Product/)
+        expect(heading()).toBe("How did you hear about Agenta?")
         expect(onStepCompleted).toHaveBeenCalledOnce()
     })
 
