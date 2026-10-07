@@ -102,7 +102,7 @@
         "@types/prismjs": "^1.26.5",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.4",
-        "@vitest/coverage-v8": "^4.1.4",
+        "@vitest/coverage-v8": "^4.1.11",
         "ajv": "^8.18.0",
         "jotai": "^2.16.1",
         "jotai-family": "^1.0.1",
