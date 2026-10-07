@@ -13,7 +13,7 @@ import {
     DropdownMenuTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {Broadcast, FileZip, Stack, Storefront} from "@phosphor-icons/react"
+import {Broadcast, ExportIcon, FileZip, Storefront} from "@phosphor-icons/react"
 import {useAtomValue, useStore} from "jotai"
 
 import {useAgentPublishPanel} from "../agents/useAgentPublishPanel"
@@ -82,7 +82,7 @@ export const ShareMenu = ({
                                 className="h-7 w-7 shrink-0 p-0"
                                 data-testid="template-menu-button"
                             >
-                                <Stack size={14} />
+                                <ExportIcon size={14} />
                             </Button>
                         </DropdownMenuTrigger>
                     </SimpleTooltip>
@@ -115,6 +115,9 @@ export const ShareMenu = ({
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
+            ) : null}
+            {canRequestTemplate ? (
+                <span aria-hidden className="h-5 w-px shrink-0 bg-colorBorderSecondary" />
             ) : null}
             <Button
                 variant="ghost"
