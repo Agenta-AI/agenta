@@ -101,15 +101,6 @@ export const LongName: Story = {
     },
 }
 
-export const Downloadable: Story = {
-    args: {
-        name: "account_overview_analytics (1).csv",
-        mediaType: "text/csv",
-        action: "download",
-        onDownload: () => {},
-    },
-}
-
 const card = (name: string, mediaType: string, src?: string) => (
     <AttachmentCard
         key={name + src}

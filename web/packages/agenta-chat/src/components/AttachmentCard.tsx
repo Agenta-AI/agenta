@@ -1,14 +1,6 @@
 import {useEffect, useState} from "react"
 
-import {
-    ArrowClockwise,
-    DownloadSimple,
-    ImageBroken,
-    Pause,
-    Play,
-    WarningCircle,
-    X,
-} from "@phosphor-icons/react"
+import {ArrowClockwise, ImageBroken, Pause, Play, WarningCircle, X} from "@phosphor-icons/react"
 
 import {typeBadgeFor} from "../assets/attachmentRules"
 
@@ -22,8 +14,8 @@ const TILE = "h-6 w-6 shrink-0 rounded"
 
 export type AttachmentCardState = "idle" | "uploading" | "error"
 
-/** What sits at the card's trailing edge. The composer removes; a sent message downloads. */
-export type AttachmentCardAction = "remove" | "download" | "none"
+/** What sits at the card's trailing edge: the composer removes. */
+export type AttachmentCardAction = "remove" | "none"
 
 export interface AttachmentCardProps {
     name: string
@@ -39,7 +31,6 @@ export interface AttachmentCardProps {
     errorReason?: string
     action?: AttachmentCardAction
     onRemove?: () => void
-    onDownload?: () => void
     /** Re-run a failed upload. Rejections never had one, so they pass nothing. */
     onRetry?: () => void
     /** Opens the attachment in a viewer. Audio never uses this: it plays in place. */
@@ -52,42 +43,20 @@ const CardAction = ({
     action,
     name,
     onRemove,
-    onDownload,
-}: Pick<AttachmentCardProps, "action" | "name" | "onRemove" | "onDownload">) => {
-    if (action === "remove" && onRemove) {
-        return (
-            <button
-                type="button"
-                aria-label={`Remove ${name}`}
-                onClick={(e) => {
-                    e.stopPropagation()
-                    onRemove()
-                }}
-                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded [&_svg]:shrink-0 border-0 bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillTertiary hover:text-colorText"
-            >
-                <X size={12} weight="bold" />
-            </button>
-        )
-    }
-    // Revealed on hover of THIS card only: the turn row is itself a bare `group`, so an unnamed
-    // group-hover lit up every card in the message at once. Hidden only where hovering exists.
-    if (action === "download" && onDownload) {
-        return (
-            <button
-                type="button"
-                aria-label={`Download ${name}`}
-                onClick={(e) => {
-                    e.stopPropagation()
-                    onDownload()
-                }}
-                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded [&_svg]:shrink-0 border-0 bg-transparent text-colorTextTertiary transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/attachment:opacity-100"
-            >
-                <DownloadSimple size={14} />
-            </button>
-        )
-    }
-    return null
-}
+}: Pick<AttachmentCardProps, "action" | "name" | "onRemove">) =>
+    action === "remove" && onRemove ? (
+        <button
+            type="button"
+            aria-label={`Remove ${name}`}
+            onClick={(e) => {
+                e.stopPropagation()
+                onRemove()
+            }}
+            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded [&_svg]:shrink-0 border-0 bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillTertiary hover:text-colorText"
+        >
+            <X size={12} weight="bold" />
+        </button>
+    ) : null
 
 /** Play/pause only — a transport bar would not fit a one-row card. */
 const AudioTile = ({src, name}: {src?: string; name: string}) => {
@@ -125,7 +94,6 @@ export const AttachmentCard = ({
     errorReason,
     action = "none",
     onRemove,
-    onDownload,
     onRetry,
     onView,
     className,
@@ -196,7 +164,7 @@ export const AttachmentCard = ({
 
     return (
         <div
-            className={`group/attachment relative box-border flex ${CARD_HEIGHT} items-center gap-2 overflow-hidden rounded-md border border-solid px-1.5 ${
+            className={`relative box-border flex ${CARD_HEIGHT} items-center gap-2 overflow-hidden rounded-md border border-solid px-1.5 ${
                 failed
                     ? "border-colorErrorBorder bg-colorErrorBg"
                     : "border-colorBorderSecondary bg-colorFillQuaternary"
@@ -229,7 +197,7 @@ export const AttachmentCard = ({
                     <ArrowClockwise size={12} weight="bold" />
                 </button>
             )}
-            <CardAction action={action} name={name} onRemove={onRemove} onDownload={onDownload} />
+            <CardAction action={action} name={name} onRemove={onRemove} />
             {state === "uploading" && (
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-colorFillSecondary">
                     <div
