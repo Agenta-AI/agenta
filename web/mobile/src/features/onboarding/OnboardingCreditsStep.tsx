@@ -10,6 +10,8 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowRight, Check, Coins, OpenAiLogo} from "@phosphor-icons/react"
 
+import {cn} from "@/lib/utils"
+
 import {WalletCard} from "../wallet/WalletCard"
 import {formatUsd, MUSD_PER_CREDIT} from "../wallet/walletFormat"
 
@@ -19,8 +21,6 @@ import {onboardingHeadingId} from "./onboardingRoute"
 import {OnboardingWayRow} from "./OnboardingWayRow"
 import {OnboardingCreditsSkeleton} from "./states/OnboardingCreditsSkeleton"
 import type {OnboardingModel} from "./useOnboardingModel"
-
-import {cn} from "@/lib/utils"
 
 const copy = ONBOARDING_COPY.model
 const PILL =

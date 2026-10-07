@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {withTestQuestions} from "./onboardingTestQuestion"
-
 import {
     EMPTY_ONBOARDING_DRAFT,
     onboardingDraftKey,
@@ -17,6 +15,8 @@ import {
     resolvePendingOnboarding,
     type PendingOnboardingInput,
 } from "@/features/onboarding/onboardingPending"
+
+import {withTestQuestions} from "./onboardingTestQuestion"
 
 // Node's own `localStorage` global shadows jsdom's, so the test brings one.
 beforeEach(() => {
@@ -46,7 +46,7 @@ describe("onboarding pending mark", () => {
     })
 
     it("ends onboarding by clearing the user's mark and draft, and no one else's", () => {
-        const saved = {...EMPTY_ONBOARDING_DRAFT, answers: {role: "Engineering"}}
+        const saved = {...EMPTY_ONBOARDING_DRAFT, answers: {persona: "Engineering"}}
         markOnboardingPending("u1")
         markOnboardingPending("u2")
         saveOnboardingDraft(onboardingDraftKey("u1"), saved)
@@ -55,7 +55,7 @@ describe("onboarding pending mark", () => {
         expect(isOnboardingPending("u1")).toBe(false)
         expect(readOnboardingDraft(onboardingDraftKey("u1"))).toEqual(EMPTY_ONBOARDING_DRAFT)
         expect(isOnboardingPending("u2")).toBe(true)
-        expect(readOnboardingDraft(onboardingDraftKey("u2")).answers.role).toBe("Engineering")
+        expect(readOnboardingDraft(onboardingDraftKey("u2")).answers.persona).toBe("Engineering")
     })
 })
 

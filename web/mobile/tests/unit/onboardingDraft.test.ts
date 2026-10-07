@@ -45,9 +45,9 @@ withTestQuestions()
 describe("onboarding draft storage", () => {
     it("restores a saved draft and forgets it after creation", () => {
         const saved = draft({
-            answers: {role: "Engineering", source: "GitHub"},
+            answers: {persona: "Engineering", source: "GitHub"},
             agent: {...BLANK_AGENT, name: "Atlas", firstMessage: "Plan my week"},
-            completed: ["role", "source"],
+            completed: ["persona", "source"],
         })
         saveOnboardingDraft("draft", saved)
         expect(readOnboardingDraft("draft")).toEqual(saved)
@@ -72,33 +72,37 @@ describe("onboarding draft storage", () => {
             JSON.stringify({
                 ...draft({category: "Sales"}),
                 templateKey: "pr-reviewer",
-                answers: {role: "Removed role", source: "GitHub", gone: "Yes"},
-                completed: ["role", "gone"],
+                answers: {persona: "Removed role", source: "GitHub", gone: "Yes"},
+                completed: ["persona", "gone"],
             }),
         )
         expect(readOnboardingDraft("draft")).toEqual(
-            draft({category: "Sales", answers: {source: "GitHub"}, completed: ["role"]}),
+            draft({category: "Sales", answers: {source: "GitHub"}, completed: ["persona"]}),
         )
     })
 })
 
 describe("onboarding answers", () => {
     it("resets the gallery to Recommended when the role changes, and only then", () => {
-        const browsing = draft({answers: {role: "Engineering"}, category: "Sales"})
+        const browsing = draft({answers: {persona: "Engineering"}, category: "Sales"})
         expect(
-            onboardingReducer(browsing, {type: "answer", question: "role", value: "Sales"}),
-        ).toEqual({...browsing, answers: {role: "Sales"}, category: "recommended"})
+            onboardingReducer(browsing, {type: "answer", question: "persona", value: "Sales"}),
+        ).toEqual({...browsing, answers: {persona: "Sales"}, category: "recommended"})
         expect(
-            onboardingReducer(browsing, {type: "answer", question: "role", value: "Engineering"}),
+            onboardingReducer(browsing, {
+                type: "answer",
+                question: "persona",
+                value: "Engineering",
+            }),
         ).toBe(browsing)
         expect(
             onboardingReducer(browsing, {type: "answer", question: "source", value: "GitHub"}),
-        ).toEqual({...browsing, answers: {role: "Engineering", source: "GitHub"}})
+        ).toEqual({...browsing, answers: {persona: "Engineering", source: "GitHub"}})
     })
 
     it("sets only the answered questions as person properties", () => {
-        expect(personProperties({role: "Engineering"})).toEqual({user_role_v2: "Engineering"})
-        expect(personProperties({role: "Sales", source: "GitHub"})).toEqual({
+        expect(personProperties({persona: "Engineering"})).toEqual({user_role_v2: "Engineering"})
+        expect(personProperties({persona: "Sales", source: "GitHub"})).toEqual({
             user_role_v2: "Sales",
             referral_source_v2: "GitHub",
         })
@@ -147,7 +151,7 @@ describe("gallery templates", () => {
     const keys = (list: Template[]) => list.map((item) => item.key)
 
     const recommended = (role?: string) =>
-        keys(galleryTemplates(templates, "recommended", recommendedCategory({role})))
+        keys(galleryTemplates(templates, "recommended", recommendedCategory({persona: role})))
 
     it("leads Recommended with the role's category and keeps six", () => {
         expect(recommended("Engineering")).toEqual(["e0", "e1", "e2", "e3", "e4", "e5"])

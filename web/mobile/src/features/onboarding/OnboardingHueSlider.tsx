@@ -31,7 +31,8 @@ export const OnboardingHueSlider = ({
         const track = trackRef.current
         if (!track) return
         const box = track.getBoundingClientRect()
-        const set = (x: number) => onChange(fromHue(Math.max(0, Math.min(1, (x - box.left) / box.width)) * 360))
+        const set = (x: number) =>
+            onChange(fromHue(Math.max(0, Math.min(1, (x - box.left) / box.width)) * 360))
         set(event.clientX)
         track.setPointerCapture(event.pointerId)
         const move = (next: globalThis.PointerEvent) => set(next.clientX)

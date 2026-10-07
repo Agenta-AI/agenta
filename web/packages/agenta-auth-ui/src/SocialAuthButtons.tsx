@@ -60,7 +60,9 @@ export const SocialAuthButtons = ({
                     >
                         <span key={pending ? "busy" : "idle"} className="auth-swap">
                             {pending ? null : provider.icon}
-                            {pending ? `Redirecting to ${provider.label}…` : `Continue with ${provider.label}`}
+                            {pending
+                                ? `Redirecting to ${provider.label}…`
+                                : `Continue with ${provider.label}`}
                         </span>
                         {provider.id === lastUsedProviderId && !pending && (
                             <LastUsedBadge className="absolute right-3" />

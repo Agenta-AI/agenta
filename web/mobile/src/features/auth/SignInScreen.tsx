@@ -22,14 +22,14 @@ import {
 import {LoadingButton} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
+import {AgentaLogo} from "@/components/AgentaLogo"
+import {clearEmailCodeAttempt, shouldShowRegionSelector, startOidcSignIn} from "@/lib/auth"
+import {useMotionPresets} from "@/lib/motion/presets"
+
 import {providerIcon} from "./providerIcons"
 import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
 import {NoAuthMethods} from "./states/NoAuthMethods"
 import {useAuthSuccess, type AuthSuccess} from "./useAuthSuccess"
-
-import {AgentaLogo} from "@/components/AgentaLogo"
-import {clearEmailCodeAttempt, shouldShowRegionSelector, startOidcSignIn} from "@/lib/auth"
-import {useMotionPresets} from "@/lib/motion/presets"
 
 const TERMS_URL = "https://agenta.ai/docs/administration/security/terms-of-service"
 const PRIVACY_URL = "https://agenta.ai/docs/administration/security/privacy-policy"

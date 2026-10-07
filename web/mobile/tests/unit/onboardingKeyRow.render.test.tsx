@@ -35,9 +35,9 @@ import type {OnboardingModel} from "@/features/onboarding/useOnboardingModel"
 
 beforeAll(() => {
     globalThis.ResizeObserver ??= class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe = () => undefined
+        unobserve = () => undefined
+        disconnect = () => undefined
     } as unknown as typeof ResizeObserver
     Element.prototype.scrollIntoView ??= () => undefined
 })

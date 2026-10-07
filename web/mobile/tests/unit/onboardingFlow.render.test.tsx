@@ -230,8 +230,6 @@ vi.mock("motion/react", async () => {
     }
 })
 
-import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
-
 import type {OnboardingCatalog} from "@/features/onboarding/onboardingChoices"
 import {OnboardingFlow, type OnboardingFlowProps} from "@/features/onboarding/OnboardingFlow"
 import {personProperties} from "@/features/onboarding/onboardingQuestions"
@@ -241,6 +239,8 @@ import {
     type OnboardingStep,
 } from "@/features/onboarding/onboardingRoute"
 import type {OnboardingModel} from "@/features/onboarding/useOnboardingModel"
+
+import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -374,21 +374,21 @@ describe("first agent onboarding", () => {
         act(() => vi.runOnlyPendingTimers())
         expect(heading()).toBe("How did you hear about Agenta?")
         expect(onStepCompleted).toHaveBeenCalledWith(
-            "role",
-            expect.objectContaining({answers: {role: "Engineering"}}),
+            "persona",
+            expect.objectContaining({answers: {persona: "Engineering"}}),
         )
         answer(/^GitHub/)
         expect(heading()).toBe("500 credits, on us")
         expect(onStepCompleted).toHaveBeenLastCalledWith(
             "source",
-            expect.objectContaining({answers: {role: "Engineering", source: "GitHub"}}),
+            expect.objectContaining({answers: {persona: "Engineering", source: "GitHub"}}),
         )
     })
 
     it("puts each step in the URL and keeps the answers across a remount", () => {
         const props = baseProps()
         render(props)
-        expect(nav.url).toBe(`${nav.BASE}/role`)
+        expect(nav.url).toBe(`${nav.BASE}/persona`)
         answer(/^Engineering/)
         expect(nav.url).toBe(`${nav.BASE}/source`)
         answer(/^GitHub/)
@@ -399,7 +399,7 @@ describe("first agent onboarding", () => {
         // Another user's draft has no answers, so the same URL falls back to the first step.
         render(baseProps({draftKey: "onboarding:other"}))
         expect(heading()).toBe("What kind of work do you do?")
-        expect(nav.url).toBe(`${nav.BASE}/role`)
+        expect(nav.url).toBe(`${nav.BASE}/persona`)
     })
 
     it("walks the steps with the browser's Back and Forward", () => {
@@ -418,7 +418,7 @@ describe("first agent onboarding", () => {
         nav.open(`${nav.BASE}/templates`)
         render(baseProps())
         expect(heading()).toBe("What kind of work do you do?")
-        expect(nav.url).toBe(`${nav.BASE}/role`)
+        expect(nav.url).toBe(`${nav.BASE}/persona`)
         answer(/^Engineering/)
         answer(/^GitHub/)
         act(() => nav.open(`${nav.BASE}/review`))
