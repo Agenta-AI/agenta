@@ -1,7 +1,9 @@
 import {Button} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
+import {motion} from "motion/react"
 
 import {AgentaLogo} from "@/components/AgentaLogo"
+import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
 import {ONBOARDING_COPY} from "./onboardingCopy"
@@ -17,8 +19,9 @@ export const OnboardingHeader = ({
     onBack: (() => void) | null
 }) => {
     const label = ONBOARDING_COPY.stepCounter(position, PROGRESS_TOTAL)
+    const {stepTransition} = useMotionPresets()
     return (
-        <header className="bg-background/90 sticky top-0 z-10 backdrop-blur-sm">
+        <header className="bg-background shrink-0">
             <div className="mx-auto flex h-16 w-full max-w-[1040px] items-center gap-2 px-4 lg:h-[72px] lg:px-6">
                 <Button
                     variant="ghost"
@@ -42,15 +45,18 @@ export const OnboardingHeader = ({
                         className="flex items-center gap-1"
                     >
                         {Array.from({length: PROGRESS_TOTAL}, (_, index) => (
-                            <span
+                            <motion.span
                                 key={index}
+                                initial={false}
+                                animate={{width: index + 1 === position ? 20 : 6}}
+                                transition={stepTransition}
                                 className={cn(
-                                    "h-1.5 rounded-full transition-colors",
+                                    "h-1.5 rounded-full transition-colors motion-reduce:transition-none",
                                     index + 1 === position
-                                        ? "bg-foreground w-5"
+                                        ? "bg-foreground"
                                         : index + 1 < position
-                                          ? "bg-muted-foreground w-1.5"
-                                          : "bg-border w-1.5",
+                                          ? "bg-muted-foreground"
+                                          : "bg-border",
                                 )}
                             />
                         ))}

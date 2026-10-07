@@ -52,6 +52,7 @@ export const OnboardingCreditsStep = ({
                 <div className="flex flex-col gap-2">
                     {credits ? (
                         <OnboardingWayRow
+                            delay={0.2}
                             active={credits.inUse}
                             icon={
                                 <span
@@ -86,6 +87,7 @@ export const OnboardingCreditsStep = ({
                     )}
                     {chatgpt.available ? (
                         <OnboardingWayRow
+                            delay={0.32}
                             active={chatgpt.inUse}
                             icon={
                                 <span className={cn(TILE, "bg-muted text-foreground")}>
@@ -113,6 +115,7 @@ export const OnboardingCreditsStep = ({
                         />
                     ) : null}
                     <OnboardingWayRow
+                        delay={0.44}
                         active={keys.inUse}
                         icon={
                             <span className={cn(TILE, "bg-muted text-foreground")}>

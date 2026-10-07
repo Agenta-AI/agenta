@@ -74,6 +74,38 @@ export const featuredDwellMs = 5000
 /** How long a finished example run holds before it fades and plays again. */
 export const runHoldMs = 4000
 
+/** Ease-out for a step or panel settling into place: a quick start, a long soft landing. */
+const settleEase = [0.2, 0.7, 0.2, 1] as const
+
+/** Tween for a flow step or a swapped panel arriving. */
+export const stepTransition: Transition = {duration: 0.38, ease: settleEase}
+
+/**
+ * A flow step sliding in a short distance while it fades. `custom` is the direction: +1 forward,
+ * -1 back. The leaving step only fades, so the two never cross.
+ */
+export const stepSlide: Variants = {
+    initial: (direction: number) => ({x: direction * 24, opacity: 0}),
+    animate: {x: 0, opacity: 1, transition: stepTransition},
+    exit: {opacity: 0, transition: {duration: 0.12, ease: "easeOut"}},
+}
+
+/** An item rising into place. `custom` is its delay in seconds, for a staggered list. */
+export const fadeUp: Variants = {
+    initial: {y: 8, opacity: 0},
+    animate: (delay: number = 0) => ({
+        y: 0,
+        opacity: 1,
+        transition: {duration: 0.35, ease: "easeOut", delay},
+    }),
+}
+
+/** A mark popping in when its value changes (an icon swapped for another). */
+export const pop: Variants = {
+    initial: {scale: 0.6, opacity: 0},
+    animate: {scale: [0.6, 1.06, 1], opacity: 1, transition: {duration: 0.3, ease: "easeOut"}},
+}
+
 /** How long a picked answer holds before a one-tap question moves on. */
 export const answerHoldMs = 420
 
@@ -90,6 +122,10 @@ const instantTransition: Transition = {duration: 0}
 export interface MotionPresets {
     reduced: boolean
     sharedAxisPush: Variants
+    stepSlide: Variants
+    fadeUp: Variants
+    pop: Variants
+    stepTransition: Transition
     sheetSlideUp: Variants
     crossfade: Variants
     /** Raw transitions for imperative use (e.g. drag-settle on sheets). */
@@ -121,6 +157,10 @@ export function useMotionPresets(): MotionPresets {
                 ? {
                       reduced,
                       sharedAxisPush: instant,
+                      stepSlide: instant,
+                      fadeUp: instant,
+                      pop: instant,
+                      stepTransition: instantTransition,
                       sheetSlideUp: instant,
                       crossfade: instant,
                       pushTransition: instantTransition,
@@ -135,6 +175,10 @@ export function useMotionPresets(): MotionPresets {
                 : {
                       reduced,
                       sharedAxisPush,
+                      stepSlide,
+                      fadeUp,
+                      pop,
+                      stepTransition,
                       sheetSlideUp,
                       crossfade,
                       pushTransition,

@@ -1,9 +1,11 @@
-import {useMemo} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import {templateCategories, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {Plus} from "@phosphor-icons/react"
+import {motion} from "motion/react"
 
 import {FOCUS_RING} from "@/lib/interactive"
+import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
 import {
@@ -61,6 +63,12 @@ export const OnboardingGallery = ({
         [catalog.templates, category, role],
     )
     const focused = listed.find((item) => item.key === focus) ?? listed[0]
+    const presets = useMotionPresets()
+    // On a phone the chip row scrolls; keep the chosen category in view, also after a reload.
+    const activeChipRef = useRef<HTMLButtonElement | null>(null)
+    useEffect(() => {
+        activeChipRef.current?.scrollIntoView?.({block: "nearest", inline: "nearest"})
+    }, [category, catalog.status])
 
     return (
         <div className="flex flex-col gap-6">
@@ -78,7 +86,7 @@ export const OnboardingGallery = ({
                 <div
                     role="group"
                     aria-label={copy.categories}
-                    className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0 [&::-webkit-scrollbar]:hidden"
+                    className="-mx-4 flex scroll-px-4 gap-2 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0 [&::-webkit-scrollbar]:hidden"
                 >
                     {chips.map((chip) => {
                         const active = chip.id === category
@@ -86,6 +94,7 @@ export const OnboardingGallery = ({
                             <button
                                 type="button"
                                 key={chip.id}
+                                ref={active ? activeChipRef : undefined}
                                 aria-pressed={active}
                                 onClick={() => onCategory(chip.id)}
                                 className={cn(
@@ -126,10 +135,19 @@ export const OnboardingGallery = ({
                     ) : listed.length === 0 ? (
                         <p className="text-muted-foreground m-0 py-4 text-sm">{copy.empty}</p>
                     ) : (
-                        listed.map((template) => {
+                        // Keyed by category, so a chip switch replays the rows' stagger.
+                        <div key={category} className="flex flex-col gap-1">
+                        {listed.map((template, index) => {
                             const active = template.key === focused?.key
                             return (
-                                <div key={template.key} className="flex flex-col gap-2">
+                                <motion.div
+                                    key={template.key}
+                                    variants={presets.fadeUp}
+                                    custom={index * 0.04}
+                                    initial="initial"
+                                    animate="animate"
+                                    className="flex flex-col gap-2"
+                                >
                                     <button
                                         type="button"
                                         aria-pressed={active}
@@ -153,22 +171,35 @@ export const OnboardingGallery = ({
                                         </span>
                                     </button>
                                     {active ? (
-                                        <div className="mb-2 lg:hidden">
+                                        <motion.div
+                                            variants={presets.fadeUp}
+                                            initial="initial"
+                                            animate="animate"
+                                            className="mb-2 lg:hidden"
+                                        >
                                             <OnboardingTemplateDetail
                                                 template={template}
                                                 onUse={onUse}
                                             />
-                                        </div>
+                                        </motion.div>
                                     ) : null}
-                                </div>
+                                </motion.div>
                             )
-                        })
+                        })}
+                        </div>
                     )}
                 </div>
                 {focused && catalog.status === "success" ? (
-                    <div className="sticky top-24 max-lg:hidden">
+                    <motion.div
+                        key={focused.key}
+                        variants={presets.stepSlide}
+                        custom={1}
+                        initial="initial"
+                        animate="animate"
+                        className="sticky top-6 max-lg:hidden"
+                    >
                         <OnboardingTemplateDetail template={focused} onUse={onUse} />
-                    </div>
+                    </motion.div>
                 ) : null}
             </div>
         </div>
