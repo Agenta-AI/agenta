@@ -1,3 +1,4 @@
+import {MediaViewerHost} from "@agenta/entity-ui/drive"
 import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useRouter} from "next/router"
@@ -30,6 +31,7 @@ export const GlobalDrawers = () => {
             {/* These dialogs open by atom, so they mount wherever an entry point can set them. */}
             <FeatureGuideDialog />
             <WhatsNewDialog />
+            <MediaViewerHost />
         </>
     )
 }
