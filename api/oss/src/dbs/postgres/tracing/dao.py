@@ -115,12 +115,11 @@ UPDATE_CUMULATIVE_METRIC_STMT = text(
 
 
 def _is_statement_timeout(error: DBAPIError) -> bool:
-    # 57014 is Postgres query_canceled, raised when statement_timeout fires.
+    # 57014 is Postgres query_canceled. It also covers a cancel on user request
+    # (pg_cancel_backend), so the message must name the statement timeout too.
     orig = error.orig
-    return (
-        getattr(orig, "sqlstate", None) == "57014"
-        or "QueryCanceledError" in str(orig)
-        or "statement timeout" in str(orig)
+    return getattr(orig, "sqlstate", None) in (None, "57014") and (
+        "statement timeout" in str(orig)
     )
 
 

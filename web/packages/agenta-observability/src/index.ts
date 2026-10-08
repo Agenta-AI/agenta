@@ -15,6 +15,7 @@ export {
     DASHBOARD_ERROR_FALLBACK,
     dashboardErrorMessage,
     isDashboardTimeout,
+    shouldRetryDashboard,
 } from "./core/dashboardError"
 export {
     observabilityRangeAtom,

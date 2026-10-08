@@ -17,6 +17,11 @@ from oss.src.core.tracing.service import TracingService
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 
 
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
 class _AsyncpgError(Exception):
     def __init__(self, message: str, sqlstate: str):
         super().__init__(message)
@@ -64,7 +69,6 @@ def _dbapi_error(message: str, sqlstate: str) -> DBAPIError:
 
 @pytest.mark.anyio
 async def test_analytics_statement_timeout_raises(anyio_backend):
-    assert anyio_backend == "asyncio"
     error = _dbapi_error(
         "<class 'asyncpg.exceptions.QueryCanceledError'>: "
         "canceling statement due to statement timeout",
@@ -81,9 +85,22 @@ async def test_analytics_statement_timeout_raises(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_analytics_other_db_errors_stay_suppressed(anyio_backend):
-    assert anyio_backend == "asyncio"
-    error = _dbapi_error("connection reset", "08006")
+@pytest.mark.parametrize(
+    "message, sqlstate",
+    [
+        ("connection reset", "08006"),
+        # Same SQLSTATE as a timeout, but a cancel on user request is not a timeout.
+        (
+            "<class 'asyncpg.exceptions.QueryCanceledError'>: "
+            "canceling statement due to user request",
+            "57014",
+        ),
+    ],
+)
+async def test_analytics_other_db_errors_stay_suppressed(
+    anyio_backend, message, sqlstate
+):
+    error = _dbapi_error(message, sqlstate)
     dao = TracingDAO(engine=_FailingEngine(error))
 
     buckets = await dao.analytics(

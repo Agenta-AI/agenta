@@ -4,7 +4,7 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchDashboardAnalytics} from "../api/dashboard"
-import {dashboardErrorMessage, isDashboardTimeout} from "../core/dashboardError"
+import {dashboardErrorMessage, shouldRetryDashboard} from "../core/dashboardError"
 import {resolveRangePreset} from "../core/presets"
 import type {AnalyticsRange, DashboardData} from "../core/types"
 
@@ -31,7 +31,7 @@ export const observabilityDashboardQueryAtomFamily = atomFamily((appId: string |
             staleTime: 1000 * 60,
             refetchOnWindowFocus: false,
             // A timed-out range times out again; retrying only delays the error by minutes.
-            retry: (failureCount, error) => !isDashboardTimeout(error) && failureCount < 3,
+            retry: shouldRetryDashboard,
         }
     }),
 )
