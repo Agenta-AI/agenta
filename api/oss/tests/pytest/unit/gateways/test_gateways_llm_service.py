@@ -31,6 +31,7 @@ from oss.src.core.gateways.llms.catalog import standard_llm_endpoint
 from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.types import LLMGatewayConnectionNotServedError
 from oss.src.core.gateways.llms.types import (
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
@@ -226,7 +227,7 @@ async def _one_chunk_body(data: bytes) -> AsyncIterator[bytes]:
 
 
 def _service(
-    *, dao=None, policy=None, resolver=None, registry=None
+    *, dao=None, policy=None, resolver=None, registry=None, repair=None
 ) -> LLMGatewayService:
     return LLMGatewayService(
         llm_endpoints_dao=dao if dao is not None else _MockLlmEndpointsDAO(),
@@ -235,6 +236,7 @@ def _service(
         upstream_registry=registry
         if registry is not None
         else LLMUpstreamRegistry(adapters={}),
+        missing_endpoint_repair=repair,
     )
 
 
@@ -427,6 +429,72 @@ async def test_a_gemini_provider_key_resolves_to_an_openai_compatible_route(mode
     assert resolved.provider_key == "openai"
     assert resolved.deployment_kind == LLMDeploymentKind.CUSTOM
     assert resolved.model == "gemini-3.7-flash"
+
+
+def _bedrock_row(models: List[str]) -> LLMEndpoint:
+    """The endpoint row the vault registrar writes for a Bedrock card saved from the UI."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug="my-bedrock",
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                "kind": "bedrock",
+                "provider": {
+                    "extras": {
+                        "aws_region_name": "us-east-1",
+                        "aws_bearer_token_bedrock": "bedrock-api-key-test",
+                    }
+                },
+                "models": [{"slug": slug} for slug in models],
+                "provider_slug": "my-bedrock",
+            },
+            header={"name": "my-bedrock"},
+        )
+    )
+    return _custom_row(
+        slug="my-bedrock",
+        provider_key=endpoint.provider_key,
+        deployment_kind=endpoint.deployment_kind,
+        models=endpoint.data.models,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_active", [True, False])
+@pytest.mark.parametrize(
+    "model",
+    [
+        "anthropic.claude-haiku-4-5",
+        "my-bedrock/bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "openai.gpt-oss-20b",
+    ],
+)
+async def test_an_agent_on_a_bedrock_connection_is_sent_to_the_vault_path(
+    model, is_active
+):
+    """The gateway relays Bedrock to `bedrock-mantle`, whose model ids are not the runtime ids
+    people save, and which has no Claude in some regions. Resolve answers with the code the
+    agent SDK reads as "resolve from the vault", for an organization the gateway serves."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["my-bedrock"] = _bedrock_row(
+        [
+            "anthropic.claude-haiku-4-5",
+            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "openai.gpt-oss-20b",
+        ]
+    )
+    # A deactivated gateway endpoint does not stop the run: the gateway takes no part in it.
+    dao.rows_by_slug["my-bedrock"].flags.is_active = is_active
+    resolver = _MockResolver()
+
+    with pytest.raises(LLMGatewayConnectionNotServedError) as refused:
+        await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+            scope=_scope(), model=model, provider_key=None, connection_slug="my-bedrock"
+        )
+
+    assert refused.value.code == "llm_gateway_disabled"
+    assert resolver.resolve_calls == []
 
 
 @pytest.mark.asyncio
@@ -1648,3 +1716,63 @@ async def test_an_endpoint_with_no_ceiling_relays_the_body_byte_for_byte():
     await _relay(service, body)
 
     assert adapter.calls[0]["body"] == json.dumps(body).encode()
+
+
+# --- a missing custom endpoint can be repaired once ------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_a_repaired_custom_endpoint_resolves_on_the_same_call():
+    """An existing starter-credits row seeded without an endpoint resolves on its first
+    gateway call, with no secrets read before it."""
+    dao = _MockLlmEndpointsDAO()
+    calls = []
+
+    async def repair(*, project_id, slug):
+        calls.append((project_id, slug))
+        dao.rows_by_slug[slug] = _custom_row(slug=slug)
+        return True
+
+    resolved = await _service(dao=dao, repair=repair).resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-4o",
+        provider_key=None,
+        connection_slug="starter-credits",
+        connection_namespace=GatewayEndpointNamespace.CUSTOM,
+    )
+
+    assert (resolved.namespace, resolved.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        "starter-credits",
+    )
+    assert [slug for _, slug in calls] == ["starter-credits"]
+
+
+@pytest.mark.asyncio
+async def test_a_repair_that_registers_nothing_keeps_the_not_found_error():
+    async def repair(*, project_id, slug):
+        return False
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service(repair=repair).resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-4o",
+            provider_key=None,
+            connection_slug="gone",
+            connection_namespace=GatewayEndpointNamespace.CUSTOM,
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_repair_that_raises_keeps_the_not_found_error():
+    async def repair(*, project_id, slug):
+        raise RuntimeError("vault down")
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service(repair=repair).resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-4o",
+            provider_key=None,
+            connection_slug="starter-credits",
+            connection_namespace=GatewayEndpointNamespace.CUSTOM,
+        )

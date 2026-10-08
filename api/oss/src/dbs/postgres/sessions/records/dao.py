@@ -353,8 +353,10 @@ class RecordsDAO(RecordsDAOInterface):
                     )
                 )
 
+        # A cursor at 0 was created by `mark_records_incomplete`, not by a sequenced append, so it
+        # proves no sequenced history.
         history_complete = record_count == 0 or (
-            latest_sequence is not None and not null_after_cutover
+            bool(latest_sequence) and not null_after_cutover
         )
         return SessionRecordsReadState(
             latest_sequence=latest_sequence or 0,
@@ -553,6 +555,50 @@ class RecordsDAO(RecordsDAOInterface):
             )
             rows = (await session.execute(stmt)).all()
         return {(row.session_id, row.turn_id) for row in rows}
+
+    async def mark_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> None:
+        # A session whose every record was dropped has no cursor yet. The insert seeds
+        # `latest_sequence` at 0, so the first sequenced append still gets sequence 1.
+        stmt = (
+            insert(SessionSequenceCursorDBE)
+            .values(
+                project_id=project_id,
+                session_id=session_id,
+                latest_sequence=0,
+                records_incomplete_at=func.now(),
+            )
+            .on_conflict_do_update(
+                index_elements=["project_id", "session_id"],
+                set_={
+                    "records_incomplete_at": func.now(),
+                    "updated_at": func.now(),
+                },
+                where=SessionSequenceCursorDBE.records_incomplete_at.is_(None),
+            )
+        )
+        async with self.engine.session() as session:
+            await session.execute(stmt)
+            await session.commit()
+
+    async def get_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        async with self.engine.session() as session:
+            marked_at = await session.scalar(
+                select(SessionSequenceCursorDBE.records_incomplete_at).where(
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
+                )
+            )
+        return marked_at is not None
 
     async def get_event(
         self,

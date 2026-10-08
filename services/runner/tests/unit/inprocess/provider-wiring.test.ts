@@ -1,7 +1,8 @@
 /**
  * `inprocess` is one provider among the others, answered by traits (review S2): it has its own
  * keep-alive pool so every server path that walks the pools covers it (CR4, CR17), its command
- * sandbox parks on every ending except a kill, and the plan asks traits instead of ids.
+ * sandbox parks on every ending except a kill or a shutdown, and the plan asks traits instead of
+ * ids.
  */
 import { describe, expect, it } from "vitest";
 import type { AgentRunRequest } from "../../../src/protocol.ts";

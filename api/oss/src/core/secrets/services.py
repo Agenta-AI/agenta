@@ -864,6 +864,14 @@ class VaultService:
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
+
+        # Keep the gateway endpoint in step, as `update_secret` does: a model the manager
+        # re-pointed must reach the endpoint's allowlist too.
+        await self._register_llm_endpoint(
+            project_id=project_id,
+            user_id=None,
+            secret_dto=secret_dto,
+        )
         return secret_dto
 
     async def delete_managed_secret(

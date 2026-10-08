@@ -5,6 +5,7 @@ import {
   DEFAULT_DAYTONA_SNAPSHOT,
   type RunnerDaytonaConfig,
 } from "../../config/runner-config.ts";
+import { markSandboxCreated, rawSandboxId } from "./created-sandboxes.ts";
 
 type DaytonaClient = Pick<Daytona, "get">;
 type DaytonaCreateObjectWithSnapshot = {
@@ -231,7 +232,11 @@ export function daytonaWithLifecycle(
     ...baseProvider,
     async create(): Promise<string> {
       try {
-        return await baseProvider.create();
+        // Every Daytona-path create passes through here, with or without the Secrets wrapper,
+        // so this is where the process learns which sandboxes it may reconnect to and delete.
+        const sandboxId = await baseProvider.create();
+        markSandboxCreated(sandboxId);
+        return sandboxId;
       } catch (error) {
         if (!isNotFound(error)) throw error;
 
@@ -255,9 +260,7 @@ export function daytonaWithLifecycle(
       }
     },
     async refreshActivity(sandboxId: string): Promise<void> {
-      const id = sandboxId.startsWith("daytona/")
-        ? sandboxId.slice("daytona/".length)
-        : sandboxId;
+      const id = rawSandboxId(sandboxId);
       try {
         // Daytona counts API interactions as activity. This is believed to reset its idle-timer
         // clock; Slice 5 verifies that behavior against a live sandbox.
@@ -315,16 +318,23 @@ export function daytonaWithLifecycle(
       }
       throw new DaytonaReconnectTerminalError(sandboxId, state);
     },
-    async deleteSandbox(sandboxId: string): Promise<void> {
-      try {
-        const sandbox = await client.get(sandboxId);
-        await sandbox.delete();
-      } catch (error) {
-        if (isNotFound(error)) return;
-        throw error;
-      }
-    },
+    deleteSandbox: (sandboxId: string): Promise<void> =>
+      deleteDaytonaSandbox(client, sandboxId),
   };
+}
+
+/** Delete a sandbox by its raw id. A sandbox that is already gone is success. */
+export async function deleteDaytonaSandbox(
+  client: DaytonaClient,
+  sandboxId: string,
+): Promise<void> {
+  try {
+    const sandbox = await client.get(sandboxId);
+    await sandbox.delete();
+  } catch (error) {
+    if (isNotFound(error)) return;
+    throw error;
+  }
 }
 
 /** The vCPUs and GiB of memory Daytona reports for a sandbox, for metering what it really has. */
@@ -333,7 +343,6 @@ export async function readDaytonaSandboxResources(
   sandboxId: string,
   client: DaytonaClient = buildDaytonaClient(config),
 ): Promise<{ vcpu: number; memoryGib: number }> {
-  const id = sandboxId.startsWith("daytona/") ? sandboxId.slice("daytona/".length) : sandboxId;
-  const sandbox = await client.get(id);
+  const sandbox = await client.get(rawSandboxId(sandboxId));
   return { vcpu: Number(sandbox.cpu), memoryGib: Number(sandbox.memory) };
 }

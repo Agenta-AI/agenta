@@ -32,21 +32,33 @@ import {buildAcceptanceTags} from "../utils/tags"
  */
 const PROVIDER_ADD_BUTTON_LABEL = "Add provider"
 
-/**
- * A data row in one of the provider tables.
- *
- * Anchor on the exact Name cell so provider text in another column cannot select the
- * wrong connection, then use its clickable table-row ancestor.
- */
-const providerRow = (section: Locator, name: string) =>
-    section.getByRole("cell", {name, exact: true}).locator("xpath=ancestor::tr[1]").first()
+/** A catalog group on Settings > AI providers, found by its heading. */
+const catalogGroup = (page: Page, heading: string) =>
+    page
+        .locator("section")
+        .filter({has: page.getByRole("heading", {name: heading, exact: true})})
+        .first()
 
+/**
+ * A connected provider's row. The catalog draws each connection as a clickable row in the
+ * Connected group; anchor on its exact name so a description cannot select the wrong one.
+ */
+const providerRow = (page: Page, name: string) =>
+    catalogGroup(page, "Connected")
+        .getByRole("button")
+        .filter({has: page.getByText(name, {exact: true})})
+        .first()
+
+/** The legacy provider table, still used by the skipped add-and-delete test below. */
 const providersSection = (page: Page) =>
     page
         .getByRole("button", {name: PROVIDER_ADD_BUTTON_LABEL})
         .first()
         .locator("xpath=ancestor::section[1]")
         .first()
+
+const legacyProviderRow = (section: Locator, name: string) =>
+    section.getByRole("cell", {name, exact: true}).locator("xpath=ancestor::tr[1]").first()
 
 const scenarios = createScenarios(test)
 
@@ -84,8 +96,8 @@ const modelHubTests = () => {
             await testProviderHelpers.ensureTestProvider()
         })
 
-        await scenarios.then('the providers table lists the "mock" connection', async () => {
-            const mockRow = providerRow(providersSection(page), "mock")
+        await scenarios.then('the Connected group lists the "mock" connection', async () => {
+            const mockRow = providerRow(page, "mock")
 
             await expect(mockRow).toBeVisible({timeout: 15000})
             await expect(mockRow).toContainText("mock")
@@ -107,7 +119,7 @@ const modelHubTests = () => {
             await scenarios.when(
                 "the user tests the connection without re-entering its write-only key",
                 async () => {
-                    const mockRow = providerRow(providersSection(page), "mock")
+                    const mockRow = providerRow(page, "mock")
                     await expect(mockRow).toBeVisible({timeout: 15000})
                     await mockRow.click()
 
@@ -126,9 +138,9 @@ const modelHubTests = () => {
             )
 
             await scenarios.then(
-                "the stored connection remains in the providers table",
+                "the stored connection remains in the Connected group",
                 async () => {
-                    await expect(providerRow(providersSection(page), "mock")).toBeVisible({
+                    await expect(providerRow(page, "mock")).toBeVisible({
                         timeout: 15000,
                     })
                 },
@@ -222,7 +234,7 @@ const modelHubTests = () => {
                 async () => {
                     const customProvidersSection = providersSection(page)
 
-                    const newRow = providerRow(customProvidersSection, providerName)
+                    const newRow = legacyProviderRow(customProvidersSection, providerName)
 
                     await expect(newRow).toBeVisible({timeout: 15000})
                 },
@@ -231,7 +243,7 @@ const modelHubTests = () => {
             await scenarios.when("the user deletes the newly created custom provider", async () => {
                 const customProvidersSection = providersSection(page)
 
-                const newRow = providerRow(customProvidersSection, providerName)
+                const newRow = legacyProviderRow(customProvidersSection, providerName)
 
                 // The row's single button opens its actions menu; deleting is an entry in it.
                 await newRow.locator("button").last().click()
@@ -252,7 +264,7 @@ const modelHubTests = () => {
             await scenarios.then("the deleted provider row is no longer visible", async () => {
                 const customProvidersSection = providersSection(page)
 
-                const deletedRow = providerRow(customProvidersSection, providerName)
+                const deletedRow = legacyProviderRow(customProvidersSection, providerName)
 
                 await expect(deletedRow).not.toBeVisible({timeout: 15000})
             })

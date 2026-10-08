@@ -7,6 +7,8 @@
  * re-mints a Secret and returns it under `credentials`, so it doubles as a refresh.
  */
 
+import { trimBase, trustedApiBase } from "../apiBase.ts";
+
 function log(msg: string): void {
   process.stderr.write(`[sessions/auth] ${msg}\n`);
 }
@@ -34,6 +36,24 @@ export async function refreshCredential(
     );
     return null;
   }
+}
+
+/**
+ * The shared runner token for a call to `base`, the base the caller actually posts to. It is
+ * undefined when the process has none, or when `base` is not `trustedApiBase()`. The decision
+ * follows the destination, not the async context, so a call that leaves the request scope with a
+ * base it captured inside (a meter's final flush on `/kill`) still sends no token to a base a
+ * request chose.
+ */
+export function runnerToken(base: string): string | undefined {
+  if (trimBase(base) !== trustedApiBase()) return undefined;
+  return process.env.AGENTA_RUNNER_TOKEN?.trim() || undefined;
+}
+
+/** `runnerToken(base)` as a header that rides beside the caller's credential, or no header. */
+export function runnerTokenHeader(base: string): Record<string, string> {
+  const token = runnerToken(base);
+  return token ? { "x-agenta-runner-token": token } : {};
 }
 
 export const DEFAULT_PLATFORM_CREDENTIAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;

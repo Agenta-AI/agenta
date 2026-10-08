@@ -12,7 +12,6 @@ export {
   type McpPermissionTable,
   type McpServerPermissions,
 } from "../../mcp-permission.ts";
-import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
 import { materializeGatewayHeaders } from "./run-plan.ts";
 import { commandTimeoutSeconds } from "./run-limits.ts";
 import {
@@ -294,7 +293,15 @@ export function applyClaudeConnectionEnv(
     );
   }
 
-  if (deployment === "bedrock") {
+  if (deployment === "bedrock" && headerLines) {
+    // Bedrock through the gateway: Claude Code speaks Anthropic Messages to the gateway base
+    // URL, and the gateway relays to Bedrock's Messages endpoint. CLAUDE_CODE_USE_BEDROCK
+    // would make it ignore that URL and call Bedrock itself. Bedrock refuses the newest
+    // `anthropic-beta` values Claude Code sends, so its own switch drops them. "0", not
+    // absent: a local run inherits the runner's own environment, which may set it.
+    env.CLAUDE_CODE_USE_BEDROCK = "0";
+    env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = "1";
+  } else if (deployment === "bedrock") {
     env.CLAUDE_CODE_USE_BEDROCK = "1";
     const region = request.modelConnection?.endpoint?.region;
     if (region) {
@@ -326,17 +333,6 @@ export function applyClaudeConnectionEnv(
  */
 export function modelResolutionStrict(): boolean {
   return process.env.AGENTA_AGENT_MODEL_STRICT !== "false";
-}
-
-export async function defaultResolveLocalRunnerOwner(
-  sessionId: string,
-  authorization: string,
-): Promise<{ replicaId: string; ownerReplicaId: string | undefined }> {
-  // No credential ⇒ the claim would 401; treat as "no known owner" (pass), never worse than today.
-  if (!authorization) {
-    return { replicaId: REPLICA_ID, ownerReplicaId: undefined };
-  }
-  return claimSessionOwnership(sessionId, authorization);
 }
 
 export function isTransportEndpointDisconnected(err: unknown): boolean {

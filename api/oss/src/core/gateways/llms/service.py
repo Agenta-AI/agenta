@@ -33,6 +33,7 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.interfaces import (
     LLMEndpointsDAOInterface,
     LLMRelayResult,
+    MissingEndpointRepair,
 )
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
 from oss.src.core.gateways.llms.types import (
@@ -64,9 +65,16 @@ from oss.src.core.gateways.policy.types import (
     PolicyDeniedError,
     SpendRefusedError,
 )
-from oss.src.core.gateways.types import GatewayEndpointInactiveError
+from oss.src.core.gateways.types import (
+    GatewayEndpointInactiveError,
+    LLMGatewayConnectionNotServedError,
+)
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
+from oss.src.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
 
 
 def _custom_upstream_names(allowlist: List[str]) -> Dict[str, str]:
@@ -346,11 +354,13 @@ class LLMGatewayService:
         policy: GatewayPolicyService,
         resolver: SecretsResolverInterface,
         upstream_registry: LLMUpstreamRegistry,
+        missing_endpoint_repair: Optional[MissingEndpointRepair] = None,
     ) -> None:
         self.llm_endpoints_dao = llm_endpoints_dao
         self.policy = policy
         self.resolver = resolver
         self.upstream_registry = upstream_registry
+        self.missing_endpoint_repair = missing_endpoint_repair
 
     # --- management: thin over the DAO, plus the generated merge ------------ #
 
@@ -468,6 +478,8 @@ class LLMGatewayService:
             raise LLMConnectionProviderRequiredError()
 
         target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
+        if target.deployment_kind == LLMDeploymentKind.BEDROCK:
+            raise LLMGatewayConnectionNotServedError()
         self._check_active(target=target)
         resolved_provider = target.provider_key or provider_key
         if not resolved_provider:
@@ -491,7 +503,6 @@ class LLMGatewayService:
             resolved_provider = "openai"
             deployment_kind = LLMDeploymentKind.CUSTOM
             model = model.removeprefix("gemini/")
-
         return LLMGatewayConnectionResolution(
             namespace=target.namespace,
             name=target.name,
@@ -784,6 +795,12 @@ class LLMGatewayService:
             row = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
                 project_id=project_id, slug=name
             )
+            if row is None and await self._repair_missing_endpoint(
+                project_id=project_id, slug=name
+            ):
+                row = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
+                    project_id=project_id, slug=name
+                )
             if row is None:
                 raise LLMEndpointNotFoundError(namespace=namespace, name=name)
             return _ResolvedLlmTarget(
@@ -814,6 +831,27 @@ class LLMGatewayService:
             )
 
         raise LLMEndpointNotFoundError(namespace=namespace, name=name)
+
+    async def _repair_missing_endpoint(self, *, project_id: UUID, slug: str) -> bool:
+        """Ask the injected repair to register a missing endpoint. Never raises.
+
+        The repair decides which vault rows it may register (EE: the starter-credits
+        connection, which older seeding left without an endpoint). True means it tried, so
+        the caller reads the row again; the normal not-found error stands if it is still
+        missing.
+        """
+        if self.missing_endpoint_repair is None:
+            return False
+        try:
+            return await self.missing_endpoint_repair(project_id=project_id, slug=slug)
+        except Exception:  # noqa: BLE001 - a failed repair must not change the error.
+            log.warning(
+                "[gateways] missing endpoint repair failed",
+                project_id=str(project_id),
+                slug=slug,
+                exc_info=True,
+            )
+            return False
 
     @staticmethod
     def _check_active(*, target: _ResolvedLlmTarget) -> None:

@@ -3586,6 +3586,18 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/fetch-top-up-packs",
+          label: "Fetch Top Up Packs User Route",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-top-up-purchase",
+          label: "Fetch Top Up Purchase User Route",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "reference/api/fetch-plans",
           label: "Fetch Plan User Route",
           className: "api-method get",

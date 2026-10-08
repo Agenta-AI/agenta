@@ -1,6 +1,7 @@
 """Request and response shapes for the subscription login routes."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -14,6 +15,24 @@ class SubscriptionLoginAttemptResponse(BaseModel):
     verification_uri: Optional[str] = None
     expires_at: Optional[str] = None
     poll_after_ms: Optional[int] = None
+    error: Optional[str] = None
+
+
+class SubscriptionLoginOutcomeRequest(BaseModel):
+    """How a device login ended, as the runner pod that ran its provider poll reports it.
+
+    The runner holds no project credential for a device login, so the ids that scope the
+    row ride the body, and the route accepts the shared runner token only.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+    secret_id: UUID
+    state: Literal["succeeded", "failed", "expired"]
+    # The credential, on `succeeded` only.
+    login: Optional[Dict[str, Any]] = None
+    # The runner's short reason word, on `failed` and `expired`. The service clips it.
     error: Optional[str] = None
 
 

@@ -1,6 +1,6 @@
 """Protocol-shaped LLM gateway proxy responses."""
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -83,12 +83,21 @@ def _openai_error(
     error_type: str,
     code: str,
     marked: bool = True,
+    headers: Optional[Dict[str, str]] = None,
     **extra: Any,
 ) -> JSONResponse:
     rendered = with_code_marker(message, code) if marked else message
     error: Dict[str, Any] = {"message": rendered, "type": error_type, "code": code}
     error.update(extra)
-    return JSONResponse(status_code=status_code, content={"error": error})
+    return JSONResponse(
+        status_code=status_code, content={"error": error}, headers=headers
+    )
+
+
+# A missing or unusable secret is not transient. Its 409 is a status the Anthropic and OpenAI
+# SDKs retry by default, so Claude Code retried one for four minutes and the person saw only
+# "no first response"; both SDKs read this header before the status.
+_NOT_RETRYABLE = {"x-should-retry": "false"}
 
 
 def _request_body_detail(exc: ValueError) -> str:
@@ -193,6 +202,7 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             message=exc.message,
             error_type="invalid_request_error",
             code="secret_missing",
+            headers=_NOT_RETRYABLE,
         )
     if isinstance(exc, SecretInvalidError):
         return _openai_error(
@@ -200,6 +210,7 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             message=exc.message,
             error_type="invalid_request_error",
             code="secret_invalid",
+            headers=_NOT_RETRYABLE,
         )
     if isinstance(exc, LLMAdapterNotFoundError):
         return _openai_error(

@@ -2324,6 +2324,33 @@ describe("runSandboxAgent orchestration", () => {
     assert.deepEqual(calls.providerArgs[5], sandboxPermission);
   });
 
+  it("hands buildSandboxProvider the session's project and conversation labels", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: " session-1 ",
+        runContext: { project: { id: "project-1" } },
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    // sandboxId, env, binaryPath, piExtEnv, modelEnvironment, sandboxPermission, plan, options
+    assert.deepEqual(
+      (calls.providerArgs[7] as { sessionLabels?: unknown }).sessionLabels,
+      {
+        "agenta.project": "project-1",
+        "agenta.conversation": "session-1",
+      },
+    );
+  });
+
   it("passes cancellation signals into SandboxAgent.start", async () => {
     const { calls, deps } = fakeHarness();
     const controller = new AbortController();

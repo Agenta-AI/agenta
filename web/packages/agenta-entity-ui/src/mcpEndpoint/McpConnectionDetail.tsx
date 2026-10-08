@@ -108,7 +108,8 @@ export default function McpConnectionDetail({
         : null
 
     const rename = useCallback(async () => {
-        if (!endpoint?.id || nameProblem) return
+        // Enter while a save is in flight would send the same rename twice.
+        if (!endpoint?.id || nameProblem || saving) return
         setSaving(true)
         try {
             // A full replace: every field the row already has is sent back with it, because
@@ -132,7 +133,7 @@ export default function McpConnectionDetail({
         } finally {
             setSaving(false)
         }
-    }, [endpoint, name, nameProblem, onChanged, projectId])
+    }, [endpoint, name, nameProblem, onChanged, projectId, saving])
 
     const unchanged = !endpoint || name.trim() === (endpoint.name ?? "")
 
@@ -202,7 +203,8 @@ export default function McpConnectionDetail({
                                 aria-label="Connection name"
                                 onChange={(event) => setName(event.target.value)}
                                 onKeyDown={(event) => {
-                                    if (event.key === "Enter" && !unchanged) void rename()
+                                    if (event.key === "Enter" && !unchanged && !saving)
+                                        void rename()
                                 }}
                             />
                         </Field>

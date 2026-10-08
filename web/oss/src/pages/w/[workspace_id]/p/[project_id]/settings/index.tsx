@@ -35,6 +35,9 @@ const WorkspaceManage = dynamic(
 const APIKeys = dynamic(() => import("@/oss/components/pages/settings/APIKeys/APIKeys"), {
     ssr: false,
 })
+const Analytics = dynamic(() => import("@/oss/components/pages/settings/Analytics/Analytics"), {
+    ssr: false,
+})
 const Billing = dynamic(() => import("@/oss/components/pages/settings/Billing"), {
     ssr: false,
 })
@@ -152,6 +155,11 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 }
             case "apiKeys":
                 return {content: <APIKeys />, title: getSettingsTabLabel("apiKeys", settingsAccess)}
+            case "analytics":
+                return {
+                    content: <Analytics />,
+                    title: getSettingsTabLabel("analytics", settingsAccess),
+                }
             case "billing":
                 return {
                     content: <Billing />,

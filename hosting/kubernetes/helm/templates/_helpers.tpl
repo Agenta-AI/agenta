@@ -161,6 +161,47 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- /* Bind address for the runner (AGENTA_RUNNER_HOST). The runner defaults to 127.0.0.1,
        which no probe and no other pod can reach. Always 0.0.0.0 here unless overridden. */ -}}
 {{- define "agenta.agentRunner.host" -}}{{ default "0.0.0.0" (default dict .Values.agentRunner).host }}{{- end }}
+
+{{- /* Whether the runner's sandbox providers include `local`. A local sandbox is a process inside
+       the runner pod that started it, and no other pod can reach it. */ -}}
+{{- define "agenta.agentRunner.localProviderEnabled" -}}
+{{- has "local" (default (list "local") (default dict (default dict .Values.agentRunner).providers).enabled) -}}
+{{- end }}
+
+{{- define "agenta.agentRunner.terminationGracePeriodSeconds" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if hasKey $runner "terminationGracePeriodSeconds" }}{{ $runner.terminationGracePeriodSeconds }}{{ else }}300{{ end -}}
+{{- end }}
+
+{{- /* Whether the runner Deployment uses the Recreate strategy: an explicit agentRunner.strategy
+       says so, and without one the local provider does (see runner-deployment.yaml). */ -}}
+{{- define "agenta.agentRunner.recreates" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if $runner.strategy -}}
+{{- eq (toString $runner.strategy.type) "Recreate" -}}
+{{- else -}}
+{{- include "agenta.agentRunner.localProviderEnabled" . -}}
+{{- end -}}
+{{- end }}
+
+{{- /* AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: how long a stopping runner pod lets its running turns
+       finish before it cancels them. With RollingUpdate the new pod is already ready, and the
+       default leaves 100 s of the grace period for what comes around the wait: the 10 s preStop
+       delay, the cancel of running turns and of parked prompts (up to 15 s each with the default
+       AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS of 10 s) and the sandbox teardown (up to 50 s), with
+       10 s to spare. With Recreate the new pod starts only after the old one exits, so a wait
+       would leave the install without a runner: the default is 0.
+       agenta.validateRunnerShutdownWait refuses an explicit value above grace minus 100. */ -}}
+{{- define "agenta.agentRunner.shutdownWaitSeconds" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if not (kindIs "invalid" $runner.shutdownWaitSeconds) -}}
+{{- $runner.shutdownWaitSeconds -}}
+{{- else if eq (include "agenta.agentRunner.recreates" .) "true" -}}
+0
+{{- else -}}
+{{- max 0 (sub (int (include "agenta.agentRunner.terminationGracePeriodSeconds" .)) 100) -}}
+{{- end -}}
+{{- end }}
 {{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict (include "agenta.values" . | fromYaml).supertokens).port }}{{- end }}
 {{- define "agenta.redisVolatile.port" -}}{{ default 6379 (default dict .Values.redisVolatile).port }}{{- end }}
 {{- define "agenta.redisDurable.port" -}}{{ default 6381 (default dict .Values.redisDurable).port }}{{- end }}

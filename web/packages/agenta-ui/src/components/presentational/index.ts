@@ -155,6 +155,12 @@ export {Tag, type TagProps, type SyncState} from "./tag"
 // ============================================================================
 
 export {
+    AgentActivityDots,
+    type AgentActivityDotsProps,
+    type AgentActivityFormat,
+} from "./activity-dots"
+
+export {
     environmentColors,
     StatusIndicator,
     type StatusIndicatorProps,

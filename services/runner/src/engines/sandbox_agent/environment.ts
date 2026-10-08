@@ -155,13 +155,10 @@ import {
   routeSessionEventToActiveTurn,
 } from "./session-events.ts";
 import { buildSandboxProvider, daytonaNetworkFields } from "./provider.ts";
+import { sessionSandboxLabels } from "./sandbox-labels.ts";
 import { loadRunnerConfig, sandboxProviderTraits } from "../../config/runner-config.ts";
 import { readDaytonaSandboxResources } from "./daytona-provider.ts";
 import { sandboxUsageContext, startLeasedSandboxMeter } from "../../metering/sandbox-usage.ts";
-import {
-  markSandboxDestroyed,
-  readStoredSandboxPointer,
-} from "./sandbox-reconnect.ts";
 import type {
   AcquireEnvironmentResult,
   InRunnerRunFacts,
@@ -180,7 +177,11 @@ import {
   sessionContinuityStore,
 } from "./session-continuity.ts";
 import { mountExpiryMs, projectScopeFor } from "./session-identity.ts";
-import { teardownDisposition, type TeardownReason } from "./teardown.ts";
+import {
+  commandSandboxDisposition,
+  teardownDisposition,
+  type TeardownReason,
+} from "./teardown.ts";
 import {
   cleanup as cleanupWorkspace,
   materialize as materializeWorkspace,
@@ -590,10 +591,8 @@ async function acquireEnvironmentOnce(
       harness: plan.harness,
       reason: opts?.reason,
       log: logger,
-      // A command-only sandbox holds no harness state a failed turn could have wedged, so only an
-      // explicit kill deletes it; every other ending keeps its disk for the next turn.
       ...(plan.harnessInRunner
-        ? { disposition: opts?.reason === "kill" ? ("delete" as const) : ("stop" as const) }
+        ? { disposition: commandSandboxDisposition(opts?.reason) }
         : {}),
     });
     await meterStopped;
@@ -800,7 +799,13 @@ async function acquireEnvironmentOnce(
             plan.credentials.modelEnvironment,
             plan.sandboxPermission,
             plan.credentials.daytonaSecretPlan,
-            inheritedLease ? { inheritedLease } : {},
+            {
+              ...(inheritedLease ? { inheritedLease } : {}),
+              sessionLabels: sessionSandboxLabels(
+                environment.projectScopeId,
+                sessionForMount,
+              ),
+            },
           ),
           signal,
           logger,
