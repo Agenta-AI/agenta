@@ -49,7 +49,7 @@ def test_no_card_names_internal_units_or_old_quotas():
 
 def test_the_pro_plan_is_sold_as_starter():
     assert _card(STARTER)["title"] == "Starter"
-    assert _card(STARTER)["price"]["base"]["amount"] == 20.00
+    assert _card(STARTER)["price"]["base"]["amount"] == 29.00
     assert "Everything in Hobby" in _features(STARTER)
     assert "Everything in Starter" in _features(BUSINESS)
 
@@ -77,7 +77,7 @@ def test_every_paid_plan_inherits_the_daily_credits_from_hobby():
 
 @pytest.mark.parametrize(
     "plan,credits",
-    [(STARTER, "2,000"), (BUSINESS, "32,000")],
+    [(STARTER, "2,900"), (BUSINESS, "32,000")],
 )
 def test_paid_cards_state_their_monthly_credits(plan, credits):
     allowance = allowance_musd_for_plan(plan=plan.value)

@@ -76,7 +76,7 @@
         "id": "starter",
         "name": "Starter",
         "tagline": "For teams running agents in their daily work.",
-        "price": "$20",
+        "price": "$29",
         "unit": "/month",
         "chip": "Recommended",
         "cta": {
@@ -86,7 +86,7 @@
         },
         "includesLabel": "Everything in Hobby, plus",
         "features": [
-          "2,000 credits a month",
+          "2,900 credits a month",
           "Buy more credits any time: 1,000 for $10",
           "20 concurrent tasks",
           "Unlimited projects",
@@ -211,7 +211,7 @@
         },
         {
           "name": "Starter",
-          "price": "$20/mo"
+          "price": "$29/mo"
         },
         {
           "name": "Business",
@@ -230,7 +230,7 @@
               "label": "Monthly credits",
               "cells": [
                 "None",
-                "2,000",
+                "2,900",
                 "32,000",
                 "Custom"
               ]
@@ -245,7 +245,7 @@
               ]
             },
             {
-              "label": "Signup bonus",
+              "label": "Signup bonus for new organizations",
               "cells": [
                 "500 credits",
                 "500 credits",
@@ -962,7 +962,7 @@
     },
     {
       "question": "How many credits does each plan include?",
-      "answer": "Every plan gets 75 free credits every day, to use that day. Starter adds 2,000 credits a month, and Business adds 32,000 credits a month. For a limited time, new organizations also get 500 bonus credits when they sign up."
+      "answer": "Every plan gets 75 free credits every day, to use that day. Starter adds 2,900 credits a month, and Business adds 32,000 credits a month. For a limited time, new organizations also get 500 bonus credits when they sign up."
     },
     {
       "question": "How many credits does a task use?",
