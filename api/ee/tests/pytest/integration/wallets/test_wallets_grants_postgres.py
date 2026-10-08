@@ -30,7 +30,10 @@ from sqlalchemy import text
 import ee.src.core.organizations.service as organizations_service_module
 import oss.src.dbs.postgres.shared.engine as engine_module
 from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
-from ee.src.core.wallets.grants import compose_award_idempotency_key
+from ee.src.core.wallets.grants import (
+    GrantCapReachedError,
+    compose_award_idempotency_key,
+)
 from ee.src.core.wallets.service import WalletsService
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
@@ -246,5 +249,48 @@ async def test_award_signup_grant_via_organizations_service_hooks_against_real_d
                 {"organization_id": organization_id},
             )
             assert result.scalar() == 1
+    finally:
+        await _cleanup(organization_id)
+
+
+async def test_award_credit_cap_holds_under_racing_awards(wallet_schema):
+    """The cap is counted under the general balance lock: two awards racing for the
+    last slot mint one credit, and the other raises `GrantCapReachedError`."""
+    organization_id = uuid.uuid4()
+    dao = WalletsDAO()
+    since = datetime(2036, 11, 1, tzinfo=timezone.utc)
+
+    async def award(day: int):
+        return await dao.award_credit(
+            organization_id=organization_id,
+            idempotency_key=f"award:daily_free:organization:{organization_id}:{day}",
+            credit_kind="daily_free",
+            amount_musd=750_000,
+            priority=5,
+            end_time=since + timedelta(days=day + 1),
+            now=since + timedelta(days=day),
+            cap_count=2,
+            cap_since=since,
+        )
+
+    try:
+        await dao.provision_general_balance(organization_id=organization_id)
+        await award(0)
+
+        results = await asyncio.gather(award(1), award(2), return_exceptions=True)
+
+        assert sum(isinstance(r, GrantCapReachedError) for r in results) == 1
+        engine = get_transactions_engine()
+        async with engine.session() as session:
+            minted = await session.execute(
+                text(
+                    "SELECT count(*) FROM wallet_credits "
+                    "WHERE organization_id = :organization_id"
+                ),
+                {"organization_id": organization_id},
+            )
+            assert minted.scalar() == 2
+        general = await dao.get_general_balance(organization_id=organization_id)
+        assert general.balance_musd == 1_500_000
     finally:
         await _cleanup(organization_id)

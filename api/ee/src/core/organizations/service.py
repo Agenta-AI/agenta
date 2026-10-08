@@ -1036,8 +1036,8 @@ async def provision_signup_subscription(
 ) -> None:
     """Provision the signup subscription + seed the user gauge for a new org.
 
-    Cloud (Stripe enabled) gets a reverse trial; self-hosted gets the default
-    plan. Called from the OSS signup flow via the `is_ee()` seam.
+    Cloud (Stripe enabled) starts on the free plan, or on a reverse trial when the
+    pricing opts in; self-hosted gets the default plan. Called from the OSS signup flow via the `is_ee()` seam.
     """
 
     try:

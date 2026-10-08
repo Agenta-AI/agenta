@@ -6,9 +6,9 @@ import type {WalletUsageDay} from "./walletApi"
 import {formatMusd, formatUsdExact} from "./walletFormat"
 
 const CATEGORY_CLASSES: Record<string, string> = {
-    "Model calls": "bg-primary",
+    "AI models": "bg-primary",
     Tools: "bg-primary/45",
-    Sandbox: "bg-muted-foreground/60",
+    Runtime: "bg-muted-foreground/60",
 }
 const categoryClass = (category: string) => CATEGORY_CLASSES[category] ?? "bg-muted-foreground/30"
 

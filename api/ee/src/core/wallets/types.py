@@ -371,6 +371,8 @@ class WalletsDAOInterface(ABC):
         priority: int,
         end_time: Optional[datetime],
         now: Optional[datetime] = None,
+        cap_count: Optional[int] = None,
+        cap_since: Optional[datetime] = None,
     ) -> WalletCreditDTO:
         """Apply (or replay) one catalog-driven grant award in a single transaction:
 
@@ -383,5 +385,9 @@ class WalletsDAOInterface(ABC):
            for how callers derive it).
         3. Otherwise: mint a NEW immutable `wallet_credits` row plus its balance row, and
            add `amount_musd` to the general balance projection.
+
+        With `cap_count` and `cap_since`, step 3 first counts the organization's
+        `credit_kind` credits that started at or after `cap_since`, under the same lock,
+        and raises `GrantCapReachedError` when there are already `cap_count`.
         """
         raise NotImplementedError

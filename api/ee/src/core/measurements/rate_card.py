@@ -15,7 +15,6 @@ from typing import Dict, Optional, Tuple
 from orjson import OPT_SORT_KEYS, dumps
 from pydantic import BaseModel, Field, model_validator
 
-from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.measurements.components import ACTION_CALLS, ACTION_RESULTS
 
 
@@ -98,32 +97,16 @@ REQUEST_RATES: Dict[str, RequestRates] = {
 }
 
 
-# The sandbox rate tier a plan pays: Business has its own, every other plan the standard.
-SANDBOX_STANDARD = "standard"
-SANDBOX_BUSINESS = "business"
-
-
-def sandbox_rate_tier(plan: Optional[str]) -> str:
-    if plan == DefaultPlan.CLOUD_V0_BUSINESS.value:
-        return SANDBOX_BUSINESS
-    return SANDBOX_STANDARD
-
-
-# Keyed by (sandbox provider, rate tier); the provider is the key the runner's usage report
-# writes into `resource_locator`, the tier is stamped from the plan when the interval is
-# recorded. Daytona's list price (daytona.io/pricing, read 2026-09-26) is $0.0504 per
-# vCPU-hour and $0.0162 per GiB-hour of memory, billed per second; ours is that times 3,
-# or times 2.5 on Business (pricing option E). Disk is not charged: our sandboxes use 5 GiB,
-# inside Daytona's 5 free GiB. Only running seconds are metered, so a stopped sandbox's
-# disk is not charged either.
-SANDBOX_RATES: Dict[Tuple[str, str], SandboxRates] = {
-    ("daytona", SANDBOX_STANDARD): SandboxRates(
+# Keyed by sandbox provider: the key the runner's usage report writes into
+# `resource_locator`. Every plan pays the same rate (decided 2026-10-06; Business no longer
+# has its own). Daytona's list price (daytona.io/pricing, read 2026-09-26) is $0.0504 per
+# vCPU-hour and $0.0162 per GiB-hour of memory, billed per second; ours is that times 3.
+# Disk is not charged: our sandboxes use 5 GiB, inside Daytona's 5 free GiB. Only running
+# seconds are metered, so a stopped sandbox's disk is not charged either.
+SANDBOX_RATES: Dict[str, SandboxRates] = {
+    "daytona": SandboxRates(
         vcpu_musd_per_hour=151_200,  # 50_400 x 3
         memory_gib_musd_per_hour=48_600,  # 16_200 x 3
-    ),
-    ("daytona", SANDBOX_BUSINESS): SandboxRates(
-        vcpu_musd_per_hour=126_000,  # 50_400 x 2.5
-        memory_gib_musd_per_hour=40_500,  # 16_200 x 2.5
     ),
 }
 
@@ -152,8 +135,7 @@ def _version() -> str:
             server: rates.model_dump() for server, rates in REQUEST_RATES.items()
         },
         "sandboxes": {
-            f"{provider}:{tier}": rates.model_dump()
-            for (provider, tier), rates in SANDBOX_RATES.items()
+            provider: rates.model_dump() for provider, rates in SANDBOX_RATES.items()
         },
         "actions": {
             action: rates.model_dump() for action, rates in ACTION_RATES.items()
@@ -175,12 +157,9 @@ def request_rates_for(*, server: str) -> Optional[RequestRates]:
     return REQUEST_RATES.get(server)
 
 
-def sandbox_rates_for(
-    *, provider: str, tier: str = SANDBOX_STANDARD
-) -> Optional[SandboxRates]:
-    """The per-hour resource rates for one sandbox provider and rate tier, or None when
-    unpriced."""
-    return SANDBOX_RATES.get((provider, tier))
+def sandbox_rates_for(*, provider: str) -> Optional[SandboxRates]:
+    """The per-hour resource rates for one sandbox provider, or None when unpriced."""
+    return SANDBOX_RATES.get(provider)
 
 
 def action_rates_for(*, action: str) -> Optional[ActionRates]:

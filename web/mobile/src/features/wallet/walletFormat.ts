@@ -50,7 +50,7 @@ export const formatCredits = (musd: number): string =>
     (musd / MUSD_PER_CREDIT).toLocaleString(undefined, {maximumFractionDigits: 1})
 
 const CREDIT_KIND_LABELS: Record<string, string> = {
-    signup_grant: "Welcome credits",
+    signup_grant: "Signup bonus",
     daily_free: "Daily free credits",
     plan_allowance: "Monthly plan credits",
     purchase: "Purchased credits",

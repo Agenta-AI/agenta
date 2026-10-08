@@ -8,7 +8,10 @@ from oss.src.utils.context import get_auth_scope
 
 from fastapi.responses import JSONResponse
 from ee.src.core.subscriptions.service import SubscriptionsService
+from oss.src.services import db_manager
 from ee.src.core.access.entitlements.types import (
+    PROJECT_LIMIT_MESSAGE,
+    PROJECT_LIMITS,
     Tracker,
     Flag,
     Counter,
@@ -310,6 +313,23 @@ async def plan_for(organization_id) -> Optional[str]:
         return (await _subscription_data(organization_id)).get("plan")
     except EntitlementsException:
         return None
+
+
+async def project_limit_refusal(organization_id: UUID) -> Optional[str]:
+    """The refusal to show when the organization's plan allows no more projects, else
+    None. Counts existing projects, so an organization above the limit keeps them. Fails
+    open like `check_entitlements`: a failed plan read never blocks a creation."""
+    try:
+        plan = await plan_for(organization_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning("[entitlements] plan read failed; failing open", exc_info=True)
+        return None
+    limit = PROJECT_LIMITS.get(plan) if plan else None
+    if limit is None:
+        return None
+    if await db_manager.count_organization_projects(str(organization_id)) < limit:
+        return None
+    return PROJECT_LIMIT_MESSAGE
 
 
 async def check_entitlements(
