@@ -37,6 +37,7 @@ from oss.src.core.tracing.dtos import (
     MetricsBucket,
     Condition,
     ListOperator,
+    AnalyticsQueryTimeoutError,
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
@@ -111,6 +112,16 @@ UPDATE_CUMULATIVE_METRIC_STMT = text(
       AND span_id = :span_id
     """
 )
+
+
+def _is_statement_timeout(error: DBAPIError) -> bool:
+    # 57014 is Postgres query_canceled, raised when statement_timeout fires.
+    orig = error.orig
+    return (
+        getattr(orig, "sqlstate", None) == "57014"
+        or "QueryCanceledError" in str(orig)
+        or "statement timeout" in str(orig)
+    )
 
 
 class TracingDAO(TracingDAOInterface):
@@ -352,7 +363,7 @@ class TracingDAO(TracingDAOInterface):
             log.error(format_exc())
             raise e
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[AnalyticsQueryTimeoutError])
     async def analytics(
         self,
         *,
@@ -468,10 +479,16 @@ class TracingDAO(TracingDAOInterface):
         # log.trace(str(statistics_stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
         # ---------
 
-        async with self.engine.session() as session:
-            await session.execute(TIMEOUT_STMT)
+        try:
+            async with self.engine.session() as session:
+                await session.execute(TIMEOUT_STMT)
 
-            rows = (await session.execute(select(statistics_stmt))).mappings().all()
+                rows = (await session.execute(select(statistics_stmt))).mappings().all()
+        except DBAPIError as e:
+            if _is_statement_timeout(e):
+                raise AnalyticsQueryTimeoutError() from e
+
+            raise
 
         rows = [{**row} for row in rows]
 

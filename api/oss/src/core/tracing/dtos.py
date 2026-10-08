@@ -209,6 +209,17 @@ class FilteringException(Exception):
     pass
 
 
+class AnalyticsQueryTimeoutError(Exception):
+    def __init__(
+        self,
+        message: str = (
+            "The analytics query took too long. Choose a shorter time range."
+        ),
+    ):
+        self.message = message
+        super().__init__(message)
+
+
 class QueryFocusConflictError(Exception):
     def __init__(self, detail: str):
         self.detail = detail

@@ -326,8 +326,8 @@ export interface AnalyticsMetricSpec {
  *
  * Without `specs` the backend applies its `DEFAULT_ANALYTICS_SPECS`. The
  * response `buckets[].metrics` dict is keyed by each spec's dotted path.
- * `strict` callers get an error they can show; the default returns null so the
- * legacy dashboard reads a failure as "no data".
+ * `strict` callers (the dashboards) get the Fern error, with its `statusCode` and
+ * `body`, so they can show it; the default returns null on a failure.
  */
 export async function fetchSpansAnalytics(
     params: SpansAnalyticsParams,

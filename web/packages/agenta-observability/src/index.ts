@@ -12,6 +12,11 @@ export {
 } from "./core/presets"
 export {fetchDashboardAnalytics, type DashboardAnalyticsParams} from "./api/dashboard"
 export {
+    DASHBOARD_ERROR_FALLBACK,
+    dashboardErrorMessage,
+    isDashboardTimeout,
+} from "./core/dashboardError"
+export {
     observabilityRangeAtom,
     observabilityDashboardQueryAtomFamily,
     useObservabilityDashboard,

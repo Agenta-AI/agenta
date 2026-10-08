@@ -359,6 +359,17 @@ describe("fetchSpansAnalytics (Phase 6 — POST /spans/analytics/query)", () => 
         expect(res).toBeNull()
     })
 
+    it("rethrows the Fern error with its status and body in strict mode", async () => {
+        const failure = Object.assign(new Error("504"), {
+            statusCode: 504,
+            body: {detail: "The analytics query took too long. Choose a shorter time range."},
+        })
+        querySpansAnalytics.mockRejectedValueOnce(failure)
+        await expect(fetchSpansAnalytics({projectId: "proj-9", strict: true})).rejects.toBe(
+            failure,
+        )
+    })
+
     it("rethrows AbortError so TanStack Query can cancel", async () => {
         const abort = new DOMException("Aborted", "AbortError")
         querySpansAnalytics.mockRejectedValueOnce(abort)

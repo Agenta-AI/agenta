@@ -5,6 +5,8 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {isDashboardTimeout} from "../core/dashboardError"
+
 import {
     PATH,
     fetchAnalyticsBuckets,
@@ -63,7 +65,13 @@ export const analyticsFiltersAtom = atom<AnalyticsFilters>(EMPTY_FILTERS)
 
 export const analyticsGroupAtom = atom<AnalyticsGroup>("none")
 
-const QUERY_OPTIONS = {staleTime: 60_000, refetchOnWindowFocus: false} as const
+const QUERY_OPTIONS = {
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    // A timed-out range times out again; retrying only delays the error by minutes.
+    retry: (failureCount: number, error: unknown) =>
+        !isDashboardTimeout(error) && failureCount < 3,
+} as const
 
 export interface AnalyticsBucketsKey {
     name: AnalyticsQueryName
