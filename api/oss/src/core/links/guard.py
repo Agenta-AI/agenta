@@ -1,20 +1,18 @@
-"""Which link targets the preview fetcher may dial.
-
-The address predicate is the API's one copy, `utils/network.py::is_blocked_ip`, asked with
-no insecure flag: link targets come from chat text, which anyone in the
-conversation, including the agent, controls. Every resolved address must pass, and the caller
-connects to the address returned here, so a name that re-resolves cannot move the request.
-"""
+"""Which link targets the preview fetcher may dial; every resolved address must pass."""
 
 import asyncio
 import ipaddress
 import socket
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
 
-from oss.src.core.links.types import LinkPreviewRefused, LinkPreviewUnreachable
+from oss.src.core.links.types import (
+    LinkHost,
+    LinkPreviewRefused,
+    LinkPreviewUnreachable,
+    LinkTarget,
+)
 from oss.src.utils.network import is_blocked_ip
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
@@ -36,12 +34,8 @@ def _resolver() -> ThreadPoolExecutor:
     return _resolver_pool
 
 
-async def _resolve(hostname: str, port: int) -> list:
-    """`getaddrinfo` on the link pool, with separate bounds on the queue wait and the lookup.
-
-    A lookup that already started cannot be cancelled and keeps its thread, so a saturated
-    pool refuses new lookups after a short queue wait instead of stacking them up.
-    """
+async def _resolve(*, hostname: str, port: int) -> list:
+    """`getaddrinfo` on the link pool; a started lookup cannot be cancelled, so the queue wait is bounded."""
     loop = asyncio.get_running_loop()
     began: asyncio.Future = loop.create_future()
 
@@ -58,45 +52,44 @@ async def _resolve(hostname: str, port: int) -> list:
     return await asyncio.wait_for(lookup, _RESOLVE_TIMEOUT_SECONDS)
 
 
-@dataclass(frozen=True)
-class LinkTarget:
-    url: str
-    hostname: str
-    address: str
-
-
 def is_blocked_address(ip: ipaddress._BaseAddress) -> bool:
     # Judged as the IPv4 address it carries, whatever this Python's predicates do with it.
     embedded = getattr(ip, "ipv4_mapped", None)
     return is_blocked_ip(ip) or (embedded is not None and is_blocked_ip(embedded))
 
 
-def check_link_url(url: str) -> tuple[str, int]:
-    """Refuse anything but a credential-free http(s) URL on its default port.
-
-    Returns the hostname and port to resolve.
-    """
+def check_link_url(*, url: str) -> LinkHost:
+    """Refuse anything but a credential-free http(s) URL on its default port."""
     parsed = urlparse(url.strip())
     scheme = parsed.scheme.lower()
     if scheme not in _DEFAULT_PORTS:
-        raise LinkPreviewRefused("Only http and https links can be previewed.")
+        raise LinkPreviewRefused(
+            "Only http and https links can be previewed.", reason="unsupported_scheme"
+        )
     if parsed.username or parsed.password:
-        raise LinkPreviewRefused("Links with credentials cannot be previewed.")
+        raise LinkPreviewRefused(
+            "Links with credentials cannot be previewed.", reason="credentials"
+        )
     hostname = (parsed.hostname or "").lower()
     if not hostname:
-        raise LinkPreviewRefused("The link has no host.")
+        raise LinkPreviewRefused("The link has no host.", reason="missing_host")
     try:
         port = parsed.port or _DEFAULT_PORTS[scheme]
     except ValueError as exc:
-        raise LinkPreviewRefused("The link has an invalid port.") from exc
+        raise LinkPreviewRefused(
+            "The link has an invalid port.", reason="invalid_port"
+        ) from exc
     if port not in _DEFAULT_PORTS.values():
-        raise LinkPreviewRefused("Only ports 80 and 443 can be previewed.")
-    return hostname, port
+        raise LinkPreviewRefused(
+            "Only ports 80 and 443 can be previewed.", reason="unsupported_port"
+        )
+    return LinkHost(hostname=hostname, port=port)
 
 
-async def resolve_link_target(url: str) -> LinkTarget:
+async def resolve_link_target(*, url: str) -> LinkTarget:
     """Check `url`, resolve its host, and return one address that every answer cleared."""
-    hostname, port = check_link_url(url)
+    host = check_link_url(url=url)
+    hostname = host.hostname
 
     try:
         literal = ipaddress.ip_address(hostname.strip("[]"))
@@ -107,7 +100,7 @@ async def resolve_link_target(url: str) -> LinkTarget:
         addresses = [literal]
     else:
         try:
-            infos = await _resolve(hostname, port)
+            infos = await _resolve(hostname=hostname, port=host.port)
         except (OSError, TimeoutError) as exc:
             raise LinkPreviewUnreachable(
                 "The link's host could not be resolved."
@@ -118,6 +111,8 @@ async def resolve_link_target(url: str) -> LinkTarget:
     if not addresses:
         raise LinkPreviewUnreachable("The link's host could not be resolved.")
     if any(is_blocked_address(address) for address in addresses):
-        raise LinkPreviewRefused("The link points to a non-public address.")
+        raise LinkPreviewRefused(
+            "The link points to a non-public address.", reason="non_public_address"
+        )
 
     return LinkTarget(url=url, hostname=hostname, address=str(addresses[0]))

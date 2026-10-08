@@ -1,4 +1,5 @@
 import asyncio
+from functools import partial
 from typing import Optional
 from urllib.parse import urljoin, urlparse, urlunparse
 
@@ -8,7 +9,9 @@ from oss.src.core.gateways.dtos import no_cookie_jar
 from oss.src.core.links.guard import resolve_link_target
 from oss.src.core.links.parser import head_section, parse_link_meta
 from oss.src.core.links.types import (
+    LinkPage,
     LinkPreview,
+    LinkRefusal,
     LinkPreviewError,
     LinkPreviewRefused,
     LinkPreviewUnreachable,
@@ -73,13 +76,8 @@ async def _read_html(response: httpx.Response) -> Optional[str]:
         return bytes(body[:_MAX_BYTES]).decode("utf-8", errors="replace")
 
 
-async def _fetch_html(url: str) -> tuple[str, Optional[str]]:
-    """GET `url`, following at most `_MAX_REDIRECTS` redirects, each hop re-checked and pinned.
-
-    Returns the final URL and its HTML, or None for a body that is not HTML or not a 200.
-    Raises `LinkPreviewRefused` only for the first hop; a redirect into a refused target
-    reads as unreachable.
-    """
+async def _fetch_page(*, url: str) -> LinkPage:
+    """GET `url` with each redirect hop re-checked and pinned; a refused redirect reads as unreachable."""
     current = url
     # One client per preview, never pooled: each hop is pinned to its own checked address.
     async with httpx.AsyncClient(
@@ -90,7 +88,7 @@ async def _fetch_html(url: str) -> tuple[str, Optional[str]]:
     ) as client:
         for hop in range(_MAX_REDIRECTS + 1):
             try:
-                target = await resolve_link_target(current)
+                target = await resolve_link_target(url=current)
             except LinkPreviewError:
                 if hop == 0:
                     raise
@@ -116,12 +114,12 @@ async def _fetch_html(url: str) -> tuple[str, Optional[str]]:
                 if response.is_redirect:
                     location = response.headers.get("location")
                     if not location:
-                        return current, None
+                        return LinkPage(url=current)
                     current = urljoin(current, location)
                     continue
                 if response.status_code != 200:
-                    return current, None
-                return current, await _read_html(response)
+                    return LinkPage(url=current)
+                return LinkPage(url=current, html=await _read_html(response))
             finally:
                 await response.aclose()
 
@@ -134,15 +132,14 @@ class LinksService:
         self._inflight: dict[str, asyncio.Future] = {}
 
     async def preview(self, *, url: str) -> LinkPreview:
-        """A link's preview, from cache or fetched. A page that cannot be read still yields its
-        URL and domain; a refused URL raises `LinkPreviewRefused`."""
+        """A link's preview; an unreadable page still yields its URL and domain."""
         key = normalize_link_url(url)
 
         refused = await get_cache(
-            namespace=_REFUSED_CACHE_NAMESPACE, key=key, retry=False
+            namespace=_REFUSED_CACHE_NAMESPACE, key=key, model=LinkRefusal, retry=False
         )
-        if isinstance(refused, str):
-            raise LinkPreviewRefused(refused)
+        if refused is not None:
+            raise LinkPreviewRefused(refused.message, reason=refused.reason)
 
         cached = await get_cache(
             namespace=_CACHE_NAMESPACE,
@@ -163,15 +160,15 @@ class LinksService:
         return await asyncio.shield(task)
 
     async def _fetch_and_cache(self, *, url: str, key: str) -> LinkPreview:
-        final_url, html = url, None
+        page = LinkPage(url=url)
         try:
             async with asyncio.timeout(_TIMEOUT_SECONDS):
-                final_url, html = await _fetch_html(url)
+                page = await _fetch_page(url=url)
         except LinkPreviewRefused as exc:
             await set_cache(
                 namespace=_REFUSED_CACHE_NAMESPACE,
                 key=key,
-                value=exc.message,
+                value=LinkRefusal(message=exc.message, reason=exc.reason),
                 ttl=_NEGATIVE_CACHE_TTL_SECONDS,
             )
             raise
@@ -181,17 +178,19 @@ class LinksService:
             log.debug("[links] preview fetch failed", url=key, error=type(exc).__name__)
 
         meta = None
-        if html:
-            head = head_section(html)
+        if page.html:
+            head = head_section(page.html)
             # A page with no head end can still be 512 KB of markup: parse that off the loop.
             meta = (
-                await asyncio.to_thread(parse_link_meta, head, final_url)
+                await asyncio.to_thread(
+                    partial(parse_link_meta, html=head, base_url=page.url)
+                )
                 if len(head) > _PARSE_INLINE_CHARS
-                else parse_link_meta(head, final_url)
+                else parse_link_meta(html=head, base_url=page.url)
             )
         preview = LinkPreview(
-            url=final_url,
-            domain=_domain(final_url),
+            url=page.url,
+            domain=_domain(page.url),
             **(meta.model_dump() if meta else {}),
         )
         found = any((preview.title, preview.description, preview.image))

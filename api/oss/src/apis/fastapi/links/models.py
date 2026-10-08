@@ -19,12 +19,14 @@ class LinkPreviewResponse(BaseModel):
 
 
 class LinkPreviewRefusedException(HTTPException):
-    def __init__(self, message: str):
+    def __init__(self, message: str, *, reason: str):
         super().__init__(
             status_code=400,
             detail={
                 "code": "link_preview_refused",
                 "message": message,
                 "retryable": False,
+                "next_step": "Use a public http or https link on port 80 or 443.",
+                "details": {"reason": reason},
             },
         )

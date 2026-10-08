@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,6 +24,44 @@ class LinkPreview(BaseModel):
     )
 
 
+class LinkMeta(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    image: Optional[str] = None
+    site_name: Optional[str] = None
+
+
+class LinkHost(BaseModel):
+    hostname: str
+    port: int
+
+
+class LinkTarget(BaseModel):
+    url: str
+    hostname: str
+    address: str
+
+
+class LinkPage(BaseModel):
+    url: str
+    html: Optional[str] = None
+
+
+LinkRefusalReason = Literal[
+    "unsupported_scheme",
+    "credentials",
+    "missing_host",
+    "invalid_port",
+    "unsupported_port",
+    "non_public_address",
+]
+
+
+class LinkRefusal(BaseModel):
+    message: str
+    reason: LinkRefusalReason
+
+
 class LinkPreviewError(Exception):
     """Base for link preview failures."""
 
@@ -33,9 +71,12 @@ class LinkPreviewError(Exception):
 
 
 class LinkPreviewRefused(LinkPreviewError):
-    """The URL is not one the server will fetch: bad scheme, credentials, port, or a host
-    that resolves to a non-public address."""
+    """The server will not fetch this URL."""
+
+    def __init__(self, message: str, *, reason: LinkRefusalReason):
+        self.reason = reason
+        super().__init__(message)
 
 
 class LinkPreviewUnreachable(LinkPreviewError):
-    """The URL is allowed but could not be read: no DNS answer, a timeout, a non-HTML body."""
+    """The URL is allowed but its page could not be read."""
