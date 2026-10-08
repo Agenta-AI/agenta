@@ -1143,6 +1143,12 @@ async function runAndStreamWithApiBaseResolved(
     });
     if (outcome.settled) {
       result = outcome.value;
+      // Read the flag the RUN left BEFORE the persistence block below: `persistTerminal` sets
+      // `terminalRecordEmitted` as a side effect, so a later read cannot tell a record the run
+      // emitted from one this request has just written. The Stop rewrite further down needs the
+      // former. Both it and the persistence block read the same Stop label once, here.
+      const terminalRecordEmittedByRun = terminalRecordEmitted;
+      const userStopped = isUserStopAbort(controller.signal);
       // `runTurn` ended a shutdown cancel with the restart error; the result says so too. A
       // shutdown that caught the turn before `runTurn` (a cold create) gets the same ending from
       // the backstop below.
@@ -1156,13 +1162,12 @@ async function runAndStreamWithApiBaseResolved(
       // labelled control-plane abort caused it. A genuine acquire failure never reached runTurn's
       // error emitter, so preserve its error before the done backstop instead of making the empty
       // turn look successful. Both records use the same ordered persistence chain as runTurn's
-      // emitter but stay off the live stream, whose result envelope is unchanged.
+      // emitter.
       if (
         !terminalRecordEmitted &&
         persistTerminal &&
-        (!result.ok || isUserStopAbort(controller.signal))
+        (!result.ok || userStopped)
       ) {
-        const userStopped = isUserStopAbort(controller.signal);
         if (!userStopped && !result.ok && persistError) {
           persistError(
             result.error ?? "Agent run failed.",
@@ -1170,6 +1175,32 @@ async function runAndStreamWithApiBaseResolved(
           );
         }
         persistTerminal(userStopped ? "cancelled" : undefined);
+      }
+      // The live envelope must agree with the transcript. A cooperative Stop that aborted acquire
+      // before `runTurn` produced `ok: false` with the aborted-acquire sentence, and
+      // `result_from_wire` turns EVERY `ok: false` result into a raised `AgentRunFailed`, which
+      // the Vercel adapter renders as a `data-agent-error` frame. So a normal Stop reached an SDK
+      // or integration client as `agent_run_failed` ("Agent run failed: Sandbox acquisition was
+      // aborted.") while the product screen, reading the persisted `done`, showed "Stopped"
+      // (issue #7447, AGE-4508; AWS staging, v0.122.3, cold Daytona sandbox, Stop ~2.5s in).
+      // Rewrite the envelope into the shape a post-`runTurn` Stop already returns, so the SDK sees
+      // `ok: true` with `stopReason: "cancelled"` and ends with a cancelled finish and no error
+      // frame. Existing fields only: no wire field is added, renamed or removed.
+      //
+      // `cancelSettled` stays ABSENT on purpose. An aborted acquire already destroyed its
+      // half-built environment, so there is nothing to park, and `shouldPark` requires
+      // `cancelSettled === true`. Absent keeps the teardown the aborted acquire already did.
+      //
+      // `terminalRecordEmittedByRun` keeps a real failure intact: a run that emitted and persisted
+      // its own terminal record (an error and a `done`) keeps its error even when the Stop label
+      // also arrives. `endedByShutdown` keeps a shutdown ending with the restart error.
+      if (
+        userStopped &&
+        !endedByShutdown &&
+        !terminalRecordEmittedByRun &&
+        !result.ok
+      ) {
+        result = { ok: true, stopReason: "cancelled", events: [] };
       }
     } else {
       // The run is still pending and may never settle. Give the turn the ending the runner
@@ -1206,17 +1237,31 @@ async function runAndStreamWithApiBaseResolved(
     // client offers to retry it. A turn that already wrote `done` keeps its ending.
     const endedByShutdown =
       isRunnerShutdownAbort(controller.signal) && !terminalRecordEmitted;
+    const userStopped = isUserStopAbort(controller.signal);
+    // Same read-before-write as the settled branch: `persistTerminal` below sets the flag.
+    const terminalRecordEmittedByRun = terminalRecordEmitted;
     const reported = endedByShutdown ? RUNNER_RESTARTING_MESSAGE : message;
-    if (persistError) {
+    // A cooperative Stop that aborted acquire BEFORE `acquireEnvironmentOnce`'s try block
+    // (environment.ts ~460/~467) throws out of the whole run and lands here, not in the settled
+    // branch: neither `coldAndPark` (its try wraps only `engine.runTurn`) nor `awaitTurnOrAbandon`
+    // (it rethrows a rejected run) converts the `AcquireAbortedError`. This is the cold-acquire
+    // Stop the issue reports, and it used to persist an acquire error AND report `ok: false`, so
+    // the client saw the same `agent_run_failed` frame as the settled path. Keep the transcript
+    // free of that error and report the cancelled envelope instead (see the settled branch for
+    // the full note). A real failure keeps its error: no Stop label, a shutdown, or a terminal
+    // record the run already emitted all leave this false.
+    const stoppedBeforeTerminal =
+      userStopped && !endedByShutdown && !terminalRecordEmittedByRun;
+    if (persistError && !stoppedBeforeTerminal) {
       persistError(reported, endedByShutdown ? "execution_lost" : undefined);
     }
     if (!terminalRecordEmitted && persistTerminal) {
-      persistTerminal(
-        isUserStopAbort(controller.signal) ? "cancelled" : undefined,
-      );
+      persistTerminal(userStopped ? "cancelled" : undefined);
     }
     if (flushPersist) await flushPersist().catch(() => {});
-    result = { ok: false, error: reported };
+    result = stoppedBeforeTerminal
+      ? { ok: true, stopReason: "cancelled", events: [] }
+      : { ok: false, error: reported };
   } finally {
     // The drain is the only place that knows whether this turn's records all landed. A dropped
     // record means the log no longer represents the conversation, so mark the session: a later
