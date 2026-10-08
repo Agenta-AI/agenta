@@ -41,7 +41,14 @@ export async function runSandboxAgent(
   turnOptions: Pick<RunTurnOptions, "credential"> = {},
 ): Promise<AgentRunResult> {
   const acquired = await acquireEnvironment(request, deps, signal);
-  if (!acquired.ok) return { ok: false, error: acquired.error };
+  if (!acquired.ok) {
+    // When the signal was already aborted before (or during) acquire, the user pressed Stop
+    // while the sandbox was still being created. That is a deliberate cancellation, not a
+    // failure: return a cancelled finish so the stream ends cleanly instead of emitting an
+    // error frame. acquireEnvironment already ran its own destroy(), so no cleanup is needed.
+    if (signal?.aborted) return { ok: true, stopReason: "cancelled" };
+    return { ok: false, error: acquired.error };
+  }
   const env = acquired.env;
   let result: AgentRunResult | undefined;
   try {

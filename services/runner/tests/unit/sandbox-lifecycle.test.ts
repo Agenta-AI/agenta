@@ -407,3 +407,37 @@ describe("remote sandbox teardown", () => {
     assert.equal(calls.destroyed, 1);
   });
 });
+
+describe("stop during cold sandbox create", () => {
+  it("returns a cancelled finish (not an error) when the abort signal fires during acquire", async () => {
+    // Reproduce issue #7447: a Stop while the sandbox is still being created used to return
+    // { ok: false, error: "..." }, which the Python SDK turned into an agent_run_failed error
+    // frame. The correct outcome is { ok: true, stopReason: "cancelled" }.
+    const { deps } = fakeSandbox(undefined);
+    const controller = new AbortController();
+
+    // Make startSandboxAgent simulate a cold-create abort: fire the signal first, then throw.
+    deps.startSandboxAgent = (async () => {
+      controller.abort();
+      throw new Error("Sandbox acquisition was aborted.");
+    }) as any;
+
+    const result = await runSandboxAgent(
+      daytonaRequest,
+      undefined,
+      controller.signal,
+      deps,
+    );
+
+    assert.equal(
+      result.ok,
+      true,
+      "a Stop during cold sandbox create must not be reported as a failure",
+    );
+    assert.equal(
+      result.stopReason,
+      "cancelled",
+      "the stream must end with a cancelled finish, not an error frame",
+    );
+  });
+});
