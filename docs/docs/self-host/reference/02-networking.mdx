@@ -185,6 +185,24 @@ Processing: Strip `/services` prefix
 # /services/chat/* -> services:8080/chat/*
 ```
 
+## Retry semantics and your gateway
+
+When a workflow dispatch fails, the API decides whether the request may be retried by reading the response. A `404` or a `503` that carries no `x-ag-` response header is treated as proof that the request never reached the workflow service, so a retry is allowed to run the turn. An answer that is not recognised is treated as "possibly sent" and is not retried.
+
+The proxies shipped with this project reserve `503` for "no backend to forward to": they answer it before a backend is chosen, and a backend-side failure surfaces as `502` or `504`. Two things in a self-hosted topology can break the reasoning above, and neither is visible from the application.
+
+### A gateway that answers 503 after forwarding
+
+An Envoy or Istio gateway answers `503` on an upstream reset or upstream failure *after* the request was forwarded, unlike Traefik, nginx, ingress-nginx and ALB, which answer `502` or `504` on post-forward failures and reserve `503` for having no backend to forward to. On such a deployment a turn that did start can be reported as never sent, and a retry can run it a second time.
+
+If you put an Envoy or Istio gateway in front of the workflow service, make it answer `502` for post-forward upstream failures, or otherwise ensure that a `503` from it cannot follow a forwarded request.
+
+### A proxy rule that strips or blanks `x-ag-` response headers
+
+The application stamps the responses it produces itself with an `x-ag-` header. That stamp is what separates "the service answered" from "something in front of the service answered". A proxy rule that removes or blanks response headers on the service path — a common header-hygiene configuration — turns a stamped in-run `503` into an unstamped one, and the rule above then reads it as never sent. Because the rule fails open, nothing surfaces the change: no error appears and no test notices.
+
+`x-ag-` response headers must reach the client on the workflow service path. If you configure a header-stripping rule on that route, exclude the `x-ag-` prefix.
+
 ## SSL/TLS Configuration
 
 ### Development (HTTP)
