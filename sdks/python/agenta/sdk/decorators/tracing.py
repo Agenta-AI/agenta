@@ -37,53 +37,8 @@ def _has_instrument(handler: Callable[..., Any]) -> bool:
     return bool(getattr(handler, "__has_instrument__", False))
 
 
-def _size(text: Any) -> Optional[int]:
-    return len(text.encode("utf-8")) if isinstance(text, str) else None
-
-
-def _trace_skill(skill: Any) -> Any:
-    if not isinstance(skill, dict):
-        return skill
-
-    traced = {key: value for key, value in skill.items() if key != "body"}
-    if "body" in skill:
-        traced["body_size"] = _size(skill["body"])
-
-    files = skill.get("files")
-    if isinstance(files, list):
-        traced["files"] = [
-            (
-                {
-                    **{key: value for key, value in file.items() if key != "content"},
-                    "size": _size(file.get("content")),
-                }
-                if isinstance(file, dict)
-                else file
-            )
-            for file in files
-        ]
-
-    return traced
-
-
-def _trace_configuration(parameters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """The configuration recorded on a root span.
-
-    An agent's skills carry their SKILL.md body and every bundled file inline, which made
-    each agent root span megabytes large. The span keeps skill names, paths and sizes; the
-    full content stays on the referenced revision (or the caller's inline draft).
-    """
-    if not isinstance(parameters, dict):
-        return parameters or {}
-
-    agent = parameters.get("agent")
-    if not isinstance(agent, dict) or not isinstance(agent.get("skills"), list):
-        return parameters
-
-    return {
-        **parameters,
-        "agent": {**agent, "skills": [_trace_skill(s) for s in agent["skills"]]},
-    }
+def _is_agent_configuration(parameters: Any) -> bool:
+    return isinstance(parameters, dict) and isinstance(parameters.get("agent"), dict)
 
 
 def auto_instrument(handler: Callable[..., Any]) -> Callable[..., Any]:
@@ -624,16 +579,15 @@ class instrument:  # pylint: disable=invalid-name
                 namespace="type",
             )
 
-            if span.parent is None:
-                # Unbounded flattening of a resolved agent config (tools with full JSON
-                # schemas) yields hundreds of leaf attributes, overflowing the span
-                # attribute limit and evicting the oldest attributes (ag.refs.*).
+            # An agent config carries every skill's body and bundled files, which made
+            # each agent root span megabytes large. The root span's revision reference
+            # points at the config, so agent runs do not record it.
+            if span.parent is None and not _is_agent_configuration(context.parameters):
                 # Depth 3 keeps one `@ag.type=json:` attribute per config section
-                # (configuration.agent.tools, .llm, ...) instead of one per leaf.
+                # instead of one per leaf, so a large config cannot overflow the span
+                # attribute limit and evict the oldest attributes (ag.refs.*).
                 span.set_attributes(
-                    attributes={
-                        "configuration": _trace_configuration(context.parameters)
-                    },
+                    attributes={"configuration": context.parameters or {}},
                     namespace="meta",
                     max_depth=3,
                 )
