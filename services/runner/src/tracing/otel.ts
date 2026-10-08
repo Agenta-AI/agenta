@@ -546,6 +546,14 @@ export function publicApiBaseConfigured(): boolean {
  *   - the run flushes explicitly by trace id (cross-boundary run: invoke_agent
  *     has a remote parent that never ends in this process, so root-end never fires).
  */
+/** The runner's own tracers. The provider is registered globally, so any library that traces
+ * through the OpenTelemetry API writes into it too: the Daytona SDK wraps each call in a span,
+ * and the in-process engine polls a running command about once a second. Those spans belong to
+ * no run, carry no credential, and are dropped here instead of reaching an export. */
+const PI_TRACER = "agenta-pi-otel";
+const SANDBOX_AGENT_TRACER = "agenta-sandbox-agent-otel";
+const RUNNER_TRACERS = new Set([PI_TRACER, SANDBOX_AGENT_TRACER]);
+
 class TraceBatchProcessor implements SpanProcessor {
   private readonly buffers = new Map<string, ReadableSpan[]>();
 
@@ -559,6 +567,10 @@ class TraceBatchProcessor implements SpanProcessor {
   }
 
   onEnd(span: ReadableSpan): void {
+    if (!RUNNER_TRACERS.has(span.instrumentationScope.name)) {
+      spanRunIds.delete(span.spanContext().spanId);
+      return;
+    }
     const traceId = span.spanContext().traceId;
     const spans = this.buffers.get(traceId) ?? [];
     spans.push(span);
@@ -1138,7 +1150,7 @@ export function createAgentaOtel(
     customConnection: init.customConnection,
   };
 
-  const tracer = trace.getTracer("agenta-pi-otel", "0.1.0");
+  const tracer = trace.getTracer(PI_TRACER, "0.1.0");
   const runId = mintRunId();
 
   // Per-run span state — closure-scoped so concurrent runs never collide.
@@ -1776,7 +1788,7 @@ export function createSandboxAgentOtel(
   const authorization = platformAuthorizationProvider(init.authorization);
   const { provider, id: modelId } = splitModel(init.model);
   const customConnection = init.customConnection === true;
-  const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
+  const tracer = trace.getTracer(SANDBOX_AGENT_TRACER, "0.1.0");
   const runId = mintRunId();
   const streamTrace = createStreamTrace({ harness: init.harness });
 
@@ -1796,7 +1808,8 @@ export function createSandboxAgentOtel(
   const events: AgentEvent[] = [];
   const outputBudget = createOutputBudget(init.onOutputLimit);
   let finished = false;
-  const admitUpdate = (update: any): boolean => !finished && outputBudget.accept(update);
+  const admitUpdate = (update: any): boolean =>
+    !finished && outputBudget.accept(update);
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
   const toolSpans = new Map<
@@ -2411,7 +2424,11 @@ export function createSandboxAgentOtel(
       if (finished) return;
       // Error/done are engine-authored terminal records, not model output. Preserve them
       // after a breach so the turn has one visible, durable ending.
-      if (event.type === "error" || event.type === "done" || outputBudget.accept(event)) {
+      if (
+        event.type === "error" ||
+        event.type === "done" ||
+        outputBudget.accept(event)
+      ) {
         record(event);
       }
     },
