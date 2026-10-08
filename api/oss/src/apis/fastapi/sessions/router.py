@@ -1807,6 +1807,15 @@ class SessionMountsRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
+            "/mounts/files/upload",
+            self.upload_session_cwd_file,
+            methods=["POST"],
+            operation_id="upload_session_cwd_file",
+            response_model=MountFileWrittenResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
             "/mounts/{mount_id}/files/upload",
             self.upload_session_mount_file,
             methods=["POST"],
@@ -1927,6 +1936,42 @@ class SessionMountsRouter:
             mount_id=mount.id,
         )
         return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def upload_session_cwd_file(
+        self,
+        request: Request,
+        *,
+        file: FastAPIUploadFile,
+        session_id: str = Query(...),
+        path: Optional[str] = Query(default=None),
+    ) -> MountFileWrittenResponse:
+        """Write a file into the session's working directory, creating that mount if needed.
+
+        The composer uses this for files over the attachment cap. A session that has not run
+        yet has no working-directory mount, and the only other route that creates one also
+        signs storage credentials, which the browser must never receive.
+        """
+        _validate_session_id_http(session_id)
+
+        await self._check(request, Permission.EDIT_SESSIONS, Permission.EDIT_MOUNTS)
+
+        mount = await self.mounts_service.get_or_create_session_mount(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            session_id=session_id,
+            name="cwd",
+        )
+
+        written = await upload_mount_file(
+            mounts_service=self.mounts_service,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount.id,
+            file=file,
+            path=path,
+        )
+        return MountFileWrittenResponse(path=written.path, size=written.size)
 
     @intercept_exceptions()
     @handle_mount_exceptions()

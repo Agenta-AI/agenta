@@ -141,7 +141,7 @@ export const LiveConversation = ({
     const quoteRootRef = useRef<HTMLDivElement>(null)
     // The composer's tray, owned here for the same reason: a refusal that arrives after the send
     // resolved has to put the files back from outside the composer's own submit.
-    const attachments = useComposerAttachments({sessionId})
+    const attachments = useComposerAttachments({sessionId, largeFilesToDrive: true})
     const {restoreAttachments, setRejections} = attachments
     const restoreRefusedSend = useCallback(
         async (message: QueuedMessage) => {

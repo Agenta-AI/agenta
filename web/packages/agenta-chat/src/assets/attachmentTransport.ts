@@ -157,3 +157,76 @@ export async function uploadAttachment({
         throw errorForResponse(error, file)
     }
 }
+
+/** Folder in the session working directory that receives files over the attachment cap. */
+export const DRIVE_UPLOAD_FOLDER = "uploads"
+
+const sessionDriveFileResponseSchema = z.object({
+    path: z.string().min(1),
+    size: z.number().int().nonnegative(),
+})
+
+/** A composer file that went to the session drive instead of becoming an attachment. */
+export interface SessionDriveFileResponse {
+    drive: {path: string; filename: string; size: number}
+}
+
+/**
+ * Upload a file that is over the attachment cap into the session's working directory, under
+ * `uploads/`. The agent reads it from there like any file it created itself. The route creates
+ * the working-directory mount when the session has not run yet.
+ */
+export async function uploadFileToSessionDrive({
+    file,
+    sessionId,
+    projectId,
+    onProgress,
+    signal,
+}: {
+    file: File
+    sessionId: string
+    projectId: string
+    onProgress?: (percent: number) => void
+    signal?: AbortSignal
+}): Promise<SessionDriveFileResponse> {
+    const form = new FormData()
+    form.append("file", file, file.name)
+
+    try {
+        // Same axios-not-Fern reason and explicit multipart header as `uploadAttachment`.
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/sessions/mounts/files/upload`,
+            form,
+            {
+                params: {
+                    session_id: sessionId,
+                    project_id: projectId,
+                    path: `${DRIVE_UPLOAD_FOLDER}/${file.name}`,
+                },
+                headers: {"Content-Type": "multipart/form-data"},
+                signal,
+                onUploadProgress: (event) => {
+                    if (onProgress && event.total) {
+                        onProgress(Math.round((event.loaded / event.total) * 100))
+                    }
+                },
+            },
+        )
+        const validated = safeParseWithLogging(
+            sessionDriveFileResponseSchema,
+            response.data,
+            "[uploadFileToSessionDrive]",
+        )
+        if (!validated) throw new AttachmentUploadError()
+        return {drive: {path: validated.path, filename: file.name, size: validated.size}}
+    } catch (error) {
+        if (signal?.aborted || isCancel(error)) throw error
+        if (error instanceof AttachmentUploadError) throw error
+        if (isAxiosError(error) && error.response?.status === 413) {
+            throw new AttachmentUploadError("This file is too large to upload.", {
+                retryable: false,
+            })
+        }
+        throw new AttachmentUploadError()
+    }
+}
