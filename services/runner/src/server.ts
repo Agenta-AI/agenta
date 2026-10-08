@@ -312,6 +312,7 @@ function apiBaseFromRequest(request: AgentRunRequest): string | undefined {
  * The seams are re-exported below so every existing import path and test keeps working
  * unchanged. That is what makes the extraction reviewable: the diff is a move, not a rewrite.
  */
+import { AcquireAbortedError } from "./environment/acquire-abort.ts";
 import { applyReconcilePlan } from "./environment/apply-plan.ts";
 import {
   klog,
@@ -1250,13 +1251,28 @@ async function runAndStreamWithApiBaseResolved(
     // free of that error and report the cancelled envelope instead (see the settled branch for
     // the full note). A real failure keeps its error: no Stop label, a shutdown, or a terminal
     // record the run already emitted all leave this false.
+    // The TYPE is the evidence, and the label only classifies it. A Stop label alone is not
+    // enough here: an unrelated throw that lands while the Stopped flag happens to be set (the
+    // pool's `PREVIOUS_TEARDOWN_STUCK_MESSAGE` when the previous environment's teardown ran past
+    // its budget, a stuck mount, a provider refusal) must keep its own error. Reading only the
+    // label would persist a cancellation and report success, hiding an infrastructure fault as a
+    // user action. `AcquireAbortedError` is the one type acquire raises when its turn signal
+    // fires, so `instanceof` is what separates the Stop from everything else that can reach this
+    // branch. The label stays, because the same error class also covers a client disconnect and a
+    // runner shutdown, and neither of those is a Stop.
     const stoppedBeforeTerminal =
-      userStopped && !endedByShutdown && !terminalRecordEmittedByRun;
+      err instanceof AcquireAbortedError &&
+      userStopped &&
+      !endedByShutdown &&
+      !terminalRecordEmittedByRun;
     if (persistError && !stoppedBeforeTerminal) {
       persistError(reported, endedByShutdown ? "execution_lost" : undefined);
     }
     if (!terminalRecordEmitted && persistTerminal) {
-      persistTerminal(userStopped ? "cancelled" : undefined);
+      // Keyed on the same verdict, never on the bare Stop label: the transcript's ending has to
+      // agree with the live envelope above, and a real failure must not be written down as a
+      // cancellation just because a Stop arrived beside it.
+      persistTerminal(stoppedBeforeTerminal ? "cancelled" : undefined);
     }
     if (flushPersist) await flushPersist().catch(() => {});
     result = stoppedBeforeTerminal
