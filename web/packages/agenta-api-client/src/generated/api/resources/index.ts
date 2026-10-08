@@ -33,6 +33,8 @@ export * as keys from "./keys/index.js";
 export * from "./legacy/client/requests/index.js";
 export * as legacy from "./legacy/index.js";
 export * from "./legacy/types/index.js";
+export * from "./links/client/requests/index.js";
+export * as links from "./links/index.js";
 export * from "./mounts/client/requests/index.js";
 export * as mounts from "./mounts/index.js";
 export * from "./mounts/types/index.js";

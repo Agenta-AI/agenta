@@ -30,6 +30,8 @@ import {
     type ThemeInput,
 } from "streamdown"
 
+import WebLinkPreview from "./LinkPreviewCard"
+
 /** Host-supplied renderer for a code span / relative href that may name an agent file. */
 export interface ChatMarkdownLinkResolver {
     /** Render `value` as a file link when it resolves, else `fallback`; may resolve asynchronously. */
@@ -99,12 +101,23 @@ interface AnchorProps {
     children?: ReactNode
 }
 
-/** Plain link, opened in a new tab; also the fallback when a relative href isn't a known file. */
-const ExternalLink = ({href, title, className, children}: AnchorProps) => (
-    <a href={href} title={title} className={className} target="_blank" rel="noopener noreferrer">
-        {children}
-    </a>
-)
+const isWebHref = (href?: string): href is string => Boolean(href && /^https?:\/\//i.test(href))
+
+/** Plain link in a new tab; a web link previews its page on hover. */
+const ExternalLink = ({href, title, className, children}: AnchorProps) => {
+    const link = (
+        <a
+            href={href}
+            title={title}
+            className={className}
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            {children}
+        </a>
+    )
+    return isWebHref(href) ? <WebLinkPreview href={href}>{link}</WebLinkPreview> : link
+}
 
 /** A relative href may NAME a file — resolve it through the same resolver inline code uses. */
 const DriveLink = ({href, ...rest}: AnchorProps) => {
