@@ -16,7 +16,8 @@
         "types:check": "tsc",
         "generate:tokens": "tsx scripts/generate-shadcn-tokens.ts",
         "tokens:check": "tsx scripts/generate-shadcn-tokens.ts --check",
-        "test": "vitest run",
+        "test": "pnpm run test:unit",
+        "test:unit": "vitest run",
         "test:watch": "vitest"
     },
     "dependencies": {
