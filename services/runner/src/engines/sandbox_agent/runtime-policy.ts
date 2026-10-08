@@ -12,7 +12,6 @@ export {
   type McpPermissionTable,
   type McpServerPermissions,
 } from "../../mcp-permission.ts";
-import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
 import { materializeGatewayHeaders } from "./run-plan.ts";
 import { commandTimeoutSeconds } from "./run-limits.ts";
 import {
@@ -334,17 +333,6 @@ export function applyClaudeConnectionEnv(
  */
 export function modelResolutionStrict(): boolean {
   return process.env.AGENTA_AGENT_MODEL_STRICT !== "false";
-}
-
-export async function defaultResolveLocalRunnerOwner(
-  sessionId: string,
-  authorization: string,
-): Promise<{ replicaId: string; ownerReplicaId: string | undefined }> {
-  // No credential ⇒ the claim would 401; treat as "no known owner" (pass), never worse than today.
-  if (!authorization) {
-    return { replicaId: REPLICA_ID, ownerReplicaId: undefined };
-  }
-  return claimSessionOwnership(sessionId, authorization);
 }
 
 export function isTransportEndpointDisconnected(err: unknown): boolean {

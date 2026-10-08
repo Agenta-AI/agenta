@@ -27,7 +27,11 @@ import type { RunErrorCode } from "../engines/sandbox_agent/errors.ts";
 import type { TurnLimit } from "../engines/sandbox_agent/run-limits.ts";
 import { platformCredentialForRequest } from "../engines/sandbox_agent/runtime-policy.ts";
 import type { AgentRunRequest } from "../protocol.ts";
-import { startPlatformCredentialLease, type PlatformCredentialLease } from "../sessions/auth.ts";
+import {
+  runnerTokenHeader,
+  startPlatformCredentialLease,
+  type PlatformCredentialLease,
+} from "../sessions/auth.ts";
 
 export const SANDBOX_USAGE_INTERVAL_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -107,9 +111,9 @@ export function sandboxUsageContext(
   };
 }
 
-function platformHeaders(authorization: string): Record<string, string> {
-  const runnerToken = process.env.AGENTA_RUNNER_TOKEN?.trim();
-  return { authorization, ...(runnerToken ? { "x-agenta-runner-token": runnerToken } : {}) };
+/** `baseUrl` is the base the call posts to, so the runner token goes only to a trusted base. */
+function platformHeaders(authorization: string, baseUrl: string): Record<string, string> {
+  return { authorization, ...runnerTokenHeader(baseUrl) };
 }
 
 /** What the platform answered for a turn that may run a platform sandbox. */
@@ -174,12 +178,13 @@ export async function admitSandboxTurn(
 ): Promise<SandboxTurnAdmission> {
   const log = deps.log ?? defaultLog;
   if (!authorization) return ADMITTED;
+  const baseUrl = deps.baseUrl ?? apiBase();
   try {
     const res = await (deps.fetch ?? fetch)(
-      `${deps.baseUrl ?? apiBase()}/wallets/sandboxes/admit`,
+      `${baseUrl}/wallets/sandboxes/admit`,
       {
         method: "POST",
-        headers: { "content-type": "application/json", ...platformHeaders(authorization) },
+        headers: { "content-type": "application/json", ...platformHeaders(authorization, baseUrl) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         body: JSON.stringify({ turn_id: turnId, ...(sessionId ? { session_id: sessionId } : {}) }),
       },
@@ -201,6 +206,8 @@ export interface TurnSlot {
   release(): void;
 }
 
+const NO_SLOT: TurnSlot = { release() {} };
+
 /**
  * Keep the platform's count of this organization's running turns true while the turn runs: a
  * beat every interval, and a release at the end. A runner that dies stops beating, so its turns
@@ -210,6 +217,9 @@ export interface TurnSlot {
  * `heartbeat: false` holds no slot (the platform counted none) and only sends the release at the
  * end, which also ends the gateway's hold on the turn's session: a session must not keep serving
  * model calls past zero after its turn ended.
+ *
+ * Without a credential there is nothing to hold: admission asked the platform nothing, so it
+ * counts no slot and no session hold, and a call without a credential is refused anyway.
  */
 export function holdTurnSlot(
   authorization: string,
@@ -224,6 +234,7 @@ export function holdTurnSlot(
     heartbeat?: boolean;
   } = {},
 ): TurnSlot {
+  if (!authorization) return NO_SLOT;
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetch ?? fetch;
   const baseUrl = deps.baseUrl ?? apiBase();
@@ -232,7 +243,7 @@ export function holdTurnSlot(
     try {
       const res = await doFetch(`${baseUrl}/wallets/sandboxes/turns/${action}`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...platformHeaders(lease.credential()) },
+        headers: { "content-type": "application/json", ...platformHeaders(lease.credential(), baseUrl) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         body: JSON.stringify({ turn_id: turnId, ...(sessionId ? { session_id: sessionId } : {}) }),
       });
@@ -414,7 +425,7 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
     try {
       res = await doFetch(`${baseUrl}/wallets/sandboxes/usage`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...platformHeaders(options.credential()) },
+        headers: { "content-type": "application/json", ...platformHeaders(options.credential(), baseUrl) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         body: JSON.stringify({
           provider: options.provider,

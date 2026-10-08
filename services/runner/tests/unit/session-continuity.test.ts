@@ -4,7 +4,7 @@
  * Pure map + policy logic, no sandbox-agent imports: exercised directly against
  * `SessionContinuityStore` instances (never the process-wide singleton, to keep tests
  * isolated). Covers record/read-back, the per-harness staleness guard including the
- * double-switch scenario, and the local-runner ownership guard.
+ * double-switch scenario.
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
@@ -14,9 +14,6 @@ import {
   nextTurnIndex,
   isHarnessLoadEligible,
   eligibleAgentSessionId,
-  isLocalRunnerEligible,
-  assertLocalRunnerOwnership,
-  LocalSandboxNotOwnerError,
 } from "../../src/engines/sandbox_agent/session-continuity.ts";
 
 describe("SessionContinuityStore basics", () => {
@@ -189,74 +186,5 @@ describe("per-harness staleness guard", () => {
       "claude's file is two turns stale (codex then pi-claude ran since)",
     );
     assert.equal(eligibleAgentSessionId("sess-1", "claude", store), undefined);
-  });
-});
-
-// --- local multi-runner fails loudly --- //
-
-describe("isLocalRunnerEligible", () => {
-  it("is eligible when no owner is known yet (nothing to conflict with)", () => {
-    assert.equal(isLocalRunnerEligible(undefined, "replica-a"), true);
-  });
-
-  it("is eligible when the owner IS this replica", () => {
-    assert.equal(isLocalRunnerEligible("replica-a", "replica-a"), true);
-  });
-
-  it("is NOT eligible when a known owner is a DIFFERENT replica", () => {
-    assert.equal(isLocalRunnerEligible("replica-a", "replica-b"), false);
-  });
-});
-
-describe("assertLocalRunnerOwnership", () => {
-  it("is a no-op (never throws) when the owner is undefined", () => {
-    assert.doesNotThrow(() =>
-      assertLocalRunnerOwnership("sess-1", "replica-a", undefined),
-    );
-  });
-
-  it("is a no-op when the owner equals the caller's replica id", () => {
-    assert.doesNotThrow(() =>
-      assertLocalRunnerOwnership("sess-1", "replica-a", "replica-a"),
-    );
-  });
-
-  it("throws LocalSandboxNotOwnerError with the right fields when a KNOWN owner disagrees", () => {
-    assert.throws(
-      () => assertLocalRunnerOwnership("sess-1", "replica-b", "replica-a"),
-      (err: unknown) => {
-        assert.ok(err instanceof LocalSandboxNotOwnerError);
-        assert.equal(err.sessionId, "sess-1");
-        assert.equal(err.replicaId, "replica-b");
-        assert.equal(err.ownerReplicaId, "replica-a");
-        assert.match(err.message, /local sandbox requires a single runner/);
-        return true;
-      },
-    );
-  });
-
-  it("tells the user the pin clears itself, since a runner restart is how they meet it", () => {
-    // The message is surfaced verbatim. A restart leaves the old replica's affinity key alive
-    // for OWNER_TTL_SECONDS (120s), so every resume in that window lands here and then starts
-    // working again on its own. Without saying so the error reads as a dead session.
-    const err = new LocalSandboxNotOwnerError(
-      "sess-1",
-      "replica-b",
-      "replica-a",
-    );
-
-    assert.match(err.message, /pinned to the runner instance that started it/);
-    assert.match(err.message, /clears itself within a couple of minutes/);
-    assert.match(err.message, /sending again will work/);
-    // The operator detail survives, after the part a user can act on.
-    const guidanceEnds = err.message.indexOf("[local sandbox requires");
-    assert.ok(
-      guidanceEnds > 0,
-      "operator detail should be bracketed at the end",
-    );
-    assert.ok(
-      !err.message.slice(0, guidanceEnds).includes("replica-a"),
-      "no replica ids before the guidance — they mean nothing to the person who pressed send",
-    );
   });
 });

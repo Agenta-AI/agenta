@@ -19,6 +19,7 @@
  *
  * Run: pnpm exec vitest run tests/unit/lifecycle-live-routes.test.ts
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
@@ -152,6 +153,7 @@ function makeEngine(options: EngineOptions = {}) {
       calls.turns.push(env as unknown as FakeEnv);
       return { ok: true, output: "ok", stopReason: "complete" };
     },
+    readLatestTurnIndex: turnLogUnmoved,
     async runCold(): Promise<AgentRunResult> {
       return { ok: true, output: "cold", stopReason: "complete" };
     },

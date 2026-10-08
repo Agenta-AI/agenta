@@ -10,6 +10,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-approval.test.ts)
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -28,9 +29,17 @@ import type {
 import {
   runWithKeepalive,
   staleInteractionExemptTokens,
+  stopParkedApprovalSession,
   type KeepaliveContext,
   type KeepaliveEngine,
 } from "../../src/server.ts";
+import { applyCommand } from "../../src/sessions/control-channel.ts";
+import { RUNNER_SHUTDOWN_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
+import { RUNNER_RESTARTING_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
+import { resetAppliedCommandsForTest } from "../../src/sessions/applied-commands.ts";
+import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
+import { SessionTurnIndexTaken } from "../../src/engines/sandbox_agent/session-continuity-durable.ts";
+import { WARM_SESSION_UNCONFIRMED_MESSAGE } from "../../src/lifecycle/session-coordinator.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import {
   approvalDecisionForToolCall,
@@ -122,6 +131,7 @@ interface DispatchFakeEnv {
   /** Stamped at acquire from the credentials this env "mounted", as the real helpers do. */
   installedMountExpiries: InstalledMountExpiries;
   parkedApproval?: ParkedApproval;
+  parkedTurnId?: string;
   approvalGateCount: number;
   nonParkablePauseCount: number;
   clearTurn: () => void;
@@ -304,6 +314,7 @@ function makeApprovalEngine(
     async runTurn(env, request, _emit, _signal, opts) {
       return applyScript(env as unknown as DispatchFakeEnv, request, opts);
     },
+    readLatestTurnIndex: turnLogUnmoved,
     async runCold(_request, _emit, _signal, _presigned) {
       calls.cold += 1;
       return { ok: true, output: "cold", stopReason: "complete" };
@@ -622,6 +633,138 @@ describe("runWithKeepalive: approval park + resume", () => {
     assert.equal(calls.turns[1].env, calls.turns[0].env);
   });
 
+  it("stays warm across a resume whose start write was a benign 409 (compared by turn_index)", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    // The turn log as the api keeps it: one row per index, the first writer's turn id wins.
+    const ledger = new Map<number, string | undefined>();
+    const turnIndexes = [0, 0, 1]; // pause, its resume (same index), the next fresh prompt
+    const runScripted = engine.runTurn;
+    engine.runTurn = async (env, request, emit, signal, opts) => {
+      const index = turnIndexes[calls.turns.length];
+      (env as unknown as { continuityTurnIndex?: number }).continuityTurnIndex =
+        index;
+      if (!ledger.has(index)) ledger.set(index, request.turnId);
+      return runScripted(env, request, emit, signal, opts);
+    };
+    const reads: string[] = [];
+    engine.readLatestTurnIndex = async (sessionId) => {
+      reads.push(sessionId);
+      return { ok: true, turnIndex: Math.max(...ledger.keys()) };
+    };
+    const ctx = makeCtx(engine);
+
+    await runWithKeepalive(
+      { ...pauseTurn(), turnId: "t-pause" },
+      undefined,
+      undefined,
+      ctx,
+    );
+    const resumed = await runWithKeepalive(
+      approveResume(true, { turnId: "t-resume", streamId: "stream-1" }),
+      undefined,
+      undefined,
+      ctx,
+    );
+    const next = await runWithKeepalive(
+      {
+        harness: "claude",
+        model: "m1",
+        sessionId: "s1",
+        turnId: "t-next",
+        streamId: "stream-1",
+        ...auth,
+        messages: [{ role: "user", content: "and then?" }],
+      },
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(resumed.ok, true);
+    assert.equal(next.ok, true);
+    assert.equal(
+      ledger.get(0),
+      "t-pause",
+      "the resume's write was refused, so the row keeps the paused turn's id",
+    );
+    assert.deepEqual(reads, ["s1", "s1"], "the resume and the next turn both checked");
+    assert.equal(calls.acquire, 1, "every turn stayed on the warm environment");
+    assert.equal(calls.turns[2].env, calls.turns[0].env);
+    assert.equal(calls.turns[2].opts.continuation, true);
+  });
+
+  it("a parked approval whose turn log moved on is evicted as continuity-invalid", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    engine.readLatestTurnIndex = async () => ({ ok: true, turnIndex: 5 });
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const parked = calls.acquiredEnvs[0];
+    const reasons: Array<string | undefined> = [];
+    parked.destroy = ((opts?: { reason?: string }) => {
+      reasons.push(opts?.reason);
+      return parked.destroyImpl();
+    }) as DispatchFakeEnv["destroy"];
+
+    await runWithKeepalive(
+      approveResume(true, { streamId: "stream-1" }),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(calls.resumes.length, 0, "the stale park was not resumed");
+    assert.equal(calls.acquire, 2, "the reply took the cold path");
+    assert.deepEqual(reasons, ["continuity-invalid"]);
+  });
+
+  it("a failed turn-log read refuses the resume and keeps the approval parked", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    engine.readLatestTurnIndex = async () => ({ ok: false, error: "HTTP 502" });
+
+    const result = await runWithKeepalive(
+      approveResume(true, { streamId: "stream-1" }),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error, WARM_SESSION_UNCONFIRMED_MESSAGE);
+    assert.equal(calls.resumes.length, 0);
+    assert.equal(calls.acquire, 1);
+    assert.equal(ctx.pool.get(POOL_KEY)?.state, "awaiting_approval");
+    assert.equal(calls.acquiredEnvs[0].destroyed, 0);
+  });
+
   it("ignores a denied tool result older than the last assistant message", () => {
     const request: AgentRunRequest = {
       messages: [
@@ -773,12 +916,22 @@ describe("runWithKeepalive: approval park + resume", () => {
       { toolCallId: "tc-1", toolName: "read_a" },
       { toolCallId: "tc-2", toolName: "read_b" },
     ];
-    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
-
-    const partialRequest = approveResumeMulti(
-      [{ toolCallId: "tc-1", toolName: "read_a", approved: true }],
-      parkedCalls,
+    await runWithKeepalive(
+      { ...pauseTurn(), turnId: "t-pause" },
+      undefined,
+      undefined,
+      ctx,
     );
+    // A Stop compares its target turn with this id, so each park records the parking turn.
+    assert.equal(calls.acquiredEnvs[0].parkedTurnId, "t-pause");
+
+    const partialRequest = {
+      ...approveResumeMulti(
+        [{ toolCallId: "tc-1", toolName: "read_a", approved: true }],
+        parkedCalls,
+      ),
+      turnId: "t-partial",
+    };
     assert.deepEqual(
       staleInteractionExemptTokens(
         partialRequest,
@@ -804,6 +957,11 @@ describe("runWithKeepalive: approval park + resume", () => {
       { permissionId: "perm-1", reply: "once", toolCallId: "tc-1" },
     ]);
     assert.equal(ctx.pool.get(POOL_KEY)?.state, "awaiting_approval");
+    assert.equal(
+      calls.acquiredEnvs[0].parkedTurnId,
+      "t-partial",
+      "the re-park on resume records the resume's turn, the turn that holds the gate",
+    );
     assert.deepEqual(
       [...calls.acquiredEnvs[0].parkedApprovals.keys()],
       ["tc-2"],
@@ -3078,6 +3236,103 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     await env.destroy();
   });
 
+  it("stops waiting for an approved execution's closure when a runner shutdown cancels the paused turn", async () => {
+    // A paused turn waits for each open allowed execution to close, up to the per-call bound.
+    // A shutdown has a much shorter release budget. Before the fix the wait ignored the shutdown
+    // abort, so the turn sat on the full bound: this test then fails on the vitest timeout.
+    const { calls, deps, captured } = pausableHarness();
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000_000,
+      idleMs: 500_000,
+      ttfbMs: 500_000,
+      toolCallMs: 600_000,
+    });
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-approved",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-approved",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-approved", name: "commit" },
+    });
+    await firstTurn;
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const controller = new AbortController();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, controller.signal, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-approved",
+            reply: "once",
+            toolCallId: "tc-approved",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-approved",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate-2",
+        title: "deploy",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate-2", name: "deploy" },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    // `tc-approved` never closes. Let the terminalization reach its closure wait, then let the
+    // shutdown cancel the turn while it waits.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    controller.abort(RUNNER_SHUTDOWN_ABORT_REASON);
+    const result = await resumeTurn;
+
+    assert.equal(result.stopReason, "cancelled", "the cancelled-turn cleanup ran");
+    const run = calls.runs[1];
+    assert.equal(
+      run.settled.some(
+        (entry) =>
+          entry.id === "tc-approved" &&
+          entry.message === APPROVED_EXECUTION_RESULT_UNKNOWN,
+      ),
+      true,
+      "the unclosed execution is settled as unknown, as when its bound expires",
+    );
+    assert.deepEqual(
+      run.emitted.filter((event) => event.type === "error"),
+      [{ type: "error", message: RUNNER_RESTARTING_MESSAGE, code: "execution_lost" }],
+      "the turn ends with the restart error, not as a Stop",
+    );
+
+    await env.destroy();
+  });
+
   it("records an approved completion that arrives after a sibling pause", async () => {
     const { deps, captured } = pausableHarness();
     deps.createOtel = createSandboxAgentOtel as any;
@@ -4767,6 +5022,255 @@ describe("runTurn: a Claude cost reading that lands after the turn's usage", () 
       });
       const secondResult = await second;
       assert.equal(secondResult.usage?.cost, 0.05);
+      await env.destroy();
+    },
+  );
+});
+
+/**
+ * A pausable harness whose turn log behaves like the api's: a start write on an index the log
+ * already holds answers 409.
+ */
+function pausableHarnessWithTurnLog() {
+  const harness = pausableHarness();
+  harness.deps.sessionContinuityStore = new SessionContinuityStore();
+  harness.deps.hydrateHarnessSessionFromDurable = async () => {};
+  const ledger = new Map<number, { endTime?: string }>();
+  const startedTurnIndexes: number[] = [];
+  const appendSessionTurn: NonNullable<
+    SandboxAgentDeps["appendSessionTurn"]
+  > = async (sessionId, _harness, turnIndex) => {
+    startedTurnIndexes.push(turnIndex);
+    if (ledger.has(turnIndex))
+      throw new SessionTurnIndexTaken(sessionId, turnIndex);
+    ledger.set(turnIndex, {});
+  };
+  appendSessionTurn.complete = async (_sessionId, turnIndex, turn) => {
+    const row = ledger.get(turnIndex);
+    if (row) row.endTime = turn.endTime;
+  };
+  harness.deps.appendSessionTurn = appendSessionTurn;
+  return { ...harness, ledger, startedTurnIndexes };
+}
+
+const turnLogRequest: AgentRunRequest = {
+  ...engineReq,
+  ...auth,
+  sessionId: "sess-stop",
+  streamId: "stream-1",
+  turnId: "turn-1",
+};
+
+describe("runTurn: a Stop on a parked approval spends the paused turn's index", () => {
+  it("the next fresh prompt on the same warm environment takes the next index", async () => {
+    resetAppliedCommandsForTest();
+    const { calls, deps, captured, ledger, startedTurnIndexes } =
+      pausableHarnessWithTurnLog();
+    const request = turnLogRequest;
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+    // The harness answers the cancel by settling the held prompt, as Claude does.
+    (
+      env.sandbox as { cancelSession?: (id: string) => Promise<void> }
+    ).cancelSession = async () => {
+      calls.resolvePrompt?.({ stopReason: "cancelled" });
+    };
+
+    const paused = runTurn(env, request, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate",
+        title: "Bash",
+        rawInput: { command: "ls" },
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tc-gate",
+        name: "Bash",
+        rawInput: { command: "ls" },
+      },
+    });
+    await flush();
+    assert.equal((await paused).stopReason, "paused");
+    assert.deepEqual([...ledger.keys()], [0]);
+    env.clearTurn();
+
+    const outcome = await applyCommand(
+      {
+        id: "cmd-stop-parked",
+        projectId: "proj-1",
+        sessionId: "sess-stop",
+        kind: "cancel",
+        target: { turnId: "turn-1", expectedTurnId: null },
+        createdAt: new Date().toISOString(),
+      },
+      {
+        findLive: () => undefined,
+        isParked: () => ({
+          turnId: "turn-1",
+          stop: () =>
+            stopParkedApprovalSession({
+              environment: env,
+              repark: async () => true,
+              teardown: async () => {
+                throw new Error("a settled Stop must not tear down");
+              },
+              cancelSettleMs: 1_000,
+            }),
+        }),
+        report: async () => {},
+      },
+    );
+    assert.equal(outcome.execution.state, "stopped");
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "reject" },
+    ]);
+    // The warm-cache check compares this against the turn log's latest index, which is still 0.
+    assert.equal(env.continuityTurnIndex, 0);
+
+    env.clearTurn();
+    const fresh = runTurn(
+      env,
+      {
+        ...request,
+        turnId: "turn-2",
+        messages: [{ role: "user", content: "next" }],
+      },
+      undefined,
+      undefined,
+      { approvalParkMode: true, continuation: true },
+    );
+    await flush();
+    calls.resolvePrompt!({
+      stopReason: "end_turn",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    const result = await fresh;
+
+    assert.equal(result.ok, true, result.error);
+    assert.deepEqual(startedTurnIndexes, [0, 1]);
+    assert.equal(calls.promptCount, 2);
+    assert.ok(
+      !calls.logs.some((line) =>
+        line.includes("already written by another runner"),
+      ),
+    );
+    await env.destroy();
+  });
+});
+
+describe("runTurn: an answered parked approval spends its turn's index once", () => {
+  it.each([
+    ["approved", "once"],
+    ["denied", "reject"],
+  ] as const)(
+    "a fresh prompt after the %s resume takes the next index",
+    async (_label, reply) => {
+      const { calls, deps, captured, ledger, startedTurnIndexes } =
+        pausableHarnessWithTurnLog();
+      const acquired = await acquireEnvironment(turnLogRequest, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      const paused = runTurn(env, turnLogRequest, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      captured.onEvent!(
+        updateEvent({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-gate",
+          title: "commit",
+          rawInput: { message: "hi" },
+        }),
+      );
+      captured.onPermissionRequest!({
+        id: "perm-1",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          toolCallId: "tc-gate",
+          name: "commit",
+          rawInput: { message: "hi" },
+        },
+      });
+      await flush();
+      assert.equal((await paused).stopReason, "paused");
+
+      env.clearTurn();
+      const held = env.parkedApproval!.promptPromise!;
+      const resumed = runTurn(
+        env,
+        approveResume(reply === "once", {
+          sessionId: "sess-stop",
+          streamId: "stream-1",
+          turnId: "turn-1",
+        }),
+        undefined,
+        undefined,
+        {
+          approvalParkMode: true,
+          resume: {
+            decisions: [
+              {
+                permissionId: "perm-1",
+                reply,
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                args: { message: "hi" },
+                interactionToken: "tc-gate",
+                promptPromise: held,
+              },
+            ],
+            carriedForward: [],
+          },
+        },
+      );
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const resumedResult = await resumed;
+      assert.equal(resumedResult.ok, true, resumedResult.error);
+      assert.deepEqual(calls.permissionReplies, [{ id: "perm-1", reply }]);
+      assert.equal(typeof ledger.get(0)?.endTime, "string");
+
+      env.clearTurn();
+      const fresh = runTurn(
+        env,
+        {
+          ...turnLogRequest,
+          turnId: "turn-2",
+          messages: [{ role: "user", content: "next" }],
+        },
+        undefined,
+        undefined,
+        { approvalParkMode: true, continuation: true },
+      );
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "end_turn",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await fresh;
+
+      assert.equal(result.ok, true, result.error);
+      assert.deepEqual(startedTurnIndexes, [0, 0, 1]);
+      assert.ok(
+        !calls.logs.some((line) =>
+          line.includes("already written by another runner"),
+        ),
+      );
       await env.destroy();
     },
   );

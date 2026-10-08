@@ -9,7 +9,8 @@
  *  2. It aborts NOTHING when it holds an execution that started after the command was created.
  *     That is the late-Stop guard, and it is exact because it reads this process's own memory.
  *  3. A session it holds parked awaiting an approval releases every gate, answers `stopped`,
- *     and stays warm as an idle session for the next normal prompt.
+ *     and stays warm as an idle session for the next normal prompt. A Stop that names an older
+ *     turn than the parked one releases nothing and answers `obsolete`.
  *  4. The same command delivered twice aborts once and acknowledges twice.
  *  5. It aborts NOTHING when the named execution's prompt has already settled and only its
  *     teardown is still running. That Stop lost the race by a moment, and aborting a finished
@@ -128,6 +129,30 @@ describe("applyCommand", () => {
     assert.equal(reported.length, 1);
   });
 
+  it("answers obsolete when a delayed Stop for an older turn finds a newer parked approval", async () => {
+    // The Stop named turn-A. Turn-A ended, and turn-B has since parked on an approval in the
+    // same session. Releasing turn-B's gates would cancel work the user never asked to stop.
+    const { reported, report } = collector();
+    let stopped = false;
+
+    const outcome = await applyCommand(command(), {
+      findLive: () => undefined,
+      isParked: () => ({
+        turnId: "turn-B",
+        stop: () => {
+          stopped = true;
+        },
+      }),
+      report,
+    });
+
+    assert.equal(outcome.result, "obsolete");
+    assert.equal(outcome.execution.state, "not_running");
+    assert.equal(outcome.execution.id, TURN);
+    assert.equal(stopped, false, "the newer parked approval was released");
+    assert.deepEqual(reported, [outcome]);
+  });
+
   it("stops a parked approval, clears its gates, and leaves the next prompt warm", async () => {
     const { reported, report } = collector();
     const permissionReplies: Array<{ id: string; reply: string }> = [];
@@ -155,6 +180,7 @@ describe("applyCommand", () => {
         sessionId === SESSION &&
         parked.state === "awaiting_approval"
           ? {
+              turnId: TURN,
               stop: async () => {
                 for (const gate of parked.gates.values()) {
                   await parked.session.respondPermission(
@@ -410,6 +436,7 @@ describe("applyCommand", () => {
         sessionId === SESSION &&
         parked.state === "awaiting_approval"
           ? {
+              turnId: TURN,
               stop: () =>
                 stopParkedApprovalSession({
                   environment: env,
@@ -797,7 +824,7 @@ describe("holdsSession", () => {
     assert.equal(
       holdsSession(PROJECT, SESSION, (projectId, sessionId) =>
         projectId === PROJECT && sessionId === SESSION
-          ? { stop: () => {} }
+          ? { turnId: TURN, stop: () => {} }
           : undefined,
       ),
       true,
@@ -812,7 +839,7 @@ describe("holdsSession", () => {
         (projectId, sessionId) =>
           projectId === "22222222-2222-4222-8222-222222222222" &&
           sessionId === SESSION
-            ? { stop: () => {} }
+            ? { turnId: TURN, stop: () => {} }
             : undefined,
       ),
       false,
