@@ -10,9 +10,9 @@ import {cn} from "./utils"
  * antd Dropdown mapping: getPopupContainer→container, danger→variant="destructive", divider→Separator.
  */
 
-// The global scroll-fade animation never fires `animationend`, so a closed menu would stay
-// mounted; killing the name and resetting the timeline releases it.
-const NO_SCROLL_TIMELINE = "[animation-name:none] [animation-timeline:auto]"
+// Enter/exit (surfaces.css). Its finite animation also replaces the desktop's global scroll-fade
+// animation, which never fires `animationend` and so would keep a closed menu mounted.
+const MENU_MOTION = "ag-overlay-motion"
 
 function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
     return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
@@ -59,7 +59,7 @@ function DropdownMenuContent({
                     // font-portal: portalled to <body>, outside the app font scope; box-border: preflight off.
                     "relative z-50 box-border min-w-32 max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-md font-portal",
                     "rounded-control-lg p-1 ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)]",
-                    NO_SCROLL_TIMELINE,
+                    MENU_MOTION,
                     className,
                 )}
                 {...props}
@@ -233,7 +233,7 @@ function DropdownMenuSubContent({
                     // Same panel as DropdownMenuContent.
                     "relative z-50 box-border min-w-32 max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-md font-portal",
                     "rounded-control-lg p-1 ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)]",
-                    NO_SCROLL_TIMELINE,
+                    MENU_MOTION,
                     className,
                 )}
                 {...props}

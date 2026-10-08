@@ -293,24 +293,26 @@
 
     /* ── Overlay / drawer motion ──────────────────────────────────────────────────────────────
        The kit's Sheet, Dialog and Accordion animate with NAMED utilities
-       (`animate-sheet-in-right`, `animate-overlay-in`, …) whose keyframes live in the desktop's
-       Tailwind config. Tailwind only emits a utility it can resolve, so without these the shared
-       drawers opened with no slide and no mask — the components were right, the keyframes simply
-       did not exist here. Values mirror oss/tailwind.config.ts (antd's own durations/easings). */
-    --animate-overlay-in: overlay-in 0.2s ease;
-    --animate-overlay-out: overlay-out 0.2s ease;
-    --animate-dialog-in: dialog-in 0.2s cubic-bezier(0.08, 0.82, 0.17, 1);
-    --animate-dialog-out: dialog-out 0.2s cubic-bezier(0.6, 0.04, 0.98, 0.34);
-    --animate-sheet-in-right: sheet-in-right 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-right: sheet-out-right 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-sheet-in-left: sheet-in-left 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-left: sheet-out-left 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-sheet-in-top: sheet-in-top 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-top: sheet-out-top 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-sheet-in-bottom: sheet-in-bottom 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-bottom: sheet-out-bottom 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-accordion-down: accordion-down 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
-    --animate-accordion-up: accordion-up 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+       (`animate-sheet-in-right`, `animate-overlay-in`, …) whose keyframes live here: Tailwind
+       only emits a utility it can resolve, so without these the shared drawers would open with
+       no slide and no mask. Timing comes from the shared motion tokens in
+       `@agenta/ui/surfaces.css` (`--ag-duration-*`, `--ag-ease-*`): `@theme inline` copies the
+       `var()` into each utility, so the tokens — and their reduced-motion collapse — apply at
+       runtime. Exits are shorter than enters and accelerate away. */
+    --animate-overlay-in: overlay-in var(--ag-duration-base) var(--ag-ease-out);
+    --animate-overlay-out: overlay-out var(--ag-duration-fast) var(--ag-ease-in);
+    --animate-dialog-in: dialog-in var(--ag-duration-base) var(--ag-ease-out);
+    --animate-dialog-out: dialog-out var(--ag-duration-fast) var(--ag-ease-in);
+    --animate-sheet-in-right: sheet-in-right var(--ag-duration-slow) var(--ag-ease-out);
+    --animate-sheet-out-right: sheet-out-right var(--ag-duration-base) var(--ag-ease-in);
+    --animate-sheet-in-left: sheet-in-left var(--ag-duration-slow) var(--ag-ease-out);
+    --animate-sheet-out-left: sheet-out-left var(--ag-duration-base) var(--ag-ease-in);
+    --animate-sheet-in-top: sheet-in-top var(--ag-duration-slow) var(--ag-ease-out);
+    --animate-sheet-out-top: sheet-out-top var(--ag-duration-base) var(--ag-ease-in);
+    --animate-sheet-in-bottom: sheet-in-bottom var(--ag-duration-slow) var(--ag-ease-out);
+    --animate-sheet-out-bottom: sheet-out-bottom var(--ag-duration-base) var(--ag-ease-in);
+    --animate-accordion-down: accordion-down var(--ag-duration-base) var(--ag-ease-out);
+    --animate-accordion-up: accordion-up var(--ag-duration-fast) var(--ag-ease-in);
     --animate-skeleton: skeleton 1.4s ease infinite;
     --animate-config-shimmer: config-shimmer 1.8s ease-in-out 2 forwards;
     /* The live line's verb (activity fold, startup label): a light sweeps through the words. */
@@ -337,10 +339,11 @@
         opacity: 0;
     }
 }
+/* A dialog settles in from just below full size; a bigger start (antd's 0.9) reads as a zoom. */
 @keyframes dialog-in {
     from {
         opacity: 0;
-        transform: scale(0.9);
+        transform: scale(0.96);
     }
     to {
         opacity: 1;
@@ -354,7 +357,7 @@
     }
     to {
         opacity: 0;
-        transform: scale(0.9);
+        transform: scale(0.98);
     }
 }
 /* The extra 1rem clears the kit Sheet's floating inset (lg:right-2 / lg:left-2). */

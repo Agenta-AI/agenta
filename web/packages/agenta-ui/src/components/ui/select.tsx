@@ -126,6 +126,8 @@ function SelectContent({
                     // (else the panel renders 8px wider than the trigger / antd dropdown).
                     "relative z-50 box-border max-h-96 min-w-[8rem] overflow-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-control-lg p-1",
+                    // Enter/exit (surfaces.css), grown out of the trigger like every other overlay.
+                    "ag-overlay-motion",
                     // Pin the panel to the trigger width (antd matches dropdown to trigger). With
                     // box-border the border-box equals the trigger width; the p-1 padding stays inside.
                     position === "popper" &&

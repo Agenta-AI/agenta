@@ -81,6 +81,8 @@ function TooltipContent({
                     // break-words: the cap alone can't contain an unbreakable token (an event key,
                     // an id, a URL), which otherwise runs straight out of the tooltip's background.
                     "max-w-[250px] break-words",
+                    // Enter/exit (surfaces.css): a quick fade-and-grow off the trigger.
+                    "ag-overlay-motion",
                     className,
                 )}
                 {...props}
