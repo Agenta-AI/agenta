@@ -108,6 +108,9 @@ export interface DriveImageThumb {
     src: string
     width: number
     height: number
+    /** The original image's size, before scaling. */
+    sourceWidth: number
+    sourceHeight: number
     bytes: number
 }
 
@@ -188,7 +191,16 @@ async function downscaleImage(blob: Blob, px: number): Promise<DriveImageThumb |
         })
         const encoded = await encodeWebp(bitmap, width, height)
         const src = encoded ? await readAsDataUrl(encoded) : null
-        return src ? {src, width, height, bytes: blob.size} : null
+        return src
+            ? {
+                  src,
+                  width,
+                  height,
+                  sourceWidth: size.width,
+                  sourceHeight: size.height,
+                  bytes: blob.size,
+              }
+            : null
     } catch {
         return null
     } finally {

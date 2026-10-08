@@ -74,7 +74,7 @@ export function DriveFileInlineRef({path}: {path: string}) {
                 align="start"
                 sideOffset={6}
                 collisionPadding={8}
-                className="w-80 max-w-[calc(100vw-1rem)] overflow-hidden p-0 text-xs"
+                className="w-auto max-w-[calc(100vw-1rem)] overflow-hidden p-0 text-xs"
             >
                 <DriveFileHoverCard path={path} />
             </HoverCardContent>
