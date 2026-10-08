@@ -1,41 +1,76 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {revalidateSessionMountsAtom} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     type AttachmentRejection,
     DEFAULT_ATTACHMENT_LIMITS,
     attachmentRefsToParts,
+    exceedsAttachmentLimit,
+    formatBytes,
     validateIncoming,
 } from "../assets"
 import {
     AttachmentUploadError,
     uploadAttachment,
+    uploadFileToSessionDrive,
     type SessionAttachmentResponse,
+    type SessionDriveFileResponse,
 } from "../assets/attachmentTransport"
 import type {StagedUpload as UploadFile} from "../model"
 import {attachmentsBySession} from "../state/sessionEphemera"
 
 import {removeUploadFile, useAttachmentUploads} from "./useAttachmentUploads"
 
-export type ComposerAttachment = UploadFile<SessionAttachmentResponse>
+/** A tray row settles as an attachment reference, or as a file saved to the session drive. */
+export type ComposerUploadResponse = SessionAttachmentResponse | SessionDriveFileResponse
+export type ComposerAttachment = UploadFile<ComposerUploadResponse>
 type StagedFile = ComposerAttachment
 
-/** Convert settled upload-tray entries into reference `file` parts via the neutral builder. */
+/** The drive destination of a row that went to the session drive, else undefined. */
+export const stagedDriveFile = (file: StagedFile): SessionDriveFileResponse["drive"] | undefined =>
+    file.response && "drive" in file.response ? file.response.drive : undefined
+
+const hasUploadResponse = (file: StagedFile): boolean =>
+    Boolean(file.response && ("attachment" in file.response || "drive" in file.response))
+
+/**
+ * Append one line per drive-saved row to the message text, so the agent knows where the file is.
+ * A line already in the text is skipped: an edited held message comes back with its note AND its
+ * rows, and a resend must not repeat the note.
+ */
+export const withDriveFileNote = (text: string, files: StagedFile[]): string => {
+    const lines = files.flatMap((file) => {
+        const drive = stagedDriveFile(file)
+        if (!drive) return []
+        const line = `Uploaded to the session drive (too large to attach): \`${drive.path}\` (${formatBytes(drive.size)})`
+        return text.includes(line) ? [] : [line]
+    })
+    return [text, ...lines].filter(Boolean).join("\n\n")
+}
+
+/** Convert settled upload-tray entries into reference `file` parts via the neutral builder.
+ * Rows saved to the session drive carry no attachment; {@link withDriveFileNote} covers them. */
 export const stagedFilesToParts = (files: StagedFile[], sessionId: string) =>
     attachmentRefsToParts(
-        files.map((file) => {
-            const attachment = file.response?.attachment
-            if (!attachment) throw new Error(`Attachment upload is incomplete: ${file.name}`)
-            return {
-                attachmentId: attachment.attachment_id,
-                filename: attachment.filename,
-                mediaType: attachment.media_type,
-                size: attachment.size,
-            }
-        }),
+        files
+            .filter((file) => !stagedDriveFile(file))
+            .map((file) => {
+                const attachment =
+                    file.response && "attachment" in file.response
+                        ? file.response.attachment
+                        : undefined
+                if (!attachment) throw new Error(`Attachment upload is incomplete: ${file.name}`)
+                return {
+                    attachmentId: attachment.attachment_id,
+                    filename: attachment.filename,
+                    mediaType: attachment.media_type,
+                    size: attachment.size,
+                }
+            }),
         sessionId,
     )
 
@@ -59,10 +94,14 @@ const toUploadFile = (file: File, uploadsEnabled: boolean): StagedFile => ({
 export const useComposerAttachments = ({
     sessionId,
     uploadsEnabled = true,
+    largeFilesToDrive = false,
 }: {
     sessionId: string
     /** Hosts gate the whole attachment path on their rollout flag; off = inline-only staging. */
     uploadsEnabled?: boolean
+    /** Save a file over the attachment cap to the session drive instead of rejecting it. Needs
+     * uploads: the inline-only path has nowhere to put the file. */
+    largeFilesToDrive?: boolean
 }) => {
     // The session's project. Every other session-scoped call sends it; the upload must too, or
     // the API stores the attachment under the caller's default project and the runner, scoped
@@ -106,6 +145,8 @@ export const useComposerAttachments = ({
     // Single limits object so it can later be swapped for capability-derived limits.
     const limits = DEFAULT_ATTACHMENT_LIMITS
     const atMax = files.length >= limits.maxCount
+    const oversizedToDrive = largeFilesToDrive && uploadsEnabled
+    const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     // Drag-over state for the whole-panel drop overlay (depth counter avoids child flicker).
     const dragDepthRef = useRef(0)
     const [isDragging, setIsDragging] = useState(false)
@@ -128,6 +169,19 @@ export const useComposerAttachments = ({
                     new AttachmentUploadError("This upload needs an active project."),
                 )
             }
+            if (oversizedToDrive && exceedsAttachmentLimit(file, limits)) {
+                return uploadFileToSessionDrive({
+                    file,
+                    sessionId,
+                    projectId,
+                    onProgress,
+                    signal,
+                }).then((response: ComposerUploadResponse) => {
+                    // The Files drawer shows the new file without waiting for the turn to end.
+                    revalidateSessionMounts(sessionId)
+                    return response
+                })
+            }
             return uploadAttachment({
                 file,
                 sessionId,
@@ -137,7 +191,7 @@ export const useComposerAttachments = ({
                 signal,
             })
         },
-        [sessionId, projectId],
+        [sessionId, projectId, oversizedToDrive, limits, revalidateSessionMounts],
     )
     // Upload lifecycle for the tray (progress / error / retry).
     const uploads = useAttachmentUploads(files, setFiles, attachmentUploader)
@@ -154,7 +208,7 @@ export const useComposerAttachments = ({
     // A staged attachment blocks send until its reference exists; without uploads the inline path
     // only needs every entry to be settled.
     const attachmentsSettled = uploadsEnabled
-        ? files.every((file) => file.status === "done" && Boolean(file.response?.attachment))
+        ? files.every((file) => file.status === "done" && hasUploadResponse(file))
         : files.every((file) => file.status === "done")
 
     /** Why send is held, for the send button's tooltip. */
@@ -166,7 +220,9 @@ export const useComposerAttachments = ({
 
     /** Add files from paste / programmatic sources through the guardrails. */
     const addFiles = (incoming: File[], extraRejections: AttachmentRejection[] = []) => {
-        const {accepted, rejections} = validateIncoming(incoming, stagedCountRef.current, limits)
+        const {accepted, rejections} = validateIncoming(incoming, stagedCountRef.current, limits, {
+            allowOversized: oversizedToDrive,
+        })
         const allRejections = [...extraRejections, ...rejections]
         if (accepted.length) {
             // Stage once and enqueue the MINTED uids — re-deriving them here is what let the tray
