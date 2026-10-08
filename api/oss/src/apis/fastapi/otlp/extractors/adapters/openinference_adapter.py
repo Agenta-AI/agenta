@@ -8,6 +8,7 @@ from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
     SpanFeatures,
 )
 from oss.src.apis.fastapi.otlp.utils.serialization import (
+    json_parse_loses_data,
     process_attribute,
     NAMESPACE_PREFIX_FEATURE_MAPPING,
 )
@@ -161,6 +162,9 @@ class OpenInferenceAdapter(BaseAdapter):
             if isinstance(parsed, (dict, list)):
                 ag_key = f"ag.data.inputs.tools.{index}"
                 transformed[ag_key] = parsed
+                # the parsed copy holds less than the raw text, so keep the raw key
+                if json_parse_loses_data(value):
+                    continue
             else:
                 ag_key = f"ag.data.inputs.tools.{index}.tool.json_schema"
                 transformed[ag_key] = value
@@ -292,8 +296,12 @@ class OpenInferenceAdapter(BaseAdapter):
                     features.__getattribute__(feature).update(flat_attribute)
 
                     source = sources.get(k)
-                    if source and source not in OPENINFERENCE_KEEP_RAW:
-                        features.mapped_sources[source] = (
-                            k,
-                            next(iter(flat_attribute.values())),
-                        )
+                    value = next(iter(flat_attribute.values()))
+                    # decode_value rewrites literal `@ag.type=...` text: keep the raw key
+                    if (
+                        source
+                        and source not in OPENINFERENCE_KEEP_RAW
+                        and value is v
+                        and value is not None
+                    ):
+                        features.mapped_sources[source] = (k, value)

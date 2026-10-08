@@ -175,3 +175,53 @@ def test_raw_key_kept_when_another_raw_key_nests_under_it():
 
     assert stored["tool"]["name"] == "read"
     assert stored["ag"]["meta"]["tool"]["name"] == "read"
+
+
+def test_raw_key_kept_when_parsing_the_json_loses_digits():
+    """Ingest parses `ag.data.inputs` from JSON, which rounds long decimals."""
+    raw = '{"amount": 0.1234567890123456789}'
+    stored = _ingest({"openinference.span.kind": "TOOL", "input.value": raw})
+
+    assert stored["input"]["value"] == raw
+
+
+def test_raw_key_kept_when_parsing_the_json_drops_duplicate_keys():
+    raw = '{"a": 1, "a": 2}'
+    stored = _ingest({"openinference.span.kind": "TOOL", "input.value": raw})
+
+    assert stored["input"]["value"] == raw
+
+
+def test_raw_tool_definition_kept_when_parsing_loses_digits():
+    raw = '{"type": "function", "function": {"x": 0.1234567890123456789}}'
+    stored = _ingest(
+        {"openinference.span.kind": "LLM", "llm.tools.0.tool.json_schema": raw}
+    )
+
+    assert stored["llm"]["tools"][0]["tool"]["json_schema"] == raw
+
+
+def test_raw_key_kept_when_decoding_rewrites_literal_text():
+    """`@ag.type=...` text is decoded on the ag.* copy, so the raw text stays."""
+    stored = _ingest(
+        {
+            "openinference.span.kind": "TOOL",
+            "output.value": "@ag.type=none:",
+            "llm.input_messages.0.message.content": '@ag.type=json:{"answer": 42}',
+        }
+    )
+
+    assert stored["output"]["value"] == "@ag.type=none:"
+    assert (
+        stored["llm"]["input_messages"][0]["message"]["content"]
+        == '@ag.type=json:{"answer": 42}'
+    )
+
+
+def test_short_decimals_still_dropped():
+    stored = _ingest(
+        {"openinference.span.kind": "TOOL", "input.value": '{"temperature": 0.7}'}
+    )
+
+    assert "input" not in stored
+    assert stored["ag"]["data"]["inputs"] == {"temperature": 0.7}

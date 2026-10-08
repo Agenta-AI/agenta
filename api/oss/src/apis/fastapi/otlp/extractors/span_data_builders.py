@@ -9,6 +9,7 @@ from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
 )
 
 from oss.src.core.otel.dtos import OTelSpanDTO
+from oss.src.apis.fastapi.otlp.utils.serialization import json_parse_loses_data
 from oss.src.core.tracing.dtos import OTelSpan, OTelFlatSpan, OTelEvent, OTelLink
 from oss.src.core.tracing.utils.parsing import (
     parse_trace_id_to_uuid,
@@ -42,6 +43,10 @@ def _transform_legacy_references(attributes: dict[str, Any]) -> dict[str, Any]:
     return attributes
 
 
+# ingest parses these fields from JSON text, see initialize_ag_attributes
+_JSON_PARSED_TARGETS = {"ag.data.inputs", "ag.data.parameters", "ag.data.internals"}
+
+
 def _drop_mapped_sources(
     attributes: dict[str, Any],
     mapped_sources: dict[str, tuple[str, Any]],
@@ -66,6 +71,12 @@ def _drop_mapped_sources(
         if _has_path_conflict(target, keys, parents):
             continue
         if _has_path_conflict(source, keys, parents):
+            continue
+        if (
+            target in _JSON_PARSED_TARGETS
+            and isinstance(value, str)
+            and json_parse_loses_data(value)
+        ):
             continue
 
         del attributes[source]
