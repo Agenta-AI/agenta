@@ -25,6 +25,7 @@ import {
   type RunAgent,
 } from "../../src/server.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
+import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import type { KillSessionSandboxes } from "../../src/engines/sandbox_agent/kill-by-label.ts";
 import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
@@ -1028,6 +1029,117 @@ describe("createAgentServer", () => {
         "cancelled",
         "a terminal record already written keeps its own ending",
       );
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // The two tests above use a FAKE engine, so they pin the transport's contract but not the real
+  // acquire. This one drives the REAL engine (`runSandboxAgent`) through the same HTTP server and
+  // aborts it inside `environment.ts`'s own acquire. Only the mount-signing network call is
+  // stubbed, through the documented `deps.signSessionMountCredentials` seam. The abort therefore
+  // makes the REAL `throwIfAcquireAborted(signal)` at environment.ts ~467 throw the REAL
+  // `AcquireAbortedError`, and the real `acquireEnvironment`/`runSandboxAgent` chain carries it to
+  // the transport. This is the closest this suite can get to a live cold provider without a
+  // deployment: the provider's own network behaviour is not exercised, but every line of the
+  // runner's acquire-and-report path is.
+  it("ends a user Stop inside the real engine's acquire as cancelled", async () => {
+    let markAcquireStarted!: () => void;
+    const acquireStarted = new Promise<void>((resolve) => {
+      markAcquireStarted = resolve;
+    });
+    // The real `prepareEnvironmentSetup` awaits this before its post-setup abort check. Blocking
+    // here holds acquire open until the Stop lands, then returning lets the REAL check throw.
+    const signSessionMountCredentials = (async (
+      _session: string,
+      options: { signal?: AbortSignal } = {},
+    ) => {
+      markAcquireStarted();
+      await new Promise<void>((resolve) => {
+        if (options.signal?.aborted) return resolve();
+        options.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      return null;
+    }) as never;
+    const run: RunAgent = (request, emit, signal) =>
+      runSandboxAgent(request, emit, signal, { signSessionMountCredentials });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-real-acquire-stop" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-real-acquire-stop",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start slowly" }],
+        }),
+      });
+
+      await acquireStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(
+        ingested.filter((record) => record.record_type === "error").length,
+        0,
+        "the real acquire abort does not persist an error",
+      );
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter(
+          (record) => record.kind === "event" && record.event?.type === "error",
+        ).length,
+        0,
+        "the real acquire abort does not reach the client as an error event",
+      );
+      const result = records.at(-1)?.result;
+      assert.equal(result?.ok, true);
+      assert.equal(result?.stopReason, "cancelled");
     } finally {
       vi.useRealTimers();
       fetchSpy.mockRestore();
