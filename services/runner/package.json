@@ -35,9 +35,9 @@
     "@opentelemetry/core": "2.8.0",
     "@opentelemetry/exporter-trace-otlp-proto": "0.220.0",
     "@opentelemetry/otlp-transformer": "0.220.0",
-    "@opentelemetry/resources": "2.0.1",
-    "@opentelemetry/sdk-trace-base": "2.0.1",
-    "@opentelemetry/sdk-trace-node": "2.0.1",
+    "@opentelemetry/resources": "2.8.0",
+    "@opentelemetry/sdk-trace-base": "2.8.0",
+    "@opentelemetry/sdk-trace-node": "2.8.0",
     "@opentelemetry/semantic-conventions": "1.37.0",
     "acp-http-client": "0.4.2",
     "pi-acp": "0.0.29",
@@ -52,7 +52,7 @@
     "@types/proper-lockfile": "4.1.4",
     "@vitest/coverage-v8": "^4.1.11",
     "esbuild": "0.28.1",
-    "tsx": "4.19.2",
+    "tsx": "4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   },
@@ -75,6 +75,7 @@
     "overrides": {
       "@grpc/grpc-js": "1.14.5",
       "@hono/node-server": "1.19.15",
+      "@modelcontextprotocol/sdk@<1.31.0": "~1.31.0",
       "@opentelemetry/propagator-jaeger": "2.9.0",
       "axios": "1.20.0",
       "brace-expansion": "5.0.12",
@@ -83,7 +84,10 @@
       "ip-address": "10.7.1",
       "postcss": "8.5.23",
       "protobufjs": "7.6.5",
-      "shell-quote": "1.9.0",
+      "proxy-addr@<2.0.8": "^2.0.8",
+      "qs@<6.16.0": "^6.16.0",
+      "shell-quote@<1.11.0": "^1.11.0",
+      "source-map-js@<1.2.2": "^1.2.2",
       "tar": "7.5.21"
     }
   }
