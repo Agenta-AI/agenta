@@ -35,6 +35,6 @@
         "@types/node": "^20.19.20",
         "@vitest/coverage-v8": "^4.1.11",
         "typescript": "^5.9.3",
-        "vitest": "^4.1.4"
+        "vitest": "^4.1.11"
     }
 }

@@ -41,6 +41,6 @@
         "@vitest/coverage-v8": "^4.1.11",
         "jotai-family": "^1.0.1",
         "typescript": "^5.9.3",
-        "vitest": "^4.1.4"
+        "vitest": "^4.1.11"
     }
 }

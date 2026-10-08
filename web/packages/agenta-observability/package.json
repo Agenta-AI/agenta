@@ -49,7 +49,7 @@
         "jotai-tanstack-query": "^0.11.0",
         "react": "^19.0.0",
         "typescript": "^5.9.3",
-        "vitest": "^4.1.4",
+        "vitest": "^4.1.11",
         "@types/papaparse": "^5.3.14",
         "jotai-eager": "^0.2.6",
         "fast-deep-equal": "^3.1.3",
