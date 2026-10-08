@@ -74,6 +74,16 @@ export const stagedFilesToParts = (files: StagedFile[], sessionId: string) =>
         sessionId,
     )
 
+/**
+ * What a send carries for these tray rows: the text, with a line for each row saved to the session
+ * drive, and the attachment parts (undefined when there are none). Every composer host builds its
+ * outbound message through this, so a drive-saved file is never sent without its note.
+ */
+export const stagedFilesToOutbound = (text: string, files: StagedFile[], sessionId: string) => {
+    const parts = stagedFilesToParts(files, sessionId)
+    return {text: withDriveFileNote(text, files), parts: parts.length ? parts : undefined}
+}
+
 // `uid` is the tray's React key, its preview-URL key, the remove / view / retry handle, and the
 // upload's idempotency key, so it has to be unique per TRAY ROW. Deriving it from name+mtime+size
 // collided whenever the same file was attached twice (paste then drop) — one remove then wiped

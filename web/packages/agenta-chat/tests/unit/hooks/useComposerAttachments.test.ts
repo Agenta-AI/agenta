@@ -7,6 +7,7 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 import {DEFAULT_ATTACHMENT_LIMITS} from "../../../src/assets/attachmentRules"
 import {uploadAttachment, uploadFileToSessionDrive} from "../../../src/assets/attachmentTransport"
 import {
+    stagedFilesToOutbound,
     stagedFilesToParts,
     useComposerAttachments,
     withDriveFileNote,
@@ -331,5 +332,28 @@ describe("withDriveFileNote", () => {
         const rows = [driveRow("uploads/a.pdf", 1024 * 1024)]
         const once = withDriveFileNote("hi", rows)
         expect(withDriveFileNote(once, rows)).toBe(once)
+    })
+})
+
+describe("stagedFilesToOutbound", () => {
+    it("sends only the note and no parts when every row went to the drive", () => {
+        const rows: ComposerAttachment[] = [
+            {
+                uid: "att-big",
+                name: "big.csv",
+                status: "done",
+                response: {
+                    drive: {path: "uploads/big.csv", filename: "big.csv", size: 1024 * 1024},
+                },
+            },
+        ]
+        expect(stagedFilesToOutbound("look", rows, "s-1")).toEqual({
+            text: "look\n\nUploaded to the session drive (too large to attach): `uploads/big.csv` (1.0 MB)",
+            parts: undefined,
+        })
+    })
+
+    it("leaves the text alone and sends no parts for an empty tray", () => {
+        expect(stagedFilesToOutbound("hi", [], "s-1")).toEqual({text: "hi", parts: undefined})
     })
 })
