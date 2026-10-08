@@ -1,7 +1,7 @@
 import {memo, useMemo, useState, type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
-import {mountFileContentQueryFamily} from "@agenta/entities/session"
+import {mountFileContentQueryFamily, sessionMountsQueryFamily} from "@agenta/entities/session"
 import {useInView} from "@agenta/shared/hooks"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -10,10 +10,9 @@ import {
     CHAT_IMAGE_PREVIEW_PX,
     isInlineImage,
     isRasterImage,
-    recordIndexAtomFamily,
     useMountResolver,
 } from "./chatFileLookup"
-import {chatFileResolver, fileCandidate, knownFromRecords} from "./chatFileRefs"
+import {chatFileResolver, fileCandidate} from "./chatFileRefs"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {mediaViewerAtom} from "./MediaViewer"
 import {SVG_PREVIEW_CAP, useSvgImage} from "./svgPreview"
@@ -56,7 +55,7 @@ function useSvgPreview(file: {mountId: string; path: string}) {
 function ChatInlineImageImpl({candidate}: {candidate: string}) {
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId()
-    const known = knownFromRecords(useAtomValue(recordIndexAtomFamily(sessionId)), candidate)
+    const mountsPending = useAtomValue(sessionMountsQueryFamily(sessionId)).isPending
     const target = useMountResolver(sessionId, artifactId)(candidate)
     const [ref, inView] = useInView<HTMLDivElement>()
     const enabled = inView && Boolean(target)
@@ -81,8 +80,9 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
     const data = preview.data
 
     if (!data || !target) {
-        // Only a file the agent wrote holds a placeholder; an unverified mention shows nothing.
-        const holding = known && (!enabled || preview.isPending)
+        // Hold the space until the mention proves not to be a file, so the reply never jumps.
+        const miss = target ? enabled && !preview.isPending : !mountsPending
+        const holding = !miss
         return (
             <div
                 ref={ref}
