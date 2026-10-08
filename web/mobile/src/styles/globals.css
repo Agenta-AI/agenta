@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Motion tokens (Tailwind `ease-*` / `duration-*`), kit animations, route transitions. */
+@import "@agenta/ui/motion.css";
 
 /* Palette-derived shadcn variables (light + dark), GENERATED from
    web/oss/src/styles/theme/palette.ts — do not edit by hand.
@@ -291,160 +293,17 @@
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) + 4px);
 
-    /* ── Overlay / drawer motion ──────────────────────────────────────────────────────────────
-       The kit's Sheet, Dialog and Accordion animate with NAMED utilities
-       (`animate-sheet-in-right`, `animate-overlay-in`, …) whose keyframes live here: Tailwind
-       only emits a utility it can resolve, so without these the shared drawers would open with
-       no slide and no mask. Timing comes from the shared motion tokens in
-       `@agenta/ui/surfaces.css` (`--ag-duration-*`, `--ag-ease-*`): `@theme inline` copies the
-       `var()` into each utility, so the tokens — and their reduced-motion collapse — apply at
-       runtime. Exits are shorter than enters and accelerate away. */
-    --animate-overlay-in: overlay-in var(--ag-duration-base) var(--ag-ease-out);
-    --animate-overlay-out: overlay-out var(--ag-duration-fast) var(--ag-ease-in);
-    --animate-dialog-in: dialog-in var(--ag-duration-base) var(--ag-ease-out);
-    --animate-dialog-out: dialog-out var(--ag-duration-fast) var(--ag-ease-in);
-    --animate-sheet-in-right: sheet-in-right var(--ag-duration-slow) var(--ag-ease-out);
-    --animate-sheet-out-right: sheet-out-right var(--ag-duration-base) var(--ag-ease-in);
-    --animate-sheet-in-left: sheet-in-left var(--ag-duration-slow) var(--ag-ease-out);
-    --animate-sheet-out-left: sheet-out-left var(--ag-duration-base) var(--ag-ease-in);
-    --animate-sheet-in-top: sheet-in-top var(--ag-duration-slow) var(--ag-ease-out);
-    --animate-sheet-out-top: sheet-out-top var(--ag-duration-base) var(--ag-ease-in);
-    --animate-sheet-in-bottom: sheet-in-bottom var(--ag-duration-slow) var(--ag-ease-out);
-    --animate-sheet-out-bottom: sheet-out-bottom var(--ag-duration-base) var(--ag-ease-in);
-    --animate-accordion-down: accordion-down var(--ag-duration-base) var(--ag-ease-out);
-    --animate-accordion-up: accordion-up var(--ag-duration-fast) var(--ag-ease-in);
-    --animate-skeleton: skeleton 1.4s ease infinite;
-    --animate-config-shimmer: config-shimmer 1.8s ease-in-out 2 forwards;
+    --animate-skeleton: skeleton 1.6s var(--ease-in-out) infinite;
+    --animate-config-shimmer: config-shimmer 1.8s var(--ease-in-out) 2 forwards;
     /* The live line's verb (activity fold, startup label): a light sweeps through the words. */
     --animate-text-shimmer: text-shimmer 2.4s linear infinite;
     /* The live line's three dots: each rises 3px and brightens in turn. */
     /* Home's create-mode ring. The component lives in @agenta/home-ui, which ships no CSS. */
     --animate-composer-ring: composer-ring-spin 3s linear infinite;
-    --animate-composer-ring-in: composer-ring-in 0.25s ease-out both;
+    --animate-composer-ring-in: composer-ring-in var(--transition-duration-base) var(--ease-out)
+        both;
 }
 
-@keyframes overlay-in {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-@keyframes overlay-out {
-    from {
-        opacity: 1;
-    }
-    to {
-        opacity: 0;
-    }
-}
-/* A dialog settles in from just below full size; a bigger start (antd's 0.9) reads as a zoom. */
-@keyframes dialog-in {
-    from {
-        opacity: 0;
-        transform: scale(0.96);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-@keyframes dialog-out {
-    from {
-        opacity: 1;
-        transform: scale(1);
-    }
-    to {
-        opacity: 0;
-        transform: scale(0.98);
-    }
-}
-/* The extra 1rem clears the kit Sheet's floating inset (lg:right-2 / lg:left-2). */
-@keyframes sheet-in-right {
-    from {
-        transform: translateX(calc(100% + 1rem));
-    }
-    to {
-        transform: translateX(0);
-    }
-}
-@keyframes sheet-out-right {
-    from {
-        transform: translateX(0);
-    }
-    to {
-        transform: translateX(calc(100% + 1rem));
-    }
-}
-@keyframes sheet-in-left {
-    from {
-        transform: translateX(calc(-100% - 1rem));
-    }
-    to {
-        transform: translateX(0);
-    }
-}
-@keyframes sheet-out-left {
-    from {
-        transform: translateX(0);
-    }
-    to {
-        transform: translateX(calc(-100% - 1rem));
-    }
-}
-@keyframes sheet-in-top {
-    from {
-        transform: translateY(-100%);
-    }
-    to {
-        transform: translateY(0);
-    }
-}
-@keyframes sheet-out-top {
-    from {
-        transform: translateY(0);
-    }
-    to {
-        transform: translateY(-100%);
-    }
-}
-@keyframes sheet-in-bottom {
-    from {
-        transform: translateY(100%);
-    }
-    to {
-        transform: translateY(0);
-    }
-}
-@keyframes sheet-out-bottom {
-    from {
-        transform: translateY(0);
-    }
-    to {
-        transform: translateY(100%);
-    }
-}
-@keyframes accordion-down {
-    from {
-        height: 0;
-        opacity: 0;
-    }
-    to {
-        height: var(--radix-accordion-content-height);
-        opacity: 1;
-    }
-}
-@keyframes accordion-up {
-    from {
-        height: var(--radix-accordion-content-height);
-        opacity: 1;
-    }
-    to {
-        height: 0;
-        opacity: 0;
-    }
-}
 @keyframes skeleton {
     0% {
         background-position: 100% 50%;

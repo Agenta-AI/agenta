@@ -7,7 +7,7 @@ import {cn} from "./utils"
 /**
  * Segmented — a custom cva primitive in @agenta/ui (NO Radix). A single-select control: a
  * rounded track of N options with ONE sliding pill/thumb behind the active option that
- * animates its position + width on selection change (antd's `motionDurationMid` ease).
+ * animates its position + width on selection change (motion.css `ease-in-out`).
  * Follows shadcn's source conventions (no `forwardRef`, `data-slot` on every part).
  *
  * Re-skinned to antd's `Segmented` geometry/colour via the shared control scale
@@ -254,7 +254,7 @@ function Segmented({
                     className={cn(
                         segmentedThumbVariants({size}),
                         readyRef.current &&
-                            "transition-[transform,width] duration-200 ease-[cubic-bezier(0.645,0.045,0.355,1)]",
+                            "transition-[transform,width] duration-base ease-in-out",
                     )}
                     style={{
                         transform: `translateX(${thumb.left}px)`,

@@ -49,7 +49,7 @@ export function HeightCollapse({
 }: HeightCollapseProps) {
     const collapsedHeightPx = useMemo(() => `${Math.max(0, collapsedHeight)}px`, [collapsedHeight])
 
-    const easing = "cubic-bezier(0.4, 0, 0.2, 1)"
+    const easing = "var(--ease-in-out)"
 
     const outerStyle = useMemo(
         () =>

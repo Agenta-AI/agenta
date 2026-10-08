@@ -9,26 +9,19 @@ import {useMemo} from "react"
 import {useReducedMotion} from "motion/react"
 import type {Transition, Variants} from "motion/react"
 
-/** Spring for screen-level shared-axis pushes (list → chat). */
-export const pushTransition: Transition = {
-    type: "spring",
-    stiffness: 380,
-    damping: 38,
-    mass: 1,
-}
+/** JS mirror of `@agenta/ui/motion.css` `--ease-out`: fast start, long soft landing. */
+export const easeOut = [0.32, 0.72, 0, 1] as const
 
-/** Spring for bottom/side sheets (project drawer). */
-export const sheetTransition: Transition = {
-    type: "spring",
-    stiffness: 300,
-    damping: 32,
-    mass: 0.9,
-}
+/** Spring for screen-level shared-axis pushes (list → chat). Critically damped: no overshoot. */
+export const pushTransition: Transition = {type: "spring", visualDuration: 0.35, bounce: 0}
 
-/** Tween for skeleton → content crossfades (no layout jump). */
+/** Spring for bottom/side sheets (project drawer). Matches `--transition-duration-slow`. */
+export const sheetTransition: Transition = {type: "spring", visualDuration: 0.38, bounce: 0}
+
+/** Tween for skeleton → content crossfades (no layout jump). Matches `--transition-duration-fast`. */
 export const crossfadeTransition: Transition = {
-    duration: 0.18,
-    ease: "easeOut",
+    duration: 0.16,
+    ease: easeOut,
 }
 
 /**
@@ -62,7 +55,7 @@ export const crossfade: Variants = {
 /** Tween for a stack of tiles fanning out under the pointer. */
 export const fanTransition: Transition = {
     duration: 0.3,
-    ease: "easeOut",
+    ease: easeOut,
 }
 
 /** Cadence, in ms, at which an example run reveals its steps one by one. */
@@ -73,6 +66,9 @@ export const featuredDwellMs = 5000
 
 /** How long a finished example run holds before it fades and plays again. */
 export const runHoldMs = 4000
+
+/** Longest a route transition holds the old screen while the next one loads. */
+export const routeHoldMs = 300
 
 /** Instant variants used when the user prefers reduced motion. */
 const instant: Variants = {

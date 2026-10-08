@@ -19,16 +19,12 @@ const buttonVariants = cva(
         "group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap",
         // Weight 400, not shadcn's 500 — a house choice.
         "border border-transparent bg-clip-padding font-normal",
-        // Only paint and compositor properties, on the shared motion tokens (surfaces.css) —
-        // `transition-all` also tweened layout properties. `scale` and `transform` both, because
-        // Tailwind v4 presses with `scale` and v3 with `transform`.
+        // Paint and compositor properties only, on the motion tokens (motion.css).
         "cursor-pointer select-none",
-        "transition-[color,background-color,border-color,box-shadow,opacity,scale,transform]",
-        "duration-[var(--ag-duration-instant,150ms)] ease-[var(--ag-ease-out,ease)]",
+        "transition-[color,background-color,border-color,box-shadow,opacity,scale] duration-instant ease-out",
         // The shared 3px control outline.
         "outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]",
-        // Press: the button gives a little under the finger, as on iOS. Skipped on menu/popover
-        // triggers, whose overlay grows out of the trigger and would track a shrinking origin.
+        // Press: gives a little under the finger; skipped on menu/popover triggers.
         "active:[&:not([aria-haspopup])]:scale-[0.97]",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         "aria-invalid:border-error aria-invalid:ring-[3px] aria-invalid:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",

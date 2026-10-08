@@ -163,7 +163,7 @@ function AccordionContent({
             className={cn(
                 // overflow-hidden is required for the height motion to clip.
                 "overflow-hidden text-field-md text-foreground",
-                // antd panel open/close height+opacity motion (Radix data-state + content-height var).
+                // Height + fade open/close (motion.css; Radix data-state + content-height var).
                 "data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up",
                 // antd content: 16px padding, top border colorBorder (border-0 first, preflight off).
                 variant === "bordered" && "border-0 border-t border-solid border-colorBorder",

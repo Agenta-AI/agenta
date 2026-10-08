@@ -53,10 +53,8 @@ const BORDER = "var(--ag-colorSplit)"
  * Starts CLOSED; opening it once is the opt-in. */
 export const contextRailOpenAtom = atomWithStorage<boolean>("agenta:agent-chat:context-rail", false)
 
-// The playground's canonical pane ease (globals.css `.playground-splitter-animated`) — the
-// rail, the right panel, and the config pane must all move on ONE curve or the transcript
-// visibly wobbles between them.
-const SLIDE_CLASS = "[transition:width_240ms_cubic-bezier(0.4,0,0.2,1)]"
+// Same curve as the kit SplitPane (motion.css `--ease-in-out`), or the transcript wobbles between them.
+const SLIDE_CLASS = "[transition:width_240ms_var(--ease-in-out)]"
 const RAIL_WIDTH = 300
 const STRIP_WIDTH = 36
 

@@ -13,7 +13,7 @@ export const COLLAPSED_MESSAGE_MAX_PX = 200
 const OVERFLOW_SLACK_PX = 32
 const FADE_PX = 40
 const DURATION_MS = 280
-const EASING = "cubic-bezier(0.4, 0, 0.2, 1)"
+const EASING = "var(--ease-in-out)"
 
 const FADE_MASK = `linear-gradient(to bottom, #000 calc(100% - ${FADE_PX}px), transparent 100%)`
 /** Collapsed: the gradient spans the box, so the last FADE_PX fade out. Expanded: it is stretched

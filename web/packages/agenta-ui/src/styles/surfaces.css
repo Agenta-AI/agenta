@@ -108,7 +108,7 @@
     background-clip: content-box;
     border: 1px solid transparent;
     border-radius: 999px;
-    transition: background-color 150ms ease;
+    transition: background-color var(--transition-duration-fast) var(--ease-out);
 }
 
 .ag-scroll-quiet:hover::-webkit-scrollbar-thumb,
@@ -163,8 +163,8 @@
         transparent 100%
     );
     transition:
-        --ag-fade-top 150ms ease,
-        --ag-fade-bottom 150ms ease;
+        --ag-fade-top var(--transition-duration-fast) var(--ease-out),
+        --ag-fade-bottom var(--transition-duration-fast) var(--ease-out);
 }
 
 .ag-scroll-fade[data-fade-top="true"] {
@@ -186,85 +186,6 @@
     overflow: hidden;
     white-space: nowrap;
     mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
-}
-
-/* ── Motion tokens ─────────────────────────────────────────────────────────────────────────────
-   The one motion vocabulary for CSS-driven animation: overlays here, the app's sheets, dialogs,
-   route changes and press feedback. Mirrored for JS in mobile's `src/lib/motion/presets.ts`
-   (`easeOut`, `easeIn`) — change both together.
-
-   The feel is Apple's: things arrive fast and settle softly (a long ease-out tail, no overshoot),
-   and leave quicker than they came. Only `transform` and `opacity` move, so every animation runs
-   on the compositor and never triggers layout.
-
-   Reduced motion collapses every duration to 1ms, not 0: Radix keeps a closing element mounted
-   until its `animationend`, and a 1ms animation still fires one. Anything timed off these tokens
-   becomes an instant swap with no extra rule. */
-:root {
-    /* Fast start, long soft landing — iOS's sheet curve. Enters and moves. */
-    --ag-ease-out: cubic-bezier(0.32, 0.72, 0, 1);
-    /* Gentle acceleration away. Exits only. */
-    --ag-ease-in: cubic-bezier(0.32, 0, 0.67, 0);
-    /* Symmetric, for things that slide in place (a thumb, an indicator). */
-    --ag-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-
-    /* Press feedback: has to keep up with a finger. */
-    --ag-duration-instant: 100ms;
-    /* Popovers, menus, tooltips, and every exit. */
-    --ag-duration-fast: 160ms;
-    /* Dialogs and route changes. */
-    --ag-duration-base: 240ms;
-    /* Sheets and drawers: large surfaces travel further, so they take longer. */
-    --ag-duration-slow: 380ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    :root {
-        --ag-duration-instant: 1ms;
-        --ag-duration-fast: 1ms;
-        --ag-duration-base: 1ms;
-        --ag-duration-slow: 1ms;
-    }
-}
-
-/* ── Overlay motion ────────────────────────────────────────────────────────────────────────────
-   Enter/exit for portalled Radix surfaces (popover, dropdown and context menus, select, tooltip,
-   and anything else that opts in). Radix keeps a closing element mounted until its animation
-   ends, so this has to be a real, FINITE CSS animation: a `transition` is never observed, and a
-   scroll-driven animation never ends at all (globals.css on the desktop applies `ag-thumb-fade`
-   on an unbounded scroll timeline to every `.overflow-y-auto`). That rule is wrapped in
-   `:where()`, so it carries no specificity and these class selectors outrank it; the `animation`
-   shorthand also resets `animation-timeline` to `auto`.
-
-   Deliberately quick: an overlay you summoned should already be there, not on its way. */
-@keyframes ag-overlay-in {
-    from {
-        opacity: 0;
-        transform: scale(0.96);
-    }
-}
-
-@keyframes ag-overlay-out {
-    to {
-        opacity: 0;
-        transform: scale(0.98);
-    }
-}
-
-.ag-overlay-motion {
-    /* Radix publishes the origin matching the resolved side/align, so this is the edge the panel
-       is anchored to — the trigger's. Scaling from there makes the panel grow OUT of the trigger
-       instead of inflating in place. */
-    transform-origin: var(--radix-popper-transform-origin, center);
-}
-
-/* `$=` because a tooltip's open states are `delayed-open` and `instant-open`. */
-.ag-overlay-motion[data-state$="open"] {
-    animation: ag-overlay-in var(--ag-duration-fast) var(--ag-ease-out);
-}
-
-.ag-overlay-motion[data-state="closed"] {
-    animation: ag-overlay-out var(--ag-duration-fast) var(--ag-ease-in);
 }
 
 /* The activity timeline's wire while the run is live: a short glow travels down it, the current

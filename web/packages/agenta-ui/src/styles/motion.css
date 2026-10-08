@@ -1,0 +1,214 @@
+/* Agenta motion: tokens, kit animations, route transitions. Import right after "tailwindcss".
+   Apple-style feel; transform/opacity only. JS mirror: mobile `src/lib/motion/presets.ts`. */
+
+/* `static`: plain CSS and inline styles read these too, so always emit them. */
+@theme static {
+    /* Fast start, long soft landing: the iOS sheet curve. Enters and moves. */
+    --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+    /* Gentle acceleration away. Exits only. */
+    --ease-in: cubic-bezier(0.32, 0, 0.67, 0);
+    /* Symmetric, for things that slide in place (a thumb, an indicator, a fill). */
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+    /* Press feedback: has to keep up with a finger. */
+    --transition-duration-instant: 100ms;
+    /* Hover, popovers, menus, tooltips, and every exit. */
+    --transition-duration-fast: 160ms;
+    /* Dialogs, route changes, things that slide in place. */
+    --transition-duration-base: 240ms;
+    /* Sheets and drawers: large surfaces travel further, so they take longer. */
+    --transition-duration-slow: 380ms;
+
+    --default-transition-duration: var(--transition-duration-fast);
+    --default-transition-timing-function: var(--ease-out);
+}
+
+/* Reduced motion: 1ms, not 0, so Radix still gets the `animationend` it waits for. */
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --transition-duration-instant: 1ms;
+        --transition-duration-fast: 1ms;
+        --transition-duration-base: 1ms;
+        --transition-duration-slow: 1ms;
+    }
+}
+
+/* Named animations for the kit's Sheet, Dialog and Accordion. Exits are shorter and accelerate. */
+@theme {
+    --animate-overlay-in: overlay-in var(--transition-duration-base) var(--ease-out);
+    --animate-overlay-out: overlay-out var(--transition-duration-fast) var(--ease-in);
+    --animate-dialog-in: dialog-in var(--transition-duration-base) var(--ease-out);
+    --animate-dialog-out: dialog-out var(--transition-duration-fast) var(--ease-in);
+    --animate-sheet-in-right: sheet-in-right var(--transition-duration-slow) var(--ease-out);
+    --animate-sheet-out-right: sheet-out-right var(--transition-duration-base) var(--ease-in);
+    --animate-sheet-in-left: sheet-in-left var(--transition-duration-slow) var(--ease-out);
+    --animate-sheet-out-left: sheet-out-left var(--transition-duration-base) var(--ease-in);
+    --animate-sheet-in-top: sheet-in-top var(--transition-duration-slow) var(--ease-out);
+    --animate-sheet-out-top: sheet-out-top var(--transition-duration-base) var(--ease-in);
+    --animate-sheet-in-bottom: sheet-in-bottom var(--transition-duration-slow) var(--ease-out);
+    --animate-sheet-out-bottom: sheet-out-bottom var(--transition-duration-base) var(--ease-in);
+    --animate-accordion-down: accordion-down var(--transition-duration-base) var(--ease-out);
+    --animate-accordion-up: accordion-up var(--transition-duration-fast) var(--ease-in);
+
+    @keyframes overlay-in {
+        from {
+            opacity: 0;
+        }
+    }
+    @keyframes overlay-out {
+        to {
+            opacity: 0;
+        }
+    }
+    /* A dialog settles in from just below full size; a bigger start reads as a zoom. */
+    @keyframes dialog-in {
+        from {
+            opacity: 0;
+            transform: scale(0.96);
+        }
+    }
+    @keyframes dialog-out {
+        to {
+            opacity: 0;
+            transform: scale(0.98);
+        }
+    }
+    /* The extra 1rem clears the kit Sheet's floating inset (lg:right-2 / lg:left-2). */
+    @keyframes sheet-in-right {
+        from {
+            transform: translateX(calc(100% + 1rem));
+        }
+    }
+    @keyframes sheet-out-right {
+        to {
+            transform: translateX(calc(100% + 1rem));
+        }
+    }
+    @keyframes sheet-in-left {
+        from {
+            transform: translateX(calc(-100% - 1rem));
+        }
+    }
+    @keyframes sheet-out-left {
+        to {
+            transform: translateX(calc(-100% - 1rem));
+        }
+    }
+    @keyframes sheet-in-top {
+        from {
+            transform: translateY(-100%);
+        }
+    }
+    @keyframes sheet-out-top {
+        to {
+            transform: translateY(-100%);
+        }
+    }
+    @keyframes sheet-in-bottom {
+        from {
+            transform: translateY(100%);
+        }
+    }
+    @keyframes sheet-out-bottom {
+        to {
+            transform: translateY(100%);
+        }
+    }
+    /* Height, not transform: the content below the panel has to follow. */
+    @keyframes accordion-down {
+        from {
+            height: 0;
+            opacity: 0;
+        }
+        to {
+            height: var(--radix-accordion-content-height);
+            opacity: 1;
+        }
+    }
+    @keyframes accordion-up {
+        from {
+            height: var(--radix-accordion-content-height);
+            opacity: 1;
+        }
+        to {
+            height: 0;
+            opacity: 0;
+        }
+    }
+}
+
+/* Overlay enter/exit for Radix popover, menus, select, tooltip. A finite animation, not a
+   transition: Radix unmounts on `animationend`. */
+@keyframes ag-overlay-in {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+}
+
+@keyframes ag-overlay-out {
+    to {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+}
+
+@layer components {
+    .ag-overlay-motion {
+        /* Grow out of the trigger's edge, not from the panel's centre. */
+        transform-origin: var(--radix-popper-transform-origin, center);
+    }
+
+    /* `$=` because a tooltip's open states are `delayed-open` and `instant-open`. */
+    .ag-overlay-motion[data-state$="open"] {
+        animation: ag-overlay-in var(--transition-duration-fast) var(--ease-out);
+    }
+
+    .ag-overlay-motion[data-state="closed"] {
+        animation: ag-overlay-out var(--transition-duration-fast) var(--ease-in);
+    }
+}
+
+/* Route transitions (View Transitions API, started by mobile's `useRouteTransition`). The new
+   screen fades in over an opaque old one, so the background never shows through; the rail holds. */
+@layer components {
+    /* Named only mid-transition: a standing name would make the pane a stacking context. */
+    :root[data-route-transition] .ag-screen-transition {
+        view-transition-name: ag-screen;
+    }
+}
+
+@keyframes ag-screen-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+}
+
+@keyframes ag-screen-out {
+    to {
+        opacity: 0;
+    }
+}
+
+::view-transition-old(root),
+::view-transition-new(root),
+::view-transition-group(ag-screen) {
+    animation-duration: var(--transition-duration-base);
+    animation-timing-function: var(--ease-out);
+}
+
+::view-transition-old(ag-screen) {
+    animation: none;
+    mix-blend-mode: normal;
+}
+
+::view-transition-new(ag-screen) {
+    animation: ag-screen-in var(--transition-duration-base) var(--ease-out) both;
+    mix-blend-mode: normal;
+}
+
+/* No screen pane on the next page: nothing covers the old one, so it fades out. */
+::view-transition-old(ag-screen):only-child {
+    animation: ag-screen-out var(--transition-duration-fast) var(--ease-in) both;
+}

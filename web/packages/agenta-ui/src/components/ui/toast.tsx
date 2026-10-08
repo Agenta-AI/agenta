@@ -17,13 +17,13 @@ const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["cl
     toast: cn(
         "group/toast box-border flex w-full items-center gap-3 rounded-xl border border-solid border-border bg-popover px-3.5 py-3 text-sm text-popover-foreground shadow-lg outline-none select-none",
         "[&[data-sonner-toast]:focus-visible]:border-ring [&[data-sonner-toast]:focus-visible]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
-        // Enter from the stack's edge on shadcn's ease-out; leave quickly (Sonner unmounts 200ms in).
+        // Enter from the stack's edge on the motion tokens; leave within Sonner's 200ms unmount.
         "[&[data-y-position=bottom]:not([data-mounted=true])]:[--y:translateY(150%)]",
         "[&[data-y-position=top]:not([data-mounted=true])]:[--y:translateY(-150%)]",
-        "[&[data-sonner-toast]:not([data-swiping=true])]:[transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
-        "[&[data-sonner-toast][data-removed=true][data-swiping=false]]:[transition:transform_200ms_ease-in,opacity_200ms]",
+        "[&[data-sonner-toast]:not([data-swiping=true])]:[transition:transform_var(--transition-duration-slow)_var(--ease-out),opacity_var(--transition-duration-slow)_var(--ease-out),height_var(--transition-duration-fast)_var(--ease-out)]",
+        "[&[data-sonner-toast][data-removed=true][data-swiping=false]]:[transition:transform_var(--transition-duration-fast)_var(--ease-in),opacity_var(--transition-duration-fast)_var(--ease-in)]",
         // Toasts behind the front one show only their edge.
-        "[&[data-sonner-toast]>*]:[transition:opacity_250ms_cubic-bezier(0.22,1,0.36,1)]",
+        "[&[data-sonner-toast]>*]:[transition:opacity_var(--transition-duration-base)_var(--ease-out)]",
         "[&[data-expanded=false][data-front=false]>*]:opacity-0",
     ),
     // `relative size-4`: Sonner centers the loading icon absolutely inside this box.

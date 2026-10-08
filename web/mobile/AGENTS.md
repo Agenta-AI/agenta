@@ -44,10 +44,12 @@ lose entered state (a failed send never loses the draft).
 
 ## Motion
 
-All animation uses the `motion` package through the shared presets in
-`src/lib/motion/presets.ts`, consumed via `useMotionPresets()` (reduced-motion
-aware). Never hardcode durations, easings, or springs in components. Load the
-`mobile-motion-patterns` skill before writing any animation code.
+CSS motion uses the tokens in `@agenta/ui/motion.css` through Tailwind's own
+utilities (`ease-out`, `duration-fast`, ...). JS animation uses the `motion`
+package through `src/lib/motion/presets.ts`, consumed via `useMotionPresets()`.
+Both are reduced-motion aware. Never hardcode durations, easings, or springs in
+components, and never use antd motion values. Load the `mobile-motion-patterns`
+skill before writing any animation code.
 
 ## Styling and theming
 

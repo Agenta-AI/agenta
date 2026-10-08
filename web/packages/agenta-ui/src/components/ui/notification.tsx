@@ -60,7 +60,7 @@ const notificationDefaultIcon: Record<NotificationType, React.ReactNode> = {
     info: <Info weight="fill" className="size-[22px]" />,
 }
 
-// antd slides each card in from the edge it is anchored to.
+// Each card slides in from the edge it is anchored to.
 const enterOffset: Record<NotificationPlacement, string> = {
     top: "data-[state=closed]:-translate-y-2",
     bottom: "data-[state=closed]:translate-y-2",
@@ -137,7 +137,7 @@ export function Notification({
                 "box-border pointer-events-auto relative mb-4 ml-auto w-96 max-w-[calc(100vw-48px)]",
                 "rounded-control-lg bg-colorBgElevated text-colorText shadow-dialog font-portal",
                 "py-5 px-6",
-                "transition-[opacity,transform] duration-200 ease-out",
+                "transition-[opacity,transform] duration-base ease-out",
                 "data-[state=closed]:opacity-0 data-[state=open]:opacity-100 data-[state=open]:translate-x-0 data-[state=open]:translate-y-0",
                 enterOffset[placement],
                 className,

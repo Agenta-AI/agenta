@@ -18,8 +18,8 @@ import {cn} from "./utils"
  * - bar (antd's `-track`) → absolute, inset-y-0 left-0, radius inherit, width = `percent%`
  *   (inline style, content-driven like antd). Colour = antd `defaultColor` = **colorInfo**
  *   (NOT colorPrimary — the two diverge in dark: info blue vs primary yellow); success =
- *   colorSuccess, exception = colorError. `transition-[width]` at `motionDurationSlow` 0.3s
- *   with antd's `motionEaseInOutCirc` — a CSS transition, not a keyframe.
+ *   colorSuccess, exception = colorError. `transition-[width]` on the motion tokens
+ *   (`duration-slow ease-in-out`) — a CSS transition, not a keyframe.
  * - text (antd's `-indicator`) → `colorText` normal / colorSuccess / colorError, `fontSize`
  *   14px default / 12px small (`text-sm` / `text-[12px]`), `line-height:1` (`leading-none`). At
  *   status success/exception antd swaps the `{percent}%` label for antd's own filled glyphs
@@ -72,7 +72,7 @@ const progressTrackVariants = cva(
 
 // antd `-track` fill colour per status (defaultColor = colorInfo; success/exception overrides).
 const progressBarVariants = cva(
-    "absolute inset-y-0 left-0 box-border rounded-[inherit] transition-[width] duration-300 ease-[cubic-bezier(0.78,0.14,0.15,0.86)]",
+    "absolute inset-y-0 left-0 box-border rounded-[inherit] transition-[width] duration-slow ease-in-out",
     {
         variants: {
             status: {
@@ -105,7 +105,7 @@ const progressTextVariants = cva("box-border whitespace-nowrap leading-none", {
 // antd circle `-circle-path` fill per status — the SAME tokens as the line bar, applied as
 // `color` so the svg can paint with `currentColor`.
 const progressCircleStrokeVariants = cva(
-    "transition-[stroke-dashoffset] duration-300 ease-[cubic-bezier(0.78,0.14,0.15,0.86)]",
+    "transition-[stroke-dashoffset] duration-slow ease-in-out",
     {
         variants: {
             status: {

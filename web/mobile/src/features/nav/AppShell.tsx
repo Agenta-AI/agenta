@@ -29,7 +29,8 @@ export const AppShell = ({
     return (
         <div className="flex h-[var(--ag-viewport-height,100dvh)]">
             <NavRail workspaceId={workspaceId} projectId={projectId} scope={scope} />
-            <main className="min-w-0 flex-1">{children}</main>
+            {/* The pane that crossfades on route change; the rail holds still. */}
+            <main className="ag-screen-transition min-w-0 flex-1">{children}</main>
             <MobileCommandPalette projectURL={`/w/${workspaceId}/p/${projectId}`} />
         </div>
     )

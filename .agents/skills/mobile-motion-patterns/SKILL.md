@@ -1,17 +1,62 @@
 ---
 name: mobile-motion-patterns
-description: Motion design rules for the Agenta mobile app (web/mobile) — the shared presets in src/lib/motion, when to animate, and reduced-motion requirements. Use when adding any animation or transition under web/mobile, animating navigation, sheets, skeletons, or list/chat surfaces.
+description: Motion design rules for the Agenta mobile app (web/mobile) and the @agenta/ui kit — the CSS motion tokens in @agenta/ui/motion.css, the JS presets in src/lib/motion, route transitions, when to animate, and reduced-motion requirements. Use when adding any animation or transition under web/mobile or web/packages, animating navigation, sheets, overlays, skeletons, or list/chat surfaces.
 ---
 
 # Mobile motion patterns
 
-JS-driven animation in `web/mobile` uses the `motion` package through the shared
-presets module `src/lib/motion/presets.ts`. Components never define their own
-durations, easings, or springs.
+Motion has one feel everywhere: Apple-style. Things arrive fast and settle softly (a long
+ease-out tail, no overshoot) and leave quicker than they came. No antd values or names.
 
-## The presets
+There are two layers, and they share the same curves and durations:
 
-Consume via the hook (reduced-motion aware — this is mandatory):
+1. **CSS (default).** `@agenta/ui/motion.css` — tokens, kit animations, route transitions.
+   Zero JavaScript, runs on the compositor. Use it for anything CSS can express.
+2. **JS (`motion`).** `web/mobile/src/lib/motion/presets.ts` via `useMotionPresets()`. Use it
+   only for presence/exit of React trees, layout animations, or springs that must carry
+   velocity through an interruption.
+
+## CSS tokens (`@agenta/ui/motion.css`)
+
+The tokens use Tailwind v4's own names, so components use stock utilities:
+
+| Token | Utility | Value | Use |
+|---|---|---|---|
+| `--ease-out` | `ease-out` | `cubic-bezier(0.32, 0.72, 0, 1)` | Enters and moves |
+| `--ease-in` | `ease-in` | `cubic-bezier(0.32, 0, 0.67, 0)` | Exits only |
+| `--ease-in-out` | `ease-in-out` | `cubic-bezier(0.65, 0, 0.35, 1)` | Slides in place (thumb, fill, pane width) |
+| `--transition-duration-instant` | `duration-instant` | 100ms | Press feedback |
+| `--transition-duration-fast` | `duration-fast` | 160ms | Hover, popovers, menus, tooltips, every exit |
+| `--transition-duration-base` | `duration-base` | 240ms | Dialogs, route changes, in-place slides |
+| `--transition-duration-slow` | `duration-slow` | 380ms | Sheets and drawers |
+
+A bare `transition` / `transition-colors` uses `duration-fast` + `ease-out` by default.
+In plain CSS or inline styles, read the variables: `var(--ease-in-out)`,
+`var(--transition-duration-base)`.
+
+```tsx
+<div className="transition-[opacity,transform] duration-base ease-out" />
+```
+
+Never write a raw `cubic-bezier(...)`, `duration-200`, or `300ms` in a component.
+
+### Named animations and overlays
+
+- Kit Sheet / Dialog / Accordion use `animate-sheet-in-*`, `animate-dialog-in`,
+  `animate-overlay-in`, `animate-accordion-*` — all defined in `motion.css`.
+- Portalled Radix surfaces (popover, dropdown/context menu, select, tooltip) add the
+  `ag-overlay-motion` class: a fade + scale from 96% out of the trigger.
+- Buttons scale to 97% on press (`Button` in `@agenta/ui/ui`).
+
+### Route transitions
+
+`useRouteTransition()` (mounted once in `_app.tsx`) starts a native View Transition on every
+path change. `AppShell`'s `<main>` carries `ag-screen-transition`: the screen fades in and
+rises 6px over the old one; the nav rail holds still. Query-only/shallow changes, reduced
+motion, and browsers without the API skip it. Do not add a second element with
+`ag-screen-transition` on the same page.
+
+## JS presets (`useMotionPresets()`)
 
 ```tsx
 import {AnimatePresence, motion} from "motion/react"
@@ -27,39 +72,23 @@ const presets = useMotionPresets()
 </AnimatePresence>
 ```
 
-In use today:
-
-- **`crossfade`** — the only preset components consume. Used for the reply
-  reveal (`features/chat/AnswerReveal.tsx`) and the composer's picker and
-  recording overlays (`features/chat/Composer.tsx`). For skeleton → content
-  swaps, skeleton and content must occupy identical geometry so the fade causes
-  zero layout shift.
-
-Defined but not used by any screen yet:
-
-- **`sharedAxisPush`** — horizontal parent → child push. `custom={1}` forward,
-  `custom={-1}` back, inside `<AnimatePresence custom={direction} initial={false}>`.
-- **`sheetSlideUp`** — spring-based slide-up for a custom bottom sheet.
-- The raw `pushTransition` / `sheetTransition` / `crossfadeTransition` values
-  and the `reduced` flag.
-
-Reach for these before adding a new preset. Screen navigation has no transition
-today, and sheets and drawers (`Sheet` from `@agenta/ui/ui` or the local
-`src/components/ui/sheet.tsx`) animate with their own Tailwind
-`animate-in`/`slide-in-*` classes, not with `motion`.
+- **`crossfade`** — reply reveal, composer overlays, skeleton → content swaps (geometry must
+  match so the fade causes zero layout shift).
+- **`sharedAxisPush`**, **`sheetSlideUp`** — defined, not yet used by a screen.
+- Springs are `{type: "spring", visualDuration, bounce: 0}`; tweens use `easeOut`, the JS
+  mirror of `--ease-out`. Change the CSS and JS values together.
 
 ## Rules
 
-- **Animate navigation, containment, and state swaps — not decoration.** No
-  attention-seeking motion, no animating properties that trigger layout
-  (animate `transform`/`opacity` only).
-- **Reduced motion is not optional.** `useMotionPresets()` returns instant
-  variants and zero-duration transitions when `prefers-reduced-motion` is set.
-  Any animation built outside the presets module must justify itself in review
-  AND handle reduced motion itself. CSS keyframe animations need a
-  `@media (prefers-reduced-motion: reduce)` override in `globals.css` (see
-  `.animate-composer-ring`). Prefer extending the presets module.
-- **Message entrance/streaming**: subtle — the reply fades in on `crossfade`;
-  text streaming is never per-character animated.
-- New shared patterns go INTO `presets.ts` (one exported preset + doc comment,
-  plus its reduced variant in `useMotionPresets`), not into a component file.
+- **Animate navigation, containment, and state swaps — not decoration.** No attention-seeking
+  motion. Animate `transform`/`opacity` only; height/width only where content must reflow.
+- **Reduced motion is not optional.** The CSS tokens collapse to 1ms under
+  `prefers-reduced-motion` (1ms, not 0, so Radix still gets `animationend`), so anything timed
+  off them is covered. `useMotionPresets()` returns instant variants. A looping CSS animation
+  needs its own `@media (prefers-reduced-motion: reduce)` override (see `.animate-composer-ring`).
+- **Message entrance/streaming**: subtle — the reply fades in on `crossfade`; text streaming is
+  never per-character animated.
+- New shared CSS motion goes INTO `motion.css`; new JS presets go INTO `presets.ts` (with a
+  reduced variant in `useMotionPresets`). Never into a component file.
+- Storybook and `web/oss` use Tailwind v3 and do not load `motion.css`; motion there is
+  degraded on purpose. Do not add fallbacks for them.

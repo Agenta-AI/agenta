@@ -69,7 +69,7 @@ const BAR_HIT_WIDTH = 12
 /** The pane slide's duration. Slow it down to inspect the motion — see `paneSlideMs` below. */
 export const PANE_SLIDE_MS = 240
 
-const PANE_SLIDE_CURVE = "cubic-bezier(0.4,0,0.2,1)"
+const PANE_SLIDE_CURVE = "var(--ease-in-out)"
 
 /**
  * The pane slide's duration, in ms. Overridable at runtime so the motion can be slowed down and
