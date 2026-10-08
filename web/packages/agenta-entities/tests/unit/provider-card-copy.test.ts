@@ -34,9 +34,9 @@ describe("credentialStatusLine", () => {
         )
     })
 
-    it("says nothing about a fetch that did not happen", () => {
+        it("says nothing about a fetch that did not happen, and keeps its own full stop", () => {
         expect(credentialStatusLine("OpenAI rejected this key (401).", null)).toBe(
-            "OpenAI rejected this key (401)",
+            "OpenAI rejected this key (401).",
         )
     })
 })
