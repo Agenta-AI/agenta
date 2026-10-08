@@ -14,7 +14,6 @@ import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
 import {KeysClient} from "@agentaai/api-client/resources/keys"
-import {LinksClient} from "@agentaai/api-client/resources/links"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
@@ -33,11 +32,6 @@ import {buildClientOptions, withLowPriorityFetch} from "./config"
 let _skills: SkillsClient | undefined
 export function getSkillsClient(): SkillsClient {
     return (_skills ??= new SkillsClient(buildClientOptions()))
-}
-
-let _links: LinksClient | undefined
-export function getLinksClient(): LinksClient {
-    return (_links ??= new LinksClient(buildClientOptions()))
 }
 
 let _access: AccessClient | undefined

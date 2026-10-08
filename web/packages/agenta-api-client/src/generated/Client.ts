@@ -16,7 +16,6 @@ import { GatewayMcpClient } from "./api/resources/gatewayMcp/client/Client.js";
 import { InvocationsClient } from "./api/resources/invocations/client/Client.js";
 import { KeysClient } from "./api/resources/keys/client/Client.js";
 import { LegacyClient } from "./api/resources/legacy/client/Client.js";
-import { LinksClient } from "./api/resources/links/client/Client.js";
 import { MountsClient } from "./api/resources/mounts/client/Client.js";
 import { OrganizationsClient } from "./api/resources/organizations/client/Client.js";
 import { ProjectsClient } from "./api/resources/projects/client/Client.js";
@@ -64,7 +63,6 @@ export class AgentaApiClient {
     protected _applications: ApplicationsClient | undefined;
     protected _workflows: WorkflowsClient | undefined;
     protected _skills: SkillsClient | undefined;
-    protected _links: LinksClient | undefined;
     protected _evaluators: EvaluatorsClient | undefined;
     protected _environments: EnvironmentsClient | undefined;
     protected _tools: ToolsClient | undefined;
@@ -155,10 +153,6 @@ export class AgentaApiClient {
 
     public get skills(): SkillsClient {
         return (this._skills ??= new SkillsClient(this._options));
-    }
-
-    public get links(): LinksClient {
-        return (this._links ??= new LinksClient(this._options));
     }
 
     public get evaluators(): EvaluatorsClient {
