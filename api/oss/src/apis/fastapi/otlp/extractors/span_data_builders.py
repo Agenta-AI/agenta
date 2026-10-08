@@ -42,6 +42,35 @@ def _transform_legacy_references(attributes: dict[str, Any]) -> dict[str, Any]:
     return attributes
 
 
+def _drop_mapped_sources(
+    attributes: dict[str, Any],
+    mapped_sources: dict[str, tuple[str, Any]],
+) -> None:
+    """Drop raw keys whose content is stored, unchanged, under an ag.* key."""
+    if not mapped_sources:
+        return
+
+    keys = set(attributes)
+    parents = set()
+    for key in keys:
+        parts = key.split(".")
+        parents.update(".".join(parts[:i]) for i in range(1, len(parts)))
+
+    for source, (target, value) in mapped_sources.items():
+        if source not in attributes or target not in attributes:
+            continue
+        if attributes[target] != value:
+            continue
+        # unmarshalling lets an ancestor or a descendant key overwrite the copy
+        if target in parents:
+            continue
+        parts = target.split(".")
+        if any(".".join(parts[:i]) in keys for i in range(1, len(parts))):
+            continue
+
+        del attributes[source]
+
+
 class SpanDataBuilder(ABC):
     """
     Abstract base class for span data builders.
@@ -182,6 +211,8 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
         if "acc.duration.total" in features.metrics:
             del attributes["ag.metrics.acc.duration.total"]
         ## ---------------------------------------------------------------------
+
+        _drop_mapped_sources(attributes, features.mapped_sources)
 
         # ----------------------------------------------------------------------
 
