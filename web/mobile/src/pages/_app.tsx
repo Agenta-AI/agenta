@@ -8,6 +8,7 @@ import Head from "next/head"
 import {AppProviders} from "@/features/app/AppProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
 import {DriveMarkdownRenderer} from "@/features/chat/DriveMarkdownRenderer"
+import {MaintenanceNoticeBar} from "@/features/maintenance/MaintenanceNoticeBar"
 
 // Side effect: binds projectIdAtom from the URL before React renders. See the module.
 import "@/lib/seedProjectContext"
@@ -45,6 +46,8 @@ export default function App({Component, pageProps}: AppProps) {
                 <title>{DEFAULT_PAGE_TITLE}</title>
             </Head>
             <AppProviders>
+                {/* In the page flow above every screen; screens shorten by its height. */}
+                <MaintenanceNoticeBar />
                 <Component {...pageProps} />
                 {/* The imperative message/modal outlet the SHARED session verbs render their
                     confirms into (rename, delete). Antd-free — it is the kit's own

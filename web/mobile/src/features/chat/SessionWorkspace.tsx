@@ -341,7 +341,7 @@ export const SessionWorkspace = ({
             <DriveSessionProvider sessionId={sessionId} artifactId={agentId ?? null}>
                 {/* The workspace column: the shared playground top bar, then the panes under it. The
                     column owns the top safe-area inset (the bar is the topmost chrome). */}
-                <div className="ag-app-ground flex h-[var(--ag-viewport-height,100dvh)] min-w-0 flex-col pt-[env(safe-area-inset-top)]">
+                <div className="ag-app-ground flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))] min-w-0 flex-col pt-[var(--ag-screen-safe-top,env(safe-area-inset-top))]">
                     <SessionTopBar
                         entityId={entityId}
                         sessionId={sessionId}
