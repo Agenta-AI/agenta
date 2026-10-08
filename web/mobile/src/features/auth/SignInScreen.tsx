@@ -1,8 +1,9 @@
-import {useState} from "react"
+import {useState, type ReactNode} from "react"
 
 import {
     AuthDivider,
     AuthShell,
+    EmailChip,
     EmailFirstForm,
     EmailPasswordForm,
     OtpVerifyForm,
@@ -11,34 +12,38 @@ import {
     SocialAuthButtons,
     useSignInFlow,
     useTurnstileSecurity,
+    HEADLINE_CLASS,
+    KEYCAP_CLASS,
+    SUBLINE_CLASS,
+    SURFACE_CLASS,
+    type AuthSuccessPayload,
+    type SignInStage,
 } from "@agenta/auth-ui"
+import {LoadingButton} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
 import {AgentaLogo} from "@/components/AgentaLogo"
-import {shouldShowRegionSelector, startOidcSignIn} from "@/lib/auth"
+import {clearEmailCodeAttempt, shouldShowRegionSelector, startOidcSignIn} from "@/lib/auth"
+import {useMotionPresets} from "@/lib/motion/presets"
 
 import {providerIcon} from "./providerIcons"
 import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
 import {NoAuthMethods} from "./states/NoAuthMethods"
-import {useAuthSuccess} from "./useAuthSuccess"
+import {useAuthSuccess, type AuthSuccess} from "./useAuthSuccess"
 
-/**
- * Every method this deployment enables: social, password or one-time code, and whatever org SSO
- * the address turns out to have.
- *
- * The flow itself — ask for an address, discover what it can use, then show only that — is
- * `useSignInFlow` from @agenta/auth-ui, the same one the desktop page drives. This screen is the
- * rendering of it plus the one transport that differs: /m routes its OIDC redirect through a
- * cookie so the desktop's registered callback URI still works.
- *
- * The security seam is the desktop's too: on EE the API refuses every auth POST that carries no
- * Turnstile token, so the password and OTP forms take the same adapter the desktop hands them.
- * (The OIDC exchange gets its token on the callback screen.)
- */
+const TERMS_URL = "https://agenta.ai/docs/administration/security/terms-of-service"
+const PRIVACY_URL = "https://agenta.ai/docs/administration/security/privacy-policy"
+
+/** Step order, so a step change knows whether it moves forward or back. */
+const STAGE_ORDER: Record<SignInStage, number> = {entry: 0, methods: 1, code: 2}
+
+/** Email-first sign-in on `useSignInFlow`; /m routes OIDC through a cookie, EE adds Turnstile. */
 export const SignInScreen = () => {
     const onSuccess = useAuthSuccess()
     const router = useRouter()
-    const [oidcLoading, setOidcLoading] = useState(false)
+    const [pendingProvider, setPendingProvider] = useState<string | null>(null)
+    const [leaving, setLeaving] = useState(false)
+    const {authLeaveMs} = useMotionPresets()
 
     const flow = useSignInFlow({
         query: router.query,
@@ -51,61 +56,87 @@ export const SignInScreen = () => {
     const {entry, methods, message, setMessage} = flow
     const security = useTurnstileSecurity(setMessage)
 
+    const [step, setStep] = useState({stage: flow.stage, direction: "fwd"})
+    if (step.stage !== flow.stage) {
+        const forward = STAGE_ORDER[flow.stage] > STAGE_ORDER[step.stage]
+        setStep({stage: flow.stage, direction: forward ? "fwd" : "back"})
+    }
+
+    // The screen plays its exit first; the post-auth loader then fades in over it.
+    const leaveThen = async (success: AuthSuccess) => {
+        setLeaving(true)
+        await new Promise((resolve) => setTimeout(resolve, authLeaveMs))
+        try {
+            await onSuccess(success)
+        } catch {
+            setLeaving(false)
+            setMessage({
+                message: "Signed in, but the app could not open. Try again.",
+                type: "error",
+            })
+        }
+    }
+
+    const onEmailSuccess = (payload: AuthSuccessPayload) =>
+        leaveThen({
+            method: "email",
+            email: flow.email,
+            isNewUser: Boolean(payload.createdNewRecipeUser),
+        })
+
     const startProvider = async (providerId: string) => {
-        if (oidcLoading) return
-        setOidcLoading(true)
+        if (pendingProvider) return
+        setPendingProvider(providerId)
         await startOidcSignIn(providerId)
-        setOidcLoading(false)
+        setPendingProvider(null)
         setMessage({message: "Could not reach that provider. Try again.", type: "error"})
     }
 
-    const socialButtons = (providers: typeof entry.providers, promoted = false) =>
-        providers.length ? (
-            <SocialAuthButtons
-                providers={providers.map((provider) => ({
-                    ...provider,
-                    icon: providerIcon(provider.id),
-                }))}
-                onSelect={(providerId) => void startProvider(providerId)}
-                isLoading={oidcLoading}
-                disabled={flow.discovering}
-                variant={promoted ? "promoted" : "default"}
-                yellow={promoted}
-                lastUsedProviderId={promoted ? providers[0]?.id : undefined}
-            />
-        ) : null
+    const changeEmail = async () => {
+        if (flow.stage === "code") await clearEmailCodeAttempt()
+        flow.useDifferentEmail()
+    }
 
-    const emailEntry = entry.showEmailEntry ? (
-        <EmailFirstForm
-            email={flow.email}
-            setEmail={flow.setEmail}
-            onContinue={flow.continueWithEmail}
-            message={message}
-            disabled={oidcLoading}
-            primary={!entry.promotedProvider}
-            promoted={entry.promotedEmail}
-        />
-    ) : null
+    let chip: ReactNode = null
+    let heading = entry.heading
+    let subheading = entry.isReturning
+        ? "Sign in to continue to your workspace."
+        : "Sign in or create an account."
+    let body: ReactNode
+    const loading = !flow.ready || flow.restoring
 
-    let body
-    if (!flow.ready || flow.restoring) {
+    if (loading) {
         body = <AuthMethodsSkeleton />
     } else if (!entry.showEmailEntry && entry.providers.length === 0) {
         body = <NoAuthMethods />
     } else if (flow.stage === "code") {
+        chip = <EmailChip email={flow.email} onChange={() => void changeEmail()} />
+        heading = "Check your inbox"
+        subheading = "Enter the 6-character code we sent to your email."
         body = (
             <OtpVerifyForm
                 email={flow.email}
                 message={message}
                 setMessage={setMessage}
-                onSuccess={async () => onSuccess()}
-                onRestart={() => flow.setCodeSent(false)}
+                onSuccess={onEmailSuccess}
+                onRestart={flow.useDifferentEmail}
                 onAuthError={flow.reportError}
             />
         )
     } else if (flow.stage === "methods") {
+        chip = <EmailChip email={flow.email} onChange={() => void changeEmail()} />
+        if (methods.password) {
+            heading = "Enter your password"
+            subheading = "New to Agenta? The password you choose here creates your account."
+        } else if (methods.otp) {
+            heading = "Get a sign-in code"
+            subheading = "We will email a one-time code to this address."
+        } else {
+            heading = "Sign in with SSO"
+            subheading = "Your organization manages sign-in for this email."
+        }
         body = (
-            <div className="flex w-full flex-col gap-4">
+            <div className="flex w-full flex-col gap-[22px]">
                 {methods.password ? (
                     <EmailPasswordForm
                         message={message}
@@ -114,7 +145,7 @@ export const SignInScreen = () => {
                         lockEmail
                         security={security}
                         onAuthError={flow.reportError}
-                        onSuccess={async () => onSuccess()}
+                        onSuccess={onEmailSuccess}
                     />
                 ) : null}
                 {methods.otp ? (
@@ -131,67 +162,88 @@ export const SignInScreen = () => {
                 ) : null}
                 {(methods.password || methods.otp) && methods.sso.length ? <AuthDivider /> : null}
                 {methods.sso.map((provider) => (
-                    <button
+                    <LoadingButton
                         key={provider.id}
                         type="button"
-                        className="auth-surface-btn"
-                        disabled={flow.redirecting}
+                        size="lg"
+                        variant={methods.password || methods.otp ? "outline" : "default"}
+                        className={methods.password || methods.otp ? SURFACE_CLASS : KEYCAP_CLASS}
+                        loading={flow.redirecting}
                         onClick={() => void flow.startSso(provider)}
                     >
                         {flow.redirecting
-                            ? `Opening ${provider.label}…`
+                            ? `Redirecting to ${provider.label}…`
                             : `Continue with SSO (${provider.label})`}
-                    </button>
+                    </LoadingButton>
                 ))}
-                <button type="button" className="auth-quiet-btn" onClick={flow.useDifferentEmail}>
-                    Use a different email
-                </button>
+                {!methods.password && !methods.otp && methods.sso.length === 0 ? (
+                    <p className={SUBLINE_CLASS}>
+                        This email has no sign-in method here. Try another address.
+                    </p>
+                ) : null}
             </div>
         )
     } else {
-        // The entry screen, ordered by what the visitor used last: the remembered method first,
-        // the rest under a divider. On a cloud host the data-residency switch comes first, as on
-        // the desktop — an account lives in one region, and the wrong one signs nobody in.
+        // On a cloud host the data-residency switch comes first: an account lives in one
+        // region, and the wrong one signs nobody in.
         body = (
-            <div className="flex w-full flex-col gap-4">
+            <div className="flex w-full flex-col gap-[22px]">
                 {shouldShowRegionSelector() ? <RegionSelector /> : null}
-                {entry.promotedProvider ? socialButtons([entry.promotedProvider], true) : null}
-                {entry.promotedProvider && (entry.otherProviders.length || emailEntry) ? (
-                    <AuthDivider />
+                {entry.providers.length ? (
+                    <SocialAuthButtons
+                        providers={entry.providers.map((provider) => ({
+                            ...provider,
+                            icon: providerIcon(provider.id),
+                        }))}
+                        onSelect={(providerId) => void startProvider(providerId)}
+                        isLoading={pendingProvider !== null}
+                        pendingProviderId={pendingProvider ?? undefined}
+                        disabled={flow.discovering}
+                        lastUsedProviderId={entry.promotedProvider?.id}
+                    />
                 ) : null}
-                {entry.promotedEmail ? emailEntry : null}
-                {entry.promotedEmail && entry.otherProviders.length ? <AuthDivider /> : null}
-                {socialButtons(entry.otherProviders)}
-                {!entry.promotedEmail && emailEntry ? (
-                    <>
-                        {entry.otherProviders.length && !entry.promotedProvider ? (
-                            <AuthDivider />
-                        ) : null}
-                        {emailEntry}
-                    </>
+                {entry.providers.length && entry.showEmailEntry ? <AuthDivider /> : null}
+                {entry.showEmailEntry ? (
+                    <EmailFirstForm
+                        email={flow.email}
+                        setEmail={flow.setEmail}
+                        onContinue={flow.continueWithEmail}
+                        message={message}
+                        disabled={pendingProvider !== null}
+                        promoted={entry.promotedEmail}
+                    />
                 ) : null}
+                <p className="m-0 text-xs leading-[18px] text-muted-foreground [&_a]:text-muted-foreground [&_a]:no-underline [&_a:hover]:text-foreground [&_a:hover]:underline">
+                    By continuing, you agree to Agenta&apos;s{" "}
+                    <a href={TERMS_URL} target="_blank" rel="noopener noreferrer">
+                        Terms of Service
+                    </a>{" "}
+                    and{" "}
+                    <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">
+                        Privacy Policy
+                    </a>
+                    .
+                </p>
             </div>
         )
     }
 
-    // The frame, the column and the panel are the package's (`AuthShell`) — the same one oss and
-    // ee render, so /m is the desktop sign-in, not a second version of it. The corner logo is
-    // desktop-only; on a phone it sits centered with the form, the way this screen shipped.
     return (
         <AuthShell
-            header={<AgentaLogo className="h-6 w-auto text-[var(--a-heading)]" />}
-            headerClassName="hidden lg:block"
+            leaving={leaving}
+            header={<AgentaLogo className="h-[23px] w-auto text-foreground" />}
         >
-            <header className="flex flex-col items-center gap-3 lg:items-start lg:gap-1">
-                <AgentaLogo className="h-6 w-auto text-[var(--a-heading)] lg:hidden" />
-                <h1 className="auth-headline auth-headline-form m-0 hidden lg:block">
-                    {entry.heading}
-                </h1>
-                {!entry.isReturning ? (
-                    <p className="auth-subline m-0">Sign in or create an account.</p>
-                ) : null}
-            </header>
-            {body}
+            <div
+                key={loading ? "loading" : flow.stage}
+                className={`flex flex-col gap-[22px] auth-step-${step.direction}`}
+            >
+                {chip}
+                <header className="flex flex-col gap-1">
+                    <h1 className={HEADLINE_CLASS}>{heading}</h1>
+                    <p className={SUBLINE_CLASS}>{subheading}</p>
+                </header>
+                {body}
+            </div>
         </AuthShell>
     )
 }

@@ -22,6 +22,7 @@ import {
     parseSsoOrgSlug,
     readAuthConfig,
     readInviteParams,
+    readLastAuthEmail,
     readLastAuthMethod,
     soleSsoRedirect,
     LAST_SSO_ORG_SLUG_KEY,
@@ -143,7 +144,11 @@ export function useSignInFlow({
     // Both read client-only sources (runtime env, localStorage), so both wait for mount.
     useEffect(() => {
         setConfig(readAuthConfig())
-        setLastMethod(readLastAuthMethod())
+        const last = readLastAuthMethod()
+        setLastMethod(last)
+        // A returning email visitor finds their address waiting; a link's address still wins.
+        const rememberedEmail = last === "email" ? readLastAuthEmail() : null
+        if (rememberedEmail) setEmail((current) => current || rememberedEmail)
     }, [])
 
     const inviteToken = firstQueryValue(query.token)
@@ -212,8 +217,8 @@ export function useSignInFlow({
 
             if (result.kind === "failed") {
                 // Still advance: the deployment's own email method works without discovery.
+                // No error here: the next step is usable, and its submit reports a real outage.
                 setDiscovered({emailPassword: false, emailOtp: false, social: [], sso: []})
-                reportError(result.error)
                 return
             }
 

@@ -1,10 +1,13 @@
 import {useEffect, useRef, useState} from "react"
 
 import {TurnstileWidget} from "@agenta/auth-ui"
+import {Button} from "@agenta/ui/ui"
+import {useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {AgentaLogo} from "@/components/AgentaLogo"
+import {postAuthBootAtom} from "@/features/app/postAuthBoot"
 import {completeOidcSignIn, isTurnstileEnabled, setPendingTurnstileToken} from "@/lib/auth"
 
 import {useAuthSuccess} from "./useAuthSuccess"
@@ -22,6 +25,7 @@ import {useAuthSuccess} from "./useAuthSuccess"
 export const OidcCallbackScreen = () => {
     const router = useRouter()
     const onSuccess = useAuthSuccess()
+    const startBoot = useSetAtom(postAuthBootAtom)
     const started = useRef(false)
     const [error, setError] = useState<string | null>(null)
     // "unknown" until mounted: the site key is runtime config (`__env.js`), which the prerender
@@ -45,17 +49,31 @@ export const OidcCallbackScreen = () => {
 
         if (!turnstileReady) return
         started.current = true
+        // The post-auth loader covers the exchange, so the screen goes straight to it.
+        startBoot({account: "pending", startedAt: Date.now()})
 
         void (async () => {
             const outcome = await completeOidcSignIn()
             setPendingTurnstileToken(null)
             if (outcome.kind === "ok") {
-                await onSuccess()
+                const provider = router.query.provider
+                try {
+                    await onSuccess({
+                        method: (Array.isArray(provider) ? provider[0] : provider) ?? "oidc",
+                        isNewUser: outcome.createdNewUser,
+                    })
+                } catch {
+                    setError("Signed in, but the app could not open. Try again.")
+                }
                 return
             }
+            startBoot(null)
             setError(outcome.message)
         })()
-    }, [router, router.isReady, onSuccess, turnstileReady])
+    }, [router, router.isReady, onSuccess, startBoot, turnstileReady])
+
+    // Behind the loader there is nothing to show until an error or a security check needs the page.
+    if (!error && turnstile !== "needed") return <div className="bg-background min-h-dvh" />
 
     return (
         <div className="bg-background text-foreground flex min-h-dvh flex-col items-center justify-center gap-6 p-6 text-center">
@@ -65,13 +83,11 @@ export const OidcCallbackScreen = () => {
                     <p className="text-destructive text-xs" role="alert">
                         {error}
                     </p>
-                    <Link href="/auth" className="-m-3 p-3 text-xs underline underline-offset-4">
-                        Back to sign in
-                    </Link>
+                    <Button asChild variant="link" size="sm" className="text-xs text-foreground">
+                        <Link href="/auth">Back to sign in</Link>
+                    </Button>
                 </>
-            ) : (
-                <p className="text-muted-foreground text-xs">Finishing sign-in…</p>
-            )}
+            ) : null}
             {turnstile === "needed" && !error ? (
                 <TurnstileWidget
                     className="flex justify-center"

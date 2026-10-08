@@ -321,3 +321,5 @@ eed2ad997ebc4ee3395067ee281ed40b76d226fe:api/oss/tests/pytest/unit/secrets/test_
 eed2ad997ebc4ee3395067ee281ed40b76d226fe:api/oss/tests/pytest/unit/secrets/test_dtos.py:generic-api-key:635
 # A made-up verify token in a Storybook fixture for the WhatsApp manage panel (PR #7132); replaced in a later commit.
 81ef0808a9841fdbc5b4bacae42909b3256398d8:web/packages/agenta-settings-ui/src/channels/storyFixtures.tsx:generic-api-key:158
+# A made-up Groq key in the useSaveProviderKey unit test (PR #7450).
+7e9971de019b39e9542d07f2049039595632a7b6:web/packages/agenta-entity-ui/tests/unit/saveProviderKey.test.ts:generic-api-key:78

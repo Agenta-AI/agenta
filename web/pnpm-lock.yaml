@@ -1120,6 +1120,9 @@ importers:
       '@agenta/auth':
         specifier: workspace:../agenta-auth
         version: link:../agenta-auth
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)

@@ -50,8 +50,8 @@ export interface HomeTaskComposerProps {
      * would be two inputs answering the same question in the same place.
      */
     mode?: HomeComposerMode
-    /** Send, in create mode. Absent ⇒ the host does not offer creating here. */
-    onCreate?: (input: {text: string}) => void | Promise<void>
+    /** Send, in create mode; resolving `false` puts the text back. Absent ⇒ no create here. */
+    onCreate?: (input: {text: string}) => void | boolean | Promise<void | boolean>
     /**
      * A send is in flight — creating an agent, or opening the session — and the page has not
      * moved yet. Without it, the moment between pressing send and arriving somewhere was silent.
@@ -71,8 +71,15 @@ export interface HomeTaskComposerProps {
      * surface that never asked for one is a control its host cannot explain.
      */
     voice?: boolean
+    /** Seeds the input once, on mount. */
+    initialMarkdown?: string
+    /** The input's plain text on every edit, for a host that keeps a draft. */
+    onChange?: (text: string) => void
+    /** Drop the dock, for a host where the composer is aimed at nothing to name or pick. */
+    hideDock?: boolean
 }
 
+const TASK_PLACEHOLDER = "Describe the task, or start the conversation…"
 const CREATE_PLACEHOLDER = "Describe the agent you want — what it does, when it runs…"
 
 /** What the composer is aimed at, named under the input. One shape for an agent and a template —
@@ -127,7 +134,7 @@ export const HomeTaskComposer = ({
     attachments,
     onStart,
     fixedAgentId,
-    placeholder = "Describe the task, or start the conversation…",
+    placeholder,
     maxHeightClassName,
     agentId,
     onAgentChange,
@@ -138,6 +145,9 @@ export const HomeTaskComposer = ({
     template,
     inputRef,
     voice: voiceEnabled = false,
+    initialMarkdown,
+    onChange,
+    hideDock,
 }: HomeTaskComposerProps) => {
     const effectiveAgentId = fixedAgentId ?? agentId ?? null
     const creating = mode === "create"
@@ -158,7 +168,7 @@ export const HomeTaskComposer = ({
     // A blank create cannot be cleared: the composer always sends somewhere, and "aimed at
     // nothing" is not a state it can be in. Binding one of the rows below is what replaces it. A
     // template IS clearable, because clearing it lands back on that blank create.
-    const dock = template ? (
+    const dock = hideDock ? null : template ? (
         <DockLabel
             tile={
                 <span
@@ -241,7 +251,9 @@ export const HomeTaskComposer = ({
                             // report their own failures; this only stops the rejection escaping.
                             try {
                                 if (creating) {
-                                    await onCreate?.({text})
+                                    if ((await onCreate?.({text})) === false) {
+                                        await richInputRef.current?.setMarkdown(text)
+                                    }
                                     return
                                 }
                                 if (!effectiveAgentId) return
@@ -251,7 +263,11 @@ export const HomeTaskComposer = ({
                             }
                         }}
                         attachments={attachments}
-                        placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
+                        placeholder={
+                            placeholder ?? (creating ? CREATE_PLACEHOLDER : TASK_PLACEHOLDER)
+                        }
+                        initialMarkdown={initialMarkdown}
+                        onChange={onChange}
                         disabled={!creating && !effectiveAgentId}
                         maxHeightClassName={maxHeightClassName}
                         extraPrefix={

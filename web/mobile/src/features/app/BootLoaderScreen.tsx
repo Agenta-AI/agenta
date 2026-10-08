@@ -1,0 +1,144 @@
+import {useEffect, useState} from "react"
+
+import {AgentaMark} from "@agenta/auth-ui"
+import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {projectIdAtom} from "@agenta/shared/state"
+import {useQuery} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
+import {AnimatePresence, motion} from "motion/react"
+
+import {fetchProjects} from "@/lib/context"
+import {useMotionPresets} from "@/lib/motion/presets"
+
+import {
+    BOOT_MAX_MS,
+    BOOT_MIN_MS,
+    BOOT_STATUSES,
+    BOOT_TIPS,
+    bootProgress,
+    bootStage,
+    type PostAuthBoot,
+    type ProjectsAnswer,
+} from "./postAuthBoot"
+
+interface BootLoaderScreenProps {
+    boot: PostAuthBoot
+    /** The destination has answered (or the wait ran out); the loader can leave. */
+    onDone: () => void
+}
+
+/** The editorial post-sign-in loader; its stages follow the projects, then the agents query. */
+export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
+    const presets = useMotionPresets()
+    // Same key and options as AuthGate and the root resolver, so this costs no request.
+    const projectsQuery = useQuery({
+        queryKey: ["mobile", "projects"],
+        queryFn: () => fetchProjects(),
+        staleTime: 30_000,
+        // An OIDC code is still in exchange; asking now only earns a 401 and a refresh.
+        enabled: boot.account !== "pending",
+    })
+    const projectId = useAtomValue(projectIdAtom)
+    const agents = useAtomValue(agentWorkflowsListQueryStateAtom)
+
+    const fresh = projectsQuery.dataUpdatedAt >= boot.startedAt ? projectsQuery.data : undefined
+    const projects: ProjectsAnswer = !fresh
+        ? "pending"
+        : fresh.kind !== "ok"
+          ? "failed"
+          : fresh.projects.length
+            ? "ok"
+            : "empty"
+    // Until the sign-in lands, nothing it loads describes the destination.
+    const stage =
+        boot.account === "pending"
+            ? 0
+            : bootStage(projects, Boolean(projectId) && !agents.isPending)
+
+    const [now, setNow] = useState(() => Date.now())
+    const [stageSince, setStageSince] = useState({stage, at: boot.startedAt})
+    if (stageSince.stage !== stage) setStageSince({stage, at: now})
+    const [tip, setTip] = useState(0)
+
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 100)
+        return () => clearInterval(timer)
+    }, [])
+
+    useEffect(() => {
+        if (!presets.tipRotateMs) return
+        const timer = setInterval(
+            () => setTip((index) => (index + 1) % BOOT_TIPS.length),
+            presets.tipRotateMs,
+        )
+        return () => clearInterval(timer)
+    }, [presets.tipRotateMs])
+
+    const elapsed = now - boot.startedAt
+    const done = (stage === 2 && elapsed >= BOOT_MIN_MS) || elapsed >= BOOT_MAX_MS
+    useEffect(() => {
+        if (done) onDone()
+    }, [done, onDone])
+
+    const status = BOOT_STATUSES[boot.account][stage]
+    const progress = bootProgress(stage, now - stageSince.at)
+
+    return (
+        <div className="bg-background text-foreground flex size-full items-center justify-center p-[clamp(24px,6vw,96px)]">
+            <div className="flex w-full max-w-[600px] flex-col gap-10">
+                <div className="flex items-center gap-3" role="status" aria-live="polite">
+                    <motion.span animate={presets.breathe} className="inline-flex flex-none">
+                        <AgentaMark className="h-[18px] w-auto" markClassName="fill-foreground" />
+                    </motion.span>
+                    <AnimatePresence mode="wait" initial={false}>
+                        <motion.span
+                            key={status}
+                            variants={presets.fadeUp}
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            className="text-muted-foreground text-sm"
+                        >
+                            {status}
+                        </motion.span>
+                    </AnimatePresence>
+                </div>
+                <div className="min-h-[3.6em] text-[clamp(28px,3.4vw,48px)] leading-[1.15]">
+                    <AnimatePresence mode="wait" initial={false}>
+                        <motion.p
+                            key={tip}
+                            variants={presets.tipSwap}
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            className="m-0 font-semibold tracking-[-0.025em] text-balance"
+                        >
+                            {BOOT_TIPS[tip]}
+                        </motion.p>
+                    </AnimatePresence>
+                </div>
+                <div className="flex flex-col gap-3">
+                    <div
+                        className="bg-border h-0.5 w-full overflow-hidden rounded-full"
+                        role="progressbar"
+                        aria-label={status}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={progress}
+                    >
+                        <div
+                            className="bg-foreground h-full w-full origin-left rounded-full motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-linear"
+                            style={{transform: `scaleX(${progress / 100})`}}
+                        />
+                    </div>
+                    <div className="text-muted-foreground flex justify-between text-xs tabular-nums">
+                        <span className="font-medium tracking-[0.03em] uppercase">
+                            Did you know
+                        </span>
+                        <span>{progress}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
