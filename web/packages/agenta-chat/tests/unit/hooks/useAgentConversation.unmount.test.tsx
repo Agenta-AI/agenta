@@ -73,7 +73,7 @@ vi.mock("../../../src/state/sessionMessages", async (importOriginal) => {
 
 import type {SessionTranscript} from "../../../src/assets/loadSession"
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
-import {hasSessionChat} from "../../../src/state/sessionChats"
+import {hasSessionChat, peekSessionChat} from "../../../src/state/sessionChats"
 import {acceptedRunBySession, markSessionFresh} from "../../../src/state/sessionEphemera"
 import {sessionStatusAtomFamily} from "../../../src/state/sessionMessages"
 
@@ -245,5 +245,43 @@ describe.each([
 
         expect(hasSessionChat(sessionId)).toBe(false)
         expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("idle")
+    })
+
+    it("holds the session awaiting when a chat that outlived its mount finishes on an open ask", async () => {
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+
+        const first = mountConversation(store, sessionId)
+        const chat = peekSessionChat(sessionId)!
+        await act(async () => {
+            void chat.sendMessage({text: "ask me"})
+        })
+        await waitFor(() => expect(first.result.current.status).toBe("submitted"))
+        first.unmount()
+        expect(hasSessionChat(sessionId)).toBe(true)
+
+        const ask = {
+            id: "a1",
+            role: "assistant",
+            parts: [
+                {type: "tool-request_input", toolCallId: "c1", state: "input-available", input: {}},
+            ],
+        } as unknown as UIMessage
+        const {onFinish} = chat as unknown as {onFinish: (event: Record<string, unknown>) => void}
+        act(() =>
+            onFinish({
+                message: ask,
+                messages: [message(1), ask],
+                isAbort: false,
+                isDisconnect: false,
+                isError: false,
+                finishReason: "stop",
+            }),
+        )
+
+        expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("awaiting")
+        expect(hasSessionChat(sessionId)).toBe(false)
     })
 })

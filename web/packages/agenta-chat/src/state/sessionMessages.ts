@@ -116,16 +116,23 @@ const writeMessagesWithQuotaGuard = (
     }
 }
 
-/** Sessions this tab ran that paused on an unanswered ask with no mount watching them. */
-const heldAwaitingByIdAtom = atom<Record<string, true>>({})
+export type HeldSessionStatus = "awaiting" | "error"
 
-const setHeldAwaiting = (get: Getter, set: Setter, id: string, held: boolean): void => {
-    const cur = get(heldAwaitingByIdAtom)
-    if (Boolean(cur[id]) === held) return
+/** How a run this tab started ended with no mount watching: on an open ask, or refused. */
+const heldStatusByIdAtom = atom<Record<string, HeldSessionStatus>>({})
+
+const setHeldStatus = (
+    get: Getter,
+    set: Setter,
+    id: string,
+    held: HeldSessionStatus | null,
+): void => {
+    const cur = get(heldStatusByIdAtom)
+    if ((cur[id] ?? null) === held) return
     const next = {...cur}
-    if (held) next[id] = true
+    if (held) next[id] = held
     else delete next[id]
-    set(heldAwaitingByIdAtom, next)
+    set(heldStatusByIdAtom, next)
 }
 
 /**
@@ -151,7 +158,7 @@ const dropSessionMessages = (get: Getter, set: Setter, ids: string[]): void => {
     }
     if (messagesChanged) set(sessionMessagesAtom, messages)
     if (countsChanged) set(sessionRecordCountsAtom, counts)
-    for (const id of ids) setHeldAwaiting(get, set, id, false)
+    for (const id of ids) setHeldStatus(get, set, id, null)
 }
 
 /** Forget the given sessions' cached transcripts and watermarks together. */
@@ -203,7 +210,7 @@ const sessionStatusByIdAtom = atom<Record<string, SessionRunStatus>>({})
 const ownedRunCountByIdAtom = atom<Record<string, number>>({})
 
 const unmountedStatus = (get: Getter, id: string): SessionRunStatus =>
-    get(ownedRunCountByIdAtom)[id] ? "running" : get(heldAwaitingByIdAtom)[id] ? "awaiting" : "idle"
+    get(ownedRunCountByIdAtom)[id] ? "running" : (get(heldStatusByIdAtom)[id] ?? "idle")
 
 /** A single session's run state. Defaults to "idle" for sessions with no mounted conversation.
  * Backs a session list's status dot; reads repaint only when this session's status changes. */
@@ -219,8 +226,7 @@ export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
 /** Every session's non-idle run state in this browser tab, read-only; idle is absence. */
 export const sessionStatusesAtom = atom((get) => {
     const statuses = {...get(sessionStatusByIdAtom)}
-    for (const id of Object.keys(get(heldAwaitingByIdAtom)))
-        statuses[id] ??= unmountedStatus(get, id)
+    for (const id of Object.keys(get(heldStatusByIdAtom))) statuses[id] ??= unmountedStatus(get, id)
     for (const id of Object.keys(get(ownedRunCountByIdAtom))) statuses[id] ??= "running"
     return statuses
 })
@@ -247,8 +253,8 @@ export const sessionLocalSettledAtAtomFamily = atomFamily((id: string) =>
 export const setSessionStatusAtom = atom(
     null,
     (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
-        // A mounted conversation reads the ask itself, so it takes over any held wait.
-        setHeldAwaiting(get, set, id, false)
+        // A mounted conversation reads its own state, so it takes over any held status.
+        setHeldStatus(get, set, id, null)
         const cur = get(sessionStatusByIdAtom)
         const prev = cur[id] ?? "idle"
         // Stamp on the active → settled edge only: `idle → idle` is a no-op so an unvisited session
@@ -276,19 +282,22 @@ export const setSessionStatusAtom = atom(
 /** Count a run stream this tab opened for a session, or retire it once that stream ends. */
 export const trackOwnedRunAtom = atom(
     null,
-    (get, set, {id, open, awaiting = false}: {id: string; open: boolean; awaiting?: boolean}) => {
+    (get, set, {id, open, held}: {id: string; open: boolean; held?: HeldSessionStatus}) => {
         const cur = get(ownedRunCountByIdAtom)
         const count = (cur[id] ?? 0) + (open ? 1 : -1)
         const next = {...cur}
         if (count > 0) next[id] = count
         else delete next[id]
         set(ownedRunCountByIdAtom, next)
-        // A new run supersedes the old ask; a stream that closed on an open ask holds it.
-        if (open || awaiting) setHeldAwaiting(get, set, id, !open)
+        // A new run supersedes what the last one left; a closed stream may leave an ask or a refusal.
+        if (open || held) setHeldStatus(get, set, id, open ? null : (held ?? null))
     },
 )
 
-/** Hold a session as waiting on the user after its mount leaves with the ask still open. */
-export const holdSessionAwaitingAtom = atom(null, (get, set, id: string) => {
-    setHeldAwaiting(get, set, id, true)
-})
+/** Hold a session's ask or failure after the conversation that saw it is gone. */
+export const holdSessionStatusAtom = atom(
+    null,
+    (get, set, {id, status}: {id: string; status: HeldSessionStatus}) => {
+        setHeldStatus(get, set, id, status)
+    },
+)

@@ -36,6 +36,7 @@ import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
     buildRenderMap,
+    isHitlPending,
     isResumeSend,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
@@ -107,7 +108,7 @@ import {
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
-    holdSessionAwaitingAtom,
+    holdSessionStatusAtom,
 } from "../state/sessionMessages"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
@@ -303,6 +304,7 @@ export const useAgentConversation = ({
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
+    const holdSessionStatus = useSetAtom(holdSessionStatusAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
@@ -501,6 +503,9 @@ export const useAgentConversation = ({
             // LIVE mount publishes its own status from `runStatus`, so writing here would flicker.
             if (!mountedRef.current) {
                 setSessionStatus({id: sessionId, status: "idle"})
+                if (isHitlPending(finishedMessages)) {
+                    holdSessionStatus({id: sessionId, status: "awaiting"})
+                }
                 dropSessionChat(sessionId)
             }
         },
@@ -982,16 +987,17 @@ export const useAgentConversation = ({
     }, [runStatus, sessionId, setSessionStatus])
     const runStatusRef = useRef(runStatus)
     runStatusRef.current = runStatus
-    const holdSessionAwaiting = useSetAtom(holdSessionAwaitingAtom)
     // On unmount, retire the dot ONLY if the run went with us. A chat preserved past this mount is
     // still this browser's run to report, so it keeps its status until it settles — `onFinish`
     // retires it then. The release above already ran, so the registry is authoritative here.
     useEffect(
         () => () => {
             if (!hasSessionChat(sessionId)) setSessionStatus({id: sessionId, status: "idle"})
-            if (runStatusRef.current === "awaiting") holdSessionAwaiting(sessionId)
+            if (runStatusRef.current === "awaiting") {
+                holdSessionStatus({id: sessionId, status: "awaiting"})
+            }
         },
-        [sessionId, setSessionStatus, holdSessionAwaiting],
+        [sessionId, setSessionStatus, holdSessionStatus],
     )
 
     useEffect(() => {

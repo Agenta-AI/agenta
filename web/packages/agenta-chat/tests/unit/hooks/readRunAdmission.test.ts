@@ -325,4 +325,10 @@ describe("parkedInputIdFromBody", () => {
             awaiting: false,
         })
     })
+
+    it("reads an ask in a final frame with no trailing newline", async () => {
+        await expect(
+            readRunAdmission(streamOf([accepted("turn-15"), askInput.trimEnd()])),
+        ).resolves.toEqual({accepted: true, ended: true, awaiting: true})
+    })
 })

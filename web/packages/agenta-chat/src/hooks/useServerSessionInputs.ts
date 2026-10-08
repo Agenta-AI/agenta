@@ -247,8 +247,8 @@ export const readRunAdmission = async (
                 return {accepted: false, ended: true, awaiting: false}
             }
         }
-        // A last frame with no trailing newline is still a frame, and it can be the refusal.
-        if (!accepted && buffer.trim() && scan("\n") === "error") {
+        // A last frame with no trailing newline is still a frame: a refusal, or an ask.
+        if (buffer.trim() && scan("\n") === "error") {
             watcher?.onFailed?.()
             return {accepted: false, ended: true, awaiting: false}
         }
@@ -502,9 +502,11 @@ export const useServerSessionInputs = ({
             // A 200 only proves the request was taken: the turn is accepted when the stream's
             // first frame names it, and a stream that ends without one never started a turn.
             trackOwnedRun({id: sessionId, open: true})
+            let refused = false
             void readRunAdmission(response, {
                 ...watcher,
                 onFailed: () => {
+                    refused = true
                     narrate(null)
                     watcher?.onFailed?.()
                 },
@@ -515,7 +517,8 @@ export const useServerSessionInputs = ({
             })
                 .then(
                     (admission) => {
-                        trackOwnedRun({id: sessionId, open: false, awaiting: admission.awaiting})
+                        const held = refused ? "error" : admission.awaiting ? "awaiting" : undefined
+                        trackOwnedRun({id: sessionId, open: false, held})
                         return admission
                     },
                     (error: unknown) => {
