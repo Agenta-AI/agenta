@@ -16,8 +16,7 @@ import {getMessageTraceId, mergePendingSendEchoRows} from "@agenta/chat/assets"
 import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
-    stagedFilesToParts,
-    withDriveFileNote,
+    stagedFilesToOutbound,
     useComposerAttachments,
     useAgentChatQueue,
     useSessionLivePreview,
@@ -757,11 +756,15 @@ const AgentConversation = ({
             if (!uploadedExtras) return
             const outboundFiles = [...files, ...uploadedExtras]
             outbound = outboundFiles
-            const attachmentParts = stagedFilesToParts(outboundFiles, sessionId)
-            const fileParts = attachmentParts.length ? attachmentParts : undefined
-            // Files over the attachment cap went to the session drive; the message names them.
-            const outboundText = withDriveFileNote(trimmed, outboundFiles)
-            await finishSubmit(outboundText, fileParts, stagedUids, outboundFiles, policy)
+            // Files over the attachment cap went to the session drive; the text names them.
+            const outboundMessage = stagedFilesToOutbound(trimmed, outboundFiles, sessionId)
+            await finishSubmit(
+                outboundMessage.text,
+                outboundMessage.parts,
+                stagedUids,
+                outboundFiles,
+                policy,
+            )
         }).catch((error: unknown) => {
             // The send rejected before the runner took it. The composer was cleared at the
             // send, so the words AND everything it consumed come back (idempotently).

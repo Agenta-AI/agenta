@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
-import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
+import {stagedFilesToOutbound, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
 import {
     agentTemplateLookupAtomFamily,
@@ -84,7 +84,7 @@ export const FirstRunScreen = ({
         markSessionFresh(id)
         return id
     })
-    const attachments = useComposerAttachments({sessionId})
+    const attachments = useComposerAttachments({sessionId, largeFilesToDrive: true})
 
     /**
      * Text parked for the editor. `ChatComposer` clears itself on submit, and a seed can arrive
@@ -211,11 +211,13 @@ export const FirstRunScreen = ({
             captureIntent({source: "composer", intentValue: classifyAgentIntent(text)})
         }
         const staged = attachments.files
-        const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : arrival?.parts
+        // Files over the attachment cap went to the session drive; the text names them.
+        const outbound = stagedFilesToOutbound(text, staged, sessionId)
+        const parts = staged.length > 0 ? outbound.parts : arrival?.parts
         // The outcome comes back as a value, not off `newAgent.error`: that flag belongs to THIS
         // render, so reading it after the await would read the state from before the create.
         const handedOff = await newAgent.createFromPrompt({
-            text,
+            text: outbound.text,
             // A template pick names the agent; a plain description leaves naming to the agent.
             name: step.draft?.name,
             templateKey: step.draft?.template?.key,

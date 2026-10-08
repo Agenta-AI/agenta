@@ -1,6 +1,6 @@
 import {useCallback, useState} from "react"
 
-import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
+import {stagedFilesToOutbound, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -35,22 +35,22 @@ export const useHomeHandoff = (base: string, projectId: string) => {
         markSessionFresh(id)
         return id
     })
-    const attachments = useComposerAttachments({sessionId})
+    const attachments = useComposerAttachments({sessionId, largeFilesToDrive: true})
     // The task path navigates too, and the moment between send and the chat route mounting was
     // silent. On success the page unmounts, so this only ever has to come back down on failure.
     const [starting, setStarting] = useState(false)
 
-    const stagedParts = useCallback(() => {
-        const staged = attachments.files
-        return {
-            staged,
-            parts: staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined,
-        }
-    }, [attachments.files, sessionId])
+    const stagedParts = useCallback(
+        (typed: string) => {
+            const staged = attachments.files
+            return {staged, ...stagedFilesToOutbound(typed, staged, sessionId)}
+        },
+        [attachments.files, sessionId],
+    )
 
     const onStartTask = useCallback(
-        async ({agentId, text}: {agentId: string; text: string}) => {
-            const {staged, parts} = stagedParts()
+        async ({agentId, text: typed}: {agentId: string; text: string}) => {
+            const {staged, parts, text} = stagedParts(typed)
             stash({sessionId, task: {agentId, text, parts}})
             setStarting(true)
             // Cleared BEFORE the navigation. The chat route seeds its own tray from the
@@ -91,7 +91,7 @@ export const useHomeHandoff = (base: string, projectId: string) => {
 
     const onCreateFromPrompt = useCallback(
         async ({
-            text,
+            text: typed,
             templateName,
             templateKey,
         }: {
@@ -99,7 +99,7 @@ export const useHomeHandoff = (base: string, projectId: string) => {
             templateName?: string
             templateKey?: string
         }) => {
-            const {staged, parts} = stagedParts()
+            const {staged, parts, text} = stagedParts(typed)
             // Same ordering as `onStartTask`: the create navigates to the chat route, which seeds
             // its tray from the store on mount, so the rows must be gone before that.
             attachments.clearAttachments(staged.map((file) => file.uid))
