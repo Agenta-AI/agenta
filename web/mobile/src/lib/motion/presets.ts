@@ -6,22 +6,24 @@
  */
 import {useMemo} from "react"
 
+import {DURATION, EASE_OUT} from "@agenta/ui/motion"
 import {useReducedMotion} from "motion/react"
 import type {Transition, Variants} from "motion/react"
-
-/** JS mirror of `@agenta/ui/motion.css` `--ease-out`: fast start, long soft landing. */
-export const easeOut = [0.32, 0.72, 0, 1] as const
 
 /** Spring for screen-level shared-axis pushes (list → chat). Critically damped: no overshoot. */
 export const pushTransition: Transition = {type: "spring", visualDuration: 0.35, bounce: 0}
 
-/** Spring for bottom/side sheets (project drawer). Matches `--transition-duration-slow`. */
-export const sheetTransition: Transition = {type: "spring", visualDuration: 0.38, bounce: 0}
+/** Spring for bottom/side sheets (project drawer); settles in the `slow` token's time. */
+export const sheetTransition: Transition = {
+    type: "spring",
+    visualDuration: DURATION.slow,
+    bounce: 0,
+}
 
-/** Tween for skeleton → content crossfades (no layout jump). Matches `--transition-duration-fast`. */
+/** Tween for skeleton → content crossfades (no layout jump). */
 export const crossfadeTransition: Transition = {
-    duration: 0.16,
-    ease: easeOut,
+    duration: DURATION.fast,
+    ease: EASE_OUT,
 }
 
 /**
@@ -55,7 +57,7 @@ export const crossfade: Variants = {
 /** Tween for a stack of tiles fanning out under the pointer. */
 export const fanTransition: Transition = {
     duration: 0.3,
-    ease: easeOut,
+    ease: EASE_OUT,
 }
 
 /** Cadence, in ms, at which an example run reveals its steps one by one. */

@@ -1,3 +1,4 @@
+import {DURATION, EASE_IN_OUT, EASE_OUT} from "@agenta/ui/motion"
 import type {Transition, Variants} from "motion/react"
 
 /**
@@ -23,7 +24,7 @@ export const PANE_FADE = {
     initial: {opacity: 0},
     animate: {opacity: 1},
     exit: {opacity: 0},
-    transition: {duration: 0.16, ease: [0.4, 0, 0.2, 1] as const},
+    transition: {duration: DURATION.fast, ease: EASE_OUT},
 }
 
 // Row/tile ENTRANCE when a level first reveals: a quick UNIFORM opacity fade — no per-item stagger
@@ -34,7 +35,7 @@ export const PANE_FADE = {
 export const revealFade = (on: boolean) => ({
     initial: on ? {opacity: 0} : false,
     animate: {opacity: 1},
-    transition: {duration: 0.18, ease: [0.4, 0, 0.2, 1] as const},
+    transition: {duration: DURATION.fast, ease: EASE_OUT},
 })
 
 // Height+fade reveal for the header's detail panels (file meta / repo meta) as the toggle mounts and
@@ -43,5 +44,5 @@ export const META_REVEAL = {
     initial: {height: 0, opacity: 0},
     animate: {height: "auto", opacity: 1},
     exit: {height: 0, opacity: 0},
-    transition: {duration: 0.2, ease: [0.4, 0, 0.2, 1] as const},
+    transition: {duration: DURATION.base, ease: EASE_IN_OUT},
 }

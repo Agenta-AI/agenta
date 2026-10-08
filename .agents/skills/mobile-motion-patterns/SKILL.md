@@ -20,15 +20,15 @@ There are two layers, and they share the same curves and durations:
 
 The tokens use Tailwind v4's own names, so components use stock utilities:
 
-| Token | Utility | Value | Use |
-|---|---|---|---|
-| `--ease-out` | `ease-out` | `cubic-bezier(0.32, 0.72, 0, 1)` | Enters and moves |
-| `--ease-in` | `ease-in` | `cubic-bezier(0.32, 0, 0.67, 0)` | Exits only |
-| `--ease-in-out` | `ease-in-out` | `cubic-bezier(0.65, 0, 0.35, 1)` | Slides in place (thumb, fill, pane width) |
-| `--transition-duration-instant` | `duration-instant` | 100ms | Press feedback |
-| `--transition-duration-fast` | `duration-fast` | 160ms | Hover, popovers, menus, tooltips, every exit |
-| `--transition-duration-base` | `duration-base` | 240ms | Dialogs, route changes, in-place slides |
-| `--transition-duration-slow` | `duration-slow` | 380ms | Sheets and drawers |
+| Token                           | Utility            | Value                            | Use                                          |
+| ------------------------------- | ------------------ | -------------------------------- | -------------------------------------------- |
+| `--ease-out`                    | `ease-out`         | `cubic-bezier(0.32, 0.72, 0, 1)` | Enters and moves                             |
+| `--ease-in`                     | `ease-in`          | `cubic-bezier(0.32, 0, 0.67, 0)` | Exits only                                   |
+| `--ease-in-out`                 | `ease-in-out`      | `cubic-bezier(0.65, 0, 0.35, 1)` | Slides in place (thumb, fill, pane width)    |
+| `--transition-duration-instant` | `duration-instant` | 100ms                            | Press feedback                               |
+| `--transition-duration-fast`    | `duration-fast`    | 160ms                            | Hover, popovers, menus, tooltips, every exit |
+| `--transition-duration-base`    | `duration-base`    | 240ms                            | Dialogs, route changes, in-place slides      |
+| `--transition-duration-slow`    | `duration-slow`    | 380ms                            | Sheets and drawers                           |
 
 A bare `transition` / `transition-colors` uses `duration-fast` + `ease-out` by default.
 In plain CSS or inline styles, read the variables: `var(--ease-in-out)`,
@@ -75,8 +75,13 @@ const presets = useMotionPresets()
 - **`crossfade`** — reply reveal, composer overlays, skeleton → content swaps (geometry must
   match so the fade causes zero layout shift).
 - **`sharedAxisPush`**, **`sheetSlideUp`** — defined, not yet used by a screen.
-- Springs are `{type: "spring", visualDuration, bounce: 0}`; tweens use `easeOut`, the JS
-  mirror of `--ease-out`. Change the CSS and JS values together.
+- Springs are `{type: "spring", visualDuration, bounce: 0}`.
+- Tweens read the JS mirror of the CSS tokens, `@agenta/ui/motion`: `EASE_OUT`, `EASE_IN`,
+  `EASE_IN_OUT` and `DURATION.{instant,fast,base,slow}` (seconds). Package presets use it too
+  (drive in `@agenta/entities`, the settings panel in `@agenta/settings-ui`). Never write a raw
+  bezier array or duration number in a preset.
+- `motion.css` and `motion.ts` change together; `tests/unit/motionTokens.test.ts` in
+  `@agenta/ui` fails if they drift.
 
 ## Rules
 
