@@ -1,5 +1,4 @@
 import asyncio
-from functools import partial
 from typing import Optional
 from urllib.parse import urljoin, urlparse, urlunparse
 
@@ -11,9 +10,7 @@ from oss.src.core.links.parser import head_section, parse_link_meta
 from oss.src.core.links.types import (
     LinkPage,
     LinkPreview,
-    LinkRefusal,
     LinkPreviewError,
-    LinkPreviewRefused,
     LinkPreviewUnreachable,
 )
 from oss.src.utils.caching import get_cache, set_cache
@@ -23,14 +20,12 @@ from oss.src.utils.network import pin_to_resolved_address
 log = get_module_logger(__name__)
 
 _CACHE_NAMESPACE = "links:preview"
-_REFUSED_CACHE_NAMESPACE = "links:preview:refused"
 _CACHE_TTL_SECONDS = 24 * 60 * 60
 _NEGATIVE_CACHE_TTL_SECONDS = 10 * 60
 
 _TIMEOUT_SECONDS = 3.0
 _MAX_REDIRECTS = 3
 _MAX_BYTES = 512 * 1024
-_PARSE_INLINE_CHARS = 64 * 1024
 _HTML_TYPES = {"text/html", "application/xhtml+xml"}
 _USER_AGENT = "Mozilla/5.0 (compatible; AgentaLinkPreview/1.0; +https://agenta.ai)"
 # Built once at import: loading the CA bundle per request blocked the event loop.
@@ -127,19 +122,9 @@ async def _fetch_page(*, url: str) -> LinkPage:
 
 
 class LinksService:
-    def __init__(self) -> None:
-        # In-process single flight: concurrent requests for one uncached URL share a fetch.
-        self._inflight: dict[str, asyncio.Future] = {}
-
     async def preview(self, *, url: str) -> LinkPreview:
         """A link's preview; an unreadable page still yields its URL and domain."""
         key = normalize_link_url(url)
-
-        refused = await get_cache(
-            namespace=_REFUSED_CACHE_NAMESPACE, key=key, model=LinkRefusal, retry=False
-        )
-        if refused is not None:
-            raise LinkPreviewRefused(refused.message, reason=refused.reason)
 
         cached = await get_cache(
             namespace=_CACHE_NAMESPACE,
@@ -150,44 +135,20 @@ class LinksService:
         if cached is not None:
             return cached
 
-        running = self._inflight.get(key)
-        if running is not None:
-            return await asyncio.shield(running)
-
-        task = asyncio.ensure_future(self._fetch_and_cache(url=url, key=key))
-        self._inflight[key] = task
-        task.add_done_callback(lambda _: self._inflight.pop(key, None))
-        return await asyncio.shield(task)
-
-    async def _fetch_and_cache(self, *, url: str, key: str) -> LinkPreview:
         page = LinkPage(url=url)
         try:
             async with asyncio.timeout(_TIMEOUT_SECONDS):
                 page = await _fetch_page(url=url)
-        except LinkPreviewRefused as exc:
-            await set_cache(
-                namespace=_REFUSED_CACHE_NAMESPACE,
-                key=key,
-                value=LinkRefusal(message=exc.message, reason=exc.reason),
-                ttl=_NEGATIVE_CACHE_TTL_SECONDS,
-            )
-            raise
         except LinkPreviewUnreachable:
             pass
         except (TimeoutError, httpx.HTTPError) as exc:
             log.debug("[links] preview fetch failed", url=key, error=type(exc).__name__)
 
-        meta = None
-        if page.html:
-            head = head_section(page.html)
-            # A page with no head end can still be 512 KB of markup: parse that off the loop.
-            meta = (
-                await asyncio.to_thread(
-                    partial(parse_link_meta, html=head, base_url=page.url)
-                )
-                if len(head) > _PARSE_INLINE_CHARS
-                else parse_link_meta(html=head, base_url=page.url)
-            )
+        meta = (
+            parse_link_meta(html=head_section(page.html), base_url=page.url)
+            if page.html
+            else None
+        )
         preview = LinkPreview(
             url=page.url,
             domain=_domain(page.url),
