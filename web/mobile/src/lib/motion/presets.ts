@@ -38,6 +38,9 @@ export const featuredDwellMs = 5000
 /** How long a finished example run holds before it fades and plays again. */
 export const runHoldMs = 4000
 
+/** How long a scroll glide (`lib/motion/scrollGlide`) takes to settle. */
+export const scrollGlideMs = Math.round(DURATION.slow * 1000)
+
 /** Instant variants used when the user prefers reduced motion. */
 const instant: Variants = {
     initial: {opacity: 0},
@@ -60,6 +63,8 @@ export interface MotionPresets {
     runHoldMs: number
     /** 0 when reduced: the featured carousel does not advance by itself. */
     featuredDwellMs: number
+    /** 0 when reduced: scrolls land instantly instead of gliding. */
+    scrollGlideMs: number
 }
 
 /**
@@ -81,6 +86,7 @@ export function useMotionPresets(): MotionPresets {
                       stepRevealMs: 0,
                       runHoldMs: 0,
                       featuredDwellMs: 0,
+                      scrollGlideMs: 0,
                   }
                 : {
                       reduced,
@@ -90,6 +96,7 @@ export function useMotionPresets(): MotionPresets {
                       stepRevealMs,
                       runHoldMs,
                       featuredDwellMs,
+                      scrollGlideMs,
                   },
         [reduced],
     )

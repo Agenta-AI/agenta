@@ -8,6 +8,7 @@ import {
 } from "@agenta/chat/assets"
 
 import {useMotionPresets} from "@/lib/motion/presets"
+import {createScrollGlide, type ScrollGlide} from "@/lib/motion/scrollGlide"
 
 /** Follow keeps tracking appends from this close to the bottom. Deliberately small and NOT the
  * pill's threshold: auto-scrolling someone who has scrolled up to read is the worse failure. */
@@ -23,7 +24,7 @@ export const ARRIVED_ANSWER_ATTR = "data-arrived-answer"
 /** Space above an anchored answer: clear of the top fade. */
 const ANCHOR_GAP_PX = SCROLL_FADE_TOP_PX + 8
 
-/** Past this many viewports a glide reads as slow, so the pin jumps instead. */
+/** Past this many viewports a glide reads as slow, so it jumps to one viewport short first. */
 const GLIDE_MAX_VIEWPORTS = 2
 
 /** Keys that scroll the transcript; one is the reader taking over. */
@@ -49,39 +50,23 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
     // The scroller's edge fades, from the same measurements: they are its scroll state, not a
     // decoration, so the first message is never dimmed while the transcript sits at its top.
     const [edgeMask, setEdgeMask] = useState("none")
-    // Native smooth scroll sits outside the motion presets, so it reads their reduced-motion flag.
-    const {reduced} = useMotionPresets()
-    const reducedRef = useRef(reduced)
-    reducedRef.current = reduced
+    // Glide timing from the motion presets; 0 (reduced motion) pins instantly instead.
+    const {scrollGlideMs} = useMotionPresets()
+    const glideMsRef = useRef(scrollGlideMs)
+    glideMsRef.current = scrollGlideMs
     // The first pin of a session lands instantly; later appends glide.
     const pinnedRef = useRef(false)
-    // Where a glide is heading; while set, the glide's own scroll events are not the reader leaving.
-    const glideToRef = useRef<number | null>(null)
+    // One glide per scroller. While it has a target, its own scroll events are not the reader leaving.
+    const glideRef = useRef<{el: HTMLDivElement; glide: ScrollGlide} | null>(null)
+    const glideTarget = () => glideRef.current?.glide.target ?? null
 
-    const scrollTo = useCallback((el: HTMLDivElement, top: number) => {
-        const distance = Math.abs(top - el.scrollTop)
-        const glide =
-            pinnedRef.current &&
-            !reducedRef.current &&
-            distance > 1 &&
-            distance <= el.clientHeight * GLIDE_MAX_VIEWPORTS
-        pinnedRef.current = true
-        if (!glide) {
-            glideToRef.current = null
-            el.scrollTop = top
-            return
-        }
-        glideToRef.current = top
-        el.scrollTo({top, behavior: "smooth"})
-    }, [])
+    const stopGlide = useCallback(() => glideRef.current?.glide.stop(), [])
 
     const measure = useCallback((el: HTMLDivElement) => {
         // A pane hidden behind the config split measures 0 everywhere; that is not the reader moving.
         if (el.clientHeight === 0) return
-        const glideTo = glideToRef.current
-        if (glideTo !== null && Math.abs(el.scrollTop - glideTo) <= 2) glideToRef.current = null
         nearBottomRef.current =
-            glideToRef.current !== null ||
+            glideTarget() !== null ||
             el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX
         // No pill while anchored: the reader has not scrolled away.
         const next = !nearBottomRef.current && !anchorRef.current && shouldRevealJump(el)
@@ -90,6 +75,32 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         const mask = scrollEdgeMask(edges.top, edges.bottom)
         setEdgeMask((prev) => (prev === mask ? prev : mask))
     }, [])
+
+    const scrollTo = useCallback(
+        (el: HTMLDivElement, top: number) => {
+            const glideMs = glideMsRef.current
+            const glide = pinnedRef.current && glideMs > 0 && Math.abs(top - el.scrollTop) > 1
+            pinnedRef.current = true
+            if (!glide) {
+                stopGlide()
+                el.scrollTop = top
+                return
+            }
+            if (glideRef.current?.el !== el) {
+                glideRef.current?.glide.stop()
+                glideRef.current = {el, glide: createScrollGlide(el, () => measure(el))}
+            }
+            const {glide: scroller} = glideRef.current
+            if (scroller.target === null) {
+                const distance = top - el.scrollTop
+                if (Math.abs(distance) > el.clientHeight * GLIDE_MAX_VIEWPORTS) {
+                    el.scrollTop = top - Math.sign(distance) * el.clientHeight
+                }
+            }
+            scroller.to(top, glideMs)
+        },
+        [measure, stopGlide],
+    )
 
     /** Pin while following: to the bottom, but never past the top of an answer that just arrived. */
     const follow = useCallback(
@@ -132,8 +143,8 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         if (arrived) releasedRef.current.add(arrived)
         if (anchorRef.current) releasedRef.current.add(anchorRef.current)
         anchorRef.current = null
-        glideToRef.current = null
-    }, [])
+        stopGlide()
+    }, [stopGlide])
 
     const onScroll = useCallback(() => {
         const el = ref.current
@@ -157,8 +168,10 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         nearBottomRef.current = true
         anchorRef.current = null
         pinnedRef.current = false
-        glideToRef.current = null
-    }, [sessionId])
+        stopGlide()
+    }, [sessionId, stopGlide])
+
+    useEffect(() => stopGlide, [stopGlide])
 
     useLayoutEffect(() => {
         const el = ref.current
@@ -199,9 +212,9 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         el.addEventListener("touchmove", release, {passive: true})
         el.addEventListener("pointerdown", release, {passive: true})
         el.addEventListener("keydown", onKey)
-        // A glide that stopped short (the content shrank under it) is over.
+        // Each glide frame sets scrollTop, which can end in `scrollend`; the glide is not over.
         const onScrollEnd = () => {
-            glideToRef.current = null
+            if (glideTarget() !== null) return
             measure(el)
         }
         el.addEventListener("scrollend", onScrollEnd)

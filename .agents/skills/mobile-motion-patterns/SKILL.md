@@ -78,6 +78,11 @@ const presets = useMotionPresets()
 - **`crossfade`** — reply reveal, composer overlays, skeleton → content swaps (geometry must
   match so the fade causes zero layout shift).
 - **`fanTransition`** — the marketplace tile stack.
+- **`scrollGlideMs`** — programmatic scrolling (the chat transcript's follow and jump to
+  latest). Use `createScrollGlide` from `src/lib/motion/scrollGlide.ts`, never
+  `scrollTo({behavior: "smooth"})`: it is one critically damped spring that retargets while it
+  runs, so streamed growth glides as one motion instead of restarting per chunk. Reader input
+  (wheel, touch, pointer, scroll keys) must `stop()` it.
 - Springs are `{type: "spring", visualDuration, bounce: 0}`.
 - Tweens read the JS mirror of the CSS tokens, `@agenta/ui/motion`: `EASE_OUT`, `EASE_IN`,
   `EASE_IN_OUT` and `DURATION.{instant,fast,base,slow}` (seconds). Package presets use it too
