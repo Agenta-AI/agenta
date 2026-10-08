@@ -3166,6 +3166,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/mark-records-incomplete",
+          label: "Mark Records Incomplete",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/append-turn",
           label: "Append Turn",
           className: "api-method post",
