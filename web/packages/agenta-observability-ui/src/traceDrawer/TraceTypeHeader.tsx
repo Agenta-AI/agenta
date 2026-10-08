@@ -225,21 +225,25 @@ const TraceTypeHeader = ({
                         label={`# ${activeTrace?.span_id || "-"}`}
                     />
                 </TooltipWithCopyAction>
-                <SimpleTooltip
-                    title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
-                    side="bottom"
-                >
-                    <EnhancedButton
-                        type="default"
-                        size="small"
-                        icon={<Play size={14} />}
-                        loading={isOpening}
-                        disabled={!canOpenInPlayground || isOpening}
-                        onClick={handleOpenInPlayground}
+                {/* Like the slotted actions, the button exists only when the host binds the
+                    playground action. `/m` does not bind it, so `/m` shows no button. */}
+                {openTraceInPlayground && (
+                    <SimpleTooltip
+                        title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
+                        side="bottom"
                     >
-                        Playground
-                    </EnhancedButton>
-                </SimpleTooltip>
+                        <EnhancedButton
+                            type="default"
+                            size="small"
+                            icon={<Play size={14} />}
+                            loading={isOpening}
+                            disabled={!canOpenInPlayground || isOpening}
+                            onClick={handleOpenInPlayground}
+                        >
+                            Playground
+                        </EnhancedButton>
+                    </SimpleTooltip>
+                )}
                 <AddToTestsetButton
                     label="Add to testset"
                     size="small"
