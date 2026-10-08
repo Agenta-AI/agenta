@@ -3,7 +3,6 @@
     "alive": 3600,
     "running": 3600,
     "attached": 60,
-    "owner": 120,
     "heartbeat_interval": 30,
     "heartbeat_write_threshold": 60
   },
@@ -13,7 +12,6 @@
     "alive_example": "alive:proj-abc:session:sess-123",
     "running_example": "running:proj-abc:session:sess-123",
     "attached_example": "attached:proj-abc:session:sess-123",
-    "owner_example": "owner:proj-abc:session:sess-123",
     "displaced_channel_example": "displaced:proj-abc:session:sess-123"
   },
   "displacement_payload": {

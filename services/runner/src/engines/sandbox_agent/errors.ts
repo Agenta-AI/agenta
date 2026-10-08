@@ -87,6 +87,12 @@ export const RUNNER_RESTARTING_MESSAGE =
 export const EXECUTION_LOST_MESSAGE =
   "The agent stopped responding and the run was closed. Send the message again to retry.";
 
+export const TURN_INDEX_TAKEN_CODE: RunErrorCode = "turn_index_taken";
+
+/** The line the user reads when another runner already wrote this turn; a resend starts fresh. */
+export const TURN_INDEX_TAKEN_MESSAGE =
+  "Another agent runner already started this turn of the conversation, so this message was not sent. Send it again.";
+
 export type RunErrorCode =
   | "runner_error"
   // The sandbox provider (or this runner's own sandbox admission) is at capacity; retryable later.
@@ -147,6 +153,10 @@ export type RunErrorCode =
   // carries the provider's own sentence, redacted. Not retryable as is: the same request is
   // refused the same way. The failed turn leaves the conversation, so the next message is not.
   | "provider_error"
+  // A fresh prompt found its turn index already written by another runner, so this runner's view
+  // of the conversation was stale. Nothing was sent to the model. Retryable: the next send
+  // rebuilds from the latest turn.
+  | "turn_index_taken"
   // A failure no rule recognized, whose text the runner withholds (it may hold paths, ids or
   // credentials): the message is one sentence with a reference to the runner's log. A client must
   // not show any other text for it in its place (a trace's error text included). Only runs whose

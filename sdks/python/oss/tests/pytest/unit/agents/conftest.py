@@ -154,6 +154,8 @@ class FakeBackend(Backend):
         control_command_id=None,
         effective_parameters=None,
         gateway_policy=None,
+        runner_address=None,
+        runner_replica_id=None,
     ) -> FakeSession:
         self.created_sessions.append(
             {

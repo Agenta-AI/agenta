@@ -138,8 +138,16 @@ class Backend(ABC):
         control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> Session:
-        """Open a session in ``sandbox`` for an already-harness-shaped ``config``."""
+        """Open a session in ``sandbox`` for an already-harness-shaped ``config``.
+
+        ``runner_address`` is the runner pod that ran the session's last turn, for a backend
+        that reaches its runner over a network. A hint only: the backend keeps the address it
+        was built with as the fallback. ``runner_replica_id`` is that pod's replica id, which
+        the backend checks against the pod before it uses the address.
+        """
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +225,16 @@ class Environment:
             control_command_id=session_config.control_command_id,
             effective_parameters=session_config.effective_parameters,
             gateway_policy=session_config.gateway_policy,
+            runner_address=(
+                session_config.session_context.runner_address
+                if session_config.session_context
+                else None
+            ),
+            runner_replica_id=(
+                session_config.session_context.runner_replica_id
+                if session_config.session_context
+                else None
+            ),
         )
 
 

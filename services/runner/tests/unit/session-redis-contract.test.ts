@@ -22,13 +22,11 @@ import {
   ALIVE_TTL_SECONDS,
   RUNNING_TTL_SECONDS,
   ATTACHED_TTL_SECONDS,
-  OWNER_TTL_SECONDS,
   HEARTBEAT_INTERVAL_SECONDS,
   HEARTBEAT_WRITE_THRESHOLD_SECONDS,
   aliveKey,
   runningKey,
   attachedKey,
-  ownerKey,
   displacedChannel,
   DISPLACEMENT_REASON_STOLEN,
   makeDisplacementPayload,
@@ -46,7 +44,6 @@ interface RedisContractFixture {
     alive: number;
     running: number;
     attached: number;
-    owner: number;
     heartbeat_interval: number;
     heartbeat_write_threshold: number;
   };
@@ -56,7 +53,6 @@ interface RedisContractFixture {
     alive_example: string;
     running_example: string;
     attached_example: string;
-    owner_example: string;
     displaced_channel_example: string;
   };
   displacement_payload: {
@@ -87,9 +83,6 @@ describe("session Redis contract: TTLs", () => {
   it("attached TTL matches golden", () => {
     assert.equal(ATTACHED_TTL_SECONDS, fixture.ttls.attached);
   });
-  it("owner TTL matches golden", () => {
-    assert.equal(OWNER_TTL_SECONDS, fixture.ttls.owner);
-  });
   it("heartbeat interval matches golden", () => {
     assert.equal(HEARTBEAT_INTERVAL_SECONDS, fixture.ttls.heartbeat_interval);
   });
@@ -110,9 +103,6 @@ describe("session Redis contract: key builders", () => {
   });
   it("attachedKey matches golden", () => {
     assert.equal(attachedKey(PROJECT_EXAMPLE, SESSION_EXAMPLE), fixture.keys.attached_example);
-  });
-  it("ownerKey matches golden", () => {
-    assert.equal(ownerKey(PROJECT_EXAMPLE, SESSION_EXAMPLE), fixture.keys.owner_example);
   });
   it("displacedChannel matches golden", () => {
     assert.equal(
