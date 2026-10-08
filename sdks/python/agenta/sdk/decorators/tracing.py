@@ -37,6 +37,55 @@ def _has_instrument(handler: Callable[..., Any]) -> bool:
     return bool(getattr(handler, "__has_instrument__", False))
 
 
+def _size(text: Any) -> Optional[int]:
+    return len(text.encode("utf-8")) if isinstance(text, str) else None
+
+
+def _trace_skill(skill: Any) -> Any:
+    if not isinstance(skill, dict):
+        return skill
+
+    traced = {key: value for key, value in skill.items() if key != "body"}
+    if "body" in skill:
+        traced["body_size"] = _size(skill["body"])
+
+    files = skill.get("files")
+    if isinstance(files, list):
+        traced["files"] = [
+            (
+                {
+                    **{key: value for key, value in file.items() if key != "content"},
+                    "size": _size(file.get("content")),
+                }
+                if isinstance(file, dict)
+                else file
+            )
+            for file in files
+        ]
+
+    return traced
+
+
+def _trace_configuration(parameters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """The configuration recorded on a root span.
+
+    An agent's skills carry their SKILL.md body and every bundled file inline, which made
+    each agent root span megabytes large. The span keeps skill names, paths and sizes; the
+    full content stays on the referenced revision (or the caller's inline draft).
+    """
+    if not isinstance(parameters, dict):
+        return parameters or {}
+
+    agent = parameters.get("agent")
+    if not isinstance(agent, dict) or not isinstance(agent.get("skills"), list):
+        return parameters
+
+    return {
+        **parameters,
+        "agent": {**agent, "skills": [_trace_skill(s) for s in agent["skills"]]},
+    }
+
+
 def auto_instrument(handler: Callable[..., Any]) -> Callable[..., Any]:
     if _has_instrument(handler):
         return handler
@@ -582,7 +631,9 @@ class instrument:  # pylint: disable=invalid-name
                 # Depth 3 keeps one `@ag.type=json:` attribute per config section
                 # (configuration.agent.tools, .llm, ...) instead of one per leaf.
                 span.set_attributes(
-                    attributes={"configuration": context.parameters or {}},
+                    attributes={
+                        "configuration": _trace_configuration(context.parameters)
+                    },
                     namespace="meta",
                     max_depth=3,
                 )
