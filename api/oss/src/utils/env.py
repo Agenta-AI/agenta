@@ -1425,6 +1425,7 @@ class LLMConfig(BaseModel):
     togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
     minimax: str = os.getenv("MINIMAX_API_KEY", "")
     xai: str = os.getenv("XAI_API_KEY", "")
+    llmapi: str = os.getenv("LLMAPI_API_KEY", "")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1448,6 +1449,7 @@ class LLMConfig(BaseModel):
                 "togetherai",
                 "minimax",
                 "xai",
+                "llmapi",
             ]
             if getattr(self, name)
         ]

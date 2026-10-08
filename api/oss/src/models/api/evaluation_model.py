@@ -165,6 +165,7 @@ class LMProvidersEnum(str, Enum):
     gemini = "GEMINI_API_KEY"
     minimax = "MINIMAX_API_KEY"
     xai = "XAI_API_KEY"
+    llmapi = "LLMAPI_API_KEY"
 
 
 class NewEvaluation(BaseModel):

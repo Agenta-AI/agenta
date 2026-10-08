@@ -162,6 +162,7 @@ _ALLOWED_EXTRA_ENV_KEYS: Set[str] = {
     "TOGETHER_API_KEY",
     "OPENROUTER_API_KEY",
     "XAI_API_KEY",
+    "LLMAPI_API_KEY",
     # Bedrock / AWS.
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",

@@ -45,6 +45,8 @@ export function providerKeysInEnvironment(env: Record<string, string | undefined
   for (const provider of getProviders()) {
     for (const name of findEnvKeys(provider, defined) ?? []) if (defined[name]) found.add(name);
   }
+  // LLM API is registered per run through models.json, outside Pi's built-in table.
+  if (env.LLMAPI_API_KEY) found.add("LLMAPI_API_KEY");
   for (const name of AMBIENT_CREDENTIAL_ENV) if (env[name]) found.add(name);
   return [...found].sort();
 }

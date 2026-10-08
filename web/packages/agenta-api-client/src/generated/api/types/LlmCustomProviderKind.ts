@@ -21,5 +21,6 @@ export const LlmCustomProviderKind = {
     Openrouter: "openrouter",
     Gemini: "gemini",
     Xai: "xai",
+    Llmapi: "llmapi",
 } as const;
 export type LlmCustomProviderKind = (typeof LlmCustomProviderKind)[keyof typeof LlmCustomProviderKind];
