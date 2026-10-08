@@ -163,12 +163,12 @@
         "@types/react-dom": "^19.0.4",
         "@types/react-resizable": "^3.0.7",
         "@vitejs/plugin-react-swc": "^4.3.2",
-        "@vitest/coverage-v8": "^4.1.4",
+        "@vitest/coverage-v8": "^4.1.11",
         "ajv": "^8.18.0",
         "jsdom": "^26.1.0",
         "lodash": "^4.17.23",
         "tsx": "^4.22.4",
         "typescript": "^5.9.3",
-        "vitest": "^4.1.4"
+        "vitest": "^4.1.11"
     }
 }

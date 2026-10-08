@@ -50,11 +50,11 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/proper-lockfile": "4.1.4",
-    "@vitest/coverage-v8": "^4.1.4",
+    "@vitest/coverage-v8": "^4.1.11",
     "esbuild": "0.28.1",
     "tsx": "4.19.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.11"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -76,10 +76,10 @@
       "@hono/node-server": "1.19.15",
       "@opentelemetry/propagator-jaeger": "2.9.0",
       "axios": "1.20.0",
-      "brace-expansion": "5.0.9",
+      "brace-expansion": "5.0.12",
       "fast-uri": "3.1.8",
       "hono": "4.13.7",
-      "ip-address": "10.3.1",
+      "ip-address": "10.7.1",
       "postcss": "8.5.23",
       "protobufjs": "7.6.5",
       "shell-quote": "1.9.0",
