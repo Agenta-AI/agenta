@@ -36,6 +36,7 @@ import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
     buildRenderMap,
+    isHitlPending,
     isResumeSend,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
@@ -107,6 +108,7 @@ import {
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
+    holdSessionStatusAtom,
 } from "../state/sessionMessages"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
@@ -302,6 +304,7 @@ export const useAgentConversation = ({
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
+    const holdSessionStatus = useSetAtom(holdSessionStatusAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
@@ -399,8 +402,10 @@ export const useAgentConversation = ({
         },
         [sessionId],
     )
-    // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
+    // Tracks `busy` for callbacks that outlive a render.
     const busyRef = useRef(false)
+    // Only an open stream outlives the mount; an accepted run whose stream closed has nothing live.
+    const streamOpenRef = useRef(false)
     // Only a stream THIS client renders. A shared-delivered turn renders from the live frames,
     // so the durable snapshot behind them stays adoptable — see the adoption guard below.
     const localRenderBusyRef = useRef(false)
@@ -498,6 +503,9 @@ export const useAgentConversation = ({
             // LIVE mount publishes its own status from `runStatus`, so writing here would flicker.
             if (!mountedRef.current) {
                 setSessionStatus({id: sessionId, status: "idle"})
+                if (isHitlPending(finishedMessages)) {
+                    holdSessionStatus({id: sessionId, status: "awaiting"})
+                }
                 dropSessionChat(sessionId)
             }
         },
@@ -517,7 +525,7 @@ export const useAgentConversation = ({
         sessionId,
         initialMessages,
         hooks,
-        shouldPreserve: () => busyRef.current,
+        shouldPreserve: () => streamOpenRef.current,
     })
 
     const {messages, status, stop, regenerate, setMessages, error, clearError} = useChat({
@@ -802,6 +810,8 @@ export const useAgentConversation = ({
     // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
     // the window between the message leaving and the turn being accepted.
     busyRef.current = busy || acceptedRunPending || sendInFlight
+    // A durable send in flight is not a chat stream, so it does not keep the chat either.
+    streamOpenRef.current = busy
 
     // The server owns continuation after its 202.
     const handleApprovalResponse = useCallback(
@@ -975,14 +985,19 @@ export const useAgentConversation = ({
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
     }, [runStatus, sessionId, setSessionStatus])
+    const runStatusRef = useRef(runStatus)
+    runStatusRef.current = runStatus
     // On unmount, retire the dot ONLY if the run went with us. A chat preserved past this mount is
     // still this browser's run to report, so it keeps its status until it settles — `onFinish`
     // retires it then. The release above already ran, so the registry is authoritative here.
     useEffect(
         () => () => {
             if (!hasSessionChat(sessionId)) setSessionStatus({id: sessionId, status: "idle"})
+            if (runStatusRef.current === "awaiting") {
+                holdSessionStatus({id: sessionId, status: "awaiting"})
+            }
         },
-        [sessionId, setSessionStatus],
+        [sessionId, setSessionStatus, holdSessionStatus],
     )
 
     useEffect(() => {
