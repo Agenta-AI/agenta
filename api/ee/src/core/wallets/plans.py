@@ -4,8 +4,8 @@ organization creation and the migration backfill's SQL (which must derive the sa
 constant, not invent its own). A plan change writes nothing to the wallet: it only
 changes which allowance the next billing period grants (open-designs items 22 and 23).
 
-PRODUCT DECISION (2026-10-06, replaces option E's 2,900 / 29,900): Starter (plan id
-`cloud_v0_pro`, $20) -> 2,000 credits, Business -> 32,000 credits per billing period,
+PRODUCT DECISION (2026-10-09, replaces option E's 29,900 for Business): Starter (plan id
+`cloud_v0_pro`, $29) -> 2,900 credits, Business -> 32,000 credits per billing period,
 1 credit = 1 cent, expiring at the period's end. The floor amounts are a 2026-08-14 decision
 (WP-1-05, `docs/design/wallets-research/v1/wave-1.md`).
 `floor_musd` is 0 for every plan at launch: a hard stop when the general balance is
@@ -23,7 +23,7 @@ PLAN_ALLOWANCE_PRIORITY = 10
 
 # musd; $1 = 1_000_000 musd. One recurring allowance amount per plan, per billing period.
 _HOBBY_ALLOWANCE_MUSD = 0  # $0 — the free tier draws no funded allowance
-_PRO_ALLOWANCE_MUSD = 20_000_000  # Starter: 2,000 credits a period
+_PRO_ALLOWANCE_MUSD = 29_000_000  # Starter: 2,900 credits a period
 _BUSINESS_ALLOWANCE_MUSD = 320_000_000  # 32,000 credits a period
 # `cloud_v0_agenta_ai` is our internal plan; treated as business-tier pending a distinct
 # product decision for it.
