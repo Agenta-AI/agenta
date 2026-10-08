@@ -59,6 +59,11 @@ export interface SidebarConfig {
     /** Rendered beside a group's expand caret — a filter control, say. Interactive, so it sits
      * outside the row's stretched link anchor. Groups only; hidden when the rail is collapsed. */
     groupAction?: ReactNode
+    /** A leaf row's trailing control, revealed on hover or focus. Hidden when the rail is collapsed. */
+    rowAction?: ReactNode
+    /** Collapsed rail: a leaf's hover flyout in place of its tooltip. The icon still navigates.
+     * `close` always closes; `hold(true)` keeps it open against hover-out and outside clicks. */
+    hoverFlyout?: (close: () => void, hold: (held: boolean) => void) => ReactNode
     /** Collapsed rail: render this group as a plain icon link instead of a children flyout. */
     hideChildrenWhenCollapsed?: boolean
     /** This group's ROWS scroll, not the whole rail: the group shrinks to the space left over
