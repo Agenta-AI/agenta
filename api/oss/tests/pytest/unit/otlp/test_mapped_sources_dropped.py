@@ -161,3 +161,17 @@ def test_raw_key_kept_when_another_key_would_overwrite_the_copy():
     )
 
     assert stored["input"]["value"] == dumps({"prompt": "hi"})
+
+
+def test_raw_key_kept_when_another_raw_key_nests_under_it():
+    """`tool.name` and `tool.name.foo` collide, so the raw shape is kept."""
+    stored = _ingest(
+        {
+            "openinference.span.kind": "TOOL",
+            "tool.name": "read",
+            "tool.name.foo": "nested",
+        }
+    )
+
+    assert stored["tool"]["name"] == "read"
+    assert stored["ag"]["meta"]["tool"]["name"] == "read"

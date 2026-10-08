@@ -61,14 +61,21 @@ def _drop_mapped_sources(
             continue
         if attributes[target] != value:
             continue
-        # unmarshalling lets an ancestor or a descendant key overwrite the copy
-        if target in parents:
+        # unmarshalling lets an ancestor or a descendant key overwrite a value,
+        # so keep the raw key when either side takes part in such a conflict
+        if _has_path_conflict(target, keys, parents):
             continue
-        parts = target.split(".")
-        if any(".".join(parts[:i]) in keys for i in range(1, len(parts))):
+        if _has_path_conflict(source, keys, parents):
             continue
 
         del attributes[source]
+
+
+def _has_path_conflict(key: str, keys: set[str], parents: set[str]) -> bool:
+    if key in parents:
+        return True
+    parts = key.split(".")
+    return any(".".join(parts[:i]) in keys for i in range(1, len(parts)))
 
 
 class SpanDataBuilder(ABC):
