@@ -33,7 +33,7 @@ overrides:
   protobufjs: '7.6.5'
   mermaid: '11.16.1'
   'ws@>=7 <7.5.11': '7.5.11'
-  sharp: '0.35.4'
+  sharp: '0.35.5'
   fast-uri: '3.1.8'
   image-size: '2.0.3'
   js-yaml: '4.3.2'
@@ -50,6 +50,12 @@ overrides:
   'devalue@>=5 <5.9.3': '5.9.3'
   'undici@>=7 <7.29.1': '7.29.1'
   'webpack-dev-middleware@<7.4.5': '7.4.6'
+  'next@>=16.0.0 <16.3.6': '16.3.6'
+  'dompurify@>=3 <3.4.16': '3.4.16'
+  'source-map-js@<1.2.2': '1.2.2'
+  'pbkdf2@<3.1.7': '3.1.7'
+  'smol-toml@<1.9.0': '>=1.9.0 <2'
+  'http-cache-semantics@<=4.2.0': '>=4.3.0 <5'
   # Single query-core instance: keep in lockstep with @tanstack/react-query 5.100.9.
   '@tanstack/query-core': '5.100.9'
   # Single immer instance. `enableMapSet()` is a per-instance switch, so a second copy
