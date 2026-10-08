@@ -344,7 +344,7 @@ redisDurable:
 #         key: api-key
 #       apiUrl: https://app.daytona.io/api
 #       target: eu
-#       snapshot: agenta-agent-sandbox-v2
+#       snapshot: agenta-agent-sandbox-v3
 #       autostopMinutes: 15
 #       autodeleteMinutes: 30
 #       sessionIdleTtlMs: ""
