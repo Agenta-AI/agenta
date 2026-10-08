@@ -51,6 +51,12 @@ def _production_cors_kwargs():
     raise AssertionError("CORSMiddleware is not installed")
 
 
+def _cors_origins(web_url: str):
+    with patch("alembic.script.ScriptDirectory.from_config", return_value=object()):
+        routers = importlib.import_module("entrypoints.routers")
+    return routers._cors_origins(web_url)
+
+
 def test_cors_allows_the_bridge_headers():
     allowed = {h.lower() for h in _production_cors_kwargs()["allow_headers"]}
     for header in BRIDGE_HEADERS:
@@ -74,3 +80,17 @@ def test_a_cross_origin_bridge_preflight_passes():
         },
     )
     assert response.status_code == 200, response.text
+
+
+def test_cors_includes_configured_web_origin():
+    origins = _cors_origins("http://agenta.local:3000")
+
+    assert "http://agenta.local:3000" in origins
+    assert "http://localhost:3000" in origins
+
+
+def test_cors_normalizes_configured_web_url_to_origin():
+    origins = _cors_origins("https://agenta.example.com/some/path")
+
+    assert "https://agenta.example.com" in origins
+    assert "https://agenta.example.com/some/path" not in origins
