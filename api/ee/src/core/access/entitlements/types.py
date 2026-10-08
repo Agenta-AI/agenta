@@ -251,7 +251,7 @@ DEFAULT_CATALOG = [
         },
         "features": [
             "Everything in Hobby",
-            "2,000 credits a month",
+            "2,900 credits a month",
             "Buy more credits any time: 1,000 for $10",
             "20 concurrent tasks",
             "Unlimited projects",
