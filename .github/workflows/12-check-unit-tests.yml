@@ -127,6 +127,11 @@ jobs:
         working-directory: web/tests
         run: pnpm tsx playwright/scripts/run-tests.ts --layer unit
 
+      - name: Run mobile unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web
+        run: pnpm --filter @agenta/mobile test
+
       - name: Publish web unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
