@@ -25,6 +25,8 @@ of which adapter claims the span.
 
 ## Setup
 
+The `package.json` and `pnpm-lock.yaml` files were removed from this folder. This POC is archived and not maintained.
+
 ```bash
 pnpm install --ignore-workspace
 ```
