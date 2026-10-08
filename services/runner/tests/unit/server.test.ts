@@ -30,6 +30,7 @@ import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import type { KillSessionSandboxes } from "../../src/engines/sandbox_agent/kill-by-label.ts";
 import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
 import { AcquireAbortedError } from "../../src/environment/acquire-abort.ts";
+import { PREVIOUS_TEARDOWN_STUCK_MESSAGE } from "../../src/engines/sandbox_agent/session-pool.ts";
 import { REPLICA_ID } from "../../src/sessions/alive.ts";
 import {
   liveExecutions,
@@ -1140,6 +1141,100 @@ describe("createAgentServer", () => {
       const result = records.at(-1)?.result;
       assert.equal(result?.ok, true);
       assert.equal(result?.stopReason, "cancelled");
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // A Stop label is not proof that the throw WAS the Stop. The pool raises
+  // `PREVIOUS_TEARDOWN_STUCK_MESSAGE` when the previous environment of the conversation is still
+  // tearing down, and a user can press Stop at the same moment. Reading only the label would
+  // persist a cancellation and report success, hiding an infrastructure fault as a user action.
+  // The catch branch keys on `AcquireAbortedError`, so an unrelated throw keeps its error.
+  it("keeps an unrelated failure when a user Stop lands at the same moment", async () => {
+    let markRunStarted!: () => void;
+    const runStarted = new Promise<void>((resolve) => {
+      markRunStarted = resolve;
+    });
+    const run: RunAgent = async (_request, _emit, signal) => {
+      markRunStarted();
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) return resolve();
+        signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      // Not an acquire abort: the previous turn's teardown ran past its budget.
+      throw Object.assign(new Error(PREVIOUS_TEARDOWN_STUCK_MESSAGE), {
+        publicCode: "runner_error",
+      });
+    };
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-beside-failure" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-beside-failure",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start" }],
+        }),
+      });
+
+      await runStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      const errors = ingested.filter((record) => record.record_type === "error");
+      assert.equal(errors.length, 1, "the real failure is persisted");
+      assert.equal(errors[0].attributes.message, PREVIOUS_TEARDOWN_STUCK_MESSAGE);
+      const endings = ingested.filter((record) => record.record_type === "done");
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.notEqual(
+        endings[0].attributes.stopReason,
+        "cancelled",
+        "an unrelated failure is not written down as a cancellation",
+      );
+      const result = records.at(-1)?.result;
+      assert.equal(result?.ok, false);
+      assert.equal(result?.error, PREVIOUS_TEARDOWN_STUCK_MESSAGE);
+      assert.notEqual(result?.stopReason, "cancelled");
     } finally {
       vi.useRealTimers();
       fetchSpy.mockRestore();
