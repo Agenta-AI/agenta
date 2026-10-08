@@ -567,6 +567,22 @@ export const useAgentConversation = ({
     // every file then resolves against the agent mount and 404s (#6535 follow-up).
     useFileActivityDetector({sessionId, messages})
 
+    // A run streamed elsewhere (Home, another device) has no `onFinish` here to re-read mounts.
+    const sharedRunWasLiveRef = useRef(sharedReaderRunning)
+    const streamedHereRef = useRef(busy)
+    useEffect(() => {
+        if (busy) streamedHereRef.current = true
+    }, [busy])
+    useEffect(() => {
+        const wasLive = sharedRunWasLiveRef.current
+        sharedRunWasLiveRef.current = sharedReaderRunning
+        if (!wasLive && sharedReaderRunning) streamedHereRef.current = busy
+        if (!wasLive || sharedReaderRunning) return
+        // This client's own stream already revalidated in `onFinish`.
+        if (!streamedHereRef.current) revalidateSessionMounts(sessionId)
+        streamedHereRef.current = false
+    }, [sharedReaderRunning, busy, sessionId, revalidateSessionMounts])
+
     // Hybrid history: localStorage holds the cached conversation; the durable content lives in
     // the backend record log. Cache-first — when this session opens with no locally-cached
     // messages (never ran here, or after a storage clear), hydrate once from the server and seed.

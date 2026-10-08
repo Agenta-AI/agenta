@@ -27,6 +27,11 @@ export {
 } from "./AttachmentCard"
 export {default as AttachmentCardGrid, type AttachmentCardGridProps} from "./AttachmentCardGrid"
 export {
+    default as AttachmentStrip,
+    type AttachmentStripFile,
+    type AttachmentStripProps,
+} from "./AttachmentStrip"
+export {
     default as AttachmentDropOverlay,
     type AttachmentDropOverlayProps,
 } from "./AttachmentDropOverlay"
