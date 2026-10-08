@@ -1,3 +1,4 @@
+import {getCloudRegion} from "@agenta/auth"
 import {AIProvidersPage} from "@agenta/settings-ui"
 
 import {ConfirmModal} from "./ConfirmModal"
@@ -8,6 +9,7 @@ import {ConfirmModal} from "./ConfirmModal"
  */
 export const LlmProvidersTab = () => (
     <AIProvidersPage
+        isCloud={getCloudRegion() !== null}
         renderRemoveDialog={({connection, open, pending, error, onConfirm, onClose}) => (
             <ConfirmModal
                 open={open}
