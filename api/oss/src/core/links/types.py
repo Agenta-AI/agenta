@@ -57,11 +57,6 @@ LinkRefusalReason = Literal[
 ]
 
 
-class LinkRefusal(BaseModel):
-    message: str
-    reason: LinkRefusalReason
-
-
 class LinkPreviewError(Exception):
     """Base for link preview failures."""
 
