@@ -267,7 +267,7 @@ describe("files over the attachment cap", () => {
         vi.mocked(uploadFileToSessionDrive).mockResolvedValue({
             drive: {path: "uploads/huge.txt", filename: "huge.txt", size: overCap},
         })
-        const {result, sessionId} = setupUploads(true)
+        const {result, sessionId, unmount} = setupUploads(true)
 
         act(() => {
             result.current.addFiles([
@@ -291,14 +291,18 @@ describe("files over the attachment cap", () => {
         expect(withDriveFileNote("Summarize these", result.current.files)).toBe(
             "Summarize these\n\nUploaded to the session drive (too large to attach): `uploads/huge.txt` (10.0 MB)",
         )
+        // The upload settled through async state updates; unmount so no React work outlives the
+        // test file's jsdom environment.
+        unmount()
     })
 
     it("still rejects an oversized file when the host does not opt in", () => {
         store.set(projectIdAtom, "project-drive")
-        const {result} = setupUploads(false)
+        const {result, unmount} = setupUploads(false)
         act(() => {
             result.current.addFiles([makeFile("huge.txt", "text/plain", overCap)])
         })
+        unmount()
         expect(result.current.files).toHaveLength(0)
         expect(result.current.rejections.map((r) => r.name)).toEqual(["huge.txt"])
         expect(vi.mocked(uploadFileToSessionDrive)).not.toHaveBeenCalled()
