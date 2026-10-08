@@ -96,6 +96,7 @@
             "devalue": "5.9.3",
             "baseline-browser-mapping": "2.11.0",
             "vitest": "4.1.11",
+            "@vitest/coverage-v8": "4.1.11",
             "@vitest/mocker": "4.1.11",
             "undici": "7.29.1",
             "@ai-sdk/provider-utils": "4.0.33",
