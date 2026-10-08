@@ -15,11 +15,7 @@
 import {type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
-import {
-    mountDirQueryFamily,
-    mountFileContentQueryFamily,
-    mountPathMatchesToolPath,
-} from "@agenta/entities/session"
+import {mountFileContentQueryFamily, mountPathMatchesToolPath} from "@agenta/entities/session"
 import {useInView, useSettledValue} from "@agenta/shared/hooks"
 import {useAtomValue} from "jotai"
 
@@ -60,23 +56,10 @@ export const knownFromRecords = (byBasename: Map<string, string[]>, candidate: s
     return Boolean(byBasename.get(base)?.some((t) => mountPathMatchesToolPath(candidate, t)))
 }
 
-/** How a raster mention proves it exists: the reply's own preview, or its folder's listing. */
-export type RasterCheck = "preview" | "listing"
-
 const NO_FILE = {mountId: "", path: ""}
 
-const parentOf = (path: string) => path.split("/").slice(0, -1).join("/")
-
 /** A mention not known from records: checked once near the viewport; a miss stays plain code. */
-function OnDemandFileRef({
-    candidate,
-    fallback,
-    rasterCheck,
-}: {
-    candidate: string
-    fallback: ReactNode
-    rasterCheck: RasterCheck
-}) {
+function OnDemandFileRef({candidate, fallback}: {candidate: string; fallback: ReactNode}) {
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId()
     const resolveMount = useMountResolver(sessionId, artifactId)
@@ -84,47 +67,20 @@ function OnDemandFileRef({
     const resolved = resolveMount(candidate)
     const enabled = inView && Boolean(resolved?.mount?.id)
     const raster = isRasterImage(candidate)
-    const byPreview = raster && rasterCheck === "preview"
-    const byListing = raster && rasterCheck === "listing"
     const target = enabled && resolved ? {mountId: resolved.mount.id, path: resolved.path} : NO_FILE
-    // An SVG and every non-image file are checked by the text read Quick Look reuses.
+    // An image is confirmed by the preview read the inline figure and hover card reuse.
     const text = useAtomValue(mountFileContentQueryFamily(raster ? NO_FILE : target))
     const preview = useAtomValue(
-        mountFileThumbnailQueryFamily(byPreview ? {...target, px: CHAT_IMAGE_PREVIEW_PX} : NO_FILE),
+        mountFileThumbnailQueryFamily(raster ? {...target, px: CHAT_IMAGE_PREVIEW_PX} : NO_FILE),
     )
-    const listing = useAtomValue(
-        mountDirQueryFamily(
-            byListing && target.mountId
-                ? {mountId: target.mountId, path: parentOf(target.path), includeGitignored: true}
-                : {mountId: "", path: ""},
-        ),
-    )
-    const name = target.path.split("/").pop()
-    const found = byPreview
-        ? Boolean(preview.data)
-        : byListing
-          ? Boolean(
-                listing.data?.some((f) => {
-                    const path = f.path.replace(/^\/+/, "")
-                    return !f.is_folder && (path === target.path || path === name)
-                }),
-            )
-          : typeof text.data === "string"
+    const found = raster ? Boolean(preview.data) : typeof text.data === "string"
     if (found) return <DriveFileInlineRef path={candidate} />
     // Plain code inside a ref'd span so the observer can watch it scroll into view.
     return <span ref={ref}>{fallback}</span>
 }
 
 /** Render one inline-code span: a file link if it resolves (records or on-demand), else plain code. */
-export function ChatFileCode({
-    text,
-    fallback,
-    rasterCheck = "listing",
-}: {
-    text: string
-    fallback: ReactNode
-    rasterCheck?: RasterCheck
-}) {
+function ChatFileCode({text, fallback}: {text: string; fallback: ReactNode}) {
     const sessionId = useDriveSessionId() ?? ""
     const index = useAtomValue(recordIndexAtomFamily(sessionId))
     // A span still being streamed (`foo.t`, `foo.ts`, ...) resolves once it stops changing.
@@ -133,7 +89,7 @@ export function ChatFileCode({
     const candidate = fileCandidate(text)
     if (!candidate) return <>{fallback}</>
     if (knownFromRecords(index, candidate)) return <DriveFileInlineRef path={candidate} />
-    return <OnDemandFileRef candidate={candidate} fallback={fallback} rasterCheck={rasterCheck} />
+    return <OnDemandFileRef candidate={candidate} fallback={fallback} />
 }
 
 /** Stable resolver published to Markdown (see `state/fileLinks`). Static — every session/context

@@ -13,7 +13,7 @@ import {
     recordIndexAtomFamily,
     useMountResolver,
 } from "./chatFileLookup"
-import {ChatFileCode, fileCandidate, knownFromRecords} from "./chatFileRefs"
+import {chatFileResolver, fileCandidate, knownFromRecords} from "./chatFileRefs"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {mediaViewerAtom} from "./MediaViewer"
 import {SVG_PREVIEW_CAP, useSvgImage} from "./svgPreview"
@@ -195,10 +195,7 @@ const ChatImageFollowUps = memo(
 
 /** `chatFileResolver` plus inline image previews, for an agent's reply. */
 export const chatReplyFileResolver = {
-    // The reply previews its images, so their link reuses the preview read.
-    renderCode: (text: string, fallback: ReactNode): ReactNode => (
-        <ChatFileCode text={text} fallback={fallback} rasterCheck="preview" />
-    ),
+    ...chatFileResolver,
     renderFollowUps: (values: string[]): ReactNode => <ChatImageFollowUps values={values} />,
     claimsFollowUp: isImageMention,
 }
