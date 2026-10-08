@@ -365,9 +365,7 @@ describe("fetchSpansAnalytics (Phase 6 — POST /spans/analytics/query)", () => 
             body: {detail: "The analytics query took too long. Choose a shorter time range."},
         })
         querySpansAnalytics.mockRejectedValueOnce(failure)
-        await expect(fetchSpansAnalytics({projectId: "proj-9", strict: true})).rejects.toBe(
-            failure,
-        )
+        await expect(fetchSpansAnalytics({projectId: "proj-9", strict: true})).rejects.toBe(failure)
     })
 
     it("rethrows AbortError so TanStack Query can cancel", async () => {
