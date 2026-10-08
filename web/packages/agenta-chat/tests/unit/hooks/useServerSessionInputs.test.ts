@@ -689,6 +689,48 @@ describe("useServerSessionInputs", () => {
 
     const tabStatus = () => getDefaultStore().get(sessionStatusAtomFamily("session-1"))
 
+    const submitWithBody = async (body: ConstructorParameters<typeof Response>[0]) => {
+        fetchSnapshot.mockResolvedValue(acceptedRunSnapshot)
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        fetchMock.mockResolvedValue(new Response(body, {status: 200}))
+        const {result, unmount} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+                onExecuted: () => Promise.resolve(true),
+            }),
+        )
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        await act(async () => {
+            await result.current.submit({id: "input-1", text: "start"}, "queue")
+        })
+        unmount()
+    }
+
+    it("holds a refused admission as error with no mount, until the next run starts", async () => {
+        await submitWithBody(`data: ${JSON.stringify({type: "error", errorText: "no credits"})}\n`)
+        await waitFor(() => expect(tabStatus()).toBe("error"))
+        await submitWithBody(acceptedFrame)
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
+
+    it("does not hold a dropped connection as an error", async () => {
+        const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode(acceptedFrame))
+                controller.error(new Error("dropped"))
+            },
+        })
+        await submitWithBody(body)
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
+
     it("holds the session as awaiting when its stream closes on an open ask, past the unmount", async () => {
         const ask = `data: ${JSON.stringify({
             type: "tool-input-available",

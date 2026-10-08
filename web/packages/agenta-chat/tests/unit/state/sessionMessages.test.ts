@@ -12,7 +12,7 @@ import {
     sessionStatusAtomFamily,
     sessionStatusesAtom,
     setSessionStatusAtom,
-    holdSessionAwaitingAtom,
+    holdSessionStatusAtom,
     trackOwnedRunAtom,
 } from "../../../src/state/sessionMessages"
 
@@ -213,7 +213,7 @@ describe("sessionMessages state", () => {
         const store = createStore()
         const status = () => store.get(sessionStatusAtomFamily("s1"))
         store.set(trackOwnedRunAtom, {id: "s1", open: true})
-        store.set(trackOwnedRunAtom, {id: "s1", open: false, awaiting: true})
+        store.set(trackOwnedRunAtom, {id: "s1", open: false, held: "awaiting"})
         expect(status()).toBe("awaiting")
         expect(store.get(sessionStatusesAtom)).toEqual({s1: "awaiting"})
         store.set(trackOwnedRunAtom, {id: "s1", open: true})
@@ -225,7 +225,7 @@ describe("sessionMessages state", () => {
     it("lets a mounted conversation take over a held wait, and its answer clear it", () => {
         const store = createStore()
         const status = () => store.get(sessionStatusAtomFamily("s1"))
-        store.set(holdSessionAwaitingAtom, "s1")
+        store.set(holdSessionStatusAtom, {id: "s1", status: "awaiting"})
         expect(status()).toBe("awaiting")
         store.set(setSessionStatusAtom, {id: "s1", status: "running"})
         expect(status()).toBe("running")
@@ -236,8 +236,19 @@ describe("sessionMessages state", () => {
 
     it("forgets a held wait when the session is dropped", () => {
         const store = createStore()
-        store.set(holdSessionAwaitingAtom, "s1")
+        store.set(holdSessionStatusAtom, {id: "s1", status: "awaiting"})
         store.set(dropSessionMessagesAtom, ["s1"])
         expect(store.get(sessionStatusAtomFamily("s1"))).toBe("idle")
+    })
+
+    it("holds a refused run as error until the next run opens", () => {
+        const store = createStore()
+        const status = () => store.get(sessionStatusAtomFamily("s1"))
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        store.set(trackOwnedRunAtom, {id: "s1", open: false, held: "error"})
+        expect(status()).toBe("error")
+        expect(store.get(sessionStatusesAtom)).toEqual({s1: "error"})
+        store.set(trackOwnedRunAtom, {id: "s1", open: true})
+        expect(status()).toBe("running")
     })
 })
