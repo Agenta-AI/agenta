@@ -10,8 +10,8 @@ import {cn} from "./utils"
  * antd Dropdown mapping: getPopupContainer→container, danger→variant="destructive", divider→Separator.
  */
 
-// Enter/exit (surfaces.css). Its finite animation also replaces the desktop's global scroll-fade
-// animation, which never fires `animationend` and so would keep a closed menu mounted.
+// Enter/exit (surfaces.css). Also overrides the desktop's endless scroll-fade animation, which
+// would keep a closed menu mounted.
 const MENU_MOTION = "ag-overlay-motion"
 
 function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {

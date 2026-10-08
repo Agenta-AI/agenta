@@ -137,7 +137,8 @@ export function Notification({
                 "box-border pointer-events-auto relative mb-4 ml-auto w-96 max-w-[calc(100vw-48px)]",
                 "rounded-control-lg bg-colorBgElevated text-colorText shadow-dialog font-portal",
                 "py-5 px-6",
-                "transition-[opacity,transform] duration-base ease-out",
+                // Exit is `fast` + `ease-in`, inside the store's EXIT_MS removal delay.
+                "transition-[opacity,transform] duration-base ease-out data-[state=closed]:duration-fast data-[state=closed]:ease-in",
                 "data-[state=closed]:opacity-0 data-[state=open]:opacity-100 data-[state=open]:translate-x-0 data-[state=open]:translate-y-0",
                 enterOffset[placement],
                 className,

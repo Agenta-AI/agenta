@@ -54,7 +54,7 @@ const BORDER = "var(--ag-colorSplit)"
 export const contextRailOpenAtom = atomWithStorage<boolean>("agenta:agent-chat:context-rail", false)
 
 // Same curve as the kit SplitPane (motion.css `--ease-in-out`), or the transcript wobbles between them.
-const SLIDE_CLASS = "[transition:width_240ms_var(--ease-in-out)]"
+const SLIDE_CLASS = "[transition:width_var(--transition-duration-base)_var(--ease-in-out)]"
 const RAIL_WIDTH = 300
 const STRIP_WIDTH = 36
 

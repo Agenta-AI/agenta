@@ -21,11 +21,11 @@ const buttonVariants = cva(
         "border border-transparent bg-clip-padding font-normal",
         // Paint and compositor properties only, on the motion tokens (motion.css).
         "cursor-pointer select-none",
-        "transition-[color,background-color,border-color,box-shadow,opacity,scale] duration-instant ease-out",
+        "transition-[color,background-color,border-color,box-shadow,opacity,scale] duration-fast ease-out",
         // The shared 3px control outline.
         "outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]",
-        // Press: gives a little under the finger; skipped on menu/popover triggers.
-        "active:[&:not([aria-haspopup])]:scale-[0.97]",
+        // Press: gives a little under the finger, at press speed; skipped on menu/popover triggers.
+        "active:[&:not([aria-haspopup])]:scale-[0.97] active:duration-instant",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         "aria-invalid:border-error aria-invalid:ring-[3px] aria-invalid:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",

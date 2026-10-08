@@ -2,6 +2,8 @@ import * as React from "react"
 
 import {toast} from "sonner"
 
+import {DURATION} from "../../styles/motion"
+
 import type {
     ArgsProps,
     ConfigUpdate,
@@ -33,10 +35,8 @@ import type {
  * renderer is absent entirely (SSR, unit tests): the records simply accumulate and expire.
  */
 
-// Exit transition length. MUST match the `duration-200` on Notification and the 0.2s
-// `animate-dialog-out` / `animate-overlay-out` on AlertDialogContent. (Toasts are Sonner's
-// and animate themselves.)
-const EXIT_MS = 200
+// Removal delay: the `fast` exit Notification/AlertDialog play, plus headroom to commit and paint.
+const EXIT_MS = Math.round(DURATION.base * 1000)
 
 // antd `message` DEFAULT_DURATION. Applies to every type INCLUDING `loading` — antd does
 // not special-case it (verified against antd 6.3.7 `es/message/useMessage.js`); the

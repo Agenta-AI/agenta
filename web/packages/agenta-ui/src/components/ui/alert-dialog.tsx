@@ -62,6 +62,8 @@ function AlertDialogContent({
                 data-slot="alert-dialog-positioner"
                 className={cn(
                     "inset-0 z-50 flex items-center justify-center p-4 pointer-events-none",
+                    // Radix unmounts this wrapper at once unless it animates too: hold it for the exit.
+                    "has-[>[data-slot=alert-dialog-content][data-state=closed]]:animate-exit-hold",
                     container ? "absolute" : "fixed",
                 )}
             >

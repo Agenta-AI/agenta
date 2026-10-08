@@ -474,7 +474,7 @@ const SharedEditor = ({
                         : {
                               interpolateSize: "allow-keywords",
                               transitionProperty: "height",
-                              transitionDuration: "300ms",
+                              transitionDuration: "var(--transition-duration-base)",
                               transitionTimingFunction: "var(--ease-in-out)",
                           }),
                 } as React.CSSProperties

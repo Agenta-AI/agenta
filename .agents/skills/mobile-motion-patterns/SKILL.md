@@ -1,6 +1,6 @@
 ---
 name: mobile-motion-patterns
-description: Motion design rules for the Agenta mobile app (web/mobile) and the @agenta/ui kit — the CSS motion tokens in @agenta/ui/motion.css, the JS presets in src/lib/motion, route transitions, when to animate, and reduced-motion requirements. Use when adding any animation or transition under web/mobile or web/packages, animating navigation, sheets, overlays, skeletons, or list/chat surfaces.
+description: Motion design rules for the Agenta mobile app (web/mobile) and the @agenta/ui kit — the CSS motion tokens in @agenta/ui/motion.css, the JS presets in src/lib/motion, the screen enter animation, when to animate, and reduced-motion requirements. Use when adding any animation or transition under web/mobile or web/packages, animating navigation, sheets, overlays, skeletons, or list/chat surfaces.
 ---
 
 # Mobile motion patterns
@@ -10,7 +10,7 @@ ease-out tail, no overshoot) and leave quicker than they came. No antd values or
 
 There are two layers, and they share the same curves and durations:
 
-1. **CSS (default).** `@agenta/ui/motion.css` — tokens, kit animations, route transitions.
+1. **CSS (default).** `@agenta/ui/motion.css` — tokens and named animations.
    Zero JavaScript, runs on the compositor. Use it for anything CSS can express.
 2. **JS (`motion`).** `web/mobile/src/lib/motion/presets.ts` via `useMotionPresets()`. Use it
    only for presence/exit of React trees, layout animations, or springs that must carry
@@ -27,7 +27,7 @@ The tokens use Tailwind v4's own names, so components use stock utilities:
 | `--ease-in-out`                 | `ease-in-out`      | `cubic-bezier(0.65, 0, 0.35, 1)` | Slides in place (thumb, fill, pane width)    |
 | `--transition-duration-instant` | `duration-instant` | 100ms                            | Press feedback                               |
 | `--transition-duration-fast`    | `duration-fast`    | 160ms                            | Hover, popovers, menus, tooltips, every exit |
-| `--transition-duration-base`    | `duration-base`    | 240ms                            | Dialogs, route changes, in-place slides      |
+| `--transition-duration-base`    | `duration-base`    | 240ms                            | Dialogs, screen enter, in-place slides       |
 | `--transition-duration-slow`    | `duration-slow`    | 380ms                            | Sheets and drawers                           |
 
 A bare `transition` / `transition-colors` uses `duration-fast` + `ease-out` by default.
@@ -45,16 +45,19 @@ Never write a raw `cubic-bezier(...)`, `duration-200`, or `300ms` in a component
 - Kit Sheet / Dialog / Accordion use `animate-sheet-in-*`, `animate-dialog-in`,
   `animate-overlay-in`, `animate-accordion-*` — all defined in `motion.css`.
 - Portalled Radix surfaces (popover, dropdown/context menu, select, tooltip) add the
-  `ag-overlay-motion` class: a fade + scale from 96% out of the trigger.
-- Buttons scale to 97% on press (`Button` in `@agenta/ui/ui`).
+  `ag-overlay-motion` class (in `surfaces.css`, which every host imports): a fade + scale from
+  96% out of the trigger. A host without `motion.css` gets no animation, and menus still close.
+  Radix Select has no exit animation (it unmounts at once).
+- Buttons scale to 97% on press (`Button` in `@agenta/ui/ui`): hover at `fast`, press at
+  `instant`.
 
-### Route transitions
+### Screen enter
 
-`useRouteTransition()` (mounted once in `_app.tsx`) starts a native View Transition on every
-path change. `AppShell`'s `<main>` carries `ag-screen-transition`: the screen fades in and
-rises 6px over the old one; the nav rail holds still. Query-only/shallow changes, reduced
-motion, and browsers without the API skip it. Do not add a second element with
-`ag-screen-transition` on the same page.
+Navigation is not animated with View Transitions or `AnimatePresence`. `AppShell`'s `<main>`
+plays `animate-screen-in` (fade + 6px rise) when it mounts, which happens once per page
+navigation; the nav rail holds still. `useScreenEnter()` skips it after a back/forward the
+browser already animated (iOS swipe-back). Switching items within one page does not remount
+`AppShell`, so it does not animate.
 
 ## JS presets (`useMotionPresets()`)
 
@@ -74,7 +77,7 @@ const presets = useMotionPresets()
 
 - **`crossfade`** — reply reveal, composer overlays, skeleton → content swaps (geometry must
   match so the fade causes zero layout shift).
-- **`sharedAxisPush`**, **`sheetSlideUp`** — defined, not yet used by a screen.
+- **`fanTransition`** — the marketplace tile stack.
 - Springs are `{type: "spring", visualDuration, bounce: 0}`.
 - Tweens read the JS mirror of the CSS tokens, `@agenta/ui/motion`: `EASE_OUT`, `EASE_IN`,
   `EASE_IN_OUT` and `DURATION.{instant,fast,base,slow}` (seconds). Package presets use it too
@@ -95,5 +98,6 @@ const presets = useMotionPresets()
   never per-character animated.
 - New shared CSS motion goes INTO `motion.css`; new JS presets go INTO `presets.ts` (with a
   reduced variant in `useMotionPresets`). Never into a component file.
-- Storybook and `web/oss` use Tailwind v3 and do not load `motion.css`; motion there is
-  degraded on purpose. Do not add fallbacks for them.
+- Storybook and `web/oss` use Tailwind v3 and do not load `motion.css`; the token-timed motion
+  does not run there. Nothing may depend on an animation finishing (no `transitionend` /
+  `animationend` waits outside Radix), so the missing tokens cannot block the UI.

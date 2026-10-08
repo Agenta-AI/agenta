@@ -2,6 +2,8 @@ import type {ReactNode} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
 
+import {useScreenEnter} from "@/lib/motion/useScreenEnter"
+
 import {useTrackLastNonSettingsPath} from "./lastNonSettingsPath"
 import {MobileCommandPalette} from "./MobileCommandPalette"
 import {NavRail} from "./NavRail"
@@ -25,12 +27,13 @@ export const AppShell = ({
     children: ReactNode
 }) => {
     useTrackLastNonSettingsPath()
+    const enter = useScreenEnter()
 
     return (
         <div className="flex h-[var(--ag-viewport-height,100dvh)]">
             <NavRail workspaceId={workspaceId} projectId={projectId} scope={scope} />
-            {/* The pane that crossfades on route change; the rail holds still. */}
-            <main className="ag-screen-transition min-w-0 flex-1">{children}</main>
+            {/* A new screen rises in as it mounts; the rail holds still. */}
+            <main className={`min-w-0 flex-1${enter ? " animate-screen-in" : ""}`}>{children}</main>
             <MobileCommandPalette projectURL={`/w/${workspaceId}/p/${projectId}`} />
         </div>
     )

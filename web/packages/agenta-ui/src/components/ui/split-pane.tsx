@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {DURATION} from "../../styles/motion"
+
 import {cn} from "./utils"
 
 /**
@@ -67,7 +69,7 @@ const BAR_WIDTH = 0
 const BAR_HIT_WIDTH = 12
 
 /** The pane slide's duration. Slow it down to inspect the motion — see `paneSlideMs` below. */
-export const PANE_SLIDE_MS = 240
+export const PANE_SLIDE_MS = Math.round(DURATION.base * 1000)
 
 const PANE_SLIDE_CURVE = "var(--ease-in-out)"
 

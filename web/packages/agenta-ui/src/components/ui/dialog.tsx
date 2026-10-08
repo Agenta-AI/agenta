@@ -80,6 +80,8 @@ function DialogContent({
                 // p-4 keeps a phone-width modal off the viewport edges.
                 className={cn(
                     "fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none",
+                    // Radix unmounts this wrapper at once unless it animates too: hold it for the exit.
+                    "has-[>[data-slot=dialog-content][data-state=closed]]:animate-exit-hold",
                     // Contained: follow the container's corners, so the mask never squares them.
                     contained && "absolute rounded-[inherit]",
                 )}

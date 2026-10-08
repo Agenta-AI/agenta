@@ -20,6 +20,8 @@ export default defineConfig({
                 __dirname,
                 "tests/__mocks__/agenta-ui-app-message.ts",
             ),
+            // Real module (plain constants): the prefix stub below would swallow this subpath.
+            "@agenta/ui/motion": path.resolve(__dirname, "../agenta-ui/src/styles/motion.ts"),
             // Stub @agenta/ui so Vitest doesn't transform the entire antd tree.
             // Entity tests only exercise Jotai atoms — no React rendering needed.
             "@agenta/ui": path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),

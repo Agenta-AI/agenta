@@ -8,7 +8,6 @@ import Head from "next/head"
 import {AppProviders} from "@/features/app/AppProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
 import {DriveMarkdownRenderer} from "@/features/chat/DriveMarkdownRenderer"
-import {useRouteTransition} from "@/lib/motion/useRouteTransition"
 
 // Side effect: binds projectIdAtom from the URL before React renders. See the module.
 import "@/lib/seedProjectContext"
@@ -29,8 +28,6 @@ export default function App({Component, pageProps}: AppProps) {
     // `--ag-viewport-height`, which ScreenScaffold, AppShell and SessionWorkspace read with a
     // `100dvh` fallback. One mount here covers every screen. Idle when no keyboard is open.
     useVisualViewportHeight()
-    // Route changes crossfade the screen pane (AppShell's `ag-screen-transition`).
-    useRouteTransition()
 
     return (
         <>

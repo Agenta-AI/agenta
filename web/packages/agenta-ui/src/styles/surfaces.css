@@ -188,6 +188,37 @@
     mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
 }
 
+/* Overlay enter/exit for Radix popover, menus, select, tooltip (`ag-overlay-motion`). A finite
+   animation, not a transition: Radix unmounts on `animationend`. Timed by the motion.css tokens;
+   in a host without them the animation computes to `none`, so menus still unmount at once. */
+@keyframes ag-overlay-in {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+}
+
+@keyframes ag-overlay-out {
+    to {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+}
+
+.ag-overlay-motion {
+    /* Grow out of the trigger's edge, not from the panel's centre. */
+    transform-origin: var(--radix-popper-transform-origin, center);
+}
+
+/* `$=` because a tooltip's open states are `delayed-open` and `instant-open`. */
+.ag-overlay-motion[data-state$="open"] {
+    animation: ag-overlay-in var(--transition-duration-fast) var(--ease-out);
+}
+
+.ag-overlay-motion[data-state="closed"] {
+    animation: ag-overlay-out var(--transition-duration-fast) var(--ease-in);
+}
+
 /* The activity timeline's wire while the run is live: a short glow travels down it, the current
    the steps arrive on. Wire and glow share the wire's own colour; only the glow's alpha moves. */
 @keyframes ag-activity-current {

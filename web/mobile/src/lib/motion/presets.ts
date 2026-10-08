@@ -10,41 +10,10 @@ import {DURATION, EASE_OUT} from "@agenta/ui/motion"
 import {useReducedMotion} from "motion/react"
 import type {Transition, Variants} from "motion/react"
 
-/** Spring for screen-level shared-axis pushes (list → chat). Critically damped: no overshoot. */
-export const pushTransition: Transition = {type: "spring", visualDuration: 0.35, bounce: 0}
-
-/** Spring for bottom/side sheets (project drawer); settles in the `slow` token's time. */
-export const sheetTransition: Transition = {
-    type: "spring",
-    visualDuration: DURATION.slow,
-    bounce: 0,
-}
-
 /** Tween for skeleton → content crossfades (no layout jump). */
 export const crossfadeTransition: Transition = {
     duration: DURATION.fast,
     ease: EASE_OUT,
-}
-
-/**
- * Shared-axis horizontal push. `custom` is the direction: +1 forward
- * (list → chat), -1 back. Use inside <AnimatePresence custom={direction}>.
- */
-export const sharedAxisPush: Variants = {
-    initial: (direction: number) => ({x: `${direction * 30}%`, opacity: 0}),
-    animate: {x: 0, opacity: 1, transition: pushTransition},
-    exit: (direction: number) => ({
-        x: `${direction * -30}%`,
-        opacity: 0,
-        transition: pushTransition,
-    }),
-}
-
-/** Spring-based sheet slide-up (project drawer, bottom sheets). */
-export const sheetSlideUp: Variants = {
-    initial: {y: "100%"},
-    animate: {y: 0, transition: sheetTransition},
-    exit: {y: "100%", transition: sheetTransition},
 }
 
 /** Crossfade for skeleton → content swaps (geometry must match). */
@@ -56,7 +25,7 @@ export const crossfade: Variants = {
 
 /** Tween for a stack of tiles fanning out under the pointer. */
 export const fanTransition: Transition = {
-    duration: 0.3,
+    duration: DURATION.base,
     ease: EASE_OUT,
 }
 
@@ -68,9 +37,6 @@ export const featuredDwellMs = 5000
 
 /** How long a finished example run holds before it fades and plays again. */
 export const runHoldMs = 4000
-
-/** Longest a route transition holds the old screen while the next one loads. */
-export const routeHoldMs = 300
 
 /** Instant variants used when the user prefers reduced motion. */
 const instant: Variants = {
@@ -84,12 +50,8 @@ const instantTransition: Transition = {duration: 0}
 
 export interface MotionPresets {
     reduced: boolean
-    sharedAxisPush: Variants
-    sheetSlideUp: Variants
     crossfade: Variants
-    /** Raw transitions for imperative use (e.g. drag-settle on sheets). */
-    pushTransition: Transition
-    sheetTransition: Transition
+    /** Raw transitions for `transition` props. */
     crossfadeTransition: Transition
     fanTransition: Transition
     /** 0 when reduced: every step shows at once. */
@@ -113,11 +75,7 @@ export function useMotionPresets(): MotionPresets {
             reduced
                 ? {
                       reduced,
-                      sharedAxisPush: instant,
-                      sheetSlideUp: instant,
                       crossfade: instant,
-                      pushTransition: instantTransition,
-                      sheetTransition: instantTransition,
                       crossfadeTransition: instantTransition,
                       fanTransition: instantTransition,
                       stepRevealMs: 0,
@@ -126,11 +84,7 @@ export function useMotionPresets(): MotionPresets {
                   }
                 : {
                       reduced,
-                      sharedAxisPush,
-                      sheetSlideUp,
                       crossfade,
-                      pushTransition,
-                      sheetTransition,
                       crossfadeTransition,
                       fanTransition,
                       stepRevealMs,

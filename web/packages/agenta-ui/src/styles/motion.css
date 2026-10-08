@@ -1,5 +1,5 @@
-/* Agenta motion: tokens, kit animations, route transitions. Import right after "tailwindcss".
-   Apple-style feel; transform/opacity only. JS mirror: mobile `src/lib/motion/presets.ts`. */
+/* Agenta motion: tokens and named animations. Import right after "tailwindcss".
+   Apple-style feel; transform/opacity only. JS mirror: `motion.ts`. Overlays: `surfaces.css`. */
 
 /* `static`: plain CSS and inline styles read these too, so always emit them. */
 @theme static {
@@ -49,6 +49,10 @@
     --animate-sheet-out-bottom: sheet-out-bottom var(--transition-duration-base) var(--ease-in);
     --animate-accordion-down: accordion-down var(--transition-duration-base) var(--ease-out);
     --animate-accordion-up: accordion-up var(--transition-duration-fast) var(--ease-in);
+    /* Holds a Radix portal wrapper mounted while the content inside plays its exit. */
+    --animate-exit-hold: exit-hold var(--transition-duration-fast);
+    /* A screen pane rising in on navigation (mobile AppShell). */
+    --animate-screen-in: screen-in var(--transition-duration-base) var(--ease-out);
 
     @keyframes overlay-in {
         from {
@@ -114,6 +118,17 @@
             transform: translateY(100%);
         }
     }
+    @keyframes exit-hold {
+        to {
+            opacity: 1;
+        }
+    }
+    @keyframes screen-in {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+    }
     /* Height, not transform: the content below the panel has to follow. */
     @keyframes accordion-down {
         from {
@@ -135,80 +150,4 @@
             opacity: 0;
         }
     }
-}
-
-/* Overlay enter/exit for Radix popover, menus, select, tooltip. A finite animation, not a
-   transition: Radix unmounts on `animationend`. */
-@keyframes ag-overlay-in {
-    from {
-        opacity: 0;
-        transform: scale(0.96);
-    }
-}
-
-@keyframes ag-overlay-out {
-    to {
-        opacity: 0;
-        transform: scale(0.98);
-    }
-}
-
-@layer components {
-    .ag-overlay-motion {
-        /* Grow out of the trigger's edge, not from the panel's centre. */
-        transform-origin: var(--radix-popper-transform-origin, center);
-    }
-
-    /* `$=` because a tooltip's open states are `delayed-open` and `instant-open`. */
-    .ag-overlay-motion[data-state$="open"] {
-        animation: ag-overlay-in var(--transition-duration-fast) var(--ease-out);
-    }
-
-    .ag-overlay-motion[data-state="closed"] {
-        animation: ag-overlay-out var(--transition-duration-fast) var(--ease-in);
-    }
-}
-
-/* Route transitions (View Transitions API, started by mobile's `useRouteTransition`). The new
-   screen fades in over an opaque old one, so the background never shows through; the rail holds. */
-@layer components {
-    /* Named only mid-transition: a standing name would make the pane a stacking context. */
-    :root[data-route-transition] .ag-screen-transition {
-        view-transition-name: ag-screen;
-    }
-}
-
-@keyframes ag-screen-in {
-    from {
-        opacity: 0;
-        transform: translateY(6px);
-    }
-}
-
-@keyframes ag-screen-out {
-    to {
-        opacity: 0;
-    }
-}
-
-::view-transition-old(root),
-::view-transition-new(root),
-::view-transition-group(ag-screen) {
-    animation-duration: var(--transition-duration-base);
-    animation-timing-function: var(--ease-out);
-}
-
-::view-transition-old(ag-screen) {
-    animation: none;
-    mix-blend-mode: normal;
-}
-
-::view-transition-new(ag-screen) {
-    animation: ag-screen-in var(--transition-duration-base) var(--ease-out) both;
-    mix-blend-mode: normal;
-}
-
-/* No screen pane on the next page: nothing covers the old one, so it fades out. */
-::view-transition-old(ag-screen):only-child {
-    animation: ag-screen-out var(--transition-duration-fast) var(--ease-in) both;
 }
