@@ -221,7 +221,7 @@ DEFAULT_CATALOG = [
             "base": {
                 "type": "flat",
                 "currency": "USD",
-                "amount": 20.00,
+                "amount": 29.00,
             },
             "traces": {
                 "type": "tiered",
