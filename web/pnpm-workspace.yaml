@@ -42,6 +42,9 @@ overrides:
   '@ai-sdk/provider-utils@4.0.0-beta.47': '4.0.33'
   'baseline-browser-mapping@<2.11.0': '>=2.11.0 <3'
   '@vitest/mocker@>=4 <4.1.11': '4.1.11'
+  'devalue@>=5 <5.9.3': '5.9.3'
+  'undici@>=7 <7.29.1': '7.29.1'
+  'webpack-dev-middleware@<7.4.5': '7.4.6'
   # Single query-core instance: keep in lockstep with @tanstack/react-query 5.100.9.
   '@tanstack/query-core': '5.100.9'
   # Single immer instance. `enableMapSet()` is a per-instance switch, so a second copy
