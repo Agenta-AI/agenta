@@ -23,10 +23,10 @@
   "dependencies": {
     "@agenta/ui": "workspace:*",
     "@astrojs/mdx": "^7.0.6",
-    "@astrojs/react": "^6.0.5",
+    "@astrojs/react": "^6.0.6",
     "@astrojs/sitemap": "^3.7.4",
     "@phosphor-icons/react": "^2.1.10",
-    "astro": "^7.2.8",
+    "astro": "^7.3.3",
     "posthog-js": "^1.406.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
