@@ -33,7 +33,9 @@ import type {
   EmitEvent,
 } from "../protocol.ts";
 import {
+  isTurnIndexTaken,
   shouldPark,
+  turnTeardownReason,
   type ParkedApproval,
   type ResumeApprovalInput,
   type RunTurnOptions,
@@ -99,10 +101,20 @@ import {
 import { normalizeDesiredState } from "./desired-state.ts";
 import { formatPlan, type ReconcilePlan } from "./reconcile-plan.ts";
 import { normalizeRequestModel } from "../engines/sandbox_agent/model.ts";
+import { runCredential } from "../engines/sandbox_agent/runtime-policy.ts";
 
 export function klog(message: string): void {
   process.stderr.write(`[keepalive] ${message}\n`);
 }
+
+/** The line the user reads when the turn log could not be read before a warm hit. */
+export const WARM_SESSION_UNCONFIRMED_MESSAGE =
+  "The agent could not confirm that its saved session is current, so this message was not sent. Send it again in a moment.";
+
+/** The latest `turn_index` on a session's turn log; `turnIndex` is undefined when it has no row. */
+export type LatestTurnIndexRead =
+  | { ok: true; turnIndex: number | undefined }
+  | { ok: false; error: string };
 
 /**
  * The engine seam the keep-alive dispatch drives. The default wires to the real engine; tests
@@ -153,6 +165,17 @@ export interface KeepaliveEngine {
    * closed would rebuild every warm session the moment the probe itself broke.
    */
   isMountAlive?(env: SessionEnvironment): Promise<boolean>;
+  /**
+   * Read the session's latest turn index from the durable turn log, across every harness.
+   *
+   * Required, not optional like the mount probe: a warm entry is a cache of that log, and another
+   * runner may have appended to it since this one parked. An engine that could skip the read would
+   * continue a conversation that is missing a turn.
+   */
+  readLatestTurnIndex(
+    sessionId: string,
+    authorization: string,
+  ): Promise<LatestTurnIndexRead>;
   /**
    * Apply a reconciliation plan to a LIVE environment (lifecycle migration, step 6).
    *
@@ -583,11 +606,46 @@ export async function runWithKeepalive(
     stopped ? (config.stoppedTtlMs ?? config.ttlMs) : config.ttlMs;
 
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
-    shouldPark(result, signal, clientGone)
-      ? "clean-resumable"
-      : signal?.aborted || clientGone?.()
-        ? "aborted"
-        : "failed-turn";
+    turnTeardownReason(result, true, signal, clientGone);
+
+  /**
+   * Does the durable turn log still end at the turn this warm entry last ran? A runner that
+   * served the session since this one parked appended a later row, and this entry's native
+   * conversation lacks that turn. Compared by `turn_index`, never `turn_id`: an approval resume
+   * reuses its paused turn's index, and its benign 409 leaves the paused turn's id on the row.
+   *
+   * Fails closed: a read that fails refuses the warm hit and leaves the entry parked, because the
+   * turn-start write that follows also swallows network failures and would let a stale prompt
+   * through. The gate matches the turn-start write's: a run with no credential or no stream id
+   * does not write the log, so it has nothing to compare.
+   */
+  const confirmTurnLogCurrent = async (
+    existing: LiveSession<SessionEnvironment>,
+  ): Promise<"current" | "moved" | AgentRunResult> => {
+    const authorization = credential?.() || runCredential(request);
+    if (!authorization || !request.streamId) return "current";
+    let read: LatestTurnIndexRead;
+    try {
+      read = await engine.readLatestTurnIndex(sessionId, authorization);
+    } catch (err) {
+      read = {
+        ok: false,
+        error: String(err instanceof Error ? err.message : err),
+      };
+    }
+    if (!read.ok) {
+      klog(
+        `turn-log-unreadable key=${key}: ${read.error.slice(0, 160)}; refuse warm hit`,
+      );
+      return { ok: false, error: WARM_SESSION_UNCONFIRMED_MESSAGE };
+    }
+    const parkedAt = existing.environment.continuityTurnIndex;
+    if (read.turnIndex === parkedAt) return "current";
+    klog(
+      `turn-log-moved key=${key} parked=${parkedAt ?? "-"} latest=${read.turnIndex ?? "-"}`,
+    );
+    return "moved";
+  };
 
   /**
    * Turn a dispatch mismatch label into the teardown reason that names the FAILING LAYER.
@@ -605,6 +663,9 @@ export async function runWithKeepalive(
     // A conversation problem. The environment is fine; the transcript is not.
     if (mismatch === "history" || mismatch === "tail")
       return "continuity-invalid";
+    // Another runner continued the conversation. The environment is sound; its conversation is
+    // one or more turns behind.
+    if (mismatch === "turn-log") return "continuity-invalid";
     // Credentials live in the daemon's environment on Daytona, and Pi's runtime assets are
     // installed at start. A parked sandbox would resume with the stale material still in place,
     // so these must delete. This is the case the lifecycle design warns about by name.
@@ -786,6 +847,7 @@ export async function runWithKeepalive(
       klog(
         `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
       );
+      env.parkedTurnId = request.turnId;
       if (!(await seat(config.approvalTtlMs, "awaiting_approval"))) {
         await drop("park-refused", "failed-turn");
       } else {
@@ -842,6 +904,7 @@ export async function runWithKeepalive(
       klog(
         `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
       );
+      env.parkedTurnId = request.turnId;
       if (
         !(await pool.repark(
           live,
@@ -1047,11 +1110,20 @@ export async function runWithKeepalive(
     if (!mismatch && (await mountLost(existing.environment)))
       mismatch = "mount-lost";
 
+    // Last of all, and only on a path about to reuse: the one check that costs an api round trip.
+    if (!mismatch) {
+      const turnLog = await confirmTurnLogCurrent(existing);
+      if (turnLog === "moved") mismatch = "turn-log";
+      else if (turnLog !== "current") return turnLog;
+    }
+
     if (mismatch) {
       // The eviction is NAMED by the first unresolved reason and DISPOSED by all of them. The
-      // backstop only fires when the list is already empty, so `mount-lost` stands alone.
+      // backstops only fire when the list is already empty, so each stands alone.
       const allMismatches =
-        mismatch === "mount-lost" ? ["mount-lost"] : unresolvedMismatches();
+        mismatch === "mount-lost" || mismatch === "turn-log"
+          ? [mismatch]
+          : unresolvedMismatches();
       // A config mismatch names the changed FIELDS (names only — the digests never carry
       // values), so "what evicted this warm session" is answerable from the log line alone
       // instead of needing production database access to reconstruct.
@@ -1080,7 +1152,9 @@ export async function runWithKeepalive(
         existing,
         "rebuild",
         `mismatch:${mismatch}`,
-        allMismatches.every((r) => r === "history" || r === "tail")
+        allMismatches.every(
+          (r) => r === "history" || r === "tail" || r === "turn-log",
+        )
           ? "continuity"
           : "environment",
         undefined,
@@ -1150,6 +1224,14 @@ export async function runWithKeepalive(
         klog(`evict (continuation-threw) key=${key}; retry cold`);
         void err;
         return coldAndPark();
+      }
+      if (isTurnIndexTaken(result)) {
+        // Another runner ran this turn. A cold retry would hide that from the user, and the
+        // environment is sound, so it parks; the next message goes cold from the latest row.
+        live.environment.clearTurn();
+        await pool.evictIfCurrent(live, "turn-index-taken", "continuity-invalid");
+        klog(`evict (turn-index-taken) key=${key}; no retry`);
+        return result;
       }
       if (!result.ok) {
         // A failed continuation may mean a broken live session: destroy and retry once cold
@@ -1271,6 +1353,12 @@ export async function runWithKeepalive(
     // losing its mount while it waits for the human.
     if (!mismatch && (await mountLost(existing.environment)))
       mismatch = "mount-lost";
+
+    if (!mismatch && resumeDecisions.length > 0) {
+      const turnLog = await confirmTurnLogCurrent(existing);
+      if (turnLog === "moved") mismatch = "turn-log";
+      else if (turnLog !== "current") return turnLog;
+    }
 
     if (mismatch || resumeDecisions.length === 0) {
       klog(

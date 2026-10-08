@@ -26,7 +26,10 @@ import {
 // a prior turn to rebuild, so this suite answers with `priorRecords.rows` instead.
 const priorRecords = vi.hoisted(() => ({ rows: [] as unknown[] }));
 vi.mock("../../src/sessions/records-query.ts", () => ({
-  fetchSessionRecords: async () => priorRecords.rows,
+  fetchSessionRecords: async () => ({
+    records: priorRecords.rows,
+    recordsIncomplete: false,
+  }),
 }));
 
 /** TTFB is the shortest window, so a silent harness trips it first. */

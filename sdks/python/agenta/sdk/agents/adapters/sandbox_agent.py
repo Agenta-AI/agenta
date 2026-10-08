@@ -76,6 +76,8 @@ class SandboxAgentSession(Session):
         control_command_id: Optional[str],
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> None:
         self._backend = backend
         self._sandbox = sandbox
@@ -91,6 +93,8 @@ class SandboxAgentSession(Session):
         self._control_command_id = control_command_id
         self._effective_parameters = effective_parameters
         self._gateway_policy = gateway_policy
+        self._runner_address = runner_address
+        self._runner_replica_id = runner_replica_id
 
     @property
     def id(self) -> Optional[str]:
@@ -136,7 +140,11 @@ class SandboxAgentSession(Session):
 
     def stream(self, messages: Sequence[Message]) -> AgentStream:
         """Run one turn over the streaming transport, yielding events live (see AgentStream)."""
-        records = self._backend._deliver_stream(self._wire_payload(messages))
+        records = self._backend._deliver_stream(
+            self._wire_payload(messages),
+            runner_address=self._runner_address,
+            runner_replica_id=self._runner_replica_id,
+        )
         return AgentStream(records).on_result(self._absorb_result)
 
 
@@ -193,6 +201,8 @@ class SandboxAgentBackend(Backend):
         control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> SandboxAgentSession:
         if not isinstance(sandbox, SandboxAgentSandbox):
             raise TypeError(
@@ -213,6 +223,8 @@ class SandboxAgentBackend(Backend):
             control_command_id=control_command_id,
             effective_parameters=effective_parameters,
             gateway_policy=gateway_policy,
+            runner_address=runner_address,
+            runner_replica_id=runner_replica_id,
         )
 
     async def _deliver_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -223,10 +235,27 @@ class SandboxAgentBackend(Backend):
             self._command, payload, cwd=self._cwd, timeout=self._timeout
         )
 
-    def _deliver_stream(self, payload: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
-        """The live counterpart of ``_deliver_result``: an NDJSON record stream from the runner."""
+    def _deliver_stream(
+        self,
+        payload: Dict[str, Any],
+        *,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """The live counterpart of ``_deliver_result``: an NDJSON record stream from the runner.
+
+        ``self._url`` is the Service URL and stays fixed; ``runner_address`` is this turn's
+        preferred pod, used only when the pod there answers as ``runner_replica_id``, and which
+        the transport falls back from to the Service URL.
+        """
         if self._url:
-            return deliver_http_stream(self._url, payload, timeout=self._timeout)
+            return deliver_http_stream(
+                self._url,
+                payload,
+                timeout=self._timeout,
+                runner_address=runner_address,
+                runner_replica_id=runner_replica_id,
+            )
         return deliver_subprocess_stream(
             self._command, payload, cwd=self._cwd, timeout=self._timeout
         )

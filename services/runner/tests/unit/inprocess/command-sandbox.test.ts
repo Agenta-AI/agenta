@@ -16,6 +16,7 @@ import { CommandSandbox, CREDENTIALS_LABEL, NetworkPolicyError } from "../../../
 import { boundedDaytonaApi } from "../../../src/engines/inprocess/sandbox/daytona-api.ts";
 import { sandboxSlots, sandboxSlotsUnresolvedMessage } from "../../../src/engines/inprocess/sandbox/sandbox-slots.ts";
 import { classifyRunError } from "../../../src/engines/sandbox_agent/errors.ts";
+import { wasSandboxCreatedHere } from "../../../src/engines/sandbox_agent/created-sandboxes.ts";
 import { OWNER_LABEL, type SandboxOwner } from "../../../src/engines/inprocess/sandbox/sandbox-owner.ts";
 import { createTestWorkspace, OPEN_NETWORK, sandboxSettings, TEST_DEADLINES, testConversation, testOwner, testRegistryOptions } from "../../utils/inprocess-workspace.ts";
 import { LocalDaytona } from "../../utils/local-daytona.ts";
@@ -92,6 +93,8 @@ describe("network policy fails closed (R3-5, Codex 4, Codex R4 late update)", ()
     const use = await newSandbox(daytona).sandbox.acquire(BLOCKED);
     expect(daytona.sandboxes.get(use.sandbox.id)!.networkUpdates).toHaveLength(0);
     expect(daytona.sandboxes.get(use.sandbox.id)!.network).toEqual({ networkBlockAll: true });
+    // The stored pointer to this sandbox is one the reconnect ladder trusts.
+    expect(wasSandboxCreatedHere(use.sandbox.id)).toBe(true);
     use.release();
   });
 });
@@ -186,6 +189,30 @@ describe("recovery and retirement (CR7, R3-4, Codex 8)", () => {
     expect(r.output).toContain("finished");
     await ws.registry.settle(5_000);
     expect(local!.state).toBe("stopped");
+  });
+});
+
+describe("the registry at shutdown", () => {
+  it("deletes a parked sandbox no environment holds, and keeps one that is still held", async () => {
+    const parked = createTestWorkspace({ conversationId: "parked" });
+    await parked.bash("true");
+    parked.registry.release(parked.workspace, "park");
+    await parked.registry.settle(5_000);
+    const [stopped] = [...parked.daytona.sandboxes.values()];
+    expect(stopped!.state).toBe("stopped");
+
+    const held = createTestWorkspace({ conversationId: "held" });
+    await held.bash("true");
+    const [running] = [...held.daytona.sandboxes.values()];
+
+    parked.registry.deleteUnheld();
+    held.registry.deleteUnheld();
+    await parked.registry.settle(5_000);
+    await held.registry.settle(5_000);
+    expect(stopped!.deleted).toBe(true);
+    expect(parked.registry.counters().conversations).toBe(0);
+    expect(running!.deleted).toBeFalsy();
+    expect(held.registry.counters().conversations).toBe(1);
   });
 });
 

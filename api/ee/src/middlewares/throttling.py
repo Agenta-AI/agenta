@@ -69,6 +69,9 @@ _BOOKKEEPING_ROUTES: tuple[tuple[str, str], ...] = (
     ("post", "/sessions/turns/complete"),
     # History reconstruction on a cold start.
     ("post", "/sessions/records/query"),
+    # The flag that a record failed every ingest retry, so no runner rebuilds from a log with
+    # a hole in it. A throttled report would lose that flag.
+    ("post", "/sessions/records/incomplete"),
     # Approval gates the runner opens, transitions, sweeps and polls.
     ("post", "/sessions/interactions"),
     ("post", "/sessions/interactions/transition"),

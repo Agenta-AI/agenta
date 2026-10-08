@@ -25,8 +25,13 @@ vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 });
 
-const { buildPersistingEmitter, drainPersist, takePersistFailures } =
-  await import("../../src/sessions/persist.ts");
+const {
+  buildPersistingEmitter,
+  drainPersist,
+  recordsIncomplete,
+  reportRecordsIncomplete,
+  takePersistFailures,
+} = await import("../../src/sessions/persist.ts");
 
 beforeEach(() => {
   postedBodies.length = 0;
@@ -590,6 +595,51 @@ describe("durable records", () => {
 
     assert.equal(postedBodies.length, 1); // landed
     assert.equal(takePersistFailures("sess-recover"), 0);
+  });
+});
+
+describe("reportRecordsIncomplete", () => {
+  it("posts the session and turn to the api and marks the session here", async () => {
+    const calls: Array<{ url: string; body: unknown; auth: string | null }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (url, init) => {
+        calls.push({
+          url: String(url),
+          body: JSON.parse(init!.body as string),
+          auth: new Headers(init!.headers).get("authorization"),
+        });
+        return new Response("{}", { status: 200 });
+      });
+    try {
+      await reportRecordsIncomplete("sess-report", "turn-9", () => "ApiKey t");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/sessions\/records\/incomplete$/);
+    assert.deepEqual(calls[0].body, {
+      session_id: "sess-report",
+      turn_id: "turn-9",
+    });
+    assert.equal(calls[0].auth, "ApiKey t");
+    assert.equal(recordsIncomplete("sess-report"), true);
+  });
+
+  it("a failed report is swallowed and the local mark still holds", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        throw new Error("ECONNREFUSED");
+      });
+    try {
+      await assert.doesNotReject(() =>
+        reportRecordsIncomplete("sess-report-down", "turn-1", () => "t"),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+    assert.equal(recordsIncomplete("sess-report-down"), true);
   });
 });
 

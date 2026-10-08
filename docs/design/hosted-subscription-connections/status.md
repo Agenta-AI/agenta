@@ -47,7 +47,7 @@ stores one. Pi is the harness for this slice.
 
 ## Known limits and follow-ups
 
-- A pending device-login attempt lives in the runner process. A runner restart or a second runner replica behind one URL drops it; the API reports `failed` with "attempt not found; try again".
+- A pending device-login attempt runs in one runner process, and that process reports the outcome to the API, which answers polls from the record on the secret. A graceful runner shutdown reports each live attempt `failed` with "attempt not found; try again". A runner that dies without shutting down leaves the attempt `pending` until 30 s past the provider's 15 minute deadline; then the poll answers `expired`.
 - The vault read is cached for a short time, so a refreshed login pushed by one runner reaches another runner's next turn after the cache expires. The measured overlap of roughly an hour absorbed that delay in today's tests; it is an observation, not a guarantee.
 - Codex harness is out: Codex 0.145.0 refuses a login file without `id_token`, which Pi never stores.
 - `fs.watch` fails with EMFILE on a host whose root user has exhausted inotify instances; the publisher polls every 5 s instead. A production host with the same limit behaves the same.
@@ -92,7 +92,7 @@ stores one. Pi is the harness for this slice.
 | Two Daytona sessions refreshing the same login at once | passed, real provider: both answered, the store moved two versions (gate agent, `gate-hosted/codex-item-overlap.log`) | `gate-hosted/` |
 | Controlled rejected refresh with an old meta version | simulation invalid: the failure report quotes the version DELIVERED to the run, which was current, so the API correctly answered not stale. The genuinely stale-delivery path is covered by unit tests. A dead access token with a live refresh token did recover automatically live (`codex-item-dead-access.log`). | `gate-hosted/` |
 | Chat error card with Sign in again, in the browser, through an agent configured while the connection was ready | passed (gate agent) | `web/31-chat-error-card-sign-in-again.png`, `web/32-error-card-closeup.png` |
-| Login attempt survives a runner restart | failed by design: attempts live in the runner process; a hot reload dropped a pending attempt, the API reported `attempt not found; try again` | runner log 11:53 UTC |
+| Login attempt survives a runner restart | failed by design: attempts live in the runner process; a hot reload dropped a pending attempt, the API reported `attempt not found; try again`. Since then the runner reports the outcome to the API, and a graceful shutdown reports the same failure itself | runner log 11:53 UTC |
 
 Known UI gap: the picker shows two identical "ChatGPT · Subscription" rows on a dev runner that
 also mounts an operator login folder. The hosted row needs a distinct label.

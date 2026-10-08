@@ -11,10 +11,11 @@ import assert from "node:assert/strict";
 vi.unmock("../../src/sessions/records-query.ts");
 
 const seenInits: RequestInit[] = [];
+let responseBody: Record<string, unknown> = { records: [] };
 
 vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
   seenInits.push(init ?? {});
-  return new Response(JSON.stringify({ records: [] }), { status: 200 });
+  return new Response(JSON.stringify(responseBody), { status: 200 });
 });
 
 const { fetchSessionRecords } = await import("../../src/sessions/records-query.ts");
@@ -24,14 +25,25 @@ const TIMEOUT_ENV = "AGENTA_SESSIONS_RECORDS_QUERY_TIMEOUT_MS";
 
 beforeEach(() => {
   seenInits.length = 0;
+  responseBody = { records: [] };
   vi.unstubAllEnvs();
   resetEnvWarnings();
 });
 
 describe("fetchSessionRecords", () => {
+  it("reads the records-incomplete flag next to the records", async () => {
+    responseBody = { count: 0, records: [], records_incomplete: true };
+    const flagged = await fetchSessionRecords("sess-4", () => "ApiKey t");
+    assert.deepEqual(flagged, { records: [], recordsIncomplete: true });
+
+    responseBody = { count: 0, records: [], records_incomplete: false };
+    const clean = await fetchSessionRecords("sess-4", () => "ApiKey t");
+    assert.equal(clean?.recordsIncomplete, false);
+  });
+
   it("bounds the request with a timeout signal", async () => {
     const rows = await fetchSessionRecords("sess-1", () => "ApiKey t");
-    assert.deepEqual(rows, []);
+    assert.deepEqual(rows, { records: [], recordsIncomplete: false });
     const signal = seenInits[0]?.signal;
     assert.ok(signal, "the fetch must carry an abort signal");
     assert.equal(signal.aborted, false);
@@ -41,7 +53,11 @@ describe("fetchSessionRecords", () => {
     vi.stubEnv(TIMEOUT_ENV, "0.5");
     const rows = await fetchSessionRecords("sess-2", () => "ApiKey t");
     // Truncating 0.5 to a 0 ms AbortSignal.timeout would abort before the response landed.
-    assert.deepEqual(rows, [], "the query must still complete");
+    assert.deepEqual(
+      rows,
+      { records: [], recordsIncomplete: false },
+      "the query must still complete",
+    );
     assert.equal(seenInits[0]?.signal?.aborted, false);
   });
 
@@ -50,7 +66,7 @@ describe("fetchSessionRecords", () => {
     // silently overflows to a 1 ms delay. Either way the query would never really run.
     vi.stubEnv(TIMEOUT_ENV, "99999999999");
     const rows = await fetchSessionRecords("sess-3", () => "ApiKey t");
-    assert.deepEqual(rows, []);
+    assert.deepEqual(rows, { records: [], recordsIncomplete: false });
     assert.equal(seenInits.length, 1, "the request must have been issued");
     assert.equal(seenInits[0]?.signal?.aborted, false);
   });

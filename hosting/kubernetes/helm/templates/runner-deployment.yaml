@@ -13,18 +13,24 @@ metadata:
     app.kubernetes.io/component: runner
 spec:
   replicas: {{ include "agenta.agentRunner.replicas" . }}
-  {{- with $runner.strategy }}
+  {{- if $runner.strategy }}
   strategy:
-    {{- toYaml . | nindent 4 }}
-  {{- else }}
-  {{- /* Recreate, not RollingUpdate: the api addresses the runner through one
-         Service with no session routing, so while two runner pods exist a
-         Stop, Cancel or follow-up message can reach the pod that does not own
-         the session. The owner answers 404 and the api can settle the command
-         as lost. One pod at a time makes that impossible. Revisit when the
-         api routes by session id; the plan is in the GCP production design. */}}
+    {{- toYaml $runner.strategy | nindent 4 }}
+  {{- else if eq (include "agenta.agentRunner.localProviderEnabled" .) "true" }}
+  {{- /* A local sandbox is a process inside the pod that started it, so the
+         local provider runs one runner pod at a time: the old pod stops
+         before the new one starts. */}}
   strategy:
     type: Recreate
+  {{- else }}
+  {{- /* Each turn is bound to its pod and Stop goes to that pod, so a new pod
+         can take new turns while an old one finishes its own: start the new
+         pod, wait until it is ready, then drain the old one. */}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   {{- end }}
   selector:
     matchLabels:
@@ -38,12 +44,8 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
-      {{- if hasKey $runner "terminationGracePeriodSeconds" }}
-      terminationGracePeriodSeconds: {{ $runner.terminationGracePeriodSeconds }}
-      {{- else }}
       {{- /* Default 300 s: in-flight agent turns need room to finish. */}}
-      terminationGracePeriodSeconds: 300
-      {{- end }}
+      terminationGracePeriodSeconds: {{ include "agenta.agentRunner.terminationGracePeriodSeconds" . }}
       {{- with $runner.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -87,28 +89,52 @@ spec:
                    :<port>/health got connection refused and the pod never became ready.
                    Bind all interfaces. Override with agentRunner.host, or through the
                    agentRunner.env map below, which suppresses this entry the same way
-                   AGENTA_RUNNER_REPLICA_ID and PI_CODING_AGENT_DIR do. */}}
+                   PI_CODING_AGENT_DIR does. */}}
             {{- if not (hasKey (default dict $runner.env) "AGENTA_RUNNER_HOST") }}
             - name: AGENTA_RUNNER_HOST
               value: {{ include "agenta.agentRunner.host" . | quote }}
             {{- end }}
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
+            {{- /* The replica and strategy checks read agentRunner.providers to keep the local
+                   provider on one pod, so agenta.validateRunnerChartOwnedEnv refuses an
+                   agentRunner.env or extraEnv override of these two. */}}
             - name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
               value: {{ join "," $enabledProviders | quote }}
             - name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
               value: {{ default "local" $providers.default | quote }}
-            {{- /* Stable replica id for a single-runner install: a local-sandbox session is
-                   owned by the pod that created it, and a pod restart with a fresh random id
-                   would orphan those sessions for the owner TTL. A fixed value (the service
-                   name) is safe only at one replica; with several pods a shared id would make
-                   every pod claim every session, so we set it only when replicas == 1. Local
-                   multi-replica is unsupported anyway (no sticky routing); scale with Daytona.
-                   A Deployment renames the pod on restart, so a fixed value beats the pod name. */}}
-            {{- if and (eq (include "agenta.agentRunner.replicas" . | int) 1) (not (hasKey (default dict $runner.env) "AGENTA_RUNNER_REPLICA_ID")) }}
+            {{- /* Each pod is its own replica: the API binds every turn to the pod that first
+                   beats it and refuses any other pod for that turn, so two pods must never
+                   share an id. The pod name is unique per pod and appears in the logs, so
+                   agenta.validateRunnerChartOwnedEnv refuses an agentRunner.env or extraEnv
+                   override. */}}
             - name: AGENTA_RUNNER_REPLICA_ID
-              value: {{ include "agenta.agentRunner.serviceName" . | quote }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- /* The address the API posts a Stop to for this pod's turns, and where Services
+                   sends a session's follow-up messages. Kubernetes expands $(POD_IP) only from a
+                   variable defined earlier in this list. The api and Services must be able to
+                   reach pod IPs on the runner port: a NetworkPolicy that blocks that traffic
+                   breaks Stop and follow-up routing. An IPv6 single-stack pod IP needs brackets in a
+                   URL, so such a cluster sets AGENTA_RUNNER_REPLICA_ADDRESS in agentRunner.env. */}}
+            {{- if not (hasKey (default dict $runner.env) "POD_IP") }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             {{- end }}
+            {{- if not (hasKey (default dict $runner.env) "AGENTA_RUNNER_REPLICA_ADDRESS") }}
+            - name: AGENTA_RUNNER_REPLICA_ADDRESS
+              value: "http://$(POD_IP):{{ include "agenta.agentRunner.port" . }}"
+            {{- end }}
+            {{- /* On SIGTERM the runner refuses new turns, lets running ones finish for this long,
+                   cancels the rest and deletes its sandboxes; all of it must end inside the grace
+                   period. See agenta.agentRunner.shutdownWaitSeconds for the default.
+                   agenta.validateRunnerChartOwnedEnv refuses an agentRunner.env or extraEnv
+                   override, so agenta.validateRunnerShutdownWait sees the only value. */}}
+            - name: AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS
+              value: {{ include "agenta.agentRunner.shutdownWaitSeconds" . | quote }}
             {{- if not (hasKey (default dict $runner.env) "PI_CODING_AGENT_DIR") }}
             - name: PI_CODING_AGENT_DIR
               value: {{ default "/pi-agent" $runner.piAgentDir | quote }}

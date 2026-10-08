@@ -10,6 +10,8 @@ skip path, and the verdict-shape helpers.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import pathlib
 import re
@@ -1680,6 +1682,181 @@ def test_sandbox_gone_settle_budget_derives_from_probe_defaults():
         assert sc.SANDBOX_GONE_COMMAND_S > 0
     finally:
         sc.SANDBOX_STARTUP_SLACK_S = saved
+
+
+CUSTOM_CLAUDE_ENV = {
+    "AGENTA_QA_CLAUDE_MODEL": "orclaude/custom/anthropic/claude-haiku-4.5",
+    "AGENTA_QA_CLAUDE_PROVIDER": "anthropic",
+    "AGENTA_QA_CLAUDE_CONNECTION_SLUG": "orclaude-c676d8a6badd",
+    "AGENTA_QA_CLAUDE_CUSTOM_URL": "https://example.test/api",
+    "AGENTA_QA_CLAUDE_CUSTOM_KEY": "test-key",
+}
+
+
+def test_claude_spec_without_overrides_is_the_vault_anthropic_entry():
+    spec, secret = sc.claude_spec_from_env({})
+    assert spec == sc.HARNESSES["claude"]
+    assert secret is None
+
+
+def test_claude_spec_model_and_provider_override_alone_keep_the_vault_key():
+    spec, secret = sc.claude_spec_from_env(
+        {"AGENTA_QA_CLAUDE_MODEL": "haiku", "AGENTA_QA_CLAUDE_PROVIDER": "anthropic"}
+    )
+    assert spec["model"] == "haiku"
+    assert spec["connection"] == {"mode": "agenta", "slug": None}
+    assert secret is None
+
+
+def test_claude_spec_custom_connection_names_the_slug_and_stocks_it():
+    spec, secret = sc.claude_spec_from_env(CUSTOM_CLAUDE_ENV)
+    assert spec["kind"] == "claude"
+    assert spec["model"] == "orclaude/custom/anthropic/claude-haiku-4.5"
+    assert spec["provider"] == "anthropic"
+    assert spec["connection"] == {"mode": "agenta", "slug": "orclaude-c676d8a6badd"}
+    # The secret's name and model slug rebuild the model key the agent config names.
+    assert secret["slug"] == "orclaude-c676d8a6badd"
+    assert secret["header"]["name"] == "orclaude"
+    data = secret["secret"]["data"]
+    assert secret["secret"]["kind"] == "custom_provider"
+    assert data["protocol"] == "anthropic"
+    assert data["provider"] == {"url": "https://example.test/api", "key": "test-key"}
+    assert data["models"] == [{"slug": "anthropic/claude-haiku-4.5"}]
+    # The module table stays untouched for the next caller.
+    assert sc.HARNESSES["claude"]["connection"]["slug"] is None
+
+
+def test_claude_spec_slug_without_url_key_or_custom_model_is_refused():
+    env = {
+        "AGENTA_QA_CLAUDE_MODEL": "haiku",
+        "AGENTA_QA_CLAUDE_CONNECTION_SLUG": "orclaude-c676d8a6badd",
+    }
+    try:
+        sc.claude_spec_from_env(env)
+    except SystemExit as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("a slug with no custom connection details must be refused")
+    assert "AGENTA_QA_CLAUDE_CUSTOM_URL" in message
+    assert "AGENTA_QA_CLAUDE_CUSTOM_KEY" in message
+    assert "/custom/" in message
+
+
+def test_claude_spec_warns_when_custom_url_or_key_is_set_without_a_slug():
+    env = {"AGENTA_QA_CLAUDE_CUSTOM_KEY": "test-key"}
+    captured = io.StringIO()
+    with contextlib.redirect_stderr(captured):
+        spec, secret = sc.claude_spec_from_env(env)
+    assert secret is None
+    assert spec["connection"]["slug"] is None
+    err = captured.getvalue()
+    assert "AGENTA_QA_CLAUDE_CONNECTION_SLUG" in err
+    assert "test-key" not in err
+
+
+def test_a_failing_custom_connection_create_does_not_print_the_key():
+    """A FastAPI 422 echoes the request body, which holds the connection's key."""
+    _, secret = sc.claude_spec_from_env(CUSTOM_CLAUDE_ENV)
+    key = CUSTOM_CLAUDE_ENV["AGENTA_QA_CLAUDE_CUSTOM_KEY"]
+
+    class _Response:
+        status_code = 422
+        text = json.dumps({"detail": [{"msg": "bad", "input": secret}]})
+
+    original = sc.api
+    try:
+        sc.api = lambda *a, **k: _Response()
+        sc.stock_custom_provider(secret)
+    except SystemExit as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("a failing create must stop the run")
+    finally:
+        sc.api = original
+    assert "422" in message
+    assert key not in message
+    assert "<redacted>" in message
+
+
+def test_sleep_prompt_avoids_a_standalone_sleep_and_echoes_the_marker():
+    prompt = sc.sleep_prompt("MANGO123", 45)
+    assert "sleep 45" not in prompt
+    assert "timeout 45 tail -f /dev/null; echo MANGO123" in prompt
+    assert "foreground" in prompt
+    assert "The codeword is MANGO123." in prompt
+
+
+def _run_cell_with_stubs(cell, stubs: dict):
+    """Run one cell with module functions replaced, restoring them whatever happens."""
+    original = {name: getattr(sc, name) for name in stubs}
+    original_sleep = sc.time.sleep
+    try:
+        sc.time.sleep = lambda _s: None
+        for name, fn in stubs.items():
+            setattr(sc, name, fn)
+        args = type("Args", (), {"durable_stop": "auto", "sleep_seconds": 45})()
+        return cell({}, [], args, sc.NullHooks())
+    finally:
+        sc.time.sleep = original_sleep
+        for name, fn in original.items():
+            setattr(sc, name, fn)
+
+
+def test_stale_stop_expects_the_completed_first_turn_row():
+    seen: dict = {}
+
+    def _settle(*a, **k):
+        seen.update(k)
+        return {"settled": True, "why": None}
+
+    class _Thread:
+        def join(self, timeout=None):
+            return None
+
+    _run_cell_with_stubs(
+        sc.cell_stale_stop,
+        {
+            "invoke": lambda *a, **k: {"text": "READY"},
+            "invoke_async": lambda *a, **k: {"thread": _Thread(), "out": {}},
+            "session_stream": lambda _sid: {"turn_id": "turn-1"},
+            "wait_for_turn": lambda _sid, timeout=None: "turn-2",
+            "cancel": lambda *a, **k: {"status": 409, "body": {}},
+            "assert_command_settled": _settle,
+            "assistant_message": lambda _t: {"role": "assistant", "parts": []},
+            "sandbox_ids": lambda _sid: ["sandbox-1"],
+        },
+    )
+    # The cell must name turn 1, not just count it: the allowance is per execution id, so a
+    # wrong id would let an unexpected row through.
+    assert seen.get("earlier_execution_ids") == ("turn-1",)
+
+
+def test_stop_approval_asks_for_a_mutating_command():
+    """Claude Code auto-approves a read-only `echo`, so the approval would never park."""
+    prompts: list[str] = []
+
+    class _Response:
+        status_code = 409
+        text = "execution_terminal"
+
+    def _invoke(*a, **k):
+        prompts.append(a[1][0]["parts"][0]["text"])
+        return {"turn_id": "turn-1", "text": ""}
+
+    _run_cell_with_stubs(
+        sc.cell_stop_approval,
+        {
+            "invoke": _invoke,
+            "interactions": lambda _sid: [{"id": "interaction-1", "status": "pending"}],
+            "session_stream": lambda _sid: {"turn_id": "turn-1"},
+            "cancel": lambda *a, **k: {"status": 200, "body": {}},
+            "assert_command_settled": lambda *a, **k: {"settled": True, "why": None},
+            "api": lambda *a, **k: _Response(),
+            "assistant_message": lambda _t: {"role": "assistant", "parts": []},
+            "sandbox_ids": lambda _sid: ["sandbox-1"],
+        },
+    )
+    assert "echo hello > /tmp/" in prompts[0]
 
 
 if __name__ == "__main__":

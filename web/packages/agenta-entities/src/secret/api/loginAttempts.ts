@@ -52,7 +52,7 @@ export async function startLoginAttempt({
     return safeParseWithLogging(loginAttemptSchema, response.data, "[startLoginAttempt]")
 }
 
-/** Advance an attempt: this GET asks the runner every time, which is what stores the login. */
+/** Read where an attempt stands. The API answers from its own record, which the runner updates. */
 export async function fetchLoginAttempt({
     projectId,
     secretId,

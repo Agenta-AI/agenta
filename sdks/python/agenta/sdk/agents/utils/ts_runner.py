@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from contextlib import AsyncExitStack
 from typing import Any, AsyncIterator, Dict, Optional, Sequence
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -186,8 +187,14 @@ async def deliver_http_stream(
     payload: Dict[str, Any],
     *,
     timeout: float = RUNNER_TIMEOUT_SECONDS,
+    runner_address: Optional[str] = None,
+    runner_replica_id: Optional[str] = None,
 ) -> AsyncIterator[Dict[str, Any]]:
     """POST ``/run`` asking for NDJSON and yield each parsed record as it arrives.
+
+    ``base_url`` is the Service URL. ``runner_address``, when set, is the pod that ran the
+    session's last turn and is tried first when the pod there answers as ``runner_replica_id``
+    (see :func:`_open_run_stream`).
 
     The ``async with`` closes the connection when the generator is closed or cancelled. The
     runner turns that disconnect into cancellation for request-owned runs, while an explicitly
@@ -195,15 +202,22 @@ async def deliver_http_stream(
     """
     import httpx  # local import: only the HTTP transport needs it
 
-    url = base_url.rstrip("/") + "/run"
     headers = {"Accept": "application/x-ndjson", **_runner_auth_headers()}
     saw_result = False
     # httpx applies `timeout` as a per-read timeout on a stream — i.e. an idle (between-record)
     # bound, not a total wall-clock cap — matching the subprocess transport's per-line reset.
     async with httpx.AsyncClient(timeout=timeout) as client:
-        async with client.stream(
-            "POST", url, json=payload, headers=headers
-        ) as response:
+        async with AsyncExitStack() as stack:
+            response = await _open_run_stream(
+                stack,
+                client,
+                base_url=base_url,
+                runner_address=runner_address,
+                runner_replica_id=runner_replica_id,
+                payload=payload,
+                headers=headers,
+                timeout=timeout,
+            )
             if response.status_code >= 400:
                 body = await response.aread()
                 raise _transport_error(
@@ -219,6 +233,130 @@ async def deliver_http_stream(
                     yield record
     if not saw_result:
         raise RuntimeError("Agent runner stream ended without a terminal result record")
+
+
+# The connect bound for the attempt at the session's pod, and the whole bound for its health
+# check. A dead pod IP can drop packets instead of refusing, and the stream's idle timeout is
+# minutes long; a pod in the same cluster connects in milliseconds, so waiting longer only
+# delays the fallback.
+_RUNNER_ADDRESS_CONNECT_TIMEOUT = 2.0
+
+# Answers from the session's pod that mean it did not take the prompt: draining (503) or at its
+# concurrency limit (429). Both come before the first byte of the stream.
+_RUNNER_ADDRESS_RETRY_STATUSES = (429, 503)
+
+
+def _run_url(base_url: str) -> str:
+    return base_url.rstrip("/") + "/run"
+
+
+async def _runner_address_is_replica(
+    client: Any,
+    runner_address: str,
+    runner_replica_id: Optional[str],
+) -> bool:
+    """True when the pod at ``runner_address`` answers ``GET /health`` with ``runner_replica_id``.
+
+    Kubernetes can give a dead runner pod's IP to another pod. The ``/run`` post carries the
+    runner token and provider credentials, so it goes to the address only after this check.
+    The check itself sends no token: ``/health`` is the runner's one unauthenticated route.
+    """
+    import httpx  # local import: only the HTTP transport needs it
+
+    if not runner_replica_id:
+        log.warning(
+            "agent: runner pod %s has no replica id to check; posting to the Service URL",
+            runner_address,
+        )
+        return False
+    try:
+        response = await client.get(
+            runner_address.rstrip("/") + "/health",
+            timeout=_RUNNER_ADDRESS_CONNECT_TIMEOUT,
+        )
+        body = response.json() if response.status_code == 200 else None
+    except (httpx.HTTPError, httpx.InvalidURL, ValueError) as error:
+        log.warning(
+            "agent: runner pod %s did not answer its health check (%s); posting to the "
+            "Service URL",
+            runner_address,
+            type(error).__name__,
+        )
+        return False
+    answered = body.get("replicaId") if isinstance(body, dict) else None
+    if answered != runner_replica_id:
+        log.warning(
+            "agent: runner pod %s answers as replica %r, not %r; posting to the Service URL",
+            runner_address,
+            answered,
+            runner_replica_id,
+        )
+        return False
+    return True
+
+
+async def _open_run_stream(
+    stack: AsyncExitStack,
+    client: Any,
+    *,
+    base_url: str,
+    runner_address: Optional[str],
+    runner_replica_id: Optional[str],
+    payload: Dict[str, Any],
+    headers: Dict[str, str],
+    timeout: float,
+) -> Any:
+    """Open the streaming ``POST /run`` and return its response, held open by ``stack``.
+
+    With a ``runner_address`` whose pod answers as ``runner_replica_id``, the post goes there
+    first. It falls back to the Service URL once, and only when the address failed before the
+    pod could have taken the prompt: no connection (refused, DNS failure, connect timeout, an
+    unusable address), a 503 from a pod that is draining, or a 429 from a pod at its limit. Any
+    later failure is final, because a prompt must never be sent twice. A 503 or a 429 from the
+    Service URL itself is final too.
+    """
+    import httpx  # local import: only the HTTP transport needs it
+
+    if runner_address and await _runner_address_is_replica(
+        client, runner_address, runner_replica_id
+    ):
+        try:
+            async with AsyncExitStack() as attempt:
+                response = await attempt.enter_async_context(
+                    client.stream(
+                        "POST",
+                        _run_url(runner_address),
+                        json=payload,
+                        headers=headers,
+                        timeout=httpx.Timeout(
+                            timeout,
+                            connect=min(timeout, _RUNNER_ADDRESS_CONNECT_TIMEOUT),
+                        ),
+                    )
+                )
+                if response.status_code not in _RUNNER_ADDRESS_RETRY_STATUSES:
+                    stack.push_async_exit(attempt.pop_all())
+                    return response
+            log.warning(
+                "agent: runner pod %s did not take the run (HTTP %s); posting to the "
+                "Service URL",
+                runner_address,
+                response.status_code,
+            )
+        except (
+            httpx.ConnectError,
+            httpx.ConnectTimeout,
+            httpx.UnsupportedProtocol,
+            httpx.InvalidURL,
+        ) as error:
+            log.warning(
+                "agent: runner pod %s is unreachable (%s); posting to the Service URL",
+                runner_address,
+                type(error).__name__,
+            )
+    return await stack.enter_async_context(
+        client.stream("POST", _run_url(base_url), json=payload, headers=headers)
+    )
 
 
 _STDERR_TAIL_BYTES = 2000
