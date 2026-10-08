@@ -1,86 +1,86 @@
-import {useState} from "react"
+import {useEffect, useState, type ReactElement} from "react"
 
-import {linkPreviewQueryFamily} from "@agenta/entities/link"
-import {SkeletonBlock} from "@agenta/ui/ui"
+import {linkPreviewQueryFamily, type LinkPreview} from "@agenta/entities/link"
+import {HoverCard, HoverCardContent, HoverCardTrigger} from "@agenta/ui/ui"
 import {LinkSimple} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-const hostOf = (url: string): string => {
-    try {
-        return new URL(url).hostname.replace(/^www\./, "")
-    } catch {
-        return url
-    }
+/** True once `src` has loaded, so a card never opens on a missing or broken image. */
+function useImageLoaded(src: string | null | undefined): boolean {
+    const [loaded, setLoaded] = useState<string | null>(null)
+    useEffect(() => {
+        if (!src) return
+        const image = new Image()
+        image.referrerPolicy = "no-referrer"
+        image.onload = () => setLoaded(src)
+        image.src = src
+        return () => {
+            image.onload = null
+        }
+    }, [src])
+    return Boolean(src) && loaded === src
 }
 
-const DomainLine = ({domain}: {domain: string}) => (
-    <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
-        <LinkSimple size={12} className="shrink-0" />
-        <span className="truncate">{domain}</span>
-    </span>
+const LinkPreviewCard = ({preview}: {preview: LinkPreview & {image: string}}) => (
+    <div className="flex min-w-0 flex-col">
+        <div className="aspect-[1.91/1] w-full overflow-hidden bg-muted">
+            {/* A third-party image; next/image would proxy it. */}
+            <img
+                src={preview.image}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="h-full w-full object-cover"
+            />
+        </div>
+        <div className="flex min-w-0 flex-col gap-1 p-3">
+            {preview.title ? (
+                <span className="line-clamp-2 text-sm font-medium leading-5 text-popover-foreground">
+                    {preview.title}
+                </span>
+            ) : null}
+            {preview.description ? (
+                <span className="line-clamp-3 leading-4 text-muted-foreground">
+                    {preview.description}
+                </span>
+            ) : null}
+            {preview.domain ? (
+                <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
+                    <LinkSimple size={12} className="shrink-0" />
+                    <span className="truncate">{preview.domain}</span>
+                </span>
+            ) : null}
+        </div>
+    </div>
 )
 
-/** A web link's hover card; a page with nothing to show still names where the link goes. */
-export const LinkPreviewCard = ({href}: {href: string}) => {
-    const query = useAtomValue(linkPreviewQueryFamily(href))
-    const [imageFailed, setImageFailed] = useState(false)
+/** A web link that shows its page's preview on hover, only when the page has a preview image. */
+export const WebLinkPreview = ({href, children}: {href: string; children: ReactElement}) => {
+    // Hover intent fetches; the card opens only once a preview image has loaded.
+    const [intent, setIntent] = useState(false)
+    const query = useAtomValue(linkPreviewQueryFamily(intent ? href : ""))
     const preview = query.data
-    const domain = preview?.domain || hostOf(href)
-
-    if (query.isPending)
-        return (
-            <div className="flex flex-col gap-2 p-3" aria-busy>
-                <SkeletonBlock className="h-4 w-3/4" />
-                <SkeletonBlock className="h-3 w-full" />
-                <SkeletonBlock className="h-3 w-2/3" />
-            </div>
-        )
-
-    const title = preview?.title
-    const description = preview?.description
-    const image = !imageFailed ? preview?.image : null
-
-    if (!title && !description && !image)
-        return (
-            <div className="flex min-w-0 flex-col gap-1 p-3">
-                <span className="truncate text-sm font-medium text-popover-foreground">
-                    {domain}
-                </span>
-                <span className="line-clamp-2 break-all text-muted-foreground">{href}</span>
-                <span className="text-muted-foreground">Opens in a new tab</span>
-            </div>
-        )
-
+    const ready = useImageLoaded(preview?.image)
+    const open = intent && ready
+    // While the card is held shut Radix reports no close, so leaving must end the intent here.
+    const endHeldIntent = () => !open && setIntent(false)
     return (
-        <div className="flex min-w-0 flex-col">
-            {image ? (
-                <div className="aspect-[1.91/1] w-full overflow-hidden bg-muted">
-                    {/* A third-party image; next/image would proxy it. No referrer leaves the app. */}
-                    <img
-                        src={image}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        loading="lazy"
-                        onError={() => setImageFailed(true)}
-                        className="h-full w-full object-cover"
-                    />
-                </div>
+        <HoverCard openDelay={300} closeDelay={150} open={open} onOpenChange={setIntent}>
+            <HoverCardTrigger asChild onPointerLeave={endHeldIntent} onBlur={endHeldIntent}>
+                {children}
+            </HoverCardTrigger>
+            {open && preview?.image ? (
+                <HoverCardContent
+                    side="top"
+                    align="start"
+                    sideOffset={6}
+                    collisionPadding={8}
+                    className="w-80 max-w-[calc(100vw-1rem)] overflow-hidden p-0 text-xs"
+                >
+                    <LinkPreviewCard preview={{...preview, image: preview.image}} />
+                </HoverCardContent>
             ) : null}
-            <div className="flex min-w-0 flex-col gap-1 p-3">
-                {title ? (
-                    <span className="line-clamp-2 text-sm font-medium leading-5 text-popover-foreground">
-                        {title}
-                    </span>
-                ) : null}
-                {description ? (
-                    <span className="line-clamp-3 leading-4 text-muted-foreground">
-                        {description}
-                    </span>
-                ) : null}
-                <DomainLine domain={domain} />
-            </div>
-        </div>
+        </HoverCard>
     )
 }
 
-export default LinkPreviewCard
+export default WebLinkPreview

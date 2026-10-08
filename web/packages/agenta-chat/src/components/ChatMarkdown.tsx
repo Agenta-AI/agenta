@@ -20,7 +20,6 @@ import {
     withExplicitRelativeLinks,
 } from "@agenta/entity-ui/drive"
 import {useSettledValue} from "@agenta/shared/hooks"
-import {HoverCard, HoverCardContent, HoverCardTrigger} from "@agenta/ui/ui"
 import {createCodePlugin, type CodeHighlighterPlugin} from "@streamdown/code"
 import {math} from "@streamdown/math"
 import {
@@ -31,7 +30,7 @@ import {
     type ThemeInput,
 } from "streamdown"
 
-import LinkPreviewCard from "./LinkPreviewCard"
+import WebLinkPreview from "./LinkPreviewCard"
 
 /** Host-supplied renderer for a code span / relative href that may name an agent file. */
 export interface ChatMarkdownLinkResolver {
@@ -117,21 +116,7 @@ const ExternalLink = ({href, title, className, children}: AnchorProps) => {
             {children}
         </a>
     )
-    if (!isWebHref(href)) return link
-    return (
-        <HoverCard openDelay={300} closeDelay={150}>
-            <HoverCardTrigger asChild>{link}</HoverCardTrigger>
-            <HoverCardContent
-                side="top"
-                align="start"
-                sideOffset={6}
-                collisionPadding={8}
-                className="w-80 max-w-[calc(100vw-1rem)] overflow-hidden p-0 text-xs"
-            >
-                <LinkPreviewCard href={href} />
-            </HoverCardContent>
-        </HoverCard>
-    )
+    return isWebHref(href) ? <WebLinkPreview href={href}>{link}</WebLinkPreview> : link
 }
 
 /** A relative href may NAME a file — resolve it through the same resolver inline code uses. */
