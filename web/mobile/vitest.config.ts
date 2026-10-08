@@ -14,5 +14,7 @@ export default defineConfig({
     test: {
         include: ["tests/unit/**/*.test.{ts,tsx}"],
         environment: "node",
+        reporters: ["default", "junit"],
+        outputFile: {junit: "./test-results/junit.xml"},
     },
 })

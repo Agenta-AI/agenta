@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,6 +25,9 @@ class SpanFeatures(BaseModel):
     session: Dict[str, Any] = Field(default_factory=dict)
     user: Dict[str, Any] = Field(default_factory=dict)
     agent: Dict[str, Any] = Field(default_factory=dict)
+    # raw attribute key -> (ag.* key, value) an adapter copied its whole content to.
+    # The span builder drops the raw key when that ag.* copy is stored as is.
+    mapped_sources: Dict[str, Tuple[str, Any]] = Field(default_factory=dict)
 
 
 class EventData(BaseModel):

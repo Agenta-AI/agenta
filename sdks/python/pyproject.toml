@@ -1,6 +1,6 @@
 [project]
 name = "agenta"
-version = "0.122.4"
+version = "0.122.5"
 description = "Agenta is the open-source workspace for your agents. Build agents through chat, improve them with feedback, and share them with your team."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -47,7 +47,7 @@ Documentation = "https://agenta.ai/docs/"
 dev = [
     "posthog>=7,<8",
     "questionary>=2,<3",
-    "setuptools>=80,<81",
+    "setuptools>=83,<84",
     "uvicorn>=0.38,<0.39",
     "requests>=2,<3",
     "pexpect>=4,<5",

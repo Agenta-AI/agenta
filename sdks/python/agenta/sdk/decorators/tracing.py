@@ -37,6 +37,10 @@ def _has_instrument(handler: Callable[..., Any]) -> bool:
     return bool(getattr(handler, "__has_instrument__", False))
 
 
+def _is_agent_configuration(parameters: Any) -> bool:
+    return isinstance(parameters, dict) and isinstance(parameters.get("agent"), dict)
+
+
 def auto_instrument(handler: Callable[..., Any]) -> Callable[..., Any]:
     if _has_instrument(handler):
         return handler
@@ -575,12 +579,13 @@ class instrument:  # pylint: disable=invalid-name
                 namespace="type",
             )
 
-            if span.parent is None:
-                # Unbounded flattening of a resolved agent config (tools with full JSON
-                # schemas) yields hundreds of leaf attributes, overflowing the span
-                # attribute limit and evicting the oldest attributes (ag.refs.*).
+            # An agent config carries every skill's body and bundled files, which made
+            # each agent root span megabytes large. The root span's revision reference
+            # points at the config, so agent runs do not record it.
+            if span.parent is None and not _is_agent_configuration(context.parameters):
                 # Depth 3 keeps one `@ag.type=json:` attribute per config section
-                # (configuration.agent.tools, .llm, ...) instead of one per leaf.
+                # instead of one per leaf, so a large config cannot overflow the span
+                # attribute limit and evict the oldest attributes (ag.refs.*).
                 span.set_attributes(
                     attributes={"configuration": context.parameters or {}},
                     namespace="meta",

@@ -4,6 +4,7 @@
  * `@agenta/entities/drive`. antd-free so the mobile app renders it.
  */
 export * from "./BlockedChatLink"
+export * from "./ChatInlineImage"
 export * from "./ContextRail"
 export * from "./DriveBreadcrumb"
 export * from "./DriveExplorer"
@@ -28,6 +29,7 @@ export * from "./FilesPaneToggle"
 export * from "./FolderList"
 export * from "./FolderTile"
 export * from "./FolderView"
+export * from "./MediaViewer"
 export * from "./OriginTag"
 export * from "./SessionFilesDrawer"
 export * from "./StorageFilesHeader"

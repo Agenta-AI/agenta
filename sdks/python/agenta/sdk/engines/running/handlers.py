@@ -249,19 +249,24 @@ def _compare_jsons(
     flattened_ground_truth = _flatten_json(ground_truth)
     flattened_app_output = _flatten_json(app_output)
 
-    keys = set(flattened_ground_truth.keys())
-    if settings_values.get("predict_keys", False):
-        keys = keys.union(set(flattened_app_output.keys()))
-
-    cumulated_score = 0.0
-    no_of_keys = len(keys)
-
+    # Normalize keys before building the comparison key set - not after.
+    # keys was previously built from the raw (possibly mixed-case) dicts and
+    # then looked up against lowercased copies, so any uppercase/camelCase
+    # key never matched and scored 0 even when case_insensitive_keys=True
+    # was meant to tolerate exactly that (Name vs name). See issue #7149.
     case_insensitive_keys = settings_values.get("case_insensitive_keys", False)
     compare_schema_only = settings_values.get("compare_schema_only", False)
     flattened_ground_truth = normalize_keys(
         flattened_ground_truth, case_insensitive_keys
     )
     flattened_app_output = normalize_keys(flattened_app_output, case_insensitive_keys)
+
+    keys = set(flattened_ground_truth.keys())
+    if settings_values.get("predict_keys", False):
+        keys = keys.union(set(flattened_app_output.keys()))
+
+    cumulated_score = 0.0
+    no_of_keys = len(keys)
 
     for key in keys:
         ground_truth_value = flattened_ground_truth.get(key, None)

@@ -58,6 +58,7 @@ from oss.src.core.tracing.dtos import (
     MetricSpec,
     QueryFocusConflictError,
     FilteringException,
+    AnalyticsQueryTimeoutError,
 )
 from oss.src.core.shared.dtos import Link
 
@@ -69,6 +70,16 @@ log = get_module_logger(__name__)
 
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
+
+
+ANALYTICS_ERROR_RESPONSES = {
+    status.HTTP_504_GATEWAY_TIMEOUT: {
+        "description": (
+            "The analytics query ran past the database statement timeout. "
+            "`detail` carries a message; retry with a shorter time range."
+        ),
+    },
+}
 
 
 class TracingRouter:
@@ -123,6 +134,7 @@ class TracingRouter:
             status_code=status.HTTP_200_OK,
             response_model=AnalyticsResponse,
             response_model_exclude_none=True,
+            responses=ANALYTICS_ERROR_RESPONSES,
             deprecated=True,
         )
 
@@ -467,6 +479,12 @@ class TracingRouter:
         `metrics` dict keyed by spec path. See [Tracing — the ag.*
         namespace](/reference/api-guide/tracing#the-ag-attribute-namespace)
         for the cumulative/incremental metric layout on each span.
+
+        ## Errors
+
+        - `504` — the query ran past the database statement timeout. Retry
+          with a shorter time range. Other failures still return an empty
+          result.
         """
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
@@ -494,11 +512,17 @@ class TracingRouter:
             analytics_from_body,
         )
 
-        buckets = await self.service.analytics(
-            project_id=UUID(request.state.project_id),
-            query=query,
-            specs=specs,
-        )
+        try:
+            buckets = await self.service.analytics(
+                project_id=UUID(request.state.project_id),
+                query=query,
+                specs=specs,
+            )
+        except AnalyticsQueryTimeoutError as e:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail=e.message,
+            ) from e
 
         return AnalyticsResponse(
             count=len(buckets),
@@ -965,6 +989,7 @@ class SpansRouter:
             status_code=status.HTTP_200_OK,
             response_model=AnalyticsResponse,
             response_model_exclude_none=True,
+            responses=ANALYTICS_ERROR_RESPONSES,
         )
 
         self.router.add_api_route(
@@ -1306,11 +1331,17 @@ class SpansRouter:
             analytics_from_body,
         )
 
-        buckets = await self.service.analytics(
-            project_id=UUID(request.state.project_id),
-            query=query,
-            specs=specs,
-        )
+        try:
+            buckets = await self.service.analytics(
+                project_id=UUID(request.state.project_id),
+                query=query,
+                specs=specs,
+            )
+        except AnalyticsQueryTimeoutError as e:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail=e.message,
+            ) from e
 
         return AnalyticsResponse(
             count=len(buckets),

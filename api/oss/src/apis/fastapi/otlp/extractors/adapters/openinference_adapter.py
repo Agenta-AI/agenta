@@ -8,6 +8,7 @@ from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
     SpanFeatures,
 )
 from oss.src.apis.fastapi.otlp.utils.serialization import (
+    json_parse_loses_data,
     process_attribute,
     NAMESPACE_PREFIX_FEATURE_MAPPING,
 )
@@ -115,6 +116,10 @@ OPENINFERENCE_ATTRIBUTES_PREFIX: List[Tuple[str, str]] = [
 ]
 
 
+# Mapped, but stored raw too: the playground reads `attributes.llm.invocation_parameters`.
+OPENINFERENCE_KEEP_RAW = {"llm.invocation_parameters"}
+
+
 class OpenInferenceAdapter(BaseAdapter):
     feature_name = None  # Results are merged into the main features dictionary
 
@@ -124,7 +129,9 @@ class OpenInferenceAdapter(BaseAdapter):
         self._exact_map = {otel: ag for otel, ag in OPENINFERENCE_ATTRIBUTES_EXACT}
         self._prefix_map = {otel: ag for otel, ag in OPENINFERENCE_ATTRIBUTES_PREFIX}
 
-    def _extract_tools(self, span_attributes: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_tools(
+        self, span_attributes: Dict[str, Any], sources: Dict[str, str]
+    ) -> Dict[str, Any]:
         """Map OpenInference tool definitions to structured `ag.data` objects.
 
         OpenInference encodes each tool as `llm.tools.{i}.tool.json_schema`, a
@@ -134,7 +141,6 @@ class OpenInferenceAdapter(BaseAdapter):
         `tool.type` and `tool.function` without unwrapping a
         `{tool: {json_schema: "..."}}` envelope.
 
-        The raw `llm.tools.*` attributes stay on the span, so no data is lost.
         If the schema cannot be parsed, the raw string is kept under
         `ag.data.inputs.tools.{i}.tool.json_schema` to preserve it.
         """
@@ -154,19 +160,27 @@ class OpenInferenceAdapter(BaseAdapter):
                     parsed = None
 
             if isinstance(parsed, (dict, list)):
-                transformed[f"ag.data.inputs.tools.{index}"] = parsed
+                ag_key = f"ag.data.inputs.tools.{index}"
+                transformed[ag_key] = parsed
+                # the parsed copy holds less than the raw text, so keep the raw key
+                if json_parse_loses_data(value):
+                    continue
             else:
-                transformed[f"ag.data.inputs.tools.{index}.tool.json_schema"] = value
+                ag_key = f"ag.data.inputs.tools.{index}.tool.json_schema"
+                transformed[ag_key] = value
+            sources[ag_key] = key
 
         return transformed
 
     def process(self, bag: CanonicalAttributes, features: SpanFeatures) -> None:
         transformed_attributes: Dict[str, Any] = {}
+        # ag.* key -> the raw key it was copied from
+        sources: Dict[str, str] = {}
         has_data = False
         # node_type is determined from openinference.span.kind and stored in transformed_attributes["ag.type.node"]
 
         # Tools need parsing before the generic mapping (see _extract_tools).
-        tool_attributes = self._extract_tools(bag.span_attributes)
+        tool_attributes = self._extract_tools(bag.span_attributes, sources)
         if tool_attributes:
             transformed_attributes.update(tool_attributes)
             has_data = True
@@ -199,6 +213,7 @@ class OpenInferenceAdapter(BaseAdapter):
             if key in self._exact_map:
                 ag_key = self._exact_map[key]
                 transformed_attributes[ag_key] = value
+                sources[ag_key] = key
                 has_data = True
             else:
                 # 2. Check prefix matches
@@ -241,6 +256,7 @@ class OpenInferenceAdapter(BaseAdapter):
 
                         new_key = ag_prefix + suffix
                         transformed_attributes[new_key] = value
+                        sources[new_key] = key
                         has_data = True
                         break
 
@@ -278,3 +294,14 @@ class OpenInferenceAdapter(BaseAdapter):
                 if k.startswith(namespace):
                     flat_attribute = process_attribute((k, v), namespace)
                     features.__getattribute__(feature).update(flat_attribute)
+
+                    source = sources.get(k)
+                    value = next(iter(flat_attribute.values()))
+                    # decode_value rewrites literal `@ag.type=...` text: keep the raw key
+                    if (
+                        source
+                        and source not in OPENINFERENCE_KEEP_RAW
+                        and value is v
+                        and value is not None
+                    ):
+                        features.mapped_sources[source] = (k, value)

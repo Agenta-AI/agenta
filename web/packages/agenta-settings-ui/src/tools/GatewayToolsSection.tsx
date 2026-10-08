@@ -1,10 +1,11 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     isConnectionActive,
     isConnectionValid,
     toolExecutionDrawerAtom,
     toolIntegrationsSearchAtom,
+    useToolCatalogCategories,
     useToolConnectionActions,
     useToolConnectionsQuery,
     useToolIntegrationDetail,
@@ -26,6 +27,7 @@ import {useAtom, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import type {ConfirmDestructive} from "../confirm"
+import {findScrollRoot} from "../shared/scrollRoot"
 import {
     SettingsCatalog,
     type SettingsCatalogGroup,
@@ -34,6 +36,8 @@ import {
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
+import {CategoryChips} from "./CategoryChips"
+import {categoryLabel} from "./categoryLabel"
 import {useToolsIntegrations, type CatalogIntegrationItem} from "./hooks/useToolsIntegrations"
 import {IntegrationCatalog, IntegrationLogo} from "./IntegrationCatalog"
 
@@ -174,6 +178,15 @@ export default function GatewayToolsSection({
         integration?: CatalogIntegrationItem
     } | null>(null)
     const [connectedCollapsed, setConnectedCollapsed] = useAtom(connectedCollapsedAtom)
+    // The category chip; `null` is All. A category shows only its own list.
+    const [category, setCategory] = useState<string | null>(null)
+    const sectionRef = useRef<HTMLElement>(null)
+    const {categories} = useToolCatalogCategories()
+    const categoryName = categories.find((entry) => entry.id === category)?.name
+    const selectCategory = useCallback((next: string | null) => {
+        setCategory(next)
+        findScrollRoot(sectionRef.current)?.scrollTo({top: 0})
+    }, [])
 
     const openExecution = useCallback(
         (record: ToolConnection) => {
@@ -231,6 +244,7 @@ export default function GatewayToolsSection({
 
     const term = searchTerm.trim().toLowerCase()
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
+        if (category) return []
         const matches = (texts: (string | null | undefined)[]) =>
             !term || texts.some((text) => text?.toLowerCase().includes(term))
         const catalog = new Map(integrations.map((integration) => [integration.key, integration]))
@@ -321,6 +335,7 @@ export default function GatewayToolsSection({
             },
         ]
     }, [
+        category,
         term,
         connectedCollapsed,
         setConnectedCollapsed,
@@ -337,19 +352,28 @@ export default function GatewayToolsSection({
 
     return (
         <>
-            <section className="ph-no-capture">
+            <section ref={sectionRef} className="ph-no-capture">
                 <SettingsCatalog
                     search={{
                         value: searchTerm,
                         onChange: search.onChange,
-                        placeholder: copy.searchPlaceholder,
+                        placeholder: categoryName
+                            ? `Search ${categoryLabel(categoryName)}`
+                            : copy.searchPlaceholder,
                     }}
+                    toolbar={
+                        readOnly ? undefined : (
+                            <CategoryChips selected={category} onSelect={selectCategory} />
+                        )
+                    }
                     groups={groups}
                     loading={isLoading || integrationsLoading}
                     after={
                         readOnly ? undefined : (
                             <IntegrationCatalog
                                 term={term}
+                                category={category}
+                                onSelectCategory={selectCategory}
                                 connectedMatches={groups[0]?.items.length ?? 0}
                                 onConnect={setConnectTarget}
                                 onClearSearch={() => search.onChange("")}
