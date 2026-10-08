@@ -453,8 +453,8 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
     ) -> List[SessionCommand]:
         """Take pending commands for the sessions the caller declares it holds warm.
 
-        The runner declaring what it holds is the routing input, not a replica id: a parked
-        session's Redis owner key expires, but the session is still in the runner's pool.
+        The runner declaring what it holds is the routing input, not a replica id: only the
+        runner knows which sessions are still in its pool.
         """
         if not sessions or limit <= 0:
             return []

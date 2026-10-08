@@ -55,8 +55,11 @@ export interface LiveExecution {
   settled?: boolean;
   /** Resolves after teardown and the final ownership release, not merely prompt settlement. */
   released?: Promise<boolean>;
-  /** Stop the run. Aborting is what makes the turn end `cancelled`. */
-  abort: () => void;
+  /**
+   * Stop the run. Aborting is what makes the turn cancel its harness. With no reason the abort is
+   * a user Stop; a shutdown passes `RUNNER_SHUTDOWN_ABORT_REASON`.
+   */
+  abort: (reason?: unknown) => void;
 }
 
 const executions = new Map<string, LiveExecution>();

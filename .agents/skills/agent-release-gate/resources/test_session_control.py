@@ -10,6 +10,8 @@ skip path, and the verdict-shape helpers.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import pathlib
 import re
@@ -477,6 +479,7 @@ def test_assert_command_settled_is_a_noop_without_hooks():
         "settled": True,
         "command": None,
         "execution_rows": [],
+        "target_execution_id": None,
         "natural_finish": False,
         "note": None,
         "why": None,
@@ -489,7 +492,7 @@ def test_assert_command_settled_passes_immediately_when_already_settled():
             [{"id": "cmd-1", "target_turn_id": "turn-1", "state": "applied"}]
         ],
         execution_sequence=[
-            [{"execution_id": "exec-1", "terminal_outcome": "stopped"}]
+            [{"execution_id": "turn-1", "terminal_outcome": "stopped"}]
         ],
     )
     result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=5.0)
@@ -497,6 +500,93 @@ def test_assert_command_settled_passes_immediately_when_already_settled():
     assert result["why"] is None
     assert result["command"]["state"] == "applied"
     assert result["execution_rows"][0]["terminal_outcome"] == "stopped"
+    assert result["target_execution_id"] == "turn-1"
+
+
+def test_assert_command_settled_judges_only_the_stopped_execution():
+    """The v0.122.3 stale-stop false fail: turn 1 COMPLETED (the runner writes a row for it too),
+    then turn 2 was stopped. The session holds two rows; turn 1 is named as an earlier completed
+    execution and the stopped execution holds exactly one row with a terminal outcome. Must
+    settle."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[
+            [
+                {
+                    "id": "cmd-1",
+                    "target_turn_id": "turn-2",
+                    "state": "applied",
+                    "outcome": "stopped",
+                }
+            ]
+        ],
+        execution_sequence=[
+            [
+                {"execution_id": "turn-1", "terminal_outcome": "completed"},
+                {"execution_id": "turn-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
+    assert result["settled"] is True, result["why"]
+    assert result["target_execution_id"] == "turn-2"
+    assert len(result["execution_rows"]) == 2
+
+
+def test_assert_command_settled_uses_the_command_target_when_turn_id_is_unknown():
+    """A cell that could not read the live turn id passes None; the command's target_turn_id
+    still names the stopped execution, so an earlier completed row must not count."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[
+            [
+                {
+                    "id": "cmd-1",
+                    "target_turn_id": "turn-2",
+                    "state": "applied",
+                    "outcome": "stopped",
+                }
+            ]
+        ],
+        execution_sequence=[
+            [
+                {"execution_id": "turn-1", "terminal_outcome": "completed"},
+                {"execution_id": "turn-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(
+        hooks, "session-1", None, earlier_execution_ids=("turn-1",), timeout=0
+    )
+    assert result["settled"] is True, result["why"]
+    assert result["target_execution_id"] == "turn-2"
+
+
+def test_assert_command_settled_fails_on_zero_rows_for_the_stopped_execution():
+    """An applied/stopped command whose target execution has NO row must FAIL, even when the
+    session holds a row for another (completed) execution."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[
+            [
+                {
+                    "id": "cmd-1",
+                    "target_turn_id": "turn-2",
+                    "state": "applied",
+                    "outcome": "stopped",
+                }
+            ]
+        ],
+        execution_sequence=[
+            [{"execution_id": "turn-1", "terminal_outcome": "completed"}]
+        ],
+    )
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
+    assert result["settled"] is False
+    assert "exactly one session_executions row" in result["why"]
+    assert "turn-2" in result["why"]
+    assert "saw 0" in result["why"]
 
 
 def test_assert_command_settled_catches_the_repeat_stop_false_pass():
@@ -529,21 +619,124 @@ def test_assert_command_settled_fails_when_no_command_row_exists():
     assert "no session_commands row" in result["why"]
 
 
-def test_assert_command_settled_fails_on_more_than_one_execution_row():
+def _stop_command(target="turn-1", state="applied", outcome="stopped"):
+    command = {"id": "cmd-1", "state": state, "outcome": outcome}
+    if target is not None:
+        command["target_turn_id"] = target
+    return command
+
+
+def test_assert_command_settled_fails_on_a_second_execution_in_a_single_turn_cell():
+    """session_executions has PRIMARY KEY (project_id, session_id, execution_id), so one execution
+    never holds two rows. The whole-session guard is about a SECOND execution: a single-turn cell
+    passes no earlier ids, so any extra row, even a completed one, must FAIL."""
     hooks = _StubSettlementHooks(
-        command_sequence=[
-            [{"id": "cmd-1", "target_turn_id": "turn-1", "state": "applied"}]
-        ],
+        command_sequence=[[_stop_command("turn-1")]],
         execution_sequence=[
             [
-                {"execution_id": "exec-1", "terminal_outcome": "stopped"},
-                {"execution_id": "exec-2", "terminal_outcome": "stopped"},
+                {"execution_id": "turn-1", "terminal_outcome": "stopped"},
+                {"execution_id": "turn-x", "terminal_outcome": "completed"},
             ]
         ],
     )
     result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
     assert result["settled"] is False
-    assert "exactly one session_executions row" in result["why"]
+    assert "unexpected session_executions row" in result["why"]
+    assert "turn-x=completed" in result["why"]
+
+
+def test_assert_command_settled_fails_when_the_earlier_turn_was_also_stopped():
+    """stale-stop shape, but turn 1 reads `stopped` instead of `completed`: the stale Stop (or the
+    bare one) ended a settled turn. The allowance covers only completed earlier turns. FAIL."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command("turn-2")]],
+        execution_sequence=[
+            [
+                {"execution_id": "turn-1", "terminal_outcome": "stopped"},
+                {"execution_id": "turn-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
+    assert result["settled"] is False
+    assert "turn-1=stopped" in result["why"]
+
+
+def test_assert_command_settled_fails_when_the_target_row_has_no_terminal_outcome():
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command("turn-1")]],
+        execution_sequence=[[{"execution_id": "turn-1", "terminal_outcome": None}]],
+    )
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
+    assert result["settled"] is False
+    assert "no terminal outcome" in result["why"]
+
+
+def test_assert_command_settled_fails_on_a_claimed_command_even_with_a_stopped_row():
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command("turn-1", state="claimed", outcome=None)]],
+        execution_sequence=[
+            [{"execution_id": "turn-1", "terminal_outcome": "stopped"}]
+        ],
+    )
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
+    assert result["settled"] is False
+    assert "claimed" in result["why"]
+
+
+def test_assert_command_settled_uses_turn_id_when_the_command_has_no_target():
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command(None)]],
+        execution_sequence=[
+            [
+                {"execution_id": "turn-1", "terminal_outcome": "completed"},
+                {"execution_id": "turn-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
+    assert result["settled"] is True, result["why"]
+    assert result["target_execution_id"] == "turn-2"
+
+
+def test_assert_command_settled_fails_when_the_command_targets_another_execution():
+    """`_match_stop_command` falls back to the last command when none targets the turn. A command
+    that targets turn 1 is not the Stop for turn 2, even when turn 1's row looks settled. FAIL."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[[_stop_command("turn-1")]],
+        execution_sequence=[
+            [
+                {"execution_id": "turn-1", "terminal_outcome": "completed"},
+                {"execution_id": "turn-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(
+        hooks, "session-1", "turn-2", earlier_execution_ids=("turn-1",), timeout=0
+    )
+    assert result["settled"] is False
+    assert "targeted turn-1, not the stopped execution turn-2" in result["why"]
+
+
+def test_assert_command_settled_keeps_the_whole_session_rule_without_a_target():
+    """No target id from the command and none from the caller: fall back to the strict
+    whole-session one-row rule, so two rows still FAIL."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[[{"id": "cmd-1", "state": "applied", "outcome": "stopped"}]],
+        execution_sequence=[
+            [
+                {"execution_id": "exec-1", "terminal_outcome": "completed"},
+                {"execution_id": "exec-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(hooks, "session-1", None, timeout=0)
+    assert result["settled"] is False
+    assert "no target execution id known" in result["why"]
 
 
 def test_assert_command_settled_accepts_a_stop_after_a_natural_finish():
@@ -1489,6 +1682,181 @@ def test_sandbox_gone_settle_budget_derives_from_probe_defaults():
         assert sc.SANDBOX_GONE_COMMAND_S > 0
     finally:
         sc.SANDBOX_STARTUP_SLACK_S = saved
+
+
+CUSTOM_CLAUDE_ENV = {
+    "AGENTA_QA_CLAUDE_MODEL": "orclaude/custom/anthropic/claude-haiku-4.5",
+    "AGENTA_QA_CLAUDE_PROVIDER": "anthropic",
+    "AGENTA_QA_CLAUDE_CONNECTION_SLUG": "orclaude-c676d8a6badd",
+    "AGENTA_QA_CLAUDE_CUSTOM_URL": "https://example.test/api",
+    "AGENTA_QA_CLAUDE_CUSTOM_KEY": "test-key",
+}
+
+
+def test_claude_spec_without_overrides_is_the_vault_anthropic_entry():
+    spec, secret = sc.claude_spec_from_env({})
+    assert spec == sc.HARNESSES["claude"]
+    assert secret is None
+
+
+def test_claude_spec_model_and_provider_override_alone_keep_the_vault_key():
+    spec, secret = sc.claude_spec_from_env(
+        {"AGENTA_QA_CLAUDE_MODEL": "haiku", "AGENTA_QA_CLAUDE_PROVIDER": "anthropic"}
+    )
+    assert spec["model"] == "haiku"
+    assert spec["connection"] == {"mode": "agenta", "slug": None}
+    assert secret is None
+
+
+def test_claude_spec_custom_connection_names_the_slug_and_stocks_it():
+    spec, secret = sc.claude_spec_from_env(CUSTOM_CLAUDE_ENV)
+    assert spec["kind"] == "claude"
+    assert spec["model"] == "orclaude/custom/anthropic/claude-haiku-4.5"
+    assert spec["provider"] == "anthropic"
+    assert spec["connection"] == {"mode": "agenta", "slug": "orclaude-c676d8a6badd"}
+    # The secret's name and model slug rebuild the model key the agent config names.
+    assert secret["slug"] == "orclaude-c676d8a6badd"
+    assert secret["header"]["name"] == "orclaude"
+    data = secret["secret"]["data"]
+    assert secret["secret"]["kind"] == "custom_provider"
+    assert data["protocol"] == "anthropic"
+    assert data["provider"] == {"url": "https://example.test/api", "key": "test-key"}
+    assert data["models"] == [{"slug": "anthropic/claude-haiku-4.5"}]
+    # The module table stays untouched for the next caller.
+    assert sc.HARNESSES["claude"]["connection"]["slug"] is None
+
+
+def test_claude_spec_slug_without_url_key_or_custom_model_is_refused():
+    env = {
+        "AGENTA_QA_CLAUDE_MODEL": "haiku",
+        "AGENTA_QA_CLAUDE_CONNECTION_SLUG": "orclaude-c676d8a6badd",
+    }
+    try:
+        sc.claude_spec_from_env(env)
+    except SystemExit as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("a slug with no custom connection details must be refused")
+    assert "AGENTA_QA_CLAUDE_CUSTOM_URL" in message
+    assert "AGENTA_QA_CLAUDE_CUSTOM_KEY" in message
+    assert "/custom/" in message
+
+
+def test_claude_spec_warns_when_custom_url_or_key_is_set_without_a_slug():
+    env = {"AGENTA_QA_CLAUDE_CUSTOM_KEY": "test-key"}
+    captured = io.StringIO()
+    with contextlib.redirect_stderr(captured):
+        spec, secret = sc.claude_spec_from_env(env)
+    assert secret is None
+    assert spec["connection"]["slug"] is None
+    err = captured.getvalue()
+    assert "AGENTA_QA_CLAUDE_CONNECTION_SLUG" in err
+    assert "test-key" not in err
+
+
+def test_a_failing_custom_connection_create_does_not_print_the_key():
+    """A FastAPI 422 echoes the request body, which holds the connection's key."""
+    _, secret = sc.claude_spec_from_env(CUSTOM_CLAUDE_ENV)
+    key = CUSTOM_CLAUDE_ENV["AGENTA_QA_CLAUDE_CUSTOM_KEY"]
+
+    class _Response:
+        status_code = 422
+        text = json.dumps({"detail": [{"msg": "bad", "input": secret}]})
+
+    original = sc.api
+    try:
+        sc.api = lambda *a, **k: _Response()
+        sc.stock_custom_provider(secret)
+    except SystemExit as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("a failing create must stop the run")
+    finally:
+        sc.api = original
+    assert "422" in message
+    assert key not in message
+    assert "<redacted>" in message
+
+
+def test_sleep_prompt_avoids_a_standalone_sleep_and_echoes_the_marker():
+    prompt = sc.sleep_prompt("MANGO123", 45)
+    assert "sleep 45" not in prompt
+    assert "timeout 45 tail -f /dev/null; echo MANGO123" in prompt
+    assert "foreground" in prompt
+    assert "The codeword is MANGO123." in prompt
+
+
+def _run_cell_with_stubs(cell, stubs: dict):
+    """Run one cell with module functions replaced, restoring them whatever happens."""
+    original = {name: getattr(sc, name) for name in stubs}
+    original_sleep = sc.time.sleep
+    try:
+        sc.time.sleep = lambda _s: None
+        for name, fn in stubs.items():
+            setattr(sc, name, fn)
+        args = type("Args", (), {"durable_stop": "auto", "sleep_seconds": 45})()
+        return cell({}, [], args, sc.NullHooks())
+    finally:
+        sc.time.sleep = original_sleep
+        for name, fn in original.items():
+            setattr(sc, name, fn)
+
+
+def test_stale_stop_expects_the_completed_first_turn_row():
+    seen: dict = {}
+
+    def _settle(*a, **k):
+        seen.update(k)
+        return {"settled": True, "why": None}
+
+    class _Thread:
+        def join(self, timeout=None):
+            return None
+
+    _run_cell_with_stubs(
+        sc.cell_stale_stop,
+        {
+            "invoke": lambda *a, **k: {"text": "READY"},
+            "invoke_async": lambda *a, **k: {"thread": _Thread(), "out": {}},
+            "session_stream": lambda _sid: {"turn_id": "turn-1"},
+            "wait_for_turn": lambda _sid, timeout=None: "turn-2",
+            "cancel": lambda *a, **k: {"status": 409, "body": {}},
+            "assert_command_settled": _settle,
+            "assistant_message": lambda _t: {"role": "assistant", "parts": []},
+            "sandbox_ids": lambda _sid: ["sandbox-1"],
+        },
+    )
+    # The cell must name turn 1, not just count it: the allowance is per execution id, so a
+    # wrong id would let an unexpected row through.
+    assert seen.get("earlier_execution_ids") == ("turn-1",)
+
+
+def test_stop_approval_asks_for_a_mutating_command():
+    """Claude Code auto-approves a read-only `echo`, so the approval would never park."""
+    prompts: list[str] = []
+
+    class _Response:
+        status_code = 409
+        text = "execution_terminal"
+
+    def _invoke(*a, **k):
+        prompts.append(a[1][0]["parts"][0]["text"])
+        return {"turn_id": "turn-1", "text": ""}
+
+    _run_cell_with_stubs(
+        sc.cell_stop_approval,
+        {
+            "invoke": _invoke,
+            "interactions": lambda _sid: [{"id": "interaction-1", "status": "pending"}],
+            "session_stream": lambda _sid: {"turn_id": "turn-1"},
+            "cancel": lambda *a, **k: {"status": 200, "body": {}},
+            "assert_command_settled": lambda *a, **k: {"settled": True, "why": None},
+            "api": lambda *a, **k: _Response(),
+            "assistant_message": lambda _t: {"role": "assistant", "parts": []},
+            "sandbox_ids": lambda _sid: ["sandbox-1"],
+        },
+    )
+    assert "echo hello > /tmp/" in prompts[0]
 
 
 if __name__ == "__main__":

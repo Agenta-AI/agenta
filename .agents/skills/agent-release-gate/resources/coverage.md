@@ -21,7 +21,7 @@ subscription has its own cell — C1, S1, S2.
 | P1 | `pi_core` | `local` | `openrouter/deepseek/deepseek-v4-flash` | vault key (OpenRouter) | OpenRouter as a first-class native provider. |
 | S1 | `pi_core` | `local` | `gpt-5.6-luna` | subscription (Pi, `openai-codex` provider) | **Pi** authenticating from a ChatGPT/Codex subscription through the sidecar, independent of any vault key. Not the Codex harness — see S2. |
 | X1 | `codex` | `local` | `gpt-5.6-luna` | vault key (OpenAI) | The native Codex harness with a managed key. Since the D-008 amendment (2026-07-31, patched bridge), Agenta-tool calls raise codex-native approval gates that park warm, and the `approve`/`deny` journeys RUN for codex with an MCP-shaped probe (the `list_connections` platform tool, per-tool `ask`) instead of the builtin-shell probe. Only `mcp` (Claude-only) and `mount` still SKIP (see below). |
-| X2 | `codex` | `daytona` | `gpt-5.6-luna` | vault key (OpenAI) | Codex in a cloud sandbox. Exists for the continuity tiers: a `cold2` resume can only COMPLETE on a remote sandbox (on local it correctly refuses), so without this cell the gate can never observe a finished codex cold 2. Verified out of band during the v0.108.0 release run; promoted into the gate. |
+| X2 | `codex` | `daytona` | `gpt-5.6-luna` | vault key (OpenAI) | Codex in a cloud sandbox. The only codex cell on a remote sandbox, so the continuity tiers (`park` and `cold2`) see codex rebuild a Daytona session as well as a local one. Verified out of band during the v0.108.0 release run; promoted into the gate. |
 | S2 | `codex` | `local` | `gpt-5.6-luna` | subscription (Codex OAuth, `runtime_provided`) | **The genuine Codex-subscription cell**: the codex harness with the operator's mounted ChatGPT/Codex login. The only cell that exercises the subscription file assembly — `CODEX_HOME` pointed at `<cwd>/.codex` and `auth.json` symlinked into the **durable** working directory. That link is the one credential path an object-store round trip can destroy (#5692). Local-only (Daytona rejects `runtime_provided`), and needs the subscription sidecar. |
 | P2 | `pi_core` | `local` | `<name>/custom/deepseek/deepseek-v4-flash` | custom OpenAI-compatible provider | OpenRouter reached as a custom OpenAI-compatible endpoint — the path every self-hoster with a proxy or local vLLM uses, and the least-travelled one. Needs a `custom_provider` vault slug and display name; pass `--custom-slug` plus `--custom-name` (the driver sends the full `<name>/custom/<model>` key and connection mode `agenta`). |
 | P2b | `pi_core` | `local` | `<name>/custom/deepseek/deepseek-v4-flash` | custom OpenAI-compatible provider, `provider` SET | P2 with `provider: "openai"` — the shape the PLAYGROUND saves for a named custom connection, which P2 cannot cover because it pins `provider: None`. A set provider prefixes `to_model_string()`, and `Connection.selected_model_id` used to compare only against that, so the `<name>/custom/<model>` namespace was never stripped and the provider got the namespaced id and returned 403. Regression guard: every custom connection picked in the playground rides this path. Needs both `--custom-slug` and `--custom-name` because `model_keys` is built from the display name. |
@@ -63,7 +63,7 @@ cell — keep them in sync if a cell changes.
 | `warm` | Continuity tier 1: three turns on one live daemon, over a store-backed cwd. | The durable token written in turn 1 comes back in the last turn, and the turn ledger shows one harness session and one sandbox (a second id means the turn was not warm). |
 | `cold1` | Continuity tier 2: the pooled session is **evicted** (the client changes the agent's instructions, which changes the config fingerprint) and the runner rebuilds it — unmounting and remounting the durable cwd. | The token survives the store round trip AND the agent can read a file the client wrote directly into the object store. |
 | `park` | Continuity tier 3: the session **idles out** with nothing changed, so the pool expires it and the sandbox is PARKED (stopped, not deleted); the next turn must reconnect to that same sandbox. | Both files come back AND the turn ledger shows exactly ONE sandbox id across the turns — a rebuild would show two, which is what `cold1` reports on the same deployment. The harness session id deliberately stays the same (preserving it is what the session-continuity store is for), so it is not a signal here. **Daytona only.** This is the resume users actually hit, because the pool TTL is two minutes, and on Daytona it is the only tier that proves a credential Secret still resolves after a stop/start. Tune the idle with `--park-wait`. |
-| `cold2` | Continuity tier 4: the runner **replica is replaced** (operator hook: SIGKILL, then wait out the owner TTL plus a margin). | The resume completes with both files intact, on local and remote alike. On local that is the point: the dead replica took its sandbox with it, so the conversation had to come back from the object store alone. A `… is not the owner of session …` refusal is a FAIL, because it means the owner key outlived the wait and the run measured the wait rather than the product. SKIPs without `--cold2-replace-cmd`. |
+| `cold2` | Continuity tier 4: the runner **replica is replaced** (operator hook: SIGKILL, then a 20s settle for the replacement). | The resume completes with both files intact, on local and remote alike. On local that is the point: the dead replica took its sandbox with it, so the conversation had to come back from the object store alone. Any error on the resume is a FAIL: no lease is left to wait out, because the API binds the new turn to the replacement on its first beat. SKIPs without `--cold2-replace-cmd`. |
 | `mcp` | Deliver an MCP server in the agent config and call one of its tools. | A `tool-output-available` frame fires for an `mcp__*` tool. **Claude only** — Pi rejects user MCP, so this `SKIP`s on every Pi cell. Uses the public DeepWiki server by default; override with `--mcp-url`. |
 | `rule_deny` | Policy `allow`, plus a `deny` rule for `Bash`. Ask for a bash command. | The model still attempts the call (the tool is not hidden), the call never executes, no approval card appears, and no real shell token reaches the reply. **Pi only.** |
 | `rule_allow` | Policy `ask`, plus an `allow` rule for `Bash`. Ask for the same command. | No approval card fires and the call executes — the rule overrode the policy. **Pi only.** |
@@ -194,18 +194,13 @@ cannot represent.
 **The cold-2 method, stated (the wrong method measures the wrong thing).** `--cold2-replace-cmd`
 must SIGKILL the runner replica (`docker kill -s KILL <runner>`), never `docker stop`/`restart`:
 on SIGTERM the runner runs its shutdown handler and destroys every sandbox it owns, including the
-session under test. The driver then waits `--owner-ttl` seconds (default 120,
-`AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS`) because the killed replica never released
-`owner:session:<id>` and `claim_owner` never steals from an owner that still looks live; resuming
-inside that window fails for an unrelated, misleading reason (#5611). The driver waits the TTL
-**plus a 20s margin**, because the key lapses at the boundary and the replacement replica may
-still be starting; the hook itself is bounded (3 minutes) and must return once the replacement is
-serving. Expected results differ per
-sandbox: a **local** sandbox lives inside the runner process, so a replacement replica genuinely
-cannot adopt it and the correct outcome is a loud refusal; a **remote** sandbox resumes cold. If
-the deployment pins `AGENTA_RUNNER_REPLICA_ID`, the replacement replica is not a *different*
-replica as far as the owner key is concerned and the local cell will resume instead of refusing —
-unset it for a genuine cold 2.
+session under test. The driver then waits **20s** for the replacement replica to settle. It waits
+for nothing else: the API binds each turn to the replica that first beats it, and the resume is a
+new turn, so the replacement takes it on its first beat. The hook itself is bounded (3 minutes)
+and must return once the replacement is serving. Both sandboxes resume cold: a **local** sandbox
+died with the runner process, so the replacement rebuilds the conversation from the object store;
+a **remote** sandbox is rebuilt the same way, because a replica never adopts a sandbox it did not
+create.
 
 ## What each cell needs beyond the three env vars
 

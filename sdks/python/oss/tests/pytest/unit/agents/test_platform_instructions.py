@@ -58,6 +58,17 @@ def test_file_links_are_relative_and_never_absolute():
     assert "/home/sandbox/" not in AGENTA_PLATFORM_BASE
 
 
+def test_the_base_tells_the_agent_to_finish_authorized_work():
+    # Literal-minded models (GPT-6) stopped after a diagnosis, asked before reversible edits, and
+    # treated "why did you stop?" as a new question. These rules close those exits.
+    assert "**Finish the job in this turn.**" in AGENTA_PLATFORM_BASE
+    assert "**A new message steers the current task.**" in AGENTA_PLATFORM_BASE
+    assert "**Work first, ask last.**" in AGENTA_PLATFORM_BASE
+    assert "explicit instruction beats a skill." in AGENTA_PLATFORM_BASE
+    assert "a rendered screenshot for anything visual" in AGENTA_PLATFORM_BASE
+    assert "outside your working directory, or is hard to" not in AGENTA_PLATFORM_BASE
+
+
 def test_the_base_never_names_a_config_tool_it_cannot_promise():
     # `request_secret` is named with an availability hedge, because it ships through the build
     # kit and a plain run may lack it. The config-only tools are confined to the gated half.

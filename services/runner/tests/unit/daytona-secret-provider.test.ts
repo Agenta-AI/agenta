@@ -9,6 +9,11 @@ import {
 } from "../../src/engines/sandbox_agent/daytona-secret-provider.ts";
 import { DaytonaReconnectTerminalError } from "../../src/engines/sandbox_agent/daytona-provider.ts";
 import {
+  markSandboxCreated,
+  markSandboxDeleted,
+  resetCreatedSandboxIds,
+} from "../../src/engines/sandbox_agent/created-sandboxes.ts";
+import {
   buildDaytonaSecretPlan,
   type DaytonaSecretPlan,
 } from "../../src/engines/sandbox_agent/daytona-secret-plan.ts";
@@ -138,7 +143,10 @@ function providerFactory(events: string[], attachmentLog: any[]) {
   };
 }
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  resetCreatedSandboxIds();
+});
 
 describe("process-local Daytona Secret provider", () => {
   it("attaches Secret names at create and substitutes MCP plaintext with placeholders", async () => {
@@ -437,7 +445,7 @@ describe("process-local Daytona Secret provider", () => {
     ]);
   });
 
-  it("deletes and rejects reconnect when the process-local allocation is missing", async () => {
+  it("rejects reconnect without deleting when the process-local allocation is missing", async () => {
     const events: string[] = [];
     const provider = daytonaWithProcessLocalSecrets(
       providerFactory(events, []),
@@ -449,13 +457,57 @@ describe("process-local Daytona Secret provider", () => {
         createFingerprint: GENERATION,
       },
     );
+    const missingAllocation = (error: unknown) =>
+      error instanceof DaytonaReconnectTerminalError &&
+      error.state === "missing-process-local-secret-allocation";
+
+    // Another pod's sandbox.
     await assert.rejects(
-      () => provider.reconnect!("old-sandbox"),
-      (error: unknown) =>
-        error instanceof DaytonaReconnectTerminalError &&
-        error.state === "missing-process-local-secret-allocation",
+      () => provider.reconnect!("other-pod-sandbox"),
+      missingAllocation,
     );
-    assert.deepEqual(events, ["sandbox:destroy:old-sandbox"]);
+    assert.deepEqual(events, [], "another pod's sandbox is never deleted");
+
+    // Even an id this process created: with no entry, the wrapper cannot prove its Secrets.
+    markSandboxCreated("daytona/own-sandbox");
+    await assert.rejects(
+      () => provider.reconnect!("daytona/own-sandbox"),
+      missingAllocation,
+    );
+    assert.deepEqual(events, [], "no sandbox delete, no Secret delete");
+  });
+
+  it("never deletes a sandbox without a registry entry that this process did not create", async () => {
+    const events: string[] = [];
+    const logs: string[] = [];
+    const provider = daytonaWithProcessLocalSecrets(
+      providerFactory(events, []),
+      plan,
+      secretApi(events),
+      {
+        registry: new Map(),
+        cleanupDelayMilliseconds: 1_000,
+        createFingerprint: GENERATION,
+        log: (message) => logs.push(message),
+      },
+    );
+    await provider.destroy("other-pod-sandbox");
+    assert.deepEqual(events, []);
+    assert.ok(logs.some((line) => line.includes("not created by this runner")));
+
+    // Its own sandbox with no entry (its cleanup already ran) is still deleted, idempotently.
+    markSandboxCreated("own-sandbox");
+    await provider.destroy("own-sandbox");
+    assert.deepEqual(events, ["sandbox:destroy:own-sandbox"]);
+
+    // A teardown marks the id deleted before it calls the delete; the delete still runs.
+    markSandboxCreated("own-deleting");
+    markSandboxDeleted("daytona/own-deleting");
+    await provider.destroy("own-deleting");
+    assert.deepEqual(events, [
+      "sandbox:destroy:own-sandbox",
+      "sandbox:destroy:own-deleting",
+    ]);
   });
 
   it("deletes the old sandbox and Secrets when the credential SLOT SET changes", async () => {

@@ -295,11 +295,9 @@ CELLS = {
         "provider": "openai",
     },
     # X2: the CODEX harness on DAYTONA with a managed vault key. Daytona rejects subscription
-    # auth by design, so managed is the only codex cell a cloud sandbox can have. It exists
-    # because the continuity tiers mean DIFFERENT things per sandbox: a cold-2 resume (runner
-    # replica replaced) can only COMPLETE on a remote sandbox — on local it correctly refuses,
-    # since a local sandbox lives inside the runner process. Without a codex-on-daytona cell the
-    # gate can never observe a completed codex cold 2. Verified out of band during the v0.108.0
+    # auth by design, so managed is the only codex cell a cloud sandbox can have. It is the only
+    # codex cell on a remote sandbox, so the continuity tiers (`park`, `cold2`) see codex rebuild
+    # a Daytona session as well as a local one. Verified out of band during the v0.108.0
     # release run (a one-off staging probe); promoted into the gate here.
     "X2": {
         "harness": "codex",
@@ -1194,14 +1192,13 @@ def j4_deny(cell: dict) -> dict:
 REQUIRE_STORE = False
 STORE_SETTLE_SECONDS = 45.0
 COLD2_REPLACE_CMD: str | None = None
-OWNER_TTL_SECONDS = 120.0
 # A hung operator hook must not hang the whole gate run.
 COLD2_REPLACE_TIMEOUT_SECONDS = 180.0
-# The owner key lapses AT the TTL, and the replacement replica may still be coming up, so a
-# resume timed exactly on the boundary races both and fails for an unrelated, misleading reason.
-# The approval-matrix driver waits for container health plus the same margin
+# The replacement replica may still be coming up when the hook returns, so a resume sent at once
+# races its startup and fails for an unrelated, misleading reason. The approval-matrix driver
+# waits for container health plus the same margin
 # (docs/design/codex-harness/spike/scripts/codex-approval-matrix-qa.py).
-OWNER_TTL_MARGIN_SECONDS = 20.0
+COLD2_SETTLE_SECONDS = 20.0
 
 # How long the `park` tier idles so the session pool expires the session on its own. The runner
 # parks a Daytona session at `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` (120s by default), and an
@@ -1209,13 +1206,6 @@ OWNER_TTL_MARGIN_SECONDS = 20.0
 # reconnect. Override with --park-wait when a deployment runs a different TTL.
 PARK_IDLE_TTL_SECONDS = 120.0
 PARK_MARGIN_SECONDS = 45.0
-
-# The runner's refusal when a replacement replica tries to adopt a local-sandbox session
-# (`LocalSandboxNotOwnerError`, session-continuity.ts). Asserted by the cold2 journey and quoted
-# in coverage.md — one spelling, one source, so the doc and the assertion cannot drift apart.
-# Full text: "local sandbox requires a single runner: replica '<a>' is not the owner of session
-# '<b>' (owned by '<c>'). Refusing to cold-start on the wrong host."
-LOCAL_NOT_OWNER_MARKER = "is not the owner of session"
 
 CWD_PROBE_FILE = "qa-cwd.txt"
 STORE_PROBE_FILE = "qa-store.txt"
@@ -1530,14 +1520,11 @@ def _continuity(cell: dict, tier: str) -> dict:
                 "pass": False,
                 "why": f"cold 2: the replica-replacement command failed ({proc.returncode}): {proc.stderr[:200]}",
             }
-        # Wait out the session-owner key. The killed replica never released `owner:session:<id>`
-        # and `claim_owner` never steals from an owner that still looks live, so a resume inside
-        # the window fails for the wrong reason (issue #5611's misleading MCP-shim error). The
-        # margin matters as much as the TTL: the key lapses AT the boundary, so a resume timed
-        # exactly on it races the lapse and the replacement replica's own startup.
-        wait = OWNER_TTL_SECONDS + OWNER_TTL_MARGIN_SECONDS
+        # No lease to wait out: the next turn has a new turn id, so the API binds it to the
+        # replacement replica on its first beat. Only the replacement's own startup is waited.
+        wait = COLD2_SETTLE_SECONDS
         time.sleep(wait)
-        transition = f"replica replaced via the operator hook, then {int(wait)}s of owner-TTL wait"
+        transition = f"replica replaced via the operator hook, then {int(wait)}s for it to settle"
     else:  # pragma: no cover - guarded by the JOURNEYS table
         raise ValueError(f"unknown continuity tier {tier}")
 
@@ -1575,43 +1562,10 @@ def _continuity(cell: dict, tier: str) -> dict:
         }[tier],
     }
 
-    if tier == "cold2" and cell["sandbox"] == "local":
-        # This journey used to demand the ownership guard REFUSE here, citing warm-approvals-qa.md.
-        # That expectation cannot hold alongside the transition this journey performs, and the two
-        # halves contradict each other:
-        #
-        #   `isLocalRunnerEligible` (session-continuity.ts) allows the run when the owner is
-        #   unknown OR is this replica. The transition above deliberately waits out the owner key
-        #   so the resume does not fail on a stale owner. Once it lapses, `claim_owner` hands
-        #   ownership to whoever asks next — the replacement replica — so the guard sees itself as
-        #   the owner and correctly does not refuse.
-        #
-        # Refusing is right when the ORIGINAL owner is still ALIVE, which is a different scenario
-        # this journey never creates: it needs two replicas running at once, and the gate drives
-        # one deployment over HTTP. The pure function is covered by the runner's own
-        # session-ownership tests; an end-to-end two-replica journey is a follow-up.
-        #
-        # What IS correct after a genuine replica loss is what the remote tiers assert: the dead
-        # replica took its local sandbox with it, and the replacement rebuilds the conversation
-        # from the durable working directory in the object store. So local cold 2 now asserts the
-        # same resume as remote, plus one extra guard below — a refusal here means the owner key
-        # outlived the wait, which measures the wait rather than the product.
-        refused = any(LOCAL_NOT_OWNER_MARKER in str(e) for e in t_last.errors)
-        if refused:
-            return {
-                "pass": False,
-                "why": (
-                    "cold 2 refused with "
-                    f'"{LOCAL_NOT_OWNER_MARKER}" even though the journey waited out the owner key '
-                    f"({OWNER_TTL_SECONDS:.0f}s + {OWNER_TTL_MARGIN_SECONDS:.0f}s margin). The "
-                    "dead replica's ownership outlived the wait, so this run measured the wait, "
-                    "not the product. Raise --owner-ttl to the deployment's real session-owner "
-                    "TTL and run it again."
-                ),
-                "evidence": evidence,
-                "turn_resumed": t_last.summary(),
-            }
-
+    # Local cold 2 asserts the same resume as remote. The dead replica took its local sandbox
+    # with it, and the replacement rebuilds the conversation from the durable working directory
+    # in the object store. The runner has no runtime refusal for a local session on another
+    # replica: the chart keeps the local provider at one runner instead.
     reply = t_last.reply
     cwd_back = token in reply
     store_back = store_token in reply if tier != "warm" else None
@@ -1971,8 +1925,8 @@ def j6_park(cell: dict) -> dict:
 
 
 def j6_cold2(cell: dict) -> dict:
-    """Cold 2: the runner replica is replaced. Needs an operator hook (SIGKILL), and the expected
-    result differs per sandbox: a local sandbox correctly REFUSES, a remote one resumes cold."""
+    """Cold 2: the runner replica is replaced. Needs an operator hook (SIGKILL). On a local and a
+    remote sandbox alike, the replacement rebuilds the session cold and the resume completes."""
     return _continuity(cell, "cold2")
 
 
@@ -3179,11 +3133,15 @@ CREDENTIAL_DELIVERY_CODE = "credential_delivery_failed"
 # The sandbox provider ran out of room. This is the environment refusing to give the journey what
 # it asked for, not the product failing, so it is a SKIP with a loud reason rather than a FAIL.
 #
-# The match is deliberately narrow and quotes Daytona's own create-path refusal. It must NEVER
-# grow to cover `rate_limited`: an internal rate limit under a load the product is supposed to
-# support is a real finding, and hiding it behind a SKIP would delete the only signal the gate has.
+# The match is deliberately narrow and quotes Daytona's own create-path refusal, plus the sentence
+# the runner puts in its place (code `sandbox_capacity`) once the provider refused twice. It must
+# NEVER grow to cover `rate_limited`, nor the runner's own sandbox-slot limit, which shares the
+# `sandbox_capacity` code: an internal limit under a load the product is supposed to support is a
+# real finding, and hiding it behind a SKIP would delete the only signal the gate has.
 CAPACITY_REFUSAL_RE = re.compile(
-    r"total disk limit exceeded|disk quota exceeded|sandbox quota exceeded", re.I
+    r"total disk limit exceeded|disk quota exceeded|sandbox quota exceeded"
+    r"|sandbox provider is at its capacity limit",
+    re.I,
 )
 
 
@@ -3950,15 +3908,6 @@ def main() -> int:
         ),
     )
     p.add_argument(
-        "--owner-ttl",
-        type=float,
-        default=120.0,
-        help=(
-            "seconds to wait after replacing the replica, so the dead replica's session-owner key "
-            "lapses (AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS, default 120)"
-        ),
-    )
-    p.add_argument(
         "--subscription-slug",
         default=SUBSCRIPTION_SLUG,
         help=(
@@ -4120,7 +4069,7 @@ def main() -> int:
 
     resolve_credentials(args.env_file)
 
-    global REQUIRE_STORE, STORE_SETTLE_SECONDS, COLD2_REPLACE_CMD, OWNER_TTL_SECONDS
+    global REQUIRE_STORE, STORE_SETTLE_SECONDS, COLD2_REPLACE_CMD
     global PARK_IDLE_TTL_SECONDS, PARK_MARGIN_SECONDS
     # A count of zero would make a concurrency journey pass on nothing, which is the one result
     # this class of check must never produce. Stop before spending a single run. The two
@@ -4164,7 +4113,6 @@ def main() -> int:
     REQUIRE_STORE = args.require_store
     STORE_SETTLE_SECONDS = args.store_settle
     COLD2_REPLACE_CMD = args.cold2_replace_cmd
-    OWNER_TTL_SECONDS = args.owner_ttl
     if args.park_wait is not None:
         # One flag, one knob: the caller states the total idle, so the margin is already in it.
         PARK_IDLE_TTL_SECONDS = args.park_wait
