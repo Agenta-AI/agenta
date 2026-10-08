@@ -51,7 +51,7 @@ const LLM_STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, st
     [StandardProviderKind.Mistral]: "MISTRAL_API_KEY",
     [StandardProviderKind.Anthropic]: "ANTHROPIC_API_KEY",
     [StandardProviderKind.Perplexityai]: "PERPLEXITYAI_API_KEY",
-    [StandardProviderKind.TogetherAi]: "TOGETHERAI_API_KEY",
+    [StandardProviderKind.TogetherAi]: "TOGETHER_API_KEY",
     [StandardProviderKind.Openrouter]: "OPENROUTER_API_KEY",
     [StandardProviderKind.Gemini]: "GEMINI_API_KEY",
     [StandardProviderKind.Minimax]: "MINIMAX_API_KEY",
@@ -67,6 +67,7 @@ const MCP_STANDARD_PROVIDER_ENV_BY_KIND: Record<McpStandardProviderKind, string>
 // counterpart. Used only in the reverse direction (env → kind).
 const LLM_STANDARD_PROVIDER_ENV_ALIASES: Record<string, StandardProviderKind> = {
     MISTRALAI_API_KEY: StandardProviderKind.Mistral,
+    TOGETHERAI_API_KEY: StandardProviderKind.TogetherAi,
 }
 
 /**

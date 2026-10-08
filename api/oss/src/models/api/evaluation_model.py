@@ -158,7 +158,7 @@ class LMProvidersEnum(str, Enum):
     anyscale = "ANYSCALE_API_KEY"
     perplexityai = "PERPLEXITYAI_API_KEY"
     deepinfra = "DEEPINFRA_API_KEY"
-    togetherai = "TOGETHERAI_API_KEY"
+    togetherai = "TOGETHER_API_KEY"
     alephalpha = "ALEPHALPHA_API_KEY"
     openrouter = "OPENROUTER_API_KEY"
     groq = "GROQ_API_KEY"
