@@ -79,7 +79,7 @@ describe("raw OTLP byte export", () => {
   it("skips Agenta ingest without a credential and diagnoses the resolved value", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await expect(
       exportOtlpBytes(request(AGENTA_ENDPOINT, () => "   ")),
