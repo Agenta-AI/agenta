@@ -57,6 +57,6 @@ class LinksRouter:
         try:
             preview = await self.links_service.preview(url=link_preview_request.url)
         except LinkPreviewRefused as e:
-            raise LinkPreviewRefusedException(message=e.message) from e
+            raise LinkPreviewRefusedException(message=e.message, reason=e.reason) from e
 
         return LinkPreviewResponse(count=1, preview=preview)

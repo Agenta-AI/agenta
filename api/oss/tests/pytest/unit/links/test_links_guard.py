@@ -12,7 +12,11 @@ from oss.src.core.links.guard import (
     is_blocked_address,
     resolve_link_target,
 )
-from oss.src.core.links.types import LinkPreviewRefused, LinkPreviewUnreachable
+from oss.src.core.links.types import (
+    LinkHost,
+    LinkPreviewRefused,
+    LinkPreviewUnreachable,
+)
 
 _VECTORS = (
     Path(__file__).resolve().parents[6]
@@ -88,27 +92,30 @@ def test_public_addresses_pass(host):
 )
 def test_check_link_url_refuses(url):
     with pytest.raises(LinkPreviewRefused):
-        check_link_url(url)
+        check_link_url(url=url)
 
 
 @pytest.mark.parametrize(
     "url,expected",
     [
-        ("https://Example.com/a?b=c", ("example.com", 443)),
-        ("http://example.com/", ("example.com", 80)),
-        ("https://example.com:443/", ("example.com", 443)),
-        ("http://example.com:80/x", ("example.com", 80)),
-        ("https://[2606:4700:4700::1111]/", ("2606:4700:4700::1111", 443)),
+        ("https://Example.com/a?b=c", LinkHost(hostname="example.com", port=443)),
+        ("http://example.com/", LinkHost(hostname="example.com", port=80)),
+        ("https://example.com:443/", LinkHost(hostname="example.com", port=443)),
+        ("http://example.com:80/x", LinkHost(hostname="example.com", port=80)),
+        (
+            "https://[2606:4700:4700::1111]/",
+            LinkHost(hostname="2606:4700:4700::1111", port=443),
+        ),
     ],
 )
 def test_check_link_url_accepts(url, expected):
-    assert check_link_url(url) == expected
+    assert check_link_url(url=url) == expected
 
 
 @pytest.mark.asyncio
 async def test_a_literal_private_address_is_refused_without_resolving():
     with pytest.raises(LinkPreviewRefused):
-        await resolve_link_target("http://127.0.0.1/")
+        await resolve_link_target(url="http://127.0.0.1/")
 
 
 @pytest.mark.asyncio
@@ -121,7 +128,7 @@ async def test_a_name_with_any_private_answer_is_refused(monkeypatch):
 
     monkeypatch.setattr(guard, "_resolve", fake_resolve)
     with pytest.raises(LinkPreviewRefused):
-        await resolve_link_target("https://rebind.example/")
+        await resolve_link_target(url="https://rebind.example/")
 
 
 @pytest.mark.asyncio
@@ -130,7 +137,7 @@ async def test_a_public_name_resolves_to_the_checked_address(monkeypatch):
         return [(2, 1, 6, "", ("93.184.215.14", 443))]
 
     monkeypatch.setattr(guard, "_resolve", fake_resolve)
-    target = await resolve_link_target("https://example.com/page")
+    target = await resolve_link_target(url="https://example.com/page")
     assert (target.hostname, target.address) == ("example.com", "93.184.215.14")
 
 
@@ -141,4 +148,4 @@ async def test_an_unresolvable_name_is_unreachable_not_refused(monkeypatch):
 
     monkeypatch.setattr(guard, "_resolve", fake_resolve)
     with pytest.raises(LinkPreviewUnreachable):
-        await resolve_link_target("https://nowhere.invalid/")
+        await resolve_link_target(url="https://nowhere.invalid/")
