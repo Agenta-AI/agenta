@@ -15,9 +15,9 @@ an internal address on its first call, and a single-box self-hosted install is e
 relay, and not on the LLM plane or in the MCP OAuth client; copies that drift are how the
 gap appeared in the first place, so there is now one.
 
-The six address predicates stay in `core/webhooks/utils.py`, which webhook delivery already
-uses: this module calls :func:`resolve_validated_ip` rather than restating them, so `api/`
-holds one copy. (The SDK's `agenta/sdk/utils/net.py` and the runner's `ssrf-guard.ts` are
+The six address predicates live in `utils/network.py`, reached through
+`core/webhooks/utils.py::resolve_validated_ip`, which webhook delivery already uses: this
+module calls that rather than restating them, so `api/` holds one copy. (The SDK's `agenta/sdk/utils/net.py` and the runner's `ssrf-guard.ts` are
 separate processes with their own copies; unifying those is not this module's job.)
 
 What does *not* come from webhooks is the decision to apply them. `AGENTA_INSECURE_EGRESS_ALLOWED`
@@ -37,7 +37,7 @@ from time import monotonic
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, Callable, Dict, Mapping, Optional, Set
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
 
 import httpx
 
@@ -52,6 +52,7 @@ from oss.src.core.webhooks.utils import (
 )
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.network import pin_to_resolved_address
 
 log = get_module_logger(__name__)
 
@@ -133,28 +134,6 @@ def exempt_hosts() -> Set[str]:
                 hosts.add(host)
 
     return hosts
-
-
-def _pin_to_resolved_address(url: str, address: str) -> tuple[str, str]:
-    """Swap the URL host for the literal checked address; return (pinned_url, Host header).
-
-    This is the TOCTOU close: the connection is made to the address the guard just checked,
-    so a name that re-resolves between the check and the connect cannot move the request. The
-    original authority travels as `Host` (and as the TLS SNI name, set by the caller from
-    `extensions`), so the upstream still routes and still presents a certificate for the name
-    that was registered.
-    """
-    parsed = urlparse(url)
-    host_literal = f"[{address}]" if ":" in address else address
-    pinned_netloc = f"{host_literal}:{parsed.port}" if parsed.port else host_literal
-    pinned_url = urlunparse(parsed._replace(netloc=pinned_netloc))
-
-    hostname = parsed.hostname or ""
-    host_header = f"[{hostname}]" if ":" in hostname else hostname
-    if parsed.port:
-        host_header = f"{host_header}:{parsed.port}"
-
-    return pinned_url, host_header
 
 
 # Name resolution runs on a pool of this module's own, not the loop's default one.
@@ -334,7 +313,7 @@ async def open_egress(
             unresolvable="could not be resolved" in message,
         ) from exc
 
-    pinned_url, host_header = _pin_to_resolved_address(url, address)
+    pinned_url, host_header = pin_to_resolved_address(url, address)
     headers["Host"] = host_header
 
     return EgressTarget(
