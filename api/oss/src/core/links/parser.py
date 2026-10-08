@@ -5,7 +5,7 @@ from html.parser import HTMLParser
 from typing import Optional
 from urllib.parse import urljoin, urlparse
 
-from pydantic import BaseModel
+from oss.src.core.links.types import LinkMeta
 
 _TITLE_KEYS = ("og:title", "twitter:title")
 _DESCRIPTION_KEYS = ("og:description", "twitter:description", "description")
@@ -18,13 +18,6 @@ _IMAGE_KEYS = (
 )
 _MAX_TEXT = 300
 _MAX_IMAGE_URL = 2048
-
-
-class LinkMeta(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    image: Optional[str] = None
-    site_name: Optional[str] = None
 
 
 class _HeadParser(HTMLParser):
@@ -85,12 +78,12 @@ _HEAD_END = re.compile(r"</head\s*>|<body[\s>]", re.IGNORECASE)
 
 
 def head_section(html: str) -> str:
-    """Everything before the head closes or the body opens: all the preview fields live there."""
+    """The markup before the head closes or the body opens."""
     end = _HEAD_END.search(html)
     return html[: end.start()] if end else html
 
 
-def parse_link_meta(html: str, base_url: str) -> LinkMeta:
+def parse_link_meta(*, html: str, base_url: str) -> LinkMeta:
     html = head_section(html)
     parser = _HeadParser()
     try:
