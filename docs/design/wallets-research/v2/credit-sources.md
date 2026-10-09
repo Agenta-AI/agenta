@@ -132,20 +132,21 @@ counted as `failed`, never guessed. A key the bridge itself blocked (its vault w
 still has its budget, and its organization receives it.
 
 Run it once per deployment, against that deployment's own database and proxy, after the
-wallet funds the models. Never run it against a shared deployment you do not own. From
-`api/`, with the deployment's EE environment loaded (`AGENTA_LICENSE=ee`,
-`POSTGRES_URI_CORE`, `AGENTA_STARTER_CREDITS_BRIDGE_PROXY_ADMIN_URL`,
-`AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY`, `AGENTA_STARTER_CREDITS_BRIDGE_TEAM_ID`):
+wallet funds the models. Never run it against a shared deployment you do not own. Run it
+inside one of the deployment's api containers (on GKE: `kubectl exec -c api` into an api
+pod), which hold the EE environment (`AGENTA_LICENSE=ee`, `POSTGRES_URI_CORE`,
+`AGENTA_STARTER_CREDITS_BRIDGE_PROXY_ADMIN_URL`, `AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY`,
+`AGENTA_STARTER_CREDITS_BRIDGE_TEAM_ID`):
 
 ```bash
 # 0. Dry run (the default): counts keys and remaining budget, writes nothing.
-uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet
+python -m entrypoints.migrate_starter_credits_to_wallet
 
 # 1. Block every starter-credits key.
-uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet --block
+python -m entrypoints.migrate_starter_credits_to_wallet --block
 
 # 2. Wait 10 minutes, then grant the remainders. Safe to rerun.
-uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet --apply
+python -m entrypoints.migrate_starter_credits_to_wallet --apply
 ```
 
 The last line prints the counts: `keys`, `skipped`, `no_organization`, `not_blocked`,
@@ -155,9 +156,12 @@ non-zero `failed` gives a non-zero exit status; rerun to retry. Turn seeding off
 (`AGENTA_STARTER_CREDITS_BRIDGE_ENABLED=false`) before stage 1, or a key minted after it is
 not transferred.
 
-The funded models replace the deleted connection: the model picker offers the gateway's
-built-in models ("Built-in: agenta", [funded-models.md](funded-models.md)) to an
-organization on the LLM gateway rollout. An agent whose saved model still names the deleted
-connection is no longer runnable, so the picker selects another model, and a run that still
-names it fails with a missing-connection error instead of a proxy refusal. Agent
-configurations are not rewritten.
+Deploy an API with the starter-credits alias before stage 1. The funded models replace the
+deleted connection: the model picker offers the gateway's built-in models ("Built-in:
+agenta", [funded-models.md](funded-models.md)) to an organization on the LLM gateway
+rollout. An agent whose saved model still names the deleted connection
+(`Agenta/custom/vertex_ai/gemini-3.7-flash` on `starter-credits`) resolves at run time to
+`builtin/agenta` `google/gemini-3.7-flash` and is charged to the wallet, and the picker
+shows it as that built-in model. Agent configurations are not rewritten. An LLM-as-a-judge
+evaluator on the connection fails with a message that says it was retired, because
+evaluators call the provider directly.

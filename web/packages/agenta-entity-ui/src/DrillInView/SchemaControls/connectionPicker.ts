@@ -220,6 +220,50 @@ export const selectedModelRowKey = (
     return match ? modelRowKey(match.key, match.model) : undefined
 }
 
+/**
+ * The built-in model a retired starter-credits model runs on. The transfer job deletes the seeded
+ * "Agenta" connection (slug `starter-credits`) and the gateway resolves a saved agent's model to
+ * `builtin/agenta` at run time (`RETIRED_STARTER_CREDITS_MODEL_ALIASES` in the API), so the picker shows
+ * that row instead of a raw id no row matches. Display only: the saved config is not rewritten.
+ */
+const RETIRED_STARTER_CREDITS_SLUG = "starter-credits"
+const RETIRED_STARTER_CREDITS_MODEL_ALIASES: Readonly<Record<string, string>> = {
+    "Agenta/custom/vertex_ai/gemini-3.7-flash": "google/gemini-3.7-flash",
+    "vertex_ai/gemini-3.7-flash": "google/gemini-3.7-flash",
+}
+
+/**
+ * The row to show for the stored selection, and the model id that row stands for. Only the shape
+ * the gateway aliases (an `agenta`-mode pick on the custom `starter-credits` slug) maps, and only to
+ * the exact built-in row: never to another connection that happens to offer the same model.
+ */
+export const displayedModelRow = (
+    rows: PickerConnectionRow[],
+    current: Parameters<typeof selectedModelRowKey>[1],
+): {key: string | undefined; modelId: string | null} => {
+    const key = selectedModelRowKey(rows, current)
+    const builtinModelId =
+        current.slug === RETIRED_STARTER_CREDITS_SLUG &&
+        current.mode === "agenta" &&
+        (current.namespace ?? "custom") === "custom" &&
+        current.modelId
+            ? RETIRED_STARTER_CREDITS_MODEL_ALIASES[current.modelId]
+            : undefined
+    if (key || !builtinModelId) return {key, modelId: current.modelId}
+    const builtin = rows
+        .flatMap((row) => row.models.map((model) => ({key: row.key, model})))
+        .find(
+            ({model}) =>
+                model.namespace === "builtin" &&
+                model.slug === "agenta" &&
+                model.modelId === builtinModelId &&
+                (!current.harness || model.harness === current.harness),
+        )
+    return builtin
+        ? {key: modelRowKey(builtin.key, builtin.model), modelId: builtinModelId}
+        : {key, modelId: current.modelId}
+}
+
 export const selectionFromModelRow = (model: PickerModelRow): PickerSelection => ({
     modelId: model.modelId,
     provider: model.provider,

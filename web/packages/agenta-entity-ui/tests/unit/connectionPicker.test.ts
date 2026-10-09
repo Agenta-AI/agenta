@@ -20,6 +20,7 @@ import {describe, expect, it} from "vitest"
 import {
     buildConnectionPickerRows as presentConnectionPickerRows,
     connectionModelIds,
+    displayedModelRow,
     effectiveHarnesses,
     modelRowKey,
     pickerSelectionFrom,
@@ -1149,5 +1150,72 @@ describe("buildConnectionPickerRows: a provisioned connection wears Agenta's mar
         const own = custom("c1", "bedrock", ["my-bedrock/custom/anthropic/claude-fable-5"])
         const [row] = buildConnectionPickerRows(args(own))
         expect(row.iconKey).toBe("bedrock")
+    })
+})
+
+describe("displayedModelRow", () => {
+    // What production agents saved on the seeded "Agenta" connection before the transfer job
+    // retired it. The gateway runs them on `builtin/agenta`; the picker shows that row.
+    const saved = {
+        modelId: "Agenta/custom/vertex_ai/gemini-3.7-flash",
+        slug: "starter-credits",
+        mode: "agenta" as const,
+        harness: "pi_core",
+    }
+    const rows = (connections: ProviderConnection[] = []) =>
+        buildConnectionPickerRows({
+            connections,
+            capabilities: {
+                ...CAPABILITIES,
+                pi_core: {...CAPABILITIES.pi_core, deployments: ["direct", "custom"]},
+            },
+            harnessIds: HARNESS_IDS,
+            showSubscriptions: false,
+            builtinEndpoints: [
+                {
+                    slug: "agenta",
+                    models: ["google/gemini-3.7-flash", "google/gemini-3.8-flash"],
+                    deploymentKind: "vertex_ai",
+                },
+            ],
+        })
+
+    it("shows a retired starter-credits model as the built-in model it runs on", () => {
+        const shown = displayedModelRow(rows(), saved)
+
+        expect(shown.modelId).toBe("google/gemini-3.7-flash")
+        expect(shown.key).toBe("builtin:agenta:pi_core:google/gemini-3.7-flash")
+    })
+
+    it.each([
+        ["another slug", {slug: "acme"}],
+        ["an explicit standard namespace", {namespace: "standard" as const}],
+        ["a self-managed pick", {mode: "self_managed" as const}],
+    ])("keeps %s as the stored id", (_label, change) => {
+        const shown = displayedModelRow(rows(), {...saved, ...change})
+
+        expect(shown).toEqual({key: undefined, modelId: saved.modelId})
+    })
+
+    it("never shows another connection's copy of the built-in model", () => {
+        const withoutBuiltin = presentConnectionPickerRows({
+            candidates: buildAgentModelCandidates({
+                connections: [custom("9", "openai", ["google/gemini-3.7-flash"])],
+                capabilities: {
+                    ...CAPABILITIES,
+                    pi_core: {...CAPABILITIES.pi_core, deployments: ["direct", "custom"]},
+                },
+                harnessIds: HARNESS_IDS,
+                showSubscriptions: false,
+                subscriptionPairs: [],
+            }),
+            connections: [custom("9", "openai", ["google/gemini-3.7-flash"])],
+            capabilities: CAPABILITIES,
+        })
+
+        expect(displayedModelRow(withoutBuiltin, saved)).toEqual({
+            key: undefined,
+            modelId: saved.modelId,
+        })
     })
 })

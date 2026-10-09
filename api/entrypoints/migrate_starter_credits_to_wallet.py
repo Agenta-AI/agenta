@@ -12,18 +12,20 @@ new requests but not the ones already running, and the proxy writes their spend 
    (`max_budget - spend`) as a `starter_credits` wallet credit that expires after twelve
    months, then deletes the organization's seeded "Agenta" vault connection: its key is
    blocked, so an agent that picked it would only fail. The gateway's built-in models
-   (`builtin/agenta`) take its place in the model picker. A key that is not blocked yet is
-   counted and left alone.
+   (`builtin/agenta`) take its place in the model picker, and an agent saved on it runs on
+   the built-in model (`RETIRED_STARTER_CREDITS_MODEL_ALIASES` in the gateway catalog). A key that
+   is not blocked yet is counted and left alone.
 
-Turn seeding off (AGENTA_STARTER_CREDITS_BRIDGE_ENABLED=false) before `--block`, so no new
-organization is given a connection the job then has to retire.
+Before `--block`: deploy an API that has that alias, or saved agents fail after `--apply`;
+and turn seeding off (AGENTA_STARTER_CREDITS_BRIDGE_ENABLED=false) on every api replica, so
+no new organization is given a connection the job then has to retire.
 
-Run it against the deployment's own database and proxy, once the wallet funds the models:
+Run it inside one of the deployment's api containers, which hold the EE environment, the
+database URI and the proxy master key:
 
-    cd api
-    AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet
-    AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet --block
-    AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.migrate_starter_credits_to_wallet --apply
+    python -m entrypoints.migrate_starter_credits_to_wallet
+    python -m entrypoints.migrate_starter_credits_to_wallet --block
+    python -m entrypoints.migrate_starter_credits_to_wallet --apply
 
 Without a flag it only reads and counts. Both stages are idempotent (a blocked key stays
 blocked, and the grant is once per organization), so a rerun finishes what a failed run left

@@ -10,6 +10,7 @@ from agenta.sdk.utils.assets import (
     model_to_provider_mapping as _standard_providers,
 )
 from agenta.sdk.engines.running.errors import (
+    RETIRED_STARTER_CREDITS_SLUG,
     ConnectionModelMismatchV0Error,
     UnknownConnectionV0Error,
 )
@@ -283,6 +284,10 @@ class SecretsManager:
         connection: Optional[str],
     ) -> Optional[Dict]:
         if not secrets:
+            # The retired starter-credits connection was often a project's only one. Its
+            # deletion must still say so, rather than "no API key found".
+            if connection == RETIRED_STARTER_CREDITS_SLUG:
+                raise UnknownConnectionV0Error(connection)
             return None
 
         parsed = SecretsManager._parse_secrets(secrets=secrets)

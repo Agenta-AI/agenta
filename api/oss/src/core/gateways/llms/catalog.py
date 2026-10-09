@@ -37,6 +37,19 @@ AGENTA_PROVIDER = "agenta"
 # them, so a request body relays to Vertex unchanged.
 AGENTA_MODELS = ("google/gemini-3.7-flash", "google/gemini-3.8-flash")
 
+# The connection the starter-credits bridge seeded ("Agenta", slug `starter-credits`), and
+# each model id a saved revision can name on it, with the `builtin/agenta` model that
+# replaces it. The transfer job (`entrypoints.migrate_starter_credits_to_wallet --apply`)
+# deletes the connection and moves its budget into the wallet; saved agents keep naming it,
+# so the gateway resolves the alias at run time instead of a data migration rewriting their
+# configs. Both spellings a custom endpoint allows are here: the qualified vault key and the
+# bare model slug. Production holds no other starter-credits model.
+RETIRED_STARTER_CREDITS_SLUG = "starter-credits"
+RETIRED_STARTER_CREDITS_MODEL_ALIASES = {
+    "Agenta/custom/vertex_ai/gemini-3.7-flash": "google/gemini-3.7-flash",
+    "vertex_ai/gemini-3.7-flash": "google/gemini-3.7-flash",
+}
+
 # Fixed, not configurable: the rate card prices the `global` endpoint, and a regional one
 # lists 10% higher, so another location would be charged below its cost basis.
 AGENTA_VERTEX_LOCATION = "global"

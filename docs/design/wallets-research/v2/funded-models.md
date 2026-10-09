@@ -86,10 +86,20 @@ and grounding among them), and any `tools` entry whose type is not `function`.
 The starter-credits transfer job (`api/entrypoints/migrate_starter_credits_to_wallet.py`,
 step 1.3) now deletes each organization's seeded "Agenta" vault connection in its `--apply`
 stage, after the grant: the connection's proxy key is blocked by then. The built-in models
-take its place in the picker. Chosen over keeping the row and routing its slug to
-`builtin/agenta`, which would be a compatibility alias in the resolver; over archiving,
-which the vault does not have. The vault gained `delete_managed_secret`, which deletes a
-managed row only for the manager that owns it. Details in
+take its place in the picker. Chosen over keeping the row, and over archiving, which the
+vault does not have. The vault gained `delete_managed_secret`, which deletes a managed row
+only for the manager that owns it.
+
+Saved agents are not rewritten. The gateway's resolve keeps them running with a narrow
+alias (`RETIRED_STARTER_CREDITS_MODEL_ALIASES` in `core/gateways/llms/catalog.py`): when the
+`starter-credits` custom endpoint is missing, the vault holds no connection under that slug,
+and the saved model is
+`Agenta/custom/vertex_ai/gemini-3.7-flash` (or its bare slug), it resolves to
+`builtin/agenta` `google/gemini-3.7-flash`, where the wallet admits and charges the call.
+Any other missing connection keeps its not-found error. The agent picker shows the
+built-in row for such an agent. LLM-as-a-judge evaluators call the provider directly, not
+through the gateway, so they get no alias; they fail with a message that says the
+connection was retired. Details in
 [credit-sources.md](credit-sources.md#starter-credits-transfer).
 
 ## Usage
