@@ -2,34 +2,42 @@
 
 ## Purpose
 
-Give one agent run a cloud browser that is already logged in with the run's profile, keep the session state safe from the agent, and record what the browser did.
+Give an agent session a cloud browser that is already logged in with the owner's profile, keep the session state safe from the agent, and record what the browser did.
 
 ## ADDED Requirements
 
 ### Requirement: Separate browser sandbox
-Agenta SHALL run the browser for a run in its own Daytona sandbox, separate from the agent's sandbox. The agent SHALL have no shell, file access, network path, or credential to the browser sandbox, and SHALL reach the browser only through the browser tools.
+Agenta SHALL run the browser for an agent session in its own Daytona sandbox, separate from the agent's sandbox. The agent SHALL have no shell, file access, network path, or credential to the browser sandbox, and SHALL reach the browser only through the browser tools. Chrome's debugging port SHALL accept connections only from the runner.
 
 #### Scenario: Agent tries to read cookies
 - **WHEN** an agent, through its shell, tries to read cookie files or connect to the browser's debugging port
 - **THEN** the attempt SHALL fail because those files and that port exist only in the browser sandbox
 
 ### Requirement: Start on first use
-Agenta SHALL start a browser sandbox for a run on the run's first browser tool call, and SHALL NOT start one for a run that makes no browser tool call.
+Agenta SHALL start a browser sandbox for an agent session on the session's first browser tool call, and SHALL NOT start one for a session that makes no browser tool call. Each session SHALL have its own browser sandbox.
 
 #### Scenario: Run without browser use
 - **WHEN** an agent with a profile attached completes a turn without calling a browser tool
 - **THEN** Agenta SHALL NOT start a browser sandbox
 
-### Requirement: Use by the owner only
-Agenta SHALL use a profile in a run only when the run's user is the profile owner. For a scheduled or triggered run, the run's user is the user who created the schedule or trigger.
+### Requirement: Who may use the profile
+Agenta SHALL use a profile in a run only when all of these hold: the run's user is the profile owner; the author of the agent revision the run uses is the profile owner; and, for a channel run, the message sender is a linked Agenta account. For a scheduled or triggered run, the run's user is the user who created the schedule or trigger. Otherwise every browser tool call SHALL fail with `profile_not_available` and no browser sandbox SHALL start.
 
 #### Scenario: Owner's scheduled run
-- **WHEN** a schedule created by the profile owner runs an agent that names the owner's profile
+- **WHEN** a schedule created by the profile owner runs an agent revision the owner committed
 - **THEN** the browser SHALL start with that profile's session state
 
 #### Scenario: Another user's run
 - **WHEN** a run whose user is not the profile owner calls a browser tool
-- **THEN** the call SHALL fail with `profile_not_available` and no browser sandbox SHALL start
+- **THEN** the call SHALL fail with `profile_not_available`
+
+#### Scenario: Another editor changed the agent
+- **WHEN** another member commits a new revision of an agent that names the owner's profile, and a run uses that revision
+- **THEN** browser tool calls SHALL fail with `profile_not_available` until the owner commits a revision
+
+#### Scenario: Unlinked channel sender
+- **WHEN** a Slack sender with no linked Agenta account messages an agent created by the profile owner
+- **THEN** browser tool calls in that run SHALL fail with `profile_not_available`
 
 ### Requirement: Fail fast on a stale login
 When the run's profile is in the `needs_login` state, the first browser tool call SHALL fail with `profile_needs_login`, and Agenta SHALL NOT start a browser sandbox.
@@ -46,30 +54,42 @@ Agenta SHALL start Chrome without automation flags, so that `navigator.webdriver
 - **THEN** the value SHALL be `false`
 
 ### Requirement: Allowlist
-During a run, the browser SHALL load a top-level page only from a host on the profile's allowlist or on the profile's sign-in host list. Agenta SHALL build the sign-in host list from the hosts the owner's browser passes through during a live-view login, and SHALL show that list to the owner. Agenta SHALL enforce the rule in the browser sandbox through CDP. v1 SHALL support only sites on the public internet.
+During a run, the browser SHALL load a document in any target (page, iframe, popup, or worker) and SHALL download a file only from a host on the profile's allowlist or on the profile's confirmed sign-in host list. Agenta SHALL refuse IP literals, `localhost`, and hosts that resolve to private or link-local addresses. Agenta SHALL enforce these rules in the browser sandbox through CDP. v1 SHALL support only sites on the public internet.
 
 #### Scenario: Navigation to an allowed site
 - **WHEN** the agent navigates to `https://app.example.com/reports` and `app.example.com` is on the allowlist
 - **THEN** the page SHALL load
 
 #### Scenario: Single sign-on redirect
-- **WHEN** an allowed site redirects to `login.okta.com` and that host was recorded during the owner's login
+- **WHEN** an allowed site redirects to `login.okta.com` and the owner confirmed that host
 - **THEN** the page SHALL load
 
 #### Scenario: Navigation to another site
-- **WHEN** the agent or a link in a page navigates to a host that is not on the allowlist
+- **WHEN** the agent or a link in a page navigates to a host that is not on either list
 - **THEN** the navigation SHALL be blocked and the tool call SHALL fail with `site_not_allowed`
 
+#### Scenario: Iframe or popup on another host
+- **WHEN** an allowed page opens an iframe or a popup on a host that is not on either list
+- **THEN** Agenta SHALL block that document
+
+#### Scenario: Internal address
+- **WHEN** a navigation targets `http://169.254.169.254/` or a public host name that resolves to a private address
+- **THEN** Agenta SHALL block it and the tool call SHALL fail with `site_not_allowed`
+
 ### Requirement: Wait for the user
-When the agent calls `wait_for_user` because a page asks for a login or a 2FA code, or when a user takes control in the live view, Agenta SHALL pause the turn and keep the browser sandbox running for up to 30 minutes. When the user finishes and gives control back, the turn SHALL resume with the same browser and page. If 30 minutes pass first, the run SHALL fail and the profile SHALL change to `needs_login`.
+When the agent calls `wait_for_user`, Agenta SHALL pause the turn and keep the browser sandbox running for up to 30 minutes. When the user finishes, the turn SHALL resume with the same browser and page. If 30 minutes pass first, the run SHALL fail. The profile SHALL change to `needs_login` only when the run proved the session is logged out: a navigation to an allowlisted site landed on a confirmed sign-in host, the op failed with `login_required`, and the wait that followed timed out.
 
 #### Scenario: Owner completes 2FA in time
 - **WHEN** a site asks for a 2FA code, the agent calls `wait_for_user`, and the owner enters the code in the live view within 30 minutes
 - **THEN** the turn SHALL resume with the same browser page
 
-#### Scenario: Nobody answers
-- **WHEN** a run waits for a login for 30 minutes and nobody completes it
+#### Scenario: Proven logout and nobody answers
+- **WHEN** a navigation lands on a confirmed sign-in host, the op fails with `login_required`, the agent calls `wait_for_user`, and nobody logs in for 30 minutes
 - **THEN** the run SHALL fail, the browser sandbox SHALL be deleted, and the profile SHALL change to `needs_login`
+
+#### Scenario: Other wait times out
+- **WHEN** the agent calls `wait_for_user` for a CAPTCHA and nobody answers for 30 minutes
+- **THEN** the run SHALL fail and the profile state SHALL NOT change
 
 ### Requirement: Warm browser between turns
 After a turn ends with no pending wait, Agenta SHALL keep the browser sandbox running for 5 minutes. A next turn of the same session in that time SHALL reuse the same browser and page. After 5 minutes Agenta SHALL delete the sandbox.
@@ -82,30 +102,41 @@ After a turn ends with no pending wait, Agenta SHALL keep the browser sandbox ru
 - **WHEN** the user sends a follow-up message 10 minutes after the last browser turn
 - **THEN** the next browser tool call SHALL start a new browser sandbox with the profile's latest saved session state
 
+### Requirement: One owning runner
+Agenta SHALL record which runner replica owns each browser sandbox, and SHALL route every browser tool call, save, and live-view connection for that sandbox to that replica.
+
+#### Scenario: Call arrives at another replica
+- **WHEN** a browser tool call for a session reaches a runner replica that does not own the session's browser sandbox
+- **THEN** the call SHALL be served by the owning replica, on the same page
+
 ### Requirement: Save the session state
-When a turn that used the browser ends, Agenta SHALL read the browser session state and save it to the profile, but only when the profile generation is still the generation the browser loaded. Among saves of the same generation, the last save SHALL win. Several runs SHALL be able to use one profile at the same time.
+When a turn that used the browser ends, the runner SHALL send the browser session state to the API, and the API SHALL save it only when the profile is not archived and its generation is still the generation the browser loaded. Among saves of the same generation, the last save SHALL win. Several sessions SHALL be able to use one profile at the same time.
 
 #### Scenario: Two parallel runs
-- **WHEN** two runs use the same profile at the same time and both end
+- **WHEN** two runs in different sessions use the same profile at the same time and both end
 - **THEN** the session state of the run that ended last SHALL be the stored state
 
 #### Scenario: Owner logged in again during a run
 - **WHEN** a run loaded generation 4, the owner logged in again (generation 5), and then the run ends
 - **THEN** Agenta SHALL NOT save the run's session state, and the stored state SHALL stay at generation 5
 
+#### Scenario: Profile deleted during a run
+- **WHEN** the owner deletes the profile while a run uses it
+- **THEN** Agenta SHALL stop the run's browser sandbox and SHALL NOT save any session state
+
 ### Requirement: Downloads
-Agenta SHALL store each file the browser downloads in a mount that belongs to the agent and the run's user. Agenta SHALL sign that mount only for runs of that user.
+Agenta SHALL store each file the browser downloads with the profile, readable only by the profile owner. The agent SHALL copy a download into the session files only with `read_download`.
 
 #### Scenario: Agent downloads a report
-- **WHEN** the agent downloads `report.pdf` in the owner's run
-- **THEN** the file SHALL be stored in the owner's download mount for that agent and SHALL be readable in the owner's later runs of that agent
+- **WHEN** the agent downloads `report.pdf` in the owner's run and then calls `read_download` for it
+- **THEN** the file SHALL be stored with the profile and a copy SHALL appear in the session files
 
-#### Scenario: Another user's run of the same agent
-- **WHEN** another member runs the same agent
-- **THEN** that run SHALL NOT be able to read the owner's download mount
+#### Scenario: Another member looks for the file
+- **WHEN** another member of the project lists the profile's downloads through the API
+- **THEN** Agenta SHALL refuse the request
 
 ### Requirement: Uploads
-The agent SHALL be able to upload to a page only files that are already in the run's session files.
+The agent SHALL be able to upload to a page only files that are already in the session files.
 
 #### Scenario: Upload a session file
 - **WHEN** the agent asks to upload `invoice.pdf` from the session files to a file input
@@ -116,7 +147,7 @@ The agent SHALL be able to upload to a page only files that are already in the r
 - **THEN** the tool call SHALL fail with `file_not_in_session`
 
 ### Requirement: Step log
-Agenta SHALL record one step-log entry for every browser tool call, with the time, the site, the action, its result, and a screenshot taken after the action. Agenta SHALL delete screenshots 30 days after they were taken. The profile owner and organization admins SHALL be able to read the step log and the screenshots.
+Agenta SHALL record one step-log entry for every browser tool call, with the time, the site, the action, its result, and a screenshot taken after the action. Agenta SHALL delete screenshots 30 days after they were taken. Only the profile owner and admins (the organization owner, or a member with the `owner` or `admin` role in the session's project, checked on the member role directly) SHALL be able to read the step log and the screenshots.
 
 #### Scenario: Owner reviews a scheduled run
 - **WHEN** the owner opens a finished scheduled run
@@ -126,9 +157,24 @@ Agenta SHALL record one step-log entry for every browser tool call, with the tim
 - **WHEN** a screenshot is 30 days old
 - **THEN** Agenta SHALL delete it and keep the rest of the step-log entry
 
-### Requirement: Metering
-Agenta SHALL report browser sandbox time to the existing sandbox metering, under the same rules as agent sandbox time, and SHALL apply the plan's limit for it.
+#### Scenario: Editor on a plan without RBAC
+- **WHEN** a member with the `editor` role, in an organization whose plan has no RBAC, asks for the step log of another member's run
+- **THEN** Agenta SHALL refuse the request
+
+### Requirement: Redaction
+Agenta SHALL store `"[redacted]"` in place of any value the agent types into a password field, in the step log, in the session transcript, and in traces. Page text the agent reads SHALL stay in the session transcript, visible to members who can open the session.
+
+#### Scenario: Agent fills a password field
+- **WHEN** the agent calls `form_input` on a password field
+- **THEN** the step log, transcript, and trace SHALL show `"[redacted]"` instead of the value
+
+### Requirement: Metering and limits
+Agenta SHALL meter every second a browser sandbox runs, including turns, warm time, waits, and live-view login sessions, as sandbox time for the profile owner's payer. Agenta SHALL refuse to start a browser sandbox when the payer's plan limit for browser time is reached.
 
 #### Scenario: Wallet metering on
-- **WHEN** wallet metering is enabled and a browser sandbox runs during a turn
-- **THEN** the runner SHALL report that time as sandbox time for the run's payer
+- **WHEN** wallet metering is enabled and a browser sandbox runs for 4 minutes of a turn and 5 minutes warm
+- **THEN** the runner SHALL report 9 minutes of sandbox time for the profile owner's payer
+
+#### Scenario: Limit reached
+- **WHEN** the payer has reached the plan's browser-time limit and an agent calls a browser tool
+- **THEN** the call SHALL fail with `browser_limit_reached` and no browser sandbox SHALL start
