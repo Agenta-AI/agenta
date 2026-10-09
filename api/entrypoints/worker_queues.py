@@ -91,8 +91,10 @@ from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.dbs.postgres.shared.engine import (
+    PROFILE_WORKER,
     get_analytics_engine,
     get_transactions_engine,
+    set_pool_profile,
 )
 from oss.src.dbs.postgres.testcases.dbes import TestcaseBlobDBE
 from oss.src.dbs.postgres.testsets.dbes import (
@@ -645,6 +647,10 @@ async def main_async() -> int:
 
 
 def main() -> int:
+    # Ahead of asyncio.run, because the first engine is built inside main_async
+    # and keeps whichever profile is current when it is built.
+    set_pool_profile(PROFILE_WORKER)
+
     try:
         return asyncio.run(main_async())
     except KeyboardInterrupt:

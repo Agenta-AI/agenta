@@ -1300,6 +1300,40 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 | `POSTGRES_URI_SUPERTOKENS` | `postgres.uri_supertokens` | `postgres.uriSupertokens` |
 | `POSTGRES_URI_TRACING` | `postgres.uri_tracing` | `postgres.uriTracing` |
 
+### Connection pool
+
+Every process builds two engines, one for the core database and one for the tracing
+database. A process therefore reserves `2 x (pool_size + max_overflow)` server
+connections. The defaults fit the smallest supported server, 400 connections shared by
+about ten processes, and leave headroom for migrations, the cron and a `psql` session.
+
+Raise them against the server's real limit, which `SHOW max_connections` reports. A pool
+wider than the server grants does not fail at start. It fails during the next traffic
+burst, as `TooManyConnectionsError` in every process at once.
+
+| Env var | env.py path | Default | Purpose |
+|---|---|---|---|
+| `POSTGRES_POOL_SIZE` | `postgres.pool_size` | `5` | Connections each engine keeps open in an API process |
+| `POSTGRES_MAX_OVERFLOW` | `postgres.max_overflow` | `10` | Extra connections an API engine may open during a burst, closed on check-in |
+| `POSTGRES_WORKER_POOL_SIZE` | `postgres.worker_pool_size` | `2` | Same, for the queue and stream consumers |
+| `POSTGRES_WORKER_MAX_OVERFLOW` | `postgres.worker_max_overflow` | `8` | Same, for the queue and stream consumers |
+| `POSTGRES_POOL_RECYCLE_SECONDS` | `postgres.pool_recycle_seconds` | `1800` | Age at which a pooled connection is discarded |
+| `POSTGRES_POOL_TIMEOUT_SECONDS` | `postgres.pool_timeout_seconds` | `30` | How long a caller waits for a connection once the pool and its overflow are exhausted |
+| `POSTGRES_MAX_CONNECTIONS` | `postgres.max_connections` | `400` | The server's own `max_connections`, used only for a start-up warning |
+| `POSTGRES_POOL_CONSUMERS` | `postgres.pool_consumers` | `10` | How many of your processes share that limit, used only for the same warning |
+
+The queue and stream consumers get the narrower pool. A consumer opens many connections
+during an evaluation run and then idles, and an idle connection inside `pool_size` is
+never closed. The narrow pool keeps the steady state small and sends the burst through
+overflow, which does close.
+
+`POSTGRES_MAX_CONNECTIONS` and `POSTGRES_POOL_CONSUMERS` change no behavior. When
+`pool_size + max_overflow` multiplied by two engines and by `POSTGRES_POOL_CONSUMERS`
+exceeds `POSTGRES_MAX_CONNECTIONS`, each process logs one warning as it builds its
+engines. Set both to your real numbers so the warning means something.
+
+The Helm chart has no values for these. Set them through each component's `extraEnv`.
+
 ## posthog
 
 | Env var | env.py path | values.yaml path |
