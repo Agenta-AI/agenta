@@ -21,7 +21,7 @@ Agenta SHALL start a browser sandbox for an agent session on the session's first
 - **THEN** Agenta SHALL NOT start a browser sandbox
 
 ### Requirement: Who may use the profile
-Agenta SHALL use a profile in a run only when all of these hold: the run's user is the profile owner; the author of the agent revision the run uses is the profile owner; and, for a channel run, the message sender is a linked Agenta account. For a scheduled or triggered run, the run's user is the user who created the schedule or trigger. Otherwise every browser tool call SHALL fail with `profile_not_available` and no browser sandbox SHALL start.
+Agenta SHALL use a profile in a run only when all of these hold: the run's user is the profile owner; the author of the agent revision the run uses is the profile owner; and, for a channel run, the message sender is a linked Agenta account. For a scheduled or triggered run, the run's user is the user who created the schedule or trigger. Otherwise every browser tool call SHALL fail with `profile_not_available` and no browser sandbox SHALL start. A channel run SHALL carry a marker that says whether its identity is a linked sender or a fallback, and the browser tools SHALL read that marker from run context.
 
 #### Scenario: Owner's scheduled run
 - **WHEN** a schedule created by the profile owner runs an agent revision the owner committed
@@ -77,7 +77,7 @@ During a run, the browser SHALL load a document in any target (page, iframe, pop
 - **THEN** Agenta SHALL block it and the tool call SHALL fail with `site_not_allowed`
 
 ### Requirement: Wait for the user
-When the agent calls `wait_for_user`, Agenta SHALL pause the turn and keep the browser sandbox running for up to 30 minutes. When the user finishes, the turn SHALL resume with the same browser and page. If 30 minutes pass first, the run SHALL fail. The profile SHALL change to `needs_login` only when the run proved the session is logged out: a navigation to an allowlisted site landed on a confirmed sign-in host, the op failed with `login_required`, and the wait that followed timed out.
+When the agent calls `wait_for_user`, Agenta SHALL pause the turn and keep the browser sandbox running for up to 30 minutes. Only the profile owner SHALL be able to answer the wait. When the user finishes, the turn SHALL resume with the same browser and page. If 30 minutes pass first, the run SHALL fail. The profile SHALL change to `needs_login` only when the run proved the session is logged out: a navigation to an allowlisted site landed on a confirmed sign-in host, the op failed with `login_required`, and the wait that followed timed out.
 
 #### Scenario: Owner completes 2FA in time
 - **WHEN** a site asks for a 2FA code, the agent calls `wait_for_user`, and the owner enters the code in the live view within 30 minutes
@@ -86,6 +86,10 @@ When the agent calls `wait_for_user`, Agenta SHALL pause the turn and keep the b
 #### Scenario: Proven logout and nobody answers
 - **WHEN** a navigation lands on a confirmed sign-in host, the op fails with `login_required`, the agent calls `wait_for_user`, and nobody logs in for 30 minutes
 - **THEN** the run SHALL fail, the browser sandbox SHALL be deleted, and the profile SHALL change to `needs_login`
+
+#### Scenario: Another member answers the wait
+- **WHEN** another project member answers the owner's pending `wait_for_user`
+- **THEN** Agenta SHALL refuse the answer and the turn SHALL stay paused
 
 #### Scenario: Other wait times out
 - **WHEN** the agent calls `wait_for_user` for a CAPTCHA and nobody answers for 30 minutes
@@ -103,7 +107,7 @@ After a turn ends with no pending wait, Agenta SHALL keep the browser sandbox ru
 - **THEN** the next browser tool call SHALL start a new browser sandbox with the profile's latest saved session state
 
 ### Requirement: One owning runner
-Agenta SHALL record which runner replica owns each browser sandbox, and SHALL route every browser tool call, save, and live-view connection for that sandbox to that replica.
+The browser sandbox SHALL belong to the runner replica that owns the agent session. Agenta SHALL route every browser tool call, save, and live-view connection by session ID to that replica.
 
 #### Scenario: Call arrives at another replica
 - **WHEN** a browser tool call for a session reaches a runner replica that does not own the session's browser sandbox

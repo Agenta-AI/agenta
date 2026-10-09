@@ -4,7 +4,7 @@
 
 [Proposal](changes/cloud-browser/proposal.md), [design and estimate](changes/cloud-browser/design.md), behavior specifications for [profiles](changes/cloud-browser/specs/browser-profiles/spec.md), [sessions](changes/cloud-browser/specs/browser-sessions/spec.md), [agent tools](changes/cloud-browser/specs/browser-agent-tools/spec.md) and [live view](changes/cloud-browser/specs/browser-live-view/spec.md), and [tasks](changes/cloud-browser/tasks.md).
 
-User requirements confirmed; decisions marked "Design" (D2 start, D11–D18) need review. Not implemented. A user logs in to sites once in a live view of a cloud browser; their agents then use that saved login in chat and on schedules. The browser runs in a separate Daytona sandbox that the agent drives only through browser tools. Phase 0 is a 5–7 day spike; the build estimate (74–109 engineer-days including the spike) is re-checked after it. All 23 scan findings are resolved in the documents; see [findings](changes/cloud-browser/findings.md).
+User requirements confirmed; decisions marked "Design" (D2 start, D11–D18) need review. Not implemented. A user logs in to sites once in a live view of a cloud browser; their agents then use that saved login in chat and on schedules. The browser runs in a separate Daytona sandbox that the agent drives only through browser tools. Phase 0 is a 5–7 day spike; the build estimate (75–111 engineer-days including the spike) is re-checked after it. All 26 scan findings are resolved in the documents; see [findings](changes/cloud-browser/findings.md).
 
 ## Channel inbound media
 

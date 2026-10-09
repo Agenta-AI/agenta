@@ -7,18 +7,18 @@
 
 ## Summary
 
-23 findings: 7 × P1, 10 × P2, 6 × P3. F-001 to F-022 come from the independent reviewer; F-023 is the author's own. All 23 are fixed in the documents (resolve, 2026-10-09). "Fixed" means the design, specs, and tasks now say what the decision requires; nothing is implemented. The P1 findings must be resolved in the design before Phase 1. The largest themes:
+23 findings: 7 × P1, 10 × P2, 6 × P3. F-001 to F-022 come from the independent reviewer; F-023 is the author's own. All 23 are fixed in the documents (resolve, 2026-10-09). "Fixed" means the design, specs, and tasks now say what the decision requires; nothing is implemented. Self-review 3 (2026-10-09) re-checked every citation (all hold) and added three findings, F-024 (P1) to F-026, all fixed the same day. The estimate is now 75–111 engineer-days. The P1 findings must be resolved in the design before Phase 1. The largest themes:
 
 1. The tool-kind model: `wait_for_user` cannot be a handler-mode op, and nothing lets "take control" pause a running turn (F-001, F-002).
 2. Who may use a profile: admins, channel fallback identity, and editors of the agent all reach the owner's logins in ways the design does not block (F-003, F-004, F-005).
 3. Where cookies and files live: the vault reveals write-only secrets to every run, and mounts have no owner (F-006, F-011).
 4. Runner replicas: browser state in memory on one replica (F-007).
 
-The estimate in `design.md` was 57–85 engineer-days before the scan. After resolve it is 74–109, including the spike.
+The estimate in `design.md` was 57–85 engineer-days before the scan. After resolve it was 74–109, and after self-review 3 it is 75–111, including the spike.
 
 ## Open Questions
 
-None. Triage on 2026-10-09 answered every question; each finding records its decision.
+None. F-024 was answered: owner only.
 
 ## Notes
 
@@ -270,3 +270,36 @@ None.
 - Suggested Fix: Remove "Log in again" from the `needs_login` transition in `design.md`.
 - Decision (triage 2026-10-09): Accept the suggested fix.
 - Resolution (2026-10-09): Fixed in the documents — design profile lifecycle.
+
+### [CLOSED] F-024 Any member who can run sessions can approve `pay` or `delete` on the owner's accounts
+
+- Origin: scan (self-review 3, 2026-10-09) · Lens: verification · Severity: P1 · Confidence: high · Status: fixed (verified)
+- Category: Security
+- Summary: R7 makes `pay` and `delete` ask for approval, but the docs never say who may answer. The interaction route checks only the project permission `RUN_SESSIONS`, so any member who can open the session can approve a payment on the owner's account, and can also answer the owner's `wait_for_user`. In a channel thread, the answer is accepted from the sender's linked account or, failing that, as the agent creator.
+- Evidence: `api/oss/src/apis/fastapi/sessions/router.py:1425-1438` (`respond_interaction`, `Permission.RUN_SESSIONS`); `api/oss/src/tasks/asyncio/channels/inbox.py:200-223` (channel answer, `user_id or resolution.agent.created_by_id`).
+- Files: `design.md` D12, D17, access rules; `specs/browser-agent-tools/spec.md` (Approval defaults); `specs/browser-sessions/spec.md` (Wait for the user).
+- Suggested Fix: For interactions raised by a browser tool, accept an answer only from the profile owner (or the owner and admins), in the web app and in channels, and refuse others with a clear error. Add a spec scenario and a test.
+- Decision: Owner only (triage, 2026-10-09).
+- Resolution (2026-10-09): Fixed in the documents — design R44, D25, access rules, threat model; agent-tools spec (Approval defaults, Another member tries to approve); sessions spec (Wait for the user, Another member answers the wait); tasks 2.5c, 2.7.
+
+### [CLOSED] F-025 The run cannot tell a linked channel sender from the fallback identity
+
+- Origin: scan (self-review 3, 2026-10-09) · Lens: verification · Severity: P2 · Confidence: high · Status: fixed (verified)
+- Category: Feasibility
+- Summary: R39 and D13 refuse a channel run whose sender is not linked. The inbox replaces a missing link with the agent creator before it opens the turn, and the run carries only that user ID. A handler therefore cannot see that the identity is a fallback.
+- Evidence: `api/oss/src/tasks/asyncio/channels/inbox.py:592-604` (fallback applied before the turn opens).
+- Files: `design.md` D13, R39; `specs/browser-sessions/spec.md` (Unlinked channel sender); `tasks.md` 2.3.
+- Suggested Fix: Carry an explicit marker from the inbox to the run (for example, a session or run-context field that says the identity is a fallback), bind it into the browser ops, and refuse on it. Add the task and a test; re-estimate Phase 2 by about one day.
+- Decision: Apply the suggested fix (2026-10-09).
+- Resolution (2026-10-09): Fixed in the documents — design D13; sessions spec (Who may use the profile); tasks 2.5b, 2.7; Phase 2 re-estimated to 9–14.
+
+### [CLOSED] F-026 The turn-end save needs the browser on the agent session's replica
+
+- Origin: scan (self-review 3, 2026-10-09) · Lens: verification · Severity: P2 · Confidence: medium · Status: fixed
+- Category: Feasibility
+- Summary: D19 records a browser owner replica in Redis, and task 3.5 saves the session state "at turn end". The turn ends on the replica that runs the agent session, which already claims session ownership. If the browser sandbox is owned by another replica, the turn-end hook and the 5-minute warm timer need a cross-replica signal that the docs do not describe.
+- Evidence: `services/runner/src/engines/sandbox_agent/runtime-policy.ts:342-345` (per-replica session owner claim).
+- Files: `design.md` D19; `specs/browser-sessions/spec.md` (One owning runner); `tasks.md` 3.1, 3.5.
+- Suggested Fix: Make the browser sandbox owner the same replica that owns the agent session (reuse the existing claim), and route `/browser/*` by session ID. Then the turn-end save and the warm timer stay local. Update D19 and check 0.8.
+- Decision: Apply the suggested fix (2026-10-09).
+- Resolution (2026-10-09): Fixed in the documents — design D19, architecture, risks; sessions spec (One owning runner); tasks 0.8, 2.4, 3.1.

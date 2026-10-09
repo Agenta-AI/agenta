@@ -65,7 +65,7 @@ The browser tools SHALL NOT take a profile argument. Agenta SHALL resolve the pr
 - **THEN** the call SHALL fail with `login_required`
 
 ### Requirement: Approval defaults
-Under the default agent permission mode (`allow_reads`), `pay` and `delete` SHALL ask the user for approval, and the other handler-mode browser tools SHALL run without approval. When the author sets a permission on a browser tool, or picks another agent-wide mode, that choice SHALL apply, as for every other tool.
+Under the default agent permission mode (`allow_reads`), `pay` and `delete` SHALL ask the profile owner for approval, and the other handler-mode browser tools SHALL run without approval. When the author sets a permission on a browser tool, or picks another agent-wide mode, that choice SHALL apply, as for every other tool. Only the profile owner SHALL be able to answer an approval raised by a browser tool.
 
 #### Scenario: Agent pays
 - **WHEN** the agent runs with the default permission mode and calls `pay` on a checkout button
@@ -74,6 +74,10 @@ Under the default agent permission mode (`allow_reads`), `pay` and `delete` SHAL
 #### Scenario: Agent submits a form
 - **WHEN** the agent runs with the default permission mode and clicks a form's submit button with `left_click`
 - **THEN** the click SHALL run without approval
+
+#### Scenario: Another member tries to approve
+- **WHEN** the agent calls `pay` in the owner's run and another project member, in the web app or in a channel thread, presses Approve
+- **THEN** Agenta SHALL refuse that answer and the approval SHALL stay pending for the owner
 
 #### Scenario: Author asks for everything
 - **WHEN** the author sets the agent-wide mode to `ask`
