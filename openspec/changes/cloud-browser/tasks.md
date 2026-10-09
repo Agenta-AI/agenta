@@ -1,6 +1,15 @@
 # Tasks
 
-Nothing is implemented. Estimates are engineer-days for one engineer who knows the runner and the API, unit and security tests included; see [design.md](design.md#estimate) for the basis. Re-estimate Phases 1–8 after Phase 0.
+Nothing is implemented. **Implementing agent: start with [HANDOFF.md](HANDOFF.md).** Estimates are engineer-days for one engineer who knows the runner and the API, unit and security tests included; see [design.md](design.md#estimate) for the basis. Re-estimate Phases 1–8 after Phase 0.
+
+## Readiness gates
+
+Phase 1 starts only when all four gates are checked. [HANDOFF.md](HANDOFF.md) defines each gate and who does what.
+
+- [ ] G1 Prerequisites available (runbook prerequisites table).
+- [ ] G2 Checks 0.1–0.8 have results in `spike.md`; 0.9 and 0.11 repeated inside a Daytona browser sandbox.
+- [ ] G3 Failed or partial checks have accepted design changes; Phases 1–8 re-estimated (0.10).
+- [ ] G4 A reviewer approved the "Design" decisions (D2 start, D11–D18); name and date recorded in `design.md`.
 
 ## 0. Spike (time-box 5–8 days, throwaway code)
 

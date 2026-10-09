@@ -6,7 +6,7 @@ An agent can only act on tools that Agenta connects to. Many sites have no conne
 
 Agenta sandboxes already ship Chromium, and agents already run on schedules with no person present. What is missing is a browser the agent can drive safely, a way for the user to log in to a site once, a way to keep that login for later runs, and a way to watch and take control while the agent works.
 
-Status: Requirements and decisions were confirmed by Ashraf between 2026-10-07 and 2026-10-09, including the triage of the scan [findings](findings.md). Nothing is implemented. Phase 0 (a spike) runs before any build work, and the estimate is re-checked after it. Each decision, with the person or reason behind it, is in [design.md](design.md).
+Status: Requirements and decisions were confirmed by Ashraf between 2026-10-07 and 2026-10-09, including the triage of the scan [findings](findings.md). Nothing is implemented. Phase 0 (a spike) runs before any build work, and the estimate is re-checked after it. An implementing agent starts with [HANDOFF.md](HANDOFF.md), which sets the readiness gates. Each decision, with the person or reason behind it, is in [design.md](design.md).
 
 ## What Changes
 
