@@ -106,7 +106,7 @@ Status: Requirements (R) and decisions (D) marked "User" were confirmed by Ashra
 | D4 | Server code goes in `api/oss/src/{apis,core,dbs}/browser_profiles/`, gated by a new organization flag `allow_browser`. | User | `api/ee`: `api/AGENTS.md` keeps EE for billing, organizations, workspace, meters, subscriptions, and throttling. |
 | D5 | A new `browser_profiles` domain holds owner, state, allowlist, and sign-in hosts. The session state lives in a dedicated secret kind, `browser_session_state`, that every vault route excludes for every principal, including run tokens. Only the `browser_profiles` service reads it. | User; secret kind by triage F-006 | A write-only vault secret (run tokens with `secret-resolve` receive it in plaintext). An owner column on every secret. |
 | D6 | Downloads are stored by the `browser_profiles` domain in object storage, under the profile, readable only by the owner. The `read_download` op copies one download into the run's session files. Mounts do not change. | Triage F-011 | A per-user mount (mounts have no owner and every route checks project permissions only). Session files directly (not private). |
-| D7 | The allowlist is enforced in the browser sandbox through CDP on every target (pages, iframes, popups, workers, downloads) with auto-attach. Navigation to IP literals, `localhost`, and private or link-local ranges is refused, reusing the runner's SSRF guard rules. Chrome's debugging port accepts connections only from the runner. | User; full coverage by triage F-013 | Top-level pages only. An egress proxy with a second layer (D3). |
+| D7 | The allowlist for documents and downloads is enforced in the browser sandbox through CDP on every target (pages, iframes, popups, workers) with auto-attach. Address checks use two layers: CDP refuses IP literals, `localhost`, and private or link-local names early, reusing the runner's SSRF guard rules; and all browser traffic goes through the in-sandbox proxy (D26), which is the only place a name is resolved before a connection. Chrome's debugging port accepts connections only from the runner. | User; full coverage by triage F-013; proxy layer by F-027 | Top-level pages only. An external egress proxy fleet (D3). |
 | D8 | Tool names and inputs follow Anthropic's browser toolset where a tool of the same name exists, limited to the v1 set, by element reference only, plus `pay`, `delete`, `read_download`, and `wait_for_user`. No model-facing `screenshot`. | User; screenshot removed by triage F-008 | Playwright MCP names. A fully custom set. All 27 toolset tools. |
 | D9 | The live view is a CDP screencast plus CDP input events over one WebSocket: browser ⇄ runner ⇄ API ⇄ web app. | User | WebRTC desktop stream (adds WebRTC, possibly TURN, Xvfb, and a snapshot change). |
 | D10 | The browser sandbox uses the existing agent snapshot, which already has Chromium. No snapshot change. | User | A new browser-only snapshot. |
@@ -125,6 +125,7 @@ Status: Requirements (R) and decisions (D) marked "User" were confirmed by Ashra
 | D23 | The SDK adds a `browser.profile` field to the agent config. When it is set, the resolver adds the browser tools; when platform handlers are turned off, an agent with a profile fails with a clear configuration error instead of losing the tools silently. | Triage F-009 | Authors listing the eleven tools by hand. |
 | D24 | Redaction: the runner marks values typed into password fields, and the API stores `"[redacted]"` for them in the step log, the tool arguments in the transcript, and traces. | Triage F-012 | Hiding all browser tool input and output from non-owners (new filtering in sessions and tracing). |
 | D25 | For an interaction raised by a browser tool (an approval of `pay` or `delete`, or `wait_for_user`), the session interaction route and the channel inbox accept an answer only from the profile owner and refuse every other user with a clear error. | Triage F-024 | Any member with `RUN_SESSIONS` (today's rule). The owner and admins. |
+| D26 | A small forward proxy runs inside each browser sandbox, started by the runner (a Node script uploaded at start, so the snapshot does not change). Chrome sends all traffic through it (`--proxy-server` to the proxy on loopback, `--proxy-bypass-list=<-loopback>` so loopback is not exempt, and `--force-webrtc-ip-handling-policy=disable_non_proxied_udp` so WebRTC cannot send UDP around it). For each HTTP request and each `CONNECT` tunnel (HTTPS and WebSocket), the proxy resolves the host once, refuses private, link-local, and loopback addresses, and connects to the address it checked. Chrome never resolves names itself, so a name cannot resolve one way for the check and another way for the connection. | User (F-027, 2026-10-09) | Pinning resolved addresses in Chrome with `--host-resolver-rules` (needs a Chrome restart for each new host). A Daytona network rule (its allowlist takes CIDR ranges and cannot express "public internet only"). |
 
 ## Architecture
 
@@ -191,7 +192,7 @@ Each item has a Phase 0 check in [tasks.md](tasks.md). None of them is assumed t
 | A pending interaction in a scheduled run | R6 and R18 need a scheduled run to park on `wait_for_user` and be answered later from the session screen. No code path shows this works for trigger-origin sessions. | 0.6 |
 | Agent sandbox reaching the browser sandbox | D1 depends on the agent having no network path or credential to the browser sandbox. | 0.7 |
 | Two runner replicas | D19 routing must keep the CDP socket, timers, and live view on the replica that owns the agent session. | 0.8 |
-| DNS rebinding and private ranges | D7 must refuse a public host name that resolves to a private address. Check 0.9 (local) showed that interception blocks every target, but cannot stop a name that resolves differently when Chrome connects (F-027). | 0.9, F-027 |
+| DNS rebinding and private ranges | D7 must refuse a public host name that resolves to a private address. Check 0.9 (local) showed that interception blocks every target, but cannot stop a name that resolves differently when Chrome connects (F-027). D26 adds the in-sandbox proxy; check 0.11 must show that Chrome sends every connection through it and that rebinding fails. | 0.9, 0.11 |
 
 ## Estimate
 
@@ -199,18 +200,18 @@ Basis: one engineer who knows the runner and the API, working days, unit and sec
 
 | Phase | Work | Engineer-days |
 | --- | --- | --- |
-| 0 | Spike (time-boxed, nine checks) | 5–7 |
+| 0 | Spike (time-boxed, ten checks) | 5–8 |
 | 1 | API domain, migration, RBAC, admin check (D21), organization flag, `browser_session_state` secret kind, states, revision-author check, membership reconcile | 8–12 |
 | 2 | SDK config field and tool injection (D23), ten platform ops, API handlers, API→runner client with session routing, checks, the channel fallback marker (D13), owner-only answers (D25), step log, redaction, error envelopes, approval defaults | 9–14 |
-| 3 | Runner `/browser/*`: replica ownership, sandbox lifecycle, Chrome launch, CDP actions, `read_page` and `find` with references and size bounds, session-state load and save route, allowlist on every target and SSRF refusal, uploads, downloads to profile storage, metering of all browser time | 14–21 |
+| 3 | Runner `/browser/*`: replica ownership, sandbox lifecycle, Chrome launch, CDP actions, `read_page` and `find` with references and size bounds, session-state load and save route, allowlist on every target and SSRF refusal, the in-sandbox proxy (D26), uploads, downloads to profile storage, metering of all browser time | 16–23 |
 | 4 | `wait_for_user` client tool, `user_in_control`, `login_required` (D18), pause and reattach, 30-minute expiry | 5–7 |
 | 5 | Live view backend: WebSocket route with in-route auth and `Origin`, runner relay, input mapping, control hand-off, open/control audit, login-session limits | 6–9 |
 | 6 | Profile-owned download storage and `read_download`; screenshot storage and 30-day deletion job; step-log query; plan limit enforcement | 7–10 |
 | 7 | Frontend: live view 5–7, Settings tab 2–3, agent config section 2–3, chat dock (wait card), watch button, tool rows and screenshots 4–6, session badge 1, Fern client and entity 1–2, owner audit view and downloads list 2–3 | 17–25 |
 | 8 | Release-gate scenarios on Pi, Claude, and Codex; docs page; the R15 acceptance run (5 calendar days elapsed) | 4–6 |
-| | **Total** | **75–111** |
+| | **Total** | **77–114** |
 
-The total rose from 57–85 after the scan, and from 74–109 after self-review 3 (F-024, F-025). Triage added work in Phases 1–7: the dedicated secret kind, the revision-author check, membership reconcile, tool injection, replica routing, allowlist coverage, redaction, billing of all browser time, the audit, and tests per phase. Profile-owned download storage replaced the mount work.
+The total rose from 57–85 after the scan, from 74–109 after self-review 3 (F-024, F-025), and from 75–111 after the proxy decision for F-027 (2 days in Phase 3, up to 1 day in Phase 0). Triage added work in Phases 1–7: the dedicated secret kind, the revision-author check, membership reconcile, tool injection, replica routing, allowlist coverage, redaction, billing of all browser time, the audit, and tests per phase. Profile-owned download storage replaced the mount work.
 
 Not included: plan pricing and limit values (Q1), Daytona quota changes, a fixed egress proxy if D3 triggers it, and v2 items (sharing, notifications, self-hosted).
 

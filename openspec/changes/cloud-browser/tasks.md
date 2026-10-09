@@ -2,7 +2,7 @@
 
 Nothing is implemented. Estimates are engineer-days for one engineer who knows the runner and the API, unit and security tests included; see [design.md](design.md#estimate) for the basis. Re-estimate Phases 1–8 after Phase 0.
 
-## 0. Spike (time-box 5–7 days, throwaway code)
+## 0. Spike (time-box 5–8 days, throwaway code)
 
 Follow [spike-runbook.md](spike-runbook.md) for prerequisites, steps, and what to record. Each check records a measured result in `spike.md` in this folder. A failed check changes the design before Phase 1; it is not worked around silently.
 
@@ -15,6 +15,7 @@ Follow [spike-runbook.md](spike-runbook.md) for prerequisites, steps, and what t
 - [ ] 0.7 From the agent sandbox's shell, try to reach the browser sandbox (network and preview URL without its token) and confirm it fails.
 - [ ] 0.8 With two runner replicas, route browser calls and the live view by session ID to the replica that owns the agent session, and confirm that a call arriving at the other replica reaches the same page and that the turn-end save runs on the owning replica.
 - [x] 0.9 (local Chromium, 2026-10-09: 7/7 blocked; repeat in a Daytona sandbox during 0.1; DNS rebinding open as F-027) Confirm that CDP request interception blocks an iframe, a popup, and a download on a host not on the list, an IP literal, and a host name that resolves to a private address.
+- [ ] 0.11 Run Chrome with `--proxy-server` to a test proxy that resolves, checks, and connects in one step (D26). Confirm that every request kind goes through it (navigation, iframe, popup, download, `fetch`, WebSocket, `sendBeacon`), that a name resolving to a private address is refused, and that WebRTC sends no UDP outside it.
 - [ ] 0.10 Write `spike.md`, update design.md where a check failed, and re-estimate Phases 1–8.
 
 ## 1. Profiles domain (8–12 days)
@@ -41,7 +42,7 @@ Follow [spike-runbook.md](spike-runbook.md) for prerequisites, steps, and what t
 - [ ] 2.6 Add the agent instructions for `pay`, `delete`, Google sign-in, `login_required`, `user_in_control`, and `wait_for_user`.
 - [ ] 2.7 Tests: refusals for a non-owner run, a revision committed by another user, and an unlinked channel sender; refusal of an approval or wait answer from another member in the web app and in a channel; the configuration error; redaction in all three places; permission defaults under `allow_reads` and under `ask`.
 
-## 3. Runner browser sessions (14–21 days)
+## 3. Runner browser sessions (16–23 days)
 
 - [ ] 3.1 `/browser/*` routes with the runner token, served by the replica that owns the agent session.
 - [ ] 3.2 Browser sandbox lifecycle: start on first call, 5-minute warm reuse, 30-minute wait, delete; stop on profile archive.
@@ -49,9 +50,10 @@ Follow [spike-runbook.md](spike-runbook.md) for prerequisites, steps, and what t
 - [ ] 3.4 CDP actions for the ten ops; `read_page` and `find` with element references and a size bound under the 100 KB cap.
 - [ ] 3.5 Load session state at start; post it at turn end to a new API save route that applies the generation and archive rules (D14).
 - [ ] 3.6 Allowlist and confirmed sign-in hosts on every target with auto-attach; refuse IP literals, `localhost`, and private or link-local resolution (reuse the SSRF guard rules); `login_required` detection (D18).
+- [ ] 3.6b In-sandbox forward proxy (D26): upload and start it with the browser sandbox; resolve once, refuse private, link-local, and loopback addresses, connect to the checked address; Chrome flags `--proxy-server`, `--proxy-bypass-list=<-loopback>`, `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`.
 - [ ] 3.7 Uploads from session files only; downloads to profile-owned storage.
 - [ ] 3.8 Meter every second of browser sandbox time to the profile owner's payer (D20).
-- [ ] 3.9 Tests: allowlist bypass attempts (iframe, popup, download, IP literal, private resolution); generation race; save refused after archive; replica routing; metering of warm and wait time.
+- [ ] 3.9 Tests: allowlist bypass attempts (iframe, popup, download, IP literal, private resolution); DNS rebinding through the proxy; WebSocket and WebRTC traffic; generation race; save refused after archive; replica routing; metering of warm and wait time.
 
 ## 4. Waiting for the user (5–7 days)
 

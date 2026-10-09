@@ -1,8 +1,8 @@
 # Phase 0 spike runbook
 
-This runbook tells the spike engineer how to run the nine Phase 0 checks in [tasks.md](tasks.md). The spike answers one question: does the design in [design.md](design.md) work on real infrastructure? It does not build the feature.
+This runbook tells the spike engineer how to run the ten Phase 0 checks in [tasks.md](tasks.md). The spike answers one question: does the design in [design.md](design.md) work on real infrastructure? It does not build the feature.
 
-- Time-box: 5–7 engineer-days. Stop at the time-box and report what is known.
+- Time-box: 5–8 engineer-days. Stop at the time-box and report what is known.
 - Code: throwaway. Keep it on a separate branch (for example `spike/cloud-browser`) and do not merge it.
 - Output: one file, `spike.md`, in this folder. Use the template at the end.
 - Thresholds: no pass threshold was decided for times, sizes, or frame rates. Record the measured value. The team decides in check 0.10 whether the value is acceptable.
@@ -121,6 +121,17 @@ Each check lists its goal, its steps, what to record, and its pass rule.
 - Record: blocked or loaded, per case.
 - Pass: all seven are blocked.
 
+### 0.11 In-sandbox proxy (D26)
+
+- Goal: prove that Chrome sends every connection through the proxy, so the proxy's address check is the one that counts (F-027).
+- Steps:
+  1. Write a test forward proxy that handles plain HTTP and `CONNECT`, resolves each host once, refuses private, link-local, and loopback addresses, and connects to the address it checked. Log every request.
+  2. Start Chrome with `--proxy-server=http://127.0.0.1:<port>`, `--proxy-bypass-list=<-loopback>`, and `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`.
+  3. From an allowed page, try: a navigation, an iframe, a popup, a download, a `fetch`, a WebSocket, a `navigator.sendBeacon`, and a WebRTC connection with a STUN server.
+  4. Give the proxy a resolver that answers a public address first and a private address on the next lookup for one test name. Load that name twice.
+- Record: for each request kind, whether the proxy saw it; whether the rebinding name was refused; whether any UDP left outside the proxy.
+- Pass: the proxy sees every request kind, refuses the private answer, and no UDP leaves outside it.
+
 ### 0.10 Report and re-estimate
 
 1. Fill in `spike.md` from the template below.
@@ -147,6 +158,7 @@ Each check lists its goal, its steps, what to record, and its pass rule.
 | 0.7 Isolation | pass / fail | | |
 | 0.8 Replicas | pass / fail | | |
 | 0.9 Allowlist | <n>/7 blocked | | |
+| 0.11 Proxy | pass / fail | request kinds seen <n>/8; rebinding refused <yes/no>; UDP leak <yes/no> | |
 
 ## Design changes
 
@@ -156,5 +168,5 @@ Each check lists its goal, its steps, what to record, and its pass rule.
 
 | Phase | Before | After |
 | --- | --- | --- |
-| 1–8 | 70–104 | <range> |
+| 1–8 | 72–106 | <range> |
 ```
