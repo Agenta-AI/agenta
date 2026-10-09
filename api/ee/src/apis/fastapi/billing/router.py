@@ -596,20 +596,69 @@ class BillingRouter:
                     content={"status": "error", "message": "Unsupported event"},
                 )
 
-            subscription = await self.subscription_service.process_event(
-                organization_id=organization_id,
-                event=event,
-                subscription_id=subscription_id,
-                plan=plan,
-                anchor=anchor,
-            )
+            # Scoped to process_event alone. An EventException from
+            # _grant_period_credits above reports OUR misconfiguration (an
+            # unsigned webhook, an unwired wallets service) and must stay a 500
+            # so it keeps showing up as our failure, not the caller's.
+            try:
+                subscription = await self.subscription_service.process_event(
+                    organization_id=organization_id,
+                    event=event,
+                    subscription_id=subscription_id,
+                    plan=plan,
+                    anchor=anchor,
+                )
+            except (EventException, SwitchException) as e:
+                # The event reached our subscription state machine and it
+                # refused: no subscription row for the organization, or a
+                # recorded plan the event does not apply to. Answering 500 said
+                # "we broke, retry", named no cause, and bypassed the
+                # interceptor's own logging, which is why the reported
+                # invoice.payment_failed rejection left nothing to read.
+                # The reason stays in the log, not the body: this endpoint
+                # answers an unauthenticated caller when no webhook secret is
+                # configured.
+                log.warn(
+                    "Rejecting stripe event: %s | event=%s | organization=%s | %s",
+                    stripe_event.type,
+                    _stripe_get(stripe_event, "id"),
+                    organization_id,
+                    e,
+                )
+
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={
+                        "status": "error",
+                        "message": (
+                            f"Event {stripe_event.type} does not apply to the "
+                            "subscription recorded for this organization"
+                        ),
+                    },
+                )
+
             if event == Event.SUBSCRIPTION_CANCELLED:
                 await self._reset_organization_flags(organization_id)
 
         except Exception as e:
+            log.error(
+                "Failed stripe event: %s | event=%s | organization=%s",
+                stripe_event.type,
+                _stripe_get(stripe_event, "id"),
+                organization_id,
+                exc_info=True,
+            )
+
             raise HTTPException(status_code=500, detail="unexpected error") from e
 
         if not subscription:
+            log.error(
+                "Empty subscription after stripe event: %s | event=%s | organization=%s",
+                stripe_event.type,
+                _stripe_get(stripe_event, "id"),
+                organization_id,
+            )
+
             raise HTTPException(status_code=500, detail="unexpected error")
 
         return JSONResponse(
