@@ -54,7 +54,7 @@ Agenta SHALL start Chrome without automation flags, so that `navigator.webdriver
 - **THEN** the value SHALL be `false`
 
 ### Requirement: Allowlist
-During a run, the browser SHALL load a document in any target (page, iframe, popup, or worker) and SHALL download a file only from a host on the profile's allowlist or on the profile's confirmed sign-in host list. Agenta SHALL refuse IP literals, `localhost`, and hosts that resolve to private or link-local addresses. Agenta SHALL enforce these rules in the browser sandbox through CDP. v1 SHALL support only sites on the public internet.
+During a run, the browser SHALL load a document in any target (page, iframe, popup, or worker) and SHALL download a file only from a host on the profile's allowlist or on the profile's confirmed sign-in host list. Agenta SHALL refuse IP literals, `localhost`, and hosts that resolve to private, link-local, or loopback addresses. Agenta SHALL enforce the allowlist through CDP. Every browser connection, including HTTPS and WebSocket connections, SHALL go through a proxy inside the browser sandbox that resolves the host once, refuses private, link-local, and loopback addresses, and connects to the address it checked. WebRTC SHALL NOT send UDP outside the proxy. v1 SHALL support only sites on the public internet.
 
 #### Scenario: Navigation to an allowed site
 - **WHEN** the agent navigates to `https://app.example.com/reports` and `app.example.com` is on the allowlist
@@ -71,6 +71,10 @@ During a run, the browser SHALL load a document in any target (page, iframe, pop
 #### Scenario: Iframe or popup on another host
 - **WHEN** an allowed page opens an iframe or a popup on a host that is not on either list
 - **THEN** Agenta SHALL block that document
+
+#### Scenario: Name that changes its address
+- **WHEN** a host name on the allowlist resolves to a public address at one moment and to a private address at the next
+- **THEN** the proxy SHALL connect only to the address it checked, and SHALL refuse the connection when that address is private
 
 #### Scenario: Internal address
 - **WHEN** a navigation targets `http://169.254.169.254/` or a public host name that resolves to a private address

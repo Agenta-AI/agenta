@@ -15,6 +15,7 @@
 | 0.7 Isolation | not run | | Needs a Daytona API key. |
 | 0.8 Replicas | not run | | Needs a staging stack with two runner replicas. |
 | 0.9 Allowlist | 7/7 blocked (local Chromium) | 3 runs, same result each time | See below. Repeat inside a Daytona browser sandbox during 0.1. |
+| 0.11 Proxy | not run | | Added after F-027 chose the in-sandbox proxy (D26). |
 
 ## 0.9 Allowlist coverage
 
@@ -51,7 +52,7 @@ Yes: all seven cases are blocked, and the control loads.
 
 ### Not proven by this check
 
-1. **DNS rebinding.** The policy resolved names from a fixed table. In production the policy must resolve a name itself, and Chrome resolves it again when it connects. A host that answers a public address to the policy and a private address to Chrome would pass. Interception cannot change the address Chrome connects to. This needs a design answer before Phase 3; see F-027 in [findings.md](findings.md).
+1. **DNS rebinding.** The policy resolved names from a fixed table. In production the policy must resolve a name itself, and Chrome resolves it again when it connects. A host that answers a public address to the policy and a private address to Chrome would pass. Interception cannot change the address Chrome connects to. Decided on 2026-10-09: an in-sandbox forward proxy (design D26), to be proven by check 0.11. See F-027 in [findings.md](findings.md).
 2. **Inside a Daytona sandbox.** Repeat this check in the browser sandbox during 0.1.
 3. **Request kinds not tried:** WebSocket connections, service workers, `navigator.sendBeacon`, prefetch and prerender, and redirects from an allowed host to a blocked one.
 
