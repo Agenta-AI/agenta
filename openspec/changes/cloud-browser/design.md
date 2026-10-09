@@ -64,7 +64,7 @@ Status: Requirements (R) and decisions (D) marked "User" were confirmed by Ashra
 | R11 | The agent can upload files that are already in the session. | User | browser-sessions |
 | R12 | A step log with screenshots is kept for 30 days. The owner can delete a profile at any time. | User | browser-sessions, browser-profiles |
 | R13 | Every second a browser sandbox runs is billed to the profile owner's payer, with a plan limit. | Triage F-016; limit values open (Q1) | browser-sessions |
-| R14 | v1 targets: QA of our own app, one public SaaS app behind SSO, one public SaaS app with Okta or email login. | User; app names open (Q2) | tasks |
+| R14 | v1 targets: QA of our own app; **Codecov** (codecov.io), behind single sign-on with "Sign in with GitHub", task: open the repository list and read the latest coverage % of one repository; **Umami Cloud** (cloud.umami.is), email login, task: read yesterday's visitor count for one site. | User; apps confirmed 2026-10-09 (Q2) | tasks |
 | R15 | Done when the user logs in once on a phone and a scheduled run completes a task on that site 5 days in a row with no new login. | User | tasks |
 | R16 | The user can watch live and take control at any time; the agent waits. | User | browser-live-view |
 | R17 | The live stream runs only while someone watches. | User | browser-live-view |
@@ -219,7 +219,6 @@ Not included: plan pricing and limit values (Q1), Daytona quota changes, a fixed
 | # | Question | Owner | Blocks |
 | --- | --- | --- | --- |
 | Q1 | Browser-minute limit per plan (R13). | Product | Task 6.4 limit values, not the build |
-| Q2 | The two SaaS apps for R14. | Ashraf | Phase 0 check 0.5 |
 
 ## Corrections made during planning
 
