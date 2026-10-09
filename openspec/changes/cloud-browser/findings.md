@@ -7,7 +7,7 @@
 
 ## Summary
 
-23 findings: 7 × P1, 10 × P2, 6 × P3. F-001 to F-022 come from the independent reviewer; F-023 is the author's own. All 23 are fixed in the documents (resolve, 2026-10-09). "Fixed" means the design, specs, and tasks now say what the decision requires; nothing is implemented. Self-review 3 (2026-10-09) re-checked every citation (all hold) and added three findings, F-024 (P1) to F-026, all fixed the same day. The estimate is now 75–111 engineer-days. The P1 findings must be resolved in the design before Phase 1. The largest themes:
+23 findings: 7 × P1, 10 × P2, 6 × P3. F-001 to F-022 come from the independent reviewer; F-023 is the author's own. All 23 are fixed in the documents (resolve, 2026-10-09). "Fixed" means the design, specs, and tasks now say what the decision requires; nothing is implemented. Self-review 3 (2026-10-09) re-checked every citation (all hold) and added three findings, F-024 (P1) to F-026, all fixed the same day. The estimate is now 75–111 engineer-days. Spike check 0.9 (2026-10-09) added F-027 (open, P2). The P1 findings must be resolved in the design before Phase 1. The largest themes:
 
 1. The tool-kind model: `wait_for_user` cannot be a handler-mode op, and nothing lets "take control" pause a running turn (F-001, F-002).
 2. Who may use a profile: admins, channel fallback identity, and editors of the agent all reach the owner's logins in ways the design does not block (F-003, F-004, F-005).
@@ -18,7 +18,7 @@ The estimate in `design.md` was 57–85 engineer-days before the scan. After res
 
 ## Open Questions
 
-None. F-024 was answered: owner only.
+- F-027: Which mechanism stops DNS rebinding for the browser sandbox: pinning in Chrome, a proxy inside the browser sandbox, or a Daytona network rule?
 
 ## Notes
 
@@ -32,7 +32,14 @@ None. F-024 was answered: owner only.
 
 ## Open Findings
 
-None.
+### [OPEN] F-027 The allowlist cannot stop DNS rebinding with interception alone
+
+- Origin: test (spike check 0.9, 2026-10-09) · Lens: validation · Severity: P2 · Confidence: high · Status: needs-user-decision
+- Area: Security
+- Summary: Check 0.9 showed that CDP interception blocks every target and request type tested. But the policy decides on a name it resolves itself, and Chrome resolves the name again when it connects. A host that answers a public address to the policy and a private address to Chrome passes the check. `Fetch` interception cannot change the address Chrome connects to.
+- Evidence: [spike.md](spike.md) section 0.9, "Not proven by this check", item 1.
+- Files: `design.md` D7, risks (DNS rebinding row); `specs/browser-sessions/spec.md` (Allowlist, Internal address scenario).
+- Suggested Fix (pick one): (a) the runner resolves each new host once, then pins it for the browser (for example by restarting Chrome with `--host-resolver-rules` that map allowed hosts to their resolved addresses); (b) a small forward proxy inside the browser sandbox that resolves, checks, and connects in one step, so the address checked is the address used; (c) block private ranges at the sandbox network level with Daytona's network allowlist, if it can express "public internet only" (today it takes CIDR allowlists, `services/runner/src/protocol.ts:353-372`).
 
 ## Closed Findings
 

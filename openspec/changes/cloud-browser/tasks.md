@@ -14,7 +14,7 @@ Follow [spike-runbook.md](spike-runbook.md) for prerequisites, steps, and what t
 - [ ] 0.6 Pause a turn on `wait_for_user`, keep the browser sandbox running, resume, and confirm the same page is still open. Do it twice: in a chat session, and in a session started by a schedule, answered later from the session screen.
 - [ ] 0.7 From the agent sandbox's shell, try to reach the browser sandbox (network and preview URL without its token) and confirm it fails.
 - [ ] 0.8 With two runner replicas, route browser calls and the live view by session ID to the replica that owns the agent session, and confirm that a call arriving at the other replica reaches the same page and that the turn-end save runs on the owning replica.
-- [ ] 0.9 Confirm that CDP request interception blocks an iframe, a popup, and a download on a host not on the list, an IP literal, and a host name that resolves to a private address.
+- [x] 0.9 (local Chromium, 2026-10-09: 7/7 blocked; repeat in a Daytona sandbox during 0.1; DNS rebinding open as F-027) Confirm that CDP request interception blocks an iframe, a popup, and a download on a host not on the list, an IP literal, and a host name that resolves to a private address.
 - [ ] 0.10 Write `spike.md`, update design.md where a check failed, and re-estimate Phases 1–8.
 
 ## 1. Profiles domain (8–12 days)

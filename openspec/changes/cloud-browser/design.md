@@ -191,7 +191,7 @@ Each item has a Phase 0 check in [tasks.md](tasks.md). None of them is assumed t
 | A pending interaction in a scheduled run | R6 and R18 need a scheduled run to park on `wait_for_user` and be answered later from the session screen. No code path shows this works for trigger-origin sessions. | 0.6 |
 | Agent sandbox reaching the browser sandbox | D1 depends on the agent having no network path or credential to the browser sandbox. | 0.7 |
 | Two runner replicas | D19 routing must keep the CDP socket, timers, and live view on the replica that owns the agent session. | 0.8 |
-| DNS rebinding and private ranges | D7 must refuse a public host name that resolves to a private address. | 0.9 |
+| DNS rebinding and private ranges | D7 must refuse a public host name that resolves to a private address. Check 0.9 (local) showed that interception blocks every target, but cannot stop a name that resolves differently when Chrome connects (F-027). | 0.9, F-027 |
 
 ## Estimate
 
