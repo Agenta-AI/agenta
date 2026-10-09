@@ -15,7 +15,7 @@ Follow [spike-runbook.md](spike-runbook.md) for prerequisites, steps, and what t
 - [ ] 0.7 From the agent sandbox's shell, try to reach the browser sandbox (network and preview URL without its token) and confirm it fails.
 - [ ] 0.8 With two runner replicas, route browser calls and the live view by session ID to the replica that owns the agent session, and confirm that a call arriving at the other replica reaches the same page and that the turn-end save runs on the owning replica.
 - [x] 0.9 (local Chromium, 2026-10-09: 7/7 blocked; repeat in a Daytona sandbox during 0.1; DNS rebinding open as F-027) Confirm that CDP request interception blocks an iframe, a popup, and a download on a host not on the list, an IP literal, and a host name that resolves to a private address.
-- [ ] 0.11 Run Chrome with `--proxy-server` to a test proxy that resolves, checks, and connects in one step (D26). Confirm that every request kind goes through it (navigation, iframe, popup, download, `fetch`, WebSocket, `sendBeacon`), that a name resolving to a private address is refused, and that WebRTC sends no UDP outside it.
+- [x] 0.11 (local Chromium, 2026-10-09: 8/8 request kinds through the proxy, rebinding refused, no UDP with the corrected WebRTC flag; repeat in a Daytona sandbox during 0.1) Run Chrome with `--proxy-server` to a test proxy that resolves, checks, and connects in one step (D26). Confirm that every request kind goes through it (navigation, iframe, popup, download, `fetch`, WebSocket, `sendBeacon`), that a name resolving to a private address is refused, and that WebRTC sends no UDP outside it.
 - [ ] 0.10 Write `spike.md`, update design.md where a check failed, and re-estimate Phases 1–8.
 
 ## 1. Profiles domain (8–12 days)
@@ -50,7 +50,7 @@ Follow [spike-runbook.md](spike-runbook.md) for prerequisites, steps, and what t
 - [ ] 3.4 CDP actions for the ten ops; `read_page` and `find` with element references and a size bound under the 100 KB cap.
 - [ ] 3.5 Load session state at start; post it at turn end to a new API save route that applies the generation and archive rules (D14).
 - [ ] 3.6 Allowlist and confirmed sign-in hosts on every target with auto-attach; refuse IP literals, `localhost`, and private or link-local resolution (reuse the SSRF guard rules); `login_required` detection (D18).
-- [ ] 3.6b In-sandbox forward proxy (D26): upload and start it with the browser sandbox; resolve once, refuse private, link-local, and loopback addresses, connect to the checked address; Chrome flags `--proxy-server`, `--proxy-bypass-list=<-loopback>`, `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`.
+- [ ] 3.6b In-sandbox forward proxy (D26): upload and start it with the browser sandbox; resolve once, refuse private, link-local, and loopback addresses, connect to the checked address; Chrome flags `--proxy-server`, `--proxy-bypass-list=<-loopback>`, `--webrtc-ip-handling-policy=disable_non_proxied_udp` (not `--force-webrtc-ip-handling-policy`, which check 0.11 showed has no effect).
 - [ ] 3.7 Uploads from session files only; downloads to profile-owned storage.
 - [ ] 3.8 Meter every second of browser sandbox time to the profile owner's payer (D20).
 - [ ] 3.9 Tests: allowlist bypass attempts (iframe, popup, download, IP literal, private resolution); DNS rebinding through the proxy; WebSocket and WebRTC traffic; generation race; save refused after archive; replica routing; metering of warm and wait time.
