@@ -11,13 +11,13 @@ Each check records a measured result in `findings.md` in this folder. A failed c
 - [ ] 0.3 Run one handler-mode browser `PlatformOp` (`navigate`, then `read_page`, then `screenshot`) end to end from Pi (`inprocess`) and from Claude (`daytona`). Record whether each harness gives the screenshot image to the model.
 - [ ] 0.4 Stream a CDP screencast with CDP input through a test WebSocket route on the API to a phone browser, through the cloud ingress. Record frames per second, input delay, and any ingress idle timeout.
 - [ ] 0.5 Log in to each R14 SaaS app (names from Q2) through that live view, save the session state, start a new browser sandbox, load it, and confirm the login holds. Record the egress IP of each sandbox.
-- [ ] 0.6 Pause a turn on a test `wait_for_user` interaction, keep the browser sandbox running, resume, and confirm the same page is still open.
+- [ ] 0.6 Pause a turn on a test `wait_for_user` interaction, keep the browser sandbox running, resume, and confirm the same page is still open. Do it twice: in a chat session, and in a session started by a schedule, answered later from the session screen.
 - [ ] 0.7 From the agent sandbox's shell, try to reach the browser sandbox (network and preview URL without its token) and confirm it fails.
 - [ ] 0.8 Write `findings.md`, update design.md where a check failed, and re-estimate Phases 1–8.
 
 ## 1. Profiles domain (5–7 days)
 
-- [ ] 1.1 Add `allow_browser` to `OrganizationFlags` and to the organization flags reference; admin-only change.
+- [ ] 1.1 Add the `allow_browser` organization flag (default `false`) where organization flag defaults are set (`db_manager.py`, `commoners.py`) and to the organization flags reference; only organization admins may change it.
 - [ ] 1.2 Add RBAC permissions for browser profiles in `api/oss/src/core/access/`.
 - [ ] 1.3 Add the `browser_profiles` domain (`apis/fastapi`, `core`, `dbs/postgres`): owner, name, allowlist, sign-in hosts, state, generation, vault secret reference; one `core_oss` migration.
 - [ ] 1.4 Endpoints: create, query, retrieve, log-in start and finish, archive (with vault secret hard delete).
@@ -26,7 +26,7 @@ Each check records a measured result in `findings.md` in this folder. A failed c
 
 ## 2. Tools and handlers (5–8 days)
 
-- [ ] 2.1 Add the eleven browser ops to the SDK platform op catalog in handler mode, with `pay` and `delete` defaulting to `ask`.
+- [ ] 2.1 Add the eleven browser ops to the SDK platform op catalog in handler mode, with `default_permission` `allow` for nine ops and `ask` for `pay` and `delete` (D17).
 - [ ] 2.2 Add the API handlers: flag, RBAC, owner, state, and allowlist checks; profile resolution from run context; the error envelope codes.
 - [ ] 2.3 Add the API client for the runner's `/browser/*` routes.
 - [ ] 2.4 Write a step-log entry per call.
@@ -55,9 +55,10 @@ Each check records a measured result in `findings.md` in this folder. A failed c
 - [ ] 5.2 Runner relay between the API WebSocket and the CDP screencast and input.
 - [ ] 5.3 Stream only while a viewer is connected; control hand-off between the agent and the user.
 
-## 6. Storage and records (5–7 days)
+## 6. Storage and records (6–9 days)
 
 - [ ] 6.1 One named mount per (agent, user); sign it only for that user's runs.
+- [ ] 6.1b The runner copies each download from the browser sandbox into that mount through the mount upload route, and mounts it into the agent sandbox (Daytona and `inprocess`) for that user's runs.
 - [ ] 6.2 Screenshot storage, readable by the owner and organization admins.
 - [ ] 6.3 Job that deletes screenshots older than 30 days.
 - [ ] 6.4 Step-log query endpoint.

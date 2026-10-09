@@ -43,15 +43,19 @@ The browser tools SHALL NOT take a profile argument. Agenta SHALL resolve the pr
 - **THEN** Agenta SHALL ignore that field and use the profile resolved from the run
 
 ### Requirement: Approval defaults
-`pay` and `delete` SHALL ask the user for approval by default. The other browser tools SHALL run without approval by default. The agent author SHALL be able to change these defaults per tool, as for other tools.
+Under the default agent permission mode (`allow_reads`), `pay` and `delete` SHALL ask the user for approval, and the other browser tools SHALL run without approval. When the author sets a permission on a browser tool, or picks another agent-wide mode, that choice SHALL apply, as for every other tool.
 
 #### Scenario: Agent pays
-- **WHEN** the agent calls `pay` on a checkout button
+- **WHEN** the agent runs with the default permission mode and calls `pay` on a checkout button
 - **THEN** the turn SHALL pause on an approval before the click runs
 
 #### Scenario: Agent submits a form
-- **WHEN** the agent clicks a form's submit button with `left_click`
+- **WHEN** the agent runs with the default permission mode and clicks a form's submit button with `left_click`
 - **THEN** the click SHALL run without approval
+
+#### Scenario: Author asks for everything
+- **WHEN** the author sets the agent-wide mode to `ask`
+- **THEN** every browser tool call SHALL ask for approval
 
 ### Requirement: Payments and deletes are best effort
 Agenta SHALL instruct the agent to use `pay` for any payment or purchase and `delete` for any deletion. Agenta SHALL NOT claim to detect a payment or deletion done through another tool. Every browser action SHALL be in the step log.
