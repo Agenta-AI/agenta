@@ -15,6 +15,9 @@ class _ScalarsResult:
     def all(self):
         return self._memberships
 
+    def first(self):
+        return self._memberships[0] if self._memberships else None
+
 
 class _ExecuteResult:
     def __init__(self, memberships):
@@ -116,3 +119,79 @@ async def test_get_default_workspace_id_raises_when_user_has_no_memberships(
 
     with pytest.raises(NoResultFound, match="No workspace membership found"):
         await db_manager.get_default_workspace_id(str(uuid4()))
+
+
+class _CapturingSession:
+    """Records the statement so a test can assert what was filtered on."""
+
+    def __init__(self, rows, captured):
+        self._rows = rows
+        self._captured = captured
+
+    async def execute(self, query):
+        self._captured.append(query)
+        return _ExecuteResult(self._rows)
+
+
+class _CapturingSessionContext:
+    def __init__(self, rows, captured):
+        self._rows = rows
+        self._captured = captured
+
+    async def __aenter__(self):
+        return _CapturingSession(self._rows, self._captured)
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+def _patch_capturing_session(monkeypatch, rows):
+    captured = []
+    mock_engine = type(
+        "MockEngine",
+        (),
+        {"session": lambda self: _CapturingSessionContext(rows, captured)},
+    )()
+    monkeypatch.setattr(db_manager, "get_transactions_engine", lambda: mock_engine)
+    return captured
+
+
+@pytest.mark.asyncio
+async def test_get_project_member_filters_on_both_project_and_user(monkeypatch):
+    # The pair is what the (user_id, project_id) index serves. Filtering on the
+    # project alone is the sequential scan this function replaced.
+    captured = _patch_capturing_session(monkeypatch, [SimpleNamespace(role="viewer")])
+
+    await db_manager.get_project_member(
+        project_id=str(uuid4()),
+        user_id=str(uuid4()),
+    )
+
+    where = str(captured[0].whereclause)
+    assert "project_members.project_id" in where
+    assert "project_members.user_id" in where
+
+
+@pytest.mark.asyncio
+async def test_get_project_member_returns_the_row(monkeypatch):
+    member = SimpleNamespace(role="editor")
+    _patch_capturing_session(monkeypatch, [member])
+
+    found = await db_manager.get_project_member(
+        project_id=str(uuid4()),
+        user_id=str(uuid4()),
+    )
+
+    assert found is member
+
+
+@pytest.mark.asyncio
+async def test_get_project_member_returns_none_for_a_non_member(monkeypatch):
+    _patch_capturing_session(monkeypatch, [])
+
+    found = await db_manager.get_project_member(
+        project_id=str(uuid4()),
+        user_id=str(uuid4()),
+    )
+
+    assert found is None
