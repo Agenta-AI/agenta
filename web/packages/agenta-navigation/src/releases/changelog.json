@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-10-06-expand-the-files-pane",
+        "title": "Expand the files pane",
+        "description": "Read and edit files in the whole window, then restore your layout in one click.",
+        "link": "https://agenta.ai/docs/changelog/expand-the-files-pane"
+    },
+    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",
