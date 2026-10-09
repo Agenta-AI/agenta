@@ -72,7 +72,7 @@ zones.
 
 | Replicas | PodDisruptionBudget | topologySpreadConstraints |
 |---|---|---|
-| 1 | none, unless you set `<workload>.pdb.protectSingleton: true` | none |
+| 1 | `maxUnavailable: 1`, which permits the eviction | none |
 | 2 or more | `maxUnavailable: 1` | one pod per node (hard), even spread over zones (soft) |
 
 The generated constraints are scoped to one Deployment revision. A rolling update is therefore not
@@ -90,8 +90,9 @@ kubectl -n agenta get deployment agenta-api \
 
 Four limits apply:
 
-- A budget over a single pod does not keep that workload up. It defers the eviction of its node,
-  then the pod still moves.
+- A budget over a single pod does not keep that workload up. This is why a single replica gets
+  `maxUnavailable: 1` and not `minAvailable: 1`. A budget that permits no disruption at all stops
+  the platform from draining that node, and the pod still moves at the end of the grace period.
 - GKE Autopilot respects a budget for one hour during a node upgrade and then proceeds anyway.
 - No budget applies to a node that fails outright.
 - The bundled PostgreSQL gets a `maxUnavailable: 1` budget from the Bitnami subchart, over a single
@@ -116,12 +117,13 @@ redisVolatile:
   safeToEvict: true
 ```
 
-To defer the eviction of a single pod that has no replica, ask for a budget over it:
+To refuse every voluntary eviction of a single pod for the platform's grace period, ask for that
+budget by name. Read the limits above first. The node drain is deferred, not cancelled.
 
 ```yaml
 agentRunner:
   pdb:
-    protectSingleton: true
+    minAvailable: 1
 ```
 
 ### Step 4: override a budget or a constraint, if you need to

@@ -1725,15 +1725,20 @@ failureThreshold: 3
        different nodes and zones, so one node carries at most one of them.
 
    A workload with one replica cannot survive its node being cleared, with
-   or without a budget: the budget only defers the eviction. Give any
-   workload that must stay reachable two replicas.
+   or without a budget. Give any workload that must stay reachable two
+   replicas. Every workload therefore gets the same budget,
+   `maxUnavailable: 1`, whatever its replica count: with two or more
+   replicas one pod may go at a time, and with one replica the budget
+   permits the eviction rather than deferring it. A budget that allows zero
+   disruptions over a single pod (`minAvailable: 1`) protects nothing and
+   stops the platform from draining that node for its whole grace period.
 
    `podDisruptionBudgets.enabled` (default true) and
    `topologySpread.enabled` (default true) turn the whole mechanism off for
    an install that manages placement itself. Per workload,
-   `<workload>.pdb.maxUnavailable`, `<workload>.pdb.minAvailable` and
-   `<workload>.pdb.protectSingleton` override the defaults, and
-   `<workload>.topologySpreadConstraints` replaces the generated list.
+   `<workload>.pdb.maxUnavailable` and `<workload>.pdb.minAvailable`
+   override the default, and `<workload>.topologySpreadConstraints` replaces
+   the generated list.
    ================================================================ */}}
 
 {{/* Every schedulable workload: the component label, its values key, and
