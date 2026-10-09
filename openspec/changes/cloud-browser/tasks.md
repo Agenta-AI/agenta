@@ -13,7 +13,7 @@ Each check records a measured result in `spike.md` in this folder. A failed chec
 - [ ] 0.5 Log in to each R14 SaaS app (names from Q2) through that live view, save the session state, start a new browser sandbox, load it, and confirm the login holds. Record the egress IP of each sandbox and any bot-detection block.
 - [ ] 0.6 Pause a turn on `wait_for_user`, keep the browser sandbox running, resume, and confirm the same page is still open. Do it twice: in a chat session, and in a session started by a schedule, answered later from the session screen.
 - [ ] 0.7 From the agent sandbox's shell, try to reach the browser sandbox (network and preview URL without its token) and confirm it fails.
-- [ ] 0.8 With two runner replicas, route browser calls and the live view to the owning replica through Redis, and confirm a call that lands on the other replica reaches the same page.
+- [ ] 0.8 With two runner replicas, route browser calls and the live view by session ID to the replica that owns the agent session, and confirm that a call arriving at the other replica reaches the same page and that the turn-end save runs on the owning replica.
 - [ ] 0.9 Confirm that CDP request interception blocks an iframe, a popup, and a download on a host not on the list, an IP literal, and a host name that resolves to a private address.
 - [ ] 0.10 Write `spike.md`, update design.md where a check failed, and re-estimate Phases 1–8.
 
@@ -29,19 +29,21 @@ Each check records a measured result in `spike.md` in this folder. A failed chec
 - [ ] 1.8 Membership check at browser start, and a reconcile job that deletes the profiles of users who are no longer organization members.
 - [ ] 1.9 Tests: a run token cannot list or read `browser_session_state`; non-owners cannot read profiles; the admin check refuses an editor on a plan without RBAC; every member-removal path (workspace removal, membership delete, user delete, account delete) makes the profiles unavailable; the reconcile job deletes them.
 
-## 2. Tools and handlers (8–12 days)
+## 2. Tools and handlers (9–14 days)
 
 - [ ] 2.1 SDK: add the `browser.profile` agent config field; when it is set, the resolver adds the ten handler-mode ops and the `wait_for_user` client tool; fail with a configuration error when platform handlers are off.
 - [ ] 2.2 Add the ten ops to the platform op catalog in handler mode, with `default_permission` `allow` for eight and `ask` for `pay` and `delete` (D17), and a `timeout_ms` sized from check 0.1.
 - [ ] 2.3 Add the API handlers: flag, owner, revision-author, linked-sender, state, and plan-limit checks; profile resolution from run context; the error envelope codes.
-- [ ] 2.4 Add the API client for the runner's `/browser/*` routes with replica routing (D19).
+- [ ] 2.4 Add the API client for the runner's `/browser/*` routes, routed by session ID to the replica that owns the session (D19).
 - [ ] 2.5 Write a step-log entry per call, with password values redacted (D24); redact the same values in the transcript and traces.
+- [ ] 2.5b Channel inbox: record on the run that its identity is a fallback; bind the marker into the browser ops (D13).
+- [ ] 2.5c Session interaction route and channel inbox: accept answers to browser-tool approvals and `wait_for_user` only from the profile owner (D25).
 - [ ] 2.6 Add the agent instructions for `pay`, `delete`, Google sign-in, `login_required`, `user_in_control`, and `wait_for_user`.
-- [ ] 2.7 Tests: refusals for a non-owner run, a revision committed by another user, and an unlinked channel sender; the configuration error; redaction in all three places; permission defaults under `allow_reads` and under `ask`.
+- [ ] 2.7 Tests: refusals for a non-owner run, a revision committed by another user, and an unlinked channel sender; refusal of an approval or wait answer from another member in the web app and in a channel; the configuration error; redaction in all three places; permission defaults under `allow_reads` and under `ask`.
 
 ## 3. Runner browser sessions (14–21 days)
 
-- [ ] 3.1 `/browser/*` routes with the runner token; record and honor the owning replica in Redis.
+- [ ] 3.1 `/browser/*` routes with the runner token, served by the replica that owns the agent session.
 - [ ] 3.2 Browser sandbox lifecycle: start on first call, 5-minute warm reuse, 30-minute wait, delete; stop on profile archive.
 - [ ] 3.3 Chrome start settings (no automation flags, desktop viewport, user agent, timezone, locale); debugging port open to the runner only.
 - [ ] 3.4 CDP actions for the ten ops; `read_page` and `find` with element references and a size bound under the 100 KB cap.

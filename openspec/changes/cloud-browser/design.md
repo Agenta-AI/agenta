@@ -94,6 +94,7 @@ Status: Requirements (R) and decisions (D) marked "User" were confirmed by Ashra
 | R41 | Values typed into password fields are redacted in the step log, the transcript, and traces. Members who can open a session see the page text the agent read. | Triage F-012 | browser-sessions, browser-agent-tools |
 | R42 | The owner can see who watched or took control of their browser sessions, and when. | Triage F-022 | browser-live-view |
 | R43 | Screenshots are shown to the user only; the model works from page text. | Triage F-008 | browser-agent-tools |
+| R44 | Only the profile owner can answer an approval or a `wait_for_user` raised by a browser tool, in the web app and in channels. | Triage F-024 | browser-agent-tools, browser-sessions |
 
 ## Decisions
 
@@ -111,18 +112,19 @@ Status: Requirements (R) and decisions (D) marked "User" were confirmed by Ashra
 | D10 | The browser sandbox uses the existing agent snapshot, which already has Chromium. No snapshot change. | User | A new browser-only snapshot. |
 | D11 | Ten browser tools are `PlatformOp` entries in handler mode (`tools.agenta.browser_*`). The API handler checks access and calls the runner's `/browser/*` routes. `wait_for_user` is a `client` tool with its own render hint, because only a client tool pauses a turn. | Design; `wait_for_user` kind by triage F-001 | Path mode on public REST endpoints. A runner-local executor kind (does not exist). `wait_for_user` in handler mode (cannot pause). |
 | D12 | A login, 2FA, or CAPTCHA prompt pauses the turn when the agent calls `wait_for_user`. When a user takes control in the live view, every browser op fails with `user_in_control`, whose `next_step` tells the agent to call `wait_for_user`. The browser sandbox keeps running during the pause because it is separate from the agent session. | Design; take-control by triage F-002 | A tool call that blocks for 30 minutes (tool calls time out). Injecting an interaction into a running turn (no such path exists). |
-| D13 | The profile is resolved on the server from the run's agent revision and the run's user. The model never passes a profile ID. The handler refuses when the run's user is not the owner, when the revision's author is not the owner (R40), and when a channel run has no linked sender (R39). | Design; checks by triage F-004, F-005 | The model passes a profile ID. Clearing or locking the binding on another user's commit. |
+| D13 | The profile is resolved on the server from the run's agent revision and the run's user. The model never passes a profile ID. The handler refuses when the run's user is not the owner, when the revision's author is not the owner (R40), and when a channel run has no linked sender (R39). The channel inbox records on the run that its identity is a fallback (today it replaces a missing link with the agent creator before the turn opens, `inbox.py:592-604`), and the browser ops bind that marker from run context. | Design; checks by triage F-004, F-005, F-025 | The model passes a profile ID. Clearing or locking the binding on another user's commit. |
 | D14 | Re-login bumps a profile generation. A run may save session state only if the generation it loaded is still current and the profile is not archived. Among runs on the same generation, the last save wins. | Design | Plain last-writer-wins (a stale run could overwrite a fresh re-login). |
 | D15 | During a live-view login, the allowlist still applies, except that the browser may follow redirects that start on an allowlisted site. Hosts in those redirect chains are proposed as sign-in hosts; the owner confirms them before they are saved. A login session ends after 30 minutes, and a user can have one login session open at a time. | Design; restricted by triage F-014 | An open browser during login (every visited host becomes allowed; an unrestricted cloud browser for any member). A fixed list of known identity providers. |
 | D16 | The agent reports a login, 2FA, or CAPTCHA prompt by calling `wait_for_user` with a reason. Agenta does not detect login pages, except as D18 says. | Design | Automatic login-page detection (unreliable across sites). |
 | D17 | Eight ops set `default_permission` `allow` (`navigate`, `read_page`, `find`, `form_input`, `left_click`, `type`, `upload`, `read_download`) and two set `ask` (`pay`, `delete`). Under the default `allow_reads` mode this gives R7. When an author picks another agent-wide mode or a per-tool permission, that choice applies, as for every tool. | Design | Writing explicit per-tool permissions when a profile is attached (would override an author who chose `ask` for everything). |
 | D18 | A run proves the session is logged out when a navigation to an allowlisted site lands on a confirmed sign-in host. The op then fails with `login_required`, and the agent calls `wait_for_user`. If that wait times out, the run fails and the profile becomes `needs_login`. Any other wait that times out fails only the run. | Design; implements triage F-020 | Marking `needs_login` on every timed-out wait (one false alarm blocks every later run). |
-| D19 | Redis records the runner replica that owns each browser session. The API and other replicas forward `/browser/*` calls and the live view to that replica. At turn end the runner posts the session state to a new API route, which applies D14. | Triage F-007 | Stateless reattach on every call (timers and the screencast would move to shared jobs). |
+| D19 | The browser sandbox belongs to the runner replica that already owns the agent session (the existing per-replica session claim, `runtime-policy.ts:342-345`). The API routes `/browser/*` calls and the live view by session ID to that replica, so the turn-end save and the warm timer stay local. At turn end the runner posts the session state to a new API route, which applies D14. | Triage F-007, F-026 | A separate owner record for the browser (turn end and the warm timer would need a cross-replica signal). Stateless reattach on every call. |
 | D20 | The runner meters every second a browser sandbox runs (turns, warm time, waits, login sessions) to the profile owner's payer, using the run credential or, for a login session, the owner's credential. The API refuses to start a browser sandbox when the payer's plan limit is reached. | Triage F-016 | Billing turn time only. |
 | D21 | "Admin" means the organization owner, or a member whose role is `owner` or `admin` in the session's project. The check reads the member role directly and does not use the non-RBAC allow-all path. Only the organization owner changes `allow_browser`, and that flag is exempt from the `ACCESS` entitlement. | Triage F-003 | Any member who passes the RBAC check (every member on plans without RBAC). |
 | D22 | The live-view WebSocket route authenticates inside the route (session cookie or API key), checks the `Origin` header against the web app's origins, checks D21 or ownership, and closes when the session expires. | Triage F-010 | Relying on the HTTP auth middleware (it does not run for WebSockets). |
 | D23 | The SDK adds a `browser.profile` field to the agent config. When it is set, the resolver adds the browser tools; when platform handlers are turned off, an agent with a profile fails with a clear configuration error instead of losing the tools silently. | Triage F-009 | Authors listing the eleven tools by hand. |
 | D24 | Redaction: the runner marks values typed into password fields, and the API stores `"[redacted]"` for them in the step log, the tool arguments in the transcript, and traces. | Triage F-012 | Hiding all browser tool input and output from non-owners (new filtering in sessions and tracing). |
+| D25 | For an interaction raised by a browser tool (an approval of `pay` or `delete`, or `wait_for_user`), the session interaction route and the channel inbox accept an answer only from the profile owner and refuse every other user with a clear error. | Triage F-024 | Any member with `RUN_SESSIONS` (today's rule). The owner and admins. |
 
 ## Architecture
 
@@ -132,13 +134,13 @@ Agent harness (Pi / Claude / Codex)
   → API POST /tools/call → browser handler
       checks: allow_browser, run user == owner, revision author == owner,
               linked channel sender, profile state, plan limit; step log; redaction
-  → owning runner replica /browser/*               (internal, runner token; Redis routing)
+  → runner replica that owns the session /browser/*  (internal, runner token; routed by session ID)
   → browser sandbox (Daytona, existing snapshot, no agent shell)
       Chrome over CDP: allowlist on every target; session state loaded and saved through the API
 
 wait_for_user                                       (client tool → turn pauses; browser keeps running)
 
-Web app ⇄ API WebSocket (in-route auth, Origin) ⇄ owning runner ⇄ CDP screencast + input
+Web app ⇄ API WebSocket (in-route auth, Origin) ⇄ session's runner replica ⇄ CDP screencast + input
 ```
 
 ### Profile lifecycle
@@ -148,7 +150,7 @@ Web app ⇄ API WebSocket (in-route auth, Origin) ⇄ owning runner ⇄ CDP scre
 ### Run lifecycle
 
 1. The first browser tool call of a session reaches the API handler. The handler resolves the profile and runs the D13 checks. If the profile is `needs_login`, the call fails with `profile_needs_login` and no sandbox starts (R31). If the payer's plan limit is reached, the call fails with `browser_limit_reached`.
-2. The API asks a runner to start a browser sandbox and records the owning replica (D19). The runner creates it from the existing snapshot, starts Chrome (R33), loads the session state, and installs the allowlist on every target (D7).
+2. The API asks the runner replica that owns the session to start a browser sandbox (D19). The runner creates it from the existing snapshot, starts Chrome (R33), loads the session state, and installs the allowlist on every target (D7).
 3. Each tool call runs one CDP action and writes one step-log entry with a screenshot (redacted per D24). The model gets text results only (R43).
 4. A prompt the agent cannot pass leads it to call `wait_for_user`, which pauses the turn. A user taking control makes browser ops fail with `user_in_control` until control is given back. The browser keeps running for up to 30 minutes. When the user is done, the turn resumes on the same page.
 5. When a turn ends, the runner posts the session state to the API, which saves it under D14. The sandbox stays warm for 5 minutes (R37) or until a pending wait ends, then the runner deletes it. Metering covers the whole lifetime (D20).
@@ -157,6 +159,7 @@ Web app ⇄ API WebSocket (in-route auth, Origin) ⇄ owning runner ⇄ CDP scre
 
 - Use a profile in a run: the run's user is the owner, the revision's author is the owner, and a channel run has a linked sender (D13).
 - Watch or take control of a browser session: the owner and admins (D21). Every open and every control hand-off is recorded for the owner (R42).
+- Answer an approval or a `wait_for_user` raised by a browser tool: the owner only (D25).
 - Read step logs and screenshots: the owner and admins.
 - Read downloads: the owner (D6). A download copied into a session is visible to members who can open that session.
 - Read transcript and traces: members who can open the session, with password values redacted (D24).
@@ -167,7 +170,7 @@ Web app ⇄ API WebSocket (in-route auth, Origin) ⇄ owning runner ⇄ CDP scre
 | Threat | Mitigation | Residual risk |
 | --- | --- | --- |
 | The agent reads the cookies (prompt injection or a bad author). | Separate browser sandbox (D1); session state in a secret kind no vault route returns (D5); CDP methods that read cookies are never exposed as tools. | None known. |
-| Another member uses the owner's logins. | Owner, revision-author, and linked-sender checks (D13). | An admin can take control (R38); every such session is recorded for the owner (R42). |
+| Another member uses the owner's logins. | Owner, revision-author, and linked-sender checks (D13); only the owner answers browser approvals and waits (D25). | An admin can take control (R38); every such session is recorded for the owner (R42). |
 | Page content tells the agent to act (prompt injection). | Allowlist on every target (D7); `pay` and `delete` ask (D17); only owner-committed revisions run with the profile (R40); every step is logged. | The agent can still act on allowlisted sites and can pass page text to its other tools, such as a Slack send. The owner accepts this when they attach a profile to an agent with such tools. |
 | The browser is used to reach internal hosts (SSRF). | IP literal, `localhost`, private, and link-local refusal (D7); Chrome debugging port closed to everyone but the runner. | DNS rebinding is checked by Phase 0 check 0.9. |
 | The live view is hijacked from another site. | In-route auth and `Origin` check; close on session expiry (D22). | None known. |
@@ -187,7 +190,7 @@ Each item has a Phase 0 check in [tasks.md](tasks.md). None of them is assumed t
 | Changing egress IPs and bot detection | Some sites end a session when the IP changes or block automation. This decides D3. | 0.5, acceptance |
 | A pending interaction in a scheduled run | R6 and R18 need a scheduled run to park on `wait_for_user` and be answered later from the session screen. No code path shows this works for trigger-origin sessions. | 0.6 |
 | Agent sandbox reaching the browser sandbox | D1 depends on the agent having no network path or credential to the browser sandbox. | 0.7 |
-| Two runner replicas | D19 routing must hold the CDP socket, timers, and live view on the owning replica. | 0.8 |
+| Two runner replicas | D19 routing must keep the CDP socket, timers, and live view on the replica that owns the agent session. | 0.8 |
 | DNS rebinding and private ranges | D7 must refuse a public host name that resolves to a private address. | 0.9 |
 
 ## Estimate
@@ -198,16 +201,16 @@ Basis: one engineer who knows the runner and the API, working days, unit and sec
 | --- | --- | --- |
 | 0 | Spike (time-boxed, nine checks) | 5–7 |
 | 1 | API domain, migration, RBAC, admin check (D21), organization flag, `browser_session_state` secret kind, states, revision-author check, membership reconcile | 8–12 |
-| 2 | SDK config field and tool injection (D23), ten platform ops, API handlers, API→runner client with replica routing, checks, step log, redaction, error envelopes, approval defaults | 8–12 |
+| 2 | SDK config field and tool injection (D23), ten platform ops, API handlers, API→runner client with session routing, checks, the channel fallback marker (D13), owner-only answers (D25), step log, redaction, error envelopes, approval defaults | 9–14 |
 | 3 | Runner `/browser/*`: replica ownership, sandbox lifecycle, Chrome launch, CDP actions, `read_page` and `find` with references and size bounds, session-state load and save route, allowlist on every target and SSRF refusal, uploads, downloads to profile storage, metering of all browser time | 14–21 |
 | 4 | `wait_for_user` client tool, `user_in_control`, `login_required` (D18), pause and reattach, 30-minute expiry | 5–7 |
 | 5 | Live view backend: WebSocket route with in-route auth and `Origin`, runner relay, input mapping, control hand-off, open/control audit, login-session limits | 6–9 |
 | 6 | Profile-owned download storage and `read_download`; screenshot storage and 30-day deletion job; step-log query; plan limit enforcement | 7–10 |
 | 7 | Frontend: live view 5–7, Settings tab 2–3, agent config section 2–3, chat dock (wait card), watch button, tool rows and screenshots 4–6, session badge 1, Fern client and entity 1–2, owner audit view and downloads list 2–3 | 17–25 |
 | 8 | Release-gate scenarios on Pi, Claude, and Codex; docs page; the R15 acceptance run (5 calendar days elapsed) | 4–6 |
-| | **Total** | **74–109** |
+| | **Total** | **75–111** |
 
-The total rose from 57–85 after the scan. Triage added work in Phases 1–7: the dedicated secret kind, the revision-author check, membership reconcile, tool injection, replica routing, allowlist coverage, redaction, billing of all browser time, the audit, and tests per phase. Profile-owned download storage replaced the mount work.
+The total rose from 57–85 after the scan, and from 74–109 after self-review 3 (F-024, F-025). Triage added work in Phases 1–7: the dedicated secret kind, the revision-author check, membership reconcile, tool injection, replica routing, allowlist coverage, redaction, billing of all browser time, the audit, and tests per phase. Profile-owned download storage replaced the mount work.
 
 Not included: plan pricing and limit values (Q1), Daytona quota changes, a fixed egress proxy if D3 triggers it, and v2 items (sharing, notifications, self-hosted).
 
