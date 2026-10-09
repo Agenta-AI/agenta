@@ -447,12 +447,13 @@ redisDurable:
 #
 # The chart answers that with two objects, both on by default:
 #
-#   * a PodDisruptionBudget per workload. Two or more replicas get
-#     `maxUnavailable: 1`. One replica gets a budget only when you ask for it
-#     with `<workload>.pdb.protectSingleton: true`, because a budget over a
-#     single pod defers every voluntary eviction of its node rather than
-#     keeping the workload up. Autopilot honours a budget for one hour during
-#     a node upgrade and never for a node that fails outright.
+#   * a PodDisruptionBudget per workload, `maxUnavailable: 1` for all of them.
+#     Two or more replicas lose one pod at a time. One replica gets the same
+#     budget, which permits the eviction: a budget over a single pod that
+#     allows zero disruptions (`minAvailable: 1`) protects nothing, stops the
+#     platform from draining that node for its whole grace period, and loses
+#     the pod at the end of it anyway. Autopilot honours a budget for one hour
+#     during a node upgrade and never for a node that fails outright.
 #   * topologySpreadConstraints for every workload with two or more replicas:
 #     one pod per node (hard) and an even spread over zones (soft), scoped to
 #     one revision so a rolling update is not blocked by the pods it replaces.
@@ -471,8 +472,13 @@ redisDurable:
 #       maxUnavailable: 1    # or minAvailable; overrides the default
 #   agentRunner:
 #     pdb:
-#       protectSingleton: true        # defer eviction of the only runner pod
+#       minAvailable: 1               # refuse every voluntary eviction of the
+#                                     # only runner pod, for the grace period
 #     topologySpreadConstraints: []   # replace the generated list entirely
+#
+# `pdb.protectSingleton` was removed in 0.122.5. It rendered `minAvailable: 1`
+# over a single pod, which is the shape described above. Write that shape with
+# `pdb.minAvailable: 1` if you want it.
 #
 # Cron and the volatile redis default to `strategy: Recreate`. Cron, because
 # supercronic fires every schedule in every pod. Redis, because two caches serve

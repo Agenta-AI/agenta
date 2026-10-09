@@ -294,6 +294,41 @@ Allowed values:
 {{- end }}
 
 {{/* ================================================================
+   `<workload>.pdb.protectSingleton` is gone. It rendered
+   `minAvailable: 1` over a single pod, a budget that permits no
+   voluntary disruption at all, so the platform could not drain that
+   node. A removed key is accepted in silence by the values schema,
+   which would turn the removal into a quiet behaviour change on
+   upgrade, so say it out loud instead.
+   ================================================================ */}}
+{{- define "agenta.validateRemovedPdbProtectSingleton" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $offenders := list -}}
+{{- range $wl := include "agenta.workloads" . | fromYamlArray -}}
+{{- $node := $values -}}
+{{- range splitList "." $wl.key }}{{- $node = default dict (get $node .) }}{{- end -}}
+{{- if hasKey (default dict $node.pdb) "protectSingleton" -}}
+{{- $offenders = append $offenders (printf "%s.pdb.protectSingleton" $wl.key) -}}
+{{- end -}}
+{{- end -}}
+{{- if $offenders -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: %s is set, and the chart no longer reads it.
+
+protectSingleton rendered minAvailable 1 over a single pod. That budget allows zero voluntary
+disruptions, so the platform cannot drain the node, warns for the whole grace period, and
+evicts the pod at the end of it anyway. Every workload now gets maxUnavailable 1.
+
+Remove the key. If you do want the node drain refused for the grace period, ask for that shape
+by name:
+
+  <workload>.pdb.minAvailable: 1
+` (join ", " $offenders)) -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
    A local sandbox is a process inside the runner pod that started
    it. A second runner pod cannot reach it, so the local provider
    runs exactly one runner pod.

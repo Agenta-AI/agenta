@@ -4,10 +4,9 @@
 # ///
 """Rendered-chart coverage for availability under disruption.
 
-The chart renders a PodDisruptionBudget per workload with two or more replicas
-(`maxUnavailable: 1`), and for a single replica only when
-`<workload>.pdb.protectSingleton` asks for it. It renders
-topologySpreadConstraints for every workload with two or more replicas.
+The chart renders a PodDisruptionBudget per enabled workload, `maxUnavailable: 1`
+for all of them, whatever the replica count. It renders topologySpreadConstraints
+for every workload with two or more replicas.
 `podDisruptionBudgets.enabled` and `topologySpread.enabled` turn each off.
 Both bundled redis instances carry a startup probe, so a long append-only-file
 replay is not killed by liveness.
@@ -103,22 +102,61 @@ def selector(component: str) -> dict:
     }
 
 
-def single_replicas_get_nothing() -> None:
-    """Every workload runs one replica by default: no budget, no spread."""
+def every_workload_gets_a_budget_that_permits_an_eviction() -> None:
+    """One replica is the default, and its budget must not block a node drain.
+
+    `minAvailable: 1` over a single pod allows zero voluntary disruptions: the platform
+    cannot drain the node, warns for the whole grace period, and evicts the pod at the
+    end of it anyway (Agenta-AI/agenta#7497 on the live GKE stages). Every workload gets
+    `maxUnavailable: 1` instead, so the set of budgets does not change shape when a
+    workload is scaled. A single replica still gets no spread constraint.
+    """
     docs = render()
-    assert budgets(docs) == {}, budgets(docs)
+    found = budgets(docs)
+    deployed = {
+        component_of(d)
+        for d in docs
+        if d["kind"] in ("Deployment", "StatefulSet")
+        # The alembic migration is a Job, not a workload, and gets no budget.
+    }
+    assert set(found) == deployed, f"budgets {sorted(found)} vs workloads {sorted(deployed)}"
+    for component, spec in found.items():
+        assert spec == {"maxUnavailable": 1, "selector": selector(component)}, component
     for d in docs:
         if d["kind"] in ("Deployment", "StatefulSet"):
             spec = d["spec"]["template"]["spec"]
             assert "topologySpreadConstraints" not in spec, component_of(d)
 
 
+def the_budget_set_covers_the_components_the_chart_deploys() -> None:
+    """Name the components, so dropping one from agenta.workloads fails here.
+
+    Comparing budgets against rendered workloads alone passes when a component leaves
+    both lists at once.
+    """
+    docs = render()
+    expected = {
+        "api",
+        "web",
+        "web-mobile",
+        "services",
+        "runner",
+        "worker-queues",
+        "worker-streams",
+        "cron",
+        "supertokens",
+        "redis-volatile",
+        "redis-durable",
+        "seaweedfs",
+    }
+    assert set(budgets(docs)) == expected, sorted(budgets(docs))
+
+
 def two_replicas_get_a_budget_and_a_spread() -> None:
     docs = render(["--set", "api.replicas=2", "--set", "web.replicas=3"])
-    assert budgets(docs) == {
-        "api": {"maxUnavailable": 1, "selector": selector("api")},
-        "web": {"maxUnavailable": 1, "selector": selector("web")},
-    }
+    found = budgets(docs)
+    assert found["api"] == {"maxUnavailable": 1, "selector": selector("api")}
+    assert found["web"] == {"maxUnavailable": 1, "selector": selector("web")}
     revision = {
         "matchLabelKeys": ["pod-template-hash"],
         "labelSelector": selector("api"),
@@ -173,18 +211,42 @@ def overrides_replace_the_defaults() -> None:
     ]
 
 
-def protect_singleton_is_opt_in() -> None:
-    docs = render(
-        [
-            "--set",
-            "agentRunner.pdb.protectSingleton=true",
-            "--set",
-            "store.seaweedfs.pdb.protectSingleton=true",
-        ]
-    )
-    assert budgets(docs) == {
-        "runner": {"minAvailable": 1, "selector": selector("runner")},
-        "seaweedfs": {"minAvailable": 1, "selector": selector("seaweedfs")},
+def the_removed_protect_singleton_key_is_refused() -> None:
+    """A values key the chart stopped reading must fail the render, not be ignored.
+
+    The values schema accepts an undeclared per-workload key, so an upgrade would
+    otherwise drop `minAvailable: 1` from a budget in silence.
+    """
+    for key in (
+        "agentRunner.pdb.protectSingleton",
+        "store.seaweedfs.pdb.protectSingleton",
+        "cron.pdb.protectSingleton",
+    ):
+        result = subprocess.run(
+            [
+                "helm",
+                "template",
+                "availability-chart-test",
+                str(CHART_DIR),
+                *BASE_ARGS,
+                "--set",
+                f"{key}=true",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0, f"{key} should fail the render"
+        assert "protectSingleton" in result.stderr, result.stderr
+        assert "maxUnavailable" in result.stderr, result.stderr
+
+
+def an_explicit_min_available_is_still_available() -> None:
+    """The shape protectSingleton used to produce is still reachable by name."""
+    docs = render(["--set", "agentRunner.pdb.minAvailable=1"])
+    assert budgets(docs)["runner"] == {
+        "minAvailable": 1,
+        "selector": selector("runner"),
     }
 
 
@@ -193,8 +255,6 @@ def the_switches_turn_everything_off() -> None:
         [
             "--set",
             "api.replicas=2",
-            "--set",
-            "agentRunner.pdb.protectSingleton=true",
             "--set",
             "podDisruptionBudgets.enabled=false",
             "--set",
@@ -385,10 +445,12 @@ def a_typo_in_either_switch_is_refused() -> None:
 
 
 def main() -> int:
-    single_replicas_get_nothing()
+    every_workload_gets_a_budget_that_permits_an_eviction()
+    the_budget_set_covers_the_components_the_chart_deploys()
     two_replicas_get_a_budget_and_a_spread()
     overrides_replace_the_defaults()
-    protect_singleton_is_opt_in()
+    the_removed_protect_singleton_key_is_refused()
+    an_explicit_min_available_is_still_available()
     the_switches_turn_everything_off()
     redis_has_a_startup_probe()
     redis_probes_fail_on_an_error_reply()

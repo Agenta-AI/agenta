@@ -342,9 +342,10 @@ pod that owns it. See
 
 ### Availability and Rollout {#availability-and-rollout}
 
-The chart renders a PodDisruptionBudget and topologySpreadConstraints for each workload that runs
-two or more replicas. A workload with one replica gets neither by default. The chart also sets
-rollout and shutdown defaults per workload, whatever its replica count.
+The chart renders a PodDisruptionBudget for every workload, `maxUnavailable: 1` for all of them,
+and topologySpreadConstraints for each workload that runs two or more replicas. A workload with one
+replica gets no constraints. The chart also sets rollout and shutdown defaults per workload,
+whatever its replica count.
 [Prepare a Kubernetes deployment for production](/self-host/guides/kubernetes-production) explains
 what each one does, what the defaults give you, and what they do not.
 
@@ -352,9 +353,8 @@ what each one does, what the defaults give you, and what they do not.
 |-------|---------|---------|
 | `podDisruptionBudgets.enabled` | Render a budget per workload | `true` |
 | `topologySpread.enabled` | Render spread constraints per workload | `true` |
-| `<workload>.pdb.maxUnavailable` | Replace the generated budget | `1` on 2 or more replicas, otherwise no budget |
+| `<workload>.pdb.maxUnavailable` | Replace the generated budget | `1` |
 | `<workload>.pdb.minAvailable` | Replace the generated budget | unset |
-| `<workload>.pdb.protectSingleton` | Give a one-replica workload a `minAvailable: 1` budget | `false` |
 | `<workload>.topologySpreadConstraints` | Replace the generated constraint list | generated on 2 or more replicas |
 | `<workload>.strategy` | Rendered verbatim under the Deployment's `spec.strategy` | per workload |
 | `<workload>.terminationGracePeriodSeconds` | Rendered on the pod spec | per workload |
