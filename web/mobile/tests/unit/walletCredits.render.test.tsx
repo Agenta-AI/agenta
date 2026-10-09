@@ -70,19 +70,35 @@ const flooredSummary = (): WalletSummary => ({
     ],
 })
 
+// Yesterday, so the day always falls inside the chart's default 30-day range.
+const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+
 const usage: WalletUsage = {
     start: "2026-09-02T00:00:00Z",
     end: "2026-10-02T00:00:00Z",
     truncated: false,
     days: [
-        {day: "2026-10-01", category: "AI models", amount_musd: 1_000_000, charge_count: 3},
-        {day: "2026-10-01", category: "Runtime", amount_musd: 250_000, charge_count: 2},
+        {day: yesterday, category: "AI models", amount_musd: 1_000_000, charge_count: 3},
+        {day: yesterday, category: "Runtime", amount_musd: 250_000, charge_count: 2},
     ],
     sessions: [],
 }
 
 let root: Root | undefined
 let host: HTMLDivElement | undefined
+
+// jsdom has neither; the usage chart reads both.
+window.matchMedia ??= vi.fn((query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+})) as unknown as typeof window.matchMedia
+globalThis.ResizeObserver ??= class {
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+} as unknown as typeof ResizeObserver
 
 beforeEach(() => {
     runtime.__env = {NEXT_PUBLIC_AGENTA_WALLETS_ENABLED: "true"}
@@ -154,17 +170,18 @@ describe("the sidebar credits meter", () => {
 })
 
 describe("the Credits tab", () => {
-    it("shows credits left, where they come from, and credits used per day", async () => {
+    it("shows the balance, the credits behind it, and credits used in the range", async () => {
         api.summary.mockResolvedValue(summary("enforce"))
         api.usage.mockResolvedValue(usage)
-        const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
+        const shown = await render(<CreditsTab projectId="proj-1" />)
 
-        expect(shown).toContain("1,234.5 credits")
         expect(shown).toContain("Signup bonus")
-        expect(shown).toContain("expires Oct 2, 2027")
-        expect(shown).toContain("Oct 1, 2026")
-        expect(shown).toContain("AI models")
-        expect(shown).toContain("125")
+        expect(shown).toContain("1,234.5")
+        expect(shown).toContain("of 5,000")
+        expect(shown).toContain("Valid until Oct 2, 2027")
+        expect(shown).toContain("125.0 credits · $1.25")
+        expect(shown).toContain("AI models 100.0 · 80%")
+        expect(shown).toContain("Runtime 25.0 · 20%")
     })
 
     it("shows 0 credits when the balance is under the floor", async () => {
@@ -187,15 +204,34 @@ describe("the Credits tab", () => {
         })
         api.summary.mockResolvedValue(wallet)
         api.usage.mockResolvedValue(usage)
-        const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
+        const shown = await render(<CreditsTab projectId="proj-1" />)
 
         expect(shown).toContain("Signup bonus")
         expect(shown).not.toContain("Expired grant")
     })
 
+    it("lists bought packs with what is left of them", async () => {
+        const wallet = summary("enforce")
+        wallet.credits.push({
+            ...wallet.credits[0],
+            id: "c-3",
+            credit_kind: "purchase",
+            amount_musd: 25_000_000,
+            remaining_musd: 0,
+            end_time: "2027-10-02T00:00:00Z",
+        })
+        api.summary.mockResolvedValue(wallet)
+        api.usage.mockResolvedValue(usage)
+        const shown = await render(<CreditsTab projectId="proj-1" />)
+
+        expect(shown).toContain("2,500 credits")
+        expect(shown).toContain("$25.00")
+        expect(shown).toContain("Used up")
+    })
+
     it("reads nothing for an organization the wallet does not enforce", async () => {
         api.summary.mockResolvedValue(summary("shadow"))
-        const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
+        const shown = await render(<CreditsTab projectId="proj-1" />)
 
         expect(shown).toBe("Credits are not in use for this organization.")
         expect(api.usage).not.toHaveBeenCalled()
@@ -204,9 +240,9 @@ describe("the Credits tab", () => {
     it("tells a member who is not the owner that usage detail is the owner's", async () => {
         api.summary.mockResolvedValue(summary("enforce"))
         api.usage.mockRejectedValue(Object.assign(new Error("403"), {response: {status: 403}}))
-        const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
+        const shown = await render(<CreditsTab projectId="proj-1" />)
 
-        expect(shown).toContain("1,234.5 credits")
-        expect(shown).toContain("Only the organization owner can see where credits were used.")
+        expect(shown).toContain("1,234.5")
+        expect(shown).toContain("Usage details are owner-only")
     })
 })

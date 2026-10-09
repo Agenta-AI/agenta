@@ -2,6 +2,7 @@ import type {ReactNode} from "react"
 
 import {motion} from "motion/react"
 
+import {AnimatedNumber} from "@/components/AnimatedNumber"
 import {useMotionPresets} from "@/lib/motion/presets"
 import {useCountUp} from "@/lib/motion/useCountUp"
 import {cn} from "@/lib/utils"
@@ -18,10 +19,16 @@ const copy = {
     label: "Wallet",
     balance: "Balance",
     unit: "credits",
-    usage: (usd: string) => `≈ ${usd} in usage`,
+    usage: (usd: ReactNode) => <>≈ {usd} in usage</>,
     rate: (usd: string) => `1 credit = ${usd}`,
     active: "Active",
 }
+
+const STATUS_DOT = {
+    success: "bg-success",
+    warning: "bg-colorWarning",
+    error: "bg-destructive",
+} as const
 
 export interface WalletCardProps {
     /** Spendable balance in micro-USD; `null` shows `emptyHint` in its place. */
@@ -30,6 +37,8 @@ export interface WalletCardProps {
     emptyHint?: ReactNode
     /** Footer status; `null` hides it. */
     status?: ReactNode
+    /** The status dot's color. */
+    statusTone?: "success" | "warning" | "error"
     /** Count the balance up from zero on mount. */
     countUp?: boolean
     /** Tilt in and sweep a shine on mount. */
@@ -38,6 +47,8 @@ export interface WalletCardProps {
     interactive?: boolean
     /** Soft glow under the card. */
     glow?: boolean
+    /** `compact` drops the card ratio for a 140px row and tightens the type; nothing is hidden. */
+    size?: "default" | "compact"
     className?: string
 }
 
@@ -46,12 +57,15 @@ export const WalletCard = ({
     balanceMusd,
     emptyHint,
     status = copy.active,
+    statusTone = "success",
     countUp = false,
     entrance = false,
     interactive = false,
     glow = false,
+    size = "default",
     className,
 }: WalletCardProps) => {
+    const compact = size === "compact"
     const presets = useMotionPresets()
     const moves = !presets.reduced
     const {tilt, onPointerMove, onPointerLeave} = useCardTilt(interactive && moves)
@@ -59,6 +73,8 @@ export const WalletCard = ({
         (balanceMusd ?? 0) / MUSD_PER_CREDIT,
         countUp && moves ? presets.countUpMs : 0,
     )
+    // A count-up already moves every frame; otherwise changed digits flip in.
+    const figure = (text: string) => (countUp ? text : <AnimatedNumber value={text} />)
 
     return (
         <div className={cn("relative", className)}>
@@ -82,7 +98,10 @@ export const WalletCard = ({
                 }}
                 transition={tilt.hover ? presets.tiltFollow : presets.tiltSettle}
                 style={{transformPerspective: 900}}
-                className="bg-hero-action text-hero-action-foreground ring-hero-action-foreground/10 relative box-border flex aspect-[1.586] flex-col justify-between overflow-hidden rounded-2xl px-[18px] py-4 shadow-sm ring-1 ring-inset will-change-transform"
+                className={cn(
+                    "bg-hero-action text-hero-action-foreground ring-hero-action-foreground/10 relative box-border flex flex-col justify-between overflow-hidden rounded-2xl px-[18px] shadow-sm ring-1 ring-inset will-change-transform",
+                    compact ? "h-[140px] py-3.5" : "aspect-[1.586] py-4",
+                )}
             >
                 {interactive ? (
                     <span
@@ -128,28 +147,56 @@ export const WalletCard = ({
                         {emptyHint}
                     </span>
                 ) : (
-                    <div className="relative flex flex-col gap-0.5">
+                    <div className={cn("relative flex flex-col", !compact && "gap-0.5")}>
                         <span className="text-[11px] font-medium uppercase leading-4 tracking-[0.04em] opacity-75">
                             {copy.balance}
                         </span>
-                        <span className="flex items-baseline gap-2">
-                            <span className="text-[40px] font-semibold tabular-nums leading-[44px] tracking-[-0.035em]">
-                                {Math.round(credits).toLocaleString()}
+                        <span className="flex min-w-0 items-baseline gap-2">
+                            <span
+                                className={cn(
+                                    "font-semibold tabular-nums",
+                                    compact
+                                        ? "text-[30px] leading-9 tracking-[-0.02em]"
+                                        : "text-[40px] leading-[44px] tracking-[-0.035em]",
+                                )}
+                            >
+                                {figure(Math.round(credits).toLocaleString())}
                             </span>
-                            <span className="text-[15px] font-medium leading-5">{copy.unit}</span>
+                            <span
+                                className={cn(
+                                    "font-medium",
+                                    compact
+                                        ? "text-[13px] leading-[18px]"
+                                        : "text-[15px] leading-5",
+                                )}
+                            >
+                                {copy.unit}
+                            </span>
+                            {compact ? (
+                                <span className="truncate text-xs tabular-nums leading-4 opacity-75">
+                                    {copy.usage(figure(formatUsd(credits * MUSD_PER_CREDIT)))}
+                                </span>
+                            ) : null}
                         </span>
-                        <span className="text-[13px] tabular-nums leading-[18px] opacity-75">
-                            {copy.usage(formatUsd(credits * MUSD_PER_CREDIT))}
-                        </span>
+                        {compact ? null : (
+                            <span className="text-[13px] tabular-nums leading-[18px] opacity-75">
+                                {copy.usage(figure(formatUsd(credits * MUSD_PER_CREDIT)))}
+                            </span>
+                        )}
                     </div>
                 )}
-                <div className="relative flex items-center justify-between border-0 border-t border-solid border-current/15 pt-3">
+                <div
+                    className={cn(
+                        "relative flex items-center justify-between border-0 border-t border-solid border-current/15",
+                        compact ? "pt-2" : "pt-3",
+                    )}
+                >
                     <span className="text-xs leading-4 opacity-75">
                         {copy.rate(formatUsd(MUSD_PER_CREDIT))}
                     </span>
                     {status === null ? null : (
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium leading-4">
-                            <span className="bg-success size-1.5 rounded-full" />
+                            <span className={cn("size-1.5 rounded-full", STATUS_DOT[statusTone])} />
                             {status}
                         </span>
                     )}

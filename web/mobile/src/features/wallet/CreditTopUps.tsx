@@ -9,7 +9,7 @@ import {
 import {useRouter} from "next/router"
 
 /**
- * This app's binding of the shared top-up section, on the Credits tab and on Usage & Billing: the
+ * This app's binding of the shared top-up section on Plan & billing: the
  * Stripe return and the "open the picker" request come from this page's URL; the host says where
  * the free plan's upgrade goes and whether the section is a card.
  */
