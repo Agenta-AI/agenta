@@ -271,3 +271,155 @@ async def test_cancel_subscription_reconciles_when_stripe_is_already_canceled(
         event=Event.SUBSCRIPTION_CANCELLED,
     )
     router._reset_organization_flags.assert_awaited_once_with("org_123")
+
+
+def _payment_failed_event(organization_id: str = "org_456"):
+    """A representative invoice.payment_failed delivery.
+
+    Shaped like the Stripe API after version 2025-03-31, which moved
+    `subscription_details` under `parent`, and carrying the subscription id the
+    handler needs to treat the invoice as a subscription invoice.
+    """
+
+    return SimpleNamespace(
+        id="evt_019739f9",
+        type="invoice.payment_failed",
+        data=SimpleNamespace(
+            object=SimpleNamespace(
+                id="in_123",
+                subscription="sub_123",
+                parent=SimpleNamespace(
+                    subscription_details=SimpleNamespace(
+                        subscription="sub_123",
+                        metadata=SimpleNamespace(
+                            target=billing_router_module.env.stripe.webhook_target,
+                            organization_id=organization_id,
+                        ),
+                    )
+                ),
+            )
+        ),
+    )
+
+
+def _install_stripe(monkeypatch, event):
+    monkeypatch.setattr(billing_router_module.env.stripe, "api_key", "sk_test_123")
+    monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", None)
+    monkeypatch.setattr(
+        billing_router_module,
+        "_load_stripe",
+        lambda: SimpleNamespace(
+            api_key="sk_test_123",
+            Event=SimpleNamespace(construct_from=lambda payload, api_key: event),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_payment_failed_pauses_a_paid_subscription(monkeypatch):
+    subscription_service = SimpleNamespace(
+        process_event=AsyncMock(return_value=object()),
+    )
+    router = BillingRouter(
+        subscription_service=subscription_service,
+        meters_service=SimpleNamespace(),
+    )
+    _install_stripe(monkeypatch, _payment_failed_event())
+
+    response = await router.handle_events(DummyRequest())
+
+    assert response.status_code == 200
+    assert loads(response.body) == {"status": "success"}
+    subscription_service.process_event.assert_awaited_once_with(
+        organization_id="org_456",
+        event=Event.SUBSCRIPTION_PAUSED,
+        subscription_id=None,
+        plan=None,
+        anchor=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_refused_payment_failed_event_answers_4xx_not_500(monkeypatch):
+    # The reported delivery: process_event refused the event and the handler
+    # answered 500 with "unexpected error" and no cause.
+    subscription_service = SimpleNamespace(
+        process_event=AsyncMock(
+            side_effect=billing_router_module.EventException(
+                "Event subscription_paused does not apply to organization ID "
+                "org_456, whose recorded plan is cloud_v0_hobby"
+            )
+        ),
+    )
+    router = BillingRouter(
+        subscription_service=subscription_service,
+        meters_service=SimpleNamespace(),
+    )
+    _install_stripe(monkeypatch, _payment_failed_event())
+
+    response = await router.handle_events(DummyRequest())
+
+    assert response.status_code == 400
+    body = loads(response.body)
+    assert body["status"] == "error"
+    assert "invoice.payment_failed" in body["message"]
+    # The recorded plan belongs in the log, not in a body this endpoint returns
+    # to an unauthenticated caller when no webhook secret is set.
+    assert "cloud_v0_hobby" not in body["message"]
+
+
+@pytest.mark.asyncio
+async def test_a_refused_event_logs_the_event_id_the_organization_and_the_reason(
+    monkeypatch,
+):
+    warnings = []
+    monkeypatch.setattr(
+        billing_router_module.log,
+        "warn",
+        lambda message, *args, **kwargs: warnings.append(message % args),
+    )
+
+    subscription_service = SimpleNamespace(
+        process_event=AsyncMock(
+            side_effect=billing_router_module.EventException("no subscription row")
+        ),
+    )
+    router = BillingRouter(
+        subscription_service=subscription_service,
+        meters_service=SimpleNamespace(),
+    )
+    _install_stripe(monkeypatch, _payment_failed_event())
+
+    await router.handle_events(DummyRequest())
+
+    rejection = [line for line in warnings if "Rejecting stripe event" in line]
+    assert len(rejection) == 1
+    assert "invoice.payment_failed" in rejection[0]
+    assert "evt_019739f9" in rejection[0]
+    assert "org_456" in rejection[0]
+    assert "no subscription row" in rejection[0]
+
+
+@pytest.mark.asyncio
+async def test_an_unexpected_failure_still_answers_500_with_a_log(monkeypatch):
+    errors = []
+    monkeypatch.setattr(
+        billing_router_module.log,
+        "error",
+        lambda message, *args, **kwargs: errors.append(message % args),
+    )
+
+    subscription_service = SimpleNamespace(
+        process_event=AsyncMock(side_effect=RuntimeError("database is down")),
+    )
+    router = BillingRouter(
+        subscription_service=subscription_service,
+        meters_service=SimpleNamespace(),
+    )
+    _install_stripe(monkeypatch, _payment_failed_event())
+
+    with pytest.raises(billing_router_module.HTTPException) as caught:
+        await router.handle_events(DummyRequest())
+
+    assert caught.value.status_code == 500
+    assert any("evt_019739f9" in line and "org_456" in line for line in errors)
