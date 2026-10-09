@@ -56,8 +56,7 @@ def test_the_pro_plan_is_sold_as_starter():
 
 def test_hobby_card_states_the_signup_bonus_projects_and_seats():
     assert (
-        f"Limited time: {_credits(SIGNUP_GRANT_AMOUNT_MUSD)} bonus credits "
-        "when you sign up"
+        f"{_credits(SIGNUP_GRANT_AMOUNT_MUSD)} bonus credits when you sign up"
     ) in _features(HOBBY)
     seats = DEFAULT_ENTITLEMENTS[HOBBY][Tracker.GAUGES][Gauge.USERS].limit
     assert f"{PROJECT_LIMITS[HOBBY.value]} project and {seats} team members" in (

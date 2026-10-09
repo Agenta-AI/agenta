@@ -208,7 +208,7 @@ DEFAULT_CATALOG = [
             },
         },
         "features": [
-            "Limited time: 500 bonus credits when you sign up",
+            "500 bonus credits when you sign up",
             "75 free credits every day, to use that day",
             "2 concurrent tasks",
             "1 project and 2 team members",

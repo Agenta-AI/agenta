@@ -58,7 +58,7 @@
         },
         "includesLabel": "Includes",
         "features": [
-          "Limited time: 500 bonus credits when you sign up",
+          "500 bonus credits when you sign up",
           "75 free credits every day, to use that day",
           "2 concurrent tasks",
           "1 project and 2 team members",
@@ -962,7 +962,7 @@
     },
     {
       "question": "How many credits does each plan include?",
-      "answer": "Every plan gets 75 free credits every day, to use that day. Starter adds 2,900 credits a month, and Business adds 32,000 credits a month. For a limited time, new organizations also get 500 bonus credits when they sign up."
+      "answer": "Every plan gets 75 free credits every day, to use that day. Starter adds 2,900 credits a month, and Business adds 32,000 credits a month. New organizations also get 500 bonus credits when they sign up."
     },
     {
       "question": "How many credits does a task use?",
