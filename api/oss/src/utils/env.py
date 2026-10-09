@@ -109,6 +109,19 @@ def _parse_optional_positive_int_env(name: str) -> int | None:
     return value
 
 
+def _parse_non_negative_int_env(name: str, default: int) -> int:
+    """Read a count that may legitimately be zero, so `or default` cannot be used."""
+    value = _parse_optional_int_env(name)
+
+    if value is None:
+        return default
+
+    if value < 0:
+        raise ValueError(f"{name} must be 0 or greater, got {value}")
+
+    return value
+
+
 def _parse_bool_env(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -1744,6 +1757,50 @@ class PostgresConfig(BaseModel):
     # wait must be bounded, or a stuck holder pins a connection for the whole pool.
     commit_lock_timeout_ms: int = (
         _parse_optional_positive_int_env("POSTGRES_COMMIT_LOCK_TIMEOUT_MS") or 5_000
+    )
+
+    # Connection-pool sizing, per engine, per process. Every process builds two
+    # engines (core and tracing), so a process reserves 2 x (pool_size +
+    # max_overflow) connections. The defaults fit the smallest supported server,
+    # 400 connections shared by about ten processes: 10 processes x 2 engines x
+    # (5 + 10) = 300, which leaves headroom for migrations, the cron and a psql
+    # session. Raise them deliberately against `SHOW max_connections`, not by
+    # guessing: a pool wider than the server grants turns a traffic burst into
+    # TooManyConnectionsError for every process at once.
+    pool_size: int = _parse_non_negative_int_env("POSTGRES_POOL_SIZE", 5)
+    max_overflow: int = _parse_non_negative_int_env("POSTGRES_MAX_OVERFLOW", 10)
+
+    # The queue and stream consumers are long-lived and bursty: they open many
+    # connections during an evaluation run and then idle, and an idle checked-in
+    # connection is never closed while it stays within pool_size. A narrow pool
+    # keeps the steady state small and sends the burst through overflow, which
+    # does close on check-in.
+    worker_pool_size: int = _parse_non_negative_int_env("POSTGRES_WORKER_POOL_SIZE", 2)
+    worker_max_overflow: int = _parse_non_negative_int_env(
+        "POSTGRES_WORKER_MAX_OVERFLOW", 8
+    )
+
+    # A pooled connection is discarded after this long, so a server-side restart
+    # or a failover does not leave the pool holding dead sockets for hours.
+    pool_recycle_seconds: int = (
+        _parse_optional_positive_int_env("POSTGRES_POOL_RECYCLE_SECONDS") or 30 * 60
+    )
+
+    # How long a caller waits for a connection once the pool and its overflow are
+    # exhausted. Bounded, so a saturated pool fails the request instead of
+    # blocking the event loop forever.
+    pool_timeout_seconds: int = (
+        _parse_optional_positive_int_env("POSTGRES_POOL_TIMEOUT_SECONDS") or 30
+    )
+
+    # The server's own `max_connections`, and how many of our processes share it.
+    # Used only to warn at start when the configured pool cannot fit; nothing
+    # reads them at request time.
+    max_connections: int = (
+        _parse_optional_positive_int_env("POSTGRES_MAX_CONNECTIONS") or 400
+    )
+    pool_consumers: int = (
+        _parse_optional_positive_int_env("POSTGRES_POOL_CONSUMERS") or 10
     )
 
     uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
