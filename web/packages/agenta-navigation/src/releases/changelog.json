@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-10-05-agent-marketplace",
+        "title": "Agent Marketplace",
+        "description": "See templates in action, filter by the apps you use, and start from one in a click.",
+        "link": "https://agenta.ai/docs/changelog/agent-marketplace"
+    },
+    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",
