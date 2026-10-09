@@ -4,13 +4,13 @@ Nothing is implemented. Estimates are engineer-days for one engineer who knows t
 
 ## 0. Spike (time-box 5–7 days, throwaway code)
 
-Each check records a measured result in `spike.md` in this folder. A failed check changes the design before Phase 1; it is not worked around silently.
+Follow [spike-runbook.md](spike-runbook.md) for prerequisites, steps, and what to record. Each check records a measured result in `spike.md` in this folder. A failed check changes the design before Phase 1; it is not worked around silently.
 
 - [ ] 0.1 Start a second Daytona sandbox from the existing agent snapshot, start Chrome with remote debugging and no automation flags, and measure the time from the create call to the first loaded page.
 - [ ] 0.2 Connect the runner to Chrome's CDP WebSocket through the Daytona preview proxy. If the proxy does not carry it, test a small relay process inside the browser sandbox and record which works.
-- [ ] 0.3 Run one handler-mode op (`navigate`, then `read_page`) and the `wait_for_user` client tool end to end from Pi (`inprocess`), Claude (`daytona`), and Codex. Record the `read_page` result size on each R14 app against the 100 KB cap.
+- [ ] 0.3 Run one handler-mode op (`navigate`, then `read_page`) and the `wait_for_user` client tool end to end from Pi (`inprocess`), Claude (`daytona`), and Codex. Record the `read_page` result size on the Codecov repository list and the Umami dashboard against the 100 KB cap.
 - [ ] 0.4 Stream a CDP screencast with CDP input through a test WebSocket route on the API to a phone browser, through the cloud ingress, authenticated by the session cookie in the route. Record frames per second, input delay, and any ingress idle timeout.
-- [ ] 0.5 Log in to each R14 SaaS app (names from Q2) through that live view, save the session state, start a new browser sandbox, load it, and confirm the login holds. Record the egress IP of each sandbox and any bot-detection block.
+- [ ] 0.5 Log in to Codecov ("Sign in with GitHub") and to Umami Cloud (email) through that live view, save the session state, start a new browser sandbox, load it, and confirm the login holds. Record the egress IP of each sandbox and any bot-detection block.
 - [ ] 0.6 Pause a turn on `wait_for_user`, keep the browser sandbox running, resume, and confirm the same page is still open. Do it twice: in a chat session, and in a session started by a schedule, answered later from the session screen.
 - [ ] 0.7 From the agent sandbox's shell, try to reach the browser sandbox (network and preview URL without its token) and confirm it fails.
 - [ ] 0.8 With two runner replicas, route browser calls and the live view by session ID to the replica that owns the agent session, and confirm that a call arriving at the other replica reaches the same page and that the turn-end save runs on the owning replica.
