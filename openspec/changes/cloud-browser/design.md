@@ -11,7 +11,7 @@ Status: Requirements (R) and decisions (D) marked "User" were confirmed by Ashra
 | Chromium | Every sandbox image installs Playwright 1.62.0 and its Chromium build into `/opt/pw-browsers`. | `services/runner/images/sandbox/install-agent-tools.sh:22,154` |
 | Agent prompt | The agent is told it has "`chromium` through Playwright (headless only)". | `sdks/python/agenta/sdk/agents/platform_instructions.py:163` |
 | Sandbox providers | `local`, `daytona`, `inprocess`. `local` is "unconfined host bash, not a tenant boundary". | `services/runner/src/config/runner-config.ts:20`, `services/oss/src/agent/config.py:94` |
-| Pi routing | A Pi run with a session and a run credential runs `inprocess`; its commands run in a Daytona command sandbox under a supervisor that kills the process group at the tool timeout. | `services/runner/src/engines/sandbox_agent/sandbox-routing.ts:30-58`, `services/runner/src/engines/inprocess/sandbox/remote-command.ts` |
+| Pi routing | A Pi run with a session and a run credential runs `inprocess`; its commands run in a Daytona command sandbox. The runner stops a command at its timeout, and a command never lives longer than the per-tool-call limit plus 60 seconds. | `services/runner/src/engines/sandbox_agent/sandbox-routing.ts:30-58`, `services/runner/src/engines/inprocess/sandbox/remote-command.ts:148-158` |
 | Sandbox scope | One sandbox per session. Pool key is `projectId:sessionId`. | `services/runner/src/engines/sandbox_agent/session-identity.ts:899-907` |
 | Sandbox lifetime | Warm for 2 minutes after a turn; Daytona auto-stop 15 minutes, auto-delete 30 minutes; clean turns park (stop) the sandbox. | `session-identity.ts:69`, `runner-config.ts:72-73`, `provider.ts:120-122`, `teardown.ts:50-52` |
 | Pause | An unanswered approval ends the turn and destroys the harness session. | `services/runner/src/engines/sandbox_agent/pause.ts:4` |
@@ -22,13 +22,14 @@ Status: Requirements (R) and decisions (D) marked "User" were confirmed by Ashra
 | Secrets | One encrypted `data` column (`pgp_sym_encrypt`); scoped by `project_id` or `organization_id`; `created_by_id` is audit only, not an owner. | `api/oss/src/dbs/postgres/secrets/dbas.py:24-32`, `api/oss/src/dbs/postgres/shared/dbas.py` (`LifecycleDBA`) |
 | Connections | Composio connections use the project ID as the Composio user. | `api/oss/src/core/gateway/connections/service.py:174` |
 | Login state precedent | Subscription logins have `pending_login` / `ready` / `needs_login` and a runner write-back with a generation guard. | `api/oss/src/core/secrets/subscription_service.py:496,554` |
-| Run identity | Scheduled and triggered runs act as the schedule creator. | `api/oss/src/tasks/asyncio/triggers/dispatcher.py:250` |
-| Mounts | Mounts are generic: `project_id` + `mount_id`, optional `agent_id` and `session_id`. The agent mount is shared by every session of the agent. | `api/oss/src/core/mounts/dtos.py:25-56`, `services/runner/src/engines/sandbox_agent/agent-mount.ts:24-29` |
+| Run identity | Scheduled and triggered runs act as the schedule creator. Channel runs act as the sender's linked Agenta user, or the agent creator when there is none. | `api/oss/src/tasks/asyncio/triggers/dispatcher.py:250`, `api/oss/src/tasks/asyncio/channels/inbox.py:222,327` |
+| Tool permissions | The default agent-wide mode is `allow_reads`. An explicit per-tool permission wins. Otherwise, under `allow_reads` a read-only tool runs and any other tool asks, and under another mode that mode applies. A `PlatformOp.default_permission` applies only under `allow_reads`. | `sdks/python/agenta/sdk/agents/dtos.py:829`, `sdks/python/agenta/sdk/agents/tools/models.py:143-153`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py:192-197` |
+| Mounts | Mounts are generic: `project_id` + `mount_id`, optional `agent_id` and `session_id`, with a file upload route. The agent mount is shared by every session of the agent. The runner mounts only the session folder and the agent mount into a sandbox today. | `api/oss/src/core/mounts/dtos.py:25-56`, `api/oss/src/apis/fastapi/mounts/router.py` (`/{mount_id}/files/upload`), `services/runner/src/engines/sandbox_agent/agent-mount.ts:24-29`, `services/runner/src/environment/mount-lifecycle.ts:177` |
 | Live frames | Text, reasoning, and tool events only; batches up to 64 KB. | `services/runner/src/sessions/live-frames.ts:5-8,84-170` |
 | Tool output UI | Tool output renders as text in a `<pre>` block. | `web/packages/agenta-chat/src/components/ToolIOBlock.tsx:20-32` |
 | WebSockets | The API runs `uvicorn[standard]`, which includes `websockets`, but no route uses WebSockets today. | `api/pyproject.toml:19`, `api/oss/src/middlewares/prefix.py:36` |
 | Metering | The runner reports sandbox seconds per interval to the wallet when `AGENTA_WALLETS_ENABLED` is on. | `services/runner/src/metering/sandbox-usage.ts:1-23` |
-| Organization flags | Flags are a JSON field on the organization, typed by `OrganizationFlags`. | `api/oss/src/models/shared_models.py:6-7`, `docs/design/organization flags/ORGANIZATION_FLAGS.md` |
+| Organization flags | Flags are a JSON dict on the organization. Defaults are set where an organization is created; the `OrganizationFlags` model types only `is_demo`. | `api/oss/src/services/db_manager.py:517`, `api/oss/src/services/commoners.py:127`, `api/oss/src/models/shared_models.py:6-7`, `docs/design/organization flags/ORGANIZATION_FLAGS.md` |
 | Google connectors | Gmail, Google Calendar, and Google Drive are available through Composio and used by agent templates. | `api/oss/src/core/agent_templates/catalog.py:42` |
 
 ### What is missing
@@ -103,6 +104,7 @@ Status: Requirements (R) and decisions (D) marked "User" were confirmed by Ashra
 | D14 | Re-login bumps a profile generation. A run may save cookies only if the generation it loaded is still current. Among runs on the same generation, the last save wins. | Design (implements R22 safely) | Plain last-writer-wins (a stale run could overwrite a fresh re-login). |
 | D15 | The sign-in host list is recorded from the hosts the owner's browser passes through during a live-view login, and shown to the owner. The allowlist is not enforced during the owner's own login session. | Design | A fixed list of known identity providers (misses custom SSO hosts). Asking the owner to type SSO hosts. |
 | D16 | The agent reports a login or 2FA prompt by calling a `wait_for_user` tool. Agenta does not detect login pages itself. | Design | Automatic login-page detection (unreliable across sites). |
+| D17 | The browser ops set `default_permission`: `allow` for the nine non-destructive ops, `ask` for `pay` and `delete`. Under the default `allow_reads` mode this gives R7. When an author picks another agent-wide mode or a per-tool permission, that choice applies, as for every tool. | Design | Writing explicit per-tool permissions when a profile is attached (would silently override an author who chose `ask` for everything). |
 
 ## Architecture
 
@@ -133,7 +135,7 @@ Web app ⇄ API WebSocket ⇄ runner ⇄ CDP screencast + input   (live view)
 
 ### Access rules (v1)
 
-- Use a profile in a run: only when the run's user is the profile owner.
+- Use a profile in a run: only when the run's user is the profile owner. For a channel run this means the Slack, Telegram, or WhatsApp sender must be the owner's linked account, or have no linked account while the owner created the agent.
 - Watch or take control of a browser session: the profile owner and organization admins (R38).
 - Read step logs and screenshots: the profile owner and organization admins (R35).
 - Manage profiles: the owner. The `allow_browser` flag: organization admins.
@@ -150,6 +152,7 @@ Each item has a Phase 0 check in [tasks.md](tasks.md). None of them is assumed t
 | Images in tool results per harness | Returning a screenshot to the model through a handler-mode tool result is not verified for Pi, Claude, or Codex. `read_page` returns text, so the browser works without it, but `screenshot` does not. | 0.3 |
 | Changing egress IPs | Some sites end a session when the IP changes. This decides D3. | 0.5, acceptance |
 | Agent sandbox reaching the browser sandbox | D1 depends on the agent having no network path or credential to the browser sandbox. | 0.7 |
+| A pending interaction in a scheduled run | R6 and R18 need a scheduled or triggered run to park on `wait_for_user` and be answered later from the session screen. No code path was found that shows this works for trigger-origin sessions. | 0.6 |
 | Bot detection on the chosen R14 apps | Google is removed from scope (R32), but other sites can also block automation. | 0.5 with the named apps |
 
 ## Estimate
@@ -164,10 +167,10 @@ Basis: one engineer who knows the runner and the API, working days, unit tests i
 | 3 | Runner `/browser/*`: sandbox lifecycle, Chrome launch, CDP actions for the v1 tools, `read_page` with element references, profile load and save, downloads, uploads, CDP allowlist, metering | 10–15 |
 | 4 | Wait-for-user interaction, pause and reattach, 30-minute expiry | 4–6 |
 | 5 | Live view backend: API WebSocket route, access checks, runner relay, input mapping, control hand-off | 4–6 |
-| 6 | Per-user download mount and signing check; screenshot storage and 30-day deletion job; step log query | 5–7 |
+| 6 | Per-user download mount: copy downloads into it, sign it only for the user's runs, and mount it into the agent sandbox; screenshot storage and 30-day deletion job; step log query | 6–9 |
 | 7 | Frontend: live view 5–7, Settings tab 2–3, agent config section 2–3, chat dock, watch button, tool rows and screenshots 4–6, session badge 1, Fern client and entity 1–2 | 15–22 |
 | 8 | Release-gate scenarios, docs page, and the R15 acceptance run (5 calendar days elapsed) | 4–6 |
-| | **Total** | **56–83** |
+| | **Total** | **57–85** |
 
 Not included: plan pricing and limit decisions (Q1), Daytona quota changes, a fixed egress proxy if D3 triggers it, and v2 items (sharing, notifications, self-hosted).
 
@@ -188,3 +191,4 @@ These earlier statements were wrong and are fixed above. They are kept so a revi
 - "The broker lives in the runner and serves tools itself": all harnesses already meet at `/tools/call` (D11).
 - "Code goes in `api/ee`": contradicts `api/AGENTS.md` (D4).
 - "A one-day spike": Phase 0 has seven checks; 4–6 engineer-days is the honest range.
+- Second review against the code: the Pi kill rule was stated too broadly; organization flags are not typed by `OrganizationFlags`; `pay`/`delete` asking depends on the agent-wide permission mode (D17); the per-user download mount needs new runner mounting work (Phase 6 raised to 6–9 days); a paused scheduled run is unverified (new risk); channel-run identity added to the access rules.
