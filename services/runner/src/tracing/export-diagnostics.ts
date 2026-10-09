@@ -175,7 +175,8 @@ export function logExportProblem(problem: {
     problem.outcome === "threw" && problem.error instanceof Error
       ? problem.error.stack
       : undefined;
-  console.error(
+  const logFn = problem.outcome === "skipped" ? console.warn : console.error;
+  logFn(
     OUTCOME_MESSAGES[problem.outcome],
     JSON.stringify({
       traceId: problem.traceId,
