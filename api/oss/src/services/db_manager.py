@@ -2522,6 +2522,31 @@ async def get_project_members(project_id: str):
         return project_members
 
 
+async def get_project_member(
+    project_id: str,
+    user_id: str,
+) -> Optional[ProjectMemberDB]:
+    """Return one user's membership row in a project, or None.
+
+    An access check needs this row, not the project's whole member list: the
+    Demo Workspace projects hold 17,008 rows and the check reads one.
+
+    Soft-deleted rows are returned, as `get_project_members` returns them, so a
+    caller that switched from filtering that list sees the same membership.
+    """
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(ProjectMemberDB).where(
+                ProjectMemberDB.project_id == uuid.UUID(project_id),
+                ProjectMemberDB.user_id == uuid.UUID(user_id),
+            )
+        )
+        return result.scalars().first()
+
+
 async def get_user_org_and_workspace_id(
     user_uid,
 ) -> Dict[str, Union[str, List[str]]]:
