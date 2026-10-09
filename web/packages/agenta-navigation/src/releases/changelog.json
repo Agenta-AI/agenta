@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-10-07-cleaner-settings-and-whats-new",
+        "title": "Settings, What's New, live chat",
+        "description": "A rebuilt Settings, a What's New window for releases, and live chat in the app.",
+        "link": "https://agenta.ai/docs/changelog/cleaner-settings-and-whats-new"
+    },
+    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",
