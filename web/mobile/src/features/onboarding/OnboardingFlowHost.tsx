@@ -9,7 +9,7 @@ import {
     refetchAgentTemplatesAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
-import {isWalletsEnabled} from "@agenta/shared/api/env"
+import {isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
 import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -32,6 +32,7 @@ import {endOnboarding, isOnboardingPending} from "./onboardingPending"
 import {personProperties} from "./onboardingQuestions"
 import {onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
+import {useSeedToolConnections} from "./useSeedToolConnections"
 
 /** Wires the flow to the draft agent, the catalog, analytics, and the shared create path. */
 export const OnboardingFlowHost = ({
@@ -46,7 +47,7 @@ export const OnboardingFlowHost = ({
     entityId: string | null
     userId: string | null
 }) => {
-    // Without a pending mark the page is a preview: no analytics.
+    // Without a pending mark the page is a preview: no analytics and no tool seeding.
     const [preview] = useState(() => !userId || !isOnboardingPending(userId))
     const templates = useAtomValue(agentTemplatesAtom)
     const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
@@ -65,8 +66,15 @@ export const OnboardingFlowHost = ({
     const steps = useMemo(() => onboardingSteps(), [])
     const configuration = useAtomValue(useMemo(() => draftConfigurationAtom(entityId), [entityId]))
     const updateConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
-    const {connections} = useToolConnectionsQuery()
+    const toolsEnabled = useMemo(() => isToolsEnabled(), [])
+    const connectionsQuery = useToolConnectionsQuery()
+    const {connections} = connectionsQuery
     const apps = useMemo(() => connectedApps(connections), [connections])
+    useSeedToolConnections({
+        enabled: toolsEnabled && !preview,
+        connections,
+        loaded: !connectionsQuery.isLoading && !connectionsQuery.error,
+    })
     const newAgent = useNewAgentAction(base)
     // Files stage against a session id before the agent exists, as on Home.
     const [sessionId] = useState(newId)
