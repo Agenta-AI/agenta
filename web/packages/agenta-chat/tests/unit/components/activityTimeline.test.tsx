@@ -18,7 +18,10 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
 }))
 
 /** Trace root-span starts by trace id, for the turns that read one. */
-const {traceStarts} = vi.hoisted(() => ({traceStarts: new Map<string, string>()}))
+const {traceDurations, traceStarts} = vi.hoisted(() => ({
+    traceDurations: new Map<string, number>(),
+    traceStarts: new Map<string, string>(),
+}))
 
 vi.mock("@agenta/entities/loadable", async () => {
     const {atom} = await import("jotai")
@@ -30,7 +33,9 @@ vi.mock("@agenta/entities/loadable", async () => {
                     key,
                     atom(() => ({
                         rootSpan: traceStarts.has(key) ? {start_time: traceStarts.get(key)} : null,
-                        metrics: {},
+                        metrics: traceDurations.has(key)
+                            ? {durationMs: traceDurations.get(key)}
+                            : {},
                         isPending: false,
                         error: null,
                     })),
@@ -81,6 +86,7 @@ beforeEach(() => {
 afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    traceDurations.clear()
     traceStarts.clear()
     cleanup()
 })
@@ -194,6 +200,62 @@ describe("ActivityTimeline", () => {
         const line = screen.getAllByRole("button")[0]
         expect(line.textContent).toContain("Worked for 3s")
         expect(line.getAttribute("aria-expanded")).toBe("false")
+    })
+
+    it("excludes approval wait time when the settled trace includes it", () => {
+        vi.setSystemTime(new Date("2026-10-08T10:00:00Z"))
+        traceDurations.set("t1", 85 * 60_000 + 5_000)
+        const view = mount({
+            steps: [toolStep("input-available")],
+            streaming: true,
+            traceId: "t1",
+        })
+        act(() => {
+            vi.advanceTimersByTime(3000)
+        })
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("approval-requested")]}
+                    streaming
+                    answerStarted={false}
+                    waitingOnUser
+                    traceId="t1"
+                />
+            </Provider>,
+        )
+        act(() => {
+            vi.advanceTimersByTime(85 * 60_000)
+        })
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("output-available")]}
+                    streaming
+                    answerStarted={false}
+                    resuming
+                    traceId="t1"
+                />
+            </Provider>,
+        )
+        act(() => {
+            vi.advanceTimersByTime(2000)
+        })
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("output-available")]}
+                    streaming={false}
+                    answerStarted
+                    traceId="t1"
+                />
+            </Provider>,
+        )
+
+        expect(screen.getAllByRole("button")[0].textContent).toContain("Worked for 5s")
     })
 
     it("says Writing while a text is still open in the fold", () => {

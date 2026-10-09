@@ -277,13 +277,10 @@ export const ActivityTimeline = ({
     const startedAt = metMidFlight ? parseTraceTime(trace.rootSpan?.start_time) : undefined
     // The clock counts the agent's work: from the first step, paused while parked on the reader.
     const counted = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
-    // A run resumed after a gate traces only its last leg; the longer of the two is the work.
+    // The local clock excludes approval waits. Use trace duration only when this client never
+    // observed the turn live and therefore has no local span.
     const traced = live ? null : (trace.metrics.durationMs ?? null)
-    const elapsed = live
-        ? counted
-        : traced === null && counted === null
-          ? null
-          : Math.max(traced ?? 0, counted ?? 0)
+    const elapsed = live ? counted : (counted ?? traced)
     const files = useMemo(() => activityFiles(steps), [steps])
     // A settled step's verb holds for a beat, then the line reads "Working".
     const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
