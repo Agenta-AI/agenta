@@ -126,7 +126,7 @@ Each check lists its goal, its steps, what to record, and its pass rule.
 - Goal: prove that Chrome sends every connection through the proxy, so the proxy's address check is the one that counts (F-027).
 - Steps:
   1. Write a test forward proxy that handles plain HTTP and `CONNECT`, resolves each host once, refuses private, link-local, and loopback addresses, and connects to the address it checked. Log every request.
-  2. Start Chrome with `--proxy-server=http://127.0.0.1:<port>`, `--proxy-bypass-list=<-loopback>`, and `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`.
+  2. Start Chrome with `--proxy-server=http://127.0.0.1:<port>`, `--proxy-bypass-list=<-loopback>`, and `--webrtc-ip-handling-policy=disable_non_proxied_udp`. (`--force-webrtc-ip-handling-policy` has no effect in Chrome 141.)
   3. From an allowed page, try: a navigation, an iframe, a popup, a download, a `fetch`, a WebSocket, a `navigator.sendBeacon`, and a WebRTC connection with a STUN server.
   4. Give the proxy a resolver that answers a public address first and a private address on the next lookup for one test name. Load that name twice.
 - Record: for each request kind, whether the proxy saw it; whether the rebinding name was refused; whether any UDP left outside the proxy.
