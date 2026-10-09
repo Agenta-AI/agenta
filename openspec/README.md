@@ -1,5 +1,11 @@
 # Repository specifications
 
+## Cloud browser for agents
+
+[Proposal](changes/cloud-browser/proposal.md), [design and estimate](changes/cloud-browser/design.md), behavior specifications for [profiles](changes/cloud-browser/specs/browser-profiles/spec.md), [sessions](changes/cloud-browser/specs/browser-sessions/spec.md), [agent tools](changes/cloud-browser/specs/browser-agent-tools/spec.md) and [live view](changes/cloud-browser/specs/browser-live-view/spec.md), and [tasks](changes/cloud-browser/tasks.md).
+
+User requirements confirmed; design decisions D11–D16 and part of D2 need review. Not implemented. A user logs in to sites once in a live view of a cloud browser; their agents then use that saved login in chat and on schedules. The browser runs in a separate Daytona sandbox that the agent drives only through browser tools. Phase 0 is a 4–6 day spike; the build estimate (56–83 engineer-days including the spike) is re-checked after it.
+
 ## Channel inbound media
 
 [Proposal](changes/channel-inbound-media/proposal.md), [behavior specification](changes/channel-inbound-media/specs/channel-inbound-media/spec.md), and [tasks](changes/channel-inbound-media/tasks.md).
