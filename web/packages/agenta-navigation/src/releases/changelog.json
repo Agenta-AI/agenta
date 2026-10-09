@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-10-07-agent-analytics",
+        "title": "Analytics",
+        "description": "See cost, runs, success rate and tokens for every agent, and the runs behind each number.",
+        "link": "https://agenta.ai/docs/changelog/agent-analytics"
+    },
+    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",
