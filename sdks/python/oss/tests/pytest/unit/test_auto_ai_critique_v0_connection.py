@@ -145,6 +145,37 @@ async def test_judge_with_an_unknown_connection_fails_loud(judge):
         await judge(TWO_OPENAI_CONNECTIONS, connection="openai-9")
 
 
+async def test_a_judge_on_the_retired_starter_credits_connection_says_what_to_do(judge):
+    """The transfer job deleted the seeded "Agenta" connection. A judge calls the provider
+    directly, with no gateway to resolve the built-in model, so it fails with a message the
+    user can act on instead of a bare unknown-slug error."""
+    with pytest.raises(UnknownConnectionV0Error) as caught:
+        await judge(
+            TWO_OPENAI_CONNECTIONS,
+            model="Agenta/custom/vertex_ai/gemini-3.7-flash",
+            connection="starter-credits",
+        )
+
+    message = caught.value.message
+    assert "starter-credits connection was retired" in message
+    assert "own provider connections" in message
+    assert "openai, openai-2" in message
+
+
+async def test_a_judge_on_the_retired_connection_in_an_emptied_vault_says_the_same(
+    judge,
+):
+    """The deleted connection was often the project's only one."""
+    with pytest.raises(UnknownConnectionV0Error) as caught:
+        await judge(
+            [],
+            model="Agenta/custom/vertex_ai/gemini-3.7-flash",
+            connection="starter-credits",
+        )
+
+    assert "starter-credits connection was retired" in caught.value.message
+
+
 async def test_an_unknown_connection_reaches_the_caller_as_a_400(monkeypatch):
     """The running middleware turns it into a configuration error, not a 500 with a stacktrace.
 

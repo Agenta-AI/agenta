@@ -10,7 +10,10 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
+    AGENTA_PROVIDER,
     BUILTIN_LLM_PROVIDERS,
+    RETIRED_STARTER_CREDITS_MODEL_ALIASES,
+    RETIRED_STARTER_CREDITS_SLUG,
     builtin_llm_endpoint,
     builtin_llm_secret,
     standard_llm_endpoint,
@@ -121,6 +124,26 @@ def _custom_upstream_names(allowlist: List[str]) -> Dict[str, str]:
         if deployment_spelling not in entries:
             names[deployment_spelling] = slug
     return names
+
+
+def _retired_starter_credits_model(
+    *, namespace: GatewayEndpointNamespace, name: str, model: str
+) -> Optional[str]:
+    """The `builtin/agenta` model that replaces a retired starter-credits model, or None.
+
+    Applies only after the custom lookup missed, and the caller also checks that the vault
+    holds no connection under the slug: the transfer job deleted the seeded connection, so
+    a saved agent still naming it would fail. Only the funded model ids map, and only where
+    this deployment serves `builtin/agenta`; anything else keeps the not-found error. The call then runs on the platform's account,
+    so the wallet admits and charges it like any other built-in call.
+    """
+    if namespace != GatewayEndpointNamespace.CUSTOM:
+        return None
+    if name != RETIRED_STARTER_CREDITS_SLUG:
+        return None
+    if builtin_llm_endpoint(provider_key=AGENTA_PROVIDER) is None:
+        return None
+    return RETIRED_STARTER_CREDITS_MODEL_ALIASES.get(model)
 
 
 @dataclass
@@ -477,7 +500,33 @@ class LLMGatewayService:
         else:
             raise LLMConnectionProviderRequiredError()
 
-        target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
+        try:
+            target = await self._resolve_target(
+                scope=scope, namespace=namespace, name=name
+            )
+        except LLMEndpointNotFoundError:
+            builtin_model = _retired_starter_credits_model(
+                namespace=namespace, name=name, model=model
+            )
+            # The endpoint row alone does not prove the connection is gone: a user's own
+            # connection under this slug, or one whose registration failed, keeps failing
+            # rather than moving to the platform's account.
+            if builtin_model is None or await self.resolver.has_connection(
+                scope=scope, slug=name
+            ):
+                raise
+            log.info(
+                "[gateways] retired starter-credits model resolved to the built-in model",
+                project_id=str(scope.project_id),
+                saved_model=model,
+                builtin_model=builtin_model,
+            )
+            target = await self._resolve_target(
+                scope=scope,
+                namespace=GatewayEndpointNamespace.BUILTIN,
+                name=AGENTA_PROVIDER,
+            )
+            model = builtin_model
         if target.deployment_kind == LLMDeploymentKind.BEDROCK:
             raise LLMGatewayConnectionNotServedError()
         self._check_active(target=target)

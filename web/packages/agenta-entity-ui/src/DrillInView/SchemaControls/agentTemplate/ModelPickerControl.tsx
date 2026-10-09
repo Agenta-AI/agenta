@@ -29,10 +29,10 @@ import {useAtomValue} from "jotai"
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
 import {
     buildConnectionPickerRows,
+    displayedModelRow,
     pickerSelectionAfterProviderSave,
     pickerSelectionIsRunnable,
     pickerSelectionFrom,
-    selectedModelRowKey,
     type PickerSelection,
 } from "../connectionPicker"
 import type {ConnectionMode, HarnessCapabilitiesMap} from "../connectionUtils"
@@ -110,8 +110,8 @@ const ModelPickerControl = ({
 
     // The exact row the config points at. `value` alone selects by model id, which lights up every
     // connection offering that id; the stored connection and harness resolve it to one.
-    const selectedKey = useMemo(
-        () => selectedModelRowKey(rows, {modelId, slug, namespace, mode, harness}),
+    const displayed = useMemo(
+        () => displayedModelRow(rows, {modelId, slug, namespace, mode, harness}),
         [rows, modelId, slug, namespace, mode, harness],
     )
     const groups = useMemo(() => buildPickerGroupsWithSections(rows), [rows])
@@ -222,8 +222,8 @@ const ModelPickerControl = ({
                 searchPlaceholder="Search models"
                 sectionTooltip={<HarnessTooltip />}
                 options={groups}
-                value={modelId ?? undefined}
-                selectedKey={selectedKey}
+                value={displayed.modelId ?? undefined}
+                selectedKey={displayed.key}
                 onChange={(value, option) => {
                     const picked = Array.isArray(option) ? option[0] : option
                     const metadata = (picked as {metadata?: Record<string, unknown>} | undefined)

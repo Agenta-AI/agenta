@@ -126,6 +126,7 @@ export type {ModelOptionGroup, VaultModelSource} from "./connectionUtils"
 export {
     buildConnectionPickerRows,
     connectionModelIds,
+    displayedModelRow,
     effectiveHarnesses,
     firstPickerSelectionForConnection,
     modelRowKey,

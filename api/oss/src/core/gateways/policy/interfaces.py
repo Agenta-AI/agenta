@@ -93,6 +93,15 @@ class SecretsResolverInterface(ABC):
         endpoint row the vault registers for it, which is a different namespace."""
         raise NotImplementedError
 
+    @abstractmethod
+    async def has_connection(self, *, scope: AuthScope, slug: str) -> bool:
+        """Whether the project's vault holds any connection under this slug, of any kind.
+
+        Names only, like the two methods above. A missing endpoint row does not prove a
+        connection is gone (endpoint registration may have failed), so a caller that acts
+        on "the connection was deleted" asks the vault itself."""
+        raise NotImplementedError
+
 
 class SpendAdmissionInterface(ABC):
     """Asked before a platform-funded call is dispatched: may this organization spend.
