@@ -314,7 +314,11 @@ function defaultTarget(): HttpExportTarget {
   return {
     kind: "http",
     endpoint: `${base}/otlp/v1/traces`,
-    authorization: () => process.env.AGENTA_CREDENTIALS || undefined,
+    authorization: () =>
+      process.env.AGENTA_CREDENTIALS ||
+      (process.env.AGENTA_RUNNER_TOKEN
+        ? `Bearer ${process.env.AGENTA_RUNNER_TOKEN}`
+        : undefined),
   };
 }
 
