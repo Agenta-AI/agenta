@@ -72,7 +72,7 @@
         "lodash": "^4.17.23",
         "next": "15.5.24",
         "postcss": "^8.5.23",
-        "posthog-js": "^1.433.5",
+        "posthog-js": "1.433.5",
         "rc-virtual-list": "^3.19.2",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
