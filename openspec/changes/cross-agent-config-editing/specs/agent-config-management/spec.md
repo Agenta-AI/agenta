@@ -21,12 +21,12 @@ The platform SHALL show `read_agent_config` in the Read-only list, and `create_a
 
 ### Requirement: Default availability and permission
 
-Both capabilities SHALL be on by default in the build kit with every tool set to allow. New agents SHALL get the four tools in their `agenta_tools` entry, set to allow. Saved `agenta_tools` entries SHALL NOT be rewritten.
+The four agent tools SHALL be on by default in the build kit, each set to allow. New agents SHALL get the four tools in their `agenta_tools` entry, set to allow. Saved `agenta_tools` entries SHALL NOT be rewritten.
 
 #### Scenario: Playground default
 
 - **WHEN** a person opens any agent's playground after this ships
-- **THEN** the build kit shows List agents and Agent config turned on, with each tool set to allow
+- **THEN** the build kit shows the four agent tools on, each set to allow
 
 #### Scenario: New agent default
 
@@ -36,7 +36,7 @@ Both capabilities SHALL be on by default in the build kit with every tool set to
 #### Scenario: Existing agent unchanged
 
 - **WHEN** an agent saved before this change already has an `agenta_tools` entry and runs outside the playground
-- **THEN** it has the new tools only if someone turned the capabilities on in its Agenta tools section
+- **THEN** it has the new tools only if someone turned them on in its Agenta tools section
 
 ### Requirement: Read another agent's configuration
 
@@ -137,7 +137,7 @@ Both capabilities SHALL be on by default in the build kit with every tool set to
 
 #### Scenario: Tools and integrations are editable
 
-- **WHEN** an operation adds a gateway integration or turns on Agent config for the target
+- **WHEN** an operation adds a gateway integration or turns on the agent tools for the target
 - **THEN** the edit is committed without extra approval when the tool is set to allow
 
 #### Scenario: Whole configuration refused

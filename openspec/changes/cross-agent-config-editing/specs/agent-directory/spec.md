@@ -6,7 +6,7 @@ The `list_agents` tool SHALL return the agents in the caller's project, with eac
 
 #### Scenario: Agent lists its project's agents
 
-- **WHEN** an agent with the List agents capability calls `list_agents` with no arguments
+- **WHEN** an agent with `list_agents` on calls it with no arguments
 - **THEN** it receives every non-archived agent in its project, including itself, each with id, slug, name, description, version and updated time
 
 #### Scenario: Results are paginated

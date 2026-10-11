@@ -24,14 +24,14 @@ Source: `Agenta-AI/agenta` at `release/v0.122.3` `30c36d60` (2026-10-06).
 
 ### Expected
 
-An agent with the two new capabilities can list every agent in its project, read any agent's configuration, create a new agent, and edit any agent's configuration. Each change shows up in the target's revision history with a message that names the editing agent and the conversation.
+An agent with the four new tools can list every agent in its project, read any agent's configuration, create a new agent, and edit any agent's configuration. Each change shows up in the target's revision history with a message that names the editing agent and the conversation.
 
 ## Goals / Non-Goals
 
 **Goals**
 
 - One agent can build and maintain other agents in the same project.
-- Turning a capability off removes its tools. Nothing else changes.
+- Deactivating a tool removes it from the run. Nothing else changes.
 - Reuse the self-edit path end to end: edit format, scope, conflict check, derived message.
 - Every cross-agent change is traceable from the target's history.
 
@@ -64,7 +64,7 @@ Chosen by Mahmoud: any agent in the project.
 | One capability with all four tools | Fewer toggles. Cannot grant discovery alone. |
 | One toggle per tool | Most control. Read without edit is rarely useful on its own. |
 
-Chosen by Mahmoud. Test-run is out of scope.
+Chosen by Mahmoud at first, then replaced: the UI shows the four tools as ordinary rows, each with its own control, and there is no capability toggle. Listing without write power is still possible by deactivating the other three. Test-run is out of scope.
 
 ### D3. Defaults
 
@@ -102,7 +102,7 @@ Chosen by Mahmoud. Today the template is applied in the browser, so the API gain
 
 | Option | Trade-off |
 |---|---|
-| **Four new ops; self-edit unchanged** | Toggle maps to tools. Self-edit keeps its unforgeable self binding. |
+| **Four new ops; self-edit unchanged** | One row per tool. Self-edit keeps its unforgeable self binding. |
 | Optional `agent` field on `read_config` and `commit_revision` | Fewer tools. A gating bug exposes cross-agent edits to every self-editing agent. |
 
 Chosen by Mahmoud.
@@ -141,8 +141,8 @@ set parameters.agent.instructions.agents_md (by agent "Support Triage" 019f…, 
 
 ## Risks / Trade-offs
 
-- **Project-wide silent rewrites (accepted).** With D1, D3 and D4, a prompt injection reaching one agent that holds Agent config can rewrite every agent in the project, without approval. Mitigation: attribution in every commit message, so any change is traceable and revertible from history. People can set any of the tools to ask or turn the capability off.
-- **Capability spread (accepted).** An agent can grant Agent config to other agents.
+- **Project-wide silent rewrites (accepted).** With D1, D3 and D4, a prompt injection reaching one agent that holds `edit_agent_config` can rewrite every agent in the project, without approval. Mitigation: attribution in every commit message, so any change is traceable and revertible from history. People can set any of the tools to ask or deactivate it.
+- **Tool spread (accepted).** An agent can turn the agent tools on for other agents.
 - **Privilege escalation through subagents (accepted).** An agent can add an integration to a helper agent and then call the helper.
 - **Template drift.** If the browser and the server read the catalog template differently, "New agent" and `create_agent` diverge. Mitigation: one shared server-side builder, and a test that compares the two.
 - **Model confusion between self and other.** Two read tools and two edit tools exist side by side. Mitigation: clear descriptions, and the self-target refusal names the right tool.
@@ -151,6 +151,6 @@ set parameters.agent.instructions.agents_md (by agent "Support Triage" 019f…, 
 
 No data migration.
 
-- **Build kit.** The kit is injected at run time, so every agent gets both capabilities in the playground as soon as this ships.
-- **Agenta tools.** New agents get the four tools through `DEFAULT_AGENTA_TOOLS`. An existing agent with no `agenta_tools` entry gets the new default entry the next time the playground loads it and someone saves. An existing agent that already has an entry keeps it unchanged until someone turns the capabilities on. Rewriting saved entries would be a silent bulk change, which this design avoids.
+- **Build kit.** The kit is injected at run time, so every agent gets the four tools in the playground as soon as this ships.
+- **Agenta tools.** New agents get the four tools through `DEFAULT_AGENTA_TOOLS`. An existing agent with no `agenta_tools` entry gets the new default entry the next time the playground loads it and someone saves. An existing agent that already has an entry keeps it unchanged until someone turns the tools on. Rewriting saved entries would be a silent bulk change, which this design avoids.
 - **Runs without a session.** The runner refuses a call whose `$ctx.session.id` binding has no value, so `create_agent` and `edit_agent_config` are not offered to a run without a session (task 2.7), and the handlers refuse a call without a bound session instead of writing `session none`. Triggers and channels mint a session, so they keep both.
