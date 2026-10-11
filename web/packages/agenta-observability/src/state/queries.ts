@@ -396,6 +396,11 @@ export const filteredSessionIdsAtom = atom((get) => {
 })
 
 // Session Spans ---------------------------------------------------------------
+// Traces per request when reading a whole session (the API caps one request).
+const SESSION_SPANS_PAGE_SIZE = 100
+// Stop after this many pages (10,000 traces) so a runaway session cannot loop forever.
+const SESSION_SPANS_MAX_PAGES = 100
+
 export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
     const appId = get(observabilityScopeAtom).appId
     const filters = get(userFiltersAtomFamily("sessions"))
@@ -437,15 +442,40 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     },
                 ])
 
-                const result = await executeTraceQuery({
-                    params: specificParams,
-                    pageParam: pageParam as {newest?: string} | undefined,
-                    appId: appId as string,
-                    projectId: projectId ?? "",
-                    isHasAnnotationSelected,
-                    hasAnnotationConditions,
-                    hasAnnotationOperator,
-                })
+                // The API returns at most SESSION_SPANS_PAGE_SIZE traces per call (it has
+                // a default and a maximum limit), so read the session page by page until
+                // a page is not full. The cursor overlaps by 1 ms, so skip repeats.
+                specificParams.size = SESSION_SPANS_PAGE_SIZE
+                let result: Awaited<ReturnType<typeof executeTraceQuery>> | undefined
+                let cursor = pageParam as {newest?: string} | undefined
+                const seen = new Set<string>()
+                for (let page = 0; page < SESSION_SPANS_MAX_PAGES; page++) {
+                    const pageResult = await executeTraceQuery({
+                        params: specificParams,
+                        pageParam: cursor,
+                        appId: appId as string,
+                        projectId: projectId ?? "",
+                        isHasAnnotationSelected,
+                        hasAnnotationConditions,
+                        hasAnnotationOperator,
+                    })
+                    const fresh = pageResult.traces.filter((t) => {
+                        const key = `${t.trace_id}:${t.span_id}`
+                        if (seen.has(key)) return false
+                        seen.add(key)
+                        return true
+                    })
+                    if (result) {
+                        result.traces.push(...fresh)
+                        result.traceCount += pageResult.traceCount
+                    } else {
+                        result = {...pageResult, traces: fresh}
+                    }
+                    const pageSize = pageResult.annotationPageSize ?? pageResult.traces.length
+                    if (pageSize < SESSION_SPANS_PAGE_SIZE || !pageResult.nextCursor) break
+                    cursor = {newest: pageResult.nextCursor}
+                }
+                if (!result) throw new Error("session spans query returned no page")
                 // Tag each trace with the session it was queried for. The grouping
                 // below relies on this instead of re-reading `attributes.ag.session.id`:
                 // the new /traces/query endpoint canonicalises `ag` to {data,type,metrics}

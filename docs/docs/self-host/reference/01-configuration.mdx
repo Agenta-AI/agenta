@@ -130,6 +130,8 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_API_CACHING_ENABLED` | `agenta.api.caching.enabled` | `agenta.api.caching.enabled` |
 | `AGENTA_API_THROTTLING_BOOKKEEPING_CAPACITY` | `agenta.api.throttling.bookkeeping_capacity` | Not mapped; set it in the API's environment |
 | `AGENTA_API_THROTTLING_BOOKKEEPING_RATE` | `agenta.api.throttling.bookkeeping_rate` | Not mapped; set it in the API's environment |
+| `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` | `agenta.api.tracing.query_default_limit` | Not mapped; set it in the API's environment |
+| `AGENTA_API_TRACING_QUERY_MAX_LIMIT` | `agenta.api.tracing.query_max_limit` | Not mapped; set it in the API's environment |
 
 The two throttling variables apply to Enterprise Edition deployments, which throttle API requests
 per organization and plan. They size a separate budget for the agent runtime's own calls: the
@@ -139,6 +141,15 @@ minute per organization, and the default for both is `60000`. When an organizati
 more for these requests, the plan's larger budget applies. The routes that count as these calls are listed in `api/ee/src/middlewares/throttling.py`
 (`_BOOKKEEPING_ROUTES`). Every other request, including tool calls the model makes, spends the
 plan's budget.
+
+The two tracing variables bound one page of a span or trace list query: `POST /api/spans/query`,
+`POST /api/traces/query` and the legacy `POST /api/tracing/spans/query`. A request with no
+`windowing.limit` returns `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` rows (default `100`). A larger
+`windowing.limit` is lowered to `AGENTA_API_TRACING_QUERY_MAX_LIMIT` (default `1000`). With
+`focus` set to `trace`, the limit counts traces. While more rows match, the response has a
+`windowing` object; send it back as `windowing` to read the next page. A query that filters only on
+`trace_id` returns whole traces and has no limit. A higher maximum lets one request use more API
+memory: agent run spans can be hundreds of KB each.
 
 ## Agenta extras
 
