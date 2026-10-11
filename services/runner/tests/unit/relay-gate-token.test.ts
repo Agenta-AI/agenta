@@ -1,8 +1,6 @@
 /**
- * A relay gate's id becomes the stored interaction token, which the API indexes in a btree.
- * Providers can mint tool-call ids of several KB (an OpenAI Responses id is `call_id|item_id`),
- * and a token that long made `POST /sessions/interactions/` fail with a 500 (#7516). The gate
- * therefore gets a short id of its own, and the provider's id still rides as `toolCallId`.
+ * A relay gate's id is the stored interaction token, which the API indexes in a btree, so it must
+ * stay short even when the provider's tool-call id runs to several KB. That id rides as `toolCallId`.
  *
  * Run: pnpm exec vitest run tests/unit/relay-gate-token.test.ts
  */

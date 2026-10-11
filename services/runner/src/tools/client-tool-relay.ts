@@ -10,7 +10,7 @@ import type { ClientToolOutcome } from "../responder.ts";
 
 /** One client tool call as the delivery channel saw it: public name + args + resolved spec. */
 export interface ClientToolRelayRequest {
-  /** The interaction id (the FE matches a reply by it). */
+  /** The interaction id, minted per gate and distinct from `toolCallId` (the FE matches a reply by it). */
   id: string;
   /** The channel-minted tool-call id (relay file id on Pi, a fresh UUID on the MCP channel). */
   toolCallId: string;

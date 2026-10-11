@@ -436,8 +436,8 @@ async function executeRelayedTool(
         `client tool '${spec.name}' is browser-fulfilled and cannot be executed`,
       );
     }
-    // The gate id becomes the stored interaction token, so it is minted here rather than
-    // copied from the provider's tool-call id, which can run to several KB (#7516).
+    // The gate id is the stored interaction token and must stay short, so it is never the
+    // provider's tool-call id, which can run to several KB.
     const request = {
       id: randomUUID(),
       toolCallId: req.toolCallId,
@@ -476,6 +476,7 @@ async function executeRelayedTool(
       return new RelayRefusal(gatewayToolUnavailableText());
     }
     const verdict = await gateway.gate.onGatewayRun({
+      // A short gate id, for the same reason as the client-tool request above.
       id: randomUUID(),
       toolCallId: req.toolCallId,
       toolName: spec.name,
