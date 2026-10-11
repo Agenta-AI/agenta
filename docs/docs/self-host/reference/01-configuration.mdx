@@ -1098,10 +1098,12 @@ If a custom workflow is on a private network or answers over plain HTTP, set
 set `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`; a Helm install must set
 `gatewayEgress.insecureAllowed` or `mcpGateway.hostAllowlist` itself.
 
-A revision keeps the URL it was saved with. If you changed `AGENTA_SERVICES_URL` after you
-created workflows, their saved URLs still point at the old address, and Agenta treats that
-address as a custom URL. Allow the old host as described above, or change the URL on
-those revisions to the current services URL. In Docker bridge networking,
+Built-in workflows (agents, chat and completion apps, built-in evaluators) always run under the
+current `AGENTA_SERVICES_URL`, whatever URL a revision was saved with. A custom revision keeps
+the URL it was saved with. If you changed `AGENTA_SERVICES_URL` after you created custom
+workflows, their saved URLs still point at the old address, and Agenta treats that address
+as a custom URL. Allow the old host as described above, or change the URL on those revisions
+to the current services URL. In Docker bridge networking,
 the API calls `localhost` as `host.docker.internal`, so put `host.docker.internal` in
 `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` for an old `localhost` URL.
 
