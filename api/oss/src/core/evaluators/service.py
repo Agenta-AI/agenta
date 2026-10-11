@@ -29,7 +29,7 @@ from oss.src.core.git.types import (
     validate_variant_refs_sufficient,
     validate_retrieve_refs_consistent,
 )
-from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.service import WorkflowsService, _reject_unrunnable_agent
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import ResolutionInfo, ErrorPolicy
@@ -1140,6 +1140,10 @@ class SimpleEvaluatorsService:
         #
         evaluator_id: Optional[UUID] = None,
     ) -> Optional[SimpleEvaluator]:
+        # Before the artifact exists: refusing only at the final commit would leave the
+        # artifact, variant, and blank revision behind.
+        _reject_unrunnable_agent(simple_evaluator_create.data)
+
         simple_evaluator_flag_values = _dump_flags(simple_evaluator_create.flags)
         simple_evaluator_flag_values.pop("is_evaluator", None)
         simple_evaluator_flags = SimpleEvaluatorFlags(
@@ -1398,6 +1402,9 @@ class SimpleEvaluatorsService:
         #
         simple_evaluator_edit: SimpleEvaluatorEdit,
     ) -> Optional[SimpleEvaluator]:
+        # Before any write: a refusal at the final commit would leave earlier writes behind.
+        _reject_unrunnable_agent(simple_evaluator_edit.data)
+
         simple_evaluator_flags = (
             SimpleEvaluatorFlags(
                 **{

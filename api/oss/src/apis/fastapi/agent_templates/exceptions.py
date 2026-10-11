@@ -16,6 +16,11 @@ from oss.src.core.agent_templates.exceptions import (
 from oss.src.core.mounts.types import MountPathInvalid, MountStorageUnavailable
 from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
+from oss.src.core.workflows.types import (
+    InvalidAgentConfigurationError,
+    InvalidAgentHarnessError,
+    InvalidAgentInstructionsError,
+)
 
 
 def _response(
@@ -46,6 +51,19 @@ def _response(
 
 
 def template_load_error_response(exc: Exception) -> JSONResponse | None:
+    if isinstance(
+        exc,
+        (
+            InvalidAgentConfigurationError,
+            InvalidAgentHarnessError,
+            InvalidAgentInstructionsError,
+        ),
+    ):
+        # The agent the template builds cannot run. Same envelope as the workflow routes.
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content=exc.to_detail(),
+        )
     if isinstance(exc, TemplateSourceNotFound):
         return _response(
             status_code=status.HTTP_404_NOT_FOUND,
