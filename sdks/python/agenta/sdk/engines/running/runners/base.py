@@ -1,7 +1,24 @@
+import os
 import json
 import math
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Union, Optional
+
+# Stays below the services gunicorn worker timeout (60 s), so a slow run
+# returns an evaluator error instead of getting the worker killed.
+DEFAULT_CODE_SANDBOX_TIMEOUT = 45.0
+
+
+def get_code_sandbox_timeout() -> float:
+    """Return the hard timeout, in seconds, for one custom code run."""
+    raw = os.getenv("AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT")
+    if not raw:
+        return DEFAULT_CODE_SANDBOX_TIMEOUT
+    try:
+        timeout = float(raw)
+    except ValueError:
+        return DEFAULT_CODE_SANDBOX_TIMEOUT
+    return timeout if timeout > 0 else DEFAULT_CODE_SANDBOX_TIMEOUT
 
 
 def normalize_result(result: Any, version: str) -> Any:

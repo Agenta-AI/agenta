@@ -223,6 +223,7 @@ people can reach.
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
+| `AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT` | n/a (SDK-side) | n/a |
 | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 
@@ -234,6 +235,8 @@ people can reach.
 - `daytona`: isolated remote sandbox (strongest). Recommended when evaluator authors are not fully trusted. Requires the [daytona](#daytona-code-evaluator) credentials below.
 
 The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
+
+`AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT` sets the hard timeout, in seconds, for one custom-code evaluator run (default `45`). A run that takes longer fails with an evaluator error. Keep it below the services worker timeout (`60` seconds in the default deployment).
 :::
 
 ## Agent runner

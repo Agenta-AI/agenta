@@ -1,6 +1,8 @@
+import asyncio
 from typing import Union, Text, Dict, Any, Optional
 
 from agenta.sdk.engines.running.runners import get_runner
+from agenta.sdk.engines.running.runners.base import get_code_sandbox_timeout
 
 # Cache for the runner instance
 _runner = None
@@ -56,3 +58,47 @@ def execute_code_safely(
         version=version,
         trace=trace,
     )
+
+
+async def run_code_safely(
+    app_params: Dict[str, Any],
+    inputs: Dict[str, Any],
+    output: Union[dict, str],
+    correct_answer: Any,
+    code: Text,
+    runtime: Optional[str] = None,
+    templates: Optional[Dict[str, str]] = None,
+    *,
+    version: str = "1",
+    trace: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """
+    Run `execute_code_safely` in a worker thread, with a hard timeout.
+
+    The runners are synchronous. The Daytona runner makes blocking HTTP calls
+    for tens of seconds, so calling it on the event loop freezes the whole
+    services worker: health checks and other requests stop until it returns.
+
+    Raises:
+        TimeoutError: The run took longer than `get_code_sandbox_timeout()`.
+    """
+    timeout = get_code_sandbox_timeout()
+
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(
+                execute_code_safely,
+                app_params,
+                inputs,
+                output,
+                correct_answer,
+                code,
+                runtime,
+                templates,
+                version=version,
+                trace=trace,
+            ),
+            timeout=timeout,
+        )
+    except TimeoutError as e:
+        raise TimeoutError(f"Custom code run timed out after {timeout:g}s.") from e
