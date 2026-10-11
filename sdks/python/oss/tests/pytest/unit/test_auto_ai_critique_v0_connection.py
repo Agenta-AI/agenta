@@ -16,6 +16,7 @@ from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.engines.running import handlers as critique_handlers
 from agenta.sdk.engines.running.errors import (
     InvalidConfigurationParameterV0Error,
+    InvalidSecretsV0Error,
     UnknownConnectionV0Error,
 )
 from agenta.sdk.middlewares.running.normalizer import NormalizerMiddleware
@@ -143,6 +144,35 @@ async def test_judge_with_a_saved_model_list_prefers_the_owning_connection(judge
 async def test_judge_with_an_unknown_connection_fails_loud(judge):
     with pytest.raises(UnknownConnectionV0Error):
         await judge(TWO_OPENAI_CONNECTIONS, connection="openai-9")
+
+
+async def test_a_judge_on_the_retired_starter_credits_connection_says_what_to_do(judge):
+    """The transfer job deleted the seeded "Agenta" connection. A judge calls the provider
+    directly, with no gateway to resolve the built-in model, so it fails with a message the
+    user can act on instead of a bare unknown-slug error."""
+    with pytest.raises(UnknownConnectionV0Error) as caught:
+        await judge(
+            TWO_OPENAI_CONNECTIONS,
+            model="Agenta/custom/vertex_ai/gemini-3.7-flash",
+            connection="starter-credits",
+        )
+
+    message = caught.value.message
+    assert "starter-credits connection was retired" in message
+    assert "own provider connections" in message
+    assert "openai, openai-2" in message
+
+
+async def test_an_empty_vault_list_keeps_the_shared_error_for_the_retired_slug(judge):
+    """An empty list does not prove the connection was retired: a failed vault fetch also
+    yields one. The judge keeps the shared "no API key" error rather than claiming a
+    retirement, and a prompt's model fallback still gets its turn."""
+    with pytest.raises(InvalidSecretsV0Error):
+        await judge(
+            [],
+            model="Agenta/custom/vertex_ai/gemini-3.7-flash",
+            connection="starter-credits",
+        )
 
 
 async def test_an_unknown_connection_reaches_the_caller_as_a_400(monkeypatch):

@@ -82,6 +82,10 @@ class SecretsResolver(SecretsResolverInterface):
 
         return None
 
+    async def has_connection(self, *, scope: AuthScope, slug: str) -> bool:
+        secrets = await self.vault_service.list_secrets(project_id=scope.project_id)
+        return any(secret.slug == slug for secret in secrets or [])
+
     # --- BoundSecretRef -------------------------------------------------------- #
 
     async def _fetch_bound_secret(

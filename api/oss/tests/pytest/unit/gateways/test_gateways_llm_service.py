@@ -172,6 +172,9 @@ class _MockResolver(SecretsResolverInterface):
     async def provider_connection_by_slug(self, *, scope, slug):
         return self.connections.get(slug)
 
+    async def has_connection(self, *, scope, slug):
+        return slug in self.connections
+
 
 class _MockPolicy:
     def __init__(self, *, allowed: bool = True, admitted: bool = True):
