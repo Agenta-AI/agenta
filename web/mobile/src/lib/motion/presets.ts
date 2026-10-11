@@ -123,6 +123,9 @@ export const shineSweep: Transition = {duration: 1.4, ease: "easeInOut", delay: 
 /** How long a number counts up to its value. */
 export const countUpMs = 1400
 
+/** Ease-out cubic for a counting number. */
+export const countUpEase = [0.33, 1, 0.68, 1] as const
+
 /** How long a picked answer holds before a one-tap question moves on. */
 export const answerHoldMs = 420
 

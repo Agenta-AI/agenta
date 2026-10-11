@@ -1,6 +1,10 @@
 import {useEffect, useState} from "react"
 
-/** `target`, counted up from zero over `durationMs` on an ease-out cubic; 0 ms shows it at once. */
+import {animate} from "motion/react"
+
+import {countUpEase} from "./presets"
+
+/** `target`, counted up from zero over `durationMs`; 0 ms shows it at once. */
 export const useCountUp = (target: number, durationMs: number): number => {
     const [value, setValue] = useState(durationMs > 0 ? 0 : target)
     useEffect(() => {
@@ -8,15 +12,12 @@ export const useCountUp = (target: number, durationMs: number): number => {
             setValue(target)
             return
         }
-        let frame = 0
-        const start = performance.now()
-        const tick = (now: number) => {
-            const t = Math.min(1, (now - start) / durationMs)
-            setValue(target * (1 - Math.pow(1 - t, 3)))
-            if (t < 1) frame = requestAnimationFrame(tick)
-        }
-        frame = requestAnimationFrame(tick)
-        return () => cancelAnimationFrame(frame)
+        const controls = animate(0, target, {
+            duration: durationMs / 1000,
+            ease: countUpEase,
+            onUpdate: setValue,
+        })
+        return () => controls.stop()
     }, [target, durationMs])
     return value
 }
