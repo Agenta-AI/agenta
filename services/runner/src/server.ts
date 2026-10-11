@@ -144,8 +144,6 @@ import {
   ABANDONED_TURN_MARKER,
   RUNNER_RESTARTING_MESSAGE,
   RUNNER_SHUTDOWN_REASON,
-  SESSION_RECORDS_INCOMPLETE_CODE,
-  SESSION_RECORDS_INCOMPLETE_MESSAGE,
   abandonedTurnMessage,
   type RunErrorCode,
 } from "./engines/sandbox_agent/errors.ts";
@@ -156,10 +154,8 @@ import {
 import { proposeSessionName } from "./sessions/name.ts";
 import {
   buildPersistingEmitter,
-  parkedRecordCount,
-  recordsIncomplete,
+  reportPendingRecordsIncomplete,
   reportRecordsIncomplete,
-  resendParkedRecords,
   takePersistFailures,
 } from "./sessions/persist.ts";
 import { seedForRun } from "./redaction.ts";
@@ -1015,45 +1011,11 @@ async function runAndStreamWithApiBaseResolved(
         return;
       }
 
-      // RECORD LOG. A record the previous turn could not write is still held in memory, and the
-      // api orders the log by arrival, so it must land before this turn writes anything. Re-sent
-      // with THIS turn's credential: the turn that parked it may hold a stale one. A record lost
-      // for good (now, or on an earlier turn on this runner) leaves a hole no turn can fill, so
-      // the turn is refused for every request shape, before anything is persisted, with a code
-      // that tells the user to start a new session rather than send again.
-      const resent = await resendParkedRecords(sessionId, watchdog.credential);
-      if (resent.ok && resent.resent > 0) {
-        process.stderr.write(
-          `[sessions] records RECOVERED session=${sessionId} resent=${resent.resent}\n`,
-        );
-      }
-      if (!resent.ok || recordsIncomplete(sessionId)) {
-        if (!resent.ok) {
-          await reportRecordsIncomplete(sessionId, turnId, watchdog.credential);
-        }
-        process.stderr.write(
-          `[sessions] records INCOMPLETE session=${sessionId} turn=${turnId}; turn refused` +
-            (resent.ok ? "" : ` (re-send lost ${resent.lost}: ${resent.error})`) +
-            "\n",
-        );
-        await watchdog.release().catch(() => {});
-        unregisterExecution(sessionId, turnId);
-        liveEmit({
-          type: "error",
-          message: SESSION_RECORDS_INCOMPLETE_MESSAGE,
-          code: SESSION_RECORDS_INCOMPLETE_CODE,
-        });
-        writeRecord({
-          kind: "result",
-          result: {
-            ok: false,
-            error: SESSION_RECORDS_INCOMPLETE_MESSAGE,
-            events: [],
-          },
-        });
-        res.end();
-        return;
-      }
+      // RECORD LOG. A loss an earlier turn on this runner could not report (the report usually
+      // fails in the same outage) is reported now, with this turn's credential, so a turn on
+      // another runner refuses to rebuild from the log too. Reconstruction below refuses on the
+      // local mark.
+      await reportPendingRecordsIncomplete(sessionId, turnId, watchdog.credential);
 
       // A refused contender must never replace the admitted execution's Stop handle.
       registerExecution({
@@ -1263,18 +1225,10 @@ async function runAndStreamWithApiBaseResolved(
     if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: reported };
   } finally {
-    // The drain is the only place that knows whether this turn's records all landed. A record
-    // lost for good means the log no longer represents the conversation, so mark the session: a
-    // later turn must fail rather than rebuild model context from a log with a hole in it. A
-    // parked record is not reported: the next turn re-sends it, and the api cannot clear the flag.
+    // The drain is the only place that knows whether this turn's records all landed. A dropped
+    // record means the log no longer represents the conversation, so mark the session: a later
+    // turn must fail rather than rebuild model context from a log with a hole in it.
     if (sessionOwned && sessionId) {
-      const parked = parkedRecordCount(sessionId);
-      if (parked > 0) {
-        process.stderr.write(
-          `[sessions] records PARKED session=${sessionId} parked=${parked}; ` +
-            `re-sent before the next turn of this session on this runner\n`,
-        );
-      }
       const dropped = takePersistFailures(sessionId);
       if (dropped > 0) {
         // Before the watchdog release below, so the flag is on the log before another turn on

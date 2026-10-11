@@ -1,16 +1,16 @@
 /**
- * Records a turn could not write are re-sent before the session's next turn (#7479, #7480).
+ * Record writes ride out a database restart, and a record lost for good reaches the api's
+ * incomplete flag even when the first report fails in the same outage (#7480, #7479).
  *
  * On 2026-10-08 a database restart answered HTTP 500 to record writes for about a minute. The
  * runner gave up on one record after a few seconds, marked the session incomplete in memory, and
  * refused every later turn of it on that pod, although the database later held every record.
  *
- * These tests drive a real runner server against a fake platform API and pin the recovery:
- *  - a record that does not land is held, and re-sent at the start of the next turn, ahead of
- *    that turn's own records and with that turn's credential;
- *  - after it lands the session runs normally, and nothing is reported incomplete;
- *  - when the re-send fails, the turn is refused before it persists anything, with the
- *    `session_records_incomplete` code, and the loss is reported to the API.
+ * These tests drive a real runner server against a fake platform API and pin:
+ *  - a record write retries through a short outage and lands; nothing is reported incomplete;
+ *  - a record that does not land within the budget is lost and reported incomplete at turn end;
+ *  - a report that fails is sent again at the start of the session's next turn on this runner,
+ *    with that turn's credential, before that turn writes any record.
  *
  * Run: pnpm exec vitest run tests/unit/session-records-recovery.test.ts
  */
@@ -36,10 +36,17 @@ interface Ingest {
   authorization: string;
 }
 
-/** A fake platform API: admits every turn; record writes answer `ingestStatus()`. */
-async function startFakeApi(ingestStatus: () => number) {
+/**
+ * A fake platform API: admits every turn; record writes answer `ingestStatus()` and incomplete
+ * reports answer `incompleteStatus()`. `log` keeps the order of what landed.
+ */
+async function startFakeApi(
+  ingestStatus: () => number,
+  incompleteStatus: () => number = () => 200,
+) {
   const landed: Ingest[] = [];
-  const incompleteReports: unknown[] = [];
+  const incompleteReports: { session_id: string; authorization: string }[] = [];
+  const log: string[] = [];
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on("data", (c) => chunks.push(c as Buffer));
@@ -62,13 +69,21 @@ async function startFakeApi(ingestStatus: () => number) {
         const status = ingestStatus();
         if (status < 300) {
           landed.push({ ...body, authorization: req.headers.authorization ?? "" });
+          log.push(`record ${body.attributes?.text ?? body.record_type}`);
         }
         res.writeHead(status, { "content-type": "application/json" });
         res.end("{}");
         return;
       }
       if (path.endsWith("/sessions/records/incomplete")) {
-        incompleteReports.push(body);
+        const status = incompleteStatus();
+        if (status < 300) {
+          incompleteReports.push({ ...body, authorization: req.headers.authorization ?? "" });
+          log.push("incomplete");
+        }
+        res.writeHead(status, { "content-type": "application/json" });
+        res.end("{}");
+        return;
       }
       res.writeHead(200, { "content-type": "application/json" });
       res.end("{}");
@@ -80,6 +95,7 @@ async function startFakeApi(ingestStatus: () => number) {
     url: `http://127.0.0.1:${port}`,
     landed,
     incompleteReports,
+    log,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }
@@ -147,7 +163,7 @@ const saved = {
 };
 
 beforeEach(() => {
-  // One attempt per record, so a failure parks at once.
+  // One attempt per record by default, so a failure is lost at once.
   process.env[BUDGET_ENV] = "0";
 });
 
@@ -163,29 +179,20 @@ afterEach(() => {
 });
 
 describe("records a turn could not write", () => {
-  it("are re-sent before the next turn writes, with its credential, and the session runs on", async () => {
-    let down = true;
-    const api = await startFakeApi(() => (down ? 500 : 200));
+  it("retry through a short outage and land, with nothing reported incomplete", async () => {
+    process.env[BUDGET_ENV] = "10000";
+    let failures = 3;
+    const api = await startFakeApi(() => (failures-- > 0 ? 500 : 200));
     process.env[INTERNAL_ENV] = api.url;
     const calls: AgentRunRequest[] = [];
     const runner = await startRunner(answering(calls));
-    const sessionId = "session-recovery-ok";
     try {
-      const first = await postRun(runner.url, turn(sessionId, "q1", "ApiKey first", api.url));
+      const first = await postRun(runner.url, turn("session-outage-short", "q1", "ApiKey a", api.url));
       assert.equal(first.find((r) => r.kind === "result")?.result?.ok, true);
-      assert.equal(api.landed.length, 0, "the api was down for the whole first turn");
-
-      down = false;
-      const second = await postRun(runner.url, turn(sessionId, "q2", "ApiKey second", api.url));
-      assert.equal(second.find((r) => r.kind === "result")?.result?.ok, true);
-      assert.equal(calls.length, 2, "the second turn ran");
-
-      // The first turn's records land first, in their order, then the second turn's.
-      const texts = api.landed.map((r) => r.attributes.text ?? r.record_type);
-      assert.deepEqual(texts, ["q1", "answer 1", "done", "q2", "answer 2", "done"]);
-      // Re-sent with the second turn's credential, not the first turn's.
-      assert.ok(api.landed.slice(0, 3).every((r) => r.authorization === "ApiKey second"));
-      // Parked is not lost: nothing was reported incomplete.
+      assert.deepEqual(
+        api.landed.map((r) => r.attributes.text ?? r.record_type),
+        ["q1", "answer 1", "done"],
+      );
       assert.equal(api.incompleteReports.length, 0);
     } finally {
       await runner.close();
@@ -193,33 +200,49 @@ describe("records a turn could not write", () => {
     }
   });
 
-  it("refuse the next turn with session_records_incomplete when the re-send fails", async () => {
+  it("are lost after the budget and reported incomplete at turn end", async () => {
     const api = await startFakeApi(() => 500);
     process.env[INTERNAL_ENV] = api.url;
     const calls: AgentRunRequest[] = [];
     const runner = await startRunner(answering(calls));
-    const sessionId = "session-recovery-lost";
+    const sessionId = "session-lost-reported";
     try {
       await postRun(runner.url, turn(sessionId, "q1", "ApiKey first", api.url));
-      assert.equal(calls.length, 1);
-
-      const second = await postRun(runner.url, turn(sessionId, "q2", "ApiKey second", api.url));
-      assert.equal(calls.length, 1, "the refused turn never reached run()");
-      const error = second.find((r) => r.event?.type === "error")?.event;
-      assert.equal(error?.code, "session_records_incomplete");
-      assert.match(String(error?.message), /Start a new session/);
-      assert.equal(second.find((r) => r.kind === "result")?.result?.ok, false);
-      // The loss is reported, once, for this session.
+      assert.equal(api.landed.length, 0);
       assert.equal(api.incompleteReports.length, 1);
-      assert.equal((api.incompleteReports[0] as { session_id: string }).session_id, sessionId);
+      assert.equal(api.incompleteReports[0].session_id, sessionId);
+    } finally {
+      await runner.close();
+      await api.close();
+    }
+  });
 
-      // The session stays refused on this runner, even after the api is back.
-      const third = await postRun(runner.url, turn(sessionId, "q3", "ApiKey third", api.url));
-      assert.equal(calls.length, 1);
-      assert.equal(
-        third.find((r) => r.event?.type === "error")?.event?.code,
-        "session_records_incomplete",
-      );
+  it("report the loss again at the next turn when the first report failed, before it writes", async () => {
+    let down = true;
+    const api = await startFakeApi(
+      () => (down ? 500 : 200),
+      () => (down ? 503 : 200),
+    );
+    process.env[INTERNAL_ENV] = api.url;
+    const calls: AgentRunRequest[] = [];
+    const runner = await startRunner(answering(calls));
+    const sessionId = "session-report-retried";
+    try {
+      await postRun(runner.url, turn(sessionId, "q1", "ApiKey first", api.url));
+      assert.equal(api.incompleteReports.length, 0, "the report failed in the outage");
+
+      down = false;
+      await postRun(runner.url, turn(sessionId, "q2", "ApiKey second", api.url));
+      // Reported once, with the second turn's credential, ahead of that turn's records.
+      assert.equal(api.incompleteReports.length, 1);
+      assert.equal(api.incompleteReports[0].session_id, sessionId);
+      assert.equal(api.incompleteReports[0].authorization, "ApiKey second");
+      assert.equal(api.log[0], "incomplete");
+      assert.deepEqual(api.log.slice(1), ["record q2", "record answer 2", "record done"]);
+
+      // Acknowledged: a third turn does not report it again.
+      await postRun(runner.url, turn(sessionId, "q3", "ApiKey third", api.url));
+      assert.equal(api.incompleteReports.length, 1);
     } finally {
       await runner.close();
       await api.close();

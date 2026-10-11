@@ -6,7 +6,7 @@
  *  - delta families (message_start/message_delta/message_end) are coalesced into
  *    a single `message` event (stripReplay)
  *  - drainPersist waits for all pending POSTs
- *  - transient failures retry for a time budget; records that still fail are parked and re-sent
+ *  - transient failures retry for a time budget; a record that still fails is lost and counted
  *  - the live emitter is always called, even for delta events
  */
 import { describe, it, beforeEach, vi } from "vitest";
@@ -28,10 +28,8 @@ vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
 const {
   buildPersistingEmitter,
   drainPersist,
-  parkedRecordCount,
   recordsIncomplete,
   reportRecordsIncomplete,
-  resendParkedRecords,
   takePersistFailures,
 } = await import("../../src/sessions/persist.ts");
 
@@ -590,7 +588,7 @@ describe("durable records", () => {
       assert.equal(ingest.attempts(), 4);
       assert.equal(ingest.landed.length, 1);
       assert.equal(takePersistFailures("sess-recover"), 0);
-      assert.equal(parkedRecordCount("sess-recover"), 0);
+      assert.equal(recordsIncomplete("sess-recover"), false);
     } finally {
       ingest.restore();
     }
@@ -608,10 +606,9 @@ describe("durable records", () => {
       emit({ type: "message", text: "x" });
       emit({ type: "done" });
       await drainPersist("sess-422");
-      // One attempt for the 422, then the next record still goes out: nothing is held.
+      // One attempt for the 422, then the next record still goes out (one attempt: it lands).
       assert.equal(ingest.attempts(), 2);
       assert.deepEqual(ingest.landed.map((b) => b.record_type), ["done"]);
-      assert.equal(parkedRecordCount("sess-422"), 0);
       assert.equal(takePersistFailures("sess-422"), 1);
       assert.equal(recordsIncomplete("sess-422"), true);
     } finally {
@@ -619,128 +616,40 @@ describe("durable records", () => {
     }
   });
 
-  it("parks a record when the budget runs out, and every later record behind it, unsent", async () => {
+  it("loses a record when the budget runs out; later records get one attempt each", async () => {
     vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "250");
     const errors: string[] = [];
     const errorSpy = vi
       .spyOn(console, "error")
       .mockImplementation((...args) => void errors.push(args.join(" ")));
-    const ingest = stubIngest(() => new Response("", { status: 500 }));
+    const bodies: any[] = [];
+    const ingest = stubIngest((body) => {
+      bodies.push(body);
+      return new Response("", { status: 500 });
+    });
     try {
-      const { emit, flush } = buildPersistingEmitter("sess-park", () => "t", undefined, undefined, "turn-1");
+      const { emit, flush } = buildPersistingEmitter("sess-budget", () => "t", undefined, undefined, "turn-1");
       emit({ type: "message", text: "a" });
       emit({ type: "message", text: "b" });
       emit({ type: "done" });
       await flush();
-      // Only the first record was tried; the two behind it were held without a request.
-      const tried = ingest.attempts();
-      assert.ok(tried >= 2, `retried: ${tried}`);
-      assert.equal(parkedRecordCount("sess-park"), 3);
-      // Parked is not lost: nothing to report, and reconstruction is not refused on this alone.
-      assert.equal(takePersistFailures("sess-park"), 0);
-      assert.equal(recordsIncomplete("sess-park"), false);
-      // One alertable line, at ERROR, for the drop.
+      const first = bodies.filter((b) => b.attributes.text === "a");
+      assert.ok(first.length >= 2, `the first record retried: ${first.length}`);
+      // Every retry is the same row: same record id and timestamp.
+      assert.ok(first.every((b) => JSON.stringify(b) === JSON.stringify(first[0])));
+      // The log already has a hole, so the records behind it do not wait out a full budget.
+      assert.equal(bodies.filter((b) => b.attributes.text === "b").length, 1);
+      assert.equal(bodies.filter((b) => b.record_type === "done").length, 1);
+      assert.equal(takePersistFailures("sess-budget"), 3);
+      assert.equal(recordsIncomplete("sess-budget"), true);
+      // One alertable line, at ERROR, per lost record.
       const drops = errors.filter((line) => line.includes("[sessions/persist] RECORD_DROPPED"));
-      assert.equal(drops.length, 1);
-      assert.match(drops[0], /"outcome":"parked"/);
+      assert.equal(drops.length, 3);
+      assert.ok(drops.every((line) => /"outcome":"lost"/.test(line)));
     } finally {
       ingest.restore();
       errorSpy.mockRestore();
     }
-  });
-
-  it("re-sends parked records in order with the next turn's credential, then the session is whole", async () => {
-    vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "0");
-    let down = true;
-    const ingest = stubIngest(() =>
-      down ? new Response("", { status: 500 }) : new Response("{}", { status: 200 }),
-    );
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const first = buildPersistingEmitter("sess-resend", () => "old", undefined, undefined, "turn-1");
-      first.emit({ type: "message", text: "a" });
-      first.emit({ type: "message", text: "b" });
-      first.emit({ type: "done" });
-      await first.flush();
-      assert.equal(parkedRecordCount("sess-resend"), 3);
-      const parkedIds = ingest.landed.length;
-      assert.equal(parkedIds, 0);
-
-      down = false;
-      const outcome = await resendParkedRecords("sess-resend", () => "new");
-      assert.deepEqual(outcome, { ok: true, resent: 3 });
-      assert.equal(parkedRecordCount("sess-resend"), 0);
-      assert.equal(recordsIncomplete("sess-resend"), false);
-      // Original order, original indexes and turn, and the new turn's credential.
-      assert.deepEqual(
-        ingest.landed.map((b) => [b.record_index, b.record_type, b.attributes.text, b.turn_id]),
-        [[0, "message", "a", "turn-1"], [1, "message", "b", "turn-1"], [2, "done", undefined, "turn-1"]],
-      );
-      assert.equal(ingest.auths.at(-1), "new");
-
-      // The next turn writes after them, and is no longer held.
-      const second = buildPersistingEmitter("sess-resend", () => "new", undefined, undefined, "turn-2");
-      second.persist({ type: "message", text: "c" }, "user");
-      await second.flush();
-      assert.deepEqual(ingest.landed.map((b) => b.attributes.text ?? b.record_type), ["a", "b", "done", "c"]);
-    } finally {
-      ingest.restore();
-      errorSpy.mockRestore();
-    }
-  });
-
-  it("a re-send keeps the record id and timestamp of the first attempt", async () => {
-    vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "0");
-    const bodies: any[] = [];
-    let down = true;
-    const ingest = stubIngest((body) => {
-      bodies.push(body);
-      return down ? new Response("", { status: 503 }) : new Response("{}", { status: 200 });
-    });
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const { persist, flush } = buildPersistingEmitter("sess-same-row", () => "t");
-      persist({ type: "message", text: "hello" }, "user");
-      await flush();
-      down = false;
-      await resendParkedRecords("sess-same-row", () => "t");
-      assert.equal(bodies.length, 2);
-      assert.deepEqual(bodies[0], bodies[1]);
-    } finally {
-      ingest.restore();
-      errorSpy.mockRestore();
-    }
-  });
-
-  it("a failed re-send loses the records: the session is marked and nothing stays held", async () => {
-    vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "0");
-    const errors: string[] = [];
-    const errorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation((...args) => void errors.push(args.join(" ")));
-    const ingest = stubIngest(() => new Response("", { status: 500 }));
-    try {
-      const { emit, flush } = buildPersistingEmitter("sess-lost", () => "t");
-      emit({ type: "message", text: "a" });
-      emit({ type: "done" });
-      await flush();
-      const outcome = await resendParkedRecords("sess-lost", () => "t");
-      assert.equal(outcome.ok, false);
-      assert.equal(outcome.ok ? 0 : outcome.lost, 2);
-      assert.equal(parkedRecordCount("sess-lost"), 0);
-      assert.equal(recordsIncomplete("sess-lost"), true);
-      assert.ok(errors.some((line) => /RECORD_DROPPED.*"outcome":"lost"/.test(line)));
-    } finally {
-      ingest.restore();
-      errorSpy.mockRestore();
-    }
-  });
-
-  it("a session with nothing parked re-sends nothing", async () => {
-    assert.deepEqual(await resendParkedRecords("sess-clean", () => "t"), {
-      ok: true,
-      resent: 0,
-    });
   });
 
   it("the turn-end flush leaves the loss count for the caller (does not consume it)", async () => {
