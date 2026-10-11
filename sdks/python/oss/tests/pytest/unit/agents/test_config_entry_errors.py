@@ -33,6 +33,14 @@ class TestTheParseLocatesTheProblem:
         assert error.index == 1
         assert error.describe("skills[1]") == ["skills[1].body is required"]
 
+    def test_a_file_marker_where_text_belongs_is_named(self):
+        # Only commit_revision's runner path resolves file markers.
+        error = _refusal({"skills": [{**SKILL, "body": {"@file": "notes.md"}}]})
+
+        assert error.describe("skills[0]") == [
+            "skills[0].body must be inline text; `@file` is not resolved here"
+        ]
+
     def test_a_tool_is_located_without_its_union_tag(self):
         error = _refusal({"tools": [{"type": "builtin"}]})
 
