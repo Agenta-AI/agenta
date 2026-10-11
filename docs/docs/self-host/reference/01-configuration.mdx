@@ -1303,8 +1303,8 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 ### Connection pool
 
 Every process builds two engines, one for the core database and one for the tracing
-database. A process therefore reserves `2 x (pool_size + max_overflow)` server
-connections. The defaults fit the smallest supported server, 400 connections shared by
+database. A process can therefore open up to `2 x (pool_size + max_overflow)` server
+connections at peak. Pools open connections on demand, so an idle process holds fewer. The defaults fit the smallest supported server, 400 connections shared by
 about ten processes, and leave headroom for migrations, the cron and a `psql` session.
 
 Raise them against the server's real limit, which `SHOW max_connections` reports. A pool
@@ -1331,6 +1331,11 @@ overflow, which does close.
 `pool_size + max_overflow` multiplied by two engines and by `POSTGRES_POOL_CONSUMERS`
 exceeds `POSTGRES_MAX_CONNECTIONS`, each process logs one warning as it builds its
 engines. Set both to your real numbers so the warning means something.
+
+To size them, count every process that builds these engines at the largest rollout
+overlap: each gunicorn worker in each API pod, and each queue and stream worker. Keep
+`30 x API processes + 20 x worker processes` (the default peaks) well under
+`max_connections`, and leave room for migrations and other clients.
 
 The Helm chart has no values for these. Set them through each component's `extraEnv`.
 

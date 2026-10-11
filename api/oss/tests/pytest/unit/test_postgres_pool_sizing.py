@@ -188,3 +188,28 @@ def test_setting_the_profile_changes_what_a_new_engine_would_get(monkeypatch):
     set_pool_profile(PROFILE_WORKER)
 
     assert engine_module.current_pool_sizing().pool_size == 3
+
+
+def test_an_unknown_profile_is_refused(monkeypatch):
+    monkeypatch.setattr(engine_module, "_transactions_engine", None)
+    monkeypatch.setattr(engine_module, "_analytics_engine", None)
+
+    with pytest.raises(ValueError, match="Unknown Postgres pool profile"):
+        set_pool_profile("cron")
+
+
+def test_the_worker_warning_names_the_worker_variables():
+    warning = pool_budget_warning(
+        sizing=PoolSizing(
+            pool_size=50,
+            max_overflow=50,
+            pool_recycle=1800,
+            pool_timeout=30,
+        ),
+        max_connections=400,
+        consumers=10,
+        profile=PROFILE_WORKER,
+    )
+
+    assert warning is not None
+    assert "POSTGRES_WORKER_POOL_SIZE" in warning

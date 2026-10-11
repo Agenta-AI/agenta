@@ -24,6 +24,13 @@ ENGINES_PER_PROCESS = 2
 
 PROFILE_API = "api"
 PROFILE_WORKER = "worker"
+PROFILES = (PROFILE_API, PROFILE_WORKER)
+
+# The variables an operator lowers to shrink each profile's pool.
+_PROFILE_VARIABLES = {
+    PROFILE_API: "POSTGRES_POOL_SIZE/POSTGRES_MAX_OVERFLOW",
+    PROFILE_WORKER: "POSTGRES_WORKER_POOL_SIZE/POSTGRES_WORKER_MAX_OVERFLOW",
+}
 
 
 @dataclass(frozen=True)
@@ -81,6 +88,7 @@ def pool_budget_warning(
     max_connections: int,
     consumers: int,
     engines_per_process: int = ENGINES_PER_PROCESS,
+    profile: str = PROFILE_API,
 ) -> Optional[str]:
     """Return a warning when the configured pool cannot fit the server's limit.
 
@@ -97,7 +105,8 @@ def pool_budget_warning(
         f"Postgres pool is oversized: {consumers} processes x "
         f"{engines_per_process} engines x {sizing.peak_connections} connections "
         f"= {demand}, above max_connections={max_connections}. "
-        "Lower POSTGRES_POOL_SIZE/POSTGRES_MAX_OVERFLOW or raise the server limit."
+        f"Lower {_PROFILE_VARIABLES.get(profile, _PROFILE_VARIABLES[PROFILE_API])} "
+        "or raise the server limit."
     )
 
 
@@ -115,6 +124,11 @@ def set_pool_profile(profile: str) -> None:
     """
 
     global _profile
+
+    if profile not in PROFILES:
+        raise ValueError(
+            f"Unknown Postgres pool profile {profile!r}; expected one of {PROFILES}"
+        )
 
     if _transactions_engine is not None or _analytics_engine is not None:
         raise RuntimeError(
@@ -155,6 +169,7 @@ def _log_pool_sizing(name: str, sizing: PoolSizing) -> None:
         sizing=sizing,
         max_connections=env.postgres.max_connections,
         consumers=env.postgres.pool_consumers,
+        profile=_profile,
     )
 
     if warning:
