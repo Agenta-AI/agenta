@@ -910,8 +910,8 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # tokens; the 3.2 KB version measured the same success rate and cost 11-13 percent more.
 # It works BECAUSE three things hold: the wrapper normalizes the repeated-list mistake,
 # every error names a next step, and the selector key is `list`. So it stays this size:
-# the only line added since that measurement is the `agenta_tools` key, a selector fix it
-# shares with `edit_agent_config`. The longer reference (Agenta tool names, skill fields)
+# the only lines added since that measurement are the `agenta_tools` key, a selector fix it
+# shares with `edit_agent_config`, and the ask-before-repurposing sentence (bench S10c). The longer reference (Agenta tool names, skill fields)
 # lives in `edit_agent_config` and in the build-an-agent skill, not here.
 _TARGET_AND_OPERATIONS = """TARGET: an array of segments from the configuration root. A string segment names an
 object field. An object segment {"list": L, "key": K} names one entry of list L and
@@ -938,6 +938,9 @@ never retype it from memory."""
 
 _COMMIT_REVISION_DESCRIPTION_ORDERED = (
     """Commit a change to this agent's own configuration.
+
+If you already have a job and the person asks for "an agent that ..." something else, ask
+first: change yourself, or create a separate agent?
 
 Editing files in your workspace does not change your configuration. That copy is rebuilt,
 and the edits are lost. Change your instructions and configuration only through this tool.
@@ -1853,7 +1856,7 @@ _LIST_AGENTS_DESCRIPTION = """List the agents in this project, newest first.
 Each agent has `name`, `id`, `slug`, `url`, `description`, `version` and `updated_at`. The
 list includes you. Pass an agent's `slug` or `id` to `read_agent_config` or
 `edit_agent_config`. To the person, name an agent by its `name`, never its slug or id, and
-give its `url` to open it.
+link it: [Invoice helper](url).
 
 When the answer has a `next_cursor`, call again with `cursor` set to it for the next page."""
 

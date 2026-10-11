@@ -151,7 +151,7 @@ def test_answers_name_an_agent_by_its_name_and_give_its_link():
     description = " ".join(get_platform_op("list_agents").description.split())
     assert "Each agent has `name`, `id`, `slug`, `url`," in description
     assert "name an agent by its `name`, never its slug or id" in description
-    assert "give its `url`" in description
+    assert "link it: [Invoice helper](url)." in description
 
 
 def test_a_request_for_an_agent_means_a_fresh_agent_and_asks_a_configured_one():
@@ -190,7 +190,13 @@ def test_commit_revision_keeps_its_measured_size_plus_the_agenta_tools_key():
     commit = get_platform_op("commit_revision").description
     assert "the agenta_tools entry is keyed agenta_tools" in commit
     assert "Agenta tools (value" not in commit
-    assert len(commit) < 2500
+    # Plus one sentence: a configured agent asks before it repurposes itself (bench S10c).
+    assert (
+        'If you already have a job and the person asks for "an agent that ..." something '
+        "else, ask first: change yourself, or create a separate agent?"
+        in " ".join(commit.split())
+    )
+    assert len(commit) < 2550
 
 
 def test_the_agenta_tools_example_is_a_valid_operation():
