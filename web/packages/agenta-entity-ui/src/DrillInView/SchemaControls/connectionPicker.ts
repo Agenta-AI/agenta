@@ -234,22 +234,27 @@ const RETIRED_STARTER_CREDITS_MODEL_ALIASES: Readonly<Record<string, string>> = 
 
 /**
  * The row to show for the stored selection, and the model id that row stands for. Only the shape
- * the gateway aliases (an `agenta`-mode pick on the custom `starter-credits` slug) maps, and only to
- * the exact built-in row: never to another connection that happens to offer the same model.
+ * the gateway aliases (an `agenta`-mode pick on the custom `starter-credits` slug) maps, only when
+ * the vault holds no connection under that slug (the gateway checks the same), and only to the
+ * exact built-in row: never to another connection that happens to offer the same model.
  */
 export const displayedModelRow = (
     rows: PickerConnectionRow[],
     current: Parameters<typeof selectedModelRowKey>[1],
+    vaultSlugs: readonly (string | undefined)[],
 ): {key: string | undefined; modelId: string | null} => {
     const key = selectedModelRowKey(rows, current)
     const builtinModelId =
         current.slug === RETIRED_STARTER_CREDITS_SLUG &&
         current.mode === "agenta" &&
         (current.namespace ?? "custom") === "custom" &&
+        !vaultSlugs.includes(RETIRED_STARTER_CREDITS_SLUG) &&
         current.modelId
             ? RETIRED_STARTER_CREDITS_MODEL_ALIASES[current.modelId]
             : undefined
-    if (key || !builtinModelId) return {key, modelId: current.modelId}
+    if (!builtinModelId) return {key, modelId: current.modelId}
+    // The vault holds no `starter-credits` connection, so any `key` above is another connection's
+    // row that offers the same model id, not the route the gateway runs.
     const builtin = rows
         .flatMap((row) => row.models.map((model) => ({key: row.key, model})))
         .find(

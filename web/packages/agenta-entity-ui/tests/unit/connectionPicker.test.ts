@@ -1181,9 +1181,28 @@ describe("displayedModelRow", () => {
         })
 
     it("shows a retired starter-credits model as the built-in model it runs on", () => {
-        const shown = displayedModelRow(rows(), saved)
+        const shown = displayedModelRow(rows(), saved, [])
 
         expect(shown.modelId).toBe("google/gemini-3.7-flash")
+        expect(shown.key).toBe("builtin:agenta:pi_core:google/gemini-3.7-flash")
+    })
+
+    it("keeps the stored id while the vault still holds a starter-credits connection", () => {
+        const shown = displayedModelRow(rows(), saved, ["openai", "starter-credits"])
+
+        expect(shown).toEqual({key: undefined, modelId: saved.modelId})
+    })
+
+    it("shows the built-in row even when another connection offers the same stored id", () => {
+        const other = custom("9", "custom", [saved.modelId], {slug: "my-vertex"})
+        const withOther = rows([other])
+        // The fallback alone would light up the other connection's row.
+        expect(selectedModelRowKey(withOther, saved)).toBe(
+            `9:pi_core:${saved.modelId}`,
+        )
+
+        const shown = displayedModelRow(withOther, saved, ["my-vertex"])
+
         expect(shown.key).toBe("builtin:agenta:pi_core:google/gemini-3.7-flash")
     })
 
@@ -1192,7 +1211,7 @@ describe("displayedModelRow", () => {
         ["an explicit standard namespace", {namespace: "standard" as const}],
         ["a self-managed pick", {mode: "self_managed" as const}],
     ])("keeps %s as the stored id", (_label, change) => {
-        const shown = displayedModelRow(rows(), {...saved, ...change})
+        const shown = displayedModelRow(rows(), {...saved, ...change}, [])
 
         expect(shown).toEqual({key: undefined, modelId: saved.modelId})
     })
@@ -1213,7 +1232,7 @@ describe("displayedModelRow", () => {
             capabilities: CAPABILITIES,
         })
 
-        expect(displayedModelRow(withoutBuiltin, saved)).toEqual({
+        expect(displayedModelRow(withoutBuiltin, saved, [])).toEqual({
             key: undefined,
             modelId: saved.modelId,
         })
