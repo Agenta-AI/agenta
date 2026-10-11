@@ -25,6 +25,7 @@ import {planLimits} from "./planLimits"
 import {PlanStatTile} from "./PlanStatTile"
 import {PlanSummaryCard} from "./PlanSummaryCard"
 import type {SettingsTabProps} from "./settingsTabProps"
+import {BillingLoadError} from "./states/BillingLoadError"
 import {BillingPageSkeleton} from "./states/BillingPageSkeleton"
 import {useBillingPortal} from "./useBillingPortal"
 
@@ -67,13 +68,23 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     }
 
     if (usage.isPending || subscription.isPending) return <BillingPageSkeleton />
+    if (usage.isError && subscription.isError)
+        return (
+            <BillingLoadError
+                message="We couldn't load your plan and its limits."
+                onRetry={() => {
+                    void usage.refetch()
+                    void subscription.refetch()
+                }}
+            />
+        )
 
     const enforced = wallet.data?.mode === "enforce" ? wallet.data : null
     const monthly = enforced ? monthlyCredit(enforced) : null
     const planSlug = subscription.data?.plan
     // Enterprise has no slug, so an unknown plan must not match it.
     const currentPlan = planSlug ? catalog.plans.find((plan) => plan.plan === planSlug) : undefined
-    const showPlanCard = billingEnabled || Boolean(subscription.data)
+    const showPlanCard = !subscription.isError && (billingEnabled || Boolean(subscription.data))
     const daily = enforced ? dailyCredit(enforced) : null
     const limits = planLimits(usage.data)
     const viewMembers = () =>
@@ -85,6 +96,18 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
         <div className="flex flex-col gap-10">
             <style>{ANALYTICS_COLOR_CSS}</style>
             <div className="flex flex-col gap-2.5">
+                {subscription.isError ? (
+                    <BillingLoadError
+                        message="We couldn't load your plan."
+                        onRetry={() => void subscription.refetch()}
+                    />
+                ) : null}
+                {usage.isError ? (
+                    <BillingLoadError
+                        message="We couldn't load your plan limits."
+                        onRetry={() => void usage.refetch()}
+                    />
+                ) : null}
                 {showPlanCard || enforced ? (
                     <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
                         {showPlanCard ? (
@@ -152,7 +175,11 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
             ) : null}
 
             {billingEnabled ? (
-                <BillingPaymentsSection onOpenPortal={portal.open} opening={portal.opening} />
+                <BillingPaymentsSection
+                    onOpenPortal={portal.open}
+                    opening={portal.opening}
+                    error={portal.error}
+                />
             ) : null}
 
             <PlanChooserSheet

@@ -71,6 +71,9 @@ export const CreditHistoryTable = ({
                     </button>
                 ) : null}
             </div>
+            {portal.error ? (
+                <span className="text-destructive text-[13px]">{portal.error}</span>
+            ) : null}
             <ListTable<WalletCredit>
                 columns={COLUMNS}
                 minWidth={680}

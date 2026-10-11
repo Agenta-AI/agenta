@@ -5,9 +5,11 @@ import {ArrowSquareOut, Receipt} from "@phosphor-icons/react"
 export const BillingPaymentsSection = ({
     onOpenPortal,
     opening,
+    error,
 }: {
     onOpenPortal: () => void
     opening: boolean
+    error: string | null
 }) => (
     <section className="flex flex-col gap-3">
         <h3 className="m-0 text-sm font-medium">Payment history</h3>
@@ -26,6 +28,7 @@ export const BillingPaymentsSection = ({
                 <ArrowSquareOut data-icon="inline-end" />
             </Button>
         </div>
+        {error ? <span className="text-destructive text-[13px]">{error}</span> : null}
         <span className="text-muted-foreground text-[13px]">
             Payment method, tax IDs and billing address are managed in the billing portal too.
         </span>
