@@ -154,6 +154,7 @@ import {
 import { proposeSessionName } from "./sessions/name.ts";
 import {
   buildPersistingEmitter,
+  reportPendingRecordsIncomplete,
   reportRecordsIncomplete,
   takePersistFailures,
 } from "./sessions/persist.ts";
@@ -1009,6 +1010,12 @@ async function runAndStreamWithApiBaseResolved(
         res.end();
         return;
       }
+
+      // RECORD LOG. A loss an earlier turn on this runner could not report (the report usually
+      // fails in the same outage) is reported now, with this turn's credential, so a turn on
+      // another runner refuses to rebuild from the log too. Reconstruction below refuses on the
+      // local mark.
+      await reportPendingRecordsIncomplete(sessionId, turnId, watchdog.credential);
 
       // A refused contender must never replace the admitted execution's Stop handle.
       registerExecution({

@@ -21,6 +21,11 @@ import { fetchSessionRecords } from "../../sessions/records-query.ts";
 import { recordsIncomplete } from "../../sessions/persist.ts";
 import { reconstructMessages } from "../../sessions/reconstruct.ts";
 import {
+  SESSION_RECORDS_INCOMPLETE_CODE,
+  SESSION_RECORDS_INCOMPLETE_MESSAGE,
+  withPublicCode,
+} from "./errors.ts";
+import {
   carriesApprovalReplyOnly,
   carriesMinimalHistory,
 } from "./session-identity.ts";
@@ -83,9 +88,14 @@ export async function reconstructHistoryIfNeeded(
   // The client kept no copy of the conversation, so there is no history to fall back to. Answering
   // anyway would silently produce an agent that forgot everything, which reads as a correct reply.
   // Fail the turn instead: `runTurn`'s catch turns this into an error result the caller can see.
+  // It carries its own code, because a resend fails the same way: the user needs a new session.
   const incomplete = (): never => {
-    throw new Error(
-      `session ${sessionId} lost a durable record; refusing to rebuild an incomplete conversation`,
+    log?.(
+      `[reconstruct] session=${sessionId} lost a durable record; refusing to rebuild an incomplete conversation`,
+    );
+    throw withPublicCode(
+      new Error(SESSION_RECORDS_INCOMPLETE_MESSAGE),
+      SESSION_RECORDS_INCOMPLETE_CODE,
     );
   };
   if (recordsIncomplete(sessionId)) incomplete();
