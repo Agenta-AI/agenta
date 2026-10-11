@@ -13,10 +13,12 @@
  *  - Events for a given session persist in produced order (per-session promise chain).
  *  - The run is never blocked on persistence mid-stream (chain is fire-and-forget).
  *  - The run DOES drain before teardown so the last event is not lost to the race.
- *  - A persist failure is logged and swallowed; the SDK's in-memory replay store is the
- *    backstop. The retry is strong (several attempts, exponential backoff) and a drop is
- *    COUNTED per session (see `takePersistFailures`), so the turn-end drain can tell whether
- *    the durable history is complete enough to reconstruct model context from.
+ *  - A transient failure (5xx, 429, no answer) is retried with capped backoff for a time
+ *    budget that outlasts a database restart. A record that still does not land is PARKED in
+ *    memory with every later record of its session, and re-sent before the session's next turn
+ *    (`resendParkedRecords`). Only a record lost for good (a non-transient failure, a failed
+ *    re-send, the memory bound) is COUNTED (see `takePersistFailures`), so the turn-end drain
+ *    reports the session incomplete only when its history really has a hole.
  *  - `record_source` marks who authored the record: "agent" for engine-emitted events,
  *    "user" for the inbound user turn persisted at run start.
  */
@@ -31,6 +33,9 @@ import { LiveFramePublisher } from "./live-frames.ts";
 import { fetchControlPlane } from "./control-plane-fetch.ts";
 
 const INGEST_RETRY_BASE_MS = 100;
+// Ceiling on one wait between attempts. Without it the doubling backoff would leave a long gap
+// after the api comes back, and every record queued behind this one would wait through it.
+const INGEST_RETRY_MAX_BACKOFF_MS = 5_000;
 // Per-request ceiling on one ingest POST. Without it a single stalled request (a hung API, a
 // half-open socket) blocks the whole per-session persist chain — and behind it the turn-end
 // drain — for as long as the socket stays open. Bounded here so a stalled write becomes a
@@ -45,108 +50,226 @@ function ingestRequestTimeoutMs(): number {
   });
 }
 
-// Attempts with exponential backoff before a drop.
-// 6 attempts ≈ 100+200+400+800+1600ms of backoff (~3.1s) — bounded per event so a real outage
-// can't hang the turn-end drain indefinitely.
-const DURABLE_INGEST_MAX_RETRIES = 6;
-// Ceiling on the override: the backoff doubles per attempt, so each extra attempt doubles the
-// worst-case drain wait. 12 attempts ≈ 3.4 min of backoff — the point past which "retry harder"
-// stops being a tuning knob and becomes a hung turn.
-const DURABLE_INGEST_MAX_RETRIES_CAP = 12;
+// How long one record keeps retrying before it is parked. Sized to outlast a database restart
+// (a Cloud SQL failover takes about a minute). The turn stays open while it retries, and the
+// records behind it in the chain wait, so the ceiling keeps "retry harder" from becoming a turn
+// that never ends.
+const INGEST_RETRY_BUDGET_MS = 180_000;
+const INGEST_RETRY_BUDGET_MAX_MS = 600_000;
 
-/** Attempts before a drop; env-overridable for ops tuning (and fast tests). */
-function durableMaxRetries(): number {
-  return envInt(
-    "AGENTA_RECORDS_INGEST_MAX_RETRIES",
-    DURABLE_INGEST_MAX_RETRIES,
-    {
-      min: 1,
-      max: DURABLE_INGEST_MAX_RETRIES_CAP,
-      log,
-    },
-  );
+/** Time one record may spend retrying; env-overridable for ops tuning (and fast tests). 0 means one attempt. */
+function ingestRetryBudgetMs(): number {
+  return envInt("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", INGEST_RETRY_BUDGET_MS, {
+    min: 0,
+    max: INGEST_RETRY_BUDGET_MAX_MS,
+    log,
+  });
 }
+
+// Bounds on the records held in memory for a later re-send. Past either bound the records are
+// lost and the session is reported incomplete, as before this store existed.
+const MAX_PARKED_RECORDS_PER_SESSION = 1_000;
+const MAX_PARKED_SESSIONS = 100;
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/persist] ${msg}\n`);
 }
 
+/**
+ * One drop, on a fixed tag a log-based alert matches. ERROR level, like the trace-export
+ * failures in `tracing/export-diagnostics.ts`. `outcome` says whether the records are held for a
+ * re-send (`parked`) or gone (`lost`).
+ */
+function logDrop(fields: {
+  outcome: "parked" | "lost";
+  sessionId: string;
+  records: number;
+  reason: string;
+  recordIndex?: number;
+  recordType?: string;
+  turnId?: string;
+  attempts?: number;
+}): void {
+  console.error(
+    "[sessions/persist] RECORD_DROPPED",
+    JSON.stringify({ ...fields, reason: fields.reason.slice(0, 160) }),
+  );
+}
+
+/** The ingest request body, kept whole so a re-send is the same request. */
+interface IngestRecord {
+  session_id: string;
+  record_id: string;
+  record_index: number;
+  timestamp: string;
+  record_source: string;
+  record_type: string;
+  attributes: AgentEvent;
+  turn_id?: string;
+  span_id?: string;
+}
+
+type IngestOutcome =
+  | { ok: true }
+  | { ok: false; transient: boolean; attempts: number; error: string };
+
 /** Map session_id → tail of the per-session persist chain. */
 const persistChains = new Map<string, Promise<void>>();
 
-/** Map session_id → count of records that exhausted retries (dropped). Read + cleared at the turn-end drain via `takePersistFailures`. */
+/** Map session_id → count of records lost for good this turn. Read + cleared at the turn-end drain via `takePersistFailures`. */
 const persistFailures = new Map<string, number>();
 
-/** Send one event to the ingest endpoint with bounded retry. Authenticates AS the invoke
- * caller (the run credential); project scope is resolved server-side, so none is sent. */
-async function postEvent(
-  sessionId: string,
+/**
+ * Map session_id → records that did not land, oldest first. Once a session has one, every later
+ * record of that session is parked behind it unsent, because the api orders the log by arrival:
+ * a record that landed first would sort ahead of the one it followed. Re-sent at the start of the
+ * session's next turn on this process (`resendParkedRecords`).
+ */
+const parkedRecords = new Map<string, IngestRecord[]>();
+
+/**
+ * The api sets `sequence` on arrival, so only an outage is worth waiting out: a 5xx, a 429, a
+ * 408, or a request that never got an answer. Any other 4xx answers the same way next time.
+ */
+function transientStatus(status: number): boolean {
+  return status >= 500 || status === 429 || status === 408;
+}
+
+/**
+ * Send one record, retrying transient failures until the time budget runs out. Authenticates AS
+ * the invoke caller (the run credential); project scope is resolved server-side, so none is sent.
+ * The record id and timestamp are fixed in `record`, so a retry after an ambiguous timeout
+ * upserts the same row.
+ */
+async function sendRecord(
+  record: IngestRecord,
   auth: () => string,
-  event: AgentEvent,
-  eventIndex: number,
-  sender: string,
-  recordId?: string,
-  turnId?: string,
-  spanId?: string,
-): Promise<void> {
+): Promise<IngestOutcome> {
   const url = `${apiBase()}/sessions/records/ingest`;
-  const maxRetries = durableMaxRetries();
   const timeoutMs = ingestRequestTimeoutMs();
-  // Allocate once, before retries: a timeout can happen after the API accepted the row.
-  const retryRecordId = recordId ?? randomUUID();
-  const timestamp = new Date().toISOString();
-  let lastErr: unknown;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  const deadline = Date.now() + ingestRetryBudgetMs();
+  const body = JSON.stringify(record);
+  for (let attempt = 1; ; attempt++) {
+    let error: string;
+    let transient: boolean;
     try {
       const res = await fetch(url, {
         method: "POST",
-        // Fail a stalled request instead of hanging the persist chain; a timeout throws and is
-        // retried like any other transient error below.
+        // Fail a stalled request instead of hanging the persist chain. The budget decides only
+        // whether another attempt starts, so one record waits at most budget + one timeout.
         signal: AbortSignal.timeout(timeoutMs),
         headers: {
           "content-type": "application/json",
           authorization: auth(),
         },
-        body: JSON.stringify({
-          session_id: sessionId,
-          // Re-sending an accepted request upserts the same row, for every event family.
-          record_id: retryRecordId,
-          record_index: eventIndex,
-          timestamp,
-          record_source: sender,
-          record_type: event.type,
-          attributes: event,
-          // Tags the record for turn-grouping; span_id bridges to observability when
-          // the run has one in scope (both forward-fill only, absent is expected).
-          ...(turnId ? { turn_id: turnId } : {}),
-          ...(spanId ? { span_id: spanId } : {}),
-        }),
+        body,
       });
       // We need only the status. Release the response body on both success and retry.
       await res.body?.cancel();
+      if (res.ok) {
+        log(
+          `ingest OK session=${record.session_id} idx=${record.record_index} type=${record.record_type}`,
+        );
+        return { ok: true };
+      }
       // Prefixed so a runner-side 401 is distinguishable from a provider refusal; see
       // `RUNNER_INTERNAL_401` in engines/sandbox_agent/errors.ts.
-      if (!res.ok)
-        throw new Error(`session records persist failed: HTTP ${res.status}`);
-      log(
-        `ingest OK session=${sessionId} idx=${eventIndex} type=${event.type}`,
-      );
-      return;
+      error = `session records persist failed: HTTP ${res.status}`;
+      transient = transientStatus(res.status);
     } catch (err) {
-      lastErr = err;
-      if (attempt < maxRetries) {
-        // Exponential: 100·2^n, capped by the attempt count.
-        const backoff = INGEST_RETRY_BASE_MS * 2 ** (attempt - 1);
-        await new Promise((r) => setTimeout(r, backoff));
-      }
+      // No answer at all: a network error or a timeout.
+      error = `session records persist failed: ${err instanceof Error ? err.message : String(err)}`;
+      transient = true;
     }
+    if (!transient) return { ok: false, transient, attempts: attempt, error };
+    const wait = Math.min(
+      INGEST_RETRY_MAX_BACKOFF_MS,
+      INGEST_RETRY_BASE_MS * 2 ** (attempt - 1),
+    );
+    if (Date.now() + wait >= deadline)
+      return { ok: false, transient, attempts: attempt, error };
+    await new Promise((r) => setTimeout(r, wait));
   }
-  // Exhausted retries → the record is lost. Count it so the turn-end drain knows the
-  // session's history is incomplete (a reconstruction/​fallback signal for later).
-  persistFailures.set(sessionId, (persistFailures.get(sessionId) ?? 0) + 1);
-  log(
-    `DROPPED session=${sessionId} idx=${eventIndex} type=${event.type} after ${maxRetries} retries: ${String(lastErr instanceof Error ? lastErr.message : lastErr).slice(0, 120)}`,
-  );
+}
+
+/** Count records lost for good, for the turn-end report. */
+function countLost(sessionId: string, records: number): void {
+  persistFailures.set(sessionId, (persistFailures.get(sessionId) ?? 0) + records);
+}
+
+/**
+ * Hold a record for a re-send. Past the memory bound the session's held records are lost
+ * instead: they are released, counted, and the session is marked incomplete on this process.
+ */
+function park(record: IngestRecord): void {
+  const sessionId = record.session_id;
+  const held = parkedRecords.get(sessionId);
+  if (held && held.length < MAX_PARKED_RECORDS_PER_SESSION) {
+    held.push(record);
+    return;
+  }
+  if (!held && parkedRecords.size < MAX_PARKED_SESSIONS) {
+    parkedRecords.set(sessionId, [record]);
+    return;
+  }
+  const lost = (held?.length ?? 0) + 1;
+  parkedRecords.delete(sessionId);
+  noteRecordsIncomplete(sessionId);
+  countLost(sessionId, lost);
+  logDrop({
+    outcome: "lost",
+    sessionId,
+    records: lost,
+    reason: held
+      ? `more than ${MAX_PARKED_RECORDS_PER_SESSION} records held for this session`
+      : `records held for more than ${MAX_PARKED_SESSIONS} sessions`,
+    turnId: record.turn_id,
+  });
+}
+
+/** Persist one record, or park it when it cannot land now. Runs inside the session's chain. */
+async function persistRecord(
+  record: IngestRecord,
+  auth: () => string,
+): Promise<void> {
+  const sessionId = record.session_id;
+  // A record that would land ahead of a parked one sorts in the wrong place. Hold it too.
+  if (parkedRecords.has(sessionId)) {
+    park(record);
+    log(
+      `PARKED session=${sessionId} idx=${record.record_index} type=${record.record_type} behind an earlier drop`,
+    );
+    return;
+  }
+  // Already incomplete on this process: the log has a hole, so order no longer matters.
+  const outcome = await sendRecord(record, auth);
+  if (outcome.ok) return;
+  if (outcome.transient && !recordsIncomplete(sessionId)) {
+    park(record);
+    logDrop({
+      outcome: "parked",
+      sessionId,
+      records: 1,
+      reason: outcome.error,
+      recordIndex: record.record_index,
+      recordType: record.record_type,
+      turnId: record.turn_id,
+      attempts: outcome.attempts,
+    });
+    return;
+  }
+  noteRecordsIncomplete(sessionId);
+  countLost(sessionId, 1);
+  logDrop({
+    outcome: "lost",
+    sessionId,
+    records: 1,
+    reason: outcome.error,
+    recordIndex: record.record_index,
+    recordType: record.record_type,
+    turnId: record.turn_id,
+    attempts: outcome.attempts,
+  });
 }
 
 /**
@@ -168,17 +291,23 @@ export function persistEvent(
   // Redact at the sink: the durable copy is scrubbed; the live/in-memory event the harness
   // and the client stream still hold is untouched.
   const durable = redactor ? redactor.redactJson(event, "records") : event;
+  // Built once, before any attempt: a timeout can happen after the API accepted the row, and a
+  // re-send on a later turn must be the same row too.
+  const record: IngestRecord = {
+    session_id: sessionId,
+    record_id: recordId ?? randomUUID(),
+    record_index: eventIndex,
+    timestamp: new Date().toISOString(),
+    record_source: sender,
+    record_type: durable.type,
+    attributes: durable,
+    // Tags the record for turn-grouping; span_id bridges to observability when
+    // the run has one in scope (both forward-fill only, absent is expected).
+    ...(turnId ? { turn_id: turnId } : {}),
+    ...(spanId ? { span_id: spanId } : {}),
+  };
   const tail = (persistChains.get(sessionId) ?? Promise.resolve()).then(() =>
-    postEvent(
-      sessionId,
-      auth,
-      durable,
-      eventIndex,
-      sender,
-      recordId,
-      turnId,
-      spanId,
-    ),
+    persistRecord(record, auth),
   );
   persistChains.set(sessionId, tail);
 }
@@ -199,10 +328,9 @@ export async function drainPersist(sessionId: string): Promise<void> {
 }
 
 /**
- * Read and clear the count of records that were dropped (exhausted retries) for a session.
- * Call at the turn-end drain to learn
- * whether the session's durable history is complete — a zero count means the record log fully
- * captured the turn and is safe to reconstruct model context from.
+ * Read and clear the count of records lost for good (not parked) for a session.
+ * Call at the turn-end drain to learn whether the session's durable history has a hole — a
+ * zero count means every record either landed or is held for a re-send.
  */
 export function takePersistFailures(sessionId: string): number {
   const n = persistFailures.get(sessionId) ?? 0;
@@ -210,9 +338,62 @@ export function takePersistFailures(sessionId: string): number {
   return n;
 }
 
+/** How many of this session's records are held for a re-send. */
+export function parkedRecordCount(sessionId: string): number {
+  return parkedRecords.get(sessionId)?.length ?? 0;
+}
+
+export type ParkedResendOutcome =
+  | { ok: true; resent: number }
+  | { ok: false; lost: number; error: string };
+
 /**
- * Sessions whose record log this process saw lose a record. The durable flag the api keeps is
- * what every runner reads; this set covers the case where reporting that flag failed too.
+ * Re-send the session's parked records, oldest first, through the session's chain. Call at the
+ * start of the session's next turn, before that turn persists anything, with that turn's
+ * credential (the turn that parked them may hold a stale one).
+ *
+ * All land: the session is whole again. One fails: it and the records behind it are lost, the
+ * session is marked incomplete on this process, and the caller reports it and refuses the turn.
+ */
+export async function resendParkedRecords(
+  sessionId: string,
+  auth: () => string,
+): Promise<ParkedResendOutcome> {
+  if (!parkedRecords.has(sessionId)) return { ok: true, resent: 0 };
+  const run = (persistChains.get(sessionId) ?? Promise.resolve()).then(
+    async (): Promise<ParkedResendOutcome> => {
+      const held = parkedRecords.get(sessionId) ?? [];
+      for (let i = 0; i < held.length; i++) {
+        const outcome = await sendRecord(held[i], auth);
+        if (outcome.ok) continue;
+        const lost = held.length - i;
+        parkedRecords.delete(sessionId);
+        noteRecordsIncomplete(sessionId);
+        logDrop({
+          outcome: "lost",
+          sessionId,
+          records: lost,
+          reason: `re-send failed: ${outcome.error}`,
+          recordIndex: held[i].record_index,
+          recordType: held[i].record_type,
+          turnId: held[i].turn_id,
+          attempts: outcome.attempts,
+        });
+        return { ok: false, lost, error: outcome.error };
+      }
+      parkedRecords.delete(sessionId);
+      log(`RECOVERED session=${sessionId} records=${held.length}`);
+      return { ok: true, resent: held.length };
+    },
+  );
+  const tail = run.then(() => {});
+  persistChains.set(sessionId, tail);
+  return run;
+}
+
+/**
+ * Sessions whose record log this process saw lose a record for good. The durable flag the api
+ * keeps is what every runner reads; this set covers the case where reporting that flag failed too.
  */
 const incompleteSessions = new Set<string>();
 
@@ -222,7 +403,7 @@ const INCOMPLETE_REPORT_ATTEMPTS = 3;
 
 /**
  * Mark a session's record log as incomplete, permanently for this process. Once a record is
- * dropped the log no longer represents the conversation, so it must never be used to rebuild
+ * lost the log no longer represents the conversation, so it must never be used to rebuild
  * model context: the turn would silently run with a hole in its history. Read by the
  * reconstruction seam, which fails the turn instead of reconstructing.
  */
@@ -232,8 +413,10 @@ export function noteRecordsIncomplete(sessionId: string): void {
 
 /**
  * `noteRecordsIncomplete`, plus the same fact reported to the api, which keeps it with the
- * record log so a turn on another runner refuses too. Called at the turn-end drain. Best effort:
- * a failed report is logged, and only this process then knows.
+ * record log so a turn on another runner refuses too. Called only for records lost for good,
+ * never for parked ones: the api has no way to clear the flag, so a parked record that later
+ * lands must not have set it. Best effort: a failed report is logged, and only this process
+ * then knows.
  */
 export async function reportRecordsIncomplete(
   sessionId: string,
@@ -273,7 +456,7 @@ export async function reportRecordsIncomplete(
   }
 }
 
-/** Whether this session has lost a record and can no longer be reconstructed from. */
+/** Whether this session has lost a record for good on this process. */
 export function recordsIncomplete(sessionId: string): boolean {
   return incompleteSessions.has(sessionId);
 }

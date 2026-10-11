@@ -123,7 +123,12 @@ describe("reconstructHistoryIfNeeded", () => {
     const req = { messages: [userTurn] } as never;
     await assert.rejects(
       () => reconstructHistoryIfNeeded(req, "sess-dropped", auth),
-      /incomplete conversation/,
+      (err: any) => {
+        // Its own code, so the client tells the user to start a new session, not to resend.
+        assert.equal(err.publicCode, "session_records_incomplete");
+        assert.match(err.message, /Start a new session/);
+        return true;
+      },
     );
     assert.equal(fetchCalls, 0, "no query when the log is already known bad");
   });
@@ -138,7 +143,10 @@ describe("reconstructHistoryIfNeeded", () => {
     const req = { messages: [userTurn] } as never;
     await assert.rejects(
       () => reconstructHistoryIfNeeded(req, "sess-flagged-elsewhere", auth),
-      /incomplete conversation/,
+      (err: any) => {
+        assert.equal(err.publicCode, "session_records_incomplete");
+        return true;
+      },
     );
     assert.equal(fetchCalls, 1);
   });
