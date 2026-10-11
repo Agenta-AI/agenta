@@ -18,7 +18,9 @@ def get_code_sandbox_timeout() -> float:
         timeout = float(raw)
     except ValueError:
         return DEFAULT_CODE_SANDBOX_TIMEOUT
-    return timeout if timeout > 0 else DEFAULT_CODE_SANDBOX_TIMEOUT
+    if not math.isfinite(timeout) or timeout <= 0:
+        return DEFAULT_CODE_SANDBOX_TIMEOUT
+    return timeout
 
 
 def normalize_result(result: Any, version: str) -> Any:

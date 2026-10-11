@@ -167,6 +167,8 @@ class TestTimeoutSetting:
             ("0", DEFAULT_CODE_SANDBOX_TIMEOUT),
             ("-3", DEFAULT_CODE_SANDBOX_TIMEOUT),
             ("soon", DEFAULT_CODE_SANDBOX_TIMEOUT),
+            ("inf", DEFAULT_CODE_SANDBOX_TIMEOUT),
+            ("nan", DEFAULT_CODE_SANDBOX_TIMEOUT),
         ],
     )
     def test_parse(self, monkeypatch, raw, expected):
