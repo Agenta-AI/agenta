@@ -15,6 +15,7 @@ from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.git.types import RetrieveRefsInconsistent, RetrieveRefsInsufficient
 from oss.src.core.triggers.dtos import (
     DiscoveredTriggerAlternative,
     DiscoveredTriggerEvent,
@@ -889,18 +890,23 @@ class TriggersService:
             artifact_slug = getattr(artifact, "slug", None)
             key = f"{artifact_slug}.revision" if artifact_slug else None
 
-        revision, _, _ = await self.workflows_service.retrieve_workflow_revision(
-            project_id=project_id,
-            environment_ref=environment_ref,
-            key=key,
-            workflow_ref=_ref(references.get(prefix)) if prefix else None,
-            workflow_variant_ref=(
-                _ref(references.get(f"{prefix}_variant")) if prefix else None
-            ),
-            workflow_revision_ref=(
-                _ref(references.get(f"{prefix}_revision")) if prefix else None
-            ),
-        )
+        # The refs come from the client, so refs that disagree with each other or
+        # do not name one revision are a bad request, not a server error.
+        try:
+            revision, _, _ = await self.workflows_service.retrieve_workflow_revision(
+                project_id=project_id,
+                environment_ref=environment_ref,
+                key=key,
+                workflow_ref=_ref(references.get(prefix)) if prefix else None,
+                workflow_variant_ref=(
+                    _ref(references.get(f"{prefix}_variant")) if prefix else None
+                ),
+                workflow_revision_ref=(
+                    _ref(references.get(f"{prefix}_revision")) if prefix else None
+                ),
+            )
+        except (RetrieveRefsInconsistent, RetrieveRefsInsufficient) as e:
+            raise TriggerReferenceInvalid(e.message) from e
         if revision is None:
             raise TriggerReferenceInvalid(
                 "Bound workflow reference could not be resolved to a runnable revision."

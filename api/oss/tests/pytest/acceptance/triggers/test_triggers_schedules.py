@@ -14,7 +14,7 @@ import pytest
 
 
 def _create_workflow(authed_api):
-    """Build a workflow + variant + committed revision; return its slug."""
+    """Build a workflow + variant + committed revision; return (slug, id)."""
     slug = f"sched-wf-{uuid4().hex[:8]}"
 
     wf = authed_api(
@@ -50,7 +50,7 @@ def _create_workflow(authed_api):
         },
     )
     assert commit.status_code == 200, commit.text
-    return slug
+    return slug, workflow_id
 
 
 def _schedule_payload(*, name=None, schedule="*/30 * * * *", workflow_slug=None):
@@ -146,6 +146,26 @@ class TestTriggerSchedulesValidation:
         response = authed_api("POST", "/triggers/schedules/", json=payload)
         assert response.status_code == 422, response.text
 
+    def test_slug_that_disagrees_with_the_id_is_rejected(self, authed_api):
+        """An application id with another artifact's slug is a client error.
+
+        The web once sent the revision's opaque slug next to the artifact id. The
+        API must answer 422 and name the mismatch, not 500.
+        """
+        workflow_slug, workflow_id = _create_workflow(authed_api)
+        wrong_slug = uuid4().hex[-12:]
+        payload = _schedule_payload()
+        payload["schedule"]["data"]["references"] = {
+            "application": {"id": workflow_id, "slug": wrong_slug}
+        }
+
+        response = authed_api("POST", "/triggers/schedules/", json=payload)
+
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"]
+        assert wrong_slug in detail, detail
+        assert workflow_slug in detail, detail
+
 
 # ---------------------------------------------------------------------------
 # Full lifecycle — no Composio needed (schedules bind no connection)
@@ -154,7 +174,7 @@ class TestTriggerSchedulesValidation:
 
 class TestTriggerSchedulesLifecycle:
     def test_create_list_stop_start_edit_delete(self, authed_api):
-        workflow_slug = _create_workflow(authed_api)
+        workflow_slug, _ = _create_workflow(authed_api)
 
         # CREATE — active by default, bound to a real workflow
         create = authed_api(
