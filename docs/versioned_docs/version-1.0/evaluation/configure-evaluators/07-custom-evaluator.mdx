@@ -9,7 +9,7 @@ Custom code evaluators let you write your own evaluation logic in Python, JavaSc
 On self-hosted Agenta, custom evaluator code runs server-side. The `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` environment variable selects the runner:
 
 - `daytona` runs each evaluation in its own isolated sandbox. Use it when people you do not fully trust can write evaluator code.
-- `local` (default) runs the code in the services process with no limits.
+- `local` (default) runs the code in the services process with no sandbox restrictions.
 - `restricted` runs the code in the services process and limits which builtins and imports it can use. It is not an isolation boundary.
 
 Use `local` or `restricted` only when everyone who can create evaluators is trusted. See [environment configuration](/self-host/configuration) for the settings. Agenta Cloud runs evaluator code in isolated sandboxes.

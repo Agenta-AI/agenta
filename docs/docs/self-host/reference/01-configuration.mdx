@@ -249,7 +249,7 @@ configurable.
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/1.0/evaluation/configure-evaluators/custom-evaluator) execute:
 
 - `daytona`: runs each evaluation in its own isolated Daytona sandbox. Use it when people you do not fully trust can write evaluator code. It requires the [daytona](#daytona-code-evaluator) credentials below.
-- `local` (default): runs the code in the services process with no limits. The code can do anything the services process can do. The deployment logs a warning while it is active.
+- `local` (default): runs the code in the services process with no sandbox restrictions. The code can do anything the services process can do. The deployment logs a warning while it is active.
 - `restricted`: runs the code in the services process (RestrictedPython) and limits which builtins and imports it can use. It is not an isolation boundary.
 
 Use `local` or `restricted` only when everyone who can create evaluators is trusted. Agenta Cloud uses `daytona`.

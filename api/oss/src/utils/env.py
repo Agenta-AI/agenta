@@ -444,7 +444,7 @@ class ServicesCodeConfig(BaseModel):
             _SANDBOX_RUNNER_LOCAL_WARNED = True
             warnings.warn(
                 "AGENTA_SERVICES_CODE_SANDBOX_RUNNER is 'local' (default): code execution "
-                "has no limits. Use it only when everyone who can create evaluators is "
+                "has no sandbox restrictions. Use it only when everyone who can create evaluators is "
                 "trusted. Set it to 'daytona' to isolate code from users you do not "
                 "fully trust.",
                 stacklevel=2,
