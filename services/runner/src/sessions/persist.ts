@@ -359,10 +359,12 @@ export async function resendParkedRecords(
   sessionId: string,
   auth: () => string,
 ): Promise<ParkedResendOutcome> {
-  if (!parkedRecords.has(sessionId)) return { ok: true, resent: 0 };
+  // Checked inside the chain: a record of an earlier turn may still be retrying, and it parks
+  // only when its budget runs out.
   const run = (persistChains.get(sessionId) ?? Promise.resolve()).then(
     async (): Promise<ParkedResendOutcome> => {
-      const held = parkedRecords.get(sessionId) ?? [];
+      const held = parkedRecords.get(sessionId);
+      if (!held) return { ok: true, resent: 0 };
       for (let i = 0; i < held.length; i++) {
         const outcome = await sendRecord(held[i], auth);
         if (outcome.ok) continue;
