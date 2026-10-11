@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 from uuid import UUID, getnode
 from datetime import datetime, timezone, timedelta
@@ -34,6 +35,32 @@ class SwitchException(Exception):
 
 class EventException(Exception):
     pass
+
+
+_ENDED_STRIPE_STATUSES = frozenset({"canceled", "incomplete_expired"})
+
+
+async def _stripe_subscription_ended(subscription_id: str) -> bool:
+    """Whether Stripe reports the subscription as ended. Unknown counts as not ended,
+    so the event is refused and Stripe retries it."""
+    stripe = _load_stripe()
+    if stripe is None:
+        return False
+
+    try:
+        # The Stripe client is synchronous; keep the request off the event loop.
+        stripe_subscription = await asyncio.to_thread(
+            stripe.Subscription.retrieve, subscription_id
+        )
+    except Exception:  # pylint: disable=too-broad-exception
+        log.warn("Failed to read subscription %s from Stripe", subscription_id)
+        return False
+
+    status = getattr(stripe_subscription, "status", None)
+    if status is None and isinstance(stripe_subscription, dict):
+        status = stripe_subscription.get("status")
+
+    return status in _ENDED_STRIPE_STATUSES
 
 
 class SubscriptionsService:
@@ -341,6 +368,32 @@ class SubscriptionsService:
             )
 
         free_plan = get_free_plan()
+
+        # Stripe sends the last failed payment and the cancellation it causes in the
+        # same second, in either order. A failure for a subscription the row no longer
+        # records has nothing left to pause. A free row with no recorded id is either
+        # past a cancellation or still waiting for its CREATED event, so Stripe decides.
+        if (
+            event == Event.SUBSCRIPTION_PAUSED
+            and subscription_id
+            and subscription.subscription_id != subscription_id
+            and (
+                subscription.subscription_id
+                or (
+                    subscription.plan == free_plan
+                    and await _stripe_subscription_ended(subscription_id)
+                )
+            )
+        ):
+            log.info(
+                "[billing] [internal] stale subscription event | %s | %s | recorded=%s | event=%s",
+                organization_id,
+                event.value,
+                subscription.subscription_id,
+                subscription_id,
+            )
+
+            return subscription
 
         if event == Event.SUBSCRIPTION_CREATED:
             subscription.active = True
