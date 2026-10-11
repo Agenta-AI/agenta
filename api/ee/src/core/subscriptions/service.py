@@ -329,8 +329,15 @@ class SubscriptionsService:
         subscription = await self.read(organization_id=organization_id)
 
         if not subscription:
+            log.warn(
+                "[billing] [internal] no subscription row | %s | %s",
+                organization_id,
+                event.value,
+            )
+
             raise EventException(
-                "Subscription not found for organization ID: {organization_id}"
+                f"No subscription is recorded for organization ID {organization_id}, "
+                f"so event {event.value} cannot be applied"
             )
 
         free_plan = get_free_plan()
@@ -420,10 +427,23 @@ class SubscriptionsService:
             )
 
         else:
-            log.warn("Invalid subscription event: %s ", subscription)
+            # Every branch above missed. PAUSED, RESUMED and SWITCHED are each
+            # guarded by `plan != free_plan`, and CANCELLED has its own
+            # free-plan no-op, so reaching here means the organization's
+            # recorded plan IS the free plan: there is no paid subscription for
+            # the event to act on.
+            log.warn(
+                "[billing] [internal] unhandled subscription event | %s | %s | plan=%s | active=%s",
+                organization_id,
+                event.value,
+                subscription.plan,
+                subscription.active,
+            )
 
             raise EventException(
-                f"Invalid subscription event {event} for organization ID: {organization_id}"
+                f"Event {event.value} does not apply to organization ID "
+                f"{organization_id}, whose recorded plan is "
+                f"{subscription.plan or 'unset'}"
             )
 
         # Invalidate the entitlements subscription cache so the new plan takes effect immediately
