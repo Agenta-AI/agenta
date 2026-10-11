@@ -245,12 +245,14 @@ whether your proxy forwards the prefix or strips it first. Set the variable to a
 turn the strip off. The platform API strips a leading `/api` the same way, and that prefix is not
 configurable.
 
-:::warning Custom-code evaluator runner
+:::warning Choosing a code runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/1.0/evaluation/configure-evaluators/custom-evaluator) execute:
 
-- `local` (default): raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. This is what makes self-hosting work with zero configuration; the deployment logs a warning while it's active.
-- `restricted`: in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access. Set this to harden a shared/multi-tenant deployment.
-- `daytona`: isolated remote sandbox (strongest). Recommended when evaluator authors are not fully trusted. Requires the [daytona](#daytona-code-evaluator) credentials below.
+- `daytona`: runs each evaluation in its own isolated Daytona sandbox. Use it when people you do not fully trust can write evaluator code. It requires the [daytona](#daytona-code-evaluator) credentials below.
+- `local` (default): runs the code in the services process with no sandbox restrictions. The code can do anything the services process can do. The deployment logs a warning while it is active.
+- `restricted`: runs the code in the services process (RestrictedPython) and limits which builtins and imports it can use. It is not an isolation boundary.
+
+Use `local` or `restricted` only when everyone who can create evaluators is trusted. Agenta Cloud uses `daytona`.
 
 The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
 
