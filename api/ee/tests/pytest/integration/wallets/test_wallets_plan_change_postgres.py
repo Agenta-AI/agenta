@@ -65,7 +65,8 @@ class _InMemorySubscriptionsDAO:
         self.subscription = subscription
 
     async def read(self, *, organization_id):
-        return self.subscription
+        # A copy, as the database returns: the service edits what it reads.
+        return self.subscription.model_copy()
 
     async def update(
         self,
