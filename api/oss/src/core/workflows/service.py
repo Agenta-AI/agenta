@@ -785,6 +785,16 @@ class WorkflowsService:
 
         url = revision_data.url
 
+        # A built-in service always runs under the current AGENTA_SERVICES_URL. Clients
+        # save the `url` they read back, so a revision keeps the services URL of the day it
+        # was committed; after a change of that URL it would no longer count as the
+        # platform and would lose the secret-resolve grant or be refused by the egress check.
+        if revision_data.uri:
+            provider, kind, _, _ = parse_uri(revision_data.uri)
+            path = infer_url_from_uri(revision_data.uri)
+            if provider == "agenta" and kind == "builtin" and path:
+                url = env.agenta.services_url.rstrip("/") + path
+
         if not url and revision_data.uri:
             path = infer_url_from_uri(revision_data.uri)
             if path:
