@@ -1,4 +1,8 @@
 import asyncio
+import contextvars
+import functools
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Union, Text, Dict, Any, Optional
 
 from agenta.sdk.engines.running.runners import get_runner
@@ -6,6 +10,26 @@ from agenta.sdk.engines.running.runners.base import get_code_sandbox_timeout
 
 # Cache for the runner instance
 _runner = None
+_runner_lock = threading.Lock()
+
+# Custom code runs use a thread pool of their own, not the event loop's default
+# one. The default pool is small on a small pod (min(32, cpus + 4)) and LiteLLM
+# completions share it, so slow sandbox runs would starve unrelated LLM calls.
+#
+# The pool has one thread per slot, so a run that gets a slot starts at once
+# and its timeout counts from the start, not from a queue. When every slot is
+# busy, a new run fails at once with a clear error. A slot frees when its thread
+# ends, not when the caller stops waiting, because the thread keeps running
+# after a timeout.
+_SANDBOX_THREADS = 16
+_sandbox_slots = threading.BoundedSemaphore(_SANDBOX_THREADS)
+_sandbox_executor = ThreadPoolExecutor(
+    max_workers=_SANDBOX_THREADS, thread_name_prefix="code-sandbox"
+)
+
+
+class SandboxBusyError(RuntimeError):
+    """Every custom code slot in this worker is busy."""
 
 
 def execute_code_safely(
@@ -45,7 +69,10 @@ def execute_code_safely(
     global _runner
 
     if _runner is None:
-        _runner = get_runner()
+        # Runs now start from many threads at once. Build the runner once.
+        with _runner_lock:
+            if _runner is None:
+                _runner = get_runner()
 
     return _runner.run(
         code,
@@ -80,13 +107,22 @@ async def run_code_safely(
     services worker: health checks and other requests stop until it returns.
 
     Raises:
+        SandboxBusyError: Every slot is busy with another run.
         TimeoutError: The run took longer than `get_code_sandbox_timeout()`.
     """
     timeout = get_code_sandbox_timeout()
 
+    if not _sandbox_slots.acquire(blocking=False):
+        raise SandboxBusyError(
+            f"Custom code runs are at capacity ({_SANDBOX_THREADS} in progress). "
+            "Try again later."
+        )
+
     try:
-        return await asyncio.wait_for(
-            asyncio.to_thread(
+        context = contextvars.copy_context()
+        future = _sandbox_executor.submit(
+            context.run,
+            functools.partial(
                 execute_code_safely,
                 app_params,
                 inputs,
@@ -98,7 +134,14 @@ async def run_code_safely(
                 version=version,
                 trace=trace,
             ),
-            timeout=timeout,
         )
+    except BaseException:
+        _sandbox_slots.release()
+        raise
+
+    future.add_done_callback(lambda _: _sandbox_slots.release())
+
+    try:
+        return await asyncio.wait_for(asyncio.wrap_future(future), timeout=timeout)
     except TimeoutError as e:
         raise TimeoutError(f"Custom code run timed out after {timeout:g}s.") from e

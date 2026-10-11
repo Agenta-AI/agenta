@@ -1,6 +1,7 @@
 import os
 import json
 import math
+import threading
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, Union, Optional, TYPE_CHECKING
 
@@ -92,6 +93,9 @@ class DaytonaRunner(CodeRunner):
     # listing snapshots on every sandbox create.
     _snapshot_id_cache: TTLLRUCache = TTLLRUCache(capacity=32, ttl=86400)
 
+    # Runs start from many threads at once. Build the client only once.
+    _client_lock = threading.Lock()
+
     def __new__(cls):
         """Singleton pattern to reuse Daytona client and sandbox."""
         if cls._instance is None:
@@ -124,6 +128,11 @@ class DaytonaRunner(CodeRunner):
         if self.daytona is not None:
             return
 
+        with self._client_lock:
+            if self.daytona is None:
+                self._create_client()
+
+    def _create_client(self) -> None:
         try:
             Daytona, DaytonaConfig, _, _ = _load_daytona()
 

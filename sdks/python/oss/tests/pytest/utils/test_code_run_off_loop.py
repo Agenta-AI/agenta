@@ -182,3 +182,57 @@ class TestTimeoutSetting:
     def test_default_is_below_gunicorn_worker_timeout(self):
         # The services deployment runs gunicorn with --timeout 60.
         assert DEFAULT_CODE_SANDBOX_TIMEOUT < 60
+
+
+class TestCapacity:
+    @pytest.fixture
+    def one_slot(self, monkeypatch):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+
+        executor = ThreadPoolExecutor(max_workers=1)
+        monkeypatch.setattr(sandbox, "_SANDBOX_THREADS", 1)
+        monkeypatch.setattr(sandbox, "_sandbox_slots", threading.BoundedSemaphore(1))
+        monkeypatch.setattr(sandbox, "_sandbox_executor", executor)
+        yield
+        executor.shutdown(wait=True)
+
+    def test_run_fails_fast_when_all_slots_are_busy(self, monkeypatch, one_slot):
+        monkeypatch.setattr(sandbox, "execute_code_safely", _slow_runner(0.5))
+
+        async def _two_runs():
+            first = asyncio.create_task(
+                _code_v0(parameters={"code": _CODE}, outputs="x")
+            )
+            await asyncio.sleep(0.05)
+            started = time.monotonic()
+            with pytest.raises(CodeV0Error) as exc_info:
+                await _code_v0(parameters={"code": _CODE}, outputs="x")
+            busy_after = time.monotonic() - started
+            return await first, exc_info, busy_after
+
+        first, exc_info, busy_after = asyncio.run(_two_runs())
+
+        assert first == {"score": 1.0, "success": True}
+        assert "at capacity" in str(exc_info.value.message)
+        # The second run is refused at once, it does not wait for the first.
+        assert busy_after < 0.2
+
+    def test_slot_stays_held_until_timed_out_thread_ends(self, monkeypatch, one_slot):
+        monkeypatch.setenv("AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT", "0.1")
+        monkeypatch.setattr(sandbox, "execute_code_safely", _slow_runner(0.4))
+
+        async def _runs():
+            with pytest.raises(CodeV0Error):
+                await _code_v0(parameters={"code": _CODE}, outputs="x")
+            # The timed-out thread still runs, so its slot is still taken.
+            with pytest.raises(CodeV0Error) as busy:
+                await _code_v0(parameters={"code": _CODE}, outputs="x")
+            await asyncio.sleep(0.5)
+            monkeypatch.setattr(sandbox, "execute_code_safely", _slow_runner(0.0))
+            return busy, await _code_v0(parameters={"code": _CODE}, outputs="x")
+
+        busy, result = asyncio.run(_runs())
+
+        assert "at capacity" in str(busy.value.message)
+        assert result == {"score": 1.0, "success": True}
