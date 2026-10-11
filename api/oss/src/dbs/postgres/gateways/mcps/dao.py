@@ -15,6 +15,7 @@ from oss.src.core.gateways.mcps.dtos import (
 )
 from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
+    UNSET_UPDATED_AT,
 )
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
@@ -83,6 +84,11 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
                 )
 
                 session.add(dbe)
+                # Creation is the row's first write, so it is stamped like every other
+                # one: `updated_at` doubles as the fingerprint the invalidation path
+                # conditions on (#6879), and a row that was never written again must
+                # still carry it.
+                self._stamp(dbe, user_id)
                 await session.commit()
                 await session.refresh(dbe)
 
@@ -246,6 +252,7 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         #
         endpoint_id: UUID,
         secret_id: Optional[UUID],
+        expected_updated_at: object = UNSET_UPDATED_AT,
     ) -> Optional[MCPEndpoint]:
         async with self.engine.session() as session:
             dbe = await self._locked(
@@ -264,6 +271,21 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             # `None` means the handle went entirely, which is the disconnect case and
             # equally not this caller's to invalidate.
             if dbe.secret_id is None or dbe.secret_id != secret_id:
+                return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
+
+            # Conditional on the row as the failing relay read it, too. The service-side
+            # read of the credential (D33) and this write are two transactions, so a
+            # reconnect can still land between them: it rewrites the grant under the
+            # same secret id and re-binds the endpoint, which stamps this row. A
+            # mismatching `updated_at` therefore means the connection changed hands
+            # while the 401 was still in flight — the repair wins, and the invalidation
+            # the old credential earned is not this caller's to write (#6879).
+            # A SUPPLIED NULL still compares (a legacy, never-stamped row: it matches
+            # only a row that is still NULL); only an omitted fingerprint skips.
+            if (
+                expected_updated_at is not UNSET_UPDATED_AT
+                and dbe.updated_at != expected_updated_at
+            ):
                 return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
 
             self._set_is_valid(dbe, False)
