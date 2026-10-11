@@ -342,6 +342,24 @@ class SubscriptionsService:
 
         free_plan = get_free_plan()
 
+        # Stripe sends the last failed payment and the cancellation it causes in the
+        # same second, in either order. A failure for a subscription the row no longer
+        # records has nothing left to pause.
+        if (
+            event == Event.SUBSCRIPTION_PAUSED
+            and subscription_id
+            and subscription.subscription_id != subscription_id
+        ):
+            log.info(
+                "[billing] [internal] stale subscription event | %s | %s | recorded=%s | event=%s",
+                organization_id,
+                event.value,
+                subscription.subscription_id,
+                subscription_id,
+            )
+
+            return subscription
+
         if event == Event.SUBSCRIPTION_CREATED:
             subscription.active = True
             subscription.plan = plan

@@ -390,6 +390,7 @@ class BillingRouter:
             )
 
         metadata = None
+        invoice_subscription_id = None
 
         if not stripe_event.type.startswith("invoice"):
             if not _stripe_has(stripe_event.data.object, "metadata"):
@@ -429,10 +430,11 @@ class BillingRouter:
             # `checkout.session.completed`. Acknowledged, so Stripe does not retry it.
             # Older API versions still send an empty `subscription_details` on it, so
             # the subscription ID decides, not the block's presence.
-            if not (
-                _stripe_get(stripe_event.data.object, "subscription")
-                or _stripe_get(subscription_details, "subscription")
-            ):
+            invoice_subscription_id = _stripe_get(
+                stripe_event.data.object, "subscription"
+            ) or _stripe_get(subscription_details, "subscription")
+
+            if not invoice_subscription_id:
                 log.info(
                     "Skipping stripe event: %s (not a subscription invoice)",
                     stripe_event.type,
@@ -566,6 +568,7 @@ class BillingRouter:
 
             elif stripe_event.type == "invoice.payment_failed":
                 event = Event.SUBSCRIPTION_PAUSED
+                subscription_id = invoice_subscription_id
 
             elif stripe_event.type == "invoice.payment_succeeded":
                 event = Event.SUBSCRIPTION_RESUMED

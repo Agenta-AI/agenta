@@ -276,9 +276,9 @@ async def test_cancel_subscription_reconciles_when_stripe_is_already_canceled(
 def _payment_failed_event(organization_id: str = "org_456", shape: str = "2023-10-16"):
     """An invoice.payment_failed delivery, in one of two Stripe API shapes.
 
-    "2023-10-16" is the shape production receives: the reported delivery
-    (issue 7495), anonymized. The invoice carries the subscription id and
-    `subscription_details` at the top level, and Stripe also adds `parent`.
+    "2023-10-16" is the shape production receives. The invoice carries the
+    subscription id and `subscription_details` at the top level, and Stripe also
+    adds `parent`.
     "2025-03-31" is the newer shape, where only `parent` holds them.
     """
 
@@ -300,7 +300,7 @@ def _payment_failed_event(organization_id: str = "org_456", shape: str = "2023-1
             id="in_123",
             billing_reason="subscription_cycle",
             status="open",
-            attempt_count=9,
+            attempt_count=4,
             next_payment_attempt=None,
             subscription="sub_123",
             subscription_details=SimpleNamespace(metadata=metadata),
@@ -353,7 +353,7 @@ async def test_payment_failed_pauses_a_paid_subscription(monkeypatch, shape):
     subscription_service.process_event.assert_awaited_once_with(
         organization_id="org_456",
         event=Event.SUBSCRIPTION_PAUSED,
-        subscription_id=None,
+        subscription_id="sub_123",
         plan=None,
         anchor=None,
     )
@@ -444,18 +444,17 @@ async def test_an_unexpected_failure_still_answers_500_with_a_log(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_the_reported_delivery_is_refused_with_4xx_and_names_the_recorded_plan(
-    monkeypatch,
-):
-    # Issue 7495, end to end. Stripe still bills the paid subscription, but the
-    # organization's row records the free plan with no subscription id: the
-    # state a cancellation writes. process_event refuses the pause.
+async def test_a_payment_failure_after_the_cancellation_is_acknowledged(monkeypatch):
+    # Stripe cancels a subscription when its last payment retry fails, and sends
+    # invoice.payment_failed and customer.subscription.deleted in the same second.
+    # When the cancellation lands first, the row already records the free plan
+    # and no subscription id. The failure that follows has nothing to pause.
     from ee.src.core.subscriptions import service as subscriptions_service_module
     from ee.src.core.subscriptions.service import SubscriptionsService
     from ee.src.core.subscriptions.types import SubscriptionDTO
 
     hobby = DefaultPlan.CLOUD_V0_HOBBY.value
-    organization_id = "019739f9-0000-7000-8000-000000000000"
+    organization_id = "00000000-0000-7000-8000-000000000001"
 
     class _DAO:
         async def read(self, *, organization_id):
@@ -465,20 +464,19 @@ async def test_the_reported_delivery_is_refused_with_4xx_and_names_the_recorded_
                 subscription_id=None,
                 plan=hobby,
                 active=True,
-                anchor=8,
+                anchor=1,
             )
 
         async def update(self, *, subscription):
-            raise AssertionError("a refused event must not write the row")
+            raise AssertionError("a stale event must not write the row")
 
-    warnings = []
-
-    def _warn(message, *args, **kwargs):
-        warnings.append(message % args)
-
+    infos = []
     monkeypatch.setattr(subscriptions_service_module, "get_free_plan", lambda: hobby)
-    monkeypatch.setattr(subscriptions_service_module.log, "warn", _warn)
-    monkeypatch.setattr(billing_router_module.log, "warn", _warn)
+    monkeypatch.setattr(
+        subscriptions_service_module.log,
+        "info",
+        lambda message, *args, **kwargs: infos.append(message % args),
+    )
 
     router = BillingRouter(
         subscription_service=SubscriptionsService(subscriptions_dao=_DAO()),
@@ -488,15 +486,10 @@ async def test_the_reported_delivery_is_refused_with_4xx_and_names_the_recorded_
 
     response = await router.handle_events(DummyRequest())
 
-    assert response.status_code == 400
-    assert hobby not in loads(response.body)["message"]
+    assert response.status_code == 200
     assert any(
-        "unhandled subscription event" in line
+        "stale subscription event" in line
         and organization_id in line
-        and f"plan={hobby}" in line
-        for line in warnings
-    )
-    assert any(
-        "Rejecting stripe event" in line and "evt_payment_failed" in line
-        for line in warnings
+        and "sub_123" in line
+        for line in infos
     )

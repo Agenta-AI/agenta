@@ -173,3 +173,62 @@ async def test_cancelling_an_already_free_plan_stays_a_no_op(warnings):
 
     assert subscription.plan == HOBBY
     assert warnings == []
+
+
+@pytest.mark.asyncio
+async def test_a_pause_for_a_subscription_the_row_no_longer_records_is_a_no_op(
+    warnings,
+):
+    organization_id = uuid4()
+    service = SubscriptionsService(
+        subscriptions_dao=_DAO(
+            SubscriptionDTO(
+                organization_id=organization_id,
+                customer_id="cus_123",
+                subscription_id=None,
+                plan=HOBBY,
+                active=True,
+                anchor=1,
+            )
+        )
+    )
+
+    subscription = await service.process_event(
+        organization_id=str(organization_id),
+        event=Event.SUBSCRIPTION_PAUSED,
+        subscription_id="sub_ended",
+    )
+
+    assert subscription.plan == HOBBY
+    assert subscription.active is True
+    assert warnings == []
+
+
+@pytest.mark.asyncio
+async def test_a_pause_for_the_recorded_subscription_still_pauses(warnings):
+    organization_id = uuid4()
+    service = _service(PRO, organization_id=organization_id)
+
+    subscription = await service.process_event(
+        organization_id=str(organization_id),
+        event=Event.SUBSCRIPTION_PAUSED,
+        subscription_id="sub_123",
+    )
+
+    assert subscription.active is False
+
+
+@pytest.mark.asyncio
+async def test_a_pause_for_another_subscription_leaves_a_paid_row_alone(warnings):
+    # A late failure for an earlier subscription must not pause the current one.
+    organization_id = uuid4()
+    service = _service(PRO, organization_id=organization_id)
+
+    subscription = await service.process_event(
+        organization_id=str(organization_id),
+        event=Event.SUBSCRIPTION_PAUSED,
+        subscription_id="sub_earlier",
+    )
+
+    assert subscription.active is True
+    assert warnings == []
