@@ -21,6 +21,7 @@
  * runner-side consumer/executor loop. The protocol pieces are re-exported below so
  * existing importers keep compiling.
  */
+import { randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -435,10 +436,11 @@ async function executeRelayedTool(
         `client tool '${spec.name}' is browser-fulfilled and cannot be executed`,
       );
     }
-    const toolCallId = req.toolCallId;
+    // The gate id becomes the stored interaction token, so it is minted here rather than
+    // copied from the provider's tool-call id, which can run to several KB (#7516).
     const request = {
-      id: toolCallId,
-      toolCallId,
+      id: randomUUID(),
+      toolCallId: req.toolCallId,
       toolName: spec.name,
       input: req.args,
       spec,
@@ -474,7 +476,7 @@ async function executeRelayedTool(
       return new RelayRefusal(gatewayToolUnavailableText());
     }
     const verdict = await gateway.gate.onGatewayRun({
-      id: req.toolCallId,
+      id: randomUUID(),
       toolCallId: req.toolCallId,
       toolName: spec.name,
       input: req.args,
