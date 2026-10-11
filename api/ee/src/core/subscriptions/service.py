@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 from uuid import UUID, getnode
 from datetime import datetime, timezone, timedelta
@@ -39,7 +40,7 @@ class EventException(Exception):
 _ENDED_STRIPE_STATUSES = frozenset({"canceled", "incomplete_expired"})
 
 
-def _stripe_subscription_ended(subscription_id: str) -> bool:
+async def _stripe_subscription_ended(subscription_id: str) -> bool:
     """Whether Stripe reports the subscription as ended. Unknown counts as not ended,
     so the event is refused and Stripe retries it."""
     stripe = _load_stripe()
@@ -47,7 +48,10 @@ def _stripe_subscription_ended(subscription_id: str) -> bool:
         return False
 
     try:
-        stripe_subscription = stripe.Subscription.retrieve(subscription_id)
+        # The Stripe client is synchronous; keep the request off the event loop.
+        stripe_subscription = await asyncio.to_thread(
+            stripe.Subscription.retrieve, subscription_id
+        )
     except Exception:  # pylint: disable=too-broad-exception
         log.warn("Failed to read subscription %s from Stripe", subscription_id)
         return False
@@ -377,7 +381,7 @@ class SubscriptionsService:
                 subscription.subscription_id
                 or (
                     subscription.plan == free_plan
-                    and _stripe_subscription_ended(subscription_id)
+                    and await _stripe_subscription_ended(subscription_id)
                 )
             )
         ):
