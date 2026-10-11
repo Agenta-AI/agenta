@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse
 
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.applications.dtos import (
+    ApplicationRevision,
     SimpleApplicationCreate,
     SimpleApplicationEdit,
 )
@@ -384,3 +385,174 @@ class TestTheRoutesAnswer422:
 
         assert caught.value.status_code == 422
         assert caught.value.detail["code"] == "invalid_harness_kind"
+
+
+class TestTheTemplateIsFoundTheWayTheRuntimeFindsIt:
+    """The runtime reads the bare template, or the `prompt` fallback, when the parameters
+    carry no `agent` object. The rule reads the same one."""
+
+    def test_a_bare_template(self):
+        assert _issues({"uri": AGENT_URI, "parameters": {"skills": [NO_BODY]}}) == [
+            "parameters.skills[0].body is required"
+        ]
+
+    def test_the_prompt_fallback(self):
+        with pytest.raises(InvalidAgentConfigurationError):
+            _reject_unrunnable_agent(
+                {
+                    "uri": AGENT_URI,
+                    "parameters": {
+                        "prompt": {"llm_config": {"tools": [{"type": "builtin"}]}}
+                    },
+                }
+            )
+
+    def test_a_runnable_prompt_fallback_passes(self):
+        _reject_unrunnable_agent(
+            {
+                "uri": AGENT_URI,
+                "parameters": {
+                    "prompt": {
+                        "messages": [{"role": "system", "content": "Help."}],
+                        "llm_config": {"model": "gpt-5.5"},
+                    }
+                },
+            }
+        )
+
+    @pytest.mark.parametrize(
+        "agent, issue",
+        [
+            ({"skills": NO_BODY}, "parameters.agent.skills.body is required"),
+            ({"tools": {"type": "builtin"}}, "parameters.agent.tools.name is required"),
+            (
+                {"mcps": {"name": "files"}},
+                "parameters.agent.mcps.connection is required",
+            ),
+        ],
+    )
+    def test_a_single_entry_given_as_an_object(self, agent, issue):
+        # The runtime reads a single object as a list of one.
+        assert _issues(_agent(**agent)) == [issue]
+
+    def test_a_single_valid_entry_given_as_an_object_passes(self):
+        _reject_unrunnable_agent(_agent(skills=SKILL))
+
+    @pytest.mark.parametrize(
+        "instructions",
+        [SKILL_EMBED, {"agents_md": SKILL_EMBED}],
+    )
+    def test_embedded_instructions_pass(self, instructions):
+        # The embed resolves before a run, so its shape is only known then.
+        _reject_unrunnable_agent(
+            {"uri": AGENT_URI, "parameters": {"agent": {"instructions": instructions}}}
+        )
+
+    def test_a_defect_in_the_parser_is_not_reported_as_a_configuration_error(
+        self, monkeypatch
+    ):
+        from oss.src.core.workflows import service as workflows_service_module
+
+        def broken(*_, **__):
+            raise TypeError("a parser defect")
+
+        monkeypatch.setattr(
+            workflows_service_module.AgentTemplate, "from_params", broken
+        )
+        with pytest.raises(TypeError):
+            _reject_unrunnable_agent(_agent())
+
+
+class TestAMetadataOnlyEditOfABrokenAgentWritesNothing:
+    """A simple edit without data commits a copy of the stored data. When that copy cannot
+    run, the edit is refused before the artifact write, not after it."""
+
+    @pytest.mark.asyncio
+    async def test_simple_workflow_edit(self):
+        workflows_service = AsyncMock()
+        workflows_service.fetch_workflow_variant.return_value.id = uuid4()
+        workflows_service.fetch_workflow_revision.return_value = WorkflowRevision(
+            id=uuid4(), slug="head", workflow_id=uuid4(), data=_agent(skills=[NO_BODY])
+        )
+
+        with pytest.raises(InvalidAgentConfigurationError) as caught:
+            await SimpleWorkflowsService(workflows_service=workflows_service).edit(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                simple_workflow_edit=SimpleWorkflowEdit(id=uuid4(), name="Renamed"),
+            )
+
+        assert caught.value.issues == [NO_BODY_ISSUE]
+        workflows_service.edit_workflow.assert_not_awaited()
+        workflows_service.commit_workflow_revision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_simple_application_edit(self):
+        applications_service = AsyncMock()
+        applications_service.fetch_application.return_value.id = uuid4()
+        applications_service.fetch_application_variant.return_value.id = uuid4()
+        applications_service.fetch_application_revision.return_value = (
+            ApplicationRevision(
+                id=uuid4(),
+                slug="head",
+                application_id=uuid4(),
+                data=_agent(skills=[NO_BODY]),
+            )
+        )
+
+        with pytest.raises(InvalidAgentConfigurationError):
+            await SimpleApplicationsService(
+                applications_service=applications_service
+            ).edit(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                simple_application_edit=SimpleApplicationEdit(
+                    id=uuid4(), name="Renamed"
+                ),
+            )
+
+        applications_service.edit_application.assert_not_awaited()
+        applications_service.commit_application_revision.assert_not_awaited()
+
+
+class TestEveryRouterThatReachesTheRuleMapsIt:
+    @staticmethod
+    def _maps_workflow_errors(handler):
+        while handler is not None:
+            # `wraps` copies the name, so read the code object's own.
+            if handler.__code__.co_qualname.startswith("handle_workflow_exceptions."):
+                return True
+            handler = getattr(handler, "__wrapped__", None)
+        return False
+
+    @pytest.mark.parametrize(
+        "router, name",
+        [
+            ("EvaluatorsRouter", "create_evaluator_revision"),
+            ("EvaluatorsRouter", "commit_evaluator_revision"),
+            ("SimpleEvaluatorsRouter", "create_simple_evaluator"),
+            ("SimpleEvaluatorsRouter", "edit_simple_evaluator"),
+        ],
+    )
+    def test_the_evaluator_write_routes(self, router, name):
+        from oss.src.apis.fastapi.evaluators import router as evaluators_router
+
+        handler = getattr(getattr(evaluators_router, router), name)
+        assert self._maps_workflow_errors(handler)
+
+    def test_the_template_loader_answers_422_with_the_envelope(self):
+        import json
+
+        from oss.src.apis.fastapi.agent_templates.exceptions import (
+            template_load_error_response,
+        )
+
+        with pytest.raises(InvalidAgentConfigurationError) as caught:
+            _reject_unrunnable_agent(_agent(skills=[NO_BODY]))
+
+        response = template_load_error_response(caught.value)
+        assert response is not None
+        assert response.status_code == 422
+        body = json.loads(response.body)
+        assert body["code"] == "invalid_agent_configuration"
+        assert body["details"]["issues"] == [NO_BODY_ISSUE]

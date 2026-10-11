@@ -43,6 +43,7 @@ from agenta.sdk.engines.running.utils import (
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.agents import (
     AgentTemplate,
+    AgentTemplateShapeError,
     InvalidHarnessKindError,
     InvalidAgentInstructionsError as AgentInstructionsShapeError,
     MCPConfigurationError,
@@ -50,6 +51,7 @@ from agenta.sdk.agents import (
     ToolConfigurationError,
     validate_agent_instructions,
 )
+from agenta.sdk.agents.config_errors import ConfigEntryError
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -274,6 +276,9 @@ def _reject_unreadable_agent_instructions(data: Any) -> None:
     if not isinstance(agent, dict):
         return
     instructions = agent.get("instructions")
+    # An embed resolves before a run, so its shape is only known then.
+    if _holds_embed(instructions):
+        return
     try:
         validate_agent_instructions(instructions)
     except AgentInstructionsShapeError as e:
@@ -323,9 +328,10 @@ def _holds_embed(value: Any) -> bool:
 def _reject_unrunnable_agent(data: Any) -> None:
     """Refuse a configuration the agent runtime cannot run.
 
-    Called by `_build_revision_commit`, which builds every stored revision, and by the
-    simple create and edit paths before their first write, where a refusal at the final
-    commit would leave the earlier writes behind.
+    Called by `_build_revision_commit`, which builds every revision a commit stores, and by
+    the simple create and edit paths before their first write, where a refusal at the final
+    commit would leave the earlier writes behind. A fork copies stored revisions without
+    building them, so it is not checked.
 
     The instructions rule applies to any workflow that carries `parameters.agent`. The
     runtime's own parse, `AgentTemplate.from_params`, applies to an agent (the uri key the
@@ -333,8 +339,10 @@ def _reject_unrunnable_agent(data: Any) -> None:
     every run of the agent. It reads the result, not the change, so an agent stored with
     such a field refuses every change until the change corrects it.
 
-    A part that holds an embed is left out: embeds resolve server-side before a run, so
-    its content is only known then.
+    The template is found the way the runtime finds it: at `parameters.agent` when that is
+    an object, else the parameters themselves (the bare template, or the `prompt` fallback).
+    A part that holds an embed is left out: embeds resolve server-side before a run, so its
+    content is only known then.
     """
     if hasattr(data, "model_dump"):
         data = data.model_dump(mode="json", exclude_none=True)
@@ -344,35 +352,47 @@ def _reject_unrunnable_agent(data: Any) -> None:
 
     _, _, key, _ = parse_uri(data.get("uri"))
     parameters = data.get("parameters")
-    if (
-        key != "agent"
-        or not isinstance(parameters, dict)
-        or not isinstance(parameters.get("agent"), dict)
-        or AG_EMBED_KEY in parameters["agent"]
-    ):
+    if key != "agent" or not isinstance(parameters, dict):
         return
 
-    agent: Dict[str, Any] = {}
-    positions: Dict[str, List[int]] = {}
+    wrapped = isinstance(parameters.get("agent"), dict)
+    template = parameters["agent"] if wrapped else parameters
+    if AG_EMBED_KEY in template:
+        return
+    root = "parameters.agent" if wrapped else "parameters"
+
+    # The path of each list entry the parse sees, by its position in the parsed list. The
+    # runtime reads a single object as a list of one.
     lists = {name for name, _ in _AGENT_TEMPLATE_LISTS}
-    for name, value in parameters["agent"].items():
+    paths: Dict[str, List[str]] = {}
+    kept: Dict[str, Any] = {}
+    for name, value in template.items():
         if name in lists and isinstance(value, list):
-            positions[name] = [
-                index for index, entry in enumerate(value) if not _holds_embed(entry)
-            ]
-            agent[name] = [value[index] for index in positions[name]]
+            indexes = [i for i, entry in enumerate(value) if not _holds_embed(entry)]
+            paths[name] = [f"{root}.{name}[{i}]" for i in indexes]
+            kept[name] = [value[i] for i in indexes]
         elif not _holds_embed(value):
-            agent[name] = value
+            if name in lists and isinstance(value, dict):
+                paths[name] = [f"{root}.{name}"]
+            kept[name] = value
 
     try:
-        AgentTemplate.from_params({**parameters, "agent": agent})
+        AgentTemplate.from_params(
+            {**parameters, "agent": kept} if wrapped else kept,
+        )
     except InvalidHarnessKindError as e:
         raise InvalidAgentHarnessError(value=e.value, message=e.message) from e
-    except Exception as e:  # noqa: BLE001 - every refusal is reported the same way
+    # The parse's refusals. Anything else is a defect in the parser, not in the
+    # configuration, and must not reach the caller as "correct your fields".
+    except (ConfigEntryError, AgentTemplateShapeError, ValueError) as e:
         for name, error_type in _AGENT_TEMPLATE_LISTS:
-            if isinstance(e, error_type) and e.index is not None:
-                field = f"parameters.agent.{name}[{positions[name][e.index]}]"
-                raise InvalidAgentConfigurationError(issues=e.describe(field)) from e
+            if not isinstance(e, error_type) or e.index is None:
+                continue
+            entry_paths = paths.get(name, [])
+            if 0 <= e.index < len(entry_paths):
+                raise InvalidAgentConfigurationError(
+                    issues=e.describe(entry_paths[e.index])
+                ) from e
         raise InvalidAgentConfigurationError(issues=[str(e)]) from e
 
 
@@ -4468,6 +4488,43 @@ class SimpleWorkflowsService:
         if workflow is None:
             return None
 
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+        )
+
+        if workflow_variant is None:
+            return None
+
+        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
+
+        workflow_revision_data: Optional[WorkflowRevisionData] = None
+        if should_commit_revision:
+            if simple_workflow_edit.data:
+                workflow_revision_data = WorkflowRevisionData(
+                    **simple_workflow_edit.data.model_dump(mode="json"),
+                )
+            else:
+                latest_workflow_revision = (
+                    await self.workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        #
+                        workflow_variant_ref=Reference(id=workflow_variant.id),
+                    )
+                )
+
+                if latest_workflow_revision is None:
+                    return None
+
+                workflow_revision_data = latest_workflow_revision.data
+
+                # The commit below carries the stored data, so it is refused for the same
+                # reason. Refuse it here, before the artifact write.
+                _reject_unrunnable_agent(workflow_revision_data)
+
         workflow_edit = WorkflowEdit(
             id=simple_workflow_edit.id,
             #
@@ -4503,39 +4560,8 @@ class SimpleWorkflowsService:
         if workflow is None:
             return None
 
-        workflow_variant: Optional[
-            WorkflowVariant
-        ] = await self.workflows_service.fetch_workflow_variant(
-            project_id=project_id,
-            #
-            workflow_ref=workflow_ref,
-        )
-
-        if workflow_variant is None:
-            return None
-
-        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
-
         if should_commit_revision:
             workflow_revision_slug = uuid4().hex[-12:]
-
-            if simple_workflow_edit.data:
-                workflow_revision_data = WorkflowRevisionData(
-                    **simple_workflow_edit.data.model_dump(mode="json"),
-                )
-            else:
-                latest_workflow_revision = (
-                    await self.workflows_service.fetch_workflow_revision(
-                        project_id=project_id,
-                        #
-                        workflow_variant_ref=Reference(id=workflow_variant.id),
-                    )
-                )
-
-                if latest_workflow_revision is None:
-                    return None
-
-                workflow_revision_data = latest_workflow_revision.data
 
             workflow_revision_commit = WorkflowRevisionCommit(
                 slug=workflow_revision_slug,
