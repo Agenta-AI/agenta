@@ -30,7 +30,7 @@ function referencesMatch(
 export function useAgentTriggers(entityId: string | null) {
     // The drill-in entity only carries `parameters`; read the parent ids straight from
     // the workflow molecule (keyed by the revision id, which is the entityId).
-    // Narrowed to the four fields used — a whole-resolvedData subscription re-renders the
+    // Narrowed to the fields used — a whole-resolvedData subscription re-renders the
     // config panel on every boot-time data resolution.
     const revisionMeta = useAtomValue(
         useMemo(
@@ -40,21 +40,16 @@ export function useAgentTriggers(entityId: string | null) {
                     (revision) => ({
                         appId: revision?.workflow_id ?? null,
                         variantId: revision?.workflow_variant_id ?? revision?.variant_id ?? null,
-                        appSlug: (revision as {slug?: string} | null)?.slug ?? null,
                     }),
-                    (a, b) =>
-                        a.appId === b.appId &&
-                        a.variantId === b.variantId &&
-                        a.appSlug === b.appSlug,
+                    (a, b) => a.appId === b.appId && a.variantId === b.variantId,
                 ),
             [entityId],
         ),
     )
     const appId = revisionMeta.appId
     const variantId = revisionMeta.variantId
-    // The app slug — needed for "By environment" binding, which resolves via the
-    // application slug + environment (see triggers/service.py `_normalize_references`).
-    const appSlug = revisionMeta.appSlug
+    // The artifact slug, never the revision's opaque hex slug: the API rejects a mismatch.
+    const appSlug = useAtomValue(workflowMolecule.selectors.artifactSlug(entityId ?? ""))
     // Readable label for the default binding so the drawer's bound-workflow field shows the
     // agent's name instead of a raw id. The display name lives on the workflow ARTIFACT, not
     // on the revision. Falls back when it is unresolved.
