@@ -337,14 +337,15 @@ export const executeTraceQuery = async ({
         let next = result.nextWindowing
         let pages = 1
         while (next && pages < READ_ALL_MAX_PAGES) {
+            const sent = next
             const more = await fetchAllPreviewTracesWithMeta(
                 {
                     ...pageParams,
-                    size: next.limit ?? (pageParams.size as number | undefined),
-                    cursor: next.next,
-                    newest: next.newest,
-                    oldest: next.oldest,
-                    order: next.order,
+                    size: sent.limit ?? (pageParams.size as number | undefined),
+                    cursor: sent.next,
+                    newest: sent.newest ?? pageParams.newest,
+                    oldest: sent.oldest ?? pageParams.oldest,
+                    order: sent.order ?? pageParams.order,
                 },
                 appId,
                 projectId ?? "",
@@ -354,6 +355,11 @@ export const executeTraceQuery = async ({
             data = mergeTracePages(data, more.data)
             next = more.nextWindowing
             pages += 1
+            // A cursor that does not move would read the same page again.
+            if (next && next.next === sent.next && next.newest === sent.newest) {
+                console.warn("[executeTraceQuery] the API cursor did not advance; stopping")
+                break
+            }
         }
         if (next) {
             console.warn(
