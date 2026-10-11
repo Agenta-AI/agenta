@@ -1,5 +1,10 @@
+import type {ReactNode} from "react"
+
+import {Gift, ShoppingBag} from "@phosphor-icons/react"
+
+import {CreditGroupTile} from "./CreditGroupTile"
 import {CreditSourceTile} from "./CreditSourceTile"
-import type {WalletSummary} from "./walletApi"
+import type {WalletCredit, WalletSummary} from "./walletApi"
 import {WalletCard} from "./WalletCard"
 import {activeCredits, walletHealth} from "./walletCredits"
 
@@ -9,7 +14,18 @@ const STATUS = {
     empty: {label: "Empty", tone: "error"},
 } as const
 
-/** The balance as the wallet card, then one tile per credit it draws on. */
+/** Credits that come back on a schedule; each keeps its own tile. */
+const RECURRING = ["plan_allowance", "daily_free"]
+
+/** One tile for a single credit, a folded tile for several. */
+const group = (label: string, icon: ReactNode, credits: WalletCredit[]) =>
+    credits.length === 1 ? (
+        <CreditSourceTile key={credits[0].id} credit={credits[0]} />
+    ) : credits.length ? (
+        <CreditGroupTile key={label} label={label} icon={icon} credits={credits} />
+    ) : null
+
+/** The balance as the wallet card, the recurring credits as tiles, and one-time credits folded. */
 export const CreditsHero = ({
     wallet,
     dailyMusd,
@@ -32,10 +48,26 @@ export const CreditsHero = ({
                 size="compact"
             />
             {credits.length ? (
-                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">
-                    {credits.map((credit) => (
-                        <CreditSourceTile key={credit.id} credit={credit} />
-                    ))}
+                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
+                    {RECURRING.flatMap((kind) =>
+                        credits
+                            .filter((credit) => credit.credit_kind === kind)
+                            .map((credit) => <CreditSourceTile key={credit.id} credit={credit} />),
+                    )}
+                    {group(
+                        "Bonus credits",
+                        <Gift size={14} />,
+                        credits.filter(
+                            (credit) =>
+                                !RECURRING.includes(credit.credit_kind) &&
+                                credit.credit_kind !== "purchase",
+                        ),
+                    )}
+                    {group(
+                        "Purchased",
+                        <ShoppingBag size={14} />,
+                        credits.filter((credit) => credit.credit_kind === "purchase"),
+                    )}
                 </div>
             ) : (
                 <div className="bg-muted text-muted-foreground flex h-[140px] items-center justify-center rounded-xl p-4 text-center text-[13px]">

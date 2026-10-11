@@ -13,8 +13,8 @@ const COLUMNS: ListTableColumn[] = [
     {key: "added", label: "Added", width: "minmax(96px,1fr)"},
     {key: "amount", label: "Amount", width: "minmax(72px,0.8fr)", headerClassName: "text-right"},
     {key: "paid", label: "Paid", width: "minmax(72px,0.8fr)", headerClassName: "text-right"},
-    {key: "expires", label: "Expires", width: "minmax(96px,1fr)", headerClassName: "pl-8"},
-    {key: "status", label: "Status", width: "minmax(112px,1fr)", headerClassName: "pl-8"},
+    {key: "expires", label: "Expires", width: "minmax(120px,1fr)", headerClassName: "pl-6"},
+    {key: "status", label: "Status", width: "minmax(104px,1fr)", headerClassName: "pl-6"},
 ]
 
 const STATUS: Record<"active" | "used" | "expired", {tone: StatusTone; label: string}> = {
@@ -110,10 +110,10 @@ export const CreditHistoryTable = ({
                             <span className="text-muted-foreground text-right tabular-nums">
                                 {paidOf(credit)}
                             </span>
-                            <span className="text-muted-foreground truncate pl-8 text-[13px]">
+                            <span className="text-muted-foreground whitespace-nowrap pl-6 text-[13px]">
                                 {credit.end_time ? formatDate(credit.end_time) : "Never"}
                             </span>
-                            <span className="pl-8">
+                            <span className="pl-6">
                                 <StatusIndicator tone={status.tone} label={status.label} />
                             </span>
                         </>
