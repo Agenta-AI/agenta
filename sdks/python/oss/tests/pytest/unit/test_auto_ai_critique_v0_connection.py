@@ -16,6 +16,7 @@ from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.engines.running import handlers as critique_handlers
 from agenta.sdk.engines.running.errors import (
     InvalidConfigurationParameterV0Error,
+    InvalidSecretsV0Error,
     UnknownConnectionV0Error,
 )
 from agenta.sdk.middlewares.running.normalizer import NormalizerMiddleware
@@ -162,18 +163,16 @@ async def test_a_judge_on_the_retired_starter_credits_connection_says_what_to_do
     assert "openai, openai-2" in message
 
 
-async def test_a_judge_on_the_retired_connection_in_an_emptied_vault_says_the_same(
-    judge,
-):
-    """The deleted connection was often the project's only one."""
-    with pytest.raises(UnknownConnectionV0Error) as caught:
+async def test_an_empty_vault_list_keeps_the_shared_error_for_the_retired_slug(judge):
+    """An empty list does not prove the connection was retired: a failed vault fetch also
+    yields one. The judge keeps the shared "no API key" error rather than claiming a
+    retirement, and a prompt's model fallback still gets its turn."""
+    with pytest.raises(InvalidSecretsV0Error):
         await judge(
             [],
             model="Agenta/custom/vertex_ai/gemini-3.7-flash",
             connection="starter-credits",
         )
-
-    assert "starter-credits connection was retired" in caught.value.message
 
 
 async def test_an_unknown_connection_reaches_the_caller_as_a_400(monkeypatch):

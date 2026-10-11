@@ -77,6 +77,19 @@ _ORGANIZATION_PROJECTS = text(
     "SELECT id FROM projects WHERE organization_id = :organization_id"
 )
 
+# A gateway endpoint under the slug whose vault row is gone. The vault deletes its row first
+# and the registrar only logs a failed endpoint delete, so one can be left behind; it would
+# keep resolving to the blocked key and stop the gateway's built-in alias. Removed here, where
+# a failure counts as `failed` and a rerun retries it.
+_DELETE_ORPHAN_ENDPOINTS = text(
+    "DELETE FROM llms_endpoints e"
+    " WHERE e.project_id = ANY(:project_ids) AND e.slug = :slug"
+    " AND NOT EXISTS ("
+    "  SELECT 1 FROM secrets s"
+    "  WHERE s.project_id = e.project_id AND s.slug = e.slug AND s.deleted_at IS NULL"
+    " )"
+)
+
 
 @dataclass
 class MigrationCounts:
@@ -90,6 +103,7 @@ class MigrationCounts:
     granted_musd: int = 0
     remaining_musd: int = 0
     connections_removed: int = 0
+    orphan_endpoints_removed: int = 0
     failed: int = 0
 
 
@@ -126,11 +140,13 @@ async def _organization_exists(engine, organization_id: UUID) -> bool:
 
 async def _remove_bridge_connections(
     *, engine, vault: VaultService, organization_id: UUID
-) -> int:
-    """Delete the seeded "Agenta" connection from each of the organization's projects.
+) -> tuple[int, int]:
+    """Delete the seeded "Agenta" connection from each of the organization's projects, then
+    any endpoint under the slug left without a vault row. Returns both counts.
 
     Only the row the bridge manages: a user who saved their own connection under the same
-    slug keeps it. Idempotent, so a rerun removes what a failed run left."""
+    slug keeps it, and so does its endpoint. Idempotent, so a rerun removes what a failed run
+    left."""
     async with engine.session() as session:
         rows = await session.execute(
             _ORGANIZATION_PROJECTS, {"organization_id": organization_id}
@@ -154,7 +170,15 @@ async def _remove_bridge_connections(
             project_id=project_id,
         )
         removed += 1
-    return removed
+
+    if not project_ids:
+        return removed, 0
+    async with engine.session() as session:
+        orphans = await session.execute(
+            _DELETE_ORPHAN_ENDPOINTS,
+            {"project_ids": project_ids, "slug": STARTER_CREDITS_SLUG},
+        )
+    return removed, orphans.rowcount
 
 
 async def _migrate_key(
@@ -208,9 +232,11 @@ async def _migrate_key(
         counts.granted_musd += credit.amount_musd
 
     # After the grant, so a failed delete is retried by a rerun whose grant is a no-op.
-    counts.connections_removed += await _remove_bridge_connections(
+    removed, orphans = await _remove_bridge_connections(
         engine=engine, vault=vault, organization_id=organization_id
     )
+    counts.connections_removed += removed
+    counts.orphan_endpoints_removed += orphans
 
 
 async def migrate_starter_credits(

@@ -110,7 +110,10 @@ const ModelPickerControl = ({
 
     // The exact row the config points at. `value` alone selects by model id, which lights up every
     // connection offering that id; the stored connection and harness resolve it to one.
-    const vaultSlugs = useMemo(() => connections.map((connection) => connection.slug), [connections])
+    const vaultSlugs = useMemo(
+        () => connections.map((connection) => connection.slug),
+        [connections],
+    )
     const displayed = useMemo(
         () => displayedModelRow(rows, {modelId, slug, namespace, mode, harness}, vaultSlugs),
         [rows, modelId, slug, namespace, mode, harness, vaultSlugs],

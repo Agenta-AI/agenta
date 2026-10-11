@@ -151,7 +151,9 @@ python -m entrypoints.migrate_starter_credits_to_wallet --apply
 
 The last line prints the counts: `keys`, `skipped`, `no_organization`, `not_blocked`,
 `blocked`, `zero_remaining`, `granted`, `granted_musd`, `remaining_musd`,
-`connections_removed`, `failed`. A
+`connections_removed`, `orphan_endpoints_removed`, `failed`. A rerun of `--apply` prints
+`granted` and `granted_musd` again for organizations it already granted, without granting
+twice: verify the grant in `wallet_credits`, not in a rerun's counts. A
 non-zero `failed` gives a non-zero exit status; rerun to retry. Turn seeding off
 (`AGENTA_STARTER_CREDITS_BRIDGE_ENABLED=false`) before stage 1, or a key minted after it is
 not transferred.
