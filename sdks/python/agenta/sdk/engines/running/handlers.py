@@ -36,7 +36,7 @@ from agenta.sdk.utils.types import (  # noqa: F401
 from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.models.shared import Data
-from agenta.sdk.engines.running.sandbox import execute_code_safely
+from agenta.sdk.engines.running.sandbox import run_code_safely
 from agenta.sdk.engines.running.templates import EVALUATOR_TEMPLATES
 from agenta.sdk.engines.running.errors import (
     CustomCodeServerV0Error,
@@ -774,9 +774,9 @@ async def auto_custom_code_run_v0(
 
     effective_version = declared_version if declared_version in {"1", "2", "3"} else "1"
 
-    def _run_v2(version: str) -> Any:
+    async def _run_v2(version: str) -> Any:
         try:
-            return execute_code_safely(
+            return await run_code_safely(
                 app_params={},
                 inputs=inputs or {},
                 output=_outputs_value,
@@ -795,7 +795,7 @@ async def auto_custom_code_run_v0(
                 stacktrace=traceback.format_exc(),
             ) from e
 
-    def _run_v1() -> Any:
+    async def _run_v1() -> Any:
         correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
         if inputs is None or not isinstance(inputs, dict):
@@ -807,7 +807,7 @@ async def auto_custom_code_run_v0(
         correct_answer = inputs[correct_answer_key]
 
         try:
-            return execute_code_safely(
+            return await run_code_safely(
                 app_params={},
                 inputs=inputs,
                 output=_outputs_value,
@@ -827,7 +827,9 @@ async def auto_custom_code_run_v0(
             ) from e
 
     _outputs = (
-        _run_v2(effective_version) if effective_version in ("2", "3") else _run_v1()
+        await _run_v2(effective_version)
+        if effective_version in ("2", "3")
+        else await _run_v1()
     )
 
     # bool before (int, float): bool is an int subclass and would otherwise be
@@ -2902,7 +2904,7 @@ async def code_v0(
         raise InvalidOutputsV0Error(expected=["dict", "str", "None"], got=outputs)
 
     try:
-        _result = execute_code_safely(
+        _result = await run_code_safely(
             app_params={},
             inputs=inputs or {},
             output=outputs,

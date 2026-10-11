@@ -1,12 +1,18 @@
 import os
 import json
+import math
+import threading
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, Union, Optional, TYPE_CHECKING
 
 import httpx
 
 import agenta as ag
-from agenta.sdk.engines.running.runners.base import CodeRunner, normalize_result
+from agenta.sdk.engines.running.runners.base import (
+    CodeRunner,
+    get_code_sandbox_timeout,
+    normalize_result,
+)
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.lazy import _load_daytona
@@ -87,6 +93,9 @@ class DaytonaRunner(CodeRunner):
     # listing snapshots on every sandbox create.
     _snapshot_id_cache: TTLLRUCache = TTLLRUCache(capacity=32, ttl=86400)
 
+    # Runs start from many threads at once. Build the client only once.
+    _client_lock = threading.Lock()
+
     def __new__(cls):
         """Singleton pattern to reuse Daytona client and sandbox."""
         if cls._instance is None:
@@ -119,6 +128,11 @@ class DaytonaRunner(CodeRunner):
         if self.daytona is not None:
             return
 
+        with self._client_lock:
+            if self.daytona is None:
+                self._create_client()
+
+    def _create_client(self) -> None:
         try:
             Daytona, DaytonaConfig, _, _ = _load_daytona()
 
@@ -414,7 +428,12 @@ class DaytonaRunner(CodeRunner):
                 )
 
                 # Execute the code in the Daytona sandbox
-                response = sandbox.process.code_run(wrapped_code)
+                # The caller stops waiting at the same timeout. Passing it here
+                # also stops the remote run, so the thread and sandbox are freed.
+                response = sandbox.process.code_run(
+                    wrapped_code,
+                    timeout=math.ceil(get_code_sandbox_timeout()),
+                )
                 response_stdout = response.result if hasattr(response, "result") else ""
                 response_exit_code = getattr(response, "exit_code", 0)
                 response_error = getattr(response, "error", None) or getattr(
