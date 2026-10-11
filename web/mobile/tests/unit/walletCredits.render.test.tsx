@@ -31,8 +31,6 @@ const runtime = globalThis as typeof globalThis & {__env?: Record<string, string
 const summary = (mode: WalletSummary["mode"]): WalletSummary => ({
     mode,
     spendable_musd: 12_345_000,
-    general_balance_musd: 12_345_000,
-    floor_musd: 0,
     active_credit_total_musd: 50_000_000,
     credits: [
         {
@@ -40,7 +38,6 @@ const summary = (mode: WalletSummary["mode"]): WalletSummary => ({
             credit_kind: "signup_grant",
             amount_musd: 50_000_000,
             remaining_musd: 12_345_000,
-            priority: 10,
             start_time: null,
             end_time: "2027-10-02T00:00:00Z",
             created_at: "2026-10-02T00:00:00Z",
@@ -74,12 +71,10 @@ const flooredSummary = (): WalletSummary => ({
 const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 
 const usage: WalletUsage = {
-    start: "2026-09-02T00:00:00Z",
-    end: "2026-10-02T00:00:00Z",
     truncated: false,
     days: [
-        {day: yesterday, category: "AI models", amount_musd: 1_000_000, charge_count: 3},
-        {day: yesterday, category: "Runtime", amount_musd: 250_000, charge_count: 2},
+        {day: yesterday, category: "AI models", amount_musd: 1_000_000},
+        {day: yesterday, category: "Runtime", amount_musd: 250_000},
     ],
     sessions: [],
 }
