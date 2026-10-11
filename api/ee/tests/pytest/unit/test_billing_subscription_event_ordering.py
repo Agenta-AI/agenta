@@ -34,7 +34,18 @@ class _DAO:
     async def read(self, *, organization_id):
         return self.subscription.model_copy()
 
-    async def update(self, *, subscription):
+    async def update(
+        self,
+        *,
+        subscription,
+        check_subscription_id=False,
+        expected_subscription_id=None,
+    ):
+        if (
+            check_subscription_id
+            and self.subscription.subscription_id != expected_subscription_id
+        ):
+            return None
         self.writes += 1
         self.subscription = subscription.model_copy()
         return subscription
@@ -99,7 +110,15 @@ def _invoice_event(kind, subscription_id, shape="2023-10-16", plan=PRO):
             metadata=_metadata(plan),
         ),
     )
-    if shape == "2023-10-16":
+    if shape == "2023-10-16-without-parent":
+        invoice = SimpleNamespace(
+            id=f"in_{subscription_id}",
+            billing_reason="subscription_cycle",
+            subscription=subscription_id,
+            subscription_details=SimpleNamespace(metadata=_metadata(plan)),
+            total=0,
+        )
+    elif shape == "2023-10-16":
         invoice = SimpleNamespace(
             id=f"in_{subscription_id}",
             billing_reason="subscription_cycle",
@@ -302,17 +321,76 @@ async def test_subscribing_again_after_a_cancellation_activates_the_new_one(stri
 
 
 @pytest.mark.asyncio
-async def test_a_creation_still_applies_when_stripe_cannot_be_read(stripe):
-    # Unknown is not ended: the creation applies, as it did before.
+async def test_a_late_creation_is_refused_when_stripe_cannot_be_read(stripe):
+    # The deletion was processed; the creation of the same subscription arrives and
+    # Stripe cannot be read. Applying it on a guess would restore an ended
+    # subscription, so it is refused and Stripe retries it.
     stripe.unreadable = True
     dao, router = _setup(_row())
 
     response = await _deliver(
-        router, stripe, _subscription_event("created", "sub_1", "active")
+        router, stripe, _subscription_event("created", "sub_old", "active")
     )
 
-    assert response.status_code == 200
-    assert dao.subscription.subscription_id == "sub_1"
+    assert response.status_code == 400
+    assert dao.subscription.plan == HOBBY
+    assert dao.subscription.subscription_id is None
+    assert dao.writes == 0
+
+
+@pytest.mark.asyncio
+async def test_a_deletion_racing_a_new_subscription_does_not_erase_it(stripe):
+    # deleted(old) reads the row while it records the old subscription; created(new)
+    # commits before deleted(old) writes. The guarded write sees the change and
+    # refuses, so Stripe retries the deletion, which is then stale.
+    stripe.statuses = {"sub_old": "canceled", "sub_new": "active"}
+    dao, router = _setup(_row(plan=PRO, subscription_id="sub_old"))
+    read = dao.read
+
+    async def read_then_new_subscription_commits(*, organization_id):
+        row = await read(organization_id=organization_id)
+        dao.subscription = _row(plan=BUSINESS, subscription_id="sub_new")
+        return row
+
+    dao.read = read_then_new_subscription_commits
+
+    response = await _deliver(
+        router, stripe, _subscription_event("deleted", "sub_old", "canceled")
+    )
+
+    assert response.status_code == 400
+    assert dao.subscription.plan == BUSINESS
+    assert dao.subscription.subscription_id == "sub_new"
+    router._reset_organization_flags.assert_not_awaited()
+
+    dao.read = read
+    retry = await _deliver(
+        router, stripe, _subscription_event("deleted", "sub_old", "canceled")
+    )
+
+    assert retry.status_code == 200
+    assert dao.subscription.subscription_id == "sub_new"
+
+
+@pytest.mark.asyncio
+async def test_a_failure_for_a_new_subscription_before_its_creation_still_pauses(
+    stripe,
+):
+    # The row records A; B's payment fails before B's CREATED is processed. The
+    # failure is refused (not skipped), so the retry after CREATED pauses B.
+    stripe.statuses = {"sub_a": "active", "sub_b": "past_due"}
+    dao, router = _setup(_row(plan=PRO, subscription_id="sub_a"))
+
+    first = await _deliver(router, stripe, _invoice_event("payment_failed", "sub_b"))
+    assert first.status_code == 400
+
+    await _deliver(router, stripe, _subscription_event("created", "sub_b", "past_due"))
+    assert dao.subscription.subscription_id == "sub_b"
+
+    retry = await _deliver(router, stripe, _invoice_event("payment_failed", "sub_b"))
+
+    assert retry.status_code == 200
+    assert dao.subscription.active is False
 
 
 @pytest.mark.asyncio
@@ -367,7 +445,9 @@ async def test_cancelling_the_recorded_subscription_downgrades(stripe):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("shape", ["2023-10-16", "2025-03-31"])
+@pytest.mark.parametrize(
+    "shape", ["2023-10-16", "2023-10-16-without-parent", "2025-03-31"]
+)
 async def test_a_failed_then_paid_invoice_pauses_then_resumes(stripe, shape):
     stripe.statuses = {"sub_1": "past_due"}
     dao, router = _setup(_row(plan=PRO, subscription_id="sub_1"))

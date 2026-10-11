@@ -32,7 +32,18 @@ class _DAO:
             return None
         return self.subscription.model_copy()
 
-    async def update(self, *, subscription):
+    async def update(
+        self,
+        *,
+        subscription,
+        check_subscription_id=False,
+        expected_subscription_id=None,
+    ):
+        if (
+            check_subscription_id
+            and self.subscription.subscription_id != expected_subscription_id
+        ):
+            return None
         self.subscription = subscription.model_copy()
         return subscription
 
@@ -286,8 +297,11 @@ async def test_a_pause_for_the_recorded_subscription_still_pauses(warnings):
 
 
 @pytest.mark.asyncio
-async def test_a_pause_for_another_subscription_leaves_a_paid_row_alone(warnings):
-    # A late failure for an earlier subscription must not pause the current one.
+async def test_a_pause_for_another_subscription_leaves_a_paid_row_alone(
+    warnings, monkeypatch
+):
+    # A late failure for an earlier, ended subscription must not pause the current one.
+    _stripe_reports(monkeypatch, status="canceled")
     organization_id = uuid4()
     service = _service(PRO, organization_id=organization_id)
 
@@ -325,3 +339,23 @@ async def test_a_paid_row_with_no_recorded_subscription_still_pauses(warnings):
     )
 
     assert subscription.active is False
+
+
+@pytest.mark.asyncio
+async def test_a_pause_for_a_live_unrecorded_subscription_is_refused(
+    warnings, monkeypatch
+):
+    # A different id alone does not prove the event is older: the subscription may
+    # be a new one whose CREATED event has not arrived. Refused, so Stripe retries.
+    _stripe_reports(monkeypatch, status="past_due")
+    organization_id = uuid4()
+    service = _service(PRO, organization_id=organization_id)
+
+    with pytest.raises(EventException):
+        await service.process_event(
+            organization_id=str(organization_id),
+            event=Event.SUBSCRIPTION_PAUSED,
+            subscription_id="sub_new",
+        )
+
+    assert service.subscriptions_dao.subscription.active is True

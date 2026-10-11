@@ -46,20 +46,25 @@ _ENDED_STRIPE_STATUSES = frozenset({"canceled", "incomplete_expired"})
 
 
 async def _stripe_subscription_ended(subscription_id: str) -> bool:
-    """Whether Stripe reports the subscription as ended. Unknown counts as not ended,
-    so the event is refused and Stripe retries it."""
+    """Whether Stripe reports the subscription as ended.
+
+    Raises EventException when Stripe cannot be read, so the webhook answers non-2xx
+    and Stripe retries the event instead of it being applied on a guess.
+    """
     stripe = _load_stripe()
     if stripe is None:
-        return False
+        raise EventException("Stripe is not available to check the subscription")
 
     try:
         # The Stripe client is synchronous; keep the request off the event loop.
         stripe_subscription = await asyncio.to_thread(
             stripe.Subscription.retrieve, subscription_id
         )
-    except Exception:  # pylint: disable=too-broad-exception
+    except Exception as e:  # pylint: disable=too-broad-exception
         log.warn("Failed to read subscription %s from Stripe", subscription_id)
-        return False
+        raise EventException(
+            f"Could not read subscription {subscription_id} from Stripe"
+        ) from e
 
     status = getattr(stripe_subscription, "status", None)
     if status is None and isinstance(stripe_subscription, dict):
@@ -75,29 +80,36 @@ async def _is_stale_event(
     recorded_subscription_id: Optional[str],
     recorded_plan_is_free: bool,
 ) -> bool:
-    """Whether a Stripe event is for a subscription other than the one the row records.
+    """Whether a Stripe event is for a subscription the organization no longer has.
 
     Stripe delivers events out of order and retries them for days, so an event can
-    arrive after the organization's subscription changed.
+    arrive after the organization's subscription changed. A different id alone does
+    not prove the event is older, so Stripe decides: an ended subscription's event
+    is stale; a live one's is applied (CREATED) or refused so Stripe retries it.
     """
     if subscription_id == recorded_subscription_id:
         return False
 
-    # A new subscription replaces whatever the row records, unless Stripe has
-    # already ended it: then this is a late creation of a subscription that is gone.
-    if event == Event.SUBSCRIPTION_CREATED:
-        return await _stripe_subscription_ended(subscription_id)
+    # A paid row with no recorded id has nothing to compare: apply, as before.
+    if (
+        event != Event.SUBSCRIPTION_CREATED
+        and not recorded_subscription_id
+        and not recorded_plan_is_free
+    ):
+        return False
 
-    # The row records another subscription: this event is about an earlier one.
-    if recorded_subscription_id:
+    if await _stripe_subscription_ended(subscription_id):
         return True
 
-    # A free row with no recorded id is either past a cancellation or still waiting
-    # for its CREATED event. A failed payment is stale only once Stripe ended it.
-    if event == Event.SUBSCRIPTION_PAUSED and recorded_plan_is_free:
-        return await _stripe_subscription_ended(subscription_id)
+    # A live subscription the row does not record yet: CREATED records it. Any other
+    # event waits for that, so it is refused and Stripe retries it.
+    if event == Event.SUBSCRIPTION_CREATED:
+        return False
 
-    return False
+    raise EventException(
+        f"Event {event.value} is for subscription {subscription_id}, which is live "
+        "but not the one recorded yet"
+    )
 
 
 class SubscriptionsService:
@@ -160,6 +172,33 @@ class SubscriptionsService:
         subscription: SubscriptionDTO,
     ) -> Optional[SubscriptionDTO]:
         return await self.subscriptions_dao.update(subscription=subscription)
+
+    async def _apply_event_write(
+        self,
+        *,
+        subscription: SubscriptionDTO,
+        recorded_subscription_id: Optional[str],
+        guarded: bool,
+    ) -> Optional[SubscriptionDTO]:
+        """Write the row an event produced. A Stripe event's write applies only if the
+        row still records the subscription it was checked against; otherwise another
+        event changed it in between and this one is refused, so Stripe retries it."""
+        if not guarded:
+            return await self.update(subscription=subscription)
+
+        updated = await self.subscriptions_dao.update(
+            subscription=subscription,
+            check_subscription_id=True,
+            expected_subscription_id=recorded_subscription_id,
+        )
+
+        if updated is None:
+            raise EventException(
+                f"The subscription for organization ID {subscription.organization_id} "
+                "changed while the event was applied"
+            )
+
+        return updated
 
     async def start_reverse_trial(
         self,
@@ -425,23 +464,38 @@ class SubscriptionsService:
                 f"one recorded for organization ID {organization_id}"
             )
 
+        recorded_subscription_id = subscription.subscription_id
+        guarded = subscription_id is not None
+
         if event == Event.SUBSCRIPTION_CREATED:
             subscription.active = True
             subscription.plan = plan
             subscription.subscription_id = subscription_id
             subscription.anchor = anchor
 
-            subscription = await self.update(subscription=subscription)
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
+            )
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_PAUSED:
             subscription.active = False
 
-            subscription = await self.update(subscription=subscription)
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
+            )
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_RESUMED:
             subscription.active = True
 
-            subscription = await self.update(subscription=subscription)
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
+            )
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_SWITCHED:
             stripe = _load_stripe()
@@ -493,7 +547,11 @@ class SubscriptionsService:
             subscription.active = True
             subscription.plan = plan
 
-            subscription = await self.update(subscription=subscription)
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
+            )
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_CANCELLED:
             subscription.active = True
@@ -501,7 +559,11 @@ class SubscriptionsService:
             subscription.subscription_id = None
             subscription.anchor = anchor
 
-            subscription = await self.update(subscription=subscription)
+            subscription = await self._apply_event_write(
+                subscription=subscription,
+                recorded_subscription_id=recorded_subscription_id,
+                guarded=guarded,
+            )
 
         elif subscription.plan == free_plan and event == Event.SUBSCRIPTION_CANCELLED:
             log.info(
